@@ -45,6 +45,14 @@ type Executor struct {
 	// just a function-typed value. Function types are not interfaces,
 	// so this does not violate AC-12's "no engine abstraction" rule.
 	scanFunc ScanFunc
+
+	// remediateFunc / rollbackFunc are the remediation seams (Phase 7,
+	// Tier A free-core), bound via WithRemediateFunc. Nil until wired;
+	// Remediate/Rollback then return a not-wired error. They resolve
+	// credentials through the apply-enabled TransportFactory themselves,
+	// so the executor's CredentialBridge is not consulted on these paths.
+	remediateFunc RemediateFunc
+	rollbackFunc  RollbackFunc
 }
 
 // ScanFunc is the per-Run scan-invocation closure. Production wires
@@ -107,11 +115,71 @@ func NewExecutor(creds CredentialBridge, emit EmitFunc) *Executor {
 // own inFlight set (no shared sync.Map between original and copy).
 func (e *Executor) WithScanFunc(fn ScanFunc) *Executor {
 	return &Executor{
-		credential: e.credential,
-		emit:       e.emit,
-		clock:      e.clock,
-		scanFunc:   fn,
+		credential:    e.credential,
+		emit:          e.emit,
+		clock:         e.clock,
+		scanFunc:      fn,
+		remediateFunc: e.remediateFunc,
+		rollbackFunc:  e.rollbackFunc,
 	}
+}
+
+// WithRemediateFunc returns a new Executor that mirrors the receiver's hooks
+// (including its ScanFunc, so a host's scan + remediate share one inFlight
+// guard) but binds the remediation seams. Production chains this after
+// WithScanFunc; tests inject controllable behavior.
+func (e *Executor) WithRemediateFunc(rf RemediateFunc, rbf RollbackFunc) *Executor {
+	return &Executor{
+		credential:    e.credential,
+		emit:          e.emit,
+		clock:         e.clock,
+		scanFunc:      e.scanFunc,
+		remediateFunc: rf,
+		rollbackFunc:  rbf,
+	}
+}
+
+// Remediate applies a single approved rule on hostID. It shares the per-host
+// inFlight guard with Run, so a host is never scanned and remediated at the
+// same instant (ErrHostBusy otherwise). Credentials are resolved inside the
+// remediateFunc via the apply-enabled transport. Audit of the request
+// lifecycle (remediation.executed) is emitted by the worker, not here.
+func (e *Executor) Remediate(ctx context.Context, hostID uuid.UUID, ruleID string) (*RemediationRunResult, error) {
+	if _, loaded := e.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
+		return nil, ErrHostBusy
+	}
+	defer e.inFlight.Delete(hostID)
+	if e.remediateFunc == nil {
+		return nil, errors.New("kensa: remediate path not wired")
+	}
+	res, reason, err := e.remediateFunc(ctx, hostID, ruleID)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		return nil, mapReasonToErr(reason, err)
+	}
+	return res, nil
+}
+
+// Rollback reverts a prior remediation transaction on hostID. Same per-host
+// guard as Remediate/Run.
+func (e *Executor) Rollback(ctx context.Context, hostID uuid.UUID, txnID uuid.UUID) (*RollbackRunResult, error) {
+	if _, loaded := e.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
+		return nil, ErrHostBusy
+	}
+	defer e.inFlight.Delete(hostID)
+	if e.rollbackFunc == nil {
+		return nil, errors.New("kensa: rollback path not wired")
+	}
+	res, reason, err := e.rollbackFunc(ctx, hostID, txnID)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		return nil, mapReasonToErr(reason, err)
+	}
+	return res, nil
 }
 
 // unwiredScanFunc is the test-only fallback scanFunc bound by

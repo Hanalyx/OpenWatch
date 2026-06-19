@@ -952,6 +952,31 @@ events:
   - code: admin.user.deleted
     severity: warning
 
+  - code: admin.user.password_reset
+    severity: warning
+    description: An administrator reset another user's (or their own) password.
+    detail_schema:
+      type: object
+      properties:
+        target_user_id: {type: string}
+        self: {type: boolean}
+
+  - code: admin.user.disabled
+    severity: warning
+    description: An administrator disabled a user account (cannot authenticate).
+    detail_schema:
+      type: object
+      properties:
+        target_user_id: {type: string}
+
+  - code: admin.user.enabled
+    severity: warning
+    description: An administrator re-enabled a previously disabled user account.
+    detail_schema:
+      type: object
+      properties:
+        target_user_id: {type: string}
+
   - code: admin.role.changed
     severity: warning
 

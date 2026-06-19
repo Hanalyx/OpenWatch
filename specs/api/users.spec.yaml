@@ -1,7 +1,7 @@
 spec:
   id: api-users
   title: User CRUD + custom-role administration
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -32,6 +32,8 @@ spec:
         - POST /users/{id}/roles:assign
         - POST /users/{id}/roles:unassign
         - POST /roles (custom role create)
+        - "POST /users/{id}:reset-password (admin reset, own or another's)"
+        - "POST /users/{id}:disable and :enable (account disable)"
       excludes:
         - "PUT /users/{id} (email patch) — deferred to A.5"
         - "DELETE / PUT /roles (built-ins can't be touched, custom-role delete deferred)"
@@ -57,6 +59,18 @@ spec:
     - id: C-05
       description: POST /users/{id}/roles:assign MUST NOT let a caller grant a role more privileged than themselves. The assigned role's permission set MUST be a subset of the assigning caller's own permissions; otherwise the request is denied 403 and no role is assigned. This prevents privilege escalation via role assignment (mirrors the api-tokens C-03 rule; both use auth.RoleGrantsWithin).
       type: security
+      enforcement: error
+    - id: C-06
+      description: 'POST /users/{id}:reset-password MUST require admin:user_manage and set the target''s password WITHOUT requiring the current password (administrator authority). The new password MUST run through the role-aware policy + breach screen (rejected => 400), and on success the target''s active sessions MUST be revoked so they re-authenticate. The target MAY be the caller themselves (admin reset of own password).'
+      type: security
+      enforcement: error
+    - id: C-07
+      description: 'POST /users/{id}:disable and :enable MUST require admin:user_manage. Disable sets users.disabled_at and MUST revoke the target''s active sessions; a disabled user MUST be unable to authenticate (the login path rejects them with a generic invalid-credentials response, no account-state enumeration, while the audit records reason=account_disabled). Enable clears disabled_at. An admin MUST NOT disable their own account (409 users.cannot_disable_self). Cookie sessions are cut off immediately via revocation + the login block; full Bearer-JWT / API-token disable enforcement is a documented hardening follow-up.'
+      type: security
+      enforcement: error
+    - id: C-08
+      description: 'Each admin user-management mutation MUST emit its audit code (admin.user.password_reset | admin.user.disabled | admin.user.enabled) carrying detail.target_user_id; an unknown or soft-deleted target MUST return 404 users.not_found.'
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -108,3 +122,27 @@ spec:
       description: POST /users/{id}/roles:assign applies the auth.RoleGrantsWithin subset check before assigning — assigning a role within the caller's grant returns 204, and a role whose permissions exceed the caller's is denied 403 with no row written. (Only the admin role currently holds role:assign, and admin's grant covers every role, so the exceeds-grant denial is asserted directly on auth.RoleGrantsWithin; it becomes reachable if a non-admin role is ever granted role:assign.)
       priority: critical
       references_constraints: [C-05]
+    - id: AC-14
+      description: 'POST /users/{id}:reset-password as an admin on another user returns 204 with no current password; the target''s active sessions are revoked and the new password authenticates at login. A password that fails policy (too short/long/breached) returns 400 validation.password_policy and leaves the old password intact. A caller lacking admin:user_manage is 403.'
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-15
+      description: 'POST /users/{id}:reset-password targeting the caller''s OWN id returns 204 (an admin resets their own password without supplying the current one) and emits admin.user.password_reset with detail.self=true.'
+      priority: high
+      references_constraints: [C-06]
+    - id: AC-16
+      description: 'POST /users/{id}:disable as an admin returns 200 with disabled_at set; the disabled user can no longer log in (login returns the generic auth.invalid_credentials, audit reason=account_disabled) and their existing sessions are revoked. Emits admin.user.disabled with detail.target_user_id.'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-17
+      description: 'POST /users/{id}:enable clears disabled_at (200, disabled_at null) and the user can authenticate again; emits admin.user.enabled.'
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-18
+      description: 'An admin calling POST /users/{id}:disable with their OWN id is denied 409 users.cannot_disable_self and the account is unchanged (still able to authenticate).'
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-19
+      description: 'reset-password, :disable and :enable each return 404 users.not_found for an unknown/soft-deleted user, and each requires admin:user_manage (a caller without it is 403 before any state change).'
+      priority: high
+      references_constraints: [C-06, C-07, C-08]

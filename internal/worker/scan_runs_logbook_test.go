@@ -62,9 +62,13 @@ func TestEveryFailPath_PairsWithMarkRunFailed(t *testing.T) {
 			if !strings.Contains(line, "queue.Fail(") {
 				continue
 			}
-			// The wrong-job-type fast-fail is exempt (not a scan).
+			// The wrong-job-type fast-fail is exempt (not a scan). The
+			// remediation dispatch branch is likewise exempt — a
+			// remediation job owns a remediation_requests lifecycle, not a
+			// scan_runs row, so it must NOT write the scan logbook.
 			window := strings.Join(lines[max(0, i-6):min(len(lines), i+7)], "\n")
-			if strings.Contains(window, "unsupported job_type") {
+			if strings.Contains(window, "unsupported job_type") ||
+				strings.Contains(window, "remediation processor not registered") {
 				continue
 			}
 			if !strings.Contains(window, "markRunFailed") && !strings.Contains(window, "MarkFailed") {

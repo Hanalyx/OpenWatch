@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -294,6 +295,9 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	}
 	s.WithScanQueue(scanKey)
 	s.WithExceptions(exception.NewService(pool, audit.Emit))
+	// Spec api-remediation: wire the remediation governance service so
+	// /api/v1/remediation/* reaches a real handler instead of the 503 guard.
+	s.WithRemediation(remediation.NewService(pool, audit.Emit))
 	// Spec api-groups: wire the host-group service so /api/v1/groups and
 	// its sub-routes reach a real handler instead of the 503 not-wired
 	// guard.

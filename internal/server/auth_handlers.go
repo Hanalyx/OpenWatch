@@ -46,6 +46,16 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A disabled account cannot authenticate. The client gets the same
+	// generic "invalid username or password" (no account-state enumeration);
+	// the audit trail records the specific reason.
+	if u.DisabledAt != nil {
+		emitLoginFailure(r, "account_disabled", req.Username)
+		writeError(w, http.StatusUnauthorized, "auth.invalid_credentials", "client",
+			"invalid username or password", false)
+		return
+	}
+
 	// Check MFA enrollment. If enrolled, the otp is required.
 	enrolled, err := mfaEnrolled(r.Context(), h, u.ID)
 	if err != nil {

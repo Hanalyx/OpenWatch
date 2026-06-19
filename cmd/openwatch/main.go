@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -50,6 +51,7 @@ import (
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/posture"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
@@ -573,10 +575,54 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	exceptionSvc := exception.NewService(pool, audit.Emit)
 	exceptionSvc.Run(ctx, 0)
 
+	// Remediation governance: request/approve/reject + projected lift (free
+	// core), AND the queued single-rule execute/rollback (Tier A free core).
+	// Spec api-remediation.
+	remediationSvc := remediation.NewService(pool, audit.Emit)
+	remTxWriter := transactionlog.NewWriter(pool, audit.Emit)
+
+	// Remediation execution executor: shares the scan executor's per-host
+	// inFlight guard by chaining WithRemediateFunc onto it (so a host is never
+	// scanned + remediated at the same instant). The apply-enabled Kensa needs
+	// a durable SQLite store for rollback pre-state — derive a path from the
+	// kensa store env (dev default under the working dir).
+	remExecutor := scanExecutor
+	if remFn, rbFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    scanRulesDir,
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  knownhosts.NewStore(pool),
+		Variables: func(ctx context.Context) (map[string]string, error) {
+			vars, err := cfgStore.LoadScanVars(ctx)
+			return vars, err
+		},
+		Profiles: connStore,
+		Policy: func(ctx context.Context) (bool, error) {
+			cfg, err := cfgStore.LoadSecurity(ctx)
+			return cfg.AllowCredentialSudoPassword, err
+		},
+		StorePath: kensaStorePath(bootCtx),
+	}); remErr != nil {
+		slog.WarnContext(bootCtx, "kensa remediation wiring unavailable — remediation execute/rollback will fail until the kensa-rules package is installed (or OPENWATCH_KENSA_RULES_DIR set)",
+			slog.String("error", remErr.Error()))
+	} else {
+		remExecutor = remExecutor.WithRemediateFunc(remFn, rbFn)
+	}
+	remediationWorker := worker.NewRemediationWorker(worker.RemediationConfig{
+		Pool:     pool,
+		Executor: remExecutor,
+		Service:  remediationSvc,
+		Writer:   remTxWriter,
+		QueueKey: scanQueueKey,
+		Bus:      bus,
+		Emit:     audit.Emit,
+	})
+
 	scanWorker := worker.NewScanWorker(worker.Config{
 		Pool:        pool,
 		Executor:    scanExecutor,
-		Writer:      transactionlog.NewWriter(pool, audit.Emit),
+		Writer:      remTxWriter,
 		ScanResults: scanresult.NewWriter(pool),
 		QueueKey:    scanQueueKey,
 		Emit:        audit.Emit,
@@ -592,10 +638,12 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithAlerts(alerts.NewService(pool, audit.Emit)).
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).
+		WithRemediationWorker(remediationWorker).
 		WithRuleCatalog(ruleCatalog).
 		WithRuleLibrary(ruleLibrary).
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
+		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
 		WithReports(report.NewService(pool)).
 		WithScanResults(scanresult.NewReader(pool)).
@@ -651,6 +699,26 @@ func (a collectorSSHAdapter) Dial(ctx context.Context, host string, port int, cr
 		return nil, err
 	}
 	return sess, nil
+}
+
+// kensaStorePath resolves the durable SQLite path Kensa uses for remediation
+// rollback pre-state. Resolution order:
+//
+//	OPENWATCH_KENSA_STORE_PATH   explicit override (production: a durable path
+//	                             under the data dir, e.g.
+//	                             /var/lib/openwatch/kensa/remediation.db)
+//	<workdir>/.kensa/remediation.db   dev default (warned)
+//
+// The pre-state log MUST survive restarts for rollback to work, so production
+// installs set the env to a persistent location.
+func kensaStorePath(ctx context.Context) string {
+	if p := os.Getenv("OPENWATCH_KENSA_STORE_PATH"); p != "" {
+		return p
+	}
+	def := filepath.Join(".kensa", "remediation.db")
+	slog.WarnContext(ctx, "OPENWATCH_KENSA_STORE_PATH unset — using working-dir default for kensa rollback pre-state; production must set a durable path",
+		slog.String("store_path", def))
+	return def
 }
 
 // parseLogLevel maps the config string to a slog.Level. Unknown values

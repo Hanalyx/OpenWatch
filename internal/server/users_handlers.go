@@ -255,6 +255,9 @@ func userResponse(u users.User) api.UserResponse {
 	if u.Roles != nil {
 		resp.Roles = &u.Roles
 	}
+	if u.DisabledAt != nil {
+		resp.DisabledAt = u.DisabledAt
+	}
 	return resp
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -139,6 +140,14 @@ func (s *Server) WithExceptions(e *exception.Service) *Server {
 	return s
 }
 
+// WithRemediation threads the remediation governance service (free core)
+// into the API handlers. Nil makes the remediation endpoints 503.
+// Spec api-remediation.
+func (s *Server) WithRemediation(rm *remediation.Service) *Server {
+	s.handlers.remediationSvc = rm
+	return s
+}
+
 // WithGroups threads the host group service (sites + OS categories)
 // into the API handlers so /api/v1/groups and its sub-routes are
 // routable. Nil makes the group endpoints 503. Spec api-groups.
@@ -186,6 +195,16 @@ func (s *Server) WithVariableCatalog(c *kensa.VariableCatalog) *Server {
 func (s *Server) WithScanWorker(sw *worker.ScanWorker) *Server {
 	if s.wkr != nil {
 		s.wkr.WithScanProcessor(sw)
+	}
+	return s
+}
+
+// WithRemediationWorker registers the remediation processor on the in-process
+// job worker, so "remediation" jobs claimed by the serve process execute
+// instead of dead-ending. Spec api-remediation.
+func (s *Server) WithRemediationWorker(rw *worker.RemediationWorker) *Server {
+	if s.wkr != nil {
+		s.wkr.WithRemediationProcessor(rw)
 	}
 	return s
 }

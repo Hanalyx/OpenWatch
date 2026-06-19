@@ -226,18 +226,27 @@ func TestAPI_RBAC_GetPermissionsRegistry(t *testing.T) {
 		if len(got.Roles) != 5 {
 			t.Errorf("roles = %d, want 5", len(got.Roles))
 		}
-		// Spot-check: remediation:execute is license-gated.
+		// Spot-check: audit:export is license-gated to audit_export. (
+		// remediation:execute used to be the spot-check, but single-rule
+		// execute is now FREE core and carries no license gate.)
 		found := false
 		for _, p := range got.Permissions {
-			if p.ID == "remediation:execute" {
+			if p.ID == "audit:export" {
 				found = true
-				if p.LicenseGated == nil || *p.LicenseGated != "remediation_execution" {
-					t.Errorf("remediation:execute license_gated = %v, want remediation_execution", p.LicenseGated)
+				if p.LicenseGated == nil || *p.LicenseGated != "audit_export" {
+					t.Errorf("audit:export license_gated = %v, want audit_export", p.LicenseGated)
 				}
 			}
 		}
 		if !found {
-			t.Error("remediation:execute not surfaced via registry endpoint")
+			t.Error("audit:export not surfaced via registry endpoint")
+		}
+		// And confirm the free-core ungating: remediation:execute carries NO
+		// license gate now.
+		for _, p := range got.Permissions {
+			if p.ID == "remediation:execute" && p.LicenseGated != nil {
+				t.Errorf("remediation:execute license_gated = %v, want nil (free core)", *p.LicenseGated)
+			}
 		}
 	})
 }

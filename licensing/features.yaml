@@ -46,7 +46,7 @@ features:
 
   - id: remediation_execution
     tier: openwatch_plus
-    description: Apply Kensa remediation against hosts with dry-run, execute, and rollback
+    description: Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)
     introduced: "1.0.0"
 
   - id: structured_exceptions

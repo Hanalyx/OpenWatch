@@ -291,6 +291,12 @@ const (
 	AdminUserUpdated Code = "admin.user.updated"
 	//
 	AdminUserDeleted Code = "admin.user.deleted"
+	// An administrator reset another user's (or their own) password.
+	AdminUserPasswordReset Code = "admin.user.password_reset"
+	// An administrator disabled a user account (cannot authenticate).
+	AdminUserDisabled Code = "admin.user.disabled"
+	// An administrator re-enabled a previously disabled user account.
+	AdminUserEnabled Code = "admin.user.enabled"
 	//
 	AdminRoleChanged Code = "admin.role.changed"
 	//
@@ -1256,6 +1262,27 @@ var Metadata = map[Code]EventMeta{
 		Description: ``,
 		ActorTypes:  nil,
 	},
+	AdminUserPasswordReset: {
+		Code:        AdminUserPasswordReset,
+		Category:    "admin",
+		Severity:    SeverityWarning,
+		Description: `An administrator reset another user's (or their own) password.`,
+		ActorTypes:  nil,
+	},
+	AdminUserDisabled: {
+		Code:        AdminUserDisabled,
+		Category:    "admin",
+		Severity:    SeverityWarning,
+		Description: `An administrator disabled a user account (cannot authenticate).`,
+		ActorTypes:  nil,
+	},
+	AdminUserEnabled: {
+		Code:        AdminUserEnabled,
+		Category:    "admin",
+		Severity:    SeverityWarning,
+		Description: `An administrator re-enabled a previously disabled user account.`,
+		ActorTypes:  nil,
+	},
 	AdminRoleChanged: {
 		Code:        AdminRoleChanged,
 		Category:    "admin",
@@ -1449,6 +1476,9 @@ var codeOrder = []Code{
 	AdminUserCreated,
 	AdminUserUpdated,
 	AdminUserDeleted,
+	AdminUserPasswordReset,
+	AdminUserDisabled,
+	AdminUserEnabled,
 	AdminRoleChanged,
 	AdminSystemSettingChanged,
 	AdminRetentionPolicyChanged,

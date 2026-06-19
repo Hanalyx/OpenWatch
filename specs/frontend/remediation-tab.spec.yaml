@@ -1,0 +1,110 @@
+spec:
+  id: frontend-remediation-tab
+  title: Host detail Remediation tab + per-rule request/apply affordance
+  version: "1.1.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch+ upsell.
+    description: >
+      The frontend half of the remediation feature. The backend exposes
+      /api/v1/remediation/* (api-remediation):
+
+        GET  /api/v1/remediation/requests?host_id=  - this host's requests
+        POST /api/v1/remediation/requests           - file a request (201)
+        POST /api/v1/remediation/requests/{rid}:approve|:reject - review (200)
+        POST /api/v1/remediation/requests/{rid}:execute  - apply approved fix (202)
+        POST /api/v1/remediation/requests/{rid}:rollback - revert executed fix (202)
+
+      Per-rule MANUAL execute + rollback are now FREE core (no license).
+      :execute requires remediation:execute and returns 202 (queued), or
+      409 if the request is not in 'approved' state. :rollback requires
+      remediation:rollback, returns 202, or 409 if not 'executed'. The
+      remaining OpenWatch+ paywall is BULK and AUTOMATED remediation
+      (apply many rules / fleet-wide, scheduled auto-remediation),
+      rendered as a DISABLED upsell never wired to any endpoint.
+
+      The lifecycle the UI drives is
+      pending_approval -> approved -> executing -> executed (with
+      rollback to rolled_back, and failed as a terminal error state).
+      useHostRemediations mirrors useHostExceptions: it fetches the
+      host's requests under the ['host', hostId, 'remediations'] key
+      (riding the scan.completed SSE invalidation), derives the open set
+      used to suppress a duplicate per-rule request, and polls while any
+      request is 'executing' so the row advances without a manual
+      refresh.
+
+    related_specs:
+      - api-remediation
+      - frontend-host-compliance-tab
+      - frontend-settings-exception-queue
+
+  objective:
+    summary: >
+      A usable free-tier remediation surface: request a fix from a
+      failing rule, see this host's requests, approve or reject within
+      the caller's authority, and a clear OpenWatch+ upsell for the
+      host-mutating apply step that is never wired to the act endpoints.
+    scope:
+      includes:
+        - useHostRemediations hook (query key, endpoint, derived open/pending sets, executing poll)
+        - Per-rule Request-remediation affordance on the Compliance tab, gated on remediation:request
+        - RemediationTab panel on host detail with approve/reject gating and the atomic-model explainer
+        - Per-rule Fix (:execute) gated on remediation:execute||isAdmin and Roll back (:rollback) gated on remediation:rollback||isAdmin
+        - Lifecycle status rendering (executing "Applying...", executed "Fixed", rolled_back, failed)
+        - The OpenWatch+ upsell for BULK and AUTOMATED remediation (disabled, never calls any endpoint)
+      excludes:
+        - Calling :dry-run (OpenWatch+ licensed track)
+        - Bulk / fleet-wide apply and scheduled auto-remediation (OpenWatch+, upsell only)
+        - The transaction journal (steps) view
+        - A fleet-wide remediation queue (host-scoped only here)
+
+  constraints:
+    - id: C-01
+      description: 'useHostRemediations queries GET /api/v1/remediation/requests with host_id and key ["host", hostId, "remediations"], and derives openRuleIds (status in pending_approval/approved/dry_run_complete/executing) + pendingRuleIds (status pending_approval). Mutations invalidate ["host", hostId, "remediations"] on success'
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: 'The Compliance tab renders a per-failing-rule Request-remediation affordance gated on remediation:request; a rule already in the open set renders "Remediation requested" instead of the action. Submitting POSTs /api/v1/remediation/requests {host_id, rule_id}; a 409 surfaces inline as "already been requested". UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: 'The Remediation tab lists this host''s requests (status chip, rule_id, projected lift) newest first. On a pending_approval row, a caller with remediation:approve (|| isAdmin) gets Approve / Reject (POST :approve / :reject, invalidate on success, 409 inline); without it, "Awaiting approval". BULK and AUTOMATED remediation render as a DISABLED OpenWatch+ upsell that is never wired to any endpoint'
+      type: security
+      enforcement: error
+    - id: C-04
+      description: 'Per-rule MANUAL apply is free core. An approved row shows a Fix button gated on hasPermission("remediation:execute") || isAdmin that POSTs /api/v1/remediation/requests/{rid}:execute and invalidates ["host", hostId, "remediations"] on 202; a 409 surfaces an inline message via apiErrorMessage. An executed row shows a "Fixed" status and a Roll back button gated on hasPermission("remediation:rollback") || isAdmin that POSTs :rollback and invalidates on 202. An executing row shows a non-interactive "Applying..." status with no button; rolled_back and failed render terminal status (failed includes the reason when present). UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: 'Source inspection: useHostRemediations queries "/api/v1/remediation/requests" with queryKey ["host", hostId, "remediations"], passes host_id, and derives openRuleIds over pending_approval/approved/dry_run_complete/executing plus pendingRuleIds over pending_approval'
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'Source inspection: the Compliance tab gates the affordance on hasPermission("remediation:request"), suppresses it for rules in remediationOpenRuleIds (rendering "Remediation requested"), and the request modal POSTs "/api/v1/remediation/requests" with {host_id, rule_id} and maps a 409 to an inline "already been requested" message. No em-dash characters appear in the affordance/modal copy'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'Source inspection: RemediationTab reads useHostRemediations, gates Approve/Reject on hasPermission("remediation:approve") for pending_approval rows (POSTing "/api/v1/remediation/requests/{rid}:approve" / ":reject" and invalidating ["host", hostId, "remediations"]), shows "Awaiting approval" otherwise, and renders the Capture/Apply/Validate/Commit explainer'
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source inspection: an approved row renders a Fix button gated on hasPermission("remediation:execute") || isAdmin (computed as hasPermission("admin")). On click it POSTs "/api/v1/remediation/requests/{rid}:execute" and invalidates ["host", hostId, "remediations"] on success; a 409 surfaces the inline "This request is not in an approvable state." message via apiErrorMessage'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: 'Source inspection: an executed row renders a "Fixed" status and a Roll back button gated on hasPermission("remediation:rollback") || isAdmin that POSTs "/api/v1/remediation/requests/{rid}:rollback" and invalidates ["host", hostId, "remediations"] on success'
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-06
+      description: 'Source inspection: status rendering covers the lifecycle - an executing row shows a non-interactive "Applying..." status (no button), rolled_back shows "Rolled back", and failed shows "Failed" (with review_note reason when present). useHostRemediations sets a refetchInterval while any request status is "executing"'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-07
+      description: 'Source inspection: the OpenWatch+ upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch+)"), is DISABLED, and the single-rule "Execute on host (OpenWatch+)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
+      priority: high
+      references_constraints: [C-03, C-04]

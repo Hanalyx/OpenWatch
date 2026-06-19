@@ -42,7 +42,7 @@ func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 	// The roles aggregate is a correlated subquery (one row per user, no
 	// join fan-out) so a user with no roles still lists with an empty array.
 	const stmt = `
-		SELECT u.id, u.username, u.email, u.last_password_change_at, u.created_at, u.updated_at,
+		SELECT u.id, u.username, u.email, u.last_password_change_at, u.created_at, u.updated_at, u.disabled_at,
 		       COALESCE(ARRAY(
 		         SELECT ur.role_id FROM user_roles ur
 		         WHERE ur.user_id = u.id ORDER BY ur.role_id
@@ -60,7 +60,7 @@ func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
 		var u User
 		if err := rows.Scan(
 			&u.ID, &u.Username, &u.Email,
-			&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.Roles,
+			&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt, &u.Roles,
 		); err != nil {
 			return nil, fmt.Errorf("users: scan: %w", err)
 		}

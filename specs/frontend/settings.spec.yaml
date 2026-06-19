@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.9.0"
+  version: "1.10.0"
   status: draft
   tier: 2
 
@@ -59,7 +59,7 @@ spec:
         - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
         - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Edit (in-place PATCH /credentials/{id}) and Delete (DELETE) modals; editing keeps the stored secret when the field is left blank (v1.9.0)"
         - "SSH keys section is a derived view of key-bearing credentials; Add/Edit/Delete a key operates on the parent credential"
-        - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0)"
+        - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0); Manage also offers admin password reset (POST /users/{id}:reset-password) and disable/enable (POST /users/{id}:disable|:enable), gated on admin:user_manage; disabled members show a Disabled status on the roster and in the modal (v1.10.0)"
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
@@ -137,7 +137,16 @@ spec:
         (role assign/unassign via /users/{id}/roles:assign|:unassign,
         soft-delete via DELETE /users/{id}) open modals; all four
         mutations invalidate the ['users'] query on success. Write
-        controls are gated on user:write (admin implies it).
+        controls are gated on user:write (admin implies it). v1.10.0 —
+        Manage also exposes admin password reset (POST
+        /users/{id}:reset-password), disable (POST /users/{id}:disable)
+        and enable (POST /users/{id}:enable). These three admin-authority
+        actions are gated on admin:user_manage (admin implies it) and
+        invalidate ['users'] on success. A 400 from reset-password
+        surfaces the server's policy reason inline; a 409 from disabling
+        your own account surfaces an inline message. Disabled members
+        (disabled_at non-null) show a Disabled status on the roster row
+        and in the modal.
       type: security
       enforcement: error
     - id: C-09
@@ -333,3 +342,18 @@ spec:
       description: "v1.8.0 source-inspection: SecurityPage's single-sign-on section is gated on admin:sso_provider and does OIDC provider CRUD keyed ['sso-providers'] — api.GET/POST '/api/v1/sso/providers', api.PUT/DELETE '/api/v1/sso/providers/{id}' — with the client secret write-only (edit form labels it 'leave blank to keep'); LoginPage fetches api.GET '/api/v1/sso/providers/enabled' and renders Sign in with X buttons that navigate to '/api/v1/auth/sso/${providerId}/login'."
       priority: high
       references_constraints: [C-16]
+
+    - id: AC-27
+      description: "v1.10.0 source-inspection: ManageUserModal computes canManage = hasPermission('admin:user_manage') || isAdmin and gates the admin-authority actions on it. Reset password POSTs '/api/v1/users/{id}:reset-password' with { new_password }, reads a rejected-password reason via apiErrorMessage so a 400 policy failure is surfaced inline, and invalidates the ['users'] query on success."
+      priority: high
+      references_constraints: [C-08]
+
+    - id: AC-28
+      description: "v1.10.0 source-inspection: ManageUserModal shows a Disable account control (POST '/api/v1/users/{id}:disable') when disabled_at is null and an Enable account control (POST '/api/v1/users/{id}:enable') when it is non-null; both invalidate ['users'] on success. The disabled state is surfaced as a Disabled status in both the modal and the UsersPage roster row (driven by disabled_at)."
+      priority: high
+      references_constraints: [C-08]
+
+    - id: AC-29
+      description: "v1.10.0 source-inspection: a 409 from disabling your own account is surfaced inline through the shared action-error Callout (apiErrorMessage carries the users.cannot_disable_self reason); admin reset-password and disable/enable copy contains no em-dash characters."
+      priority: medium
+      references_constraints: [C-08]

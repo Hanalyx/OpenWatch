@@ -22,6 +22,7 @@ interface UserRow {
   username: string;
   email: string;
   roles?: string[];
+  disabled_at?: string | null;
   created_at: string;
 }
 
@@ -128,6 +129,7 @@ export function UsersPage() {
                     username: user.username,
                     email: user.email,
                     roles: user.roles ?? [],
+                    disabled_at: user.disabled_at ?? null,
                   })
                 }
               />
@@ -192,7 +194,23 @@ function UserRowItem({
           {initials || '?'}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 500 }}>{user.username}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 500 }}>{user.username}</span>
+            {user.disabled_at != null && (
+              <span
+                style={{
+                  padding: '1px 6px',
+                  borderRadius: 'var(--ow-radius-sm)',
+                  background: 'var(--ow-crit-bg)',
+                  color: 'var(--ow-crit)',
+                  fontSize: 10,
+                  fontWeight: 600,
+                }}
+              >
+                Disabled
+              </span>
+            )}
+          </div>
           <div
             style={{
               color: 'var(--ow-fg-3)',

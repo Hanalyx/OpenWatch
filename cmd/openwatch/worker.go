@@ -30,6 +30,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/Hanalyx/openwatch/internal/license"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -200,6 +201,45 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	writer := transactionlog.NewWriter(pool, audit.Emit)
 	scanResultsWriter := scanresult.NewWriter(pool)
 
+	// Remediation execution wiring (Tier A free core): chain the apply-enabled
+	// Remediate/Rollback seams onto the same executor so a host's scan +
+	// remediate share one per-host inFlight guard. The apply-enabled Kensa
+	// needs a durable SQLite store for rollback pre-state.
+	remExecutor := executor
+	remFn, rbFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
+		Pool:        pool,
+		Credentials: credSvc,
+		RulesDir:    rulesDir,
+		HostKeyMode: owssh.ModeTOFU,
+		KnownHosts:  knownhosts.NewStore(pool),
+		Variables: func(ctx context.Context) (map[string]string, error) {
+			vars, err := varStore.LoadScanVars(ctx)
+			return vars, err
+		},
+		Profiles: connprofile.NewStore(pool),
+		Policy: func(ctx context.Context) (bool, error) {
+			cfg, err := varStore.LoadSecurity(ctx)
+			return cfg.AllowCredentialSudoPassword, err
+		},
+		StorePath: kensaStorePath(bootCtx),
+	})
+	if remErr != nil {
+		slog.WarnContext(bootCtx, "kensa remediation wiring unavailable — remediation jobs claimed by this worker will fail",
+			slog.String("error", remErr.Error()))
+	} else {
+		remExecutor = remExecutor.WithRemediateFunc(remFn, rbFn)
+	}
+	remediationWorker := worker.NewRemediationWorker(worker.RemediationConfig{
+		Pool:     pool,
+		Executor: remExecutor,
+		Service:  remediation.NewService(pool, audit.Emit),
+		Writer:   writer,
+		QueueKey: queueKey,
+		Emit:     audit.Emit,
+		// Bus nil: the dedicated worker has no SSE subscribers (cross-process
+		// delivery is a known non-goal, same as scan.completed).
+	})
+
 	// Post-scan schedule updates run here too: the dedicated worker
 	// classifies each completed scan into a compliance state so
 	// host_compliance_schedule stays fresh whichever process executed
@@ -217,14 +257,15 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		!scanCfg.Enabled || scanCfg.MaintenanceGlobal)
 
 	scanWorker := worker.NewScanWorker(worker.Config{
-		Pool:         pool,
-		Executor:     executor,
-		Writer:       writer,
-		ScanResults:  scanResultsWriter,
-		QueueKey:     queueKey,
-		PollInterval: *pollInterval,
-		Emit:         audit.Emit,
-		Sched:        sched,
+		Pool:                 pool,
+		Executor:             executor,
+		Writer:               writer,
+		ScanResults:          scanResultsWriter,
+		QueueKey:             queueKey,
+		PollInterval:         *pollInterval,
+		Emit:                 audit.Emit,
+		Sched:                sched,
+		RemediationProcessor: remediationWorker,
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)

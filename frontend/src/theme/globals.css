@@ -145,11 +145,28 @@ body {
   transition: background var(--ow-motion-base) ease;
 }
 
+/* Lightweight pulse used by in-flight status dots (e.g. a remediation
+ * fix mid-execution). Falls back to a static dot when absent or under
+ * reduced-motion. */
+@keyframes ow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --ow-motion-fast: 0ms;
     --ow-motion-base: 0ms;
     --ow-motion-slow: 0ms;
+  }
+
+  * {
+    animation: none !important;
   }
 }
 

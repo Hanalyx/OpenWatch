@@ -313,15 +313,13 @@ permissions:
 
   - id: remediation:execute
     category: remediation
-    description: Execute an approved remediation against hosts
+    description: Execute an approved single-rule remediation against a host (free core)
     dangerous: true
-    license_gated: remediation_execution
 
   - id: remediation:rollback
     category: remediation
-    description: Roll back a previously executed remediation
+    description: Roll back a previously executed remediation (free core)
     dangerous: true
-    license_gated: remediation_execution
 
   # =========================================================================
   # integration - plugins and webhooks
@@ -511,6 +509,8 @@ roles:
       - policy:read
       - remediation:read
       - remediation:request
+      - remediation:execute
+      - remediation:rollback
       - integration:read
       - audit:read
       - system:read

@@ -105,9 +105,9 @@ const (
 	RemediationRequest Permission = "remediation:request"
 	// Approve or reject remediation requests
 	RemediationApprove Permission = "remediation:approve"
-	// Execute an approved remediation against hosts
+	// Execute an approved single-rule remediation against a host (free core)
 	RemediationExecute Permission = "remediation:execute"
-	// Roll back a previously executed remediation
+	// Roll back a previously executed remediation (free core)
 	RemediationRollback Permission = "remediation:rollback"
 	// View configured plugins and webhook endpoints
 	IntegrationRead Permission = "integration:read"
@@ -495,16 +495,16 @@ var Permissions = map[Permission]PermissionMeta{
 	RemediationExecute: {
 		ID:           RemediationExecute,
 		Category:     "remediation",
-		Description:  `Execute an approved remediation against hosts`,
+		Description:  `Execute an approved single-rule remediation against a host (free core)`,
 		Dangerous:    true,
-		LicenseGated: "remediation_execution",
+		LicenseGated: "",
 	},
 	RemediationRollback: {
 		ID:           RemediationRollback,
 		Category:     "remediation",
-		Description:  `Roll back a previously executed remediation`,
+		Description:  `Roll back a previously executed remediation (free core)`,
 		Dangerous:    true,
-		LicenseGated: "remediation_execution",
+		LicenseGated: "",
 	},
 	IntegrationRead: {
 		ID:           IntegrationRead,

@@ -29,6 +29,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -89,6 +90,11 @@ type handlers struct {
 	// Compliance exception governance service. Set via
 	// (*Server).WithExceptions; nil makes the exception endpoints 503.
 	exceptionSvc *exception.Service
+
+	// Remediation governance service (free core: request/approve/reject +
+	// projected lift). Set via (*Server).WithRemediation; nil makes the
+	// remediation endpoints 503. Spec api-remediation.
+	remediationSvc *remediation.Service
 
 	// Host group service (sites + OS categories). Set via
 	// (*Server).WithGroups; nil makes the group endpoints 503.
@@ -568,6 +574,13 @@ func (h *handlers) PostDiagnosticsRequireHostWrite(w http.ResponseWriter, r *htt
 // license fails second (402). Spec system-rbac AC-09, AC-10.
 func (h *handlers) PostDiagnosticsRequireRemediationExecute(w http.ResponseWriter, r *http.Request, _ api.PostDiagnosticsRequireRemediationExecuteParams) {
 	if denied := auth.EnforcePermission(w, r, auth.RemediationExecute); denied {
+		return
+	}
+	// Stage-0 walking-skeleton demo of the RBAC-then-license ordering. Since
+	// remediation:execute became free core (single-rule manual remediation is
+	// no longer license_gated), this demo gates on premium_diagnostics to keep
+	// exercising the "RBAC passes, license fails" path (system-rbac AC-10).
+	if denied := license.EnforceFeature(w, r, license.PremiumDiagnostics); denied {
 		return
 	}
 	requireDiagnosticEcho(w, r, h.pool, "diagnostics:require-remediation-execute")
