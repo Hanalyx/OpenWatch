@@ -49,7 +49,7 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.2.0-rc.5"
+  "version": "0.2.0-rc.10"
 }
 ```
 
