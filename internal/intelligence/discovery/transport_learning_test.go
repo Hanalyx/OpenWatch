@@ -44,6 +44,7 @@ func (p *recordingProfiles) RecordSSHAuth(_ context.Context, _ uuid.UUID, m conn
 	return nil
 }
 
+// @ac AC-08
 func TestSSHTransportProd_AuthLearning(t *testing.T) {
 	cred := &credential.Credential{Username: "u", AuthMethod: credential.AuthBoth, Password: "p"}
 

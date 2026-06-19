@@ -38,8 +38,22 @@ func haveTool(t *testing.T, name string) {
 	}
 }
 
+// requirePackagingBuild gates the tests that shell out to `make rpm`/`make deb`
+// behind an explicit opt-in. A full native package build takes minutes and
+// writes into dist/, so a plain `go test ./...` on a dev machine (which may
+// have dpkg-deb/rpmbuild installed) should not silently trigger one. CI sets
+// OPENWATCH_PACKAGING_BUILD=1 in the ingest step so coverage is unchanged
+// there; locally the tests skip unless the developer opts in.
+func requirePackagingBuild(t *testing.T) {
+	t.Helper()
+	if os.Getenv("OPENWATCH_PACKAGING_BUILD") == "" {
+		t.Skip("set OPENWATCH_PACKAGING_BUILD=1 to run native package build tests (full make rpm/deb)")
+	}
+}
+
 func runMake(t *testing.T, dir, target string) {
 	t.Helper()
+	requirePackagingBuild(t)
 	cmd := exec.Command("make", target)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer

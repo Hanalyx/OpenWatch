@@ -106,11 +106,29 @@ settings:
         - '**/*.test.tsx'
     coverage:
         tier1: 100
-        tier2: 80
-        tier3: 50
+        tier2: 100
+        tier3: 100
     exclude:
         - node_modules
         - dist
         - .git
         - vendor
+    # Coverage is gated in CI in two layers (see .github/workflows/go-ci.yml):
+    #
+    #   1. STRUCTURAL, 100%: `specter sync --strictness annotation` — every AC
+    #      in every spec must have at least one test annotation. No AC may
+    #      silently lose its test.
+    #   2. OUTCOME, 100% (this setting): `specter sync` at `threshold` with all
+    #      tiers at 100 — every AC's test must actually pass in CI.
+    #
+    # 100% outcome coverage requires that the formerly environment-gated tests
+    # run in CI rather than skip. The ingest job provisions exactly what they
+    # need (see go-ci.yml): OPENWATCH_KENSA_RULES_DIR points the Kensa
+    # variable-catalog tests at the real rule corpus, and
+    # OPENWATCH_PACKAGING_BUILD=1 opts in the native-package + runtime-boot
+    # tests (the boot test manages its DB via pgx, so it needs only the
+    # Postgres service, not a docker stack). A local `go test ./...` without
+    # those still skips them — so run `make` targets / set the env to reproduce
+    # the CI outcome locally. Caveat: at 100% any single flaky test failure
+    # fails the coverage gate, so the DB-bound suite must stay stable under -p 4.
     strictness: threshold

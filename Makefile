@@ -20,6 +20,12 @@ DIST_DIR  := dist
 CMD_DIR   := ./cmd/openwatch
 SPA_DIR   := internal/server/spa
 
+# golangci-lint version. MUST match the version pinned in
+# .github/workflows/go-ci.yml (`go install ...golangci-lint@vX.Y.Z`) so a
+# local `make lint` reproduces CI exactly — a newer local binary surfaces
+# lints CI won't enforce yet (and vice-versa). Bump both together.
+GOLANGCI_VERSION := 1.64.8
+
 # Version metadata injected at build time. The Go rebuild has its own
 # version track (packaging/version.env) so its milestones decouple from
 # the legacy Python project at ../VERSION. Fallback order: local
@@ -132,9 +138,16 @@ vet: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 .PHONY: lint
 lint: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	@if command -v golangci-lint >/dev/null 2>&1; then \
+	  have=$$(golangci-lint version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1); \
+	  if [ "$$have" != "$(GOLANGCI_VERSION)" ]; then \
+	    echo "WARNING: golangci-lint $$have installed, but CI pins $(GOLANGCI_VERSION)."; \
+	    echo "         Results may differ from CI. Install the pinned version:"; \
+	    echo "         go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(GOLANGCI_VERSION)"; \
+	  fi; \
 	  golangci-lint run; \
 	else \
-	  echo "golangci-lint not installed; skipping (install: https://golangci-lint.run/usage/install/)"; \
+	  echo "golangci-lint not installed; skipping (CI pins v$(GOLANGCI_VERSION)):"; \
+	  echo "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(GOLANGCI_VERSION)"; \
 	fi
 
 # vuln: known-CVE scan against deps + stdlib (call-graph aware).

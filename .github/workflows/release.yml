@@ -82,9 +82,16 @@ jobs:
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ]; then
             echo "gpg=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            # A v* tag push is an intentional release cut — publishing it
+            # unsigned would ship packages operators cannot verify. Fail
+            # closed. Manual workflow_dispatch runs (dry-runs / trials) stay
+            # permissive below so an unsigned trial build is still possible.
+            echo "::error::No GPG_PRIVATE_KEY secret configured, but this is a tag-push release ($GITHUB_REF_NAME). Refusing to publish unsigned packages. Configure the GPG_PRIVATE_KEY secret, or cut an unsigned trial via workflow_dispatch."
+            exit 1
           else
             echo "gpg=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No GPG_PRIVATE_KEY secret — packages and checksums will be published unsigned."
+            echo "::warning::No GPG_PRIVATE_KEY secret — this workflow_dispatch build will be published UNSIGNED. Tag pushes fail closed instead."
           fi
           if [ -n "$COSIGN_PRIVATE_KEY" ]; then
             echo "cosign=true" >> "$GITHUB_OUTPUT"

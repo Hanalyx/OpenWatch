@@ -398,6 +398,7 @@ describe('frontend-settings — structural', () => {
     expect(SEC_SRC).toMatch(/hasPermission\)\('token:delete'\)/);
   });
 
+  // @ac AC-25
   test('frontend-settings/AC-25 — Security: live auth-policy section + login enrollment routing', () => {
     // Auth-policy section loads + saves the policy, perm-gated.
     expect(SEC_SRC).toMatch(/queryKey:\s*\['auth-policy'\]/);
@@ -414,6 +415,7 @@ describe('frontend-settings — structural', () => {
     expect(LOGIN_SRC).toMatch(/navigate\(\{\s*to:\s*['"]\/settings\/profile['"]/);
   });
 
+  // @ac AC-26
   test('frontend-settings/AC-26 — Security: live SSO provider CRUD + login sign-in buttons', () => {
     // SSO section is admin:sso_provider-gated and does provider CRUD.
     expect(SEC_SRC).toMatch(/hasPermission\)\('admin:sso_provider'\)/);
