@@ -67,6 +67,10 @@ spec:
       description: Codegen output MUST be deterministic (re-running with no changes produces no diff)
       type: technical
       enforcement: error
+    - id: C-08
+      description: Built-in role grants MUST preserve separation of duties for the governed lifecycles. A built-in role that can request remediation MUST NOT also hold remediation:approve; the same requester-is-not-approver rule applies to exceptions. The full built-in-role to governed-permission matrix (remediation:* and exception:*) is fixed and documented in docs/engineering/remediation_exception_governance.md; a permissions.yaml edit that changes it is a deliberate governance decision and MUST update that matrix and this spec together.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -124,3 +128,7 @@ spec:
     - id: AC-16
       description: RequirePermission p99 latency < 1µs for the hot path (registry lookup is a map read).
       priority: medium
+    - id: AC-17
+      description: "Built-in role grants match the remediation/exception governance matrix, locking separation of duties against drift. Remediation: ops_lead grants request/execute/rollback but NOT approve; remediation:approve is held only by security_admin and admin; viewer/auditor cannot request remediation. Exceptions: auditor grants request/approve, ops_lead grants request but NOT approve, revoke is security_admin/admin only. viewer holds only remediation:read/exception:read of the governed categories; admin holds all. Verified against BuiltInRoles so a permissions.yaml edit that breaks the matrix fails the build."
+      priority: critical
+      references_constraints: [C-08]
