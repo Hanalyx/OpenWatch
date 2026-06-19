@@ -242,12 +242,14 @@ jobs:
           set +e
           npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
           EXIT=$?
-          # Don't block the pipeline on Vitest failure — surface it but
-          # let specter sync report which ACs are uncovered. The Go test
-          # step above already fails the build on test failure; this
-          # mirror keeps the gate's failure source observable.
+          # Record the exit code but DON'T fail here: specter ingest (next
+          # step) still needs to read the JUnit file, and specter sync should
+          # report which ACs the failures left uncovered before we abort.
+          # The "Enforce frontend tests passed" step below turns a non-zero
+          # result into a hard build failure once specter has run.
+          echo "$EXIT" > /tmp/vitest-exit
           if [ "$EXIT" -ne 0 ]; then
-            echo "::warning::Vitest reported test failures — see specter coverage for affected ACs"
+            echo "::warning::Vitest reported test failures — specter coverage below shows affected ACs; the build fails at the enforcement step."
           fi
 
       - name: specter ingest
@@ -263,6 +265,22 @@ jobs:
         # filters on @spec / @ac, so non-test files in the broad glob
         # are skipped at parse time.
         run: specter sync --tests '**/*'
+
+      # Hard frontend-test gate. Vitest failures are deferred above so
+      # specter can ingest the JUnit results and report coverage first; this
+      # step makes a real frontend test failure fail the build. A frontend
+      # regression that does not happen to map to a spec AC would otherwise
+      # slip through (specter only gates annotated ACs), so this is the
+      # backstop that keeps `npm test` authoritative in CI.
+      - name: Enforce frontend tests passed
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          EXIT=$(cat /tmp/vitest-exit 2>/dev/null || echo 1)
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Frontend vitest suite failed (exit $EXIT). See the 'frontend vitest' step above."
+            exit "$EXIT"
+          fi
+          echo "frontend vitest suite passed"
 
       - name: upload specter artifacts
         if: always() && steps.paths.outputs.go == 'true'
