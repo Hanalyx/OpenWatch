@@ -10,8 +10,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.11] Eyrie — 2026-06-19
+
+The bundled Kensa scan engine moves to v0.5.2, which corrects a class of false
+compliance FAILs on TAB-delimited rules; the GA-readiness pass also hardened CI
+and the release workflow.
+
 ### Changed
 
+- Updated the bundled Kensa scan engine and rule corpus to v0.5.2. v0.5.2 fixes
+  a `config_value` matching bug so a `" "` delimiter matches any whitespace
+  (including TAB), correcting a class of false FAILs on TAB-delimited rules such
+  as RHEL `login.defs` — affected hosts may see their compliance score improve.
+  It also adds rule-engine correctness gates (check-method parameter contracts,
+  value-domain validation, a comparator + delimiter engine, and a schema/engine
+  parity gate). The corpus stays at 539 rules and the engine's frozen API
+  surface is unchanged, so OpenWatch's library integration is unaffected
+  (kensa v0.5.2).
 - CI release safety: the release workflow now fails closed on a `v*` tag push
   when no GPG signing key is configured, rather than publishing unsigned
   packages. Manual `workflow_dispatch` trial builds stay permissive (warn +

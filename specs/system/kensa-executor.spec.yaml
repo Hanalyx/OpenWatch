@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.5.1) to run a scan against a single host using the
+      pinned to v0.5.2) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
@@ -131,7 +131,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-13
-      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.5.1 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
+      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.5.2 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
       type: technical
       enforcement: error
     - id: C-14
