@@ -104,8 +104,8 @@ settings:
         - '**/*.test.tsx'
     coverage:
         tier1: 100
-        tier2: 80
-        tier3: 50
+        tier2: 100
+        tier3: 100
     exclude:
         - node_modules
         - dist
@@ -113,18 +113,20 @@ settings:
         - vendor
     # Coverage is gated in CI in two layers (see .github/workflows/go-ci.yml):
     #
-    #   1. STRUCTURAL, 100% (hard): `specter sync --strictness annotation` —
-    #      every AC in every spec must have at least one test annotation. No AC
-    #      may silently lose its test. This is the enforced "100% coverage".
-    #   2. OUTCOME (this setting): `specter sync` at `threshold` — the tests
-    #      that actually run in the hermetic CI lane must pass at the per-tier
-    #      thresholds above.
+    #   1. STRUCTURAL, 100%: `specter sync --strictness annotation` — every AC
+    #      in every spec must have at least one test annotation. No AC may
+    #      silently lose its test.
+    #   2. OUTCOME, 100% (this setting): `specter sync` at `threshold` with all
+    #      tiers at 100 — every AC's test must actually pass in CI.
     #
-    # We intentionally do NOT use `zero-tolerance` for the outcome layer: a
-    # handful of ACs are covered by legitimately environment-gated tests (the
-    # real Kensa rule corpus via OPENWATCH_KENSA_RULES_DIR; the native-package
-    # runtime-boot harness) that correctly t.Skip() in the unit lane. Under
-    # zero-tolerance a skip counts as a failure, which would force those tests
-    # to either always run (heavy, wrong lane) or drop their skip guards. A
-    # skip is not a coverage gap — layer 1 already proves the test exists.
+    # 100% outcome coverage requires that the formerly environment-gated tests
+    # run in CI rather than skip. The ingest job provisions exactly what they
+    # need (see go-ci.yml): OPENWATCH_KENSA_RULES_DIR points the Kensa
+    # variable-catalog tests at the real rule corpus, and
+    # OPENWATCH_PACKAGING_BUILD=1 opts in the native-package + runtime-boot
+    # tests (the boot test manages its DB via pgx, so it needs only the
+    # Postgres service, not a docker stack). A local `go test ./...` without
+    # those still skips them — so run `make` targets / set the env to reproduce
+    # the CI outcome locally. Caveat: at 100% any single flaky test failure
+    # fails the coverage gate, so the DB-bound suite must stay stable under -p 4.
     strictness: threshold

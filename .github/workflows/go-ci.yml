@@ -198,18 +198,17 @@ jobs:
 
       # 100% structural coverage gate. Every acceptance criterion in every spec
       # MUST have at least one test annotation — no AC may silently lose its
-      # test. This is the soundly-enforceable "100% coverage": it runs in
-      # annotation strictness (structural, no ingest) so it is independent of
-      # which tests happen to run in this lane. The outcome gate (`specter sync`
-      # at the manifest's threshold strictness, below) separately checks that
-      # the tests that DO run pass. We deliberately do NOT use zero-tolerance
-      # outcome strictness: some ACs are covered by legitimately env-gated tests
-      # (real Kensa corpus, native-package boot harness) that correctly skip in
-      # this hermetic lane, and a skip is not a coverage gap.
+      # test. This runs in annotation strictness (structural, no ingest) so it
+      # is independent of which tests run in this lane, and it fails fast and
+      # with a clear message before the heavier ingest-based outcome gate. The
+      # outcome gate (`specter sync` at the manifest's threshold strictness,
+      # tiers all 100, below) separately requires every AC's test to PASS; the
+      # ingest job provisions OPENWATCH_KENSA_RULES_DIR + OPENWATCH_PACKAGING_BUILD
+      # so the formerly env-gated tests run there instead of skipping.
       #
       # NOTE: `specter sync --strictness annotation` would only enforce the
-      # per-tier thresholds (80%/50%), not 100%, so we assert 100% directly:
-      # any per-spec row (a "… Tn …" line) not at 100% fails the build.
+      # per-tier thresholds, so we assert 100% directly: any per-spec row
+      # (a "… Tn …" line) not at 100% fails the build.
       - name: specter structural coverage must be 100%
         if: steps.paths.outputs.go == 'true'
         run: |
@@ -233,14 +232,18 @@ jobs:
       # to 600s because race instrumentation slows the hot DB packages.
       - name: go test (race + json) for specter ingest
         if: steps.paths.outputs.go == 'true'
-        # OPENWATCH_PACKAGING_BUILD=1 opts the native package-build tests
-        # (make rpm/deb) into this run so their AC coverage is unchanged in CI;
-        # a plain local `go test ./...` skips them (they take minutes and write
-        # into dist/). See packaging/tests/package_test.go:requirePackagingBuild.
+        # OPENWATCH_PACKAGING_BUILD=1 opts the native package-build + runtime-boot
+        # tests into this run so their AC coverage is enforced in CI; a plain
+        # local `go test ./...` skips them (they take minutes and write into
+        # dist/). See packaging/tests/package_test.go:requirePackagingBuild.
         env:
           OPENWATCH_PACKAGING_BUILD: "1"
         run: |
           set +e
+          # Point the Kensa variable-catalog tests at the real rule corpus that
+          # ships inside the kensa module, so api-system-scan-config/AC-08 runs
+          # here instead of skipping (100% outcome coverage requires it).
+          export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
           go test -race -json -timeout 600s -p 4 ./... > /tmp/go-test.json
           EXIT=$?
           if [ "$EXIT" -ne 0 ]; then

@@ -11,6 +11,7 @@ package packaging_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -20,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +29,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // insecureTLS skips cert verification for talking to a server using a
@@ -92,26 +96,42 @@ func genTLS(t *testing.T, app, outDir string) {
 // and recreates a dedicated boot-test database, and returns a DSN
 // pointing at it. The boot test runs against an isolated DB so it
 // can't collide with the in-process integration tests.
+//
+// DROP/CREATE go through pgx against the maintenance ("postgres") database
+// on the same server — NOT a `docker exec ... psql` shell-out — so the test
+// runs in any lane that can reach the Postgres named in OPENWATCH_TEST_DSN,
+// CI's service container included, with no openwatch-db container required.
 func freshTestDB(t *testing.T, parentDSN string) string {
 	t.Helper()
 	const testDBName = "openwatch_runtime_boot_test"
-	// Connect to the maintenance DB on the same server.
-	maintDSN := strings.Replace(parentDSN, "openwatch_go_test", "postgres", 1)
-	// Run DROP + CREATE via the psql client inside the docker container,
-	// since this Go process doesn't have a psql binary handy and pgx
-	// requires a separate connection per CREATE DATABASE call.
+	ctx := context.Background()
+
+	u, err := url.Parse(parentDSN)
+	if err != nil {
+		t.Fatalf("parse OPENWATCH_TEST_DSN: %v", err)
+	}
+	maint := *u
+	maint.Path = "/postgres"
+	conn, err := pgx.Connect(ctx, maint.String())
+	if err != nil {
+		t.Fatalf("connect maintenance DB: %v", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	// CREATE DATABASE cannot run inside a transaction; pgx Exec issues each
+	// statement as a simple query, so DROP then CREATE on one connection works.
 	for _, stmt := range []string{
 		fmt.Sprintf("DROP DATABASE IF EXISTS %s", testDBName),
 		fmt.Sprintf("CREATE DATABASE %s", testDBName),
 	} {
-		cmd := exec.Command("docker", "exec", "openwatch-db",
-			"psql", "-U", "openwatch", "-d", "postgres", "-c", stmt)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Skipf("can't manage test DB (docker exec): %v: %s", err, out)
+		if _, err := conn.Exec(ctx, stmt); err != nil {
+			t.Fatalf("manage boot test DB (%s): %v", stmt, err)
 		}
 	}
-	_ = maintDSN
-	return strings.Replace(parentDSN, "openwatch_go_test", testDBName, 1)
+
+	boot := *u
+	boot.Path = "/" + testDBName
+	return boot.String()
 }
 
 // @ac AC-14
@@ -270,6 +290,14 @@ func TestRuntimeBoot_LoginEndToEnd(t *testing.T) {
 		if sessCookie != nil {
 			req.AddCookie(sessCookie)
 		}
+		// Cookie-authenticated mutations require the CSRF double-submit token:
+		// a non-HttpOnly XSRF-TOKEN cookie whose value is echoed in the
+		// X-CSRF-Token header (the server only checks the two match — same
+		// pattern as the in-process API tests). A browser SPA does this
+		// automatically; the boot client must do it explicitly.
+		const csrfToken = "boot-test-csrf"
+		req.AddCookie(&http.Cookie{Name: "XSRF-TOKEN", Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		resp, err = client.Do(req)
 		if err != nil {
 			t.Fatalf("create host: %v", err)
