@@ -69,6 +69,17 @@ errors:
   # =========================================================================
   # auth - authentication
   # =========================================================================
+  - code: auth.required
+    http_status: 401
+    fault: client
+    retryable: false
+    description: >
+      The request reached a protected endpoint without a usable session (no
+      credentials presented, or the session cookie expired in the browser and
+      was not sent). The caller must sign in. Distinct from
+      authz.permission_denied (403), which is an authenticated caller whose role
+      lacks the permission. The SPA redirects to login on this 401.
+
   - code: auth.invalid_credentials
     http_status: 401
     fault: client
