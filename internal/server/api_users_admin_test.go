@@ -109,34 +109,36 @@ func TestAPI_AdminResetOwnPassword(t *testing.T) {
 // @ac AC-17
 // @ac AC-18
 func TestAPI_AdminDisableEnable(t *testing.T) {
+	// Shared setup: a viewer target with a live session, used to prove that
+	// disable revokes the session. The three ACs run as ORDERED subtests
+	// (no t.Parallel), so AC-17's enable observes AC-16's disable. Each AC
+	// carries its own api-users/AC-NN token so the coverage gate credits it.
+	url, pool := freshAPIServer(t)
+	svc := users.NewService(pool, nil)
+	target := seedAuthUser(t, svc, "disabletarget", false)
+	_ = svc.AssignRole(context.Background(), target.ID, "viewer", nil)
+
+	lr := login(t, url, map[string]string{"username": target.Username, "password": target.Password})
+	lr.Body.Close()
+	if lr.StatusCode != http.StatusOK {
+		t.Fatalf("target login = %d, want 200", lr.StatusCode)
+	}
+	cookie := sessionCookie(lr)
+	if cookie == "" {
+		t.Fatal("no session cookie from target login")
+	}
+	if code := getMeWithCookie(t, url, cookie); code != http.StatusOK {
+		t.Fatalf("target /me before disable = %d, want 200", code)
+	}
+
 	t.Run("api-users/AC-16", func(t *testing.T) {
-		url, pool := freshAPIServer(t)
-		svc := users.NewService(pool, nil)
-		target := seedAuthUser(t, svc, "disabletarget", false)
-		_ = svc.AssignRole(context.Background(), target.ID, "viewer", nil)
-
-		// target logs in -> live session cookie
-		lr := login(t, url, map[string]string{"username": target.Username, "password": target.Password})
-		lr.Body.Close()
-		if lr.StatusCode != http.StatusOK {
-			t.Fatalf("target login = %d, want 200", lr.StatusCode)
-		}
-		cookie := sessionCookie(lr)
-		if cookie == "" {
-			t.Fatal("no session cookie from target login")
-		}
-		if code := getMeWithCookie(t, url, cookie); code != http.StatusOK {
-			t.Fatalf("target /me before disable = %d, want 200", code)
-		}
-
 		// admin disables target -> 200, disabled_at set
 		dr := doReq(t, asRole(t, "POST", url+"/api/v1/users/"+target.ID.String()+":disable", auth.RoleAdmin, nil))
-		defer dr.Body.Close()
+		dr.Body.Close()
 		if dr.StatusCode != http.StatusOK {
 			t.Fatalf("disable = %d, want 200", dr.StatusCode)
 		}
-
-		// AC-16: existing session revoked + login now blocked
+		// existing session revoked + login now blocked
 		if code := getMeWithCookie(t, url, cookie); code != http.StatusUnauthorized {
 			t.Errorf("target /me after disable = %d, want 401 (session revoked)", code)
 		}
@@ -145,8 +147,10 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 		if blocked.StatusCode != http.StatusUnauthorized {
 			t.Errorf("disabled login = %d, want 401", blocked.StatusCode)
 		}
+	})
 
-		// AC-17: enable -> can authenticate again
+	t.Run("api-users/AC-17", func(t *testing.T) {
+		// enable -> clears disabled_at; the user can authenticate again
 		er := doReq(t, asRole(t, "POST", url+"/api/v1/users/"+target.ID.String()+":enable", auth.RoleAdmin, nil))
 		er.Body.Close()
 		if er.StatusCode != http.StatusOK {
@@ -157,8 +161,10 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 		if reLogin.StatusCode != http.StatusOK {
 			t.Errorf("login after enable = %d, want 200", reLogin.StatusCode)
 		}
+	})
 
-		// AC-18: admin cannot disable their own account -> 409
+	t.Run("api-users/AC-18", func(t *testing.T) {
+		// admin cannot disable their own account -> 409 cannot_disable_self
 		self := doReq(t, asRole(t, "POST", url+"/api/v1/users/"+roleUserIDs[auth.RoleAdmin].String()+":disable", auth.RoleAdmin, nil))
 		self.Body.Close()
 		if self.StatusCode != http.StatusConflict {
