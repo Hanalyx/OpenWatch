@@ -218,12 +218,19 @@ on target hosts.
 
 ![Remediation confirmation dialog](../images/hosts/confirm-remediation.png)
 
-For organizations that require approval workflows:
+For organizations that require an approval step:
 
-1. Select findings and click **Request Remediation**.
-2. Enter a justification for the changes.
-3. An admin reviews and approves the request.
-4. Once approved, the remediation executes automatically.
+1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
+   selects findings, clicks **Request Remediation**, and enters a justification.
+2. A **different** user with `remediation:approve` (`security_admin` or `admin`)
+   reviews and approves or rejects it. You cannot approve your own request
+   (separation of duties; self-approval returns `409 self_review`).
+3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
+   change. Execution is operator-initiated, not automatic.
+
+See [Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+for the full role matrix. Single-operator workspaces cannot self-approve today;
+see the [governance ADR](../engineering/remediation_governance_adr.md).
 
 ---
 
@@ -258,7 +265,8 @@ If a remediation causes problems, you can roll back to the pre-change state.
 
 ![Rollback confirmation](../images/hosts/rollback.png)
 
-Rollback requires SUPER_ADMIN or SECURITY_ADMIN role (scan:rollback permission).
+Rollback requires the `remediation:rollback` permission (`ops_lead`,
+`security_admin`, or `admin`).
 
 ### After Rolling Back
 
@@ -269,16 +277,22 @@ returned to its previous state.
 
 ## Required Permissions
 
-| Operation | Minimum Role |
-|-----------|-------------|
-| View hosts | GUEST |
-| Add / edit / delete hosts | SECURITY_ANALYST |
-| Bulk import / export | SUPER_ADMIN, SECURITY_ADMIN |
-| Start remediation | SECURITY_ADMIN (scan:execute) |
-| Approve remediation | SUPER_ADMIN (scan:approve) |
-| Rollback remediation | SUPER_ADMIN, SECURITY_ADMIN (scan:rollback) |
-| View server intelligence | SECURITY_ANALYST |
-| Manage host groups | SECURITY_ANALYST |
+Built-in roles, least to most privilege: `viewer` → `auditor` → `ops_lead` →
+`security_admin` → `admin` (`admin` holds every permission). The permission
+source of truth is `auth/permissions.yaml`; see
+[Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+for the complete matrix.
+
+| Operation | Permission | Roles that hold it |
+|-----------|------------|--------------------|
+| View hosts | `host:read` | viewer, auditor, ops_lead, security_admin, admin |
+| Add / edit hosts | `host:write` | ops_lead, security_admin, admin |
+| Delete hosts | `host:delete` | security_admin, admin |
+| Request remediation | `remediation:request` | ops_lead, security_admin, admin |
+| Approve / reject remediation | `remediation:approve` | security_admin, admin |
+| Execute remediation (Fix) | `remediation:execute` | ops_lead, security_admin, admin |
+| Rollback remediation | `remediation:rollback` | ops_lead, security_admin, admin |
+| View server intelligence | `host:read` | viewer, auditor, ops_lead, security_admin, admin |
 
 ---
 

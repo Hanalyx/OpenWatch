@@ -22,7 +22,7 @@ In a string-literal world, all three layers refer to permissions by free-form st
 
 - The spec says `host:read`. The handler checks `hosts:read`. The role grants `host.read`. All three are slightly different. Tests pass because fixtures grant superusers everything. Production fails when a real `auditor` role tries to list hosts and gets `403`.
 - A new dangerous permission gets added to a handler but never to the registry. There is no audit hook that says "this permission was added"; reviewers don't know the surface grew.
-- License-gated permissions (`remediation:execute` requires OpenWatch+) are gated in some places and not others — gating is a per-handler decoration that goes stale.
+- License-gated permissions (`audit:export` requires OpenWatch+) are gated in some places and not others — gating is a per-handler decoration that goes stale.
 
 A registry collapses all three layers onto one source. The OpenAPI validator, the handler middleware, and the role definitions all read from the same file. Misspell a permission anywhere → build fails. License gating co-locates with permission definition → middleware enforces both in one pass. Custom roles created at runtime validate every permission against the registry → no silent grant of a permission that doesn't exist.
 
@@ -132,7 +132,8 @@ type PermissionMeta struct {
 
 var Permissions = map[Permission]PermissionMeta{
     HostRead: {Category: "host", Description: "View host details...", Dangerous: false, LicenseGated: ""},
-    RemediationExecute: {Category: "remediation", Description: "Execute...", Dangerous: true, LicenseGated: "remediation_execution"},
+    RemediationExecute: {Category: "remediation", Description: "Execute...", Dangerous: true, LicenseGated: ""}, // free core (single-rule); bulk/auto gated at the handler
+    AuditExport: {Category: "audit", Description: "Export audit data...", Dangerous: false, LicenseGated: "audit_export"},
     // ...
 }
 
@@ -454,7 +455,7 @@ A custom role with `remediation:execute` is **allowed** even if the license does
 
 ### 8.5 Custom roles and policy cross-validation
 
-The `approvals` policy declares `approver_roles: [security_admin, ops_lead]`. The policy loader validates these against the active role set (built-in + custom). An unknown role → `policy.invalid` audit event; previous policy state retained. Custom roles can therefore appear in approver lists once they exist.
+The policies-as-data framework registers an `approvals` policy *type*, but **no `approvals` policy is currently configured** and no code reads `approver_roles`. The enforced approval gate today is the `remediation:approve` / `exception:approve` permission alone (held by `security_admin` and `admin`; see [remediation_exception_governance.md](remediation_exception_governance.md)). If an `approvals` policy is added later, the loader cross-validates its `approver_roles` against the active role set (built-in + custom; an unknown role → `policy.invalid` audit event, previous policy state retained). Those `approver_roles` MUST be a subset of the roles that hold the matching `*:approve` permission — otherwise the policy names a role that cannot actually approve.
 
 ---
 
