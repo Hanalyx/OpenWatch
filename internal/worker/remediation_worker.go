@@ -136,8 +136,25 @@ func (w *RemediationWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 	}
 }
 
-// processExecute drives approved -> executing -> executed|failed.
+// remediationBusyBackoff is how long a remediation job waits before being
+// retried when its target host is busy with another remediation. Only one rule
+// is applied on a host at a time (they share a single SSH session via the
+// executor's per-host guard), so concurrent "Fix" clicks serialize instead of
+// failing. Kept short — the running remediation, not the wait, is the bottleneck.
+const remediationBusyBackoff = 3 * time.Second
+
+// processExecute drives approved -> executing -> executed|failed. When the host
+// is already being remediated, it backs off and requeues (serialize per host)
+// instead of failing the request.
 func (w *RemediationWorker) processExecute(ctx context.Context, j *queue.Job, p RemediationPayload) {
+	// Serialize per host: if another remediation is already executing on this
+	// host, requeue with a backoff rather than colliding on the per-host SSH
+	// guard (which would fail this request). The request stays 'approved'.
+	if busy, err := w.svc.HostHasExecuting(ctx, p.HostID); err == nil && busy {
+		w.requeueBusy(ctx, j, p)
+		return
+	}
+
 	// Guard + transition approved -> executing (row-locked). A duplicate
 	// enqueue or a request not in 'approved' fails here without touching the
 	// host.
@@ -158,7 +175,19 @@ func (w *RemediationWorker) processExecute(ctx context.Context, j *queue.Job, p 
 	// executor owns the per-host concurrency guard.
 	result, remErr := w.executor.Remediate(ctx, p.HostID, p.RuleID)
 	if remErr != nil {
-		// Host-side failure: record an empty journal + transition to failed.
+		// A lost race for the per-host guard is TRANSIENT, not a host-side
+		// failure: revert executing -> approved and requeue so it retries once
+		// the host frees, rather than marking the request failed.
+		if errors.Is(remErr, kensa.ErrHostBusy) {
+			if _, rerr := w.svc.RevertToApproved(ctx, p.RequestID); rerr != nil {
+				slog.WarnContext(ctx, "remediation revert-to-approved failed",
+					slog.String("request_id", p.RequestID.String()),
+					slog.String("error", rerr.Error()))
+			}
+			w.requeueBusy(ctx, j, p)
+			return
+		}
+		// Real host-side failure: record an empty journal + transition to failed.
 		w.finishExecute(ctx, j, rq, p, nil, false)
 		slog.WarnContext(ctx, "remediation execute failed on host",
 			slog.String("request_id", p.RequestID.String()),
@@ -170,6 +199,23 @@ func (w *RemediationWorker) processExecute(ctx context.Context, j *queue.Job, p 
 	txns := mapExecTxns(result.Transactions)
 	committed := anyCommitted(txns)
 	w.finishExecute(ctx, j, rq, p, txns, committed)
+}
+
+// requeueBusy completes the current job and re-enqueues the same signed action
+// after remediationBusyBackoff, so a worker retries it once the host frees up.
+// Dequeue skips the not-yet-available row, so this does not busy-loop the
+// drain. A failure to re-enqueue falls back to failing the job (visible) rather
+// than silently dropping the action.
+func (w *RemediationWorker) requeueBusy(ctx context.Context, j *queue.Job, p RemediationPayload) {
+	body := MarshalRemediationJob(w.queueKey, p)
+	if _, err := queue.EnqueueAfter(ctx, w.pool, RemediationJobType, body, remediationBusyBackoff); err != nil {
+		slog.WarnContext(ctx, "remediation requeue (host busy) failed",
+			slog.String("request_id", p.RequestID.String()),
+			slog.String("error", err.Error()))
+		_ = queue.Fail(ctx, w.pool, j.ID, "requeue (host busy) failed: "+err.Error())
+		return
+	}
+	_ = queue.Complete(ctx, w.pool, j.ID)
 }
 
 // finishExecute writes the journal, transitions to executed|failed, flips the
@@ -235,6 +281,13 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 		return
 	}
 
+	// Serialize per host: a rollback shares the per-host SSH guard with execute,
+	// so if another remediation is executing on this host, back off and requeue.
+	if busy, herr := w.svc.HostHasExecuting(ctx, p.HostID); herr == nil && busy {
+		w.requeueBusy(ctx, j, p)
+		return
+	}
+
 	// Resolve the rollback handle: the payload's txn id, or the first
 	// committed transaction recorded for the request.
 	txnID := p.TxnID
@@ -248,6 +301,12 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 	}
 
 	res, rbErr := w.executor.Rollback(ctx, p.HostID, txnID)
+	// A lost race for the per-host guard is transient: requeue and retry rather
+	// than recording a failed rollback (the request stays 'executed').
+	if errors.Is(rbErr, kensa.ErrHostBusy) {
+		w.requeueBusy(ctx, j, p)
+		return
+	}
 	status := "failed"
 	if rbErr == nil && res != nil {
 		status = res.Status

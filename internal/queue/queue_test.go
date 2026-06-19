@@ -29,6 +29,52 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// @ac AC-13
+// AC-13: EnqueueAfter delays a job's visibility. Dequeue skips a job whose
+// available_at is in the future and claims it only once available_at <= now(),
+// so a requeue-with-backoff does not busy-loop the drain.
+func TestEnqueueAfter_DelaysVisibility(t *testing.T) {
+	t.Run("system-job-queue/AC-13", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := correlation.Set(context.Background(), "req-ac13-001")
+
+		future, err := EnqueueAfter(ctx, pool, "diagnostics.test_job", map[string]any{"k": "future"}, time.Hour)
+		if err != nil {
+			t.Fatalf("EnqueueAfter(future): %v", err)
+		}
+		now, err := EnqueueAfter(ctx, pool, "diagnostics.test_job", map[string]any{"k": "now"}, 0)
+		if err != nil {
+			t.Fatalf("EnqueueAfter(now): %v", err)
+		}
+
+		// Dequeue claims the immediately-available job, never the future one.
+		job, _, err := Dequeue(ctx, pool)
+		if err != nil {
+			t.Fatalf("Dequeue: %v", err)
+		}
+		if job.ID != now {
+			t.Fatalf("Dequeue claimed %s, want the immediately-available job %s", job.ID, now)
+		}
+		// The future job stays hidden.
+		if _, _, err := Dequeue(ctx, pool); !errors.Is(err, ErrNoJob) {
+			t.Fatalf("second Dequeue err = %v, want ErrNoJob (future job hidden)", err)
+		}
+
+		// Once its available_at passes, the future job becomes dequeuable.
+		if _, err := pool.Exec(ctx,
+			`UPDATE job_queue SET available_at = now() - interval '1 second' WHERE id = $1`, future); err != nil {
+			t.Fatalf("backdate: %v", err)
+		}
+		job2, _, err := Dequeue(ctx, pool)
+		if err != nil {
+			t.Fatalf("Dequeue after backdate: %v", err)
+		}
+		if job2.ID != future {
+			t.Errorf("Dequeue claimed %s, want the now-available job %s", job2.ID, future)
+		}
+	})
+}
+
 // @ac AC-01
 // AC-01: Enqueue persists a job_queue row with the expected fields populated.
 func TestEnqueue_PersistsRow(t *testing.T) {

@@ -32,6 +32,32 @@ func (s *Service) MarkRolledBack(ctx context.Context, id uuid.UUID) (Request, er
 	return s.transition(ctx, id, StatusExecuted, StatusRolledBack)
 }
 
+// RevertToApproved transitions an 'executing' request back to 'approved'. The
+// remediation worker calls this when it has marked a request executing but the
+// host turned out to be busy (lost a race for the per-host guard): the request
+// returns to approved so the requeued job can run it once the host frees up.
+func (s *Service) RevertToApproved(ctx context.Context, id uuid.UUID) (Request, error) {
+	return s.transition(ctx, id, StatusExecuting, StatusApproved)
+}
+
+// HostHasExecuting reports whether the host already has a remediation request
+// in the 'executing' state. The worker uses this to serialize per-host
+// remediation: only one rule is applied on a host at a time (they share one
+// SSH session via the executor's per-host guard), so a second concurrent
+// request backs off and requeues instead of colliding.
+func (s *Service) HostHasExecuting(ctx context.Context, hostID uuid.UUID) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM remediation_requests
+			 WHERE host_id = $1 AND status = 'executing'
+		)`, hostID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("remediation: host-executing check: %w", err)
+	}
+	return exists, nil
+}
+
 // transition performs a guarded fromState -> toState update under FOR UPDATE.
 // Unlike review() it does not touch reviewed_by/reviewed_at — execution
 // transitions are system-driven, not a human review.

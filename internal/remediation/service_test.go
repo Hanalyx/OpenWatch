@@ -283,3 +283,52 @@ func TestProjectLift_AndOverlayNeverMutatesRuleState(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-08
+// AC-08: per-host serialization primitives. HostHasExecuting reports whether a
+// request is 'executing' on a host; RevertToApproved returns an 'executing'
+// request to 'approved'. The worker uses these (with a backoff requeue via
+// queue.EnqueueAfter) so a second concurrent execute on a busy host requeues
+// instead of failing.
+func TestSerializePrimitives(t *testing.T) {
+	t.Run("api-remediation/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		user := seedUser(t, pool, "ser")
+		hostID := seedHost(t, pool, user)
+		svc := NewService(pool, fakeEmitter(&[]emitCall{}))
+
+		// Idle host: nothing executing.
+		if busy, err := svc.HostHasExecuting(ctx, hostID); err != nil || busy {
+			t.Fatalf("HostHasExecuting (idle) = %v, %v; want false", busy, err)
+		}
+
+		// Seed an executing request directly (the worker sets this via
+		// MarkExecuting; we seed it to test the primitives in isolation).
+		execID := uuid.Must(uuid.NewV7())
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO remediation_requests (id, host_id, rule_id, status, requested_by)
+			 VALUES ($1, $2, 'rule-x', 'executing', $3)`, execID, hostID, user); err != nil {
+			t.Fatalf("seed executing: %v", err)
+		}
+
+		// The host is now busy.
+		if busy, err := svc.HostHasExecuting(ctx, hostID); err != nil || !busy {
+			t.Errorf("HostHasExecuting (executing) = %v, %v; want true", busy, err)
+		}
+
+		// RevertToApproved returns it to approved and clears busy.
+		reverted, err := svc.RevertToApproved(ctx, execID)
+		if err != nil || reverted.Status != StatusApproved {
+			t.Errorf("RevertToApproved = %+v, %v; want approved", reverted, err)
+		}
+		if busy, _ := svc.HostHasExecuting(ctx, hostID); busy {
+			t.Errorf("HostHasExecuting after revert = true; want false")
+		}
+
+		// RevertToApproved on a non-executing request -> ErrWrongState.
+		if _, err := svc.RevertToApproved(ctx, execID); !errors.Is(err, ErrWrongState) {
+			t.Errorf("RevertToApproved (approved) err = %v, want ErrWrongState", err)
+		}
+	})
+}
