@@ -12,7 +12,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current line is a pre-release
-> (`0.2.0-rc.5` per `packaging/version.env`), not a GA build. Treat it
+> (`0.2.0-rc.10` per `packaging/version.env`), not a GA build. Treat it
 > accordingly until a GA tag ships.
 
 ---

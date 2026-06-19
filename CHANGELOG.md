@@ -10,6 +10,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- CI release safety: the release workflow now fails closed on a `v*` tag push
+  when no GPG signing key is configured, rather than publishing unsigned
+  packages. Manual `workflow_dispatch` trial builds stay permissive (warn +
+  publish unsigned).
+- CI frontend gate: a failing frontend Vitest suite now hard-fails the build.
+  Results are still ingested by specter first (so coverage is reported), then a
+  dedicated enforcement step aborts on a real test failure.
+- `make lint` now warns when the locally installed `golangci-lint` does not
+  match the version pinned in CI, so local runs reproduce CI.
+
+### Fixed
+
+- Documentation version drift: operator guides referenced `0.2.0-rc.5` while
+  `packaging/version.env` was `0.2.0-rc.10`; all guides now match.
+- SPA static-delivery tests are self-contained (in-memory fixture) instead of
+  depending on a magic staged asset filename, so `go test ./internal/server/`
+  passes against a real `vite build`, the Makefile stub, or no staged tree.
+- Repository hygiene: a stray 34 MB root build artifact was removed and the
+  root-level `openwatch` binary path is now gitignored; placeholder credentials
+  were stripped from the prototype login page.
+
 ---
 
 ## [0.2.0-rc.10] Eyrie — 2026-06-17

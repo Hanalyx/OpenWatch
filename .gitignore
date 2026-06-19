@@ -962,6 +962,11 @@ Thumbs.db
 coverage.html
 coverage.txt
 
+# Stray root-level build artifact. `make build` writes to dist/ (ignored
+# above); an ad-hoc `go build -o openwatch` at the repo root must never be
+# committed (a 34MB ELF slipped in this way once).
+/openwatch
+
 # Transient specter run output. CI regenerates these from a real
 # go test -json + vitest JUnit run (specter ingest), so a committed copy is
 # never consumed by the gate — it only goes stale and produces misleading

@@ -9,7 +9,28 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
+
+// spaFixture is a self-contained in-memory SPA tree. The static-delivery
+// tests (gzip, cache, ETag) build their handler from this instead of the
+// staged internal/server/spa/ directory, so they assert the same way whether
+// the on-disk tree is the Makefile stub, a real `vite build`, or absent.
+// assets/app.js is padded past the 256-byte gzip threshold and contains a
+// known marker the gzip test decodes and checks for.
+func spaFixture() fstest.MapFS {
+	// Pad well past the 256-byte gzip threshold so buildAsset's compression
+	// path engages; the repeated, highly compressible filler guarantees the
+	// gzipped result is smaller than the raw body (buildAsset only keeps gz
+	// when it actually shrinks). The leading console.log is the marker the
+	// gzip test decodes and checks for.
+	js := []byte("console.log(\"OpenWatch SPA fixture\");\n" +
+		strings.Repeat("/* compressible padding so the gzip path engages. */\n", 8))
+	return fstest.MapFS{
+		"index.html":    {Data: []byte("<!doctype html><html><body>OpenWatch</body></html>")},
+		"assets/app.js": {Data: js},
+	}
+}
 
 // SPA serving: the embedded single-page app is returned for non-API routes
 // (with an index.html fallback for client-side routing), and unmatched /api/
@@ -84,9 +105,9 @@ func TestSPA_UnmatchedAPIPathReturns404(t *testing.T) {
 // header so caches key on it. The gzipped body decodes to the original.
 func TestSPA_GzipWhenAccepted(t *testing.T) {
 	t.Run("system-http-server/AC-15", func(t *testing.T) {
-		h := newSPAHandler()
+		h := newSPAHandlerFS(spaFixture())
 
-		req := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
 		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -109,7 +130,7 @@ func TestSPA_GzipWhenAccepted(t *testing.T) {
 		}
 
 		// No Accept-Encoding → identity (never force-encode).
-		req2 := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
 		rec2 := httptest.NewRecorder()
 		h.ServeHTTP(rec2, req2)
 		if ce := rec2.Result().Header.Get("Content-Encoding"); ce != "" {
@@ -124,9 +145,9 @@ func TestSPA_GzipWhenAccepted(t *testing.T) {
 // is no-cache so deploys are picked up; an ETag enables a 304 revalidation.
 func TestSPA_CacheHeaders(t *testing.T) {
 	t.Run("system-http-server/AC-16", func(t *testing.T) {
-		h := newSPAHandler()
+		h := newSPAHandlerFS(spaFixture())
 
-		req := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		resp := rec.Result()
@@ -140,7 +161,7 @@ func TestSPA_CacheHeaders(t *testing.T) {
 		}
 
 		// Matching If-None-Match → 304 Not Modified.
-		req2 := httptest.NewRequest(http.MethodGet, "/assets/app-abc123.js", nil)
+		req2 := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
 		req2.Header.Set("If-None-Match", etag)
 		rec2 := httptest.NewRecorder()
 		h.ServeHTTP(rec2, req2)
