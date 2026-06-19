@@ -55,7 +55,15 @@ func newSPAHandler() http.Handler {
 		// the Makefile prevents. Fail loudly rather than serve nothing.
 		panic("server: embedded spa/ directory not found: " + err.Error())
 	}
+	return newSPAHandlerFS(sub)
+}
 
+// newSPAHandlerFS builds the SPA handler over an arbitrary file system. The
+// production constructor passes the embedded spa/ sub-FS; tests pass an
+// in-memory fixture so static-delivery assertions (gzip, cache, ETag) don't
+// depend on whatever filenames a `vite build` or the Makefile stub happens to
+// stage. Splitting this out is the seam that makes those tests self-contained.
+func newSPAHandlerFS(sub fs.FS) http.Handler {
 	h := &spaHandler{assets: make(map[string]*asset)}
 	walkErr := fs.WalkDir(sub, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {

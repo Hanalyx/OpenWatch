@@ -196,6 +196,32 @@ jobs:
             exit 1
           fi
 
+      # 100% structural coverage gate. Every acceptance criterion in every spec
+      # MUST have at least one test annotation — no AC may silently lose its
+      # test. This runs in annotation strictness (structural, no ingest) so it
+      # is independent of which tests run in this lane, and it fails fast and
+      # with a clear message before the heavier ingest-based outcome gate. The
+      # outcome gate (`specter sync` at the manifest's threshold strictness,
+      # tiers all 100, below) separately requires every AC's test to PASS; the
+      # ingest job provisions OPENWATCH_KENSA_RULES_DIR + OPENWATCH_PACKAGING_BUILD
+      # so the formerly env-gated tests run there instead of skipping.
+      #
+      # NOTE: `specter sync --strictness annotation` would only enforce the
+      # per-tier thresholds, so we assert 100% directly: any per-spec row
+      # (a "… Tn …" line) not at 100% fails the build.
+      - name: specter structural coverage must be 100%
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          report=$(specter coverage --strictness annotation 2>&1)
+          echo "$report"
+          below=$(echo "$report" | grep -E '\sT[0-9]+\s' | grep -vE '\s100%' || true)
+          if [ -n "$below" ]; then
+            echo "::error::Specter structural coverage is below 100% — every acceptance criterion must carry a // @ac (Go) or // @ac (frontend) annotation. Specs below 100%:"
+            echo "$below"
+            exit 1
+          fi
+          echo "All specs at 100% structural coverage."
+
       # Single full-suite run that BOTH detects data races and emits the
       # JSON specter ingests — replacing the previous two end-to-end passes
       # (`make test-race` + a separate non-race `go test -json`), which ran
@@ -206,8 +232,18 @@ jobs:
       # to 600s because race instrumentation slows the hot DB packages.
       - name: go test (race + json) for specter ingest
         if: steps.paths.outputs.go == 'true'
+        # OPENWATCH_PACKAGING_BUILD=1 opts the native package-build + runtime-boot
+        # tests into this run so their AC coverage is enforced in CI; a plain
+        # local `go test ./...` skips them (they take minutes and write into
+        # dist/). See packaging/tests/package_test.go:requirePackagingBuild.
+        env:
+          OPENWATCH_PACKAGING_BUILD: "1"
         run: |
           set +e
+          # Point the Kensa variable-catalog tests at the real rule corpus that
+          # ships inside the kensa module, so api-system-scan-config/AC-08 runs
+          # here instead of skipping (100% outcome coverage requires it).
+          export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
           go test -race -json -timeout 600s -p 4 ./... > /tmp/go-test.json
           EXIT=$?
           if [ "$EXIT" -ne 0 ]; then
@@ -242,12 +278,14 @@ jobs:
           set +e
           npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
           EXIT=$?
-          # Don't block the pipeline on Vitest failure — surface it but
-          # let specter sync report which ACs are uncovered. The Go test
-          # step above already fails the build on test failure; this
-          # mirror keeps the gate's failure source observable.
+          # Record the exit code but DON'T fail here: specter ingest (next
+          # step) still needs to read the JUnit file, and specter sync should
+          # report which ACs the failures left uncovered before we abort.
+          # The "Enforce frontend tests passed" step below turns a non-zero
+          # result into a hard build failure once specter has run.
+          echo "$EXIT" > /tmp/vitest-exit
           if [ "$EXIT" -ne 0 ]; then
-            echo "::warning::Vitest reported test failures — see specter coverage for affected ACs"
+            echo "::warning::Vitest reported test failures — specter coverage below shows affected ACs; the build fails at the enforcement step."
           fi
 
       - name: specter ingest
@@ -263,6 +301,22 @@ jobs:
         # filters on @spec / @ac, so non-test files in the broad glob
         # are skipped at parse time.
         run: specter sync --tests '**/*'
+
+      # Hard frontend-test gate. Vitest failures are deferred above so
+      # specter can ingest the JUnit results and report coverage first; this
+      # step makes a real frontend test failure fail the build. A frontend
+      # regression that does not happen to map to a spec AC would otherwise
+      # slip through (specter only gates annotated ACs), so this is the
+      # backstop that keeps `npm test` authoritative in CI.
+      - name: Enforce frontend tests passed
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          EXIT=$(cat /tmp/vitest-exit 2>/dev/null || echo 1)
+          if [ "$EXIT" -ne 0 ]; then
+            echo "::error::Frontend vitest suite failed (exit $EXIT). See the 'frontend vitest' step above."
+            exit "$EXIT"
+          fi
+          echo "frontend vitest suite passed"
 
       - name: upload specter artifacts
         if: always() && steps.paths.outputs.go == 'true'
