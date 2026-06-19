@@ -206,6 +206,12 @@ jobs:
       # to 600s because race instrumentation slows the hot DB packages.
       - name: go test (race + json) for specter ingest
         if: steps.paths.outputs.go == 'true'
+        # OPENWATCH_PACKAGING_BUILD=1 opts the native package-build tests
+        # (make rpm/deb) into this run so their AC coverage is unchanged in CI;
+        # a plain local `go test ./...` skips them (they take minutes and write
+        # into dist/). See packaging/tests/package_test.go:requirePackagingBuild.
+        env:
+          OPENWATCH_PACKAGING_BUILD: "1"
         run: |
           set +e
           go test -race -json -timeout 600s -p 4 ./... > /tmp/go-test.json
