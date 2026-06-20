@@ -1,13 +1,23 @@
+import { useEffect } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { ErrorBoundary } from './ErrorBoundary';
+import { usePreferencesStore } from '@/store/usePreferencesStore';
 
 // AppFrame — the persistent shell that wraps every authenticated route.
 //
 // Spec: frontend-foundation C-08, C-09, AC-10.
 
 export function AppFrame() {
+  // Reconcile per-user UI preferences with the server once the
+  // authenticated shell mounts (system-user-preferences). Best-effort: a
+  // failed fetch leaves the localStorage-cached values in place.
+  const hydratePreferences = usePreferencesStore((s) => s.hydrateFromServer);
+  useEffect(() => {
+    void hydratePreferences();
+  }, [hydratePreferences]);
+
   return (
     <div
       style={{

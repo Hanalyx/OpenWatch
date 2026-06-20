@@ -184,6 +184,18 @@ errors:
       properties:
         field: {type: string}
 
+  - code: validation.invalid_body
+    http_status: 400
+    fault: client
+    retryable: false
+    description: The request body is not valid JSON or does not match the expected shape
+
+  - code: validation.invalid_value
+    http_status: 400
+    fault: client
+    retryable: false
+    description: A field carries a value outside its allowed set (e.g. an unknown enum)
+
   - code: validation.field_format
     http_status: 400
     fault: client

@@ -34,6 +34,7 @@ import {
   statusLabel,
   tierLabel,
 } from '@/api/host-filtering';
+import { usePreferencesStore } from '@/store/usePreferencesStore';
 
 // HostsListPage — Host Management surface, prototype-faithful.
 //
@@ -154,7 +155,14 @@ export function HostsListPage() {
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
-  const view: 'table' | 'cards' = search.view === 'table' ? 'table' : 'cards';
+  // View: the URL ?view= wins (shareable / refresh-stable, C-04); absent
+  // that, fall back to the user's server-persisted default
+  // (system-user-preferences). Toggling sets BOTH so the choice "becomes
+  // the default until changed".
+  const hostsViewDefault = usePreferencesStore((s) => s.hostsViewDefault);
+  const setHostsViewDefault = usePreferencesStore((s) => s.setHostsViewDefault);
+  const view: 'table' | 'cards' =
+    search.view === 'table' || search.view === 'cards' ? search.view : hostsViewDefault;
   const group: GroupKey = search.group === 'status' || search.group === 'os' ? search.group : 'none';
   const query = (search.q ?? '').trim().toLowerCase();
   const filters: HostFilters = useMemo(
@@ -422,7 +430,15 @@ export function HostsListPage() {
           onChange={(next) => updateSearch(next)}
         />
         <div style={{ flex: 1 }} />
-        <ViewToggle value={view} onChange={(v) => updateSearch({ view: v })} />
+        <ViewToggle
+          value={view}
+          onChange={(v) => {
+            // Persist the choice as the per-user default AND reflect it in
+            // the URL for this session (shareable / refresh-stable).
+            setHostsViewDefault(v);
+            updateSearch({ view: v });
+          }}
+        />
       </div>
 
       {hostsQuery.isError && (

@@ -87,6 +87,7 @@ domains:
             - api-notifications
             - system-api-tokens
             - api-tokens
+            - system-user-preferences
             - system-auth-policy
             - api-auth-policy
             - system-sso

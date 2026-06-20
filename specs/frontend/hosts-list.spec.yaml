@@ -92,6 +92,10 @@ spec:
       description: 'v1.7.0 — the Filters button MUST open a popover offering multi-select Status (monitoring band), Compliance tier (crit <40 / warn 40-80 / ok >=80 / none = never scanned), and Operating-system (families present in the fleet) facets. Selections MUST be persisted to the URL (status/os/tier comma-joined params) so a refresh restores them, and applied client-side by applyHostFilters as AND across dimensions / OR within a dimension. The button MUST show the active-filter count and the popover MUST offer Clear all. An empty dimension imposes no constraint'
       type: technical
       enforcement: error
+    - id: C-12
+      description: 'v1.7.0 — the card/table view is chosen as: URL ?view= (table|cards) when present (so a link or refresh is stable), otherwise the user''s server-persisted default usePreferencesStore.hostsViewDefault (system-user-preferences). Toggling the view MUST both call setHostsViewDefault(v) (persisting the new per-user default) AND set ?view= for the session — so the choice "becomes the default until the user changes it"'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -190,3 +194,7 @@ spec:
       description: 'v1.7.0 — applyHostFilters(hosts, filters) keeps a host only when it matches every active dimension (AND across status/os/tier, OR within each), and an empty dimension imposes no constraint. hostComplianceTier buckets compliance as crit (<40) / warn (40-80) / ok (>=80) / none (compliance null = never scanned, NOT crit). parseHostFilters splits comma-joined URL params; activeFilterCount sums the selected facets. The FiltersControl popover wires these (Status/Compliance/OS facets + Clear all) and persists selections through onChange to the URL. Behavioral unit test over host-filtering.ts + source-inspection of FiltersControl.'
       priority: high
       references_constraints: [C-11]
+    - id: AC-25
+      description: "v1.7.0 source-inspection: the view resolves to search.view when it is 'table' or 'cards', otherwise usePreferencesStore.hostsViewDefault (not a hardcoded 'cards'). The ViewToggle onChange calls setHostsViewDefault(v) AND updateSearch({view:v}) so the toggle persists the per-user default and updates the URL together."
+      priority: high
+      references_constraints: [C-12]

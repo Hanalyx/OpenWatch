@@ -35,6 +35,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/sso"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
+	"github.com/Hanalyx/openwatch/internal/userpref"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/google/uuid"
@@ -140,6 +141,11 @@ type handlers struct {
 	// SSO (OIDC) providers + sign-in flow. Always wired in server.New (it
 	// wraps the pool + the mandated outbound client). Spec api-sso.
 	ssoSvc *sso.Service
+
+	// Per-user UI preferences (users.preferences JSONB). Always wired in
+	// newHandlers (it only wraps the pool), so /users/me/preferences is
+	// never 503. Spec system-user-preferences + api-user-preferences.
+	userPrefSvc *userpref.Service
 }
 
 // newHandlers constructs the ServerInterface implementation. The user
@@ -152,6 +158,7 @@ func newHandlers(pool *pgxpool.Pool) *handlers {
 		credentials: credential.NewService(pool),
 		hosts:       host.NewService(pool),
 		fleet:       fleetrollup.NewService(pool),
+		userPrefSvc: userpref.NewService(pool),
 	}
 }
 

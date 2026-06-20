@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.10.0"
+  version: "1.11.0"
   status: draft
   tier: 2
 
@@ -115,9 +115,15 @@ spec:
     - id: C-06
       description: >-
         Preferences MUST persist to localStorage under key
-        "ow-preferences" (via Zustand persist middleware). No backend
-        POST is made. Reloading the browser restores the same
-        selections
+        "ow-preferences" (via Zustand persist middleware) as an instant-load
+        cache. v2.0.0 — they ALSO persist server-side per user
+        (system-user-preferences): each setter writes through to
+        PATCH /api/v1/users/me/preferences, and the authenticated shell
+        reconciles local state with GET /api/v1/users/me/preferences on
+        mount (hydrateFromServer), so a selection follows the user across
+        devices. Server write-through is best-effort — a failed PATCH leaves
+        the localStorage value in place. Reloading the browser restores the
+        same selections
       type: technical
       enforcement: error
     - id: C-07
@@ -357,3 +363,8 @@ spec:
       description: "v1.10.0 source-inspection: a 409 from disabling your own account is surfaced inline through the shared action-error Callout (apiErrorMessage carries the users.cannot_disable_self reason); admin reset-password and disable/enable copy contains no em-dash characters."
       priority: medium
       references_constraints: [C-08]
+
+    - id: AC-30
+      description: "v1.11.0 source-inspection: usePreferencesStore keeps the Zustand persist('ow-preferences') localStorage cache AND syncs server-side — every setter calls push() which PATCHes /api/v1/users/me/preferences (best-effort, errors swallowed), and hydrateFromServer() GETs /api/v1/users/me/preferences and applies present keys to state. AppFrame calls hydrateFromServer once on mount via useEffect, so the authenticated shell reconciles preferences with the account."
+      priority: high
+      references_constraints: [C-06]

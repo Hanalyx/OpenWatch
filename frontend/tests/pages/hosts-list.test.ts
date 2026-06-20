@@ -342,4 +342,16 @@ describe('frontend-hosts-list v1.7.0 — grouping + filters wiring', () => {
     expect(PAGE_SRC).toContain('applyHostFilters(out, filters)');
     expect(PAGE_SRC).toMatch(/Clear all filters/);
   });
+
+  // @ac AC-25
+  test('frontend-hosts-list/AC-25 — view falls back to persisted hostsViewDefault; toggle persists it', () => {
+    // No hardcoded 'cards' default — the fallback is the persisted store value.
+    expect(PAGE_SRC).toContain("usePreferencesStore((s) => s.hostsViewDefault)");
+    expect(PAGE_SRC).toMatch(
+      /search\.view === 'table' \|\| search\.view === 'cards' \? search\.view : hostsViewDefault/,
+    );
+    // Toggling persists the per-user default AND updates the URL.
+    expect(PAGE_SRC).toContain('setHostsViewDefault(v)');
+    expect(PAGE_SRC).toContain('updateSearch({ view: v })');
+  });
 });
