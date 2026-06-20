@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
@@ -512,7 +513,7 @@ func (s *Service) emitAuditSuccess(ctx context.Context, hostID uuid.UUID, f Syst
 	if s.emit == nil {
 		return
 	}
-	s.emit(ctx, audit.HostDiscoveryCompleted, audit.Event{
+	ev := audit.Event{
 		ResourceType: "host",
 		ResourceID:   hostID.String(),
 		Outcome:      audit.OutcomeSuccess,
@@ -523,5 +524,17 @@ func (s *Service) emitAuditSuccess(ctx context.Context, hostID uuid.UUID, f Syst
 			"architecture":   f.Architecture,
 			"discovered_at":  f.CollectedAt.Format(time.RFC3339Nano),
 		}),
-	})
+	}
+	// Attribute the trigger so the audit trail distinguishes an operator
+	// action (Reconnect / "Run now" / adding a host — the request identity
+	// is bound on ctx) from an automated scheduled run (the scheduler's
+	// background ctx has no identity). Without this the event was emitted
+	// with no actor and read as the misleading "Someone".
+	if id := auth.FromContext(ctx); !id.IsAnonymous {
+		ev.ActorType = "user"
+		ev.ActorID = id.ID
+	} else {
+		ev.ActorType = "system"
+	}
+	s.emit(ctx, audit.HostDiscoveryCompleted, ev)
 }
