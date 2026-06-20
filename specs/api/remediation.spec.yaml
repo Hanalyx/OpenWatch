@@ -148,3 +148,6 @@ spec:
       description: 'Worker execution path: a queued remediation job with a valid HMAC drives an approved request approved -> executing -> executed when the executor returns a committed transaction, writes a remediation_transactions journal row (kensa_txn_id, phase_result=committed), and flips the rule to pass in host_rule_state (the compliance score moves). A committed run that the executor reports as errored, or a host-side failure, transitions the request to failed and writes no flip. A job whose payload HMAC does not verify is dead-lettered (queue.Fail) with scheduler.job.hmac_rejected and no executor invocation.'
       priority: critical
       references_constraints: [C-08]
+    - id: AC-08
+      description: 'Per-host remediation serialization: HostHasExecuting(host) reports whether a request is in the executing state on the host; RevertToApproved(id) returns an executing request to approved (and is ErrWrongState otherwise). The worker uses these plus a backoff requeue (queue.EnqueueAfter) so a second concurrent execute/rollback on a busy host requeues and retries once the host frees, instead of colliding on the per-host SSH guard and being marked failed.'
+      priority: high

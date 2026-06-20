@@ -128,3 +128,6 @@ spec:
         the default-1 worker stays strictly serial.
       priority: critical
       references_constraints: [C-07]
+    - id: AC-13
+      description: 'EnqueueAfter(delay) sets a future available_at; Dequeue does not claim a job before its available_at and claims it once available_at <= now() (ORDER BY available_at, created_at). Enqueue (delay 0) is immediately available, so existing producers are unchanged. This backs a requeue-with-backoff without busy-looping the drain.'
+      priority: high

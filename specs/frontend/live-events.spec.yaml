@@ -28,6 +28,7 @@ spec:
                                         invalidation; list page is NOT
                                         invalidated (intel events don't
                                         affect the list view)
+        - remediation.completed       — remediations list + detail invalidation
         - scan.completed              — list + detail invalidation
                                         (v1.1.0: compliance_summary on
                                         both views changes when a scan's
@@ -65,7 +66,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the five kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed (v1.1.0). Adding a sixth requires bumping this spec''s version and updating the test'
+      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the six kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed, remediation.completed (v1.2.0). Adding another requires bumping this spec''s version and updating the test'
       type: technical
       enforcement: error
     - id: C-02
@@ -95,7 +96,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed"]. Verified by importing the const and asserting the array contents + length'
+      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed", "remediation.completed"]. Verified by importing the const and asserting the array contents + length'
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
@@ -125,4 +126,8 @@ spec:
     - id: AC-08
       description: 'Firing scan.completed with host_id=H invalidates ["hosts"] AND ["host", H] — the hero compliance card refreshes without a reload after a scan finishes'
       priority: critical
+      references_constraints: [C-07]
+    - id: AC-09
+      description: 'Firing remediation.completed with HostID=H invalidates ["host", H, "remediations"] AND ["host", H] — the Remediation tab and the compliance score refresh without a reload when a queued fix or rollback finishes (a committed fix flips a rule to pass)'
+      priority: high
       references_constraints: [C-07]
