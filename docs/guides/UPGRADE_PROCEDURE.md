@@ -13,7 +13,7 @@ database backup and restore commands referenced below, see
 [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md). For migration mechanics, see
 [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md).
 
-> Version note: the current release line is a pre-release (`0.2.0-rc.10`). Treat
+> Version note: the current release line is a pre-release (`0.2.0-rc.11`). Treat
 > upgrades between pre-release builds as potentially breaking and always back up
 > first.
 

@@ -84,7 +84,7 @@ spec:
       priority: critical
       references_constraints: [C-03]
     - id: AC-04
-      description: 'GET /api/v1/hosts/{id}/system-info as anonymous (no session) returns 403 authz.permission_denied. host:read failure surfaces the same envelope used by GET /hosts/{id}'
+      description: 'GET /api/v1/hosts/{id}/system-info as an anonymous caller (no/expired session) returns 401 auth.required. host:read failure surfaces the same envelope used by GET /hosts/{id}'
       priority: critical
       references_constraints: [C-01]
     - id: AC-05

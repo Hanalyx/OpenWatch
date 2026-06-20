@@ -10,8 +10,40 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.11] Eyrie — 2026-06-19
+
+The bundled Kensa scan engine moves to v0.5.2, which corrects a class of false
+compliance FAILs on TAB-delimited rules. Single-operator remediation no longer
+deadlocks (free-core fixes auto-approve), the Remediation tab updates live and
+serializes concurrent fixes, an expired session now redirects cleanly to login,
+and the GA-readiness pass hardened CI and the release workflow.
+
+### Added
+
+- Remediation: free-core single-rule remediation is now **auto-approved** on
+  request, so an operator can apply a fix without a separate approver. This
+  removes the self-review deadlock for single-operator workspaces (you could
+  request a fix but never approve your own request). The request lifecycle and
+  the approve/reject flow with separation of duties are retained for the
+  licensed bulk/automated remediation track (which requests with approval
+  required). See `docs/engineering/remediation_governance_adr.md` ("A-keep").
+
 ### Changed
 
+- Updated the bundled Kensa scan engine and rule corpus to v0.5.2. v0.5.2 fixes
+  a `config_value` matching bug so a `" "` delimiter matches any whitespace
+  (including TAB), correcting a class of false FAILs on TAB-delimited rules such
+  as RHEL `login.defs` — affected hosts may see their compliance score improve.
+  It also adds rule-engine correctness gates (check-method parameter contracts,
+  value-domain validation, a comparator + delimiter engine, and a schema/engine
+  parity gate). The corpus stays at 539 rules and the engine's frozen API
+  surface is unchanged, so OpenWatch's library integration is unaffected
+  (kensa v0.5.2).
+- Documented remediation/exception governance: a remediation-approval ADR and a
+  role matrix covering who can request versus approve a fix or exception, plus a
+  self-review rule, and an RBAC spec that drift-locks the role/permission map.
 - CI release safety: the release workflow now fails closed on a `v*` tag push
   when no GPG signing key is configured, rather than publishing unsigned
   packages. Manual `workflow_dispatch` trial builds stay permissive (warn +
@@ -24,6 +56,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Auth: an anonymous request to a protected endpoint (no credentials, or a
+  session cookie that expired in the browser and is no longer sent) now returns
+  **401 `auth.required`** instead of 403. The SPA redirects to login on a 401,
+  so an expired session surfaces as a clean re-login prompt rather than a
+  dead-end "failed to load." An authenticated caller whose role lacks the
+  permission still gets 403 `authz.permission_denied`.
+- Remediation now updates live. The Remediation tab and the compliance score
+  refresh automatically when a queued fix or rollback finishes, over the SSE
+  event stream (new `remediation.completed` topic), instead of requiring a
+  manual page refresh.
+- Applying several fixes on the same host at once no longer fails the extra
+  ones. Concurrent remediations on a host now serialize: a fix whose host is
+  busy backs off and requeues (with a short delay, via a new delayed-visibility
+  column on the job queue) until the host is free, instead of colliding on the
+  per-host SSH guard and being marked failed.
 - Documentation version drift: operator guides referenced `0.2.0-rc.5` while
   `packaging/version.env` was `0.2.0-rc.10`; all guides now match.
 - SPA static-delivery tests are self-contained (in-memory fixture) instead of

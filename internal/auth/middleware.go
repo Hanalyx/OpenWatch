@@ -60,15 +60,28 @@ func RequirePermission(p Permission) func(http.Handler) http.Handler {
 	}
 }
 
-// denyPermission writes the canonical 403 envelope and emits the
+// denyPermission writes the RBAC denial envelope and emits the
 // authz.permission_denied audit event with detail.required_permission
 // set to the permission id. Per system-rbac AC-09 + AC-11 + C-04.
+//
+// The HTTP status distinguishes the two denial classes so the SPA can react
+// correctly: an ANONYMOUS caller (no or expired credentials — the request
+// arrived without a usable session) gets 401 auth.required so the client
+// redirects to login; an AUTHENTICATED caller whose role lacks the permission
+// gets 403 authz.permission_denied. The audit record is identical either way —
+// a denial is a denial.
 func denyPermission(w http.ResponseWriter, r *http.Request, p Permission, id Identity) {
+	status, code, fault, msg := http.StatusForbidden, "authz.permission_denied", "policy",
+		"this operation requires a permission your role does not grant"
+	if id.IsAnonymous {
+		status, code, fault, msg = http.StatusUnauthorized, "auth.required", "client",
+			"authentication required; sign in to continue"
+	}
 	errBody := map[string]any{
-		"code":          "authz.permission_denied",
-		"fault":         "policy",
+		"code":          code,
+		"fault":         fault,
 		"retryable":     false,
-		"human_message": "this operation requires a permission your role does not grant",
+		"human_message": msg,
 		"detail": map[string]any{
 			"required_permission": string(p),
 		},
@@ -78,8 +91,11 @@ func denyPermission(w http.ResponseWriter, r *http.Request, p Permission, id Ide
 	}
 	envelope := map[string]any{"error": errBody}
 	body, _ := json.Marshal(envelope)
+	if status == http.StatusUnauthorized {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusForbidden)
+	w.WriteHeader(status)
 	_, _ = w.Write(body)
 
 	actorID := id.ID

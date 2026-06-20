@@ -53,13 +53,29 @@ func TestAPI_RBAC_DeniesWithoutPermission(t *testing.T) {
 		// No session cookie → anonymous.
 		resp := doReq(t, req)
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
+		if resp.StatusCode != http.StatusUnauthorized {
 			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("status = %d, want 403; body=%s", resp.StatusCode, b)
+			t.Fatalf("anonymous status = %d, want 401; body=%s", resp.StatusCode, b)
 		}
 		b, _ := io.ReadAll(resp.Body)
-		if !strings.Contains(string(b), "authz.permission_denied") {
-			t.Errorf("body lacks authz.permission_denied: %s", b)
+		if !strings.Contains(string(b), "auth.required") {
+			t.Errorf("anonymous body lacks auth.required: %s", b)
+		}
+
+		// Authenticated caller whose role lacks the permission still gets 403
+		// authz.permission_denied (a viewer holds host:read but not host:write).
+		vreq := asRole(t, "POST", url+"/api/v1/diagnostics:require-host-write", auth.RoleViewer,
+			map[string]any{"message": "rbac-deny-authed"})
+		vreq.Header.Set("Idempotency-Key", "rbac-deny-authed-key")
+		vresp := doReq(t, vreq)
+		defer vresp.Body.Close()
+		if vresp.StatusCode != http.StatusForbidden {
+			vb, _ := io.ReadAll(vresp.Body)
+			t.Fatalf("authenticated viewer status = %d, want 403; body=%s", vresp.StatusCode, vb)
+		}
+		vb, _ := io.ReadAll(vresp.Body)
+		if !strings.Contains(string(vb), "authz.permission_denied") {
+			t.Errorf("authenticated-denial body lacks authz.permission_denied: %s", vb)
 		}
 	})
 }
@@ -297,8 +313,8 @@ func TestAPI_RBAC_AdminRolesDeniesAnonymous(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		resp := doGet(t, url+"/api/v1/roles")
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("status = %d, want 403 (no role)", resp.StatusCode)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401 (no role / anonymous)", resp.StatusCode)
 		}
 	})
 }

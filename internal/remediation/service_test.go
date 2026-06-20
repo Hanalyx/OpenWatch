@@ -102,33 +102,50 @@ func TestRequest_InsertDuplicateInvalidReopen(t *testing.T) {
 		var calls []emitCall
 		svc := NewService(pool, fakeEmitter(&calls))
 
-		rq, err := svc.Request(ctx, hostID, "sshd-permit-root-no", nil, user)
+		// Free-core single-rule remediation (requiresApproval=false) is
+		// AUTO-APPROVED on creation.
+		rq, err := svc.Request(ctx, hostID, "sshd-permit-root-no", nil, user, false)
 		if err != nil {
 			t.Fatalf("Request: %v", err)
 		}
-		if rq.Status != StatusPendingApproval || rq.RuleID != "sshd-permit-root-no" {
-			t.Errorf("requested remediation = %+v", rq)
+		if rq.Status != StatusApproved || rq.RuleID != "sshd-permit-root-no" {
+			t.Errorf("requested remediation = %+v, want status=approved", rq)
 		}
-		if len(calls) != 1 || calls[0].Code != audit.RemediationRequested {
-			t.Errorf("audit calls = %+v, want one requested", calls)
+		if rq.ReviewedAt == nil || rq.ReviewedBy != nil {
+			t.Errorf("auto-approved: want reviewed_at set + reviewed_by nil, got reviewed_at=%v reviewed_by=%v", rq.ReviewedAt, rq.ReviewedBy)
+		}
+		if !strings.Contains(rq.ReviewNote, "auto-approved") {
+			t.Errorf("auto-approved review_note = %q, want an auto-approved note", rq.ReviewNote)
+		}
+		// Auto-approve emits remediation.requested then remediation.approved.
+		if len(calls) != 2 || calls[0].Code != audit.RemediationRequested || calls[1].Code != audit.RemediationApproved {
+			t.Errorf("audit calls = %+v, want requested + approved", calls)
 		}
 
-		// Duplicate open: rejected.
-		if _, err := svc.Request(ctx, hostID, "sshd-permit-root-no", nil, user); !errors.Is(err, ErrDuplicateOpen) {
+		// Duplicate open (the auto-approved request is still open): rejected.
+		if _, err := svc.Request(ctx, hostID, "sshd-permit-root-no", nil, user, false); !errors.Is(err, ErrDuplicateOpen) {
 			t.Errorf("duplicate Request err = %v, want ErrDuplicateOpen", err)
 		}
 
 		// Invalid input (empty rule).
-		if _, err := svc.Request(ctx, hostID, "  ", nil, user); !errors.Is(err, ErrInvalidInput) {
+		if _, err := svc.Request(ctx, hostID, "  ", nil, user, false); !errors.Is(err, ErrInvalidInput) {
 			t.Errorf("empty rule err = %v, want ErrInvalidInput", err)
 		}
 
-		// Reopen after the prior is rejected: a fresh request succeeds.
+		// Approval-required (requiresApproval=true) inserts pending_approval and
+		// reopens after a terminal state: reject -> a fresh request succeeds.
 		reviewer := seedUser(t, pool, "reviewer")
-		if _, err := svc.Reject(ctx, rq.ID, reviewer, "not now"); err != nil {
+		pend, err := svc.Request(ctx, hostID, "needs-approval", nil, user, true)
+		if err != nil {
+			t.Fatalf("approval-required Request: %v", err)
+		}
+		if pend.Status != StatusPendingApproval {
+			t.Errorf("approval-required status = %v, want pending_approval", pend.Status)
+		}
+		if _, err := svc.Reject(ctx, pend.ID, reviewer, "not now"); err != nil {
 			t.Fatalf("Reject: %v", err)
 		}
-		if _, err := svc.Request(ctx, hostID, "sshd-permit-root-no", nil, user); err != nil {
+		if _, err := svc.Request(ctx, hostID, "needs-approval", nil, user, true); err != nil {
 			t.Errorf("reopen after reject failed: %v", err)
 		}
 	})
@@ -146,7 +163,7 @@ func TestLifecycle_Transitions(t *testing.T) {
 		svc := NewService(pool, fakeEmitter(&calls))
 
 		// approve path
-		a, _ := svc.Request(ctx, hostID, "rule-a", nil, requester)
+		a, _ := svc.Request(ctx, hostID, "rule-a", nil, requester, true)
 		got, err := svc.Approve(ctx, a.ID, reviewer, "ok")
 		if err != nil || got.Status != StatusApproved || got.ReviewedBy == nil || *got.ReviewedBy != reviewer {
 			t.Fatalf("Approve = %+v, err %v", got, err)
@@ -157,7 +174,7 @@ func TestLifecycle_Transitions(t *testing.T) {
 		}
 
 		// reject path
-		b, _ := svc.Request(ctx, hostID, "rule-b", nil, requester)
+		b, _ := svc.Request(ctx, hostID, "rule-b", nil, requester, true)
 		if got, err := svc.Reject(ctx, b.ID, reviewer, "no"); err != nil || got.Status != StatusRejected {
 			t.Fatalf("Reject = %+v, err %v", got, err)
 		}
@@ -198,7 +215,7 @@ func TestSeparationOfDuties(t *testing.T) {
 		hostID := seedHost(t, pool, user)
 		svc := NewService(pool, fakeEmitter(&[]emitCall{}))
 
-		rq, _ := svc.Request(ctx, hostID, "rule-s", nil, user)
+		rq, _ := svc.Request(ctx, hostID, "rule-s", nil, user, true)
 		// self-approve blocked
 		if _, err := svc.Approve(ctx, rq.ID, user, "me"); !errors.Is(err, ErrSelfReview) {
 			t.Errorf("self-approve err = %v, want ErrSelfReview", err)
@@ -260,7 +277,7 @@ func TestProjectLift_AndOverlayNeverMutatesRuleState(t *testing.T) {
 		}
 
 		// Request persists the projection snapshot.
-		rq, err := svc.Request(ctx, hostID, "rule-active", nil, requester)
+		rq, err := svc.Request(ctx, hostID, "rule-active", nil, requester, false)
 		if err != nil {
 			t.Fatalf("Request: %v", err)
 		}
@@ -280,6 +297,55 @@ func TestProjectLift_AndOverlayNeverMutatesRuleState(t *testing.T) {
 		steps, _ := svc.ListSteps(ctx, rq.ID)
 		if len(steps) != 0 {
 			t.Errorf("free build wrote %d journal steps, want 0", len(steps))
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08: per-host serialization primitives. HostHasExecuting reports whether a
+// request is 'executing' on a host; RevertToApproved returns an 'executing'
+// request to 'approved'. The worker uses these (with a backoff requeue via
+// queue.EnqueueAfter) so a second concurrent execute on a busy host requeues
+// instead of failing.
+func TestSerializePrimitives(t *testing.T) {
+	t.Run("api-remediation/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		user := seedUser(t, pool, "ser")
+		hostID := seedHost(t, pool, user)
+		svc := NewService(pool, fakeEmitter(&[]emitCall{}))
+
+		// Idle host: nothing executing.
+		if busy, err := svc.HostHasExecuting(ctx, hostID); err != nil || busy {
+			t.Fatalf("HostHasExecuting (idle) = %v, %v; want false", busy, err)
+		}
+
+		// Seed an executing request directly (the worker sets this via
+		// MarkExecuting; we seed it to test the primitives in isolation).
+		execID := uuid.Must(uuid.NewV7())
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO remediation_requests (id, host_id, rule_id, status, requested_by)
+			 VALUES ($1, $2, 'rule-x', 'executing', $3)`, execID, hostID, user); err != nil {
+			t.Fatalf("seed executing: %v", err)
+		}
+
+		// The host is now busy.
+		if busy, err := svc.HostHasExecuting(ctx, hostID); err != nil || !busy {
+			t.Errorf("HostHasExecuting (executing) = %v, %v; want true", busy, err)
+		}
+
+		// RevertToApproved returns it to approved and clears busy.
+		reverted, err := svc.RevertToApproved(ctx, execID)
+		if err != nil || reverted.Status != StatusApproved {
+			t.Errorf("RevertToApproved = %+v, %v; want approved", reverted, err)
+		}
+		if busy, _ := svc.HostHasExecuting(ctx, hostID); busy {
+			t.Errorf("HostHasExecuting after revert = true; want false")
+		}
+
+		// RevertToApproved on a non-executing request -> ErrWrongState.
+		if _, err := svc.RevertToApproved(ctx, execID); !errors.Is(err, ErrWrongState) {
+			t.Errorf("RevertToApproved (approved) err = %v, want ErrWrongState", err)
 		}
 	})
 }

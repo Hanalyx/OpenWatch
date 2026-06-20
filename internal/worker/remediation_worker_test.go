@@ -36,7 +36,7 @@ func seedApprovedRequest(t *testing.T, pool *pgxpool.Pool, svc *remediation.Serv
 	requester := seedUniqueUser(t, pool)
 	reviewer := seedUniqueUser(t, pool)
 	ctx := context.Background()
-	rq, err := svc.Request(ctx, hostID, ruleID, nil, requester)
+	rq, err := svc.Request(ctx, hostID, ruleID, nil, requester, true)
 	if err != nil {
 		t.Fatalf("seed request: %v", err)
 	}

@@ -32,8 +32,8 @@ func Dequeue(ctx context.Context, pool *pgxpool.Pool) (*Job, context.Context, er
 		       attempts   = attempts + 1
 		 WHERE id = (
 		     SELECT id FROM job_queue
-		      WHERE status = 'pending'
-		      ORDER BY created_at
+		      WHERE status = 'pending' AND available_at <= now()
+		      ORDER BY available_at, created_at
 		      FOR UPDATE SKIP LOCKED
 		      LIMIT 1
 		 )

@@ -354,8 +354,8 @@ func TestAPI_AuditEvents_RequiresAuditRead(t *testing.T) {
 		// Anonymous → 403, and no event body leaks.
 		anon := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events", "", nil))
 		defer anon.Body.Close()
-		if anon.StatusCode != http.StatusForbidden {
-			t.Fatalf("anonymous GET /audit/events = %d, want 403", anon.StatusCode)
+		if anon.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("anonymous GET /audit/events = %d, want 401", anon.StatusCode)
 		}
 		body, _ := io.ReadAll(anon.Body)
 		if strings.Contains(string(body), "\"items\"") {

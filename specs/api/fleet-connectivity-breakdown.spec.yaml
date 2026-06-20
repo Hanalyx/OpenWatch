@@ -55,7 +55,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: The endpoint requires system:read; an anonymous caller is rejected.
+      description: The endpoint requires system:read; an anonymous caller is rejected with 401 auth.required.
       type: security
       enforcement: error
 
@@ -73,6 +73,6 @@ spec:
       priority: high
       references_constraints: [C-01]
     - id: AC-07
-      description: GET /api/v1/fleet/connectivity/breakdown by an anonymous caller is rejected (not authenticated).
+      description: GET /api/v1/fleet/connectivity/breakdown by an anonymous caller is rejected with 401 auth.required.
       priority: high
       references_constraints: [C-03]
