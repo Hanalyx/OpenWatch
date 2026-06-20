@@ -61,6 +61,7 @@
 |------|----------|-------|
 | SSE auto-refresh of `host_activity` query key | P2 | `useLiveEvents.ts` invalidates `['host_intelligence_events', hostId]` + `['intelligence_state', hostId]` on `intelligence.event`. Should also invalidate `['host_activity', hostId]` on any of: `intelligence.event`, `monitoring.band.changed`, `alert.fired`, `scan.completed` |
 | Filter NULL→online transitions on first-contact | P3 | Dev-fleet backend restarts wipe `previous_state` so every reboot writes a NULL→online row, dominating the feed. Real fleets won't see this pattern — defer until production reports it |
+| Show the actual username on user-triggered audit events | P2 | PR #620 attributes operator-triggered events (Reconnect / "Run now" / add host) as `actor_type=user`, but they render **"A user …"** not the actual name. `auth.Identity` carries the user's ID + role but **not** their username/email — the identity binder (`internal/identity/binder.go`) looks up the role (`Lookups.RoleForUser`) but not the label. To show "alice@example.com …": add a `Label` (display name) field to `auth.Identity`, extend the `Lookups` interface to resolve it, populate it in the binder (session + JWT paths), set `ev.ActorLabel` from `auth.FromContext` at the discovery (and other user-triggered) emission sites. Security-sensitive (Tier-1 auth code, `system-auth-identity` spec) — scope carefully. The formatter already prefers `actor_label` over the `actor_type` word, so once the label flows, "A user" becomes the real name with no formatter change |
 
 ---
 
