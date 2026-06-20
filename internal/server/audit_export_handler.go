@@ -1,0 +1,90 @@
+// Audit log export — GET /api/v1/audit/events/export. Downloads the
+// filtered audit trail as a CSV or JSON attachment (NIST 800-53 AU-7 audit
+// reduction + report generation). Reuses the list query (queryEvents) with
+// the shared filters, capped at auditExportCap rows, so the export covers
+// the whole filtered set — not just one page. Spec api-audit-events-query.
+
+package server
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/server/api"
+)
+
+// auditExportCap bounds an export so a huge trail can't stream unbounded.
+// Beyond this, operators page the list endpoint or narrow the filters; the
+// cap is logged so a truncated export is never silently mistaken for "all".
+const auditExportCap = 10000
+
+// GetAuditEventsExport streams the filtered audit events as a downloadable
+// CSV (default) or JSON file. audit:read gated. Spec api-audit-events-query
+// v1.3.0 C-08 / AC-13.
+func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, params api.GetAuditEventsExportParams) {
+	if denied := auth.EnforcePermission(w, r, auth.AuditRead); denied {
+		return
+	}
+
+	// Reuse the list query with the same filters at the export cap.
+	lp := api.GetAuditEventsParams{
+		Action:       params.Action,
+		ActorType:    params.ActorType,
+		ResourceType: params.ResourceType,
+		ResourceId:   params.ResourceId,
+		Since:        params.Since,
+		Until:        params.Until,
+	}
+	rows, err := h.queryEvents(r.Context(), lp, auditExportCap)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.internal", "server",
+			"failed to query audit events for export", true)
+		return
+	}
+
+	stamp := time.Now().UTC().Format("20060102-150405")
+
+	if params.Format != nil && *params.Format == api.Json {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition",
+			fmt.Sprintf("attachment; filename=%q", "audit-log-"+stamp+".json"))
+		w.WriteHeader(http.StatusOK)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(rows)
+		return
+	}
+
+	// CSV (default). One header row + one row per event. The detail JSONB
+	// is intentionally omitted from CSV (it is already redacted at write
+	// time and does not flatten to a cell); JSON export carries it.
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf("attachment; filename=%q", "audit-log-"+stamp+".csv"))
+	w.WriteHeader(http.StatusOK)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{
+		"occurred_at", "action", "message", "severity",
+		"actor_type", "actor_label", "actor_id",
+		"resource_type", "resource_id", "correlation_id",
+	})
+	for _, ev := range rows {
+		_ = cw.Write([]string{
+			ev.OccurredAt.Format(time.RFC3339),
+			ev.Action,
+			deref(ev.Message),
+			deref(ev.Severity),
+			ev.ActorType,
+			deref(ev.ActorLabel),
+			deref(ev.ActorId),
+			deref(ev.ResourceType),
+			deref(ev.ResourceId),
+			ev.CorrelationId,
+		})
+	}
+	cw.Flush()
+}

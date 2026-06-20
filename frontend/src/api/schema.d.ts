@@ -748,6 +748,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export the filtered audit events as a downloadable CSV or JSON file
+         * @description Downloads the audit trail matching the same filters as the list endpoint, as a CSV or JSON attachment (NIST 800-53 AU-7 audit reduction + report generation). audit:read gated. Unlike the paginated list it returns the whole filtered set in one file, capped at 10000 rows newest-first (a larger window is paginated via the list endpoint). CSV columns: occurred_at, action, message, severity, actor_type, actor_label, actor_id, resource_type, resource_id, correlation_id.
+         */
+        get: operations["getAuditEventsExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/fleet/score": {
         parameters: {
             query?: never;
@@ -5648,6 +5668,54 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    getAuditEventsExport: {
+        parameters: {
+            query?: {
+                /** @description Output format. Defaults to csv. */
+                format?: "csv" | "json";
+                action?: string;
+                actor_type?: string;
+                resource_type?: string;
+                resource_id?: string;
+                since?: string;
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit export file (CSV or JSON attachment) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "application/json": components["schemas"]["AuditEvent"][];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks audit:read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     getFleetScore: {

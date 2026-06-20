@@ -1130,6 +1130,64 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/v1/audit/events/export:
+    get:
+      operationId: getAuditEventsExport
+      summary: Export the filtered audit events as a downloadable CSV or JSON file
+      description: >
+        Downloads the audit trail matching the same filters as the list
+        endpoint, as a CSV or JSON attachment (NIST 800-53 AU-7 audit
+        reduction + report generation). audit:read gated. Unlike the
+        paginated list it returns the whole filtered set in one file, capped
+        at 10000 rows newest-first (a larger window is paginated via the list
+        endpoint). CSV columns: occurred_at, action, message, severity,
+        actor_type, actor_label, actor_id, resource_type, resource_id,
+        correlation_id.
+      x-required-permission: audit:read
+      parameters:
+        - name: format
+          in: query
+          description: Output format. Defaults to csv.
+          schema: {type: string, enum: [csv, json], default: csv}
+        - name: action
+          in: query
+          schema: {type: string}
+        - name: actor_type
+          in: query
+          schema: {type: string}
+        - name: resource_type
+          in: query
+          schema: {type: string}
+        - name: resource_id
+          in: query
+          schema: {type: string}
+        - name: since
+          in: query
+          schema: {type: string, format: date-time}
+        - name: until
+          in: query
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Audit export file (CSV or JSON attachment)
+          content:
+            text/csv:
+              schema: {type: string}
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AuditEvent'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks audit:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   # Spec: app/specs/api/fleet-observability.spec.yaml (v1.1.0)
   /api/v1/fleet/score:
     get:
