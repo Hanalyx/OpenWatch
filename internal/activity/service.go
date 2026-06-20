@@ -12,12 +12,21 @@ import (
 
 // Service serves Activity feeds via a single UNION query.
 type Service struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	titler RuleTitleFunc // optional; resolves rule_id -> title for the compliance leg
 }
 
 // NewService binds a Service to a pgxpool.
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+// WithRuleTitler injects the rule-id -> title resolver used to render the
+// compliance (transaction) leg's headline. Nil-safe; without it the leg
+// falls back to the raw rule id. Returns the Service for chaining.
+func (s *Service) WithRuleTitler(f RuleTitleFunc) *Service {
+	s.titler = f
+	return s
 }
 
 // List returns a page of activity rows and the count hidden by RBAC.
@@ -153,36 +162,51 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 		return " AND " + strings.Join(parts, " AND ")
 	}
 
+	// Every leg emits the same column shape. The last five columns are
+	// carriers for the Go enrichment pass (enrichRows): `code` plus three
+	// text contexts and a jsonb detail. The alert + monitoring legs already
+	// build their title/summary in SQL, so they leave the carriers empty
+	// and the enrichment pass skips them. Spec system-activity C-09.
+	const emptyCarriers = `, '' AS code, '' AS ctx_a, '' AS ctx_b, '' AS ctx_c, NULL::jsonb AS detail`
 	legs := []string{}
 	if includeAlerts {
 		legs = append(legs, `
 			SELECT id::text AS id, 'alert' AS source, severity, host_id,
 			       title AS title,
 			       COALESCE(body, '') AS summary,
-			       occurred_at
+			       occurred_at`+emptyCarriers+`
 			  FROM alerts
 			 WHERE state != 'dismissed'`+
 			commonWhere("severity", "occurred_at", "host_id", true /* hasHostCol */))
 	}
 	if includeTxn {
+		// title/summary are rebuilt in Go from code(rule_id) + ctx_a(status)
+		// + ctx_b(change_kind) via the rule titler. The SQL title/summary
+		// here are placeholders the enrichment pass overwrites.
 		legs = append(legs, `
 			SELECT id::text AS id, 'transaction' AS source,
 			       COALESCE(severity, 'info') AS severity,
 			       host_id,
 			       rule_id AS title,
 			       COALESCE(change_kind, '') AS summary,
-			       occurred_at
+			       occurred_at,
+			       rule_id AS code, status AS ctx_a,
+			       COALESCE(change_kind, '') AS ctx_b, '' AS ctx_c,
+			       NULL::jsonb AS detail
 			  FROM transactions
 			 WHERE 1=1`+
 			commonWhere("COALESCE(severity, 'info')", "occurred_at", "host_id", true /* hasHostCol */))
 	}
 	if includeIntel {
+		// title/summary rebuilt in Go from code(event_code) + detail JSONB.
 		legs = append(legs, `
 			SELECT id::text AS id, 'intelligence' AS source,
 			       severity, host_id,
 			       event_code AS title,
 			       '' AS summary,
-			       occurred_at
+			       occurred_at,
+			       event_code AS code, '' AS ctx_a, '' AS ctx_b, '' AS ctx_c,
+			       detail AS detail
 			  FROM host_intelligence_events
 			 WHERE 1=1`+
 			commonWhere("severity", "occurred_at", "host_id", true /* hasHostCol */))
@@ -195,13 +219,19 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 		                WHEN 'error' THEN 'high'
 		                ELSE COALESCE(severity, 'info')
 		            END`
+		// title/summary rebuilt in Go from code(action) + ctx_a(actor_label)
+		// + ctx_b(actor_type) + ctx_c(resource_type). resource_id (a UUID)
+		// is deliberately not surfaced in the headline.
 		legs = append(legs, `
 			SELECT id::text AS id, 'audit' AS source,
 			       `+auditSev+` AS severity,
 			       NULL::uuid AS host_id,
 			       action AS title,
 			       COALESCE(resource_id, '') AS summary,
-			       occurred_at
+			       occurred_at,
+			       action AS code, COALESCE(actor_label, '') AS ctx_a,
+			       actor_type AS ctx_b, COALESCE(resource_type, '') AS ctx_c,
+			       NULL::jsonb AS detail
 			  FROM audit_events
 			 WHERE 1=1`+
 			commonWhere(auditSev, "occurred_at", "", false))
@@ -254,7 +284,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 			       host_id,
 			       `+monTitle+` AS title,
 			       `+monSummary+` AS summary,
-			       check_time AS occurred_at
+			       check_time AS occurred_at`+emptyCarriers+`
 			  FROM host_monitoring_history
 			 WHERE (previous_state IS NULL OR monitoring_state <> previous_state)`+
 			commonWhere(monSev, "check_time", "host_id", true))
@@ -277,13 +307,17 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 	out := []Row{}
 	for pgRows.Next() {
 		var (
-			r        Row
-			idStr    string
-			source   string
-			severity string
-			hostID   *uuid.UUID
+			r                      Row
+			idStr                  string
+			source                 string
+			severity               string
+			hostID                 *uuid.UUID
+			code, ctxA, ctxB, ctxC string
+			detail                 []byte
 		)
-		if err := pgRows.Scan(&idStr, &source, &severity, &hostID, &r.Title, &r.Summary, &r.OccurredAt); err != nil {
+		if err := pgRows.Scan(&idStr, &source, &severity, &hostID,
+			&r.Title, &r.Summary, &r.OccurredAt,
+			&code, &ctxA, &ctxB, &ctxC, &detail); err != nil {
 			return nil, fmt.Errorf("activity: scan: %w", err)
 		}
 		id, _ := uuid.Parse(idStr)
@@ -291,6 +325,17 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 		r.Source = Source(source)
 		r.Severity = Severity(severity)
 		r.HostID = hostID
+		// Rebuild title/summary in Go for the three legs that carry raw
+		// codes (the alert + monitoring legs leave the carriers empty and
+		// keep their SQL-built text). Spec C-09.
+		switch r.Source {
+		case SourceTransaction:
+			r.Title, r.Summary = formatTransaction(code, ctxA, ctxB, s.titler)
+		case SourceIntelligence:
+			r.Title, r.Summary = formatIntelligence(code, detail)
+		case SourceAudit:
+			r.Title, r.Summary = formatAudit(code, ctxA, ctxB, ctxC)
+		}
 		out = append(out, r)
 	}
 	return out, pgRows.Err()
