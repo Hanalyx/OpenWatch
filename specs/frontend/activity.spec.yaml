@@ -1,7 +1,7 @@
 spec:
   id: frontend-activity
   title: Activity feed (unified event stream)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -101,6 +101,20 @@ spec:
         category chip is a cosmetic per-source label, not a backend filter
       type: technical
       enforcement: error
+    - id: C-06
+      description: >-
+        v1.1.0 — Every surface that renders unified activity rows
+        (ActivityPage, the dashboard Recent-activity widget, the host-detail
+        Recent-activity card, and the ActivityDrawer) MUST render the source
+        and severity through the shared src/api/eventDisplay helpers
+        (sourceLabel / severityLabel / severityTone / relativeTime) rather
+        than printing the raw enum. No activity surface may render a bare
+        {a.source} or {a.severity} enum to the user. The helpers are the
+        single source of truth — per-surface copies of the severity-tone and
+        relative-time logic are removed. Unknown enum values title-case
+        gracefully; copy carries no em-dash.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -129,3 +143,19 @@ spec:
         Status/Group facets are absent.
       priority: high
       references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        v1.1.0 — Behavioral: eventDisplay.sourceLabel maps each source enum
+        (alert/transaction/intelligence/audit/monitoring) to a friendly word
+        (e.g. transaction -> "Compliance") and title-cases an unknown source;
+        severityLabel maps the severity enum to a capitalized word;
+        severityTone buckets critical/high -> crit, medium -> warn,
+        low/info -> info; relativeTime renders "just now"/"Nm ago"/"Nh ago"/
+        "Nd ago" and never an em-dash for an invalid date. Source-inspection:
+        the dashboard widget's Recent-activity Row renders sourceLabel(a.source)
+        + severityLabel(a.severity) (no bare a.source / a.severity), and the
+        per-surface sevTone/timeAgo/activityRelativeTime/severityTone copies in
+        widgets.tsx, HostDetailPage.tsx, and ActivityDrawer.tsx are gone in
+        favour of the eventDisplay imports.
+      priority: high
+      references_constraints: [C-06]

@@ -4,6 +4,7 @@ import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import type { components } from '@/api/schema';
 import { useAlertActions, type AlertAction } from './useAlertActions';
+import { severityTone } from '@/api/eventDisplay';
 
 type Activity = components['schemas']['Activity'];
 
@@ -17,12 +18,6 @@ type Activity = components['schemas']['Activity'];
 // docs/engineering/activity_page_scope.md) — they show the basics only.
 //
 // Spec: frontend-activity.
-
-export function severityTone(sev: string): 'crit' | 'warn' | 'info' {
-  if (sev === 'critical' || sev === 'high') return 'crit';
-  if (sev === 'medium' || sev === 'low') return 'warn';
-  return 'info';
-}
 
 const TONE: Record<string, string> = {
   crit: 'var(--ow-crit)',

@@ -30,6 +30,7 @@ import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
 import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
+import { relativeTime } from '@/api/eventDisplay';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { HostCredentialModal } from '@/components/hosts/HostCredentialModal';
 import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
@@ -2538,7 +2539,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         ) : null}
       </div>
       <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-        {activityRelativeTime(item.occurred_at)}
+        {relativeTime(item.occurred_at)}
       </div>
     </li>
   );
@@ -2593,27 +2594,6 @@ function activityIconFor(item: ActivityItem): { Icon: LucideIcon; color: string 
   }
 }
 
-// activityRelativeTime renders the right-side timestamp. The mockup
-// uses relative wording for fresh events (m / h / d ago) and an
-// absolute date for events older than 30 days — a sensible cutoff
-// that prevents "412d ago" cells while keeping the recent feed
-// chatty.
-function activityRelativeTime(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return '—';
-  const minutes = Math.max(0, Math.round((Date.now() - t) / 60_000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days <= 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Reusable bits (cards, kv rows, empty states, etc.)
