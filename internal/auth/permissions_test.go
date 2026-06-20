@@ -266,6 +266,71 @@ func TestRequirePermission_HotPathLatency(t *testing.T) {
 	})
 }
 
+// @ac AC-17
+// AC-17: built-in role grants match the remediation/exception governance matrix
+// (docs/engineering/remediation_exception_governance.md). This locks separation
+// of duties — a permissions.yaml edit that, e.g., grants ops_lead
+// remediation:approve or removes auditor's exception:approve fails the build.
+func TestGovernanceRoleMatrix(t *testing.T) {
+	t.Run("system-rbac/AC-17", func(t *testing.T) {
+		grants := func(role RoleID, perm Permission) bool {
+			def, ok := BuiltInRoles[role]
+			if !ok {
+				t.Fatalf("unknown built-in role %q", role)
+			}
+			for _, p := range def.Permissions {
+				if p == perm {
+					return true
+				}
+			}
+			return false
+		}
+		cases := []struct {
+			role RoleID
+			perm Permission
+			want bool
+		}{
+			// Remediation: ops_lead requests/executes/rolls back but CANNOT
+			// approve (separation of duties). Approve is security_admin+admin only.
+			{RoleOpsLead, RemediationRequest, true},
+			{RoleOpsLead, RemediationExecute, true},
+			{RoleOpsLead, RemediationRollback, true},
+			{RoleOpsLead, RemediationApprove, false},
+			{RoleSecurityAdmin, RemediationApprove, true},
+			{RoleAdmin, RemediationApprove, true},
+			{RoleViewer, RemediationRequest, false},
+			{RoleAuditor, RemediationRequest, false},
+			{RoleAuditor, RemediationApprove, false},
+			// security_admin holds remediation:* (wildcard expanded at codegen).
+			{RoleSecurityAdmin, RemediationRequest, true},
+			{RoleSecurityAdmin, RemediationExecute, true},
+			{RoleSecurityAdmin, RemediationRollback, true},
+			// Exceptions: auditor approves; ops_lead requests but cannot approve;
+			// revoke is security_admin+admin only.
+			{RoleAuditor, ExceptionRequest, true},
+			{RoleAuditor, ExceptionApprove, true},
+			{RoleOpsLead, ExceptionRequest, true},
+			{RoleOpsLead, ExceptionApprove, false},
+			{RoleOpsLead, ExceptionRevoke, false},
+			{RoleSecurityAdmin, ExceptionApprove, true},
+			{RoleSecurityAdmin, ExceptionRevoke, true},
+			{RoleViewer, ExceptionRequest, false},
+			{RoleViewer, ExceptionApprove, false},
+			// viewer holds only the read of each governed category; admin holds all.
+			{RoleViewer, RemediationRead, true},
+			{RoleViewer, ExceptionRead, true},
+			{RoleAdmin, RemediationRequest, true},
+			{RoleAdmin, ExceptionRevoke, true},
+		}
+		for _, c := range cases {
+			if got := grants(c.role, c.perm); got != c.want {
+				t.Errorf("BuiltInRoles[%s] grants %s = %v, want %v (governance matrix — see docs/engineering/remediation_exception_governance.md)",
+					c.role, c.perm, got, c.want)
+			}
+		}
+	})
+}
+
 // Suppress unused-import warning in cases where filepath/os are vestigial.
 var _ = filepath.Join
 var _ = os.Stat
