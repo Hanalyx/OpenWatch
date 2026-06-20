@@ -156,8 +156,10 @@ describe('frontend-host-compliance-tab — structural', () => {
     expect(PAGE_SRC).toContain('<ComplianceTab');
     // The stub registry no longer carries a compliance entry.
     expect(PAGE_SRC).not.toMatch(/^\s*compliance:\s*'/m);
-    // remediation joined overview + compliance as a live (non-stub) tab.
-    expect(PAGE_SRC).toContain("Exclude<TabId, 'overview' | 'compliance' | 'remediation'>");
+    // remediation + activity joined overview + compliance as live (non-stub) tabs.
+    expect(PAGE_SRC).toContain(
+      "Exclude<TabId, 'overview' | 'compliance' | 'remediation' | 'activity'>",
+    );
   });
 
   // @ac AC-02

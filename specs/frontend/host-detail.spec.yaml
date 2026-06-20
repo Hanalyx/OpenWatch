@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -70,7 +70,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: 'Tabs row MUST render all 10 prototype tabs in order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Tabs whose backend subsystem is still deferred render an empty-state stub that NAMES the subsystem. v1.3.0: Compliance is live (frontend-host-compliance-tab) and the TAB_BACKEND_SUBSYSTEM stub registry no longer carries a compliance entry; Packages / Services / Users / Network are live per frontend-host-detail-inventory-tabs'
+      description: 'Tabs row MUST render all 10 prototype tabs in order: Overview, Compliance, Packages, Services, Users, Network, Audit log, Activity, Remediation, Terminal. Tabs whose backend subsystem is still deferred render an empty-state stub that NAMES the subsystem. v1.3.0: Compliance is live (frontend-host-compliance-tab) and the TAB_BACKEND_SUBSYSTEM stub registry no longer carries a compliance entry; Packages / Services / Users / Network are live per frontend-host-detail-inventory-tabs. v1.7.0: Activity is live (mounts HostActivityTab, the host-scoped /api/v1/activity feed) and is likewise removed from the TAB_BACKEND_SUBSYSTEM stub registry. The Audit log tab remains a stub (host-scoped audit by resource is a follow-up)'
       type: technical
       enforcement: error
     - id: C-05
@@ -254,3 +254,7 @@ spec:
       description: 'v1.6.0 - the Connectivity card "Edit credentials" button and the EditHostModal "Manage SSH credential" link both open HostCredentialModal for the host. HostCredentialModal resolves the source and renders the four tier transitions (clone default, set different host credential, edit override via PATCH, revert override via DELETE), each invalidating ["host-credential-resolve", hostId]; mutating controls are gated on credential:write. Source-inspection of HostDetailPage.tsx, EditHostModal.tsx, and HostCredentialModal.tsx.'
       priority: high
       references_constraints: [C-11, C-12]
+    - id: AC-43
+      description: 'v1.7.0 source-inspection - the Activity tab mounts HostActivityTab (not TabStub): it is removed from the TAB_BACKEND_SUBSYSTEM stub registry, and the tab render switch routes activeTab === "activity" to <HostActivityTab>. HostActivityTab pages GET /api/v1/activity?host_id=X via useInfiniteQuery (cursor pagination, getNextPageParam from next_cursor), renders rows with the shared ActivityRow, exposes source filter chips (All / Monitoring / Compliance / Intelligence / Alert) that drive the source query param, shows a Load more control gated on hasNextPage, and renders loading / error+Retry / "No activity yet" empty states. The Audit log tab still renders TabStub.'
+      priority: high
+      references_constraints: [C-04]
