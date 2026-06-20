@@ -75,8 +75,21 @@ func scanListRequest(row pgx.Row) (Request, error) {
 // recording a best-effort projected per-framework lift. Returns
 // ErrDuplicateOpen when an open request already exists for the same host+rule.
 // NEVER contacts the host. Emits remediation.requested.
+// Request opens a remediation request for one rule on one host.
+//
+// Approval is conditional on the remediation track (ADR
+// docs/engineering/remediation_governance_adr.md, "A-keep"):
+//
+//   - requiresApproval=false (FREE-CORE single-rule manual remediation): the
+//     request is AUTO-APPROVED on creation — inserted directly in 'approved'
+//     with reviewed_at set and an explanatory review_note, so the requester can
+//     Fix it without a separate approver. This makes single-operator workspaces
+//     workable (no self-review deadlock).
+//   - requiresApproval=true (LICENSED bulk/auto track): the request is inserted
+//     'pending_approval' and must go through Approve/Reject with separation of
+//     duties (the requester cannot review their own request) before it can run.
 func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID string,
-	scanRunID *uuid.UUID, requestedBy uuid.UUID) (Request, error) {
+	scanRunID *uuid.UUID, requestedBy uuid.UUID, requiresApproval bool) (Request, error) {
 	ruleID = strings.TrimSpace(ruleID)
 	if ruleID == "" {
 		return Request{}, ErrInvalidInput
@@ -87,13 +100,27 @@ func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID string,
 	proj, _ := s.ProjectLift(ctx, hostID, ruleID)
 
 	id := uuid.Must(uuid.NewV7())
-	row := s.pool.QueryRow(ctx, `
-		INSERT INTO remediation_requests
-			(id, host_id, rule_id, scan_run_id, status, requested_by,
-			 projected_cis, projected_stig, projected_nist)
-		VALUES ($1, $2, $3, $4, 'pending_approval', $5, $6, $7, $8)
-		RETURNING `+selectCols,
-		id, hostID, ruleID, scanRunID, requestedBy, proj.CIS, proj.STIG, proj.NIST)
+	var row pgx.Row
+	if requiresApproval {
+		row = s.pool.QueryRow(ctx, `
+			INSERT INTO remediation_requests
+				(id, host_id, rule_id, scan_run_id, status, requested_by,
+				 projected_cis, projected_stig, projected_nist)
+			VALUES ($1, $2, $3, $4, 'pending_approval', $5, $6, $7, $8)
+			RETURNING `+selectCols,
+			id, hostID, ruleID, scanRunID, requestedBy, proj.CIS, proj.STIG, proj.NIST)
+	} else {
+		row = s.pool.QueryRow(ctx, `
+			INSERT INTO remediation_requests
+				(id, host_id, rule_id, scan_run_id, status, requested_by,
+				 reviewed_at, review_note,
+				 projected_cis, projected_stig, projected_nist)
+			VALUES ($1, $2, $3, $4, 'approved', $5, now(),
+				'auto-approved: free-core single-rule remediation requires no separate approval',
+				$6, $7, $8)
+			RETURNING `+selectCols,
+			id, hostID, ruleID, scanRunID, requestedBy, proj.CIS, proj.STIG, proj.NIST)
+	}
 	rq, err := scanRequest(row)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -103,6 +130,11 @@ func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID string,
 	}
 
 	s.emitEvent(ctx, audit.RemediationRequested, rq, requestedBy, "requested")
+	if !requiresApproval {
+		// Record the auto-approval honestly in the audit trail; there is no
+		// human reviewer (reviewed_by stays NULL).
+		s.emitEvent(ctx, audit.RemediationApproved, rq, requestedBy, "auto_approved")
+	}
 	return rq, nil
 }
 

@@ -62,8 +62,10 @@ func TestAPI_Remediation_LifecycleAndRBAC(t *testing.T) {
 		if err := json.NewDecoder(or.Body).Decode(&created); err != nil {
 			t.Fatalf("decode created: %v", err)
 		}
-		if created.Status != "pending_approval" || created.RuleID != "sshd-permit-root-no" {
-			t.Errorf("created = %+v", created)
+		// Free core: a single-rule request is auto-approved on creation (no
+		// separate approver). See remediation_governance_adr.md.
+		if created.Status != "approved" || created.RuleID != "sshd-permit-root-no" {
+			t.Errorf("created = %+v, want status=approved (auto-approved free core)", created)
 		}
 
 		// --- duplicate open -> 409 ---
@@ -81,16 +83,22 @@ func TestAPI_Remediation_LifecycleAndRBAC(t *testing.T) {
 			t.Errorf("anonymous list status = %d, want 401/403", ar.StatusCode)
 		}
 
-		// --- approve: ops_lead is 403 (no remediation:approve) ---
-		oa := doReq(t, asRole(t, "POST", base+"/"+created.ID+":approve", auth.RoleOpsLead, map[string]any{}))
+		// --- approve endpoint RBAC + separation of duties. The free-core POST
+		// above auto-approves, so it never yields a pending row; seed an
+		// approval-required (pending_approval) request directly to exercise the
+		// approve endpoint (this is the licensed bulk/auto track's shape). ---
+		pendID := seedPendingRemediation(t, pool, hostID, roleUserIDs[auth.RoleOpsLead], "needs-approval")
+		pendPath := base + "/" + pendID.String()
+
+		// ops_lead (the requester; no remediation:approve) -> 403
+		oa := doReq(t, asRole(t, "POST", pendPath+":approve", auth.RoleOpsLead, map[string]any{}))
 		oa.Body.Close()
 		if oa.StatusCode != http.StatusForbidden {
 			t.Fatalf("ops_lead approve status = %d, want 403", oa.StatusCode)
 		}
 
-		// --- approve: security_admin (different user from the ops_lead
-		// requester) succeeds ---
-		sa := doReq(t, asRole(t, "POST", base+"/"+created.ID+":approve",
+		// security_admin (different user from the requester) approves -> 200
+		sa := doReq(t, asRole(t, "POST", pendPath+":approve",
 			auth.RoleSecurityAdmin, map[string]any{"note": "reviewed"}))
 		defer sa.Body.Close()
 		if sa.StatusCode != http.StatusOK {
@@ -102,21 +110,17 @@ func TestAPI_Remediation_LifecycleAndRBAC(t *testing.T) {
 			t.Errorf("approved status = %q, want approved", approved.Status)
 		}
 
-		// --- re-approve -> 409 wrong state ---
-		ra := doReq(t, asRole(t, "POST", base+"/"+created.ID+":approve", auth.RoleSecurityAdmin, map[string]any{}))
+		// re-approve -> 409 wrong state
+		ra := doReq(t, asRole(t, "POST", pendPath+":approve", auth.RoleSecurityAdmin, map[string]any{}))
 		ra.Body.Close()
 		if ra.StatusCode != http.StatusConflict {
 			t.Errorf("re-approve status = %d, want 409", ra.StatusCode)
 		}
 
-		// --- separation of duties at the HTTP layer: a security_admin
-		// requests, then tries to approve their own -> 409 self_review ---
-		selfReq := doReq(t, asRole(t, "POST", base, auth.RoleSecurityAdmin,
-			map[string]any{"host_id": hostID.String(), "rule_id": "self-rule"}))
-		defer selfReq.Body.Close()
-		var selfRR apiRem
-		_ = json.NewDecoder(selfReq.Body).Decode(&selfRR)
-		selfAp := doReq(t, asRole(t, "POST", base+"/"+selfRR.ID+":approve", auth.RoleSecurityAdmin, map[string]any{}))
+		// separation of duties at the HTTP layer: the security_admin requester
+		// cannot approve their own pending request -> 409 self_review.
+		selfID := seedPendingRemediation(t, pool, hostID, roleUserIDs[auth.RoleSecurityAdmin], "self-rule")
+		selfAp := doReq(t, asRole(t, "POST", base+"/"+selfID.String()+":approve", auth.RoleSecurityAdmin, map[string]any{}))
 		selfAp.Body.Close()
 		if selfAp.StatusCode != http.StatusConflict {
 			t.Errorf("self-approve status = %d, want 409 (separation of duties)", selfAp.StatusCode)
@@ -181,23 +185,18 @@ func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 			t.Fatalf("viewer execute status = %d, want 403", o.StatusCode)
 		}
 
-		// security_admin has the perm, but the request is still pending
-		// (not approved) -> 409 wrong_state. NOT 402.
-		pre := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
+		// Executing a NON-approved (pending) request -> 409 wrong_state, NOT 402
+		// (free core, no license gate). The free-core request above auto-approves,
+		// so seed a pending row to exercise this path.
+		pendID := seedPendingRemediation(t, pool, hostID, roleUserIDs[auth.RoleOpsLead], "rule-pending")
+		pre := doReq(t, asRole(t, "POST", base+"/"+pendID.String()+":execute", auth.RoleSecurityAdmin, map[string]any{}))
 		pre.Body.Close()
 		if pre.StatusCode != http.StatusConflict {
 			t.Fatalf("execute-before-approve status = %d, want 409", pre.StatusCode)
 		}
 
-		// Approve it (security_admin != ops_lead requester).
-		ap := doReq(t, asRole(t, "POST", base+"/"+created.ID+":approve",
-			auth.RoleSecurityAdmin, map[string]any{"note": "ok"}))
-		ap.Body.Close()
-		if ap.StatusCode != http.StatusOK {
-			t.Fatalf("approve status = %d, want 200", ap.StatusCode)
-		}
-
-		// Now execute -> 202 Accepted, a remediation job enqueued.
+		// The free-core request is already approved (auto). Execute it directly
+		// -> 202 Accepted, a remediation job enqueued.
 		ex := doReq(t, asRole(t, "POST", execURL, auth.RoleSecurityAdmin, map[string]any{}))
 		var acc struct {
 			RequestID string `json:"request_id"`
@@ -224,6 +223,22 @@ func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 			t.Errorf("rollback-before-execute status = %d, want 409", rb.StatusCode)
 		}
 	})
+}
+
+// seedPendingRemediation inserts a pending_approval remediation request
+// directly (the approval-required / licensed track's shape). The free-core HTTP
+// POST auto-approves, so this is how the approve-endpoint and pending-execute
+// paths are exercised at the HTTP layer.
+func seedPendingRemediation(t *testing.T, pool *pgxpool.Pool, hostID, requestedBy uuid.UUID, ruleID string) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO remediation_requests (id, host_id, rule_id, status, requested_by)
+		 VALUES ($1, $2, $3, 'pending_approval', $4)`,
+		id, hostID, ruleID, requestedBy); err != nil {
+		t.Fatalf("seed pending remediation: %v", err)
+	}
+	return id
 }
 
 // countRemediationJobs counts pending remediation jobs on the queue.
