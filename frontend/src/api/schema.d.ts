@@ -3479,6 +3479,8 @@ export interface components {
             scan_id: string;
             /** Format: uuid */
             host_id: string;
+            hostname?: string;
+            ip_address?: string;
             /** @description queued | running | completed | failed */
             status: string;
             /** @description on_demand | scheduled */

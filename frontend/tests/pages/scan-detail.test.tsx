@@ -161,4 +161,16 @@ describe('frontend-scan-detail', () => {
     // No em-dash in copy.
     expect(stripComments(PAGE_SRC)).not.toContain('—');
   });
+
+  // @ac AC-08
+  test('frontend-scan-detail/AC-08 — Host field shows hostname || ip || short uuid, not a bare uuid', () => {
+    // The Host Meta uses the hostname-then-IP-then-short-UUID fallback.
+    expect(PAGE_SRC).toMatch(
+      /scan\.hostname \|\| scan\.ip_address \|\| scan\.host_id\.slice\(0, 8\)/,
+    );
+    // And it is NOT the old bare-UUID render (slice as the sole child).
+    expect(PAGE_SRC).not.toMatch(/>\s*\{scan\.host_id\.slice\(0, 8\)\}\s*</);
+    // Still a Link to the host detail page.
+    expect(PAGE_SRC).toContain('to="/hosts/$hostId"');
+  });
 });

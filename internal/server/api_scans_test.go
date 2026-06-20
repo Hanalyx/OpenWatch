@@ -10,6 +10,7 @@
 //	AC-05  TestScanRuleEvidence_ShapeAnd404
 //	AC-06  TestScanOSCAL_PerRuleAndWholeScanParseAnd404
 //	AC-07  TestScansSurface_OwnsEvidence_HostTabDoesNot
+//	AC-08  TestScanById_HostLabelResolved
 
 package server
 
@@ -228,6 +229,74 @@ func TestScanById_ShapeAnd404(t *testing.T) {
 		r404.Body.Close()
 		if r404.StatusCode != http.StatusNotFound {
 			t.Errorf("unknown scan status = %d, want 404", r404.StatusCode)
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08: GET /scans/{id} resolves the host's hostname + ip_address (from
+// the hosts table) onto the ScanSummary so the detail header shows a
+// human-friendly label, not a UUID. A host with an empty hostname yields
+// an empty/absent hostname but a populated ip_address.
+func TestScanById_HostLabelResolved(t *testing.T) {
+	t.Run("api-scans/AC-08", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+
+		// Host WITH a hostname (seedHostForIntel sets hostname intel-<uuid>
+		// + ip 192.0.2.30).
+		hostID := seedHostForIntel(t, pool)
+		var wantHostname string
+		if err := pool.QueryRow(ctx, `SELECT hostname FROM hosts WHERE id=$1`, hostID).
+			Scan(&wantHostname); err != nil {
+			t.Fatalf("read seeded hostname: %v", err)
+		}
+		scanID := seedScan(t, pool, hostID, time.Now().UTC(), []scanresult.Result{
+			{RuleID: "r1", Status: scanresult.StatusPass, Severity: "low"},
+		})
+
+		// Host with an EMPTY hostname but a real IP.
+		creator := firstSeededUserID(t, pool)
+		noNameID, _ := uuid.NewV7()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO hosts (id, hostname, ip_address, created_by) VALUES ($1, '', $2::inet, $3)`,
+			noNameID, "198.51.100.7", creator); err != nil {
+			t.Fatalf("seed no-hostname host: %v", err)
+		}
+		noNameScan := seedScan(t, pool, noNameID, time.Now().UTC(), []scanresult.Result{
+			{RuleID: "r1", Status: scanresult.StatusPass, Severity: "low"},
+		})
+
+		get := func(id string) map[string]any {
+			req := asRole(t, "GET", url+"/api/v1/scans/"+id, auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200", resp.StatusCode)
+			}
+			var detail struct {
+				Scan map[string]any `json:"scan"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			return detail.Scan
+		}
+
+		named := get(scanID.String())
+		if named["hostname"] != wantHostname {
+			t.Errorf("hostname = %v, want %q", named["hostname"], wantHostname)
+		}
+		if named["ip_address"] != "192.0.2.30" {
+			t.Errorf("ip_address = %v, want 192.0.2.30", named["ip_address"])
+		}
+
+		noName := get(noNameScan.String())
+		if hn, ok := noName["hostname"]; ok && hn != "" {
+			t.Errorf("empty-hostname host returned hostname = %v, want empty/absent", hn)
+		}
+		if noName["ip_address"] != "198.51.100.7" {
+			t.Errorf("ip_address = %v, want 198.51.100.7 (IP fallback)", noName["ip_address"])
 		}
 	})
 }
