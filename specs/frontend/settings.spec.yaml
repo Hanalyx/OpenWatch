@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.11.0"
+  version: "1.12.0"
   status: draft
   tier: 2
 
@@ -368,3 +368,8 @@ spec:
       description: "v1.11.0 source-inspection: usePreferencesStore keeps the Zustand persist('ow-preferences') localStorage cache AND syncs server-side — every setter calls push() which PATCHes /api/v1/users/me/preferences (best-effort, errors swallowed), and hydrateFromServer() GETs /api/v1/users/me/preferences and applies present keys to state. AppFrame calls hydrateFromServer once on mount via useEffect, so the authenticated shell reconciles preferences with the account."
       priority: high
       references_constraints: [C-06]
+
+    - id: AC-31
+      description: "v1.12.0 source-inspection: the Audit log row renders the server-rendered readable message (ev.message || ev.action) as the primary line with the raw ev.action as a small mono sub-line; the Actor column shows ev.actor_label (falling back to a readable actorTypeWord, never a raw UUID); the Resource column shows the capitalized resource_type only (no UUID); the raw actor_id and resource_id UUIDs appear only in the expanded detail drawer. Time uses the shared relativeTime and severity the shared severityLabel from @/api/eventDisplay (no local relTime, no em-dash). The page remains read-only and audit:read-gated (AC-19)."
+      priority: high
+      references_constraints: [C-13]
