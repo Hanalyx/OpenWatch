@@ -296,6 +296,16 @@ func toAPIScanSummary(s scanresult.ScanSummary) api.ScanSummary {
 	}
 	out.StartedAt = s.StartedAt
 	out.FinishedAt = s.FinishedAt
+	// Human-friendly host label (detail endpoint only; empty on list rows,
+	// which omit them). Pointer-wrap so an unresolved label stays absent.
+	if s.Hostname != "" {
+		hn := s.Hostname
+		out.Hostname = &hn
+	}
+	if s.IPAddress != "" {
+		ip := s.IPAddress
+		out.IpAddress = &ip
+	}
 	return out
 }
 

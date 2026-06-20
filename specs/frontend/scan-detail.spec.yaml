@@ -1,7 +1,7 @@
 spec:
   id: frontend-scan-detail
   title: Scan detail page + per-rule evidence/OSCAL drill-down
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -80,6 +80,15 @@ spec:
         no em-dashes and renders no non-functional remediation controls.
       type: technical
       enforcement: error
+    - id: C-08
+      description: >-
+        v1.1.0 — the scan-detail Host field MUST show a human-friendly
+        label, not a raw UUID: the registered hostname when present, else
+        the IP address, else a short host_id prefix as a last resort
+        (scan.hostname || scan.ip_address || scan.host_id.slice(0,8)). It
+        remains a Link to /hosts/$hostId.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -118,3 +127,12 @@ spec:
         Fix or remediation control.
       priority: high
       references_constraints: [C-07]
+    - id: AC-08
+      description: >-
+        v1.1.0 source-inspection — ScanDetailPage's Host Meta renders
+        `scan.hostname || scan.ip_address || scan.host_id.slice(0, 8)`
+        (hostname-then-IP-then-short-UUID fallback), wrapped in a Link to
+        /hosts/$hostId. It does NOT render a bare scan.host_id.slice(0, 8)
+        as the sole label.
+      priority: high
+      references_constraints: [C-08]
