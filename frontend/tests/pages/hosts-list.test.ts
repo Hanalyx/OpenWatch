@@ -317,3 +317,29 @@ describe('frontend-hosts-list v1.7.0 — view-report link', () => {
     expect(PAGE_SRC).not.toContain('aria-label="View report"');
   });
 });
+
+describe('frontend-hosts-list v1.7.0 — grouping + filters wiring', () => {
+  // @ac AC-23
+  test('frontend-hosts-list/AC-23 — GroupSeg offers only None/Status/OS (no Team), grouping applied', () => {
+    // The "team" option (no backing host field) is gone from the control.
+    expect(PAGE_SRC).not.toMatch(/value: 'team'/);
+    expect(PAGE_SRC).not.toMatch(/label: 'Team'/);
+    // group type narrowed to none|status|os and grouped render uses groupHosts.
+    expect(PAGE_SRC).toMatch(/group\?:\s*'none' \| 'status' \| 'os'/);
+    expect(PAGE_SRC).toContain('groupHosts(sorted, group)');
+    expect(PAGE_SRC).toContain('<GroupHeader');
+  });
+
+  // @ac AC-24
+  test('frontend-hosts-list/AC-24 — Filters button opens FiltersControl popover wired to applyHostFilters', () => {
+    // The inert placeholder Filters button is replaced by the real control.
+    expect(PAGE_SRC).toContain('function FiltersControl');
+    expect(PAGE_SRC).toContain('<FiltersControl');
+    // The popover toggles open and persists selections to the URL via onChange.
+    expect(PAGE_SRC).toMatch(/aria-expanded=\{open\}/);
+    expect(PAGE_SRC).toContain('aria-label="Filter hosts"');
+    // Filtering is applied in the page pipeline through the pure helper.
+    expect(PAGE_SRC).toContain('applyHostFilters(out, filters)');
+    expect(PAGE_SRC).toMatch(/Clear all filters/);
+  });
+});
