@@ -18,6 +18,13 @@ import (
 // build time so the docs travel with the artifact and require no
 // runtime filesystem access — air-gap clean.
 //
+// openapi_embed.yaml is a gitignored build-time copy of api/openapi.yaml
+// (go:embed cannot reference paths outside the package dir). It is kept in
+// sync by `make generate-api` / `make build`; the directive below lets
+// `go generate ./...` refresh it too, and TestOpenAPIDocs_EmbeddedMatchesSource
+// fails the build if it ever drifts.
+//
+//go:generate cp ../../api/openapi.yaml openapi_embed.yaml
 //go:embed openapi_embed.yaml
 var openAPISpec []byte
 
