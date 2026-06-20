@@ -91,10 +91,14 @@ func statusWord(status string) string {
 	}
 }
 
+// actorWord renders a readable actor when no actor_label was recorded. An
+// empty/unknown actor_type means the event was NOT attributed to a person
+// (real user actions record the user) — so it reads as automated ("The
+// system"), never the misleading "Someone".
 func actorWord(actorType string) string {
 	switch actorType {
-	case "system":
-		return "System"
+	case "system", "":
+		return "The system"
 	case "scheduler":
 		return "The scheduler"
 	case "api_key", "api_token":
@@ -104,9 +108,6 @@ func actorWord(actorType string) string {
 	case "user":
 		return "A user"
 	default:
-		if actorType == "" {
-			return "Someone"
-		}
 		return titleCaseWord(actorType)
 	}
 }
