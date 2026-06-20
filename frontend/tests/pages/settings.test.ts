@@ -496,4 +496,23 @@ describe('frontend-settings — structural', () => {
     expect(FRAME_SRC).toContain('hydrateFromServer');
     expect(FRAME_SRC).toMatch(/useEffect\(/);
   });
+
+  // @ac AC-31
+  test('frontend-settings/AC-31 — Audit log rows are readable: message primary, actor name not UUID', () => {
+    // Primary line = server message (fallback to raw action); raw action as a sub-line.
+    expect(AUDIT_SRC).toMatch(/ev\.message \|\| ev\.action/);
+    // Actor shows the label (name), not the raw UUID, in the main row.
+    expect(AUDIT_SRC).toMatch(/ev\.actor_label \|\| actorTypeWord\(ev\.actor_type\)/);
+    // The raw UUIDs are not rendered inline in the row's actor/resource cells
+    // (they moved to the expanded detail under "actor id" / "resource id").
+    expect(AUDIT_SRC).toContain('actor id:');
+    expect(AUDIT_SRC).toContain('resource id:');
+    // Shared display helpers; the local relTime + em-dash are gone.
+    expect(AUDIT_SRC).toContain("from '@/api/eventDisplay'");
+    expect(AUDIT_SRC).toMatch(/relativeTime\(ev\.occurred_at\)/);
+    expect(AUDIT_SRC).not.toMatch(/function relTime/);
+    expect(AUDIT_SRC).not.toContain('—');
+    // Still read-only.
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+  });
 });

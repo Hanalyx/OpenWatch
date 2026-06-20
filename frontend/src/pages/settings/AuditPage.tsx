@@ -14,6 +14,7 @@ import {
   StatusPill,
 } from '@/components/settings/primitives';
 import { ForbiddenPage } from '@/pages/ForbiddenPage';
+import { relativeTime, severityLabel } from '@/api/eventDisplay';
 import type { components } from '@/api/schema';
 
 type AuditEvent = components['schemas']['AuditEvent'];
@@ -41,18 +42,6 @@ function severityTier(severity?: string): 'ok' | 'warn' | 'crit' {
   if (s === 'critical' || s === 'error' || s === 'high') return 'crit';
   if (s === 'warn' || s === 'warning' || s === 'medium') return 'warn';
   return 'ok';
-}
-
-function relTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return iso;
-  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 export function AuditPage() {
@@ -233,7 +222,7 @@ export function AuditPage() {
                   }}
                 >
                   <span role="columnheader">When</span>
-                  <span role="columnheader">Action</span>
+                  <span role="columnheader">Event</span>
                   <span role="columnheader">Severity</span>
                   <span role="columnheader">Actor</span>
                   <span role="columnheader">Resource</span>
@@ -279,9 +268,12 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
         }}
       >
         <span style={{ fontSize: 12, color: 'var(--ow-fg-2)' }} title={ev.occurred_at}>
-          {relTime(ev.occurred_at)}
+          {relativeTime(ev.occurred_at)}
         </span>
         <span style={{ minWidth: 0 }}>
+          {/* Primary: the server-rendered readable sentence; the raw action
+              code sits beneath as a small mono line for auditors who need it.
+              The full envelope (UUIDs, detail) is in the expandable drawer. */}
           {hasDetail ? (
             <button
               type="button"
@@ -292,44 +284,30 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
                 border: 0,
                 padding: 0,
                 color: 'var(--ow-fg-0)',
-                fontFamily: 'var(--ow-font-mono)',
-                fontSize: 12,
+                fontSize: 13,
                 cursor: 'pointer',
                 textAlign: 'left',
               }}
             >
-              {open ? '▾' : '▸'} {ev.action}
+              {open ? '▾' : '▸'} {ev.message || ev.action}
             </button>
           ) : (
-            <span style={{ fontFamily: 'var(--ow-font-mono)', fontSize: 12 }}>{ev.action}</span>
+            <span style={{ fontSize: 13, color: 'var(--ow-fg-0)' }}>{ev.message || ev.action}</span>
           )}
+          <div style={{ fontFamily: 'var(--ow-font-mono)', fontSize: 11, color: 'var(--ow-fg-3)' }}>
+            {ev.action}
+          </div>
         </span>
         <span>
-          <StatusPill tier={severityTier(ev.severity)}>{ev.severity || 'info'}</StatusPill>
+          <StatusPill tier={severityTier(ev.severity)}>
+            {severityLabel(ev.severity || 'info')}
+          </StatusPill>
         </span>
         <span style={{ fontSize: 12, color: 'var(--ow-fg-1)', minWidth: 0 }}>
-          {ev.actor_type}
-          {ev.actor_id ? (
-            <span style={{ color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>
-              {' '}
-              {ev.actor_id}
-            </span>
-          ) : null}
+          {ev.actor_label || actorTypeWord(ev.actor_type)}
         </span>
         <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', minWidth: 0 }}>
-          {ev.resource_type ? (
-            <>
-              {ev.resource_type}
-              {ev.resource_id ? (
-                <span style={{ color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>
-                  {' '}
-                  {ev.resource_id}
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <span style={{ color: 'var(--ow-fg-3)' }}>{'—'}</span>
-          )}
+          {ev.resource_type ? capitalize(ev.resource_type) : ''}
         </span>
       </div>
       {open && hasDetail && (
@@ -341,6 +319,17 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
             correlation:{' '}
             <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ev.correlation_id}</span>
           </div>
+          {ev.actor_id ? (
+            <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginBottom: 2 }}>
+              actor id: <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ev.actor_id}</span>
+            </div>
+          ) : null}
+          {ev.resource_id ? (
+            <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginBottom: 6 }}>
+              resource id:{' '}
+              <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ev.resource_id}</span>
+            </div>
+          ) : null}
           {ev.redactions && ev.redactions.length > 0 && (
             <div style={{ fontSize: 11, color: 'var(--ow-warn)', marginBottom: 6 }}>
               redacted fields: {ev.redactions.join(', ')}
@@ -368,6 +357,28 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
       )}
     </Fragment>
   );
+}
+
+// capitalize a single word; actorTypeWord renders a readable actor type
+// (the fallback when an event carries no actor_label).
+function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+function actorTypeWord(actorType: string): string {
+  switch (actorType) {
+    case 'system':
+    case '':
+      return 'The system';
+    case 'scheduler':
+      return 'The scheduler';
+    case 'user':
+      return 'A user';
+    case 'api_key':
+    case 'api_token':
+      return 'An API token';
+    default:
+      return capitalize(actorType);
+  }
 }
 
 const labelStyle = { fontSize: 11, color: 'var(--ow-fg-3)' } as const;
