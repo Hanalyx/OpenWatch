@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 1
 
@@ -111,7 +111,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-07
-      description: 'Successful Discover MUST emit audit.HostDiscoveryCompleted with detail {os_family, os_version, kernel_release, architecture, discovered_at}. Audit emission is mandatory — Discovery is the genesis of an operator-visible fact'
+      description: 'Successful Discover MUST emit audit.HostDiscoveryCompleted with detail {os_family, os_version, kernel_release, architecture, discovered_at}. Audit emission is mandatory — Discovery is the genesis of an operator-visible fact. v1.4.0: the event MUST be attributed to its trigger — when an operator identity is bound on the context (Reconnect / "Run now" / adding a host) it sets actor_type=user with that identity''s actor_id; an automated scheduled run (no bound identity) sets actor_type=system. The event MUST NOT be emitted with an empty actor (which renders as the misleading "Someone")'
       type: security
       enforcement: error
     - id: C-08
@@ -200,3 +200,7 @@ spec:
       description: 'v1.3.0 — deriveOSFamily(osID, osIDLike) MUST return (a) the lower-cased trimmed osID when non-empty (so Ubuntu hosts persist os_family="ubuntu", Rocky→"rocky", AlmaLinux→"almalinux", openSUSE-Leap→"opensuse-leap" — NOT the family rollup); (b) when osID is empty, the first recognized rollup from osIDLike scanning rhel/fedora/centos/rocky/almalinux/ol/amzn → "rhel", ubuntu/debian/raspbian → "debian", opensuse/opensuse-leap/opensuse-tumbleweed/sles/suse → "suse", alpine → "alpine", arch/manjaro → "arch", gentoo → "gentoo"; (c) the literal "other" when neither produces a match. Case folding and leading/trailing whitespace on osID MUST be tolerated.'
       priority: critical
       references_constraints: [C-12]
+    - id: AC-23
+      description: 'v1.4.0 — emitAuditSuccess attributes the trigger: called with a context carrying a bound operator identity (auth.SetIdentity), the emitted audit.HostDiscoveryCompleted event has actor_type="user" and actor_id equal to that identity''s id; called with an anonymous/background context (no bound identity, i.e. the scheduled sweep), it has actor_type="system". The event is never emitted with an empty actor_type.'
+      priority: high
+      references_constraints: [C-07]

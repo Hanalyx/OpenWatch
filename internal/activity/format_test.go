@@ -54,8 +54,14 @@ func TestFormatters_HumanReadable(t *testing.T) {
 		}
 		// actor_label empty -> readable actor_type; no UUID anywhere.
 		title, _ = FormatAudit("authz.permission.denied", "", "system", "")
-		if title != "System was denied permission" {
+		if title != "The system was denied permission" {
 			t.Errorf("audit fallback title = %q", title)
+		}
+		// Empty actor_type (an unattributed/automated event) reads as
+		// "The system", never the misleading "Someone".
+		title, _ = FormatAudit("host.discovery.completed", "", "", "host")
+		if title != "The system completed host discovery" {
+			t.Errorf("empty-actor title = %q, want 'The system completed host discovery'", title)
 		}
 	})
 }
