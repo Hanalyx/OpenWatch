@@ -12,6 +12,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Auth: an anonymous request to a protected endpoint (no credentials, or a
+  session cookie that expired in the browser and is no longer sent) now returns
+  **401 `auth.required`** instead of 403. The SPA redirects to login on a 401,
+  so an expired session surfaces as a clean re-login prompt rather than a
+  dead-end "failed to load." An authenticated caller whose role lacks the
+  permission still gets 403 `authz.permission_denied`.
+
 - CI release safety: the release workflow now fails closed on a `v*` tag push
   when no GPG signing key is configured, rather than publishing unsigned
   packages. Manual `workflow_dispatch` trial builds stay permissive (warn +

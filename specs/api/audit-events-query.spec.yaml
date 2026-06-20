@@ -48,7 +48,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-06
-      description: GET /audit/events MUST require the audit:read permission. The audit trail is security-sensitive (actor ids, IPs, resource ids, action detail); an anonymous or unauthorized caller MUST receive 403 and MUST NOT receive any events. Enforcement is via auth.EnforcePermission(AuditRead) as the first statement of the handler, matching every sibling data handler.
+      description: GET /audit/events MUST require the audit:read permission. The audit trail is security-sensitive (actor ids, IPs, resource ids, action detail); an anonymous caller MUST receive 401 auth.required and an authenticated-but-unauthorized caller 403 and MUST NOT receive any events. Enforcement is via auth.EnforcePermission(AuditRead) as the first statement of the handler, matching every sibling data handler.
       type: security
       enforcement: error
 
@@ -87,6 +87,6 @@ spec:
       description: Stored detail with redacted fields shows "<REDACTED>" placeholders; redactions lists scrubbed names.
       priority: critical
     - id: AC-11
-      description: GET /audit/events with no session/credential (anonymous) returns 403 and no event body — the deny path runs before any query. A caller holding audit:read returns 200. (A role lacking audit:read is denied by the same auth.EnforcePermission mechanism, covered generically by system-rbac.)
+      description: GET /audit/events with no session/credential (anonymous) returns 401 auth.required and no event body — the deny path runs before any query. A caller holding audit:read returns 200. (A role lacking audit:read is denied by the same auth.EnforcePermission mechanism, covered generically by system-rbac.)
       priority: critical
       references_constraints: [C-06]

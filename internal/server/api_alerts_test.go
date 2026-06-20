@@ -89,8 +89,8 @@ func TestAPI_Alerts_List_Anonymous_Forbidden(t *testing.T) {
 			t.Fatalf("GET: %v", err)
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("status=%d, want 403", resp.StatusCode)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("status=%d, want 401 auth.required (anonymous)", resp.StatusCode)
 		}
 	})
 }

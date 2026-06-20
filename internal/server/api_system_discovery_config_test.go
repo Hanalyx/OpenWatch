@@ -89,8 +89,8 @@ func TestAPI_SystemDiscoveryConfig_GET_AsAnonymous_Forbidden(t *testing.T) {
 			t.Fatalf("GET: %v", err)
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusForbidden {
-			t.Fatalf("expected 403 anon, got %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected 401 anon, got %d", resp.StatusCode)
 		}
 	})
 }
