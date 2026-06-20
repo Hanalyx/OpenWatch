@@ -54,11 +54,11 @@ func formatIntelligence(eventCode string, detail []byte) (title, summary string)
 	return title, intelSummary(detail)
 }
 
-// formatAudit renders an audit row as "<actor> <predicate>". The actor is
+// FormatAudit renders an audit row as "<actor> <predicate>". The actor is
 // the recorded actor_label, falling back to a readable actor_type. The raw
 // resource_id (a UUID) is intentionally NOT placed in the title; the
 // resource_type provides lightweight context in the summary.
-func formatAudit(action, actorLabel, actorType, resourceType string) (title, summary string) {
+func FormatAudit(action, actorLabel, actorType, resourceType string) (title, summary string) {
 	actor := strings.TrimSpace(actorLabel)
 	if actor == "" {
 		actor = actorWord(actorType)

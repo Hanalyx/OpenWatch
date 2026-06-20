@@ -490,7 +490,7 @@ describe('frontend-host-detail v1.6.0 — per-host credential management + recon
     expect(PAGE_SRC).toMatch(/activeTab === 'activity' \? \(\s*<HostActivityTab/);
     // The stub registry no longer carries an `activity` entry.
     expect(PAGE_SRC).not.toMatch(/activity:\s*'Unified Activity feed/);
-    expect(PAGE_SRC).toMatch(/Exclude<TabId, 'overview' \| 'compliance' \| 'remediation' \| 'activity'>/);
+    expect(PAGE_SRC).toMatch(/Exclude<TabId,[^>]*\| 'activity'[^>]*>/);
     // Paged host-scoped feed via useInfiniteQuery with cursor pagination.
     expect(PAGE_SRC).toContain('useInfiniteQuery');
     expect(PAGE_SRC).toMatch(/getNextPageParam:\s*\(last\)\s*=>\s*last\.next_cursor/);
@@ -499,7 +499,22 @@ describe('frontend-host-detail v1.6.0 — per-host credential management + recon
     expect(PAGE_SRC).toContain('HOST_ACTIVITY_SOURCES');
     expect(PAGE_SRC).toMatch(/hasNextPage/);
     expect(PAGE_SRC).toMatch(/Load more/);
-    // The Audit log tab remains a stub.
-    expect(PAGE_SRC).toMatch(/audit_log:\s*\n?\s*'Audit query API/);
+  });
+
+  // @ac AC-44
+  test('frontend-host-detail/AC-44 — Audit log tab is live (HostAuditLogTab), host-scoped + readable', () => {
+    expect(PAGE_SRC).toContain('function HostAuditLogTab');
+    expect(PAGE_SRC).toMatch(/activeTab === 'audit_log' \? \(\s*<HostAuditLogTab/);
+    // Removed from the deferred-stub registry.
+    expect(PAGE_SRC).not.toMatch(/audit_log:\s*\n?\s*'Audit query API/);
+    expect(PAGE_SRC).toMatch(
+      /Exclude<TabId, 'overview' \| 'compliance' \| 'remediation' \| 'activity' \| 'audit_log'>/,
+    );
+    // Host-scoped audit query + readable server message + audit:read gate.
+    expect(PAGE_SRC).toContain("'/api/v1/audit/events'");
+    expect(PAGE_SRC).toMatch(/resource_type:\s*'host'/);
+    expect(PAGE_SRC).toMatch(/resource_id:\s*hostId/);
+    expect(PAGE_SRC).toMatch(/it\.message \|\| it\.action/);
+    expect(PAGE_SRC).toMatch(/hasPermission\('audit:read'\)/);
   });
 });

@@ -1,4 +1,6 @@
 // @spec api-audit-events-query
+//
+// AC-12 added v1.2.0: TestAPI_AuditEvents_MessageAndResourceFilter
 
 package server
 
@@ -14,6 +16,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -369,4 +372,84 @@ func TestAPI_AuditEvents_RequiresAuditRead(t *testing.T) {
 			t.Errorf("auditor GET /audit/events = %d, want 200", ok.StatusCode)
 		}
 	})
+}
+
+// @ac AC-12
+// api-audit-events-query/AC-12 (v1.2.0): each item carries a readable
+// `message` built by activity.FormatAudit, plus actor_label; and the
+// resource_type/resource_id filters scope to one resource's audit trail.
+func TestAPI_AuditEvents_MessageAndResourceFilter(t *testing.T) {
+	t.Run("api-audit-events-query/AC-12", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+		hostA := uuid.Must(uuid.NewV7()).String()
+		hostB := uuid.Must(uuid.NewV7()).String()
+		// Seed two host.created events for different resource_ids.
+		for _, res := range []string{hostA, hostB} {
+			id := uuid.Must(uuid.NewV7())
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO audit_events
+				   (id, correlation_id, actor_type, actor_label, action,
+				    resource_type, resource_id, severity, occurred_at)
+				 VALUES ($1,'corr-msg','user','alice@example.com','host.created','host',$2,'info',now())`,
+				id, res); err != nil {
+				t.Fatalf("seed audit event: %v", err)
+			}
+		}
+
+		// Unfiltered: the message is the readable sentence, not the raw code.
+		all := getAuditPage(t, url, "")
+		var sawReadable bool
+		for _, it := range all {
+			if it.Action == "host.created" {
+				if it.Message != "alice@example.com created a host" {
+					t.Errorf("message = %q, want %q", it.Message, "alice@example.com created a host")
+				}
+				if it.Message == it.Action {
+					t.Errorf("message is the raw action code %q", it.Action)
+				}
+				if it.ActorLabel != "alice@example.com" {
+					t.Errorf("actor_label = %q, want alice@example.com", it.ActorLabel)
+				}
+				sawReadable = true
+			}
+		}
+		if !sawReadable {
+			t.Fatal("no host.created event found in unfiltered list")
+		}
+
+		// resource filter scopes to hostA only.
+		scoped := getAuditPage(t, url, "?resource_type=host&resource_id="+hostA)
+		if len(scoped) == 0 {
+			t.Fatal("resource-filtered list is empty; want hostA's event")
+		}
+		for _, it := range scoped {
+			if it.ResourceID != hostA {
+				t.Errorf("resource_id = %q, want only %q (hostB leaked)", it.ResourceID, hostA)
+			}
+		}
+	})
+}
+
+type auditItem struct {
+	Action     string `json:"action"`
+	Message    string `json:"message"`
+	ActorLabel string `json:"actor_label"`
+	ResourceID string `json:"resource_id"`
+}
+
+func getAuditPage(t *testing.T, url, query string) []auditItem {
+	t.Helper()
+	resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events"+query, auth.RoleAuditor, nil))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var page struct {
+		Items []auditItem `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return page.Items
 }

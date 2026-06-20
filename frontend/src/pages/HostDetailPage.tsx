@@ -182,15 +182,13 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
 const TAB_BACKEND_SUBSYSTEM: Record<
-  Exclude<TabId, 'overview' | 'compliance' | 'remediation' | 'activity'>,
+  Exclude<TabId, 'overview' | 'compliance' | 'remediation' | 'activity' | 'audit_log'>,
   string
 > = {
   packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
   services: 'Server Intelligence collection — running services inventory deferred (BACKLOG).',
   users: 'Server Intelligence collection — user accounts inventory deferred (BACKLOG).',
   network: 'Server Intelligence collection — interfaces and firewall rules deferred (BACKLOG).',
-  audit_log:
-    'Audit query API — host-scoped audit feed deferred to the unified /activity page (BACKLOG).',
   terminal: 'Web terminal — SSH-in-browser deferred; use a host-side SSH client in the meantime.',
 };
 
@@ -488,6 +486,8 @@ export function HostDetailPage() {
             <RemediationTab hostId={detailQuery.data.host.id} />
           ) : activeTab === 'activity' ? (
             <HostActivityTab hostId={detailQuery.data.host.id} />
+          ) : activeTab === 'audit_log' ? (
+            <HostAuditLogTab hostId={detailQuery.data.host.id} />
           ) : (
             <TabStub tab={activeTab} subsystem={TAB_BACKEND_SUBSYSTEM[activeTab]} />
           )}
@@ -2657,6 +2657,137 @@ function HostActivityTab({ hostId }: { hostId: string }) {
           >
             {items.map((it) => (
               <ActivityRow key={`${it.source}-${it.id}`} item={it} />
+            ))}
+          </ol>
+          {q.hasNextPage ? (
+            <button
+              type="button"
+              onClick={() => q.fetchNextPage()}
+              disabled={q.isFetchingNextPage}
+              style={{ ...smallTextBtn, marginTop: 12 }}
+            >
+              {q.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </button>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// AuditLogItem mirrors the api.AuditEvent envelope returned by
+// GET /api/v1/audit/events. `message` is the server-rendered readable
+// sentence ("<actor> <predicate>"); we never show the raw action code.
+interface AuditLogItem {
+  id: string;
+  action: string;
+  message?: string;
+  actor_label?: string | null;
+  occurred_at: string;
+}
+
+// HostAuditLogTab is the host-scoped forensic audit trail: audit events
+// whose resource is this host (resource_type=host, resource_id=hostId),
+// rendered with the server's readable message. Distinct from the Activity
+// tab (operational feed) — this is the "who did what to this host" record.
+// Gated on audit:read. Spec frontend-host-detail.
+function HostAuditLogTab({ hostId }: { hostId: string }) {
+  const canRead = useAuthStore((s) => s.hasPermission('audit:read'));
+  const q = useInfiniteQuery({
+    queryKey: ['host', hostId, 'audit'],
+    initialPageParam: undefined as string | undefined,
+    enabled: !!hostId && canRead,
+    queryFn: async ({ pageParam }) => {
+      const { data, error, response } = await api.GET('/api/v1/audit/events', {
+        params: {
+          query: {
+            resource_type: 'host',
+            resource_id: hostId,
+            limit: 50,
+            ...(pageParam ? { cursor: pageParam } : {}),
+          },
+        },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load audit log (${response.status})`));
+      }
+      return data as unknown as { items: AuditLogItem[]; next_cursor?: string | null };
+    },
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+  });
+
+  if (!canRead) {
+    return (
+      <Card title="Audit log">
+        <EmptyState
+          primary="Audit log not available"
+          secondary="Viewing the audit trail requires the audit:read permission."
+        />
+      </Card>
+    );
+  }
+
+  const items = q.data?.pages.flatMap((p) => p.items ?? []) ?? [];
+
+  return (
+    <Card title="Audit log">
+      {q.isLoading ? (
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>
+      ) : q.isError ? (
+        <div
+          style={{
+            color: 'var(--ow-crit)',
+            fontSize: 12,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          {apiErrorMessage(q.error, 'Failed to load audit log')}{' '}
+          <button type="button" onClick={() => q.refetch()} style={smallTextBtn}>
+            <RefreshCw size={11} /> Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState
+          primary="No audit events yet"
+          secondary="Records who did what to this host (created, updated, scanned, remediated). Entries appear as operators act on the host."
+        />
+      ) : (
+        <>
+          <ol
+            style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            {items.map((it) => (
+              <li
+                key={it.id}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  padding: '8px 0',
+                  borderBottom: '1px solid var(--ow-line)',
+                }}
+              >
+                <FileText
+                  size={14}
+                  color="var(--ow-fg-2)"
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <div style={{ flex: 1, minWidth: 0, color: 'var(--ow-fg-0)', fontSize: 13 }}>
+                  {it.message || it.action}
+                </div>
+                <div style={{ color: 'var(--ow-fg-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                  {relativeTime(it.occurred_at)}
+                </div>
+              </li>
             ))}
           </ol>
           {q.hasNextPage ? (

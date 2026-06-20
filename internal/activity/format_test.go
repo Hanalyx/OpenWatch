@@ -45,7 +45,7 @@ func TestFormatters_HumanReadable(t *testing.T) {
 		}
 
 		// --- audit ---
-		title, summary = formatAudit("host.created", "alice@example.com", "user", "host")
+		title, summary = FormatAudit("host.created", "alice@example.com", "user", "host")
 		if title != "alice@example.com created a host" {
 			t.Errorf("audit title = %q", title)
 		}
@@ -53,7 +53,7 @@ func TestFormatters_HumanReadable(t *testing.T) {
 			t.Errorf("audit summary = %q, want Host", summary)
 		}
 		// actor_label empty -> readable actor_type; no UUID anywhere.
-		title, _ = formatAudit("authz.permission.denied", "", "system", "")
+		title, _ = FormatAudit("authz.permission.denied", "", "system", "")
 		if title != "System was denied permission" {
 			t.Errorf("audit fallback title = %q", title)
 		}
@@ -75,7 +75,7 @@ func TestFormatters_GracefulFallback(t *testing.T) {
 		}
 
 		// Unknown audit action.
-		title, _ = formatAudit("widget.frobnicated", "bob", "user", "")
+		title, _ = FormatAudit("widget.frobnicated", "bob", "user", "")
 		if containsDot(title) {
 			t.Errorf("audit title %q still contains a raw dotted code", title)
 		}

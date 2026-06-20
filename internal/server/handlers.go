@@ -432,7 +432,7 @@ func (h *handlers) GetAuditEvents(w http.ResponseWriter, r *http.Request, params
 func (h *handlers) queryEvents(ctx context.Context, p api.GetAuditEventsParams, limit int32) ([]api.AuditEvent, error) {
 	q := `
 SELECT id, correlation_id, action, severity,
-       actor_type, actor_id, resource_type, resource_id,
+       actor_type, actor_id, actor_label, resource_type, resource_id,
        occurred_at, recorded_at, detail, redactions
 FROM audit_events
 WHERE 1=1
@@ -453,6 +453,12 @@ WHERE 1=1
 	}
 	if p.ActorType != nil && *p.ActorType != "" {
 		addArg("actor_type = $N", *p.ActorType)
+	}
+	if p.ResourceType != nil && *p.ResourceType != "" {
+		addArg("resource_type = $N", *p.ResourceType)
+	}
+	if p.ResourceId != nil && *p.ResourceId != "" {
+		addArg("resource_id = $N", *p.ResourceId)
 	}
 	if p.Since != nil {
 		addArg("occurred_at >= $N", *p.Since)
@@ -482,6 +488,7 @@ WHERE 1=1
 			id           uuid.UUID
 			severity     *string
 			actorID      *string
+			actorLabel   *string
 			resourceType *string
 			resourceID   *string
 			detailBytes  []byte
@@ -489,7 +496,7 @@ WHERE 1=1
 		)
 		if err := rows.Scan(
 			&id, &ev.CorrelationId, &ev.Action, &severity,
-			&ev.ActorType, &actorID, &resourceType, &resourceID,
+			&ev.ActorType, &actorID, &actorLabel, &resourceType, &resourceID,
 			&ev.OccurredAt, &ev.RecordedAt, &detailBytes, &redactions,
 		); err != nil {
 			return nil, err
@@ -497,8 +504,21 @@ WHERE 1=1
 		ev.Id = id
 		ev.Severity = severity
 		ev.ActorId = actorID
+		ev.ActorLabel = actorLabel
 		ev.ResourceType = resourceType
 		ev.ResourceId = resourceID
+		// Server-rendered readable sentence so every audit surface shows
+		// "<actor> <predicate>" instead of the raw dotted action code. Reuses
+		// the same formatter the activity feed's audit leg uses.
+		al, rt := "", ""
+		if actorLabel != nil {
+			al = *actorLabel
+		}
+		if resourceType != nil {
+			rt = *resourceType
+		}
+		msg, _ := activity.FormatAudit(ev.Action, al, ev.ActorType, rt)
+		ev.Message = &msg
 		if len(detailBytes) > 0 {
 			var d map[string]interface{}
 			if err := json.Unmarshal(detailBytes, &d); err == nil {

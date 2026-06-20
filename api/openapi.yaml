@@ -1101,6 +1101,14 @@ paths:
         - name: actor_type
           in: query
           schema: {type: string}
+        - name: resource_type
+          in: query
+          description: Filter to events whose resource_type matches (e.g. "host"). Pair with resource_id for a single resource's audit trail.
+          schema: {type: string}
+        - name: resource_id
+          in: query
+          description: Filter to events whose resource_id matches (e.g. a host UUID). Typically paired with resource_type.
+          schema: {type: string}
         - name: since
           in: query
           schema: {type: string, format: date-time}
@@ -4673,9 +4681,15 @@ components:
         id: {type: string, format: uuid}
         correlation_id: {type: string}
         action: {type: string}
+        # Server-rendered human-readable sentence for the event
+        # ("<actor> <predicate>", e.g. "alice@example.com created a host"),
+        # built from action + actor_label + actor_type. Lets every audit
+        # surface show a sentence instead of the raw dotted action code.
+        message: {type: string}
         severity: {type: string}
         actor_type: {type: string}
         actor_id: {type: string, nullable: true}
+        actor_label: {type: string, nullable: true}
         resource_type: {type: string, nullable: true}
         resource_id: {type: string, nullable: true}
         occurred_at: {type: string, format: date-time}

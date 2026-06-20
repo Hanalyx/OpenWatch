@@ -1,7 +1,7 @@
 spec:
   id: api-audit-events-query
   title: Audit events list endpoint
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -51,6 +51,10 @@ spec:
       description: GET /audit/events MUST require the audit:read permission. The audit trail is security-sensitive (actor ids, IPs, resource ids, action detail); an anonymous caller MUST receive 401 auth.required and an authenticated-but-unauthorized caller 403 and MUST NOT receive any events. Enforcement is via auth.EnforcePermission(AuditRead) as the first statement of the handler, matching every sibling data handler.
       type: security
       enforcement: error
+    - id: C-07
+      description: 'v1.2.0 — Each item MUST include a server-rendered human-readable `message` ("<actor> <predicate>", e.g. "alice@example.com created a host"), built from action + actor_label + actor_type via the shared activity.FormatAudit formatter (the same one the activity feed audit leg uses, so the wording is consistent and a new action code never surfaces as a raw dotted enum). The item MUST also expose actor_label. The endpoint MUST accept optional resource_type and resource_id query filters (ANDed with the existing filters) so a caller can fetch one resource''s audit trail (e.g. a single host''s lifecycle events)'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -90,3 +94,7 @@ spec:
       description: GET /audit/events with no session/credential (anonymous) returns 401 auth.required and no event body — the deny path runs before any query. A caller holding audit:read returns 200. (A role lacking audit:read is denied by the same auth.EnforcePermission mechanism, covered generically by system-rbac.)
       priority: critical
       references_constraints: [C-06]
+    - id: AC-12
+      description: 'v1.2.0 — For a seeded audit event with action=host.created, actor_label="alice@example.com", resource_type="host", resource_id=<host uuid>, GET /audit/events returns that item with message="alice@example.com created a host" and actor_label="alice@example.com". GET /audit/events?resource_type=host&resource_id=<that uuid> returns only events for that resource (the seeded one present; an event for a different resource_id absent). The message is never the raw dotted action code.'
+      priority: high
+      references_constraints: [C-07]
