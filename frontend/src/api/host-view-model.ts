@@ -41,6 +41,13 @@ export interface DevHost {
   // renders "—" in that case rather than the misleading "0m ago".
   lastCheckMinutes: number | null;
   lastScan: string; // "Xh ago" or "Xm ago"
+  /**
+   * id of the newest completed scan_run, from the list endpoint's
+   * latest_scan_id. null when the host has no completed scan — the card's
+   * "view report" affordance is hidden in that case. Spec
+   * frontend-hosts-list AC-24, links to /scans/{latestScanId}.
+   */
+  latestScanId: string | null;
 }
 
 export type DeltaTier = 'crit' | 'warn' | 'ok' | 'neutral';

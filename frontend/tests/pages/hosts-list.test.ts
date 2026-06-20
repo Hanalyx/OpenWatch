@@ -64,6 +64,7 @@ function makeDevHost(overrides: Partial<DevHost> = {}): DevHost {
     total: 0,
     lastCheckMinutes: null,
     lastScan: '—',
+    latestScanId: null,
     ...overrides,
   };
 }
@@ -291,5 +292,66 @@ describe('frontend-hosts-list v1.6.0 — no demo/fixture data', () => {
     expect(AUTH_SRC).not.toContain('dev-admin');
     // Hosts are mapped straight from the real API response.
     expect(PAGE_SRC).toMatch(/\(hostsQuery\.data \?\? \[\]\)\.map\(apiHostToDev\)/);
+  });
+});
+
+describe('frontend-hosts-list v1.7.0 — view-report link', () => {
+  // @ac AC-22
+  test('frontend-hosts-list/AC-22 — chart icon links to /scans/$scanId, gated on latestScanId + scan:read', () => {
+    const VM_SRC = readFileSync(resolve(process.cwd(), 'src/api/host-view-model.ts'), 'utf8');
+    // DevHost carries latestScanId; apiHostToDev maps it from latest_scan_id.
+    expect(VM_SRC).toMatch(/latestScanId:\s*string \| null/);
+    expect(PAGE_SRC).toMatch(/latestScanId:\s*h\.latest_scan_id \?\? null/);
+
+    // ViewReportButton: gated on scan:read AND a non-null latestScanId,
+    // returns null otherwise, and links to the scan-detail route.
+    expect(PAGE_SRC).toContain('function ViewReportButton');
+    expect(PAGE_SRC).toMatch(/hasPermission\('scan:read'\)/);
+    expect(PAGE_SRC).toMatch(/if \(!latestScanId \|\| !canRead\) return null/);
+    expect(PAGE_SRC).toContain('to="/scans/$scanId"');
+    expect(PAGE_SRC).toMatch(/params=\{\{ scanId: latestScanId \}\}/);
+
+    // Used in BOTH the card footer and the table row (>= 2 mounts), and the
+    // old inert placeholder button is gone.
+    expect((PAGE_SRC.match(/<ViewReportButton/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(PAGE_SRC).not.toContain('aria-label="View report"');
+  });
+});
+
+describe('frontend-hosts-list v1.7.0 — grouping + filters wiring', () => {
+  // @ac AC-23
+  test('frontend-hosts-list/AC-23 — GroupSeg offers only None/Status/OS (no Team), grouping applied', () => {
+    // The "team" option (no backing host field) is gone from the control.
+    expect(PAGE_SRC).not.toMatch(/value: 'team'/);
+    expect(PAGE_SRC).not.toMatch(/label: 'Team'/);
+    // group type narrowed to none|status|os and grouped render uses groupHosts.
+    expect(PAGE_SRC).toMatch(/group\?:\s*'none' \| 'status' \| 'os'/);
+    expect(PAGE_SRC).toContain('groupHosts(sorted, group)');
+    expect(PAGE_SRC).toContain('<GroupHeader');
+  });
+
+  // @ac AC-24
+  test('frontend-hosts-list/AC-24 — Filters button opens FiltersControl popover wired to applyHostFilters', () => {
+    // The inert placeholder Filters button is replaced by the real control.
+    expect(PAGE_SRC).toContain('function FiltersControl');
+    expect(PAGE_SRC).toContain('<FiltersControl');
+    // The popover toggles open and persists selections to the URL via onChange.
+    expect(PAGE_SRC).toMatch(/aria-expanded=\{open\}/);
+    expect(PAGE_SRC).toContain('aria-label="Filter hosts"');
+    // Filtering is applied in the page pipeline through the pure helper.
+    expect(PAGE_SRC).toContain('applyHostFilters(out, filters)');
+    expect(PAGE_SRC).toMatch(/Clear all filters/);
+  });
+
+  // @ac AC-25
+  test('frontend-hosts-list/AC-25 — view falls back to persisted hostsViewDefault; toggle persists it', () => {
+    // No hardcoded 'cards' default — the fallback is the persisted store value.
+    expect(PAGE_SRC).toContain("usePreferencesStore((s) => s.hostsViewDefault)");
+    expect(PAGE_SRC).toMatch(
+      /search\.view === 'table' \|\| search\.view === 'cards' \? search\.view : hostsViewDefault/,
+    );
+    // Toggling persists the per-user default AND updates the URL.
+    expect(PAGE_SRC).toContain('setHostsViewDefault(v)');
+    expect(PAGE_SRC).toContain('updateSearch({ view: v })');
   });
 });

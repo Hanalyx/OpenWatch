@@ -92,6 +92,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return the calling user's UI preferences
+         * @description Per-user UI preferences (e.g. the /hosts grid-vs-table default). Self-scoped — any authenticated identity reads its own; no special permission. Unset keys are simply absent (the client falls back to its defaults). Spec system-user-preferences + api-user-preferences.
+         */
+        get: operations["getUsersMePreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Merge a partial update into the calling user's UI preferences
+         * @description Shallow-merges the provided keys into the caller's stored preferences and returns the merged result. Only the keys present in the body are changed; omitted keys are retained. Self-scoped.
+         */
+        patch: operations["patchUsersMePreferences"];
+        trace?: never;
+    };
     "/api/v1/auth/mfa:enroll": {
         parameters: {
             query?: never;
@@ -2410,6 +2434,19 @@ export interface components {
             email: string;
             role: string;
         };
+        UserPreferences: {
+            /** @enum {string} */
+            hosts_view_default?: "table" | "cards";
+            /** @enum {string} */
+            density?: "comfortable" | "compact";
+            /** @enum {string} */
+            accent_color?: "info" | "ok" | "brand2";
+            /** @enum {string} */
+            landing_page?: "hosts" | "dashboard" | "reports";
+            /** @enum {string} */
+            date_format?: "us12" | "iso24" | "long24";
+            reduce_motion?: boolean;
+        };
         AuthMFAEnrollResponse: {
             provisioning_uri: string;
         };
@@ -2927,6 +2964,8 @@ export interface components {
             check_priority?: number;
             /** Format: date-time */
             last_scan_at?: string | null;
+            /** Format: uuid */
+            latest_scan_id?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
             /** @description Null when the host has no host_rule_state rows (never scanned). */
@@ -4090,6 +4129,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description No valid session or bearer */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getUsersMePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's stored preferences */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            /** @description No valid session or bearer */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patchUsersMePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPreferences"];
+            };
+        };
+        responses: {
+            /** @description The merged preferences */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            /** @description Malformed body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description No valid session or bearer */

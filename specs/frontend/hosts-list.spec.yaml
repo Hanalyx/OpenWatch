@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -78,6 +78,22 @@ spec:
       enforcement: error
     - id: C-08
       description: Every interactive element (sort headers, filter dropdowns, pagination buttons, row link, Add host button) MUST be reachable by keyboard alone and carry an explicit ARIA label. The page MUST pass axe-core wcag2a + wcag2aa with zero violations
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: v1.7.0 — each host card and table row MUST render a "view report" chart-icon control that links to the latest completed scan's detail page, /scans/{latestScanId}, where latestScanId is the list item's latest_scan_id (api-hosts C-13). The control MUST be hidden (render nothing) when latest_scan_id is null (no completed scan) OR the identity lacks scan:read — the destination is scan:read-gated, so a visible dead link would only 403. The scan:read check uses useAuthStore, not a role-string comparison
+      type: security
+      enforcement: error
+    - id: C-10
+      description: 'v1.7.0 — the Group control MUST offer exactly None/Status/OS (the removed "Team" option had no backing host field). When a non-None group is selected the rendered list MUST be partitioned into labelled sections via groupHosts(): Status groups by host monitoring band worst-first (critical, down, degraded, online, maintenance, unknown); OS groups by the host OS label alphabetically with the "Unknown" catch-all last. Empty groups are omitted; group=none renders the flat list unchanged. Grouping is applied AFTER search + filters + sort'
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: 'v1.7.0 — the Filters button MUST open a popover offering multi-select Status (monitoring band), Compliance tier (crit <40 / warn 40-80 / ok >=80 / none = never scanned), and Operating-system (families present in the fleet) facets. Selections MUST be persisted to the URL (status/os/tier comma-joined params) so a refresh restores them, and applied client-side by applyHostFilters as AND across dimensions / OR within a dimension. The button MUST show the active-filter count and the popover MUST offer Clear all. An empty dimension imposes no constraint'
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: 'v1.7.0 — the card/table view is chosen as: URL ?view= (table|cards) when present (so a link or refresh is stable), otherwise the user''s server-persisted default usePreferencesStore.hostsViewDefault (system-user-preferences). Toggling the view MUST both call setHostsViewDefault(v) (persisting the new per-user default) AND set ?view= for the session — so the choice "becomes the default until the user changes it"'
       type: technical
       enforcement: error
 
@@ -164,3 +180,21 @@ spec:
     - id: AC-21
       description: 'v1.6.0 — the page has NO demo/fixture fallback. Hosts always come from GET /api/v1/hosts mapped via apiHostToDev; KPIs (kpisFromHosts) and the fleet alert (fleetAlertFromHosts) always compute from that real data; an empty fleet renders the honest empty state. There is no isDevFixturesEnabled / devHosts / devKpis / __ow_dev_fixtures code path anywhere, and bootstrapAuth has no __ow_dev_admin synthetic-identity bypass. Source-inspection: HostsListPage.tsx + auth-bootstrap.ts contain none of those identifiers.'
       priority: high
+
+    - id: AC-22
+      description: 'v1.7.0 — the ViewReportButton renders a router Link to "/scans/$scanId" with params scanId=latestScanId, and is used in BOTH the host card footer and the table row actions. It returns null when latestScanId is falsy OR useAuthStore hasPermission("scan:read") is false (so a host with no completed scan, or a viewer without scan:read, shows no chart icon). apiHostToDev maps latest_scan_id to DevHost.latestScanId. Source-inspection of HostsListPage.tsx + host-view-model.ts.'
+      priority: high
+      references_constraints: [C-09]
+
+    - id: AC-23
+      description: 'v1.7.0 — groupHosts(hosts, "none") returns one section holding the input unchanged. groupHosts(hosts, "status") returns sections in worst-first band order (critical before down before degraded before online before maintenance before unknown), each holding only its band, omitting empty bands. groupHosts(hosts, "os") returns OS-labelled sections alphabetically with "Unknown" last. The GroupSeg control offers exactly None/Status/OS (no "team"). Behavioral unit test over host-filtering.ts + source-inspection that the GroupSeg options array has no team entry.'
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-24
+      description: 'v1.7.0 — applyHostFilters(hosts, filters) keeps a host only when it matches every active dimension (AND across status/os/tier, OR within each), and an empty dimension imposes no constraint. hostComplianceTier buckets compliance as crit (<40) / warn (40-80) / ok (>=80) / none (compliance null = never scanned, NOT crit). parseHostFilters splits comma-joined URL params; activeFilterCount sums the selected facets. The FiltersControl popover wires these (Status/Compliance/OS facets + Clear all) and persists selections through onChange to the URL. Behavioral unit test over host-filtering.ts + source-inspection of FiltersControl.'
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-25
+      description: "v1.7.0 source-inspection: the view resolves to search.view when it is 'table' or 'cards', otherwise usePreferencesStore.hostsViewDefault (not a hardcoded 'cards'). The ViewToggle onChange calls setHostsViewDefault(v) AND updateSearch({view:v}) so the toggle persists the per-user default and updates the URL together."
+      priority: high
+      references_constraints: [C-12]

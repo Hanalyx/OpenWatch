@@ -476,4 +476,24 @@ describe('frontend-settings — structural', () => {
     expect(resetCopy.length).toBeGreaterThan(0);
     expect(resetCopy).not.toContain('—');
   });
+
+  // @ac AC-30
+  test('frontend-settings/AC-30 — preferences store syncs server-side (localStorage cache retained)', () => {
+    // localStorage cache retained (instant load + offline fallback).
+    expect(PREFS_STORE_SRC).toMatch(/persist\(/);
+    expect(PREFS_STORE_SRC).toContain("name: 'ow-preferences'");
+    // Write-through: setters PATCH the server via push().
+    expect(PREFS_STORE_SRC).toContain("api.PATCH('/api/v1/users/me/preferences'");
+    expect(PREFS_STORE_SRC).toMatch(/push\(\{ hosts_view_default: hostsViewDefault \}\)/);
+    // Hydration: hydrateFromServer GETs and applies present keys.
+    expect(PREFS_STORE_SRC).toContain('hydrateFromServer');
+    expect(PREFS_STORE_SRC).toContain("api.GET('/api/v1/users/me/preferences')");
+    // The authenticated shell reconciles once on mount.
+    const FRAME_SRC = readFileSync(
+      resolve(process.cwd(), 'src/components/shell/AppFrame.tsx'),
+      'utf8',
+    );
+    expect(FRAME_SRC).toContain('hydrateFromServer');
+    expect(FRAME_SRC).toMatch(/useEffect\(/);
+  });
 });

@@ -120,6 +120,55 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/users/me/preferences:
+    get:
+      operationId: getUsersMePreferences
+      summary: Return the calling user's UI preferences
+      description: >
+        Per-user UI preferences (e.g. the /hosts grid-vs-table default).
+        Self-scoped — any authenticated identity reads its own; no special
+        permission. Unset keys are simply absent (the client falls back to
+        its defaults). Spec system-user-preferences + api-user-preferences.
+      responses:
+        '200':
+          description: The caller's stored preferences
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPreferences'}
+        '401':
+          description: No valid session or bearer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    patch:
+      operationId: patchUsersMePreferences
+      summary: Merge a partial update into the calling user's UI preferences
+      description: >
+        Shallow-merges the provided keys into the caller's stored
+        preferences and returns the merged result. Only the keys present in
+        the body are changed; omitted keys are retained. Self-scoped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserPreferences'}
+      responses:
+        '200':
+          description: The merged preferences
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPreferences'}
+        '400':
+          description: Malformed body
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: No valid session or bearer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/auth/mfa:enroll:
     post:
       operationId: postAuthMFAEnroll
@@ -3771,6 +3820,23 @@ components:
         email:    {type: string}
         role:     {type: string}
 
+    # Per-user UI preferences (system-user-preferences). Every field is
+    # optional: GET returns only the keys the user has set, and PATCH treats
+    # the body as a partial (present keys merge, omitted keys are retained).
+    # additionalProperties:false governs the valid key set — adding a knob is
+    # a deliberate contract change here, not arbitrary client-written JSON.
+    UserPreferences:
+      type: object
+      additionalProperties: false
+      properties:
+        # The /hosts page default view when the URL has no ?view= override.
+        hosts_view_default: {type: string, enum: [table, cards]}
+        density:            {type: string, enum: [comfortable, compact]}
+        accent_color:       {type: string, enum: [info, ok, brand2]}
+        landing_page:       {type: string, enum: [hosts, dashboard, reports]}
+        date_format:        {type: string, enum: [us12, iso24, long24]}
+        reduce_motion:      {type: boolean}
+
     AuthMFAEnrollResponse:
       type: object
       required: [provisioning_uri]
@@ -4432,6 +4498,12 @@ components:
         # when no compliance check has ever run against the host.
         # Surface for the operator dashboard's "last scan X ago" cell.
         last_scan_at: {type: string, format: date-time, nullable: true}
+        # v1.6.0 — id of the newest COMPLETED scan_run for this host. Drives
+        # the host card's "view report" affordance, which links to
+        # /scans/{latest_scan_id} (the scan:read-gated detail page). NULL
+        # when the host has no completed scan yet (icon hidden). Spec
+        # api-hosts C-13.
+        latest_scan_id: {type: string, format: uuid, nullable: true}
         liveness:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true

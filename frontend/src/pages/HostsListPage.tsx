@@ -23,6 +23,18 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { osDisplayLabel } from '@/utils/osLabel';
 import { type DevHost, type DevKpis, type MonitoringBand } from '@/api/host-view-model';
+import {
+  type GroupKey,
+  type HostFilters,
+  type TierFilter,
+  activeFilterCount,
+  applyHostFilters,
+  groupHosts,
+  parseHostFilters,
+  statusLabel,
+  tierLabel,
+} from '@/api/host-filtering';
+import { usePreferencesStore } from '@/store/usePreferencesStore';
 
 // HostsListPage — Host Management surface, prototype-faithful.
 //
@@ -49,7 +61,13 @@ interface HostsListSearch {
   tag?: string;
   q?: string;
   view?: 'table' | 'cards';
-  group?: 'none' | 'team' | 'status' | 'os';
+  group?: 'none' | 'status' | 'os';
+  // v1.7.0 filter params — comma-joined multi-select, URL-persisted so a
+  // refresh restores the same filtered view (C-04). status: MonitoringBand
+  // values; os: osDisplayLabel values; tier: crit|warn|ok|none.
+  status?: string;
+  os?: string;
+  tier?: string;
 }
 
 interface ApiHostLiveness {
@@ -76,6 +94,8 @@ export interface ApiHost {
   check_priority?: number;
   /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
   last_scan_at?: string | null;
+  /** v1.6.0 — id of the newest completed scan_run; null when none. Spec api-hosts C-13. */
+  latest_scan_id?: string | null;
   liveness?: ApiHostLiveness | null;
   /**
    * v1.4.0 (api-hosts) — denormalized OS columns populated by
@@ -135,9 +155,20 @@ export function HostsListPage() {
     return () => setCrumbs([]);
   }, [setCrumbs]);
 
-  const view: 'table' | 'cards' = search.view === 'table' ? 'table' : 'cards';
-  const group = search.group ?? 'none';
+  // View: the URL ?view= wins (shareable / refresh-stable, C-04); absent
+  // that, fall back to the user's server-persisted default
+  // (system-user-preferences). Toggling sets BOTH so the choice "becomes
+  // the default until changed".
+  const hostsViewDefault = usePreferencesStore((s) => s.hostsViewDefault);
+  const setHostsViewDefault = usePreferencesStore((s) => s.setHostsViewDefault);
+  const view: 'table' | 'cards' =
+    search.view === 'table' || search.view === 'cards' ? search.view : hostsViewDefault;
+  const group: GroupKey = search.group === 'status' || search.group === 'os' ? search.group : 'none';
   const query = (search.q ?? '').trim().toLowerCase();
+  const filters: HostFilters = useMemo(
+    () => parseHostFilters({ status: search.status, os: search.os, tier: search.tier }),
+    [search.status, search.os, search.tier],
+  );
 
   const hostsQuery = useQuery({
     queryKey: ['hosts', search.env, search.tag],
@@ -159,12 +190,16 @@ export function HostsListPage() {
   const hosts: DevHost[] = (hostsQuery.data ?? []).map(apiHostToDev);
 
   const visible = useMemo(() => {
-    if (!query) return hosts;
-    return hosts.filter((h) => {
-      const hay = `${h.hostname} ${h.ip_address} ${h.os}`.toLowerCase();
-      return hay.includes(query);
-    });
-  }, [hosts, query]);
+    let out = hosts;
+    if (query) {
+      out = out.filter((h) => {
+        const hay = `${h.hostname} ${h.ip_address} ${h.os}`.toLowerCase();
+        return hay.includes(query);
+      });
+    }
+    // v1.7.0 — apply the Status/OS/Compliance filter panel selections.
+    return applyHostFilters(out, filters);
+  }, [hosts, query, filters]);
 
   // Sort: down hosts first, then by compliance ascending (matches prototype).
   const sorted = useMemo(() => {
@@ -173,6 +208,10 @@ export function HostsListPage() {
       return (a.compliance ?? -1) - (b.compliance ?? -1);
     });
   }, [visible]);
+
+  // v1.7.0 — partition the sorted list into labelled sections when a Group
+  // is active (None yields a single anonymous section). Spec C-10.
+  const groups = useMemo(() => groupHosts(sorted, group), [sorted, group]);
 
   // Scan-queue KPI: live queued+running counts from scan_runs.
   // Spec api-host-compliance AC-07 (endpoint) + frontend-hosts-list.
@@ -229,7 +268,8 @@ export function HostsListPage() {
 
   const fleetAlert = fleetAlertFromHosts(hosts);
 
-  const hasFilter = !!(search.env || search.tag || query);
+  const filterCount = activeFilterCount(filters);
+  const hasFilter = !!(search.env || search.tag || query) || filterCount > 0;
 
   const updateSearch = (next: Partial<HostsListSearch>) => {
     navigate({
@@ -383,23 +423,22 @@ export function HostsListPage() {
       >
         <SearchBox value={query} onChange={(v) => updateSearch({ q: v || undefined })} />
         <GroupSeg value={group} onChange={(v) => updateSearch({ group: v })} />
-        <button type="button" style={btnSecondary} aria-label="Filters">
-          <FilterIcon size={14} />
-          Filters
-          {hasFilter && (
-            <span
-              style={{
-                marginLeft: 4,
-                color: 'var(--ow-info)',
-                fontWeight: 600,
-              }}
-            >
-              {[search.env, search.tag].filter(Boolean).length || 2}
-            </span>
-          )}
-        </button>
+        <FiltersControl
+          filters={filters}
+          count={filterCount}
+          hosts={hosts}
+          onChange={(next) => updateSearch(next)}
+        />
         <div style={{ flex: 1 }} />
-        <ViewToggle value={view} onChange={(v) => updateSearch({ view: v })} />
+        <ViewToggle
+          value={view}
+          onChange={(v) => {
+            // Persist the choice as the per-user default AND reflect it in
+            // the URL for this session (shareable / refresh-stable).
+            setHostsViewDefault(v);
+            updateSearch({ view: v });
+          }}
+        />
       </div>
 
       {hostsQuery.isError && (
@@ -416,7 +455,26 @@ export function HostsListPage() {
         />
       )}
       {sorted.length > 0 &&
-        (view === 'cards' ? <HostsCards hosts={sorted} /> : <HostsTable hosts={sorted} />)}
+        (group === 'none' ? (
+          view === 'cards' ? (
+            <HostsCards hosts={sorted} />
+          ) : (
+            <HostsTable hosts={sorted} />
+          )
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            {groups.map((g) => (
+              <section key={g.key}>
+                <GroupHeader label={g.label} count={g.hosts.length} />
+                {view === 'cards' ? (
+                  <HostsCards hosts={g.hosts} />
+                ) : (
+                  <HostsTable hosts={g.hosts} />
+                )}
+              </section>
+            ))}
+          </div>
+        ))}
     </div>
   );
 }
@@ -681,7 +739,6 @@ function GroupSeg({
 }) {
   const options: { value: typeof value; label: string }[] = [
     { value: 'none', label: 'None' },
-    { value: 'team', label: 'Team' },
     { value: 'status', label: 'Status' },
     { value: 'os', label: 'OS' },
   ];
@@ -781,6 +838,226 @@ function ViewToggle({
       >
         <LayoutGrid size={14} />
       </button>
+    </div>
+  );
+}
+
+// GroupHeader labels a grouped section (Status / OS) with its member
+// count. Spec frontend-hosts-list C-10.
+function GroupHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        margin: '0 0 10px',
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        color: 'var(--ow-fg-2)',
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ color: 'var(--ow-fg-3)', fontWeight: 500 }}>{count}</span>
+      <span style={{ flex: 1, height: 1, background: 'var(--ow-line)' }} />
+    </div>
+  );
+}
+
+const STATUS_FILTER_OPTIONS: MonitoringBand[] = [
+  'critical',
+  'down',
+  'degraded',
+  'online',
+  'maintenance',
+  'unknown',
+];
+const TIER_FILTER_OPTIONS: TierFilter[] = ['crit', 'warn', 'ok', 'none'];
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={active}
+      onClick={onClick}
+      style={{
+        height: 26,
+        padding: '0 10px',
+        border: `1px solid ${active ? 'var(--ow-info)' : 'var(--ow-line)'}`,
+        background: active ? 'color-mix(in oklab, var(--ow-info) 18%, transparent)' : 'transparent',
+        color: active ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
+        fontFamily: 'inherit',
+        fontSize: 12,
+        borderRadius: 6,
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+          color: 'var(--ow-fg-2)',
+          marginBottom: 8,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{children}</div>
+    </div>
+  );
+}
+
+// FiltersControl is the Filters button + its popover. Selections are
+// multi-select within each dimension (Status / Compliance / OS) and
+// persisted to the URL via onChange so a refresh restores them (C-04 /
+// C-11). The OS options are derived from the loaded fleet so only present
+// families show. Filtering itself is applied client-side by
+// applyHostFilters in the page pipeline.
+function FiltersControl({
+  filters,
+  count,
+  hosts,
+  onChange,
+}: {
+  filters: HostFilters;
+  count: number;
+  hosts: DevHost[];
+  onChange: (next: Pick<HostsListSearch, 'status' | 'os' | 'tier'>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const osOptions = useMemo(
+    () => [...new Set(hosts.map((h) => h.os || 'Unknown'))].sort(),
+    [hosts],
+  );
+  const toggle = (dim: 'status' | 'os' | 'tier', val: string) => {
+    const cur = filters[dim];
+    const next = cur.includes(val) ? cur.filter((v) => v !== val) : [...cur, val];
+    onChange({ [dim]: next.length ? next.join(',') : undefined });
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        style={btnSecondary}
+        aria-label="Filters"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <FilterIcon size={14} />
+        Filters
+        {count > 0 && (
+          <span style={{ marginLeft: 4, color: 'var(--ow-info)', fontWeight: 600 }}>{count}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'transparent',
+              border: 0,
+              cursor: 'default',
+              zIndex: 40,
+            }}
+          />
+          <div
+            role="dialog"
+            aria-label="Filter hosts"
+            style={{
+              position: 'absolute',
+              top: 40,
+              left: 0,
+              zIndex: 41,
+              width: 284,
+              padding: 14,
+              background: 'var(--ow-bg-1)',
+              border: '1px solid var(--ow-line)',
+              borderRadius: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <FilterSection title="Status">
+              {STATUS_FILTER_OPTIONS.map((b) => (
+                <FilterChip
+                  key={b}
+                  label={statusLabel(b)}
+                  active={filters.status.includes(b)}
+                  onClick={() => toggle('status', b)}
+                />
+              ))}
+            </FilterSection>
+            <FilterSection title="Compliance">
+              {TIER_FILTER_OPTIONS.map((t) => (
+                <FilterChip
+                  key={t}
+                  label={tierLabel(t)}
+                  active={filters.tier.includes(t)}
+                  onClick={() => toggle('tier', t)}
+                />
+              ))}
+            </FilterSection>
+            {osOptions.length > 0 && (
+              <FilterSection title="Operating system">
+                {osOptions.map((os) => (
+                  <FilterChip
+                    key={os}
+                    label={os}
+                    active={filters.os.includes(os)}
+                    onClick={() => toggle('os', os)}
+                  />
+                ))}
+              </FilterSection>
+            )}
+            {count > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange({ status: undefined, os: undefined, tier: undefined })}
+                style={{
+                  alignSelf: 'flex-start',
+                  border: 0,
+                  background: 'transparent',
+                  color: 'var(--ow-info)',
+                  fontFamily: 'inherit',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -894,6 +1171,27 @@ function ScanHostButton({ hostId, variant }: { hostId: string; variant: 'card' |
         {busy ? 'Queueing' : 'Scan'}
       </button>
     </span>
+  );
+}
+
+// ViewReportButton links the host card/row chart icon to the latest
+// completed scan's detail (report) page, /scans/{latestScanId}. It
+// renders nothing when the host has no completed scan (latestScanId null)
+// or the viewer lacks scan:read — the destination is scan:read-gated, so
+// showing a dead link would only 403. Spec frontend-hosts-list AC-24.
+function ViewReportButton({ latestScanId }: { latestScanId: string | null }) {
+  const canRead = useAuthStore((s) => s.hasPermission('scan:read'));
+  if (!latestScanId || !canRead) return null;
+  return (
+    <Link
+      to="/scans/$scanId"
+      params={{ scanId: latestScanId }}
+      style={{ ...iconBtnSm, textDecoration: 'none' }}
+      aria-label="View latest scan report"
+      title="View latest scan report"
+    >
+      <BarChart3 size={14} />
+    </Link>
   );
 }
 
@@ -1125,9 +1423,7 @@ function HostCard({ host }: { host: DevHost }) {
           Last scan {host.lastScan}
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button type="button" style={iconBtnSm} aria-label="View report">
-            <BarChart3 size={14} />
-          </button>
+          <ViewReportButton latestScanId={host.latestScanId} />
           <ScanHostButton hostId={host.id} variant="card" />
         </div>
       </div>
@@ -1323,9 +1619,7 @@ function HostRow({ host }: { host: DevHost }) {
       <td style={{ ...td, textAlign: 'right' }}>
         <div style={{ display: 'inline-flex', gap: 4, justifyContent: 'flex-end' }}>
           <ScanHostButton hostId={host.id} variant="row" />
-          <button type="button" style={iconBtnSm} aria-label="View report">
-            <BarChart3 size={14} />
-          </button>
+          <ViewReportButton latestScanId={host.latestScanId} />
           <HostActionsMenu hostId={host.id} hostname={displayName} buttonStyle={iconBtnSm} />
         </div>
       </td>
@@ -1563,6 +1857,9 @@ export function apiHostToDev(h: ApiHost): DevHost {
     criticalFailing: cs?.critical_failing ?? 0,
     lastCheckMinutes,
     lastScan,
+    // v1.6.0: newest completed scan id for the "view report" link; null
+    // (icon hidden) when the host has no completed scan. Spec api-hosts C-13.
+    latestScanId: h.latest_scan_id ?? null,
   };
 }
 

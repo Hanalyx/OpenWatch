@@ -67,11 +67,17 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"compliance summary join failed", true)
 		return
 	}
+	latestScanByID, err := loadHostLatestScanIDByIDs(r.Context(), h.pool, ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"latest_scan_id join failed", true)
+		return
+	}
 
 	out := make([]api.HostListItem, len(list))
 	for i, item := range list {
 		out[i] = hostListItem(item, liveByID[item.ID], lastScanByID[item.ID],
-			complianceByID[item.ID])
+			complianceByID[item.ID], latestScanByID[item.ID])
 	}
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
@@ -336,7 +342,7 @@ func hostResponse(h host.Host) api.HostResponse {
 // and an optional compliance roll-up (api-hosts v1.5.0 C-12). All
 // three may be nil — never probed and never scanned, respectively.
 func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time,
-	compliance *api.HostListComplianceSummary) api.HostListItem {
+	compliance *api.HostListComplianceSummary, latestScanID uuid.UUID) api.HostListItem {
 	desc := h.Description
 	displayName := h.DisplayName
 	env := h.Environment
@@ -379,6 +385,12 @@ func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time,
 	}
 	if !lastScan.IsZero() {
 		item.LastScanAt = &lastScan
+	}
+	// v1.6.0 — nil (null on the wire) when the host has no completed
+	// scan_run. Spec api-hosts C-13.
+	if latestScanID != uuid.Nil {
+		u := openapitypes.UUID(latestScanID)
+		item.LatestScanId = &u
 	}
 	return item
 }

@@ -205,13 +205,14 @@ generate-license:
 	go run scripts/gen-license-features.go
 
 .PHONY: generate-api
-generate-api:
+generate-api: internal/server/openapi_embed.yaml
 	@if [ ! -x "$(HOME)/go/bin/oapi-codegen" ]; then \
 	  echo "installing oapi-codegen..."; \
 	  go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest; \
 	fi
 	$(HOME)/go/bin/oapi-codegen --config api/oapi-codegen.yaml api/openapi.yaml
 	@echo "generated internal/server/api/server.gen.go"
+	@echo "refreshed internal/server/openapi_embed.yaml (kept in sync with api/openapi.yaml)"
 
 # The OpenAPI spec is also embedded into the binary so the /api/v1/openapi.yaml
 # and /docs routes can serve it air-gap-clean. go:embed cannot follow paths

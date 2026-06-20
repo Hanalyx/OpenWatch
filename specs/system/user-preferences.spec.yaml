@@ -1,0 +1,84 @@
+spec:
+  id: system-user-preferences
+  title: Per-user UI preferences — server-side persistence + self-scoped HTTP surface
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: Per-user UI preferences that follow the user across devices
+    description: >
+      Personal UI preferences (the /hosts grid-vs-table default, density,
+      accent colour, landing page, date format, reduce-motion) persisted
+      server-side on the users row so they follow a user across browsers and
+      devices instead of living only in localStorage. Stored as a single
+      JSONB blob (users.preferences, migration 0040); the valid key set is
+      governed by the typed api.UserPreferences contract. The HTTP surface is
+      self-scoped: GET/PATCH /api/v1/users/me/preferences read and merge ONLY
+      the calling identity's own preferences — the user id comes from the
+      session/bearer identity, never a path param, so there is no object-level
+      authorization to get wrong.
+    related_specs:
+      - system-user-management
+      - api-hosts
+      - frontend-hosts-list
+
+  objective:
+    summary: >-
+      Lock the server-side per-user preferences store: JSONB storage on the
+      users row, a shallow merge that retains untouched keys, the
+      self-scoped HTTP surface (identity-derived user id, 401 for anonymous,
+      no RBAC permission), and the typed-contract validation that drops
+      unknown keys and rejects out-of-range enums.
+    scope:
+      includes:
+        - "users.preferences JSONB column (migration 0040, default '{}')"
+        - "Get returns '{}' for unset; ErrUserNotFound for unknown/deleted user"
+        - "Merge via JSONB || (shallow, scoped to one active user); non-object patch rejected"
+        - "GET/PATCH /api/v1/users/me/preferences self-scoped; anonymous -> 401 auth.required"
+        - "PATCH validates enum values (400) and drops unknown keys via the typed contract"
+      excludes:
+        - "The frontend store wiring / hydration (frontend-settings C-06)"
+        - "Per-preference defaults and their UI (the client owns fallbacks)"
+        - "Cross-device real-time sync / push (reconcile is on shell mount only)"
+
+  constraints:
+    - id: C-01
+      description: Preferences are stored as the users.preferences JSONB column (migration 0040, NOT NULL DEFAULT '{}'). The service Get returns the stored blob, or '{}' for a user who has never set one; an unknown or soft-deleted user yields ErrUserNotFound (never a fabricated empty object)
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Merge performs a SHALLOW merge of the patch onto the stored blob via the Postgres JSONB '||' operator (top-level keys in the patch overwrite, omitted keys are retained) scoped to one active user (WHERE id = $1 AND deleted_at IS NULL), and returns the merged result. A non-object patch MUST be rejected before it reaches the column, never replacing the object with a scalar
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The HTTP surface is self-scoped and authentication-gated. The user id is resolved from the request identity (auth.FromContext), NOT a path/query param. An anonymous caller MUST receive 401 auth.required; an authenticated caller needs NO additional RBAC permission to read or update its own preferences
+      type: security
+      enforcement: error
+    - id: C-04
+      description: PATCH MUST only persist known, well-typed keys. Unknown keys are dropped at decode (the typed contract has no catch-all), and an out-of-range enum value (e.g. hosts_view_default other than table|cards) MUST be rejected 400 before any write. GET and PATCH responses are projected through the typed api.UserPreferences contract so only known keys surface
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: GET /api/v1/users/me/preferences as an authenticated user who has never set a preference returns 200 with an empty object {} (every key absent), not an error.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-02
+      description: 'PATCH /api/v1/users/me/preferences with {"hosts_view_default":"table"} returns 200 echoing that value; a subsequent PATCH with {"density":"compact"} returns 200 with BOTH keys present (hosts_view_default retained from the first call) — proving the shallow merge, not a full overwrite.'
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: 'PATCH /api/v1/users/me/preferences with an invalid enum value (e.g. {"hosts_view_default":"weird"}) returns 400 validation.invalid_value and does NOT persist — a following GET still reflects only previously-valid values.'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-04
+      description: GET and PATCH /api/v1/users/me/preferences by an anonymous caller (no session, no bearer) both return 401 auth.required — never 200, never a 500.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-05
+      description: The userpref service Merge against an unknown user id returns ErrUserNotFound (no row updated), and Get against an unknown user id returns ErrUserNotFound; Get for a real user with the default column returns the '{}' object.
+      priority: high
+      references_constraints: [C-01, C-02]

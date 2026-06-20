@@ -9,6 +9,7 @@
 //   AC-18  TestHosts_GetByID_Enrichment_FrameworkFilterEmpty
 //   AC-19  TestHosts_GetHosts_ListLivenessJoined
 //   AC-23  TestHosts_GetHosts_ListComplianceSummaryJoined
+//   AC-24  TestHosts_GetHosts_ListLatestScanIDJoined
 
 package server
 
@@ -416,6 +417,84 @@ func TestHosts_GetHosts_ListComplianceSummaryJoined(t *testing.T) {
 		}
 		if !sawUnscanned {
 			t.Error("unscanned host not present in /hosts response")
+		}
+	})
+}
+
+// seedScanRun inserts a scan_runs row with the given status + queued_at
+// and returns its id.
+func seedScanRun(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, status string, queuedAt time.Time) uuid.UUID {
+	t.Helper()
+	id, _ := uuid.NewV7()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO scan_runs (id, host_id, trigger_source, status, queued_at)
+		VALUES ($1, $2, 'scheduled', $3, $4)`,
+		id, hostID, status, queuedAt)
+	if err != nil {
+		t.Fatalf("seed scan_runs: %v", err)
+	}
+	return id
+}
+
+// @ac AC-24
+// AC-24 (v1.6.0): GET /hosts items carry a nullable latest_scan_id = the
+// newest COMPLETED scan_run id. A host with an older+newer completed run
+// (plus an even-newer queued run) resolves to the newer COMPLETED id (not
+// the queued one); a host with only a queued/running run, and a host with
+// no runs at all, both resolve to null.
+func TestHosts_GetHosts_ListLatestScanIDJoined(t *testing.T) {
+	t.Run("api-hosts/AC-24", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		withCompleted := createHostAPI(t, url, "scanned-host", "production")
+		withCompletedID, _ := uuid.Parse(withCompleted["id"].(string))
+		queuedOnly := createHostAPI(t, url, "queued-host", "production")
+		queuedOnlyID := queuedOnly["id"].(string)
+		queuedOnlyUUID, _ := uuid.Parse(queuedOnlyID)
+		noScans := createHostAPI(t, url, "noscan-host", "production")
+		noScansID := noScans["id"].(string)
+
+		base := time.Now().UTC().Truncate(time.Second)
+		// host A: older completed, newer completed (the answer), even-newer queued.
+		seedScanRun(t, pool, withCompletedID, "completed", base.Add(-2*time.Hour))
+		wantID := seedScanRun(t, pool, withCompletedID, "completed", base.Add(-1*time.Hour))
+		seedScanRun(t, pool, withCompletedID, "queued", base) // newest, but not a viewable report
+		// host B: only a queued/running run.
+		seedScanRun(t, pool, queuedOnlyUUID, "running", base)
+
+		req := asRole(t, "GET", url+"/api/v1/hosts", auth.RoleAdmin, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Hosts []struct {
+				ID           string  `json:"id"`
+				LatestScanID *string `json:"latest_scan_id"`
+			} `json:"hosts"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		seen := map[string]*string{}
+		for _, h := range body.Hosts {
+			seen[h.ID] = h.LatestScanID
+		}
+
+		if got, ok := seen[withCompletedID.String()]; !ok || got == nil {
+			t.Fatalf("scanned host latest_scan_id missing/null; want %s", wantID)
+		} else if *got != wantID.String() {
+			t.Errorf("latest_scan_id = %s, want %s (newest COMPLETED, not the queued run)", *got, wantID)
+		}
+		if got, ok := seen[queuedOnlyID]; !ok {
+			t.Error("queued-only host absent from /hosts response")
+		} else if got != nil {
+			t.Errorf("queued-only host latest_scan_id = %v, want null", *got)
+		}
+		if got, ok := seen[noScansID]; !ok {
+			t.Error("no-scan host absent from /hosts response")
+		} else if got != nil {
+			t.Errorf("no-scan host latest_scan_id = %v, want null", *got)
 		}
 	})
 }
