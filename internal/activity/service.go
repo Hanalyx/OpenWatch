@@ -334,7 +334,7 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 		case SourceIntelligence:
 			r.Title, r.Summary = formatIntelligence(code, detail)
 		case SourceAudit:
-			r.Title, r.Summary = formatAudit(code, ctxA, ctxB, ctxC)
+			r.Title, r.Summary = FormatAudit(code, ctxA, ctxB, ctxC)
 		}
 		out = append(out, r)
 	}

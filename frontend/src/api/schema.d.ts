@@ -3102,9 +3102,11 @@ export interface components {
             id: string;
             correlation_id: string;
             action: string;
+            message?: string;
             severity?: string;
             actor_type: string;
             actor_id?: string | null;
+            actor_label?: string | null;
             resource_type?: string | null;
             resource_id?: string | null;
             /** Format: date-time */
@@ -5621,6 +5623,10 @@ export interface operations {
                 action?: string;
                 correlation_id?: string;
                 actor_type?: string;
+                /** @description Filter to events whose resource_type matches (e.g. "host"). Pair with resource_id for a single resource's audit trail. */
+                resource_type?: string;
+                /** @description Filter to events whose resource_id matches (e.g. a host UUID). Typically paired with resource_type. */
+                resource_id?: string;
                 since?: string;
                 until?: string;
                 cursor?: string;
