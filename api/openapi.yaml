@@ -5204,6 +5204,14 @@ components:
       properties:
         scan_id:        {type: string, format: uuid}
         host_id:        {type: string, format: uuid}
+        # Human-friendly host label resolved from the hosts table for the
+        # scan-detail header (so it shows a hostname/IP, not a raw UUID).
+        # Populated on the detail endpoint (GET /scans/{id}); the list
+        # endpoint leaves them absent since the caller already has host
+        # context. hostname is the registered hostname (may be empty);
+        # ip_address is always present for a real host. Spec api-scans.
+        hostname:       {type: string}
+        ip_address:     {type: string}
         status:         {type: string, description: 'queued | running | completed | failed'}
         trigger_source: {type: string, description: 'on_demand | scheduled'}
         queued_at:      {type: string, format: date-time}

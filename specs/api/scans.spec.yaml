@@ -1,7 +1,7 @@
 spec:
   id: api-scans
   title: Scans API — durable scan history, evidence, and OSCAL export
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -70,6 +70,10 @@ spec:
       description: The OSCAL endpoints MUST reconstruct a valid OSCAL 1.0.6 Assessment Results document from the stored outcomes via Kensa's exporter (per-rule and whole-scan), return it as a downloadable JSON attachment, and 404 when the scan/rule is unknown
       type: technical
       enforcement: error
+    - id: C-07
+      description: 'v1.1.0 — GET /scans/{id} MUST resolve the scan host''s hostname + ip_address from the hosts table and include them on the returned ScanSummary, so the detail header can show a human-friendly host label instead of a raw UUID. A missing host row (unexpected — the FK is ON DELETE RESTRICT) leaves the label fields empty rather than failing the read. The list endpoint (GET /scans) MAY omit these (the caller already has host context)'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -100,3 +104,7 @@ spec:
       description: Source-inspection — the scan evidence surface lives only in scans_handlers.go; the api-host-compliance pinned handler files (host_compliance_handler.go, host_compliance_lens_handler.go) still contain no occurrence of the token "evidence", so the host tab stays evidence-free while /scans owns evidence.
       priority: high
       references_constraints: [C-02]
+    - id: AC-08
+      description: 'v1.1.0 — GET /scans/{id} for a scan whose host has a registered hostname returns ScanSummary.hostname = that hostname and ip_address = the host IP; for a host with an empty hostname, hostname is empty/absent and ip_address is still populated. The values are resolved from the hosts table (not the scan_runs row).'
+      priority: high
+      references_constraints: [C-07]

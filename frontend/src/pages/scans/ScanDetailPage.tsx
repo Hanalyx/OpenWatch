@@ -143,7 +143,9 @@ export function ScanDetailPage() {
       >
         <Meta label="Host">
           <Link to="/hosts/$hostId" params={{ hostId: scan.host_id }} style={{ color: 'var(--ow-link)', textDecoration: 'none' }}>
-            {scan.host_id.slice(0, 8)}
+            {/* Human-friendly label: hostname if registered, else IP, else
+                a short UUID as a last resort (api-scans resolves these). */}
+            {scan.hostname || scan.ip_address || scan.host_id.slice(0, 8)}
           </Link>
         </Meta>
         <Meta label="Status">{scan.status}</Meta>

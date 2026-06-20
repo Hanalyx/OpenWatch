@@ -35,8 +35,13 @@ func NewReader(pool *pgxpool.Pool) *Reader { return &Reader{pool: pool} }
 // ScanSummary is the scan_runs metadata shown in the list and the scan
 // detail header.
 type ScanSummary struct {
-	ScanID        uuid.UUID
-	HostID        uuid.UUID
+	ScanID uuid.UUID
+	HostID uuid.UUID
+	// Hostname + IPAddress are the human-friendly host label, resolved
+	// from the hosts table by GetScan for the detail header. ListByHost
+	// leaves them empty (the list caller already has host context).
+	Hostname      string
+	IPAddress     string
 	Status        string
 	TriggerSource string
 	QueuedAt      time.Time
@@ -155,7 +160,11 @@ func (rd *Reader) ListByHost(ctx context.Context, hostID uuid.UUID, limit int, c
 	return out, next, nil
 }
 
-// GetScan returns a scan's metadata, or ErrScanNotFound.
+// GetScan returns a scan's metadata, or ErrScanNotFound. It also resolves
+// the host's hostname + ip_address from the hosts table so the detail
+// header can show a human-friendly label instead of a raw UUID. A missing
+// host row (the FK is ON DELETE RESTRICT, so this is unexpected) leaves the
+// label fields empty rather than failing the scan read.
 func (rd *Reader) GetScan(ctx context.Context, scanID uuid.UUID) (ScanSummary, error) {
 	run, err := scanruns.Get(ctx, rd.pool, scanID)
 	if errors.Is(err, scanruns.ErrNotFound) {
@@ -164,7 +173,19 @@ func (rd *Reader) GetScan(ctx context.Context, scanID uuid.UUID) (ScanSummary, e
 	if err != nil {
 		return ScanSummary{}, err
 	}
-	return summaryFromRun(run), nil
+	s := summaryFromRun(run)
+	var hostname, ip string
+	// host(ip_address) renders the inet as plain text (no /netmask), matching
+	// how internal/host formats it; COALESCE keeps a NULL hostname/IP as "".
+	err = rd.pool.QueryRow(ctx,
+		`SELECT COALESCE(hostname, ''), COALESCE(host(ip_address), '') FROM hosts WHERE id = $1`,
+		s.HostID).Scan(&hostname, &ip)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ScanSummary{}, fmt.Errorf("scanresult: resolve host label: %w", err)
+	}
+	s.Hostname = hostname
+	s.IPAddress = ip
+	return s, nil
 }
 
 // ScanResults returns every rule's verdict for a scan, ordered by
