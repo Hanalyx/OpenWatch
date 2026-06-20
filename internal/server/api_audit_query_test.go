@@ -453,3 +453,82 @@ func getAuditPage(t *testing.T, url, query string) []auditItem {
 	}
 	return page.Items
 }
+
+// @ac AC-13
+// api-audit-events-query/AC-13 (v1.3.0): the export endpoint streams the
+// filtered trail as a CSV (default) or JSON attachment with the readable
+// message column, scoped by the resource filters, audit:read gated.
+func TestAPI_AuditEvents_Export(t *testing.T) {
+	t.Run("api-audit-events-query/AC-13", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+		host := uuid.Must(uuid.NewV7()).String()
+		other := uuid.Must(uuid.NewV7()).String()
+		for _, res := range []string{host, other} {
+			id := uuid.Must(uuid.NewV7())
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO audit_events
+				   (id, correlation_id, actor_type, actor_label, action,
+				    resource_type, resource_id, severity, occurred_at)
+				 VALUES ($1,'corr-exp','user','alice@example.com','host.created','host',$2,'info',now())`,
+				id, res); err != nil {
+				t.Fatalf("seed audit event: %v", err)
+			}
+		}
+
+		// CSV (default): attachment, header row, readable message cell.
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", auth.RoleAuditor, nil))
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("csv export status = %d, want 200", resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+			t.Errorf("Content-Type = %q, want text/csv", ct)
+		}
+		if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+			t.Errorf("Content-Disposition = %q, want attachment", cd)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		csvText := string(body)
+		if !strings.HasPrefix(csvText, "occurred_at,action,message,severity,actor_type,actor_label,actor_id,resource_type,resource_id,correlation_id") {
+			t.Errorf("csv header missing/wrong: %q", strings.SplitN(csvText, "\n", 2)[0])
+		}
+		if !strings.Contains(csvText, "alice@example.com created a host") {
+			t.Errorf("csv body lacks the readable message; got:\n%s", csvText)
+		}
+		if strings.Contains(csvText, ",host.created,host.created,") {
+			t.Errorf("message cell duplicated the raw action code")
+		}
+
+		// JSON format.
+		jresp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export?format=json", auth.RoleAuditor, nil))
+		if ct := jresp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Errorf("json Content-Type = %q, want application/json", ct)
+		}
+		var arr []map[string]any
+		_ = json.NewDecoder(jresp.Body).Decode(&arr)
+		jresp.Body.Close()
+		if len(arr) < 2 {
+			t.Errorf("json export len = %d, want >= 2", len(arr))
+		}
+
+		// resource filter scopes the export to one host.
+		fresp := doReq(t, asRole(t, "GET",
+			url+"/api/v1/audit/events/export?resource_type=host&resource_id="+host, auth.RoleAuditor, nil))
+		fbody, _ := io.ReadAll(fresp.Body)
+		fresp.Body.Close()
+		if strings.Contains(string(fbody), other) {
+			t.Errorf("resource-filtered export leaked the other resource_id %s", other)
+		}
+		if !strings.Contains(string(fbody), host) {
+			t.Errorf("resource-filtered export missing the requested host %s", host)
+		}
+
+		// Anonymous is denied before any export.
+		an := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", "", nil))
+		an.Body.Close()
+		if an.StatusCode != http.StatusUnauthorized && an.StatusCode != http.StatusForbidden {
+			t.Errorf("anonymous export status = %d, want 401/403", an.StatusCode)
+		}
+	})
+}

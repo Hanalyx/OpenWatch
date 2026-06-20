@@ -515,4 +515,25 @@ describe('frontend-settings — structural', () => {
     // Still read-only.
     expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
   });
+
+  // @ac AC-32
+  test('frontend-settings/AC-32 — Audit log export: CSV/JSON download via the auth’d client', () => {
+    // Both export buttons wired to exportAudit.
+    expect(AUDIT_SRC).toMatch(/exportAudit\('csv'\)/);
+    expect(AUDIT_SRC).toMatch(/exportAudit\('json'\)/);
+    // Fetches the export endpoint as a blob with the format + applied filters.
+    expect(AUDIT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/audit\/events\/export['"]/);
+    expect(AUDIT_SRC).toMatch(/parseAs:\s*['"]blob['"]/);
+    expect(AUDIT_SRC).toMatch(/format,/);
+    expect(AUDIT_SRC).toMatch(/applied\.action/);
+    // Triggers a browser download (object URL + temporary anchor).
+    expect(AUDIT_SRC).toContain('URL.createObjectURL');
+    expect(AUDIT_SRC).toMatch(/a\.download =/);
+    expect(AUDIT_SRC).toContain('URL.revokeObjectURL');
+    // Disabled while exporting + inline error surface.
+    expect(AUDIT_SRC).toMatch(/disabled=\{exporting !== null\}/);
+    expect(AUDIT_SRC).toMatch(/setExportError/);
+    // Reading remains GET-only.
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+  });
 });

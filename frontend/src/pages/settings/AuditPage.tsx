@@ -65,6 +65,8 @@ export function AuditPage() {
     since: string;
     until: string;
   }>({ action: '', actorType: '', since: '', until: '' });
+  const [exporting, setExporting] = useState<'csv' | 'json' | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const sinceIso = useMemo(() => localDateToRFC3339(applied.since, false), [applied.since]);
   const untilIso = useMemo(() => localDateToRFC3339(applied.until, true), [applied.until]);
@@ -117,6 +119,44 @@ export function AuditPage() {
     setDraftSince('');
     setDraftUntil('');
     setApplied({ action: '', actorType: '', since: '', until: '' });
+  }
+
+  // Export the CURRENT filter as a downloadable CSV/JSON (AU-7). The SPA
+  // authenticates with a bearer token, so a plain link would 401. Fetch the
+  // file as a blob through the auth'd client, then trigger a download.
+  async function exportAudit(format: 'csv' | 'json') {
+    setExporting(format);
+    setExportError(null);
+    try {
+      const { data, response } = await api.GET('/api/v1/audit/events/export', {
+        params: {
+          query: {
+            format,
+            ...(applied.action ? { action: applied.action } : {}),
+            ...(applied.actorType ? { actor_type: applied.actorType } : {}),
+            ...(sinceIso ? { since: sinceIso } : {}),
+            ...(untilIso ? { until: untilIso } : {}),
+          },
+        },
+        parseAs: 'blob',
+      });
+      if (!response.ok || !data) {
+        setExportError(`Export failed (${response.status})`);
+        return;
+      }
+      const objUrl = URL.createObjectURL(data as unknown as Blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = `audit-log.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -193,6 +233,30 @@ export function AuditPage() {
 
       <Section title="Events">
         <SettingCard>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              padding: '12px 20px',
+              borderBottom: '1px solid var(--ow-line)',
+            }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--ow-fg-3)', marginRight: 'auto' }}>
+              Export the current filter as a downloadable file (up to 10,000 newest events).
+            </span>
+            <Btn type="button" onClick={() => exportAudit('csv')} disabled={exporting !== null}>
+              {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+            </Btn>
+            <Btn type="button" onClick={() => exportAudit('json')} disabled={exporting !== null}>
+              {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
+            </Btn>
+          </div>
+          {exportError && (
+            <div role="alert" style={errorStyle}>
+              {exportError}
+            </div>
+          )}
           {query.isPending ? (
             <div style={emptyStyle}>Loading audit events.</div>
           ) : query.isError ? (
