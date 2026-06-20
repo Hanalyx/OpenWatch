@@ -6,7 +6,8 @@ import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { components } from '@/api/schema';
-import { ActivityDrawer, severityTone } from './ActivityDrawer';
+import { ActivityDrawer } from './ActivityDrawer';
+import { severityTone } from '@/api/eventDisplay';
 import { useAlertActions } from './useAlertActions';
 
 type Activity = components['schemas']['Activity'];
@@ -557,15 +558,6 @@ function Stream({
                     />
                   </div>
                 )}
-                <span
-                  style={{
-                    color: 'var(--ow-fg-3)',
-                    fontSize: 11,
-                    fontFamily: 'var(--ow-font-mono, monospace)',
-                  }}
-                >
-                  {a.source}
-                </span>
               </div>
             </div>
           </div>

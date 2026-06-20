@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import { KpiValue, KpiSub, Sparkline, WidgetCard, WidgetState, toneVar } from './primitives';
+import { relativeTime, severityLabel, severityTone, sourceLabel } from '@/api/eventDisplay';
 
 // Dashboard widgets — each is a lens into a fleet endpoint, owning its
 // own query so loading/empty/error states are independent. All read-only
@@ -18,23 +19,6 @@ function scoreTone(pct: number): 'crit' | 'warn' | 'ok' {
   return 'ok';
 }
 
-function sevTone(sev: string): 'crit' | 'warn' | 'info' {
-  if (sev === 'critical' || sev === 'high') return 'crit';
-  if (sev === 'medium') return 'warn';
-  return 'info';
-}
-
-// Compact relative time for activity rows.
-function timeAgo(iso: string, nowMs: number): string {
-  const then = new Date(iso).getTime();
-  const s = Math.max(0, Math.round((nowMs - then) / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
-}
 
 // ── KPI: Hosts online ──────────────────────────────────────────────
 export function KpiHostsOnline() {
@@ -300,7 +284,6 @@ export function WidgetRecentActivity() {
       return data!;
     },
   });
-  const now = Date.now();
   return (
     <WidgetCard title="Recent activity" to="/activity">
       {q.isPending ? (
@@ -316,9 +299,9 @@ export function WidgetRecentActivity() {
               key={a.id}
               first={i === 0}
               label={a.title}
-              sub={`${a.source} · ${timeAgo(a.occurred_at, now)}`}
-              value={a.severity}
-              dot={sevTone(a.severity)}
+              sub={`${sourceLabel(a.source)} · ${relativeTime(a.occurred_at)}`}
+              value={severityLabel(a.severity)}
+              dot={severityTone(a.severity)}
             />
           ))}
         </div>
