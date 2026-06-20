@@ -16,6 +16,7 @@ package activity
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -464,6 +465,85 @@ func TestList_MonitoringLeg_TransitionsOnly(t *testing.T) {
 		}
 		if hidden2 != 1 {
 			t.Errorf("hidden=%d, want 1 (the suppressed transition)", hidden2)
+		}
+	})
+}
+
+// @ac AC-26
+// AC-26 (v1.2.0): the feed renders human-readable title/summary for the
+// three previously-raw legs end-to-end through the UNION — compliance
+// (rule title via the injected titler + "now <Status>"), intelligence
+// (event-code headline + detail-derived summary), and audit (actor +
+// predicate, no raw action code, no resource UUID). No row title contains
+// a raw dotted code.
+func TestList_HumanReadableTitles(t *testing.T) {
+	t.Run("system-activity/AC-26", func(t *testing.T) {
+		pool, creator := freshDB(t)
+		host := seedHost(t, pool, creator)
+		base := time.Now().UTC()
+		ctx := context.Background()
+
+		// compliance: rule_id resolves to a catalog title via the titler.
+		txnID, _ := uuid.NewV7()
+		scanID, _ := uuid.NewV7()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO transactions (id, host_id, rule_id, scan_id, status, severity,
+			                           change_kind, evidence, framework_refs, occurred_at)
+			 VALUES ($1,$2,'auditd_enabled',$3,'fail','high','state_changed','{}'::jsonb,'{}'::jsonb,$4)`,
+			txnID, host, scanID, base.Add(-3*time.Minute)); err != nil {
+			t.Fatalf("seed txn: %v", err)
+		}
+		// intelligence: package update with from->to detail.
+		intelID, _ := uuid.NewV7()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO host_intelligence_events
+			   (id, host_id, event_code, severity, detail, occurred_at, detected_at, correlation_id)
+			 VALUES ($1,$2,'system.package.updated','medium',$3::jsonb,$4,$4,'corr')`,
+			intelID, host, `{"name":"curl","from":"7.64","to":"7.81"}`, base.Add(-2*time.Minute)); err != nil {
+			t.Fatalf("seed intel: %v", err)
+		}
+		// audit: actor_label present, action mapped to a predicate.
+		auditID, _ := uuid.NewV7()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO audit_events (id, correlation_id, actor_type, actor_label, action,
+			                           resource_type, resource_id, severity, occurred_at, detail)
+			 VALUES ($1,'corr','user','alice@example.com','host.created','host',$2,'info',$3,'{}'::jsonb)`,
+			auditID, uuid.NewString(), base.Add(-1*time.Minute)); err != nil {
+			t.Fatalf("seed audit: %v", err)
+		}
+
+		svc := NewService(pool).WithRuleTitler(func(id string) (string, bool) {
+			if id == "auditd_enabled" {
+				return "Ensure auditd is enabled", true
+			}
+			return "", false
+		})
+		rows, _, _, err := svc.List(ctx, Filter{Limit: 50},
+			Caller{CanReadAlerts: true, CanReadHosts: true, CanReadAudit: true})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		bySource := map[Source]Row{}
+		rawCodes := []string{"system.package.updated", "host.created"}
+		for _, r := range rows {
+			bySource[r.Source] = r
+			// No row title may leak the raw event/action code (an email's
+			// dots in actor_label are fine — we check for the actual codes).
+			for _, code := range rawCodes {
+				if strings.Contains(r.Title, code) {
+					t.Errorf("source %s title %q leaks the raw code %q", r.Source, r.Title, code)
+				}
+			}
+		}
+
+		if got := bySource[SourceTransaction]; got.Title != "Ensure auditd is enabled" || got.Summary != "Changed: now Fail" {
+			t.Errorf("transaction = {%q, %q}, want {Ensure auditd is enabled, Changed: now Fail}", got.Title, got.Summary)
+		}
+		if got := bySource[SourceIntelligence]; got.Title != "Package updated" || got.Summary != "curl: 7.64 → 7.81" {
+			t.Errorf("intelligence = {%q, %q}, want {Package updated, curl: 7.64 → 7.81}", got.Title, got.Summary)
+		}
+		if got := bySource[SourceAudit]; got.Title != "alice@example.com created a host" {
+			t.Errorf("audit title = %q, want %q", got.Title, "alice@example.com created a host")
 		}
 	})
 }

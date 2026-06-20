@@ -634,7 +634,13 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
 		WithEventBus(bus).
-		WithActivity(activity.NewService(pool)).
+		WithActivity(activity.NewService(pool).WithRuleTitler(func(ruleID string) (string, bool) {
+			if ruleCatalog == nil {
+				return "", false
+			}
+			m, ok := ruleCatalog.Get(ruleID)
+			return m.Title, ok
+		})).
 		WithAlerts(alerts.NewService(pool, audit.Emit)).
 		WithScanQueue(scanQueueKey).
 		WithScanWorker(scanWorker).

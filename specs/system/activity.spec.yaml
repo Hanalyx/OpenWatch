@@ -1,7 +1,7 @@
 spec:
   id: system-activity
   title: Activity unified-feed service
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -100,6 +100,10 @@ spec:
       description: 'v1.1.0 — A fifth leg projects host_monitoring_history into the unified Row shape: source=monitoring, host_id from the column, occurred_at from check_time, gated by CanReadHosts (same as transactions / intelligence — monitoring is host-scoped per-host operational data). The leg MUST filter to transition rows only (previous_state IS NULL OR monitoring_state <> previous_state) — every probe writes a history row, but only state changes are interesting on the operator-facing feed. Severity maps the band onto the closed severity enum: down→critical, critical→high, degraded→medium, online/maintenance→info. Title is operator-readable ("Host became unreachable" for down, "Host degraded" for degraded, "Host recovered" for online when previous_state was non-null, etc.). Summary surfaces error_message when present, falling back to "<failed_layer> fail". Because host_monitoring_history.id is a bigint sequence and Row.ID is a uuid, the leg synthesizes a stable uuid from the bigint via the deterministic prefix "00000000-0000-7000-8000-" + lpad(to_hex(id), 12, "0").'
       type: technical
       enforcement: error
+    - id: C-09
+      description: 'v1.2.0 — The feed MUST emit a human-readable title + summary for the three legs that previously carried raw machine codes, so no surface renders a raw dotted code, enum, or resource UUID. (a) Compliance/transaction: title = the rule''s catalog title resolved via an injected RuleTitleFunc (falling back to the raw rule_id only when the catalog has no entry); summary describes the change as "Changed: now <Status>" / "First seen: <Status>" / "Severity changed (now <Status>)" — the transactions table retains only the NEW status, so the summary MUST NOT claim a "<from> -> <to>" transition. (b) Intelligence: title = an event-code description (e.g. system.package.updated -> "Package updated"); summary derived generically from the detail JSONB (a subject from common keys + an optional "from -> to"). (c) Audit: title = "<actor> <predicate>" where actor is actor_label (falling back to a readable actor_type word) and predicate maps the action code (e.g. host.created -> "created a host"); the raw resource_id UUID MUST NOT appear in the title (resource_type may provide short summary context). Every formatter MUST degrade gracefully: an unmapped code is humanized structurally (dots/underscores -> spaces, capitalized) so a newly-added code can never leak as a raw dotted enum. The alert + monitoring legs (which already build sentences in SQL) are unchanged. Enrichment happens in Go after the single UNION query; the one-Query / UNION ALL property (C-01) is preserved.'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -158,3 +162,15 @@ spec:
       description: 'v1.1.0 — Service.List against host_monitoring_history rows with at least one band transition (e.g. online→degraded with failed_layer="ssh" and error_message="SSH refused") returns a Row with source=monitoring, severity=medium, host_id set, title="Host degraded", summary="SSH refused". A second history row whose monitoring_state equals previous_state (no transition) MUST NOT appear in the result. The leg gates on CanReadHosts — a caller missing host:read sees zero monitoring rows and the count flows into hiddenByRBAC.'
       priority: critical
       references_constraints: [C-08]
+    - id: AC-24
+      description: 'v1.2.0 — Unit: formatTransaction("auditd_enabled","fail","state_changed", titler) where titler maps the id returns title="Ensure auditd is enabled", summary="Changed: now Fail"; first_seen yields "First seen: Pass". formatIntelligence("system.package.updated", {"name":"curl","from":"7.64","to":"7.81"}) returns title="Package updated", summary="curl: 7.64 → 7.81"; a subject-only detail yields just the subject. formatAudit("host.created","alice@example.com","user","host") returns title="alice@example.com created a host"; with an empty actor_label and actor_type="system" the title is "System was denied permission" for authz.permission.denied.'
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-25
+      description: 'v1.2.0 — Graceful fallback: an unmapped intelligence event_code ("system.future.thing") humanizes to "System future thing" (no "." separators); an unmapped audit action ("widget.frobnicated") with actor "bob" yields "bob widget frobnicated" (no raw dotted code); an unknown transaction change_kind degrades the summary to the bare status word. No formatter output for an unmapped code contains a "." from the original dotted code.'
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-26
+      description: 'v1.2.0 — Integration: Service.List (with an injected RuleTitleFunc) over a seeded transaction (rule_id resolving to "Ensure auditd is enabled", status=fail, change_kind=state_changed), a system.package.updated intelligence event with from/to detail, and a host.created audit event with actor_label set, returns the transaction Row with title="Ensure auditd is enabled" + summary="Changed: now Fail", the intelligence Row with title="Package updated" + summary="curl: 7.64 → 7.81", and the audit Row with title="alice@example.com created a host". No returned title leaks the seeded raw codes ("system.package.updated", "host.created").'
+      priority: critical
+      references_constraints: [C-09]
