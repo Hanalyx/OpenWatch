@@ -39,6 +39,15 @@
 > #601 (execute/rollback + governance), #606 (conditional approval, "A-keep"),
 > #607 (serialize + live status). Licensed bulk/automated remediation remains a
 > follow-on track (see `docs/engineering/scan_remaining_work.md`).
+>
+> **Host Management page fixes — shipped (PR #611).** Host-card chart icon
+> links to `/scans/{latest_scan_id}`; Group (None/Status/OS) + a real Filters
+> popover (Status/Compliance/OS) now work; per-user view default persists
+> server-side (`users.preferences` JSONB, `/api/v1/users/me/preferences`).
+> **Pending (P3 verification):** browser eyeball of the chart-icon ->
+> `/scans` navigation was blocked on the Claude Chrome extension not
+> connecting; data path is proven at the API/DB level. Re-test once the
+> extension is up (owas-tst01 -> scan `019ee4d5-dc40-7342-8451-30cef7fa6c95`).
 
 ---
 
@@ -55,7 +64,7 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Email alert notifications (dispatch on alert) | P1 | Partial | The notification **channel** layer (Slack/email/webhook CRUD + test) shipped. Remaining: dispatch fired alerts through channels by type + a user-preferences table (which alert types per user), RBAC-gated |
+| Email alert notifications (dispatch on alert) | P1 | Partial | The notification **channel** layer (Slack/email/webhook CRUD + test) shipped. Remaining: dispatch fired alerts through channels by type + per-user alert-type preferences (which alert types per user), RBAC-gated. **Infra now exists**: the general `users.preferences` JSONB + `internal/userpref` + `/api/v1/users/me/preferences` (system-user-preferences, PR #611) is the natural home for per-user alert prefs — extend the typed `UserPreferences` contract rather than a new table |
 | In-app notifications | P1 | Planned | Bell icon with unread count, drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-filtered. WebSocket or SSE delivery (the existing SSE bus can carry it) |
 | Dashboard layout customization (drag/drop) | P2 | Planned | 3 tiers per spec AC-12: full (admins), limited (analysts), none (auditor). Preset structure ready, needs `@dnd-kit/core` + persistence |
 | Kensa Phase 5 OTA Updates | P3 | Not Started | OTA delivery of rule updates |
