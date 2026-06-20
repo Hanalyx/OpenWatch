@@ -44,10 +44,14 @@
 > links to `/scans/{latest_scan_id}`; Group (None/Status/OS) + a real Filters
 > popover (Status/Compliance/OS) now work; per-user view default persists
 > server-side (`users.preferences` JSONB, `/api/v1/users/me/preferences`).
-> **Pending (P3 verification):** browser eyeball of the chart-icon ->
-> `/scans` navigation was blocked on the Claude Chrome extension not
-> connecting; data path is proven at the API/DB level. Re-test once the
-> extension is up (owas-tst01 -> scan `019ee4d5-dc40-7342-8451-30cef7fa6c95`).
+> Browser-verified live (the chart icon on `owas-tst01` navigates to its
+> `/scans/{uuid}` report; the icon is correctly hidden on never-scanned
+> hosts).
+>
+> **Scan detail host label — shipped (PR #613).** The `/scans/{id}` detail
+> header showed a truncated host UUID; it now shows hostname (else IP, else
+> short UUID), resolved server-side from the `hosts` table
+> (`api-scans` v1.1.0). Browser-verified (`owas-tst01`).
 
 ---
 

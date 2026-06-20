@@ -6,6 +6,41 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-20 — Opus 4.8 (1M context) — Scan detail host label (PR #613)
+
+**Done** (PR #613 `f07e21fc` on `fix/scan-detail-host-label`, gate green,
+merging):
+
+Live UI nit from a screenshot review: the **Scan detail** page (`/scans/{id}`)
+**Host** field rendered `scan.host_id.slice(0, 8)` — a truncated UUID
+(`019eccd8`), not human-friendly. Now shows **hostname, else IP, else short
+UUID** (last resort only).
+
+- **Backend** (`api-scans` v1.1.0 C-07/AC-08): `GET /scans/{id}` resolves the
+  host's `hostname` + `ip_address` from the `hosts` table onto `ScanSummary`
+  (one extra lookup in `scanresult.Reader.GetScan`). The list endpoint omits
+  them (the `/scans` browse caller already has host context, and `ScansPage`
+  already resolves names from its hosts list). `toAPIScanSummary` pointer-wraps
+  both so list rows stay clean.
+- **Frontend** (`frontend-scan-detail` v1.1.0 C-08/AC-08): the Host `Meta`
+  renders `scan.hostname || scan.ip_address || scan.host_id.slice(0, 8)`, still
+  a Link to `/hosts/$hostId`.
+- **Verified live** in Chrome: the header now reads `owas-tst01` (was
+  `019eccd8`).
+
+**Gotcha:** first cut used `COALESCE(ip_address, '')` and 500'd —
+`hosts.ip_address` is Postgres `inet`, which can't `COALESCE` with a text
+`''`. Fixed with `COALESCE(host(ip_address), '')` (matches how
+`internal/host` formats it — plain address, no `/netmask`). Caught by the
+failing→passing AC-08 integration test, not in prod.
+
+**Tests:** backend AC-08 (named host -> hostname+IP; empty-hostname host ->
+empty hostname + IP fallback); frontend AC-08 (source-inspection of the
+fallback chain, old bare-UUID render gone). Full `api-scans` + `scanresult`
+suites green; `specter check` 111 specs.
+
+---
+
 ## 2026-06-20 — Opus 4.8 (1M context) — Host Management page fixes (PR #611)
 
 **Done** (merged to `main` `f6f46cdc` via PR #611; 3 stacked commits + a build fix):
