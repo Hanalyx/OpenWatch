@@ -481,4 +481,25 @@ describe('frontend-host-detail v1.6.0 — per-host credential management + recon
     // Mutating controls gated on credential:write.
     expect(HOST_CRED_SRC).toContain("hasPermission('credential:write')");
   });
+
+  // @ac AC-43
+  test('frontend-host-detail/AC-43 — Activity tab is live (HostActivityTab), not a stub', () => {
+    // Activity is removed from the deferred-stub registry and routed to the
+    // host-scoped feed component.
+    expect(PAGE_SRC).toContain('function HostActivityTab');
+    expect(PAGE_SRC).toMatch(/activeTab === 'activity' \? \(\s*<HostActivityTab/);
+    // The stub registry no longer carries an `activity` entry.
+    expect(PAGE_SRC).not.toMatch(/activity:\s*'Unified Activity feed/);
+    expect(PAGE_SRC).toMatch(/Exclude<TabId, 'overview' \| 'compliance' \| 'remediation' \| 'activity'>/);
+    // Paged host-scoped feed via useInfiniteQuery with cursor pagination.
+    expect(PAGE_SRC).toContain('useInfiniteQuery');
+    expect(PAGE_SRC).toMatch(/getNextPageParam:\s*\(last\)\s*=>\s*last\.next_cursor/);
+    expect(PAGE_SRC).toMatch(/host_id:\s*hostId/);
+    // Source filter chips + Load more + reuse of ActivityRow.
+    expect(PAGE_SRC).toContain('HOST_ACTIVITY_SOURCES');
+    expect(PAGE_SRC).toMatch(/hasNextPage/);
+    expect(PAGE_SRC).toMatch(/Load more/);
+    // The Audit log tab remains a stub.
+    expect(PAGE_SRC).toMatch(/audit_log:\s*\n?\s*'Audit query API/);
+  });
 });

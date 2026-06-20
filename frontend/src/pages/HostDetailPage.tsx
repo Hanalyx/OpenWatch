@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
@@ -182,7 +182,7 @@ const TAB_ORDER: { id: TabId; label: string; icon: LucideIcon }[] = [
 // Backend subsystem that populates each tab when it lands. Surfaces
 // inside the per-tab empty state so operators know what's deferred.
 const TAB_BACKEND_SUBSYSTEM: Record<
-  Exclude<TabId, 'overview' | 'compliance' | 'remediation'>,
+  Exclude<TabId, 'overview' | 'compliance' | 'remediation' | 'activity'>,
   string
 > = {
   packages: 'Server Intelligence collection — installed-package inventory deferred (BACKLOG).',
@@ -191,7 +191,6 @@ const TAB_BACKEND_SUBSYSTEM: Record<
   network: 'Server Intelligence collection — interfaces and firewall rules deferred (BACKLOG).',
   audit_log:
     'Audit query API — host-scoped audit feed deferred to the unified /activity page (BACKLOG).',
-  activity: 'Unified Activity feed — combined transactions + audits + alerts deferred (BACKLOG).',
   terminal: 'Web terminal — SSH-in-browser deferred; use a host-side SSH client in the meantime.',
 };
 
@@ -487,6 +486,8 @@ export function HostDetailPage() {
             />
           ) : activeTab === 'remediation' ? (
             <RemediationTab hostId={detailQuery.data.host.id} />
+          ) : activeTab === 'activity' ? (
+            <HostActivityTab hostId={detailQuery.data.host.id} />
           ) : (
             <TabStub tab={activeTab} subsystem={TAB_BACKEND_SUBSYSTEM[activeTab]} />
           )}
@@ -2542,6 +2543,135 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         {relativeTime(item.occurred_at)}
       </div>
     </li>
+  );
+}
+
+// Source filter chips for the host Activity tab. Audit is omitted: audit
+// events carry no host_id, so a host-scoped audit filter is empty by design
+// (host-relevant audit by resource is a Phase 2b follow-up). The unified
+// feed otherwise covers monitoring, compliance, intelligence, and alerts.
+const HOST_ACTIVITY_SOURCES: { id: ActivitySource | ''; label: string }[] = [
+  { id: '', label: 'All' },
+  { id: 'monitoring', label: 'Monitoring' },
+  { id: 'transaction', label: 'Compliance' },
+  { id: 'intelligence', label: 'Intelligence' },
+  { id: 'alert', label: 'Alert' },
+];
+
+// HostActivityTab is the full host-scoped activity feed (the "View all"
+// target from the Recent activity card). It pages the unified
+// /api/v1/activity?host_id=X endpoint (cursor pagination) and reuses
+// ActivityRow + the shared eventDisplay helpers. Spec frontend-host-detail.
+function HostActivityTab({ hostId }: { hostId: string }) {
+  const [source, setSource] = useState<ActivitySource | ''>('');
+  const q = useInfiniteQuery({
+    queryKey: ['host', hostId, 'activity', source],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const { data, error, response } = await api.GET('/api/v1/activity', {
+        params: {
+          query: {
+            host_id: hostId,
+            limit: 50,
+            ...(source ? { source } : {}),
+            ...(pageParam ? { cursor: pageParam } : {}),
+          },
+        },
+      });
+      if (error || !response.ok) {
+        throw new Error(apiErrorMessage(error, `Failed to load activity (${response.status})`));
+      }
+      return data as unknown as { items: ActivityItem[]; next_cursor?: string | null };
+    },
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+    enabled: !!hostId,
+  });
+
+  const items = q.data?.pages.flatMap((p) => p.items ?? []) ?? [];
+
+  return (
+    <Card title="Activity">
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {HOST_ACTIVITY_SOURCES.map((opt) => {
+          const active = source === opt.id;
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setSource(opt.id)}
+              style={{
+                height: 26,
+                padding: '0 10px',
+                border: `1px solid ${active ? 'var(--ow-info)' : 'var(--ow-line)'}`,
+                background: active
+                  ? 'color-mix(in oklab, var(--ow-info) 18%, transparent)'
+                  : 'transparent',
+                color: active ? 'var(--ow-fg-0)' : 'var(--ow-fg-2)',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {q.isLoading ? (
+        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>Loading…</div>
+      ) : q.isError ? (
+        <div
+          style={{
+            color: 'var(--ow-crit)',
+            fontSize: 12,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          {apiErrorMessage(q.error, 'Failed to load activity')}{' '}
+          <button type="button" onClick={() => q.refetch()} style={smallTextBtn}>
+            <RefreshCw size={11} /> Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState
+          primary="No activity yet"
+          secondary="Sourced from the unified activity feed (band transitions, scan changes, intelligence diffs, alerts). The list will populate as the host accrues events."
+        />
+      ) : (
+        <>
+          <ol
+            style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            {items.map((it) => (
+              <ActivityRow key={`${it.source}-${it.id}`} item={it} />
+            ))}
+          </ol>
+          {q.hasNextPage ? (
+            <button
+              type="button"
+              onClick={() => q.fetchNextPage()}
+              disabled={q.isFetchingNextPage}
+              style={{ ...smallTextBtn, marginTop: 12 }}
+            >
+              {q.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </button>
+          ) : null}
+        </>
+      )}
+    </Card>
   );
 }
 
