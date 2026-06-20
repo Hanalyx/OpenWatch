@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
 > Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
-**Last Updated**: 2026-06-16
+**Last Updated**: 2026-06-20
 **Active Tree**: repo root (Go backend `cmd/`+`internal/`, React/TypeScript `frontend/`)
 **Frozen Tree**: the legacy Python/FastAPI backend was archived out of the repo on 2026-06-05 to `~/hanalyx/OWAR/openwatch-python/` (see CLAUDE.md)
 
@@ -31,8 +31,14 @@
 | Users tab | P1 | Partial | Same shape — reads `intelligenceStateQuery.data.users` |
 | Audit log tab | P2 | Stub | Needs host-scoped `audit_events` API hook |
 | Activity tab | P1 | Stub | **Where "View all" on the Recent activity card lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
-| Remediation tab | P2 | Not started (scoping required) | Host-mutating fixes (apply + rollback). The last scan-plan piece; plan + the five decisions in `docs/engineering/scan_remaining_work.md` |
 | Terminal tab | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
+
+> **Remediation tab — shipped (v0.2.0-rc.11).** Free-core single-rule apply +
+> rollback from the host Remediation tab; concurrent fixes serialize per host;
+> status updates live over SSE; free-core requests auto-approve. Landed via
+> #601 (execute/rollback + governance), #606 (conditional approval, "A-keep"),
+> #607 (serialize + live status). Licensed bulk/automated remediation remains a
+> follow-on track (see `docs/engineering/scan_remaining_work.md`).
 
 ---
 
@@ -132,8 +138,6 @@ Dependabot major bumps closed (skipped) 2026-06-16, with the reason + revisit pa
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Raise specter coverage gate to 100% (all tiers) | P2 | `specter.yaml` currently gates `tier1: 100 / tier2: 80 / tier3: 50` under `strictness: threshold`. Goal: tier2 + tier3 → 100. **Not a config flip** — it is gated on first backfilling real AC tests for every currently-sub-100% spec; raising the threshold before the tests exist would red-wall every PR. Plan: run a full `go test -json` + vitest JUnit ingest, read `specter coverage` for the true gaps, then write the missing-AC tests spec by spec (real tests, not annotation-only), then bump the thresholds. |
-| CI gate speed: per-package DB isolation to drop `-p 1` | P2 | After PR #567 (single race+json pass + golangci cache, ~23min→~12-14min) the Go test step still runs `-p 1` (serial packages) because DB-touching tests share one Postgres and contaminate each other in parallel. Give each parallel test binary its own namespace (per-package `search_path`/schema, or a uniquely-named DB created in `TestMain`) so the suite can run `-p N`. Highest remaining ceiling (could ~halve test wall-clock); real refactor of every DB-touching package's setup — the exact cross-package contamination already seen under default parallelism. |
 | CI gate speed: split the monolith into parallel jobs | P3 | The `Quality + security gates` job runs lint/vuln/test/frontend sequentially (wall-clock = sum). Split into concurrent jobs (lint+vet+vuln vs. test+coverage vs. frontend) so wall-clock = max. **Needs a branch-protection change**: only one job is the required `Quality + security gates` check today, so splitting means updating the required-checks list in the GitHub UI (operator action, not code). Prep the workflow, then flip required checks. |
 
 ### Flakes

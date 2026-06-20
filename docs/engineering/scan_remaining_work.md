@@ -6,12 +6,27 @@
 > all shipped in **v0.2.0-rc.6**). This file holds the **forward-looking
 > remainder** — the two items that are not yet built.
 >
-> **Status: 7 of 8 phases complete.** What is left:
+> **UPDATE (2026-06-20, v0.2.0-rc.11): Phase 7 first-slice remediation has
+> SHIPPED free-core.** Per-rule manual apply + snapshot/rollback from the host
+> Remediation tab is built and live: the `remediation` service over the Kensa
+> transport, the `remediation_requests` + `remediation_transactions` logbook,
+> the worker-driven `approved → executing → executed | rolled_back` lifecycle,
+> per-host serialization (busy fixes back off + requeue), and live SSE status
+> (`remediation.completed`). Landed via #601 (execute/rollback + governance),
+> #606 (conditional approval — free-core single-rule **auto-approves**, "A-keep"
+> ADR), #607 (serialize + live status). Specs: `api-remediation`,
+> `frontend-remediation-tab`, `system-rbac`. **What remains of Phase 7 is the
+> licensed track** — bulk/sequenced and auto/policy-driven remediation — which
+> keeps the approval-required lifecycle and the design notes below. The five
+> decisions and "likely shape" below remain the reference for that track.
+>
+> **Status: 7 of 8 phases complete** (Phase 7 first-slice now shipped; licensed
+> bulk/auto remediation + the Phase 5 bulk-scan tail remain). What is left:
 >
 > | Item | Size | Touches live hosts? |
 > |------|------|---------------------|
 > | Phase 5 tail — bulk scan endpoint | small | no |
-> | Phase 7 — remediation | large (own track) | **yes** |
+> | Phase 7 — licensed bulk/auto remediation | large (own track) | **yes** |
 >
 > **GA scope decision (2026-06-05): remediation ships as a BETA feature in the
 > GA release.** It is in-scope for GA but explicitly labelled *beta* — surfaced

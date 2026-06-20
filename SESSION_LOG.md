@@ -6,6 +6,86 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-20 — Opus 4.8 (1M context)
+
+**Done** (all merged to `main`; cut + published **v0.2.0-rc.11** "Eyrie"):
+
+- **Free-core single-rule remediation governance + UX.** Three landed PRs on
+  top of the execute/rollback base (#601):
+  - **#606 — conditional approval ("A-keep").** `remediation.Service.Request()`
+    gained a `requiresApproval bool`. Free-core single-rule requests now INSERT
+    as `approved` (auto-approved, `reviewed_by` NULL, review note recorded) and
+    emit `remediation.requested` + `remediation.approved`; the licensed
+    bulk/auto track still inserts `pending_approval`. This removes the
+    one-operator self-review deadlock (you could request a fix but, under the
+    self-review block, never approve your own request). ADR:
+    `docs/engineering/remediation_governance_adr.md`.
+  - **#607 — per-host serialization + live status.** A second fix on a busy
+    host no longer fails: the worker pre-checks `HostHasExecuting` and, on
+    `kensa.ErrHostBusy`, calls `RevertToApproved` + requeues with a 3s backoff
+    via a new job-queue **delayed-visibility** column (`available_at`, migration
+    `0039`) and `EnqueueAfter`. The Remediation tab + compliance score now
+    refresh live over a new `remediation.completed` SSE topic (no manual
+    refresh). New ACs: `system-job-queue/AC-13`, `api-remediation/AC-08`,
+    `frontend-live-events/AC-09` (+ AC-01 → 6 topics).
+  - **#605 — 401 (not 403) for anonymous callers.** `denyPermission` branches
+    on `id.IsAnonymous` → 401 `auth.required` (+ `WWW-Authenticate: Bearer`);
+    authenticated-but-unauthorized stays 403 `authz.permission_denied`. The SPA
+    redirects to login on 401, so an **expired session** now surfaces as a clean
+    re-login instead of the "Failed to load remediation requests" dead-end the
+    user hit live. Reframed `system-rbac/AC-09`; new error code `auth.required`.
+- **#604 — governance docs + RBAC drift-lock.** Remediation-approval ADR +
+  role matrix (who can request vs approve a fix/exception, self-review rule);
+  new `system-rbac` spec (C-08/AC-17 governance matrix) with
+  `TestGovernanceRoleMatrix` so the role/permission map can't silently drift.
+- **#608/#609 — Kensa v0.5.2 + tag rc.11.** Bumped the bundled engine v0.5.1 →
+  **v0.5.2** (PATCH; frozen `api/`, 539 rules). v0.5.2 fixes a `config_value`
+  delimiter bug so `" "` matches any whitespace incl. TAB — corrects false FAILs
+  on TAB-delimited rules (RHEL `login.defs`). **Verified live**: rebuilt the dev
+  instance on v0.5.2 + repointed `OPENWATCH_KENSA_RULES_DIR` to the v0.5.2
+  corpus; after a re-scan, `login.defs` flipped FAIL → pass.
+
+**Release mechanics — bundled to beat the rebase cascade.** `main` branch
+protection has `strict = true` (require up-to-date) + a single required check,
+so merging 5 changelog-touching PRs one-by-one would force 4 serial ~7-min gate
+re-runs. #604 merged alone (no CHANGELOG); the other four were `--no-ff` merged
+into one `release/v0.2.0-rc.11` branch, CHANGELOG reconciled into a single
+`[0.2.0-rc.11]` section, opened as **#609**, one green gate, squash-merged;
+#605–#608 closed as folded. Tagged `v0.2.0-rc.11` → release workflow green
+(build + SBOM + sign + publish): signed RPM/DEB (amd64 + arm64) + kensa-rules
+0.5.2 + per-artifact CycloneDX SBOMs + `SHA256SUMS.asc`, marked pre-release.
+GPG keys (`GPG_PRIVATE_KEY`/`GPG_PASSPHRASE`) are configured, so the F4
+fail-closed did not trip.
+
+**Docs swept this session:** CLAUDE.md (Last Updated, remediation row →
+Complete, scanning-status note → rc.11, spec count 108 → **110**), BACKLOG.md
+(removed the done Remediation-tab, specter-100%-all-tiers, and `-p 1`→`-p 4`
+rows), `docs/engineering/scan_remaining_work.md` (Phase 7 first-slice shipped
+banner). specter.yaml now gates **all tiers at 100**.
+
+**Next:**
+
+- Phase 5 bulk-scan endpoint (small, no host mutation) and the **licensed**
+  bulk/auto remediation track remain — see `scan_remaining_work.md`.
+- Email alert **dispatch** (the channel CRUD shipped; firing alerts through
+  channels by type + per-user prefs is the remaining half).
+- Stage 3 GA fleet-verification gate still pending per
+  `docs/runbooks/RELEASING.md` before a non-rc GA tag.
+
+**Notes / gotchas:**
+
+- The dev instance is a **manually-launched** `dist/openwatch serve` (gnome-
+  terminal, logs to `.dev/openwatch.log`), NOT a systemd service. Restart by
+  SIGTERM + Python relaunch, sourcing env from `/proc/<pid>/environ` so the DB
+  password is never printed. A restart left a **stale duplicate serve** once
+  (old PID lingered past the 5s wait after releasing `:8443`); confirm a single
+  process via `ss -ltnp :8443` after redeploying.
+- The `login.defs` correction is **fleet-wide**: every host re-evaluates on its
+  next scan (adaptive scheduler or manual), so compliance scores will tick up
+  across the fleet over the next cycles — expected, noted in the rc.11 changelog.
+- Running deployed test build is commit `bd3ddfc1` (rc.11, kensa v0.5.2 + all
+  three remediation features) — matches `main` content; no redeploy needed.
+
 ## 2026-06-16 — Opus 4.8 (1M context)
 
 **Done** (all merged to `main`):
