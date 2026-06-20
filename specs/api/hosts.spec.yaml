@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -88,6 +88,10 @@ spec:
       enforcement: error
     - id: C-12
       description: 'v1.5.0 — GET /hosts response items MUST include a nullable compliance_summary sub-object {passing, failing, skipped, error, total, critical_failing} derived from host_rule_state. critical_failing counts rows with current_status=fail AND critical severity (case-insensitive). A host with zero host_rule_state rows MUST receive null (never zeros, never an error). Constraint note: the counts MUST be loaded with ONE grouped query against host_rule_state keyed by host_id for the whole page — no per-host N+1. Existing list semantics (filters, soft-delete exclusion) are untouched'
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: 'v1.6.0 — GET /hosts response items MUST include a nullable latest_scan_id (uuid) holding the id of the newest COMPLETED scan_runs row for that host (status=completed, newest by queued_at). A host with no completed scan_run MUST receive null (never an error). It MUST be loaded with ONE query keyed by host_id for the whole page (DISTINCT ON / grouped — no per-host N+1). This id is the target of the host card "view report" link to GET /scans/{id}; a queued/running-only host yields null so the UI hides the affordance. Existing list semantics (filters, soft-delete exclusion) are untouched'
       type: technical
       enforcement: error
 
@@ -180,3 +184,7 @@ spec:
       description: 'v1.5.0 — GET /hosts where one host has mixed host_rule_state rows (including a critical-severity failure) and another has none returns the first item with compliance_summary populated (correct passing/failing/skipped/error/total and critical_failing counting only fail+critical rows) and the second with compliance_summary null — never zeros, never an error. The counts come from a single grouped host_rule_state query for the whole page (no N+1)'
       priority: critical
       references_constraints: [C-12]
+    - id: AC-24
+      description: 'v1.6.0 — GET /hosts over a fleet where one host has a completed scan_run (plus an older completed one and a newer queued one), another host has only a queued/running scan_run, and a third has no scan_runs returns: the first item latest_scan_id = the newest COMPLETED run id (not the queued one, not the older completed one); the second item latest_scan_id null (queued/running is not a viewable report); the third item latest_scan_id null. The ids come from a single per-page query (no N+1).'
+      priority: critical
+      references_constraints: [C-13]

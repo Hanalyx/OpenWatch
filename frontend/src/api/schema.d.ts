@@ -2927,6 +2927,8 @@ export interface components {
             check_priority?: number;
             /** Format: date-time */
             last_scan_at?: string | null;
+            /** Format: uuid */
+            latest_scan_id?: string | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
             /** @description Null when the host has no host_rule_state rows (never scanned). */

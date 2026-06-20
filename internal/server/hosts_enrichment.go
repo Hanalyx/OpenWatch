@@ -173,6 +173,41 @@ func loadHostLastScanByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 	return out, rows.Err()
 }
 
+// loadHostLatestScanIDByIDs returns the id of the newest COMPLETED
+// scan_runs row per host, keyed by host id. Hosts with no completed
+// scan_run don't appear in the map — the list handler renders that as
+// latest_scan_id: null, so the host card hides its "view report" link.
+//
+// A queued/running-only host is intentionally excluded: the link targets
+// GET /scans/{id}, the scan-detail (report) page, which only has results
+// once the run completes. ONE query for the whole page (DISTINCT ON over
+// the scan_runs_host_recent index) — no per-host N+1. Spec api-hosts
+// v1.6.0 C-13.
+func loadHostLatestScanIDByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	out := map[uuid.UUID]uuid.UUID{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const q = `
+		SELECT DISTINCT ON (host_id) host_id, id
+		  FROM scan_runs
+		 WHERE host_id = ANY($1) AND status = 'completed'
+		 ORDER BY host_id, queued_at DESC`
+	rows, err := pool.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("loadHostLatestScanIDByIDs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hid, sid uuid.UUID
+		if err := rows.Scan(&hid, &sid); err != nil {
+			return nil, fmt.Errorf("loadHostLatestScanIDByIDs scan: %w", err)
+		}
+		out[hid] = sid
+	}
+	return out, rows.Err()
+}
+
 // loadHostListComplianceByIDs returns per-host compliance roll-ups
 // keyed by host id — ONE grouped query against host_rule_state for the
 // whole page, no per-host N+1. Hosts with zero rule_state rows don't

@@ -4432,6 +4432,12 @@ components:
         # when no compliance check has ever run against the host.
         # Surface for the operator dashboard's "last scan X ago" cell.
         last_scan_at: {type: string, format: date-time, nullable: true}
+        # v1.6.0 — id of the newest COMPLETED scan_run for this host. Drives
+        # the host card's "view report" affordance, which links to
+        # /scans/{latest_scan_id} (the scan:read-gated detail page). NULL
+        # when the host has no completed scan yet (icon hidden). Spec
+        # api-hosts C-13.
+        latest_scan_id: {type: string, format: uuid, nullable: true}
         liveness:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true

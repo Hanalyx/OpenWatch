@@ -76,6 +76,8 @@ export interface ApiHost {
   check_priority?: number;
   /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
   last_scan_at?: string | null;
+  /** v1.6.0 — id of the newest completed scan_run; null when none. Spec api-hosts C-13. */
+  latest_scan_id?: string | null;
   liveness?: ApiHostLiveness | null;
   /**
    * v1.4.0 (api-hosts) — denormalized OS columns populated by
@@ -897,6 +899,27 @@ function ScanHostButton({ hostId, variant }: { hostId: string; variant: 'card' |
   );
 }
 
+// ViewReportButton links the host card/row chart icon to the latest
+// completed scan's detail (report) page, /scans/{latestScanId}. It
+// renders nothing when the host has no completed scan (latestScanId null)
+// or the viewer lacks scan:read — the destination is scan:read-gated, so
+// showing a dead link would only 403. Spec frontend-hosts-list AC-24.
+function ViewReportButton({ latestScanId }: { latestScanId: string | null }) {
+  const canRead = useAuthStore((s) => s.hasPermission('scan:read'));
+  if (!latestScanId || !canRead) return null;
+  return (
+    <Link
+      to="/scans/$scanId"
+      params={{ scanId: latestScanId }}
+      style={{ ...iconBtnSm, textDecoration: 'none' }}
+      aria-label="View latest scan report"
+      title="View latest scan report"
+    >
+      <BarChart3 size={14} />
+    </Link>
+  );
+}
+
 function HostCard({ host }: { host: DevHost }) {
   const tier = complianceTier(host.compliance);
   const isDown = host.status === 'down';
@@ -1125,9 +1148,7 @@ function HostCard({ host }: { host: DevHost }) {
           Last scan {host.lastScan}
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <button type="button" style={iconBtnSm} aria-label="View report">
-            <BarChart3 size={14} />
-          </button>
+          <ViewReportButton latestScanId={host.latestScanId} />
           <ScanHostButton hostId={host.id} variant="card" />
         </div>
       </div>
@@ -1323,9 +1344,7 @@ function HostRow({ host }: { host: DevHost }) {
       <td style={{ ...td, textAlign: 'right' }}>
         <div style={{ display: 'inline-flex', gap: 4, justifyContent: 'flex-end' }}>
           <ScanHostButton hostId={host.id} variant="row" />
-          <button type="button" style={iconBtnSm} aria-label="View report">
-            <BarChart3 size={14} />
-          </button>
+          <ViewReportButton latestScanId={host.latestScanId} />
           <HostActionsMenu hostId={host.id} hostname={displayName} buttonStyle={iconBtnSm} />
         </div>
       </td>
@@ -1563,6 +1582,9 @@ export function apiHostToDev(h: ApiHost): DevHost {
     criticalFailing: cs?.critical_failing ?? 0,
     lastCheckMinutes,
     lastScan,
+    // v1.6.0: newest completed scan id for the "view report" link; null
+    // (icon hidden) when the host has no completed scan. Spec api-hosts C-13.
+    latestScanId: h.latest_scan_id ?? null,
   };
 }
 

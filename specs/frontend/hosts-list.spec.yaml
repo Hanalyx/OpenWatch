@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -79,6 +79,10 @@ spec:
     - id: C-08
       description: Every interactive element (sort headers, filter dropdowns, pagination buttons, row link, Add host button) MUST be reachable by keyboard alone and carry an explicit ARIA label. The page MUST pass axe-core wcag2a + wcag2aa with zero violations
       type: technical
+      enforcement: error
+    - id: C-09
+      description: v1.7.0 — each host card and table row MUST render a "view report" chart-icon control that links to the latest completed scan's detail page, /scans/{latestScanId}, where latestScanId is the list item's latest_scan_id (api-hosts C-13). The control MUST be hidden (render nothing) when latest_scan_id is null (no completed scan) OR the identity lacks scan:read — the destination is scan:read-gated, so a visible dead link would only 403. The scan:read check uses useAuthStore, not a role-string comparison
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -164,3 +168,8 @@ spec:
     - id: AC-21
       description: 'v1.6.0 — the page has NO demo/fixture fallback. Hosts always come from GET /api/v1/hosts mapped via apiHostToDev; KPIs (kpisFromHosts) and the fleet alert (fleetAlertFromHosts) always compute from that real data; an empty fleet renders the honest empty state. There is no isDevFixturesEnabled / devHosts / devKpis / __ow_dev_fixtures code path anywhere, and bootstrapAuth has no __ow_dev_admin synthetic-identity bypass. Source-inspection: HostsListPage.tsx + auth-bootstrap.ts contain none of those identifiers.'
       priority: high
+
+    - id: AC-22
+      description: 'v1.7.0 — the ViewReportButton renders a router Link to "/scans/$scanId" with params scanId=latestScanId, and is used in BOTH the host card footer and the table row actions. It returns null when latestScanId is falsy OR useAuthStore hasPermission("scan:read") is false (so a host with no completed scan, or a viewer without scan:read, shows no chart icon). apiHostToDev maps latest_scan_id to DevHost.latestScanId. Source-inspection of HostsListPage.tsx + host-view-model.ts.'
+      priority: high
+      references_constraints: [C-09]
