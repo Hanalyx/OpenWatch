@@ -32,7 +32,7 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 	pool := dbtest.Pool(t)
 	ctx := context.Background()
 	for _, stmt := range []string{
-		"TRUNCATE TABLE reports CASCADE",
+		"TRUNCATE TABLE report_snapshots CASCADE",
 		"TRUNCATE TABLE groups CASCADE",
 		"TRUNCATE TABLE host_rule_state CASCADE",
 		"TRUNCATE TABLE hosts CASCADE",
@@ -277,6 +277,52 @@ func TestListAndGet_RoundTripAndNotFound(t *testing.T) {
 
 		if _, err := svc.Get(ctx, uuid.New()); err != ErrNotFound {
 			t.Errorf("Get(unknown) err = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+// @ac AC-11
+// Generate stores the snapshot content-addressed: content_sha256 is a
+// 64-char hex SHA-256 over the canonical content. Identical fleet posture
+// yields identical content and therefore an identical hash across two
+// distinct snapshots (content addressing); a posture change produces a
+// different hash.
+func TestGenerate_ContentAddressed(t *testing.T) {
+	t.Run("api-reports/AC-11", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+		seedRuleState(t, pool, h, "r1", "pass", "low")
+
+		a, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate a: %v", err)
+		}
+		b, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate b: %v", err)
+		}
+		if len(a.ContentSHA256) != 64 {
+			t.Errorf("content_sha256 = %q, want 64 hex chars", a.ContentSHA256)
+		}
+		if a.ID == b.ID {
+			t.Fatalf("two generations share an id: %s", a.ID)
+		}
+		// Same posture -> same content -> same hash (content addressing).
+		if a.ContentSHA256 != b.ContentSHA256 {
+			t.Errorf("identical posture gave different hashes: %s vs %s", a.ContentSHA256, b.ContentSHA256)
+		}
+
+		// Change the posture: a new failing rule -> different content -> hash.
+		seedRuleState(t, pool, h, "r2", "fail", "high")
+		c, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate c: %v", err)
+		}
+		if c.ContentSHA256 == a.ContentSHA256 {
+			t.Errorf("posture change did not change the content hash: %s", c.ContentSHA256)
 		}
 	})
 }
