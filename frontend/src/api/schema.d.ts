@@ -1599,6 +1599,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a rendered face of a report (PDF or JSON)
+         * @description Streams a rendered face of the report as a downloadable
+         *     attachment. format=pdf (default) renders the bounded one-page
+         *     executive PDF (a fixed posture block, the coverage caveat, and the
+         *     top-failing list - never the full per-host/per-rule evidence);
+         *     format=json returns the canonical frozen posture content. The PDF
+         *     is rendered on first request and cached in report_faces, so a
+         *     repeat download re-streams the stored bytes. RBAC: host:read. Spec
+         *     api-reports.
+         */
+        get: operations["getReportExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scans": {
         parameters: {
             query?: never;
@@ -7542,6 +7569,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Report not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportExport: {
+        parameters: {
+            query?: {
+                /** @description The face to render. Defaults to pdf. */
+                format?: "pdf" | "json";
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rendered face, as a downloadable attachment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unknown format */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Caller is not authenticated */

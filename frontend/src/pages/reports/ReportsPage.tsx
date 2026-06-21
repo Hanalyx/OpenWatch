@@ -389,6 +389,32 @@ function LibraryTab({
   );
 }
 
+// downloadReportFace fetches a rendered face of a report (pdf | json) and
+// triggers a browser download. The export endpoint is a GET, so the
+// session cookie authenticates it (same-origin credentials) and no CSRF
+// token is needed; the filename comes from the server's
+// Content-Disposition. Errors are surfaced to the caller.
+async function downloadReportFace(id: string, format: 'pdf' | 'json'): Promise<void> {
+  const res = await fetch(`/api/v1/reports/${id}/export?format=${format}`, {
+    credentials: 'same-origin',
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') ?? '';
+  const match = cd.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] ?? `openwatch-report.${format}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function ReportDetail({
   report,
   id,
@@ -398,6 +424,21 @@ function ReportDetail({
   id: string;
   onClose: () => void;
 }) {
+  const [downloading, setDownloading] = useState<'pdf' | 'json' | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function onDownload(format: 'pdf' | 'json') {
+    setDownloading(format);
+    setDownloadError(null);
+    try {
+      await downloadReportFace(id, format);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : 'Download failed');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   // The list query already holds every report, so we render from the row
   // the user clicked. Fall back to a direct fetch only if the row is not
   // in the cached list (defensive; should not happen in normal flow).
@@ -465,6 +506,54 @@ function ReportDetail({
               </div>
             )}
           </div>
+          {resolved && (
+            <>
+              <button
+                type="button"
+                onClick={() => onDownload('pdf')}
+                disabled={downloading !== null}
+                title="Download the one-page executive PDF"
+                style={{
+                  height: 32,
+                  padding: '0 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--ow-info)',
+                  background: 'var(--ow-info)',
+                  color: '#0a1424',
+                  fontFamily: 'inherit',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: downloading !== null ? 'default' : 'pointer',
+                  opacity: downloading !== null ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {downloading === 'pdf' ? 'Preparing…' : 'Download PDF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDownload('json')}
+                disabled={downloading !== null}
+                title="Download the report data as JSON"
+                style={{
+                  height: 32,
+                  padding: '0 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--ow-line)',
+                  background: 'var(--ow-bg-1)',
+                  color: 'var(--ow-fg-1)',
+                  fontFamily: 'inherit',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: downloading !== null ? 'default' : 'pointer',
+                  opacity: downloading !== null ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                JSON
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -489,6 +578,22 @@ function ReportDetail({
           {!resolved && detailQ.isPending && <State kind="loading" />}
           {!resolved && detailQ.isError && (
             <State kind="error" text={apiErrorMessage(detailQ.error, 'Failed to load report')} />
+          )}
+          {downloadError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 14,
+                padding: '8px 12px',
+                borderRadius: 'var(--ow-radius)',
+                border: '1px solid var(--ow-crit)',
+                background: 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
+                color: 'var(--ow-crit)',
+                fontSize: 12.5,
+              }}
+            >
+              {downloadError}
+            </div>
           )}
           {resolved && <ExecutiveBody content={asExecutiveContent(resolved.content)} />}
         </div>

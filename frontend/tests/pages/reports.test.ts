@@ -109,6 +109,25 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('<CoverageCaveat');
   });
 
+  // @ac AC-07
+  test('frontend-reports/AC-07 — report detail download controls (pdf/json export)', () => {
+    // A downloadReportFace helper hits the export endpoint with the format.
+    expect(PAGE_SRC).toContain('function downloadReportFace');
+    expect(PAGE_SRC).toMatch(/\/api\/v1\/reports\/\$\{id\}\/export\?format=\$\{format\}/);
+    // Cookie auth (same-origin credentials), no bearer token / Authorization.
+    expect(PAGE_SRC).toContain("credentials: 'same-origin'");
+    expect(PAGE_SRC.includes('Authorization')).toBe(false);
+    // The blob is saved via an object URL.
+    expect(PAGE_SRC).toContain('URL.createObjectURL');
+    // The detail renders Download PDF + JSON controls calling onDownload,
+    // with an in-flight disabled state and an error surface.
+    expect(PAGE_SRC).toContain('Download PDF');
+    expect(PAGE_SRC).toMatch(/onDownload\('pdf'\)/);
+    expect(PAGE_SRC).toMatch(/onDownload\('json'\)/);
+    expect(PAGE_SRC).toContain('downloading');
+    expect(PAGE_SRC).toContain('downloadError');
+  });
+
   // @ac AC-04
   test('frontend-reports/AC-04 — generate is the only mutation, tokens, no em-dash', () => {
     // The only mutating call is the generate POST; no PUT/DELETE.
