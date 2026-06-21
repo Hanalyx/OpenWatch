@@ -387,6 +387,24 @@ feel instant.** Build them aware of each other.
 
 ## 11. Phase A — resolved decisions & implementation plan
 
+> **STATUS: Phase A shipped (2026-06-21, PRs #631–#637).** The executive
+> report is now scoped (group/framework, A1), coverage-honest (A2),
+> content-addressed on the `report_snapshots` + `report_faces` model
+> (A3a), with a bounded pure-Go PDF face + export endpoint (A3b) and a
+> frontend Download control (A3b-2), Ed25519-signed with offline
+> verification (A4a) and a frontend Signed badge + Verify action (A4b).
+> Two adjustments to the plan below, made during implementation and noted
+> here: (a) the **coverage caveat shipped before the snapshot/faces
+> migration** — the migration had no user value until a second face
+> existed, so A2 delivered coverage and the structural migration moved to
+> **A3a**; (b) A3 and A4 were each split backend/frontend (A3b/A3b-2,
+> A4a/A4b) to isolate the fpdf dependency (A3b) and the cookie-auth blob
+> download / client-side Web-Crypto verification (frontend slices). The
+> §10 signing-key decision resolved as a config-path key
+> (`[reports].signing_key_file`) with an ephemeral per-boot dev key.
+> **Remaining: Phases B–D** (OSCAL/CSV faces, async + scheduling, the
+> other report kinds) — a separate initiative.
+
 Phase A makes the **executive** report real for humans without taking on
 the bulk/OSCAL machinery. The §10 decisions are resolved for Phase A as
 follows so that *none of them blocks the start*:
