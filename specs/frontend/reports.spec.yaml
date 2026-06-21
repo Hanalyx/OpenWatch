@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -127,6 +127,21 @@ spec:
         rather than silently doing nothing.
       type: technical
       enforcement: error
+    - id: C-07
+      description: >-
+        v1.4.0 - When a report carries a signature the detail header shows a
+        "Signed" badge and a Verify control. Verify runs a verifyReport
+        helper that checks the report OFFLINE in the browser: it fetches
+        GET /api/v1/reports/signing-key, re-hashes the canonical JSON face
+        (GET export?format=json) with SHA-256 and compares it to
+        content_sha256 (content integrity), then Ed25519-verifies the
+        signature (Web Crypto) over the same domain-separated payload the
+        server signs ("openwatch/report-snapshot/v1\n" + content_sha256).
+        The Ed25519 step degrades gracefully where Web Crypto lacks it (the
+        content hash is still verified). The result (verified / failed /
+        content-only) is surfaced, and an ephemeral key is disclosed.
+      type: security
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -207,3 +222,16 @@ spec:
         on failure.
       priority: high
       references_constraints: [C-06]
+    - id: AC-08
+      description: >-
+        v1.4.0 - Source inspection: a verifyReport helper fetches
+        "/api/v1/reports/signing-key", digests the json export face with
+        SHA-256 and compares it to content_sha256, and Ed25519-verifies the
+        signature via crypto.subtle.verify over the domain-separated payload
+        ("openwatch/report-snapshot/v1\n" + content_sha256), with a
+        try/catch fallback when Web Crypto lacks Ed25519. ReportDetail
+        renders a "Signed" badge and a Verify control (gated on
+        report.signature) that calls an onVerify handler and surfaces a
+        verifyResult.
+      priority: high
+      references_constraints: [C-07]

@@ -128,6 +128,24 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('downloadError');
   });
 
+  // @ac AC-08
+  test('frontend-reports/AC-08 — signed badge + offline Verify (hash + Ed25519)', () => {
+    // A verifyReport helper fetches the signing key, re-hashes the json
+    // face, and Ed25519-verifies the signature offline.
+    expect(PAGE_SRC).toContain('function verifyReport');
+    expect(PAGE_SRC).toContain("fetch('/api/v1/reports/signing-key'");
+    expect(PAGE_SRC).toMatch(/export\?format=json/);
+    expect(PAGE_SRC).toContain("crypto.subtle.digest('SHA-256'");
+    expect(PAGE_SRC).toContain('content_sha256');
+    expect(PAGE_SRC).toContain('crypto.subtle.verify');
+    expect(PAGE_SRC).toContain('openwatch/report-snapshot/v1');
+    // The detail renders a Signed badge + a Verify control gated on the
+    // signature, calling onVerify and surfacing a verifyResult.
+    expect(PAGE_SRC).toContain('Signed');
+    expect(PAGE_SRC).toMatch(/onVerify\(resolved\)/);
+    expect(PAGE_SRC).toContain('verifyResult');
+  });
+
   // @ac AC-04
   test('frontend-reports/AC-04 — generate is the only mutation, tokens, no em-dash', () => {
     // The only mutating call is the generate POST; no PUT/DELETE.
