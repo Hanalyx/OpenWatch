@@ -12,6 +12,62 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.12] Eyrie — 2026-06-20
+
+The fleet activity stream and audit trail are now readable end to end: every
+event renders a plain-language title instead of a raw dotted code, enum, or
+resource UUID. Host detail gains live Activity and Audit tabs, Settings shows
+readable audit rows, and the filtered audit trail can be exported to CSV or
+JSON (NIST 800-53 AU-7). The Host Management page got its scan link, Group, and
+Filters working with a server-persisted view preference, and a pre-release
+security pass hardened the new export and fixed a cursor data-loss bug.
+
+### Added
+
+- Activity & audit readability: the unified feed and the audit list now render
+  a server-built, human-readable title + summary for all five legs. The three
+  legs that previously leaked machine codes (compliance/transaction,
+  intelligence, audit) are humanized — a rule's catalog title instead of its
+  id, "Package updated" instead of `system.package.updated`, "alice@example.com
+  created a host" instead of `host.created` over a UUID. Unmapped codes degrade
+  structurally (dots/underscores to spaces) so a newly-added code can never
+  surface as a raw dotted enum. (#616, #617)
+- Host detail: a live **Activity** tab (host-scoped unified feed) and a
+  readable **Audit log** tab, with audit `message`/`resource` filters so you can
+  pull one host's lifecycle trail. (#618, #619)
+- Settings: a readable **Audit log** view with plain-language rows. (#622)
+- Audit export: `GET /api/v1/audit/events/export` streams the filtered audit
+  trail as a downloadable CSV (default) or JSON attachment, capped at 10000
+  rows, `audit:read`-gated (NIST 800-53 AU-7). (#623)
+
+### Changed
+
+- Host Management: the host card's scan link now opens the latest scan, Group
+  and Filters work, and the list/grid view toggle is persisted **per user**
+  server-side instead of per browser. (#611)
+- Scan detail: the header shows the host's hostname (falling back to its IP)
+  instead of a raw host UUID. (#613)
+- Automated, schedule-driven events are now attributed to **"The system"**
+  instead of the misleading "Someone", which implied a logged-in operator
+  clicked a button. (#620)
+
+### Security
+
+- Hardened the audit CSV export against spreadsheet formula injection
+  (CWE-1236): a cell beginning with `=`, `+`, `-`, `@`, tab, or CR is prefixed
+  with a single quote so it renders as literal text. A truncated export (at the
+  10000-row cap) now sets an `X-OpenWatch-Export-Truncated` header and logs a
+  warning, so a capped export is never mistaken for the complete trail. (#625)
+- Fixed a cursor-pagination data-loss bug in the activity feed and audit list:
+  the cursor encoded `occurred_at` alone, so rows sharing a boundary timestamp
+  could be silently skipped on the next page (likely on the 5-leg UNION with
+  batch inserts). Both now use a compound keyset cursor `(occurred_at, id)` with
+  a row-value predicate. Bounded the attacker-controlled User-Agent and
+  submitted-username strings recorded in audit detail (256-rune cap +
+  control-char strip), neutralizing log forging. (#626)
+
+---
+
 ## [0.2.0-rc.11] Eyrie — 2026-06-19
 
 The bundled Kensa scan engine moves to v0.5.2, which corrects a class of false
