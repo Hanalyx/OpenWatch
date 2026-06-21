@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -74,15 +74,13 @@ spec:
         - The frozen JSON content as a wire contract (exact keys, nil compliance encoding, list-never-null top-failing)
         - The write-once row whose data_as_of is the posture sample instant and whose format is json
       excludes:
-        - Ed25519 signing and the "Signed" badge (the MVP stores no signature; format stays json)
-        - PDF and OSCAL rendering or export (the rich signed-report viewer and OSCAL artifact are deferred)
+        - OSCAL rendering or export (the OSCAL SAR/POA&M faces are a later phase)
         - The Scheduled dispatcher (auto-generated and delivered reports)
         - The Templates gallery (the six prototype templates beyond the one executive kind)
         - Retention sweeps (rows are kept; no expiry or purge in the MVP)
         - Report kinds other than executive (attestation, remediation, exceptions)
-        - Rendered faces in report_faces - the table exists (v1.3.0) but gets its first writer with the PDF face in A3b; the executive JSON is the canonical snapshot content, not a face row
-        - Ed25519 signing - the signature + signing_key_id columns are reserved (nullable, unset) in v1.3.0; signing lands in A4
-        - A period dimension on the scope (applies to the trend, which arrives with the PDF face in A3) and an explicit host-set scope
+        - Ed25519 signing - the signature + signing_key_id columns are reserved (nullable, unset) through v1.4.0; signing lands in A4
+        - A period dimension on the scope (applies to the trend) and an explicit host-set scope
 
   constraints:
     - id: C-01
@@ -201,6 +199,24 @@ spec:
         canonical snapshot content, not a face row.
       type: technical
       enforcement: error
+    - id: C-10
+      description: >-
+        v1.4.0 - GET /api/v1/reports/{id}/export streams a rendered FACE of
+        the report as a downloadable attachment (Content-Disposition
+        attachment with a derived filename). format=pdf (default) renders a
+        BOUNDED one-page executive PDF via the pure-Go go-pdf/fpdf core
+        fonts (header + a fixed posture block + the coverage caveat, shown
+        only when some host is stale/unreachable + the small top-failing
+        list) - O(1) pages regardless of fleet size, never the full
+        per-host/per-rule evidence; format=json returns the canonical
+        frozen content. The PDF is rendered lazily on first request and
+        cached in report_faces keyed by (snapshot_id, face) with status
+        'ready', the byte size, and a blob_sha256 content address; a repeat
+        export re-streams the cached bytes rather than re-rendering. RBAC:
+        host:read. An unknown id is 404 reports.not_found; an unknown
+        format is 400 reports.invalid_format (report.ErrInvalidFace).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -316,3 +332,23 @@ spec:
         before a third generation yields a different content_sha256.
       priority: high
       references_constraints: [C-09]
+    - id: AC-12
+      description: >-
+        v1.4.0 - renderExecutivePDF emits a structurally valid, non-trivial
+        PDF from a report + its executive content: the bytes start with the
+        %PDF- magic header and contain the %%EOF trailer, and the document
+        is a single page (bounded by construction). Pure unit test (no DB).
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-13
+      description: >-
+        v1.4.0 - Export serves the json face as the canonical stored
+        content (media application/json), and the pdf face as a rendered
+        application/pdf document. The first pdf export writes a report_faces
+        row (status 'ready', a 64-char blob_sha256, size_bytes == the byte
+        length); a second pdf export re-streams the identical cached bytes.
+        An unknown face returns ErrInvalidFace (handler 400
+        reports.invalid_format) and an unknown id returns ErrNotFound
+        (handler 404).
+      priority: high
+      references_constraints: [C-10]

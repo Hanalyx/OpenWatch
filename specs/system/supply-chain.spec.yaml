@@ -1,8 +1,13 @@
 spec:
   id: system-supply-chain
   title: Supply-chain governance — module allowlist, vulnerability, SBOM
-  version: "1.0.0"
+  version: "1.1.0"
   status: draft
+  # v1.1.0 — allowlist gained github.com/go-pdf/fpdf (pure-Go PDF, used for
+  # the bounded executive report face; core fonts are built in, so it adds
+  # no font files and stays airgap-safe). Its sole transitive dep,
+  # github.com/boombuler/barcode, is indirect (pinned in go.sum, not
+  # allowlisted per C-02). AC-03's generic test validates the addition.
   # Back to tier 1: AC-08/AC-09 (release-workflow SBOM via syft/CycloneDX) are
   # satisfied again now that .github/workflows/release.yml runs syft and emits
   # CycloneDX 1.5. (They were temporarily deferred to tier 2 while the Go-native

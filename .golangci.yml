@@ -65,6 +65,7 @@ linters-settings:
           - github.com/gliderlabs/ssh         # in-process SSH server for ssh tests
           - github.com/Hanalyx/kensa          # Kensa compliance engine API (pinned for version tracking; see internal/kensa/import.go)
           - github.com/go-chi/chi/v5          # HTTP router
+          - github.com/go-pdf/fpdf            # pure-Go PDF: bounded executive report face (airgap-safe core fonts)
           - github.com/golang-jwt/jwt/v5      # RS256 JWT
           - github.com/google/uuid            # UUID v4 / v7
           - github.com/jackc/pgx/v5           # PostgreSQL driver
