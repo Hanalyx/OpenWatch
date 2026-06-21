@@ -56,7 +56,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-08
-      description: 'v1.3.0 — GET /api/v1/audit/events/export MUST stream the filtered audit trail as a downloadable attachment (NIST 800-53 AU-7). It is audit:read gated, accepts the same filters (action, actor_type, resource_type, resource_id, since, until), and returns the whole filtered set newest-first capped at 10000 rows (not one page). format=csv (default) emits a header row + one row per event with columns occurred_at, action, message, severity, actor_type, actor_label, actor_id, resource_type, resource_id, correlation_id; format=json emits the AuditEvent array. Both set Content-Disposition: attachment with a timestamped filename. The message column reuses activity.FormatAudit (same as the list)'
+      description: 'v1.3.0 — GET /api/v1/audit/events/export MUST stream the filtered audit trail as a downloadable attachment (NIST 800-53 AU-7). It is audit:read gated, accepts the same filters (action, actor_type, resource_type, resource_id, since, until), and returns the whole filtered set newest-first capped at 10000 rows (not one page). format=csv (default) emits a header row + one row per event with columns occurred_at, action, message, severity, actor_type, actor_label, actor_id, resource_type, resource_id, correlation_id; format=json emits the AuditEvent array. Both set Content-Disposition: attachment with a timestamped filename. The message column reuses activity.FormatAudit (same as the list). v1.3.1 hardening: (a) every CSV cell MUST be neutralized against spreadsheet formula injection (CWE-1236) — a value whose first character is =, +, -, @, tab, or CR is prefixed with a single quote so it renders as literal text, not an executed formula; (b) a truncated export (row count == the 10000 cap) MUST set an X-OpenWatch-Export-Truncated response header and log a warning, so a capped export is never silently mistaken for the complete trail'
       type: technical
       enforcement: error
 
@@ -104,5 +104,9 @@ spec:
       references_constraints: [C-07]
     - id: AC-13
       description: 'v1.3.0 — GET /api/v1/audit/events/export (default csv) returns 200 with Content-Type text/csv and a Content-Disposition attachment; the body has the header row occurred_at,action,message,... and a data row whose message cell is the readable sentence (e.g. "alice@example.com created a host"), not the raw action code. ?format=json returns Content-Type application/json with the AuditEvent array. The resource_type/resource_id filters scope the export to one resource. An anonymous caller is denied (401/403) before any export.'
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-14
+      description: 'v1.3.1 — csvSafe prefixes a single quote to any string beginning with =, +, -, @, tab, or CR and leaves other strings (and empty) unchanged. A CSV export of an audit event whose actor_label begins with "=" (a formula-injection attempt) writes the neutralized cell (prefixed with a quote), never a bare cell starting with the formula character. Behavioral test of csvSafe + an export integration assertion.'
       priority: high
       references_constraints: [C-08]
