@@ -60,7 +60,7 @@ func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, 
 
 	stamp := time.Now().UTC().Format("20060102-150405")
 
-	if params.Format != nil && *params.Format == api.Json {
+	if params.Format != nil && *params.Format == api.GetAuditEventsExportParamsFormatJson {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition",
 			fmt.Sprintf("attachment; filename=%q", "audit-log-"+stamp+".json"))

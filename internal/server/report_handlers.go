@@ -172,6 +172,48 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, out)
 }
 
+// GetReportExport implements api.ServerInterface: streams a rendered
+// face of a report (PDF or JSON) as a downloadable attachment.
+// Spec api-reports.
+func (h *handlers) GetReportExport(w http.ResponseWriter, r *http.Request, id openapitypes.UUID, params api.GetReportExportParams) {
+	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+		return
+	}
+	if !h.reportSvcReady(w) {
+		return
+	}
+	face := report.FacePDF
+	if params.Format != nil {
+		face = string(*params.Format)
+	}
+
+	body, mediaType, err := h.reportSvc.Export(r.Context(), id, face)
+	if errors.Is(err, report.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "reports.not_found", "client", "report not found", false)
+		return
+	}
+	if errors.Is(err, report.ErrInvalidFace) {
+		writeError(w, http.StatusBadRequest, "reports.invalid_format", "client",
+			"format must be pdf or json", false)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"report export failed", true)
+		return
+	}
+
+	filename := "openwatch-report." + face
+	if rep, gerr := h.reportSvc.Get(r.Context(), id); gerr == nil {
+		filename = report.ExportFilename(rep, face)
+	}
+	w.Header().Set("Content-Type", mediaType)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
 // GetReportByID implements api.ServerInterface.
 // Spec api-reports.
 func (h *handlers) GetReportByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {

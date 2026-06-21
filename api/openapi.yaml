@@ -2547,6 +2547,58 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/reports/{id}/export:
+    get:
+      operationId: getReportExport
+      summary: Download a rendered face of a report (PDF or JSON)
+      description: |
+        Streams a rendered face of the report as a downloadable
+        attachment. format=pdf (default) renders the bounded one-page
+        executive PDF (a fixed posture block, the coverage caveat, and the
+        top-failing list - never the full per-host/per-rule evidence);
+        format=json returns the canonical frozen posture content. The PDF
+        is rendered on first request and cached in report_faces, so a
+        repeat download re-streams the stored bytes. RBAC: host:read. Spec
+        api-reports.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: format
+          in: query
+          required: false
+          description: The face to render. Defaults to pdf.
+          schema: {type: string, enum: [pdf, json], default: pdf}
+      responses:
+        '200':
+          description: The rendered face, as a downloadable attachment
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        '400':
+          description: Unknown format
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Report not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/scans:
     get:
       operationId: getScans
