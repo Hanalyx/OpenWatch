@@ -25,6 +25,13 @@ type Report = components['schemas']['Report'];
 
 // The executive-summary content shape (see api-reports spec). `content`
 // is typed as an open map in the schema, so narrow it here for display.
+interface Coverage {
+  hosts_total: number;
+  hosts_fresh: number;
+  hosts_stale: number;
+  hosts_unreachable: number;
+}
+
 interface ExecutiveContent {
   compliance_pct: number | null;
   host_count: number;
@@ -32,6 +39,16 @@ interface ExecutiveContent {
   failing_rules: number;
   critical_issues: number;
   top_failing_rules: { rule_id: string; failing_host_count: number }[];
+  coverage: Coverage;
+}
+
+function asCoverage(c: Partial<Coverage> | undefined): Coverage {
+  return {
+    hosts_total: typeof c?.hosts_total === 'number' ? c.hosts_total : 0,
+    hosts_fresh: typeof c?.hosts_fresh === 'number' ? c.hosts_fresh : 0,
+    hosts_stale: typeof c?.hosts_stale === 'number' ? c.hosts_stale : 0,
+    hosts_unreachable: typeof c?.hosts_unreachable === 'number' ? c.hosts_unreachable : 0,
+  };
 }
 
 function asExecutiveContent(content: Report['content']): ExecutiveContent {
@@ -43,6 +60,7 @@ function asExecutiveContent(content: Report['content']): ExecutiveContent {
     failing_rules: typeof c.failing_rules === 'number' ? c.failing_rules : 0,
     critical_issues: typeof c.critical_issues === 'number' ? c.critical_issues : 0,
     top_failing_rules: Array.isArray(c.top_failing_rules) ? c.top_failing_rules : [],
+    coverage: asCoverage(c.coverage as Partial<Coverage> | undefined),
   };
 }
 
@@ -479,6 +497,54 @@ function ReportDetail({
   );
 }
 
+// CoverageCaveat is the staleness disclosure: it renders only when some
+// in-scope hosts have stale data or are unreachable, so a reader knows how
+// far to trust the headline numbers. When every host is fresh and
+// reachable it renders nothing (no needless warning).
+function CoverageCaveat({ coverage }: { coverage: Coverage }) {
+  const { hosts_total, hosts_stale, hosts_unreachable } = coverage;
+  if (hosts_stale === 0 && hosts_unreachable === 0) return null;
+
+  const parts: string[] = [];
+  if (hosts_stale > 0) {
+    parts.push(
+      `${hosts_stale} of ${hosts_total} ${hosts_stale === 1 ? 'host has' : 'hosts have'} compliance data older than 24 hours (or no scan yet)`,
+    );
+  }
+  if (hosts_unreachable > 0) {
+    parts.push(
+      `${hosts_unreachable} ${hosts_unreachable === 1 ? 'host is' : 'hosts are'} currently unreachable`,
+    );
+  }
+
+  return (
+    <div
+      role="note"
+      style={{
+        display: 'flex',
+        gap: 12,
+        alignItems: 'flex-start',
+        padding: '12px 14px',
+        borderRadius: 'var(--ow-radius)',
+        border: '1px solid var(--ow-warn)',
+        borderLeft: '3px solid var(--ow-warn)',
+        background: 'var(--ow-warn-bg, rgba(200,160,40,0.12))',
+        fontSize: 12.5,
+        lineHeight: 1.5,
+        color: 'var(--ow-fg-1)',
+      }}
+    >
+      <span aria-hidden="true" style={{ color: 'var(--ow-warn)', flexShrink: 0 }}>
+        !
+      </span>
+      <div>
+        <strong>Figures reflect the last successful scan per host, not current state.</strong>{' '}
+        {parts.join('. ')}. Posture for stale or unreachable hosts may have changed since.
+      </div>
+    </div>
+  );
+}
+
 function ExecutiveBody({ content }: { content: ExecutiveContent }) {
   const pct = content.compliance_pct;
   const pctTone =
@@ -516,6 +582,8 @@ function ExecutiveBody({ content }: { content: ExecutiveContent }) {
           />
         </div>
       </section>
+
+      <CoverageCaveat coverage={content.coverage} />
 
       <section>
         <SectionHead>Top failing rules</SectionHead>

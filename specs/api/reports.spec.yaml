@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -88,11 +88,13 @@ spec:
       description: >-
         The frozen executive content is a JSON wire contract: it
         serializes the exact keys compliance_pct, host_count,
-        passing_rules, failing_rules, critical_issues, and
-        top_failing_rules; compliance_pct encodes as JSON null when nothing
-        is evaluated (not 0, not omitted); top_failing_rules always
-        serializes as a list (never JSON null), ordered most-failing first
-        and capped at the small leadership-facing limit.
+        passing_rules, failing_rules, critical_issues, top_failing_rules,
+        and coverage (v1.2.0, an object with hosts_total, hosts_fresh,
+        hosts_stale, hosts_unreachable); compliance_pct encodes as JSON
+        null when nothing is evaluated (not 0, not omitted);
+        top_failing_rules always serializes as a list (never JSON null),
+        ordered most-failing first and capped at the small
+        leadership-facing limit.
       type: technical
       enforcement: error
     - id: C-02
@@ -165,17 +167,34 @@ spec:
         reports.invalid_request.
       type: technical
       enforcement: error
+    - id: C-08
+      description: >-
+        v1.2.0 - Generate computes a coverage block over the same in-scope
+        active hosts and freezes it on the content, so a reader can tell how
+        much of the fleet the numbers actually reflect (the staleness
+        disclosure / coverage caveat). hosts_total is the active host count
+        in scope (host_count is derived from it, not queried twice);
+        hosts_fresh counts hosts whose newest host_rule_state.last_checked_at
+        is within the freshness window (24h); hosts_stale counts the rest
+        (older-than-window OR never scanned), so hosts_fresh + hosts_stale ==
+        hosts_total; hosts_unreachable counts in-scope hosts whose
+        host_liveness.reachability_status is 'unreachable' (a host with no
+        liveness row is unknown, NOT unreachable). Coverage respects the
+        group scope (C-07) the same way the posture counts do.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
       description: >-
         The executive content marshals to the exact wire keys
         (compliance_pct, host_count, passing_rules, failing_rules,
-        critical_issues, top_failing_rules); a never-evaluated fleet
-        encodes compliance_pct as JSON null (not 0, not omitted); an
-        explicitly empty top-failing slice serializes as [] (never JSON
-        null) and a populated one preserves the service's most-failing
-        first order.
+        critical_issues, top_failing_rules, and coverage - itself an object
+        with hosts_total, hosts_fresh, hosts_stale, hosts_unreachable); a
+        never-evaluated fleet encodes compliance_pct as JSON null (not 0,
+        not omitted); an explicitly empty top-failing slice serializes as
+        [] (never JSON null) and a populated one preserves the service's
+        most-failing first order.
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
@@ -257,3 +276,16 @@ spec:
         critical_issues, and top_failing_rules.
       priority: high
       references_constraints: [C-07]
+    - id: AC-10
+      description: >-
+        v1.2.0 - Generate freezes a coverage block. Over a fleet of a fresh
+        host (a host_rule_state check within 24h, reachable), a stale host
+        (a check older than 24h), and a never-scanned + unreachable host,
+        coverage reads hosts_total 3, hosts_fresh 1, hosts_stale 2 (the
+        old-check host plus the never-scanned host), and hosts_unreachable 1
+        (the host_liveness 'unreachable' host); a host with no liveness row
+        is not counted unreachable, and host_count equals coverage
+        hosts_total. An all-fresh fleet reads hosts_stale 0 and an
+        all-unscanned fleet reads hosts_fresh 0 / hosts_stale == hosts_total.
+      priority: high
+      references_constraints: [C-08]

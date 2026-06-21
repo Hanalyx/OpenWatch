@@ -85,6 +85,23 @@ type ExecutiveContent struct {
 	CriticalIssues int `json:"critical_issues"`
 	// TopFailingRules lists the rules failing on the most hosts.
 	TopFailingRules []TopFailingRule `json:"top_failing_rules"`
+	// Coverage describes how much of the in-scope fleet the numbers
+	// actually reflect (fresh vs stale/never-scanned, and unreachable).
+	Coverage Coverage `json:"coverage"`
+}
+
+// Coverage is the staleness disclosure behind every report: of the
+// in-scope active hosts, how many have fresh compliance data versus
+// stale-or-never-scanned, and how many are currently unreachable. It is
+// the basis of the coverage caveat - the honesty that lets a reader trust
+// or discount the headline numbers. hosts_fresh + hosts_stale ==
+// hosts_total; hosts_unreachable is an independent reachability count (a
+// host can be both stale and unreachable).
+type Coverage struct {
+	HostsTotal       int `json:"hosts_total"`
+	HostsFresh       int `json:"hosts_fresh"`
+	HostsStale       int `json:"hosts_stale"`
+	HostsUnreachable int `json:"hosts_unreachable"`
 }
 
 // TopFailingRule is one entry in the executive summary's top-failing

@@ -3516,7 +3516,8 @@ export interface components {
             /**
              * @description The rendered JSON posture document. For an executive summary:
              *     compliance_pct, host_count, passing_rules, failing_rules,
-             *     critical_issues, top_failing_rules.
+             *     critical_issues, top_failing_rules, and coverage (hosts_total,
+             *     hosts_fresh, hosts_stale, hosts_unreachable).
              */
             content: {
                 [key: string]: unknown;
