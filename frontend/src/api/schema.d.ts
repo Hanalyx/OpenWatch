@@ -1566,9 +1566,10 @@ export interface paths {
          * Generate a Fleet Compliance Executive Summary
          * @description Computes a point-in-time posture snapshot from current data
          *     (host_rule_state pass/fail counts + critical, host count, top
-         *     failing rules) and stores it as an immutable report. The MVP
-         *     generates only the executive summary for all hosts. RBAC:
-         *     host:write. Spec api-reports.
+         *     failing rules) and stores it as an immutable report. The optional
+         *     body scopes the summary to a group's member hosts and/or a
+         *     framework lens; an empty body covers all hosts and all
+         *     frameworks. RBAC: host:write. Spec api-reports.
          */
         post: operations["postReportGenerate"];
         delete?: never;
@@ -3470,6 +3471,36 @@ export interface components {
             summary: components["schemas"]["GroupSummary"];
             groups: components["schemas"]["GroupWithRollup"][];
         };
+        /**
+         * @description The structured slice of the fleet a report summarizes: an optional
+         *     group and/or framework lens. An empty object is the all-hosts,
+         *     all-frameworks scope. Echoed so a caller can see and reproduce
+         *     exactly what a report covers.
+         */
+        ReportScope: {
+            /**
+             * Format: uuid
+             * @description When set, the report is scoped to this group's member hosts.
+             */
+            group_id?: string;
+            /** @description The group's display name, frozen at generation time. */
+            group_name?: string;
+            /** @description When set, the framework lens (framework_refs key) the report is scoped to. */
+            framework?: string;
+        };
+        /**
+         * @description Optional scope for the executive summary. An empty body (or an
+         *     empty object) generates the all-hosts, all-frameworks summary.
+         */
+        GenerateReportRequest: {
+            /**
+             * Format: uuid
+             * @description Scope the summary to this group's member hosts.
+             */
+            group_id?: string;
+            /** @description Scope the summary to this framework lens (framework_refs key). */
+            framework?: string;
+        };
         Report: {
             /** Format: uuid */
             id: string;
@@ -3477,6 +3508,7 @@ export interface components {
             /** @enum {string} */
             kind: "executive";
             scope_label: string;
+            scope: components["schemas"]["ReportScope"];
             /** Format: date-time */
             data_as_of: string;
             generated_by: string;
@@ -7449,7 +7481,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": components["schemas"]["GenerateReportRequest"];
             };
         };
         responses: {
@@ -7460,6 +7492,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Malformed body or an unknown group_id scope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Caller is not authenticated */

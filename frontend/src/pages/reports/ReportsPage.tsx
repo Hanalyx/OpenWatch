@@ -66,6 +66,8 @@ export function ReportsPage() {
 
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Scope for the next Generate. '' = all hosts (the unscoped summary).
+  const [scopeGroupId, setScopeGroupId] = useState<string>('');
 
   const queryClient = useQueryClient();
   const canGenerate = useAuthStore((s) => s.hasPermission('host:write'));
@@ -80,9 +82,25 @@ export function ReportsPage() {
     },
   });
 
+  // Groups populate the scope picker. Only meaningful to generators, but
+  // the list itself is host:read; tolerate failure by falling back to the
+  // all-hosts-only picker.
+  const groupsQ = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/groups', {});
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      return data!;
+    },
+    enabled: canGenerate,
+  });
+  const groups = groupsQ.data?.groups ?? [];
+
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await api.POST('/api/v1/reports:generate', { body: {} });
+      const body = scopeGroupId ? { group_id: scopeGroupId } : {};
+      const { data, error, response } = await api.POST('/api/v1/reports:generate', { body });
       if (error || !response.ok)
         throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
       return data!;
@@ -117,33 +135,62 @@ export function ReportsPage() {
             successful scans, not live.
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => generateMutation.mutate()}
-          disabled={!canGenerate || generateMutation.isPending}
-          title={
-            canGenerate
-              ? 'Generate a Fleet Compliance Executive Summary'
-              : 'Requires host:write permission'
-          }
-          style={{
-            height: 34,
-            padding: '0 14px',
-            borderRadius: 'var(--ow-radius-sm, 6px)',
-            border: '1px solid var(--ow-info)',
-            background: 'var(--ow-info)',
-            color: '#0a1424',
-            fontFamily: 'inherit',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: !canGenerate || generateMutation.isPending ? 'default' : 'pointer',
-            opacity: !canGenerate || generateMutation.isPending ? 0.6 : 1,
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}
-        >
-          {generateMutation.isPending ? 'Generating…' : 'Generate report'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {canGenerate && (
+            <select
+              aria-label="Report scope"
+              value={scopeGroupId}
+              onChange={(e) => setScopeGroupId(e.target.value)}
+              disabled={generateMutation.isPending}
+              title="Scope the report to a group, or all hosts"
+              style={{
+                height: 34,
+                padding: '0 10px',
+                borderRadius: 'var(--ow-radius-sm, 6px)',
+                border: '1px solid var(--ow-line)',
+                background: 'var(--ow-bg-2)',
+                color: 'var(--ow-fg-0)',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                cursor: generateMutation.isPending ? 'default' : 'pointer',
+              }}
+            >
+              <option value="">All hosts</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => generateMutation.mutate()}
+            disabled={!canGenerate || generateMutation.isPending}
+            title={
+              canGenerate
+                ? 'Generate a Fleet Compliance Executive Summary'
+                : 'Requires host:write permission'
+            }
+            style={{
+              height: 34,
+              padding: '0 14px',
+              borderRadius: 'var(--ow-radius-sm, 6px)',
+              border: '1px solid var(--ow-info)',
+              background: 'var(--ow-info)',
+              color: '#0a1424',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: !canGenerate || generateMutation.isPending ? 'default' : 'pointer',
+              opacity: !canGenerate || generateMutation.isPending ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {generateMutation.isPending ? 'Generating…' : 'Generate report'}
+          </button>
+        </div>
       </header>
 
       {generateMutation.isError && (

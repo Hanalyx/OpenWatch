@@ -2482,20 +2482,26 @@ paths:
       description: |
         Computes a point-in-time posture snapshot from current data
         (host_rule_state pass/fail counts + critical, host count, top
-        failing rules) and stores it as an immutable report. The MVP
-        generates only the executive summary for all hosts. RBAC:
-        host:write. Spec api-reports.
+        failing rules) and stores it as an immutable report. The optional
+        body scopes the summary to a group's member hosts and/or a
+        framework lens; an empty body covers all hosts and all
+        frameworks. RBAC: host:write. Spec api-reports.
       requestBody:
+        required: false
         content:
           application/json:
-            schema:
-              type: object
+            schema: {$ref: '#/components/schemas/GenerateReportRequest'}
       responses:
         '201':
           description: The generated report
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Report'}
+        '400':
+          description: Malformed body or an unknown group_id scope
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '401':
           description: Caller is not authenticated
           content:
@@ -5239,9 +5245,42 @@ components:
           type: array
           items: {$ref: '#/components/schemas/GroupWithRollup'}
 
+    ReportScope:
+      type: object
+      description: |
+        The structured slice of the fleet a report summarizes: an optional
+        group and/or framework lens. An empty object is the all-hosts,
+        all-frameworks scope. Echoed so a caller can see and reproduce
+        exactly what a report covers.
+      properties:
+        group_id:
+          type: string
+          format: uuid
+          description: When set, the report is scoped to this group's member hosts.
+        group_name:
+          type: string
+          description: The group's display name, frozen at generation time.
+        framework:
+          type: string
+          description: When set, the framework lens (framework_refs key) the report is scoped to.
+
+    GenerateReportRequest:
+      type: object
+      description: |
+        Optional scope for the executive summary. An empty body (or an
+        empty object) generates the all-hosts, all-frameworks summary.
+      properties:
+        group_id:
+          type: string
+          format: uuid
+          description: Scope the summary to this group's member hosts.
+        framework:
+          type: string
+          description: Scope the summary to this framework lens (framework_refs key).
+
     Report:
       type: object
-      required: [id, title, kind, scope_label, data_as_of, generated_by, format, content, created_at]
+      required: [id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, created_at]
       properties:
         id: {type: string, format: uuid}
         title: {type: string}
@@ -5249,6 +5288,7 @@ components:
           type: string
           enum: [executive]
         scope_label: {type: string}
+        scope: {$ref: '#/components/schemas/ReportScope'}
         data_as_of: {type: string, format: date-time}
         generated_by: {type: string}
         format: {type: string}

@@ -81,6 +81,21 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('kind="error"');
   });
 
+  // @ac AC-05
+  test('frontend-reports/AC-05 — scope picker (group select) drives the generate body', () => {
+    // A scope select bound to scopeGroupId, defaulting to "All hosts".
+    expect(PAGE_SRC).toContain('scopeGroupId');
+    expect(PAGE_SRC).toMatch(/<select[\s\S]*?value=\{scopeGroupId\}/);
+    expect(PAGE_SRC).toContain('<option value="">All hosts</option>');
+    // Options come from a ['groups'] query against the groups endpoint.
+    expect(PAGE_SRC).toContain("queryKey: ['groups']");
+    expect(PAGE_SRC).toContain("api.GET('/api/v1/groups'");
+    // The groups query is a host:write affordance (enabled on canGenerate).
+    expect(PAGE_SRC).toMatch(/enabled:\s*canGenerate/);
+    // The generate body includes group_id only when a group is chosen.
+    expect(PAGE_SRC).toMatch(/scopeGroupId\s*\?\s*\{\s*group_id:\s*scopeGroupId\s*\}\s*:\s*\{\}/);
+  });
+
   // @ac AC-04
   test('frontend-reports/AC-04 — generate is the only mutation, tokens, no em-dash', () => {
     // The only mutating call is the generate POST; no PUT/DELETE.

@@ -206,6 +206,39 @@ func (s *Service) List(ctx context.Context) ([]GroupWithRollup, error) {
 	return out, nil
 }
 
+// ScopeGroup resolves a group id to its display name and the set of
+// active member host ids, for callers that scope a fleet computation to
+// one group (e.g. a scoped Reports executive summary). Manual groups
+// read group_members; auto groups derive from hosts.os_family ==
+// match_family. Returns ErrNotFound when the group does not exist. An
+// empty group yields a non-nil, empty id slice (a valid "no hosts"
+// scope), distinct from the unscoped all-hosts case the caller models
+// as no group at all.
+func (s *Service) ScopeGroup(ctx context.Context, groupID uuid.UUID) (string, []uuid.UUID, error) {
+	g, err := s.Get(ctx, groupID)
+	if err != nil {
+		return "", nil, err // ErrNotFound propagates
+	}
+	cte, arg := memberCTE(g)
+	rows, err := s.pool.Query(ctx, cte, arg)
+	if err != nil {
+		return "", nil, fmt.Errorf("group: scope members: %w", err)
+	}
+	defer rows.Close()
+	ids := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return "", nil, fmt.Errorf("group: scope scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return "", nil, fmt.Errorf("group: scope iterate: %w", err)
+	}
+	return g.Name, ids, nil
+}
+
 // memberCTE returns the SQL selecting a group's member host ids plus the
 // bound argument. Manual groups read group_members; auto groups derive
 // from hosts.os_family == match_family.

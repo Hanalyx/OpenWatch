@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -79,7 +79,9 @@ spec:
         - The Scheduled dispatcher (auto-generated and delivered reports)
         - The Templates gallery (the six prototype templates beyond the one executive kind)
         - Retention sweeps (rows are kept; no expiry or purge in the MVP)
-        - Report kinds other than executive (attestation, remediation, exceptions) and any scope picker
+        - Report kinds other than executive (attestation, remediation, exceptions)
+        - PDF/OSCAL faces, signing, and the snapshot/faces model (Phase A2+)
+        - A period dimension on the scope (applies to the trend, which arrives with the PDF face in A3) and an explicit host-set scope
 
   constraints:
     - id: C-01
@@ -104,10 +106,11 @@ spec:
     - id: C-03
       description: >-
         The MVP generates exactly one kind: the artifact's identity is
-        fixed (title "Fleet Compliance - Executive Summary", scope_label
-        "All hosts", kind 'executive', format 'json') and the top-failing
-        embed limit is a small constant. The library lists newest first by
-        created_at.
+        fixed (title "Fleet Compliance - Executive Summary", kind
+        'executive', format 'json') and the top-failing embed limit is a
+        small constant. scope_label is derived from the report's scope
+        (v1.1.0) and defaults to "All hosts" for an unscoped report. The
+        library lists newest first by created_at.
       type: technical
       enforcement: error
     - id: C-04
@@ -141,6 +144,27 @@ spec:
         signing, PDF, or OSCAL fields.
       type: security
       enforcement: error
+    - id: C-07
+      description: >-
+        v1.1.0 - Generate accepts an optional scope {group_id?,
+        framework?}; an empty body generates the all-hosts, all-frameworks
+        summary (the v1.0.0 behavior). group_id scopes the posture to that
+        group's member hosts - manual groups via group_members, auto groups
+        via hosts.os_family == match_family (resolved through the group
+        service) - so host_count and every rule count reflect only those
+        hosts; an empty group yields zero counts (distinct from unscoped).
+        framework applies the same lens as the fleet rollup, counting only
+        host_rule_state rows whose framework_refs contain the key
+        (framework_refs ? key). The resolved scope (group_id, the group's
+        display name frozen at generation time, framework) is stored on the
+        row and echoed on the wire, and scope_label is derived as
+        "<group name or All hosts>" optionally suffixed with " . <FRAMEWORK
+        family>" (the family is the key's leading token, uppercased). An
+        unknown group_id surfaces group.ErrNotFound, which the handler maps
+        to 400 reports.invalid_scope; a malformed body maps to 400
+        reports.invalid_request.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -164,9 +188,9 @@ spec:
     - id: AC-03
       description: >-
         The fixed executive identity is pinned: the title "Fleet Compliance
-        - Executive Summary", scope_label "All hosts", kind 'executive',
-        and the small top-failing embed cap are stable constants the
-        library and any later signing depend on.
+        - Executive Summary", kind 'executive', the default (unscoped)
+        scope_label "All hosts", and the small top-failing embed cap are
+        stable constants the library and any later signing depend on.
       priority: high
       references_constraints: [C-03]
     - id: AC-04
@@ -200,3 +224,36 @@ spec:
         creation time (reports are never recomputed in place).
       priority: high
       references_constraints: [C-05]
+    - id: AC-07
+      description: >-
+        v1.1.0 - scope_label is derived from the resolved scope:
+        scopeLabel({}) = "All hosts"; a framework-only scope yields
+        "All hosts . <FAMILY>" (e.g. "All hosts . CIS"); a group-only scope
+        yields the group name; a group+framework scope yields
+        "<group> . <FAMILY>". frameworkFamilyLabel shortens a framework key
+        to its leading token uppercased (cis_rhel9_v2.0.0 -> CIS,
+        stig_rhel9_v2r7 -> STIG, nist_800_53_r5 -> NIST) and maps the empty
+        key to the empty string (no lens).
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-08
+      description: >-
+        v1.1.0 - A group-scoped Generate computes the posture over only the
+        group's member hosts: the stored/echoed scope carries group_id and
+        the group's display name, scope_label is the group name, and
+        host_count plus the pass/fail/critical counts and top_failing_rules
+        reflect the in-group host alone (an out-of-group host's rows do not
+        inflate them). An unknown group_id returns group.ErrNotFound (which
+        the handler maps to a 400 invalid-scope).
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-09
+      description: >-
+        v1.1.0 - A framework-scoped Generate counts only host_rule_state
+        rows whose framework_refs contain the lens key (framework_refs ?
+        key): the echoed scope carries the framework, scope_label carries
+        the family ("All hosts . CIS"), and a critical fail tagged only to a
+        different framework is excluded from passing_rules, failing_rules,
+        critical_issues, and top_failing_rules.
+      priority: high
+      references_constraints: [C-07]
