@@ -10,6 +10,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 
 // auditExportCap bounds an export so a huge trail can't stream unbounded.
 // Beyond this, operators page the list endpoint or narrow the filters; the
-// cap is logged so a truncated export is never silently mistaken for "all".
+// cap is logged + flagged (X-OpenWatch-Export-Truncated) so a truncated export is never silently mistaken for "all".
 const auditExportCap = 10000
 
 // GetAuditEventsExport streams the filtered audit events as a downloadable
@@ -44,6 +45,17 @@ func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusInternalServerError, "server.internal", "server",
 			"failed to query audit events for export", true)
 		return
+	}
+
+	// A capped export is byte-indistinguishable from a complete one — for an
+	// AU-7 audit-reduction artifact that would silently misrepresent "all".
+	// Mark a truncated export with a header AND a server log so it is never
+	// mistaken for the full trail.
+	truncated := len(rows) >= auditExportCap
+	if truncated {
+		w.Header().Set("X-OpenWatch-Export-Truncated", "true")
+		slog.WarnContext(r.Context(), "audit export truncated at cap",
+			slog.Int("cap", auditExportCap))
 	}
 
 	stamp := time.Now().UTC().Format("20060102-150405")
@@ -73,18 +85,35 @@ func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, 
 		"resource_type", "resource_id", "correlation_id",
 	})
 	for _, ev := range rows {
+		// csvSafe neutralizes spreadsheet formula injection on every cell.
 		_ = cw.Write([]string{
 			ev.OccurredAt.Format(time.RFC3339),
-			ev.Action,
-			deref(ev.Message),
-			deref(ev.Severity),
-			ev.ActorType,
-			deref(ev.ActorLabel),
-			deref(ev.ActorId),
-			deref(ev.ResourceType),
-			deref(ev.ResourceId),
-			ev.CorrelationId,
+			csvSafe(ev.Action),
+			csvSafe(deref(ev.Message)),
+			csvSafe(deref(ev.Severity)),
+			csvSafe(ev.ActorType),
+			csvSafe(deref(ev.ActorLabel)),
+			csvSafe(deref(ev.ActorId)),
+			csvSafe(deref(ev.ResourceType)),
+			csvSafe(deref(ev.ResourceId)),
+			csvSafe(ev.CorrelationId),
 		})
 	}
 	cw.Flush()
+}
+
+// csvSafe neutralizes spreadsheet formula injection (CWE-1236). A cell whose
+// first character is =, +, -, @, or a tab/CR is executed as a formula by
+// Excel / Google Sheets / LibreOffice when the export is opened. Prefixing
+// such a cell with a single quote forces it to render as literal text.
+// encoding/csv handles CSV quoting but does NOT neutralize this.
+func csvSafe(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	}
+	return s
 }

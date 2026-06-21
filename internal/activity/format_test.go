@@ -93,6 +93,18 @@ func TestFormatters_GracefulFallback(t *testing.T) {
 		if _, s := formatTransaction("r", "error", "weird_kind", nil); s != "Error" {
 			t.Errorf("unmapped change_kind summary = %q, want Error", s)
 		}
+
+		// Malformed / non-scalar detail degrades safely to an empty summary
+		// (no panic, no structure dump into the row). Pre-release hardening.
+		if _, s := formatIntelligence("system.package.updated", []byte("not json")); s != "" {
+			t.Errorf("malformed detail summary = %q, want empty", s)
+		}
+		if _, s := formatIntelligence("system.package.updated", []byte(`{"name":{"nested":1}}`)); s != "" {
+			t.Errorf("non-scalar subject summary = %q, want empty (no structure dump)", s)
+		}
+		if _, s := formatIntelligence("system.package.updated", nil); s != "" {
+			t.Errorf("nil detail summary = %q, want empty", s)
+		}
 	})
 }
 

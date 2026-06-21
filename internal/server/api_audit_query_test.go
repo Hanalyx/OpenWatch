@@ -475,6 +475,16 @@ func TestAPI_AuditEvents_Export(t *testing.T) {
 				t.Fatalf("seed audit event: %v", err)
 			}
 		}
+		// A formula-injection attempt in actor_label must be neutralized in
+		// the CSV (CWE-1236, AC-14) — the cell renders as text, not a formula.
+		evilID := uuid.Must(uuid.NewV7())
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO audit_events
+			   (id, correlation_id, actor_type, actor_label, action, severity, occurred_at)
+			 VALUES ($1,'corr-exp','user','=danger','auth.login.success','info',now())`,
+			evilID); err != nil {
+			t.Fatalf("seed injection event: %v", err)
+		}
 
 		// CSV (default): attachment, header row, readable message cell.
 		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", auth.RoleAuditor, nil))
@@ -498,6 +508,14 @@ func TestAPI_AuditEvents_Export(t *testing.T) {
 		}
 		if strings.Contains(csvText, ",host.created,host.created,") {
 			t.Errorf("message cell duplicated the raw action code")
+		}
+		// Formula injection neutralized: the actor_label cell renders as the
+		// quote-prefixed literal '=danger, never a bare =danger formula cell.
+		if !strings.Contains(csvText, "'=danger") {
+			t.Errorf("CSV did not neutralize the '=danger' formula-injection cell; got:\n%s", csvText)
+		}
+		if strings.Contains(csvText, ",=danger") {
+			t.Errorf("CSV contains a bare formula cell ',=danger' (formula injection not neutralized)")
 		}
 
 		// JSON format.
