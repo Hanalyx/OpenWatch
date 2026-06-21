@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"testing"
 	"time"
@@ -547,6 +548,59 @@ func TestAPI_AuditEvents_Export(t *testing.T) {
 		an.Body.Close()
 		if an.StatusCode != http.StatusUnauthorized && an.StatusCode != http.StatusForbidden {
 			t.Errorf("anonymous export status = %d, want 401/403", an.StatusCode)
+		}
+	})
+}
+
+// @ac AC-15
+// api-audit-events-query/AC-15 (v1.3.1): the audit list cursor MUST NOT drop
+// rows sharing the boundary occurred_at. Seed 4 events at one instant, page
+// with limit=2, and assert all 4 distinct ids appear across pages.
+func TestAPI_AuditEvents_CursorBoundaryTie(t *testing.T) {
+	t.Run("api-audit-events-query/AC-15", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+		ts := time.Now().UTC().Truncate(time.Millisecond)
+		for i := 0; i < 4; i++ {
+			id := uuid.Must(uuid.NewV7())
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO audit_events (id, correlation_id, actor_type, action, severity, occurred_at)
+				 VALUES ($1,'corr-tie','system','system.startup','info',$2)`,
+				id, ts); err != nil {
+				t.Fatalf("seed audit %d: %v", i, err)
+			}
+		}
+		seen := map[string]int{}
+		cursor := ""
+		for page := 0; page < 6; page++ {
+			q := "?limit=2"
+			if cursor != "" {
+				q += "&cursor=" + neturl.QueryEscape(cursor)
+			}
+			resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events"+q, auth.RoleAuditor, nil))
+			var pg struct {
+				Items []struct {
+					ID string `json:"id"`
+				} `json:"items"`
+				NextCursor *string `json:"next_cursor"`
+			}
+			_ = json.NewDecoder(resp.Body).Decode(&pg)
+			resp.Body.Close()
+			for _, it := range pg.Items {
+				seen[it.ID]++
+			}
+			if pg.NextCursor == nil || *pg.NextCursor == "" {
+				break
+			}
+			cursor = *pg.NextCursor
+		}
+		if len(seen) != 4 {
+			t.Errorf("distinct audit rows across pages = %d, want 4 (boundary-tie row dropped)", len(seen))
+		}
+		for id, n := range seen {
+			if n != 1 {
+				t.Errorf("row %s seen %d times, want 1", id, n)
+			}
 		}
 	})
 }

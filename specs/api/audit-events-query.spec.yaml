@@ -1,7 +1,7 @@
 spec:
   id: api-audit-events-query
   title: Audit events list endpoint
-  version: "1.3.0"
+  version: "1.3.1"
   status: approved
   tier: 2
 
@@ -32,7 +32,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: Default sort MUST be occurred_at DESC, id DESC (stable tiebreak)
+      description: 'Default sort MUST be occurred_at DESC, id DESC (stable tiebreak). v1.3.1 — the cursor MUST be the matching COMPOUND keyset "<RFC3339Nano occurred_at>|<id>", and the next-page predicate MUST be the row-value (occurred_at, id) < ($cursor_ts, $cursor_id) so a row sharing the boundary occurred_at is not dropped (a timestamp-only cursor with occurred_at < $cursor silently skipped boundary-tie rows). A legacy timestamp-only cursor (no "|") is rejected rather than degrading to the lossy predicate'
       type: technical
       enforcement: error
     - id: C-03
@@ -110,3 +110,7 @@ spec:
       description: 'v1.3.1 — csvSafe prefixes a single quote to any string beginning with =, +, -, @, tab, or CR and leaves other strings (and empty) unchanged. A CSV export of an audit event whose actor_label begins with "=" (a formula-injection attempt) writes the neutralized cell (prefixed with a quote), never a bare cell starting with the formula character. Behavioral test of csvSafe + an export integration assertion.'
       priority: high
       references_constraints: [C-08]
+    - id: AC-15
+      description: 'v1.3.1 — GET /api/v1/audit/events cursor pagination does NOT drop rows sharing the boundary occurred_at. Seeding four events at one identical instant and paging with limit=2 returns all four distinct ids across pages, none lost or duplicated. The emitted next_cursor is the compound "<ts>|<id>" form.'
+      priority: high
+      references_constraints: [C-02]

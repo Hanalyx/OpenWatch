@@ -70,7 +70,8 @@ func (s *Service) List(ctx context.Context, f Filter, c Caller) ([]Row, int, str
 	}
 	cursor := ""
 	if len(rows) > f.Limit {
-		cursor = rows[f.Limit-1].OccurredAt.Format(time.RFC3339Nano)
+		last := rows[f.Limit-1]
+		cursor = encodeCursor(last.OccurredAt, last.ID.String())
 		rows = rows[:f.Limit]
 	}
 
@@ -116,11 +117,13 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 	if f.HostID != nil && *f.HostID != uuid.Nil {
 		hostPH = addArg(*f.HostID)
 	}
-	cursorPH := ""
-	if f.Cursor != "" {
-		if t, err := time.Parse(time.RFC3339Nano, f.Cursor); err == nil {
-			cursorPH = addArg(t)
-		}
+	// Compound cursor (occurred_at, id) — a tiebreaker on id is required so
+	// rows that share the boundary occurred_at are not silently dropped on
+	// the next page (the 5-leg UNION makes timestamp ties common). Spec C-03.
+	cursorTsPH, cursorIDPH := "", ""
+	if ts, id, ok := parseCursor(f.Cursor); ok {
+		cursorTsPH = addArg(ts)
+		cursorIDPH = addArg(id)
 	}
 	// Fetch limit+1 so List can detect the terminal page (Spec C-03).
 	limitPH := addArg(f.Limit + 1)
@@ -153,9 +156,9 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 				parts = append(parts, "FALSE")
 			}
 		}
-		if cursorPH != "" {
-			parts = append(parts, timeCol+" < "+cursorPH)
-		}
+		// The cursor is NOT applied here: it is compound (occurred_at, id)
+		// and the monitoring leg's id is synthesized in the SELECT (not
+		// WHERE-able), so it is applied once on the UNION result below.
 		if len(parts) == 0 {
 			return ""
 		}
@@ -294,10 +297,19 @@ func (s *Service) queryUnion(ctx context.Context, f Filter, includeAlerts, inclu
 		return nil, nil
 	}
 
-	// Spec C-01: single Query. UNION ALL across legs + final
-	// ORDER BY + LIMIT.
-	q := strings.Join(legs, "\n\t\t\tUNION ALL\n") + `
-		 ORDER BY occurred_at DESC LIMIT ` + limitPH
+	// Spec C-01: single Query. UNION ALL across legs, then the compound
+	// (occurred_at, id) cursor + final ORDER BY + LIMIT applied ONCE on the
+	// union result in an outer query — so a row sharing the boundary
+	// occurred_at is never dropped, and the monitoring leg's synthesized id
+	// participates in the tiebreaker. Spec C-03.
+	inner := strings.Join(legs, "\n\t\t\tUNION ALL\n")
+	cursorWhere := ""
+	if cursorTsPH != "" {
+		cursorWhere = " WHERE (u.occurred_at, u.id) < (" + cursorTsPH + "::timestamptz, " + cursorIDPH + "::text)"
+	}
+	q := "SELECT id, source, severity, host_id, title, summary, occurred_at," +
+		" code, ctx_a, ctx_b, ctx_c, detail FROM (\n" + inner + "\n) u" +
+		cursorWhere + "\n ORDER BY u.occurred_at DESC, u.id DESC LIMIT " + limitPH
 
 	pgRows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
@@ -438,6 +450,36 @@ func (s *Service) countHidden(ctx context.Context, f Filter, supAlerts, supTxn, 
 		return 0, fmt.Errorf("activity: count hidden: %w", err)
 	}
 	return total, nil
+}
+
+// encodeCursor packs the keyset cursor as "<RFC3339Nano>|<id>". The id is
+// the row's uuid string (a real uuid for alert/txn/intel/audit, the
+// synthesized uuid for monitoring).
+func encodeCursor(t time.Time, id string) string {
+	return t.Format(time.RFC3339Nano) + "|" + id
+}
+
+// parseCursor splits the keyset cursor back into (timestamp, id). Returns
+// ok=false for an empty or malformed cursor (the caller then starts from the
+// newest row). A legacy timestamp-only cursor (no "|") is rejected rather
+// than silently degrading to the lossy timestamp-only predicate.
+func parseCursor(s string) (time.Time, string, bool) {
+	if s == "" {
+		return time.Time{}, "", false
+	}
+	i := strings.IndexByte(s, '|')
+	if i < 0 {
+		return time.Time{}, "", false
+	}
+	t, err := time.Parse(time.RFC3339Nano, s[:i])
+	if err != nil {
+		return time.Time{}, "", false
+	}
+	id := s[i+1:]
+	if id == "" {
+		return time.Time{}, "", false
+	}
+	return t, id, true
 }
 
 // itoa is a small base-10 stringifier so service.go doesn't import strconv.

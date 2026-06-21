@@ -419,12 +419,30 @@ func (h *handlers) GetAuditEvents(w http.ResponseWriter, r *http.Request, params
 
 	resp := api.AuditEventsPage{Items: items}
 	if len(rows) == int(limit) {
-		// More may exist; emit a next_cursor. Stage-0 cursor is the
-		// boundary row's occurred_at; Stage-2 will use opaque tokens.
-		last := rows[len(rows)-1].OccurredAt.Format(time.RFC3339Nano)
+		// More may exist; emit the compound keyset cursor "<ts>|<id>" so the
+		// next page resumes after the exact boundary row (not just its
+		// timestamp), matching the (occurred_at, id) ORDER BY.
+		boundary := rows[len(rows)-1]
+		last := boundary.OccurredAt.Format(time.RFC3339Nano) + "|" + boundary.Id.String()
 		resp.NextCursor = &last
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// parseAuditCursor splits the compound audit cursor "<RFC3339Nano>|<uuid>"
+// into its timestamp + id. Returns ok=false for an empty or malformed cursor
+// (a legacy timestamp-only cursor has no "|" and is rejected rather than
+// degrading to the lossy timestamp-only predicate).
+func parseAuditCursor(s string) (time.Time, string, bool) {
+	i := strings.IndexByte(s, '|')
+	if i < 0 {
+		return time.Time{}, "", false
+	}
+	t, err := time.Parse(time.RFC3339Nano, s[:i])
+	if err != nil || s[i+1:] == "" {
+		return time.Time{}, "", false
+	}
+	return t, s[i+1:], true
 }
 
 // queryEvents reads audit_events from the DB with the given filters.
@@ -466,9 +484,14 @@ WHERE 1=1
 	if p.Until != nil {
 		addArg("occurred_at < $N", *p.Until)
 	}
+	// Compound keyset cursor (occurred_at, id) matching ORDER BY occurred_at
+	// DESC, id DESC — a row sharing the boundary occurred_at is NOT dropped on
+	// the next page (a timestamp-only cursor + strict `<` silently skipped it).
 	if p.Cursor != nil && *p.Cursor != "" {
-		if t, err := time.Parse(time.RFC3339Nano, *p.Cursor); err == nil {
-			addArg("occurred_at < $N", t)
+		if ts, id, ok := parseAuditCursor(*p.Cursor); ok {
+			q += " AND (occurred_at, id) < ($" + itoa(idx) + "::timestamptz, $" + itoa(idx+1) + "::uuid)"
+			args = append(args, ts, id)
+			idx += 2
 		}
 	}
 

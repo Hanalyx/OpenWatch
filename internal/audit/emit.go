@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -163,6 +164,32 @@ func prepareEvent(ctx context.Context, code Code, ev Event) *Event {
 		}
 	}
 	return &ev
+}
+
+// MaxDetailFieldLen bounds an attacker-influenced free-text string (a
+// submitted username, a User-Agent header) recorded in audit detail.
+const MaxDetailFieldLen = 256
+
+// ClipDetail bounds an attacker-influenced string placed in audit detail:
+// it truncates to MaxDetailFieldLen runes and replaces control characters
+// with spaces. This stops an oversized header/field from bloating the
+// audit_events.detail JSONB and neutralizes control-character log forging if
+// the detail is ever rendered in a raw (non-escaping) context. It is NOT a
+// substitute for key-name redaction (Redact), which scrubs secret values.
+func ClipDetail(s string) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		if n >= MaxDetailFieldLen {
+			break
+		}
+		if r < 0x20 || r == 0x7f {
+			r = ' '
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return b.String()
 }
 
 // jsonRawCopy is a small helper for callers that build details via map.
