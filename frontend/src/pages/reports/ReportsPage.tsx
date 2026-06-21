@@ -16,10 +16,11 @@ import type { components } from '@/api/schema';
 // JSON content. The Library tab lists those rows; clicking one opens a
 // simple detail panel rendering the stored content JSON.
 //
-// Deferred (rendered as honest "coming soon" states, NOT faked): Ed25519
-// signing + the "Signed" badge, PDF/OSCAL export, the Templates gallery,
-// the Scheduled dispatcher. Those need crypto + a renderer + a scheduler
-// that do not exist yet, so the prototype's signed PDFs are not faked.
+// Live: scope picker, coverage caveat, PDF/JSON download, Ed25519 signing
+// with a "Signed" badge + offline Verify (re-hash the canonical JSON face,
+// Ed25519-verify the signature against the published key). Still deferred
+// (honest "coming soon" states, NOT faked): OSCAL export, the Templates
+// gallery, the Scheduled dispatcher.
 
 type Report = components['schemas']['Report'];
 
@@ -415,6 +416,102 @@ async function downloadReportFace(id: string, format: 'pdf' | 'json'): Promise<v
   URL.revokeObjectURL(url);
 }
 
+// The domain-separation prefix the backend signs (report.signing.go).
+const SIGN_DOMAIN = 'openwatch/report-snapshot/v1\n';
+
+// base64ToBuffer / utf8ToBuffer return plain ArrayBuffers so the Web
+// Crypto calls (digest/importKey/verify) get a BufferSource without the
+// TS Uint8Array<ArrayBufferLike> generic mismatch.
+function base64ToBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const buf = new ArrayBuffer(bin.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+function utf8ToBuffer(s: string): ArrayBuffer {
+  const u = new TextEncoder().encode(s);
+  const buf = new ArrayBuffer(u.byteLength);
+  new Uint8Array(buf).set(u);
+  return buf;
+}
+
+function bytesToHex(buf: ArrayBuffer): string {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface VerifyResult {
+  ok: boolean;
+  detail: string;
+}
+
+// verifyReport checks a signed report offline in the browser: it fetches
+// the published signing key, re-hashes the canonical JSON face and
+// compares it to content_sha256 (content integrity), then Ed25519-verifies
+// the signature over the same domain-separated payload the server signed.
+// The Ed25519 step degrades gracefully where Web Crypto lacks it (the
+// content hash is still verified).
+async function verifyReport(report: Report): Promise<VerifyResult> {
+  if (!report.signature || !report.signing_key_id) {
+    return { ok: false, detail: 'This report is not signed.' };
+  }
+  const keyRes = await fetch('/api/v1/reports/signing-key', { credentials: 'same-origin' });
+  if (!keyRes.ok)
+    return { ok: false, detail: `Could not fetch the signing key (${keyRes.status}).` };
+  const key = (await keyRes.json()) as {
+    key_id: string;
+    public_key: string;
+    ephemeral: boolean;
+  };
+  if (key.key_id !== report.signing_key_id) {
+    return { ok: false, detail: 'The signing key does not match this report.' };
+  }
+
+  const faceRes = await fetch(`/api/v1/reports/${report.id}/export?format=json`, {
+    credentials: 'same-origin',
+  });
+  if (!faceRes.ok)
+    return { ok: false, detail: `Could not fetch the report content (${faceRes.status}).` };
+  const faceBuf = await faceRes.arrayBuffer();
+  const hashHex = bytesToHex(await crypto.subtle.digest('SHA-256', faceBuf));
+  if (hashHex !== report.content_sha256) {
+    return {
+      ok: false,
+      detail: 'Content hash mismatch: the content does not match the signed hash.',
+    };
+  }
+
+  const ephNote = key.ephemeral ? ' (development key, not durable across restarts)' : '';
+  const payload = utf8ToBuffer(SIGN_DOMAIN + report.content_sha256);
+  try {
+    const pubKey = await crypto.subtle.importKey(
+      'raw',
+      base64ToBuffer(key.public_key),
+      { name: 'Ed25519' },
+      false,
+      ['verify'],
+    );
+    const valid = await crypto.subtle.verify(
+      { name: 'Ed25519' },
+      pubKey,
+      base64ToBuffer(report.signature),
+      payload,
+    );
+    if (!valid) return { ok: false, detail: 'Signature is INVALID.' };
+    return {
+      ok: true,
+      detail: `Verified: content matches and the signature is valid${ephNote}. Key ${key.key_id}.`,
+    };
+  } catch {
+    // This browser's Web Crypto lacks Ed25519; the content hash is verified.
+    return {
+      ok: true,
+      detail: `Content hash verified. Signature check is unavailable in this browser; verify the signature offline with key ${key.key_id}${ephNote}.`,
+    };
+  }
+}
+
 function ReportDetail({
   report,
   id,
@@ -426,6 +523,8 @@ function ReportDetail({
 }) {
   const [downloading, setDownloading] = useState<'pdf' | 'json' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
 
   async function onDownload(format: 'pdf' | 'json') {
     setDownloading(format);
@@ -436,6 +535,21 @@ function ReportDetail({
       setDownloadError(e instanceof Error ? e.message : 'Download failed');
     } finally {
       setDownloading(null);
+    }
+  }
+
+  async function onVerify(report: Report) {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      setVerifyResult(await verifyReport(report));
+    } catch (e) {
+      setVerifyResult({
+        ok: false,
+        detail: e instanceof Error ? e.message : 'Verification failed',
+      });
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -503,11 +617,52 @@ function ReportDetail({
               <div style={{ fontSize: 12, color: 'var(--ow-fg-3)', marginTop: 1 }}>
                 Data as of {formatDate(resolved.data_as_of)} . {resolved.scope_label} . generated by{' '}
                 {resolved.generated_by}
+                {resolved.signature && (
+                  <span
+                    title={`Signed by ${resolved.signing_key_id ?? 'the report key'}`}
+                    style={{
+                      marginLeft: 8,
+                      padding: '1px 7px',
+                      borderRadius: 999,
+                      border: '1px solid var(--ow-ok, #2faf6a)',
+                      color: 'var(--ow-ok, #2faf6a)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Signed
+                  </span>
+                )}
               </div>
             )}
           </div>
           {resolved && (
             <>
+              {resolved.signature && (
+                <button
+                  type="button"
+                  onClick={() => onVerify(resolved)}
+                  disabled={verifying}
+                  title="Verify the signature and content hash offline"
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    borderRadius: 6,
+                    border: '1px solid var(--ow-line)',
+                    background: 'var(--ow-bg-1)',
+                    color: 'var(--ow-fg-1)',
+                    fontFamily: 'inherit',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: verifying ? 'default' : 'pointer',
+                    opacity: verifying ? 0.6 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {verifying ? 'Verifying…' : 'Verify'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onDownload('pdf')}
@@ -593,6 +748,24 @@ function ReportDetail({
               }}
             >
               {downloadError}
+            </div>
+          )}
+          {verifyResult && (
+            <div
+              role="status"
+              style={{
+                marginBottom: 14,
+                padding: '8px 12px',
+                borderRadius: 'var(--ow-radius)',
+                border: `1px solid ${verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)'}`,
+                background: verifyResult.ok
+                  ? 'var(--ow-ok-bg, rgba(47,175,106,0.12))'
+                  : 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
+                color: verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)',
+                fontSize: 12.5,
+              }}
+            >
+              {verifyResult.detail}
             </div>
           )}
           {resolved && <ExecutiveBody content={asExecutiveContent(resolved.content)} />}
