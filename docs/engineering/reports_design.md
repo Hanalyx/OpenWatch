@@ -382,3 +382,80 @@ feel instant.** Build them aware of each other.
    "Verify signature" works in-product and offline.
 5. **Snapshot storage budget** — a fleet snapshot is ~50k rows of
    canonical JSON; store compressed in the blob store, not inline JSONB.
+
+---
+
+## 11. Phase A — resolved decisions & implementation plan
+
+Phase A makes the **executive** report real for humans without taking on
+the bulk/OSCAL machinery. The §10 decisions are resolved for Phase A as
+follows so that *none of them blocks the start*:
+
+| # | Decision | Phase A resolution |
+| - | -------- | ------------------ |
+| 1 | OSCAL version | **N/A in Phase A** (no OSCAL face). Resolve in Phase B; recommend bumping the per-scan emitter 1.0.6 → the prototype's 1.1.2 there. |
+| 2 | Fleet OSCAL shape | **Deferred to Phase B.** |
+| 3 | Retention | **Keep indefinitely for now** (matches host soft-delete today); add an operator-configurable window in a later phase. Not blocking. |
+| 4 | Signing-key custody | **De-risked:** `report_snapshots.signature` is nullable; **signing is the last Phase A slice (A4)** and is the only step gated on the operator provisioning a key. A1–A3 ship unsigned, then A4 turns signing on. So the open operator decision does not block starting. |
+| 5 | Snapshot storage | **Inline JSONB is fine in Phase A** — the executive snapshot is a small rollup, not 50k rows. The compressed blob-store path is introduced in Phase B with the first bulk kind. |
+
+### Slices (each one reviewable PR: spec + migration/code + tests)
+
+**A1 — Scope the executive report.** *(api-reports v1.1.0, additive)*
+- `POST /api/v1/reports:generate` accepts an optional scope:
+  `{ group_id?, framework? }`. (Period applies to the trend, which
+  arrives in A3 — not to the point-in-time snapshot.)
+- Framework lens is already supported — `fleetrollup.WithFramework`.
+  **Add `fleetrollup.WithGroup(groupID)`** to filter the rollup to a
+  group's host membership (groups: migration 0027, `internal/group`).
+- Store the resolved `scope` + a derived `scope_label`
+  (e.g. "Production · CIS") on the report.
+- Frontend: a scope picker (group + framework) on the generate action,
+  matching the prototype's Templates builder.
+- **Value:** scoped executive reports ("Production / CIS posture"),
+  no new architecture yet.
+
+**A2 — Snapshot/faces model + coverage caveat.** *(api-reports v2.0.0;
+new `system-report-snapshot`)*
+- Migration: `report_snapshots` + `report_faces` (§4). Migrate the
+  executive kind onto it; **keep the existing executive JSON as the
+  `json` face** so the v1 wire contract (C-01) is preserved unchanged.
+- Compute the `coverage` block from `host_liveness`
+  (`hosts_total / fresh / stale / unreachable` + `stale_host_ids`) and
+  surface the **auto-generated coverage caveat** (P6) in-app.
+- **Value:** the trust-critical staleness disclosure; the data model
+  every later face/kind reuses.
+
+**A3 — PDF face + in-app viewer parity.** *(api-reports v2.1.0)*
+- Bounded server-side executive **PDF** renderer (P3): posture snapshot
+  + 30-day trend (from `posture_snapshots`) + KPI strip + coverage
+  caveat + framework rollup + top risks + recommended actions — the
+  prototype's Executive document.
+- Export endpoint: `GET /api/v1/reports/{id}/export?format=pdf|json`
+  (content-addressed `report_faces`, streamed as an attachment).
+- In-app viewer renders the same document the PDF will (preview ==
+  export).
+- **Decision for A3:** PDF engine. Prefer a **pure-Go PDF library**
+  (airgap-friendly, no headless-browser dependency) over HTML→PDF.
+  Confirm the lib choice at A3 start.
+
+**A4 — Signing.** *(extends `system-report-snapshot`)*
+- Ed25519 signing service over `content_sha256`; populate
+  `report_snapshots.signature` + `signing_key_id`.
+- "Verify signature" action in the viewer + offline verification.
+- **Gated on:** the signing-key custody decision (§10.4) — recommend a
+  dedicated report key provisioned like the release key (mounted secret,
+  never in DB; ephemeral dev key when unset). Shares the signing service
+  with the reserved `audit_events.signature` work (AU-9).
+
+### Spec footprint
+- New: `specs/system/report-snapshot.spec.yaml` (snapshot/faces/signing
+  service), registered in `specter.yaml`.
+- Bump: `specs/api/reports.spec.yaml` v1.0.0 → v1.1.0 (A1) → v2.x (A2/A3).
+- Update: `specs/frontend/reports.spec.yaml` (scope picker, coverage
+  caveat, PDF viewer; Templates tab becomes the persona launcher).
+
+### Recommended order
+A1 → A2 → A3 → A4. A1 ships visible value immediately and is fully
+additive; A2 lays the architecture; A3 delivers the CISO's signed-looking
+document; A4 turns on cryptographic signing once the key is provisioned.
