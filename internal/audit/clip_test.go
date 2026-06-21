@@ -4,9 +4,10 @@
 
 package audit
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // @ac AC-16
 func TestClipDetail(t *testing.T) {
