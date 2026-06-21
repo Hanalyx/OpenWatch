@@ -1,7 +1,7 @@
 spec:
   id: system-activity
   title: Activity unified-feed service
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -77,7 +77,7 @@ spec:
       type: security
       enforcement: error
     - id: C-03
-      description: 'Cursor is the RFC3339Nano-formatted occurred_at of the last row returned. The next page query adds occurred_at < $cursor as an additional WHERE clause. Empty cursor on the response when fewer than limit rows returned (terminal page)'
+      description: 'v1.3.0 — Cursor is a COMPOUND keyset "<RFC3339Nano occurred_at>|<id>" of the last row returned. The next page filters the UNION result by the row-value predicate (occurred_at, id) < ($cursor_ts, $cursor_id) and orders by occurred_at DESC, id DESC, applied ONCE in an outer query wrapping the UNION (the monitoring leg''s id is synthesized in the SELECT, not WHERE-able per-leg). A row that shares the boundary occurred_at MUST NOT be dropped on the next page (the prior timestamp-only cursor with a strict occurred_at < $cursor silently skipped boundary-tie rows — real data loss, likely on the 5-leg UNION). Empty cursor on the response when fewer than limit rows returned (terminal page); a legacy timestamp-only cursor (no "|") is rejected rather than degrading to the lossy predicate'
       type: technical
       enforcement: error
     - id: C-04
@@ -174,3 +174,7 @@ spec:
       description: 'v1.2.0 — Integration: Service.List (with an injected RuleTitleFunc) over a seeded transaction (rule_id resolving to "Ensure auditd is enabled", status=fail, change_kind=state_changed), a system.package.updated intelligence event with from/to detail, and a host.created audit event with actor_label set, returns the transaction Row with title="Ensure auditd is enabled" + summary="Changed: now Fail", the intelligence Row with title="Package updated" + summary="curl: 7.64 → 7.81", and the audit Row with title="alice@example.com created a host". No returned title leaks the seeded raw codes ("system.package.updated", "host.created").'
       priority: critical
       references_constraints: [C-09]
+    - id: AC-27
+      description: 'v1.3.0 — Cursor pagination does NOT drop rows sharing the boundary occurred_at. Seeding four rows at one identical instant and paging with limit=2 returns all four distinct ids across the pages with none lost or duplicated (the prior timestamp-only cursor returned the second page empty, losing two rows).'
+      priority: critical
+      references_constraints: [C-03]

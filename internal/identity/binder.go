@@ -201,7 +201,7 @@ func emitLoginFailure(r *http.Request, reason string) {
 	detail, _ := json.Marshal(map[string]any{
 		"reason":      reason,
 		"remote_addr": r.RemoteAddr,
-		"user_agent":  r.UserAgent(),
+		"user_agent":  audit.ClipDetail(r.UserAgent()),
 	})
 	audit.Emit(r.Context(), audit.AuthLoginFailure, audit.Event{
 		ActorType: "anonymous",

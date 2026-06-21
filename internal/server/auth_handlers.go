@@ -507,7 +507,7 @@ func mfaEnrolled(ctx context.Context, h *handlers, userID uuid.UUID) (bool, erro
 func emitLoginFailure(r *http.Request, reason, username string) {
 	emitAudit(r, audit.AuthLoginFailure, "anonymous", map[string]any{
 		"reason":   reason,
-		"username": username,
+		"username": audit.ClipDetail(username),
 	})
 }
 

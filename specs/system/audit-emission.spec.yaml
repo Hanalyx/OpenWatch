@@ -1,7 +1,7 @@
 spec:
   id: system-audit-emission
   title: Audit event emission
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -61,6 +61,10 @@ spec:
       description: Event ID MUST be UUIDv7 (time-ordered)
       type: technical
       enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — an attacker-influenced free-text value recorded in audit detail (a submitted username on a failed login, the User-Agent header) MUST be bounded by audit.ClipDetail before being placed in the detail map: truncated to MaxDetailFieldLen (256) runes and with control characters replaced by spaces. This prevents an oversized header/field from bloating audit_events.detail and neutralizes control-character log forging. It is independent of key-name Redact (which scrubs secret values)'
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -114,3 +118,7 @@ spec:
       description: Event id is UUIDv7; two consecutive emits within the same ms produce ids that sort lexicographically in emit order.
       priority: medium
       references_constraints: [C-07]
+    - id: AC-16
+      description: 'v1.1.0 — ClipDetail truncates a string longer than MaxDetailFieldLen (256) runes to that length, replaces control characters (e.g. newline, tab, NUL) with spaces, and leaves a short clean string unchanged. The login-failure emitters (identity binder + server auth handler) pass the User-Agent and submitted username through ClipDetail before recording them in audit detail.'
+      priority: high
+      references_constraints: [C-08]

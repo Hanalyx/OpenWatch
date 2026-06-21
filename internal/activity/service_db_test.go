@@ -565,3 +565,54 @@ func stringFromInt(n int) string {
 
 // referenced so the package compiles when json import is otherwise unused.
 var _ = json.Marshal
+
+// @ac AC-27
+// AC-27 (v1.3.0): cursor pagination MUST NOT drop rows that share the
+// boundary occurred_at. Regression for the keyset-cursor fix: with the old
+// timestamp-only cursor, a row sharing the last-returned row's occurred_at
+// that fell on the next page was silently skipped. Seed 4 alerts all at the
+// SAME instant, page through with limit=2, and assert all 4 distinct ids are
+// returned across the two pages with none lost or duplicated.
+func TestList_CursorPagination_BoundaryTimestampTie(t *testing.T) {
+	t.Run("system-activity/AC-27", func(t *testing.T) {
+		pool, _ := freshDB(t)
+		ts := time.Now().UTC().Truncate(time.Millisecond)
+		// Audit events have no dedup constraint (id PK only), so four rows can
+		// share one instant — exactly the boundary-tie the cursor must handle.
+		for i := 0; i < 4; i++ {
+			id := uuid.Must(uuid.NewV7())
+			if _, err := pool.Exec(context.Background(),
+				`INSERT INTO audit_events (id, correlation_id, actor_type, action, severity, occurred_at)
+				 VALUES ($1,'corr-tie','system','system.startup','info',$2)`,
+				id, ts); err != nil {
+				t.Fatalf("seed audit %d: %v", i, err)
+			}
+		}
+
+		svc := NewService(pool)
+		seen := map[string]int{}
+		cursor := ""
+		for page := 0; page < 5; page++ { // bounded loop; expect 2 pages + terminal
+			rows, _, next, err := svc.List(context.Background(),
+				Filter{Limit: 2, Cursor: cursor}, Caller{CanReadAudit: true})
+			if err != nil {
+				t.Fatalf("page %d: %v", page, err)
+			}
+			for _, r := range rows {
+				seen[r.ID.String()]++
+			}
+			if next == "" {
+				break
+			}
+			cursor = next
+		}
+		if len(seen) != 4 {
+			t.Errorf("distinct rows seen = %d, want 4 (a boundary-tie row was dropped)", len(seen))
+		}
+		for id, n := range seen {
+			if n != 1 {
+				t.Errorf("row %s returned %d times, want exactly 1", id, n)
+			}
+		}
+	})
+}
