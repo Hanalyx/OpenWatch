@@ -23,6 +23,17 @@ type Config struct {
 	Database DatabaseConfig `toml:"database"`
 	Logging  LoggingConfig  `toml:"logging"`
 	Identity IdentityConfig `toml:"identity"`
+	Reports  ReportsConfig  `toml:"reports"`
+}
+
+// ReportsConfig governs report-snapshot signing.
+type ReportsConfig struct {
+	// SigningKeyFile points at a 32-byte raw Ed25519 seed (mode 0600)
+	// used to sign report snapshots over their content address. Optional:
+	// when empty, `openwatch serve` runs with an EPHEMERAL per-boot key
+	// (development) and logs a warning; production MUST set a durable key
+	// so signatures verify across restarts. Never stored in the DB.
+	SigningKeyFile string `toml:"signing_key_file"`
 }
 
 // IdentityConfig holds paths to the at-rest cryptographic material the

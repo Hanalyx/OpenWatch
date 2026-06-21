@@ -13,6 +13,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -36,18 +37,28 @@ func toAPIReport(rep report.Report) (api.Report, error) {
 			return api.Report{}, err
 		}
 	}
-	return api.Report{
-		Id:          openapitypes.UUID(rep.ID),
-		Title:       rep.Title,
-		Kind:        api.ReportKind(rep.Kind),
-		ScopeLabel:  rep.ScopeLabel,
-		Scope:       toAPIReportScope(rep.Scope),
-		DataAsOf:    rep.DataAsOf,
-		GeneratedBy: rep.GeneratedBy,
-		Format:      rep.Format,
-		Content:     content,
-		CreatedAt:   rep.CreatedAt,
-	}, nil
+	out := api.Report{
+		Id:            openapitypes.UUID(rep.ID),
+		Title:         rep.Title,
+		Kind:          api.ReportKind(rep.Kind),
+		ScopeLabel:    rep.ScopeLabel,
+		Scope:         toAPIReportScope(rep.Scope),
+		DataAsOf:      rep.DataAsOf,
+		GeneratedBy:   rep.GeneratedBy,
+		Format:        rep.Format,
+		Content:       content,
+		ContentSha256: rep.ContentSHA256,
+		CreatedAt:     rep.CreatedAt,
+	}
+	if len(rep.Signature) > 0 {
+		sig := base64.StdEncoding.EncodeToString(rep.Signature)
+		out.Signature = &sig
+	}
+	if rep.SigningKeyID != "" {
+		kid := rep.SigningKeyID
+		out.SigningKeyId = &kid
+	}
+	return out, nil
 }
 
 // toAPIReportScope maps the stored scope to the wire shape, omitting the
@@ -116,6 +127,30 @@ func (h *handlers) GetReports(w http.ResponseWriter, r *http.Request) {
 		resp.Reports = append(resp.Reports, out)
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetReportSigningKey implements api.ServerInterface: returns the public
+// key for offline verification of report signatures.
+// Spec api-reports.
+func (h *handlers) GetReportSigningKey(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+		return
+	}
+	if !h.reportSvcReady(w) {
+		return
+	}
+	signer := h.reportSvc.Signer()
+	if signer == nil {
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server",
+			"report signing not configured", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.ReportSigningKey{
+		KeyId:     signer.KeyID(),
+		Algorithm: api.Ed25519,
+		PublicKey: base64.StdEncoding.EncodeToString(signer.PublicKey()),
+		Ephemeral: signer.Ephemeral(),
+	})
 }
 
 // PostReportGenerate implements api.ServerInterface.

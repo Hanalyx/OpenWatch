@@ -2513,6 +2513,36 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/reports/signing-key:
+    get:
+      operationId: getReportSigningKey
+      summary: The public key for verifying report signatures
+      description: |
+        Returns the Ed25519 public key (with its key id) used to sign
+        report snapshots, so a caller can verify a report's signature over
+        its content_sha256 offline. RBAC: host:read. Spec api-reports.
+      responses:
+        '200':
+          description: The report signing public key
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportSigningKey'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: No signer configured
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/reports/{id}:
     get:
       operationId: getReportByID
@@ -5332,7 +5362,7 @@ components:
 
     Report:
       type: object
-      required: [id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, created_at]
+      required: [id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, created_at]
       properties:
         id: {type: string, format: uuid}
         title: {type: string}
@@ -5352,7 +5382,39 @@ components:
             compliance_pct, host_count, passing_rules, failing_rules,
             critical_issues, top_failing_rules, and coverage (hosts_total,
             hosts_fresh, hosts_stale, hosts_unreachable).
+        content_sha256:
+          type: string
+          description: |
+            The snapshot's content address: hex SHA-256 of the canonical
+            content (the json export face reproduces these exact bytes).
+        signature:
+          type: string
+          description: |
+            Base64 Ed25519 signature over the content address, or absent
+            for an unsigned snapshot. Verify with the key from
+            GET /api/v1/reports/signing-key.
+        signing_key_id:
+          type: string
+          description: Fingerprint of the key that produced the signature.
         created_at: {type: string, format: date-time}
+
+    ReportSigningKey:
+      type: object
+      required: [key_id, algorithm, public_key, ephemeral]
+      description: |
+        The public key used to sign report snapshots, for offline
+        verification of a report's signature over its content_sha256.
+      properties:
+        key_id: {type: string}
+        algorithm: {type: string, enum: [ed25519]}
+        public_key:
+          type: string
+          description: Base64-encoded Ed25519 public key.
+        ephemeral:
+          type: boolean
+          description: |
+            True when the server runs a per-boot development key (no durable
+            key configured); such signatures do not verify across restarts.
 
     ReportListResponse:
       type: object

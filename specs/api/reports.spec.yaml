@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -79,7 +79,7 @@ spec:
         - The Templates gallery (the six prototype templates beyond the one executive kind)
         - Retention sweeps (rows are kept; no expiry or purge in the MVP)
         - Report kinds other than executive (attestation, remediation, exceptions)
-        - Ed25519 signing - the signature + signing_key_id columns are reserved (nullable, unset) through v1.4.0; signing lands in A4
+        - A "Signed" badge / Verify action in the UI (frontend; this spec covers the wire + endpoint)
         - A period dimension on the scope (applies to the trend) and an explicit host-set scope
 
   constraints:
@@ -192,11 +192,10 @@ spec:
         addressing), so two snapshots of an unchanged fleet share a
         content_sha256 while remaining distinct rows (distinct ids); a
         posture change changes the hash. content_sha256 is the stable
-        identity a later Ed25519 signature (A4) signs over; the signature
-        and signing_key_id columns are reserved (nullable, unset) until
-        then. The report_faces table is created for later rendered
-        projections (PDF/CSV/OSCAL) but the executive JSON remains the
-        canonical snapshot content, not a face row.
+        identity the Ed25519 signature (C-11) signs over. The report_faces
+        table is created for later rendered projections (PDF/CSV/OSCAL) but
+        the executive JSON remains the canonical snapshot content, not a
+        face row. content_sha256 is exposed on the Report wire.
       type: technical
       enforcement: error
     - id: C-10
@@ -208,14 +207,38 @@ spec:
         fonts (header + a fixed posture block + the coverage caveat, shown
         only when some host is stale/unreachable + the small top-failing
         list) - O(1) pages regardless of fleet size, never the full
-        per-host/per-rule evidence; format=json returns the canonical
-        frozen content. The PDF is rendered lazily on first request and
+        per-host/per-rule evidence; format=json returns the CANONICAL
+        content (v1.5.0: re-marshaled so its bytes reproduce content_sha256
+        byte-for-byte, since the stored jsonb is Postgres-normalized - this
+        makes the snapshot offline-verifiable, sha256(json face) ==
+        content_sha256). The PDF is rendered lazily on first request and
         cached in report_faces keyed by (snapshot_id, face) with status
         'ready', the byte size, and a blob_sha256 content address; a repeat
         export re-streams the cached bytes rather than re-rendering. RBAC:
         host:read. An unknown id is 404 reports.not_found; an unknown
         format is 400 reports.invalid_format (report.ErrInvalidFace).
       type: technical
+      enforcement: error
+    - id: C-11
+      description: >-
+        v1.5.0 - Report snapshots are Ed25519-signed for tamper-evidence.
+        When a signer is wired, Generate signs the snapshot's content
+        address with a domain-separated payload ("openwatch/report-snapshot
+        /v1\n" + content_sha256) and stores the signature + the signing key
+        id (a public fingerprint of the key) on the row; the Report wire
+        exposes signature (base64) + signing_key_id (a service with no
+        signer leaves them null). The signing key is a 32-byte raw Ed25519
+        seed loaded from a config path (never stored in the DB), with an
+        EPHEMERAL per-boot key when unconfigured (development; the
+        signing-key endpoint reports ephemeral=true). GET
+        /api/v1/reports/signing-key (host:read) returns the public key
+        {key_id, algorithm: ed25519, public_key (base64), ephemeral} so a
+        holder verifies a report's signature offline: reconstruct the
+        domain-separated payload from content_sha256 and Ed25519-verify
+        against the published key; re-hashing the canonical json face
+        (C-10) confirms the content matches the signed hash. The endpoint is
+        503 when no signer is wired.
+      type: security
       enforcement: error
 
   acceptance_criteria:
@@ -342,13 +365,44 @@ spec:
       references_constraints: [C-10]
     - id: AC-13
       description: >-
-        v1.4.0 - Export serves the json face as the canonical stored
-        content (media application/json), and the pdf face as a rendered
-        application/pdf document. The first pdf export writes a report_faces
-        row (status 'ready', a 64-char blob_sha256, size_bytes == the byte
-        length); a second pdf export re-streams the identical cached bytes.
-        An unknown face returns ErrInvalidFace (handler 400
-        reports.invalid_format) and an unknown id returns ErrNotFound
-        (handler 404).
+        v1.4.0 - Export serves the json face as CANONICAL content (media
+        application/json) whose sha256 equals content_sha256 (v1.5.0), and
+        the pdf face as a rendered application/pdf document. The first pdf
+        export writes a report_faces row (status 'ready', a 64-char
+        blob_sha256, size_bytes == the byte length); a second pdf export
+        re-streams the identical cached bytes. An unknown face returns
+        ErrInvalidFace (handler 400 reports.invalid_format) and an unknown
+        id returns ErrNotFound (handler 404).
       priority: high
       references_constraints: [C-10]
+    - id: AC-14
+      description: >-
+        v1.5.0 - The signer signs a content address (Ed25519, domain
+        separated) and VerifySignature confirms it with the public key; a
+        tampered content address or the wrong key fails. An empty key path
+        yields an ephemeral signer (Ephemeral() true); a 32-byte seed file
+        loads a stable, non-ephemeral key (same seed -> same key id); a
+        wrong-size seed errors. Pure unit test.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-15
+      description: >-
+        v1.5.0 - Generate with a wired signer stores an Ed25519 signature +
+        signing_key_id that verify over the snapshot's content_sha256 (and
+        survive a Get round-trip); a service with no signer leaves signature
+        and signing_key_id null.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-16
+      description: >-
+        v1.5.0 - End to end over the API: POST /reports:generate (host:write)
+        returns a report whose wire carries content_sha256, signature
+        (base64), and signing_key_id. GET /api/v1/reports/signing-key
+        (host:read) returns {key_id == the report's signing_key_id,
+        algorithm "ed25519", public_key (base64), ephemeral true under the
+        test's per-boot key}; decoding the public key and the signature and
+        reconstructing the domain-separated payload from content_sha256
+        Ed25519-verifies the report's signature. An anonymous caller is
+        rejected (401/403) on the signing-key endpoint.
+      priority: high
+      references_constraints: [C-11]

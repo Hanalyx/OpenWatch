@@ -121,8 +121,12 @@ func renderExecutivePDF(rep Report, c ExecutiveContent) ([]byte, error) {
 	if len(short) > 16 {
 		short = short[:16]
 	}
-	foot := fmt.Sprintf("OpenWatch executive report   ·   content %s…   ·   point-in-time, not signed (MVP)   ·   %s",
-		short, time.Now().UTC().Format("2006-01-02"))
+	signed := "not signed"
+	if len(rep.Signature) > 0 {
+		signed = "signed " + rep.SigningKeyID
+	}
+	foot := fmt.Sprintf("OpenWatch executive report   ·   content %s…   ·   %s   ·   %s",
+		short, signed, time.Now().UTC().Format("2006-01-02"))
 	pdf.CellFormat(0, 5, tr(foot), "", 0, "L", false, 0, "")
 
 	var buf bytes.Buffer
