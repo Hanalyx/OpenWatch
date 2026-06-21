@@ -52,10 +52,20 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 		}
 		for _, key := range []string{
 			"compliance_pct", "host_count", "passing_rules",
-			"failing_rules", "critical_issues", "top_failing_rules",
+			"failing_rules", "critical_issues", "top_failing_rules", "coverage",
 		} {
 			if _, ok := got[key]; !ok {
 				t.Errorf("missing JSON key %q in %s", key, raw)
+			}
+		}
+		// coverage is an object carrying its own fixed keys.
+		var cov map[string]json.RawMessage
+		if err := json.Unmarshal(got["coverage"], &cov); err != nil {
+			t.Fatalf("coverage is not an object: %v", err)
+		}
+		for _, key := range []string{"hosts_total", "hosts_fresh", "hosts_stale", "hosts_unreachable"} {
+			if _, ok := cov[key]; !ok {
+				t.Errorf("missing coverage key %q in %s", key, got["coverage"])
 			}
 		}
 

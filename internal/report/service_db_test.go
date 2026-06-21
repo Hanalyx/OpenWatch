@@ -175,6 +175,12 @@ func TestGenerate_ComputesPostureFromState(t *testing.T) {
 		if c.TopFailingRules[1].RuleID != "rule-v" || c.TopFailingRules[1].FailingHostCount != 1 {
 			t.Errorf("top failing[1] = %+v, want rule-v x1", c.TopFailingRules[1])
 		}
+		// Coverage: both active hosts were checked just now -> fresh; the
+		// soft-deleted host is out of scope; none have a liveness row.
+		if c.Coverage.HostsTotal != 2 || c.Coverage.HostsFresh != 2 ||
+			c.Coverage.HostsStale != 0 || c.Coverage.HostsUnreachable != 0 {
+			t.Errorf("coverage = %+v, want total=2 fresh=2 stale=0 unreachable=0", c.Coverage)
+		}
 	})
 }
 
@@ -210,6 +216,10 @@ func TestGenerate_UnscannedFleet(t *testing.T) {
 		}
 		if len(c.TopFailingRules) != 0 {
 			t.Errorf("top_failing_rules = %+v, want empty", c.TopFailingRules)
+		}
+		// Coverage: hosts exist but were never scanned -> all stale.
+		if c.Coverage.HostsTotal != 2 || c.Coverage.HostsFresh != 0 || c.Coverage.HostsStale != 2 {
+			t.Errorf("coverage = %+v, want total=2 fresh=0 stale=2", c.Coverage)
 		}
 	})
 }
@@ -267,6 +277,82 @@ func TestListAndGet_RoundTripAndNotFound(t *testing.T) {
 
 		if _, err := svc.Get(ctx, uuid.New()); err != ErrNotFound {
 			t.Errorf("Get(unknown) err = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+// seedRuleStateAt is seedRuleState with an explicit last_checked_at, so
+// the coverage freshness window (fresh vs stale) can be exercised.
+func seedRuleStateAt(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status, severity string, checkedAt time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO host_rule_state
+		   (host_id, rule_id, current_status, severity, last_checked_at,
+		    last_scan_id, first_seen_at, last_changed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $5, $5)`,
+		hostID, ruleID, status, nullIfEmpty(severity), checkedAt, uuid.New())
+	if err != nil {
+		t.Fatalf("seed rule_state at: %v", err)
+	}
+}
+
+// seedLiveness inserts a host_liveness row with the given reachability.
+func seedLiveness(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, reachability string) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO host_liveness (host_id, reachability_status) VALUES ($1, $2)`,
+		hostID, reachability)
+	if err != nil {
+		t.Fatalf("seed liveness: %v", err)
+	}
+}
+
+// @ac AC-10
+// Coverage discloses how much of the in-scope fleet the report reflects.
+// Seeded: a fresh host (recent check, reachable), a stale host (old check,
+// reachable), and a never-scanned + unreachable host. Coverage must read
+// total 3, fresh 1, stale 2 (old + never-scanned), unreachable 1; the
+// unscanned host counts as stale, and a host with no liveness row is not
+// counted unreachable.
+func TestGenerate_Coverage(t *testing.T) {
+	t.Run("api-reports/AC-10", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		owner := seedUser(t, pool)
+
+		fresh := seedHost(t, pool, owner, false)
+		stale := seedHost(t, pool, owner, false)
+		never := seedHost(t, pool, owner, false)
+
+		seedRuleStateAt(t, pool, fresh, "r1", "pass", "low", time.Now().Add(-1*time.Hour))
+		seedRuleStateAt(t, pool, stale, "r1", "pass", "low", time.Now().Add(-48*time.Hour))
+		// `never` has no host_rule_state at all -> stale.
+		seedLiveness(t, pool, fresh, "reachable")
+		seedLiveness(t, pool, never, "unreachable")
+		// `stale` has no liveness row -> not counted unreachable (unknown).
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		c := decodeContent(t, rep)
+		cov := c.Coverage
+		if cov.HostsTotal != 3 {
+			t.Errorf("hosts_total = %d, want 3", cov.HostsTotal)
+		}
+		if cov.HostsFresh != 1 {
+			t.Errorf("hosts_fresh = %d, want 1 (only the recent check)", cov.HostsFresh)
+		}
+		if cov.HostsStale != 2 {
+			t.Errorf("hosts_stale = %d, want 2 (old check + never scanned)", cov.HostsStale)
+		}
+		if cov.HostsUnreachable != 1 {
+			t.Errorf("hosts_unreachable = %d, want 1", cov.HostsUnreachable)
+		}
+		// host_count is derived from coverage's total.
+		if c.HostCount != cov.HostsTotal {
+			t.Errorf("host_count %d != coverage.hosts_total %d", c.HostCount, cov.HostsTotal)
 		}
 	})
 }

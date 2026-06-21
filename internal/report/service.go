@@ -174,16 +174,15 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 	c.CriticalIssues = critical
 	c.CompliancePct = compliancePct(passing, evaluated)
 
-	// Active host count: all non-deleted hosts, or the scoped subset.
-	hostQ := `SELECT count(*) FROM hosts WHERE deleted_at IS NULL`
-	hostArgs := []any{}
-	if hostIDs != nil {
-		hostQ += " AND id = ANY($1)"
-		hostArgs = append(hostArgs, hostIDs)
+	// Coverage over the same scope. hosts_total is the active host count
+	// (all non-deleted hosts, or the scoped subset), so host_count is
+	// derived from it rather than queried twice.
+	cov, err := s.computeCoverage(ctx, hostIDs)
+	if err != nil {
+		return ExecutiveContent{}, err
 	}
-	if err := s.pool.QueryRow(ctx, hostQ, hostArgs...).Scan(&c.HostCount); err != nil {
-		return ExecutiveContent{}, fmt.Errorf("report: host count: %w", err)
-	}
+	c.Coverage = cov
+	c.HostCount = cov.HostsTotal
 
 	// Top failing rules reuse the same host_rule_state filters plus the
 	// LIMIT as the next placeholder.
@@ -212,6 +211,53 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 		return ExecutiveContent{}, fmt.Errorf("report: top failing iterate: %w", err)
 	}
 	return c, nil
+}
+
+// freshnessWindow is how recent a host's last compliance check must be
+// for the host to count as "fresh" in the coverage block. A host whose
+// newest host_rule_state.last_checked_at is older than this - or which
+// has never been scanned - is stale. 24h matches the leadership-facing
+// coverage caveat and sits comfortably inside the adaptive scheduler's
+// 48h maximum interval, so a host on the slowest cadence still reads as
+// fresh right after its scan.
+const freshnessWindow = 24 * time.Hour
+
+// computeCoverage describes how much of the in-scope active fleet the
+// report actually reflects: of the non-deleted hosts (optionally scoped
+// to hostIDs), how many have a host_rule_state check newer than
+// freshnessWindow (fresh) versus stale-or-never-scanned, and how many are
+// currently unreachable per host_liveness. A host with no liveness row
+// counts as neither reachable nor unreachable (unknown != unreachable).
+func (s *Service) computeCoverage(ctx context.Context, hostIDs []uuid.UUID) (Coverage, error) {
+	cutoff := time.Now().Add(-freshnessWindow)
+	args := []any{cutoff}
+	hostFilter := ""
+	if hostIDs != nil {
+		hostFilter = " AND h.id = ANY($2)"
+		args = append(args, hostIDs)
+	}
+
+	var cov Coverage
+	err := s.pool.QueryRow(ctx, `
+		WITH scoped AS (
+		  SELECT h.id,
+		         (SELECT max(hrs.last_checked_at) FROM host_rule_state hrs WHERE hrs.host_id = h.id) AS latest_check,
+		         hl.reachability_status AS reach
+		    FROM hosts h
+		    LEFT JOIN host_liveness hl ON hl.host_id = h.id
+		   WHERE h.deleted_at IS NULL`+hostFilter+`
+		)
+		SELECT
+		  count(*),
+		  count(*) FILTER (WHERE latest_check IS NOT NULL AND latest_check >= $1),
+		  count(*) FILTER (WHERE latest_check IS NULL OR latest_check < $1),
+		  count(*) FILTER (WHERE reach = 'unreachable')
+		FROM scoped`, args...).
+		Scan(&cov.HostsTotal, &cov.HostsFresh, &cov.HostsStale, &cov.HostsUnreachable)
+	if err != nil {
+		return Coverage{}, fmt.Errorf("report: coverage: %w", err)
+	}
+	return cov, nil
 }
 
 // scopeLabel renders the human scope_label from a resolved scope:

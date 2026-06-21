@@ -96,6 +96,19 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/scopeGroupId\s*\?\s*\{\s*group_id:\s*scopeGroupId\s*\}\s*:\s*\{\}/);
   });
 
+  // @ac AC-06
+  test('frontend-reports/AC-06 — coverage caveat discloses stale/unreachable hosts', () => {
+    // A CoverageCaveat component reading the coverage counts.
+    expect(PAGE_SRC).toContain('function CoverageCaveat');
+    expect(PAGE_SRC).toContain('hosts_stale');
+    expect(PAGE_SRC).toContain('hosts_unreachable');
+    // Renders nothing when the fleet is fully fresh + reachable.
+    expect(PAGE_SRC).toMatch(/hosts_stale === 0 && hosts_unreachable === 0\) return null/);
+    // ExecutiveBody narrows coverage and renders the caveat.
+    expect(PAGE_SRC).toContain('asCoverage');
+    expect(PAGE_SRC).toContain('<CoverageCaveat');
+  });
+
   // @ac AC-04
   test('frontend-reports/AC-04 — generate is the only mutation, tokens, no em-dash', () => {
     // The only mutating call is the generate POST; no PUT/DELETE.

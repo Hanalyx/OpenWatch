@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -103,6 +103,17 @@ spec:
         in the Library and detail) reflects the chosen scope.
       type: technical
       enforcement: error
+    - id: C-05
+      description: >-
+        v1.2.0 - The report detail renders a coverage caveat
+        (CoverageCaveat) from content.coverage: it appears only when
+        hosts_stale > 0 or hosts_unreachable > 0 (returning null otherwise,
+        so a fully fresh fleet shows no needless warning), and it discloses
+        the stale-host and unreachable-host counts against hosts_total so a
+        reader knows how far to trust the headline numbers. The caveat copy
+        carries no em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -161,3 +172,13 @@ spec:
         host:write affordance.
       priority: high
       references_constraints: [C-04]
+    - id: AC-06
+      description: >-
+        v1.2.0 - Source inspection: a CoverageCaveat component reads
+        coverage.hosts_stale and coverage.hosts_unreachable, returns null
+        when both are 0, and otherwise renders a caveat disclosing the
+        stale-host and unreachable-host counts against hosts_total. The
+        ExecutiveBody narrows content.coverage (asCoverage) and renders the
+        caveat. The caveat copy contains no em-dash.
+      priority: high
+      references_constraints: [C-05]
