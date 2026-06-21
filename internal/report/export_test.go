@@ -11,6 +11,8 @@ package report
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
@@ -87,8 +89,11 @@ func TestExport_FacesAndCaching(t *testing.T) {
 		if jsonMedia != "application/json" {
 			t.Errorf("json media = %q", jsonMedia)
 		}
-		if !bytes.Equal(jsonBody, rep.Content) {
-			t.Errorf("json face is not the canonical content")
+		// The json face is canonical: its sha256 reproduces content_sha256,
+		// so a verifier can confirm the content matches the signed hash.
+		sum := sha256.Sum256(jsonBody)
+		if hex.EncodeToString(sum[:]) != rep.ContentSHA256 {
+			t.Errorf("json face sha256 (%x) != content_sha256 (%s)", sum, rep.ContentSHA256)
 		}
 
 		// pdf face renders and caches.

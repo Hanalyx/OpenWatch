@@ -42,10 +42,14 @@ type Report struct {
 	Content     json.RawMessage
 	// ContentSHA256 is the snapshot's content address: the hex SHA-256 of
 	// the canonical (marshaled) Content. Identical content yields an
-	// identical hash; it is the stable identity a later signature signs
-	// over. Not yet exposed on the API wire.
+	// identical hash; it is the stable identity the signature signs over.
 	ContentSHA256 string
-	CreatedAt     time.Time
+	// Signature is the Ed25519 signature over the content address (nil
+	// when the snapshot was generated without a signer). SigningKeyID is
+	// the fingerprint of the key that produced it.
+	Signature    []byte
+	SigningKeyID string
+	CreatedAt    time.Time
 }
 
 // Scope is the structured slice of the fleet a report summarizes: an

@@ -32,6 +32,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/remediation"
+	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -302,6 +303,11 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// its sub-routes reach a real handler instead of the 503 not-wired
 	// guard.
 	s.WithGroups(group.NewService(pool))
+	// Spec api-reports: wire the reports service with an ephemeral signer
+	// so /api/v1/reports and /reports/signing-key reach a real handler and
+	// new snapshots are signed.
+	reportSigner, _ := report.NewSigner("")
+	s.WithReports(report.NewService(pool).WithGroups(group.NewService(pool)).WithSigner(reportSigner))
 	// Spec api-scans: wire the durable per-scan results reader so
 	// /api/v1/scans and its sub-routes reach a real handler.
 	s.WithScanResults(scanresult.NewReader(pool))

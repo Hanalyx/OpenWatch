@@ -41,8 +41,20 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 	}
 	switch face {
 	case FaceJSON:
-		// The canonical snapshot content IS the json face; no caching.
-		return rep.Content, "application/json", nil
+		// Canonical content bytes: re-marshal the decoded content so the
+		// json face reproduces content_sha256 byte-for-byte (the stored
+		// jsonb column is Postgres-normalized, not identical to the bytes
+		// that were hashed and signed). This makes the snapshot
+		// offline-verifiable: sha256(json face) == content_sha256.
+		var c ExecutiveContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			return nil, "", fmt.Errorf("report: decode content for json face: %w", err)
+		}
+		canonical, err := json.Marshal(c)
+		if err != nil {
+			return nil, "", fmt.Errorf("report: marshal canonical json: %w", err)
+		}
+		return canonical, "application/json", nil
 	case FacePDF:
 		return s.exportPDF(ctx, rep)
 	default:

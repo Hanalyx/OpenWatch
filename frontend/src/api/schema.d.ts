@@ -1578,6 +1578,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/signing-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public key for verifying report signatures
+         * @description Returns the Ed25519 public key (with its key id) used to sign
+         *     report snapshots, so a caller can verify a report's signature over
+         *     its content_sha256 offline. RBAC: host:read. Spec api-reports.
+         */
+        get: operations["getReportSigningKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reports/{id}": {
         parameters: {
             query?: never;
@@ -3549,8 +3571,37 @@ export interface components {
             content: {
                 [key: string]: unknown;
             };
+            /**
+             * @description The snapshot's content address: hex SHA-256 of the canonical
+             *     content (the json export face reproduces these exact bytes).
+             */
+            content_sha256: string;
+            /**
+             * @description Base64 Ed25519 signature over the content address, or absent
+             *     for an unsigned snapshot. Verify with the key from
+             *     GET /api/v1/reports/signing-key.
+             */
+            signature?: string;
+            /** @description Fingerprint of the key that produced the signature. */
+            signing_key_id?: string;
             /** Format: date-time */
             created_at: string;
+        };
+        /**
+         * @description The public key used to sign report snapshots, for offline
+         *     verification of a report's signature over its content_sha256.
+         */
+        ReportSigningKey: {
+            key_id: string;
+            /** @enum {string} */
+            algorithm: "ed25519";
+            /** @description Base64-encoded Ed25519 public key. */
+            public_key: string;
+            /**
+             * @description True when the server runs a per-boot development key (no durable
+             *     key configured); such signatures do not verify across restarts.
+             */
+            ephemeral: boolean;
         };
         ReportListResponse: {
             reports: components["schemas"]["Report"][];
@@ -7542,6 +7593,53 @@ export interface operations {
             };
             /** @description Caller lacks host:write permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportSigningKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report signing public key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSigningKey"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No signer configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

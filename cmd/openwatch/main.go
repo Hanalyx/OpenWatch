@@ -630,6 +630,24 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Sched:       complianceSched,
 	})
 
+	// Report signing key. Optional: an empty path yields an ephemeral
+	// per-boot key (development) so reports still sign; production sets a
+	// durable key so signatures verify across restarts.
+	reportSigner, err := report.NewSigner(cfg.Reports.SigningKeyFile)
+	if err != nil {
+		slog.ErrorContext(bootCtx, "failed to load report signing key",
+			slog.String("path", cfg.Reports.SigningKeyFile),
+			slog.String("error", err.Error()))
+		return 1
+	}
+	if reportSigner.Ephemeral() {
+		slog.WarnContext(bootCtx, "report signing key is EPHEMERAL (per-boot) — DEVELOPMENT ONLY; set [reports].signing_key_file (OPENWATCH_REPORTS_SIGNING_KEY_FILE) in production so report signatures verify across restarts",
+			slog.String("key_id", reportSigner.KeyID()))
+	} else {
+		slog.InfoContext(bootCtx, "report signing key loaded",
+			slog.String("key_id", reportSigner.KeyID()))
+	}
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
@@ -651,7 +669,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithExceptions(exceptionSvc).
 		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
-		WithReports(report.NewService(pool).WithGroups(group.NewService(pool))).
+		WithReports(report.NewService(pool).WithGroups(group.NewService(pool)).WithSigner(reportSigner)).
 		WithScanResults(scanresult.NewReader(pool)).
 		WithNotifications(notifSvc)
 	runErr := srv.Run(ctx)

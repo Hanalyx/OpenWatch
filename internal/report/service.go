@@ -47,6 +47,7 @@ type GroupScoper interface {
 type Service struct {
 	pool   *pgxpool.Pool
 	groups GroupScoper // nil until WithGroups; group scoping then 503s
+	signer *Signer     // nil until WithSigner; snapshots then go unsigned
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -60,15 +61,33 @@ func (s *Service) WithGroups(g GroupScoper) *Service {
 	return s
 }
 
-const reportCols = `id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, created_at`
+// WithSigner wires the Ed25519 signer that signs new snapshots over their
+// content address. Without it, snapshots are generated unsigned (signature
+// + signing_key_id stay null).
+func (s *Service) WithSigner(signer *Signer) *Service {
+	s.signer = signer
+	return s
+}
+
+// Signer exposes the wired signer (for the signing-key endpoint), or nil.
+func (s *Service) Signer() *Signer { return s.signer }
+
+const reportCols = `id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id, created_at`
 
 func scanReport(row pgx.Row) (Report, error) {
 	var rep Report
 	var scopeRaw []byte
+	var sig []byte
+	var keyID *string
 	err := row.Scan(&rep.ID, &rep.Title, &rep.Kind, &rep.ScopeLabel, &scopeRaw,
-		&rep.DataAsOf, &rep.GeneratedBy, &rep.Format, &rep.Content, &rep.ContentSHA256, &rep.CreatedAt)
+		&rep.DataAsOf, &rep.GeneratedBy, &rep.Format, &rep.Content, &rep.ContentSHA256,
+		&sig, &keyID, &rep.CreatedAt)
 	if err != nil {
 		return rep, err
+	}
+	rep.Signature = sig
+	if keyID != nil {
+		rep.SigningKeyID = *keyID
 	}
 	if len(scopeRaw) > 0 {
 		if err := json.Unmarshal(scopeRaw, &rep.Scope); err != nil {
@@ -121,17 +140,27 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	}
 	// content_sha256 is the snapshot's content address, computed over the
 	// canonical marshaled content (the exact bytes stored). Identical
-	// content yields an identical hash - the stable identity A4 will sign.
+	// content yields an identical hash - the stable identity the signature
+	// signs over.
 	sum := sha256.Sum256(raw)
 	contentSHA := hex.EncodeToString(sum[:])
 
+	// Sign the content address when a signer is wired.
+	var signature []byte
+	var signingKeyID *string
+	if s.signer != nil {
+		sig, keyID := s.signer.Sign(contentSHA)
+		signature = sig
+		signingKeyID = &keyID
+	}
+
 	dataAsOf := time.Now().UTC()
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING `+reportCols,
 		uuid.New(), executiveTitle, KindExecutive, scopeLabel(scope), scopeRaw,
-		dataAsOf, generatedBy, "json", raw, contentSHA)
+		dataAsOf, generatedBy, "json", raw, contentSHA, signature, signingKeyID)
 	rep, err := scanReport(row)
 	if err != nil {
 		return Report{}, fmt.Errorf("report: generate insert: %w", err)
