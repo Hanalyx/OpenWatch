@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -114,6 +114,19 @@ spec:
         carries no em-dash.
       type: technical
       enforcement: error
+    - id: C-06
+      description: >-
+        v1.3.0 - The report detail header renders Download controls
+        (Download PDF + JSON) that GET /api/v1/reports/{id}/export with the
+        matching format and trigger a browser download via a
+        downloadReportFace helper (fetch with same-origin credentials so
+        the session cookie authenticates the GET - no bearer token, no CSRF
+        for a read; the rendered blob is saved via an object URL using the
+        server's Content-Disposition filename). The controls disable while a
+        download is in flight, and a failed download surfaces an error
+        rather than silently doing nothing.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -182,3 +195,15 @@ spec:
         caveat. The caveat copy contains no em-dash.
       priority: high
       references_constraints: [C-05]
+    - id: AC-07
+      description: >-
+        v1.3.0 - Source inspection: a downloadReportFace(id, format) helper
+        fetches "/api/v1/reports/${id}/export?format=" with same-origin
+        credentials and saves the response blob via an object URL (no
+        Authorization header / bearer token - the session cookie carries
+        the GET). ReportDetail renders Download PDF and JSON controls that
+        call an onDownload handler invoking the helper, disable while a
+        download is in flight (downloading state), and show a downloadError
+        on failure.
+      priority: high
+      references_constraints: [C-06]
