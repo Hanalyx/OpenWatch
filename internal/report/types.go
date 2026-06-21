@@ -27,8 +27,9 @@ const (
 	KindExecutive Kind = "executive"
 )
 
-// Report is one row of the reports table. Content holds the rendered
-// JSON posture document (see ExecutiveContent for the executive shape).
+// Report is one row of the report_snapshots table. Content holds the
+// rendered JSON posture document (see ExecutiveContent for the executive
+// shape).
 type Report struct {
 	ID          uuid.UUID
 	Title       string
@@ -39,7 +40,12 @@ type Report struct {
 	GeneratedBy string
 	Format      string
 	Content     json.RawMessage
-	CreatedAt   time.Time
+	// ContentSHA256 is the snapshot's content address: the hex SHA-256 of
+	// the canonical (marshaled) Content. Identical content yields an
+	// identical hash; it is the stable identity a later signature signs
+	// over. Not yet exposed on the API wire.
+	ContentSHA256 string
+	CreatedAt     time.Time
 }
 
 // Scope is the structured slice of the fleet a report summarizes: an

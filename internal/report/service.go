@@ -2,6 +2,8 @@ package report
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,13 +60,13 @@ func (s *Service) WithGroups(g GroupScoper) *Service {
 	return s
 }
 
-const reportCols = `id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, created_at`
+const reportCols = `id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, created_at`
 
 func scanReport(row pgx.Row) (Report, error) {
 	var rep Report
 	var scopeRaw []byte
 	err := row.Scan(&rep.ID, &rep.Title, &rep.Kind, &rep.ScopeLabel, &scopeRaw,
-		&rep.DataAsOf, &rep.GeneratedBy, &rep.Format, &rep.Content, &rep.CreatedAt)
+		&rep.DataAsOf, &rep.GeneratedBy, &rep.Format, &rep.Content, &rep.ContentSHA256, &rep.CreatedAt)
 	if err != nil {
 		return rep, err
 	}
@@ -117,14 +119,19 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	if err != nil {
 		return Report{}, fmt.Errorf("report: marshal scope: %w", err)
 	}
+	// content_sha256 is the snapshot's content address, computed over the
+	// canonical marshaled content (the exact bytes stored). Identical
+	// content yields an identical hash - the stable identity A4 will sign.
+	sum := sha256.Sum256(raw)
+	contentSHA := hex.EncodeToString(sum[:])
 
 	dataAsOf := time.Now().UTC()
 	row := s.pool.QueryRow(ctx, `
-		INSERT INTO reports (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING `+reportCols,
 		uuid.New(), executiveTitle, KindExecutive, scopeLabel(scope), scopeRaw,
-		dataAsOf, generatedBy, "json", raw)
+		dataAsOf, generatedBy, "json", raw, contentSHA)
 	rep, err := scanReport(row)
 	if err != nil {
 		return Report{}, fmt.Errorf("report: generate insert: %w", err)
@@ -303,7 +310,7 @@ func compliancePct(passing, evaluated int) *int {
 
 // List returns every report, newest first.
 func (s *Service) List(ctx context.Context) ([]Report, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+reportCols+` FROM reports ORDER BY created_at DESC`)
+	rows, err := s.pool.Query(ctx, `SELECT `+reportCols+` FROM report_snapshots ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("report: list: %w", err)
 	}
@@ -324,7 +331,7 @@ func (s *Service) List(ctx context.Context) ([]Report, error) {
 
 // Get returns one report by id, or ErrNotFound.
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Report, error) {
-	row := s.pool.QueryRow(ctx, `SELECT `+reportCols+` FROM reports WHERE id = $1`, id)
+	row := s.pool.QueryRow(ctx, `SELECT `+reportCols+` FROM report_snapshots WHERE id = $1`, id)
 	rep, err := scanReport(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Report{}, ErrNotFound

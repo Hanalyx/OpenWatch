@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -80,7 +80,8 @@ spec:
         - The Templates gallery (the six prototype templates beyond the one executive kind)
         - Retention sweeps (rows are kept; no expiry or purge in the MVP)
         - Report kinds other than executive (attestation, remediation, exceptions)
-        - PDF/OSCAL faces, signing, and the snapshot/faces model (Phase A2+)
+        - Rendered faces in report_faces - the table exists (v1.3.0) but gets its first writer with the PDF face in A3b; the executive JSON is the canonical snapshot content, not a face row
+        - Ed25519 signing - the signature + signing_key_id columns are reserved (nullable, unset) in v1.3.0; signing lands in A4
         - A period dimension on the scope (applies to the trend, which arrives with the PDF face in A3) and an explicit host-set scope
 
   constraints:
@@ -124,7 +125,8 @@ spec:
         IS NULL) host count; top_failing_rules lists the rules failing on
         the most hosts, ordered by failing host count then rule id. The row
         is write-once - data_as_of is the sampling instant, generated_by is
-        the supplied actor, and the row is never recomputed thereafter.
+        the supplied actor, and the row is never recomputed thereafter. The
+        row lives in report_snapshots (v1.3.0; renamed from reports).
       type: technical
       enforcement: error
     - id: C-05
@@ -181,6 +183,22 @@ spec:
         host_liveness.reachability_status is 'unreachable' (a host with no
         liveness row is unknown, NOT unreachable). Coverage respects the
         group scope (C-07) the same way the posture counts do.
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: >-
+        v1.3.0 - Snapshots are content-addressed. Generate stores a
+        content_sha256 on the report_snapshots row: the hex SHA-256 of the
+        canonical (service-marshaled) content - the exact bytes stored in
+        content. Identical content yields an identical hash (content
+        addressing), so two snapshots of an unchanged fleet share a
+        content_sha256 while remaining distinct rows (distinct ids); a
+        posture change changes the hash. content_sha256 is the stable
+        identity a later Ed25519 signature (A4) signs over; the signature
+        and signing_key_id columns are reserved (nullable, unset) until
+        then. The report_faces table is created for later rendered
+        projections (PDF/CSV/OSCAL) but the executive JSON remains the
+        canonical snapshot content, not a face row.
       type: technical
       enforcement: error
 
@@ -289,3 +307,12 @@ spec:
         all-unscanned fleet reads hosts_fresh 0 / hosts_stale == hosts_total.
       priority: high
       references_constraints: [C-08]
+    - id: AC-11
+      description: >-
+        v1.3.0 - Generate stores a content-addressed snapshot:
+        content_sha256 is a 64-char hex string; two generations over an
+        unchanged fleet share the same content_sha256 while being distinct
+        rows (distinct ids); seeding a new failing rule (a posture change)
+        before a third generation yields a different content_sha256.
+      priority: high
+      references_constraints: [C-09]
