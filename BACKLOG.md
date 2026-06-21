@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
 > Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
-**Last Updated**: 2026-06-20
+**Last Updated**: 2026-06-21
 **Active Tree**: repo root (Go backend `cmd/`+`internal/`, React/TypeScript `frontend/`)
 **Frozen Tree**: the legacy Python/FastAPI backend was archived out of the repo on 2026-06-05 to `~/hanalyx/OWAR/openwatch-python/` (see CLAUDE.md)
 
@@ -24,15 +24,19 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | Renders "No updates pending" always. Needs: collector to surface `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) |
-| Compliance tab | P1 | Stub | TabStub placeholder. Needs: per-host compliance summary from `host_rule_state` |
-| Packages tab | P1 | Partial | Reads `intelligenceStateQuery.data.packages` — works when collector has run. UI exists in `pages/host-detail/InventoryTabs.tsx` |
-| Services tab | P1 | Partial | Same shape as Packages — reads `intelligenceStateQuery.data.services` |
-| Users tab | P1 | Partial | Same shape — reads `intelligenceStateQuery.data.users` |
-| Audit log tab | P2 | Stub | Needs host-scoped `audit_events` API hook |
-| Activity tab | P1 | Stub | **Where "View all" on the Recent activity card lands today.** Needs full-feed renderer with cursor pagination + source/severity filters on the unified `/api/v1/activity?host_id=X` endpoint |
-| Terminal tab | P3 | Stub | Browser-based SSH terminal. Web terminal lib + SSH-WS bridge needed |
+| Updates-pending count on Server intelligence tile #1 | P2 | Placeholder | `CardServerIntel.tsx:185` hardcodes "No updates pending". Needs: collector to surface an `available_updates` field on the snapshot (apt/dnf unattended-upgrades parsing) — no such field exists in `collector` types today |
+| Terminal tab | P3 | Stub | Disabled "deferred" stub (`HostDetailPage.tsx:658`). Browser-based SSH terminal: web-terminal lib + SSH-WS bridge needed. Post-GA |
 
+> **Host Detail tabs — shipped (verified live 2026-06-21).** Six tabs the
+> backlog still listed as Stub/Partial are fully implemented: **Compliance**
+> (`ComplianceTab.tsx`, per-host `host_rule_state` summary with score donut +
+> framework lens + rules table), **Packages / Services / Users / Network**
+> (`InventoryTabs.tsx`, render the collector snapshot), **Activity**
+> (`HostDetailPage.tsx:2565`, host-scoped unified feed with source filter +
+> cursor paging, PR #618), and **Audit log** (`HostDetailPage.tsx:2694`,
+> host-scoped `audit_events` via `resource_type=host`, PR #619). Only the two
+> rows above (Updates-pending count, Terminal) remain.
+>
 > **Remediation tab — shipped (v0.2.0-rc.11).** Free-core single-rule apply +
 > rollback from the host Remediation tab; concurrent fixes serialize per host;
 > status updates live over SSE; free-core requests auto-approve. Landed via
@@ -72,7 +76,7 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Email alert notifications (dispatch on alert) | P1 | Partial | The notification **channel** layer (Slack/email/webhook CRUD + test) shipped. Remaining: dispatch fired alerts through channels by type + per-user alert-type preferences (which alert types per user), RBAC-gated. **Infra now exists**: the general `users.preferences` JSONB + `internal/userpref` + `/api/v1/users/me/preferences` (system-user-preferences, PR #611) is the natural home for per-user alert prefs — extend the typed `UserPreferences` contract rather than a new table |
+| Per-user alert-type preferences | P2 | Partial | **Dispatch-on-fire is now LIVE** — `notification.NewDispatchChannel` is registered with the alert router (`cmd/openwatch/main.go:326`) and `DispatchChannel.Send` (`internal/notification/delivery.go:204`) fans fired alerts to enabled Slack/email/webhook channels, filtered by the channel's `tag_filter.severity`. **Remaining:** per-USER alert-type preferences (which alert types each user wants), RBAC-gated — only channel-level severity tags exist today. The general `users.preferences` JSONB + `internal/userpref` + `/api/v1/users/me/preferences` (system-user-preferences, PR #611) is the natural home — extend the typed `UserPreferences` contract rather than a new table |
 | In-app notifications | P1 | Planned | Bell icon with unread count, drawer, mark-as-read. Sources: alerts, scan completions, exception approvals, system events. RBAC-filtered. WebSocket or SSE delivery (the existing SSE bus can carry it) |
 | Dashboard layout customization (drag/drop) | P2 | Planned | 3 tiers per spec AC-12: full (admins), limited (analysts), none (auditor). Preset structure ready, needs `@dnd-kit/core` + persistence |
 | Kensa Phase 5 OTA Updates | P3 | Not Started | OTA delivery of rule updates |
@@ -83,10 +87,10 @@
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Subscription matrix | P1 | Planned | Free vs OpenWatch+ feature matrix. Candidates: host count limits, advanced reporting/export, email alerts, priority support, OTA rule updates, multi-tenant, custom frameworks |
-| License key system | P1 | Planned | Offline file (air-gapped) vs online activation vs hybrid. `internal/license` exists; extend. Format, expiry, renewal, grace period |
-| Payment + activation flow | P1 | Planned | Purchase channel, delivery (email/portal), activation (`owadm activate` CLI / UI / API). Air-gapped path: manual key upload |
-| License enforcement | P1 | Planned | Backend: feature-gate decorators, host count checks, graceful degradation on expiry. Frontend: upgrade prompts, lock UI, Settings status |
+| Subscription matrix | P1 | Partial | The feature/tier matrix is **already encoded in code** — `internal/license/features.gen.go` defines 10 gated features across free / openwatch_plus / enterprise tiers. Remaining is the product/marketing decision layer: host-count limits, priority support, multi-tenant, custom frameworks, and the customer-facing matrix doc |
+| License key system | P1 | **Mostly built** | Core mechanism is LIVE, not Planned: `cmd/owlicgen` generates Ed25519-signed keys (tier/features/customer/expiry); `internal/license/validator.go` verifies with 30-day grace, clock-rollback detection, and fingerprint binding; `service.go` loads from file or JWT. Remaining: renewal flow + air-gapped re-issue UX |
+| Payment + activation flow | P1 | Planned | Purchase channel, delivery (email/portal), activation (`owadm activate` CLI / UI / API). Air-gapped path: manual key upload. (The key *format* + validation it activates against already exists — see above) |
+| License enforcement | P1 | Partial | **Backend is LIVE**: `internal/license/middleware.go` `RequireFeature`/`EnforceFeature` gate routes and return 402 Payment Required with an audit trail. Remaining: host-count checks (no count enforcement yet), graceful degradation on expiry, and the **frontend** (upgrade prompts, lock UI, Settings license status) |
 | Sales + distribution | P2 | Planned | Per-host vs per-seat vs flat tier. Trial. Volume discounts. Self-serve vs sales-assisted |
 
 ---
@@ -120,10 +124,9 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
 | Retention sweep for soft-deleted hosts | P3 | Not started | Soft-deleted hosts (`hosts.deleted_at` set by `internal/host/host.go:298 SoftDelete`) are retained **indefinitely** — no purge job exists anywhere, confirmed by a soft-deleted row from 2026-05-25 still present in the dev DB. The row stays for scan-history/audit integrity but is hidden from every query (`WHERE deleted_at IS NULL`). Add an optional retention sweep (a daemon-orchestration tick that hard-deletes `hosts WHERE deleted_at < now() - $window`, cascading scan history), with an operator-configurable window that defaults to disabled (keep forever). Low urgency — host volume is trivial — but closes unbounded soft-deleted-row growth and gives operators a real "forget this host" path |
-| `PATCH /api/v1/credentials/{id}` — in-place credential update | P2 | Deferred | Frontend uses replace-on-save (`<ReplaceCredentialModal>` runs `POST → DELETE`). Real PATCH would close the orphan-credential failure mode |
 | `POST /api/v1/bulk/hosts/analyze-csv` + `import-with-mapping` | P2 | Deferred | Today the wizard runs CSV analysis client-side and submits row-by-row — no atomic semantics, no "update existing", no row caps |
 | Standalone SSH-key vault | P3 | Deferred | Today every credential owns its own key material; no first-class "SSH key" resource. Worth doing when rotation cadence forces N-credentials-share-1-key |
-| Track B SSE: invalidate `['scans']` / `['transactions']` / `['groups']` query keys | P2 | Deferred | Depends on those pages landing. Wire alongside the pages, don't retrofit |
+| Track B SSE: invalidate `['scans']` / `['transactions']` / `['groups']` query keys | P2 | Now actionable | The pages have landed, but `useLiveEvents.ts` still doesn't invalidate them: `scan.completed` invalidates `['hosts']` + `['host', hostId]` only, never `['scans']`; no handler touches `['transactions']` or `['groups']`. Wire these now (no longer blocked on the pages) |
 | Track B SSE: `Last-Event-ID` resume cursor | P3 | Deferred | Events published while disconnected are lost. Needs persistent event ring; defer until operators report missed transitions |
 | Track B SSE: bus drop counter on a metrics endpoint | P3 | Deferred | `eventbus.Bus.Metrics()` exposes counters but nothing scrapes them. Plumb `/api/v1/system/eventbus/metrics` or merge into existing metrics endpoint |
 | Specter `sync` ignores `settings.tests_glob` | P3 | Worked around | CI passes `--tests '**/*'`; upstream bug. Documented in `specter.yaml` |
@@ -159,11 +162,17 @@ Dependabot major bumps closed (skipped) 2026-06-16, with the reason + revisit pa
 
 ### Flakes
 
+> **Largely mitigated (verified 2026-06-21).** All three now run through the
+> non-gating `perftest.Budgetf()` helper with race-aware budgets
+> (`internalrace.Multiplier()`), so a slow p99 no longer fails the build — they
+> emit a budget note instead of gating merges. The rows below are kept only as a
+> trend watch; none currently blocks CI.
+
 | Item | Priority | Notes |
 |------|----------|-------|
-| `internal/license.TestVerify_P99Latency` flake under `-race` | P3 | Tight <1ms p99 budget. Bump to 2ms, skip under `-race`, or pre-warm verifier |
-| `internal/audit.TestEmitSync_Latency` flake | P3 | p99 latency assertion, sensitive to CI runner load. Single rerun cleared |
-| `internal/queue.TestEnqueue_LatencyP99` flake | P3 | Same shape — single rerun cleared. Trend: consider widening all p99 budgets or moving them to a perf-suite that doesn't gate merges |
+| `internal/license.TestVerify_P99Latency` | P3 | 1ms p99 budget, non-gating via `perftest.Budgetf()`. No `-race` skip needed (helper absorbs it). Watch only |
+| `internal/audit.TestEmitSync_Latency` | P3 | `10ms * internalrace.Multiplier()` budget, non-gating. Watch only |
+| `internal/queue.TestEnqueue_LatencyP99` | P3 | 10ms budget (spec target 5ms), non-gating. Watch only |
 
 ---
 
@@ -174,7 +183,7 @@ Gaps where working functionality can break without an automated test failing (id
 | Item | Priority | Notes |
 |------|----------|-------|
 | Live-host SSH/sudo integration test (gated) | P2 | **Mostly done** | Delivered `internal/ssh/livehost_test.go` — opt-in (`OPENWATCH_LIVE_HOSTS` CSV + `OPENWATCH_LIVE_KEY`), self-skipping, drives the REAL `ssh.Dial` + `ssh.RunSudo`. Per host it asserts the machinery for whatever the host supports: key auth → `ObservedAuth=="key"`, password auth → `"password"`, sudo mode confirmed via `true`, and the real `sudo -S` password-on-stdin path. Validated against the dev fleet (5 key+NOPASSWD hosts pass; key-rejecting / unreachable hosts skip). **Gap:** the password-AUTH branch (`ObservedAuth=="password"`) is unverified live because the dev fleet has `PasswordAuthentication no` everywhere — needs one host with password SSH enabled to exercise it. Optional next: add a `connprofile.Store` round-trip (record→read-back) assertion against a gated DB. |
-| Frontend E2E (Playwright) for critical flows | P2 | **Zero E2E tests** — `0` Playwright files, no config (the CLAUDE.md Playwright note is Python-era). Component-level vitest only, so a wired-up page can be green in vitest and broken in the browser. Stand up Playwright + cover the critical flows: login, the activated Settings pages (Users, Notifications, Security/API tokens, SSO), and host CRUD (add / edit / delete). |
+| Frontend E2E (Playwright) for critical flows | P2 | **Zero E2E tests** — the `@playwright/test` + `@axe-core/playwright` deps and a `test:e2e` script are in `package.json`, but there is **no `playwright.config.*` and no `*.spec.ts` E2E file**, and nothing runs in CI. Component-level vitest only, so a wired-up page can be green in vitest and broken in the browser. Stand up the config + cover the critical flows: login, the activated Settings pages (Users, Notifications, Security/API tokens, SSO), and host CRUD (add / edit / delete). |
 | Negative-path ACs for security gates | P2 | The scan kill-switch bug this session passed all 988 tests + the specter gate because the scan path simply had **no AC requiring it to honor the switch** — the suite tests specced behavior, so gaps *between* specs slip through. Generalize the pattern of `system-connection-profile/AC-07` (asserts "kill-switch off / key-only cred → no `sudo -S`") across the other security gates: every gate should have a spec'd AC + test for the **disallowed** path, not just the happy path. |
 
 ---
