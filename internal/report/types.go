@@ -34,11 +34,38 @@ type Report struct {
 	Title       string
 	Kind        Kind
 	ScopeLabel  string
+	Scope       Scope
 	DataAsOf    time.Time
 	GeneratedBy string
 	Format      string
 	Content     json.RawMessage
 	CreatedAt   time.Time
+}
+
+// Scope is the structured slice of the fleet a report summarizes: an
+// optional group and/or framework lens. The zero value (no group, no
+// framework) is the all-hosts, all-frameworks scope. It is stored as the
+// reports.scope JSONB column and echoed on the API so a caller can see
+// (and reproduce) exactly what a report covers.
+type Scope struct {
+	// GroupID, when set, scopes the report to that group's member hosts.
+	GroupID *uuid.UUID `json:"group_id,omitempty"`
+	// GroupName is the group's display name at generation time, frozen
+	// onto the report so the label survives a later group rename/delete.
+	GroupName string `json:"group_name,omitempty"`
+	// Framework, when non-empty, scopes the report to rules whose
+	// framework_refs contain this key (same lens as the fleet rollup).
+	Framework string `json:"framework,omitempty"`
+}
+
+// GenerateRequest is the (all-optional) input to Generate. An empty
+// request generates the all-hosts, all-frameworks executive summary —
+// the pre-A1 behavior.
+type GenerateRequest struct {
+	// GroupID scopes the summary to one group's member hosts.
+	GroupID *uuid.UUID
+	// Framework scopes the summary to one framework lens.
+	Framework string
 }
 
 // ExecutiveContent is the JSON posture document stored for an executive

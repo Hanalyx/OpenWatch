@@ -17,10 +17,12 @@ package report
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,6 +33,7 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 	ctx := context.Background()
 	for _, stmt := range []string{
 		"TRUNCATE TABLE reports CASCADE",
+		"TRUNCATE TABLE groups CASCADE",
 		"TRUNCATE TABLE host_rule_state CASCADE",
 		"TRUNCATE TABLE hosts CASCADE",
 		"TRUNCATE TABLE users CASCADE",
@@ -41,6 +44,8 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 	}
 	return pool
 }
+
+func ptrUUID(u uuid.UUID) *uuid.UUID { return &u }
 
 func nullIfEmpty(s string) any {
 	if s == "" {
@@ -121,14 +126,14 @@ func TestGenerate_ComputesPostureFromState(t *testing.T) {
 		seedRuleState(t, pool, h2, "rule-v", "fail", "high")
 
 		before := time.Now().UTC().Add(-time.Second)
-		rep, err := svc.Generate(ctx, "alice@example.com")
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
 		if err != nil {
 			t.Fatalf("Generate: %v", err)
 		}
 
 		// Row metadata: fixed identity + recorded actor + sampling instant.
 		if rep.Title != executiveTitle || rep.Kind != KindExecutive ||
-			rep.ScopeLabel != executiveScope || rep.Format != "json" {
+			rep.ScopeLabel != allHostsLabel || rep.Format != "json" {
 			t.Errorf("report metadata = %+v", rep)
 		}
 		if rep.GeneratedBy != "alice@example.com" {
@@ -186,7 +191,7 @@ func TestGenerate_UnscannedFleet(t *testing.T) {
 		seedHost(t, pool, owner, false)
 		seedHost(t, pool, owner, false)
 
-		rep, err := svc.Generate(ctx, "system")
+		rep, err := svc.Generate(ctx, "system", GenerateRequest{})
 		if err != nil {
 			t.Fatalf("Generate: %v", err)
 		}
@@ -225,13 +230,13 @@ func TestListAndGet_RoundTripAndNotFound(t *testing.T) {
 			t.Fatalf("List on empty = %v, %v; want [] nil", empty, err)
 		}
 
-		first, err := svc.Generate(ctx, "alice@example.com")
+		first, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
 		if err != nil {
 			t.Fatalf("Generate first: %v", err)
 		}
 		// Ensure created_at ordering is unambiguous.
 		time.Sleep(10 * time.Millisecond)
-		second, err := svc.Generate(ctx, "bob@example.com")
+		second, err := svc.Generate(ctx, "bob@example.com", GenerateRequest{})
 		if err != nil {
 			t.Fatalf("Generate second: %v", err)
 		}
@@ -262,6 +267,139 @@ func TestListAndGet_RoundTripAndNotFound(t *testing.T) {
 
 		if _, err := svc.Get(ctx, uuid.New()); err != ErrNotFound {
 			t.Errorf("Get(unknown) err = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+// seedRuleStateFW is seedRuleState plus a framework_refs JSONB, so the
+// framework lens (framework_refs ? key) can be exercised.
+func seedRuleStateFW(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status, severity, frameworkRefs string) {
+	t.Helper()
+	now := time.Now()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO host_rule_state
+		   (host_id, rule_id, current_status, severity, framework_refs, last_checked_at,
+		    last_scan_id, first_seen_at, last_changed_at)
+		 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $6, $6)`,
+		hostID, ruleID, status, nullIfEmpty(severity), frameworkRefs, now, uuid.New())
+	if err != nil {
+		t.Fatalf("seed rule_state fw: %v", err)
+	}
+}
+
+// @ac AC-08
+// A group-scoped generate computes the posture over ONLY the group's
+// member hosts: the report's scope echoes the group, scope_label is the
+// group name, and the counts reflect the in-group host alone (the
+// out-of-group host's passing rules do not inflate the numbers). An
+// unknown group id surfaces group.ErrNotFound (the handler maps it to a
+// 400 invalid-scope).
+func TestGenerate_GroupScoped(t *testing.T) {
+	t.Run("api-reports/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		groupSvc := group.NewService(pool)
+		svc := NewService(pool).WithGroups(groupSvc)
+		owner := seedUser(t, pool)
+
+		hIn := seedHost(t, pool, owner, false)
+		hOut := seedHost(t, pool, owner, false)
+		// In-group host: 1 pass, 1 critical fail. Out-of-group host: 2 pass
+		// (would push compliance up and host_count to 2 if not scoped out).
+		seedRuleState(t, pool, hIn, "r1", "pass", "medium")
+		seedRuleState(t, pool, hIn, "r2", "fail", "critical")
+		seedRuleState(t, pool, hOut, "r3", "pass", "low")
+		seedRuleState(t, pool, hOut, "r4", "pass", "low")
+
+		g, err := groupSvc.Create(ctx, group.CreateInput{
+			Name: "Production", Kind: group.KindSite, Membership: group.MembershipManual,
+		})
+		if err != nil {
+			t.Fatalf("create group: %v", err)
+		}
+		if err := groupSvc.AddMember(ctx, g.ID, hIn); err != nil {
+			t.Fatalf("add member: %v", err)
+		}
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{GroupID: &g.ID})
+		if err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if rep.ScopeLabel != "Production" {
+			t.Errorf("scope_label = %q, want Production", rep.ScopeLabel)
+		}
+		if rep.Scope.GroupID == nil || *rep.Scope.GroupID != g.ID {
+			t.Errorf("scope.group_id = %v, want %s", rep.Scope.GroupID, g.ID)
+		}
+		if rep.Scope.GroupName != "Production" {
+			t.Errorf("scope.group_name = %q, want Production", rep.Scope.GroupName)
+		}
+
+		c := decodeContent(t, rep)
+		if c.HostCount != 1 {
+			t.Errorf("host_count = %d, want 1 (group member only)", c.HostCount)
+		}
+		if c.PassingRules != 1 || c.FailingRules != 1 {
+			t.Errorf("passing/failing = %d/%d, want 1/1 (in-group host only)", c.PassingRules, c.FailingRules)
+		}
+		if c.CriticalIssues != 1 {
+			t.Errorf("critical_issues = %d, want 1", c.CriticalIssues)
+		}
+		if c.CompliancePct == nil || *c.CompliancePct != 50 {
+			t.Errorf("compliance_pct = %v, want 50", c.CompliancePct)
+		}
+		if len(c.TopFailingRules) != 1 || c.TopFailingRules[0].RuleID != "r2" {
+			t.Errorf("top_failing_rules = %+v, want [r2]", c.TopFailingRules)
+		}
+
+		// Unknown group id -> group.ErrNotFound (handler maps to 400).
+		if _, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{GroupID: ptrUUID(uuid.New())}); !errors.Is(err, group.ErrNotFound) {
+			t.Errorf("unknown group err = %v, want group.ErrNotFound", err)
+		}
+	})
+}
+
+// @ac AC-09
+// A framework-scoped generate counts only rules whose framework_refs
+// contain the lens key: the scope echoes the framework, scope_label
+// carries the family ("All hosts · CIS"), and a critical fail tagged only
+// to a different framework is excluded from every count.
+func TestGenerate_FrameworkScoped(t *testing.T) {
+	t.Run("api-reports/AC-09", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+
+		seedRuleStateFW(t, pool, h, "c1", "pass", "medium", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedRuleStateFW(t, pool, h, "c2", "fail", "high", `{"cis_rhel9_v2.0.0": ["1.2"]}`)
+		// STIG-only critical fail: must be excluded by the CIS lens.
+		seedRuleStateFW(t, pool, h, "s1", "fail", "critical", `{"stig_rhel9_v2r7": ["V-1"]}`)
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Framework: "cis_rhel9_v2.0.0"})
+		if err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if rep.ScopeLabel != "All hosts · CIS" {
+			t.Errorf("scope_label = %q, want \"All hosts · CIS\"", rep.ScopeLabel)
+		}
+		if rep.Scope.Framework != "cis_rhel9_v2.0.0" {
+			t.Errorf("scope.framework = %q, want cis_rhel9_v2.0.0", rep.Scope.Framework)
+		}
+
+		c := decodeContent(t, rep)
+		if c.PassingRules != 1 || c.FailingRules != 1 {
+			t.Errorf("passing/failing = %d/%d, want 1/1 (CIS rules only)", c.PassingRules, c.FailingRules)
+		}
+		if c.CriticalIssues != 0 {
+			t.Errorf("critical_issues = %d, want 0 (STIG critical excluded by lens)", c.CriticalIssues)
+		}
+		if c.CompliancePct == nil || *c.CompliancePct != 50 {
+			t.Errorf("compliance_pct = %v, want 50", c.CompliancePct)
+		}
+		if len(c.TopFailingRules) != 1 || c.TopFailingRules[0].RuleID != "c2" {
+			t.Errorf("top_failing_rules = %+v, want [c2]", c.TopFailingRules)
 		}
 	})
 }

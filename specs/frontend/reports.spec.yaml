@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -89,6 +89,20 @@ spec:
         enforces the bar; the UI gate is a usability layer.
       type: security
       enforcement: error
+    - id: C-04
+      description: >-
+        v1.1.0 - A scope picker beside the Generate control lets the
+        generator scope the next report to a group. It is a select bound to
+        a scopeGroupId state whose default option is "All hosts" (value
+        ""); the other options are the groups from a ["groups"] query
+        against GET /api/v1/groups. On generate the POST body includes
+        group_id only when a group is selected (an empty selection posts the
+        unscoped {} body). The picker renders only for a host:write caller
+        (alongside the gated Generate control), and the groups query is
+        enabled only then. The generated report's scope_label (already shown
+        in the Library and detail) reflects the chosen scope.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -137,3 +151,13 @@ spec:
         literals for the chrome), and the prose UI copy contains no em-dash.
       priority: high
       references_constraints: [C-03]
+    - id: AC-05
+      description: >-
+        v1.1.0 - Source inspection: a scope select bound to a scopeGroupId
+        state offers an "All hosts" default (value "") plus options from a
+        ["groups"] query against "/api/v1/groups"; the generate body sends
+        group_id only when scopeGroupId is set (otherwise an empty body).
+        The groups query is enabled on canGenerate so the picker is a
+        host:write affordance.
+      priority: high
+      references_constraints: [C-04]

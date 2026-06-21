@@ -651,7 +651,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithExceptions(exceptionSvc).
 		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
-		WithReports(report.NewService(pool)).
+		WithReports(report.NewService(pool).WithGroups(group.NewService(pool))).
 		WithScanResults(scanresult.NewReader(pool)).
 		WithNotifications(notifSvc)
 	runErr := srv.Run(ctx)

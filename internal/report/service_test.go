@@ -6,6 +6,7 @@
 //	AC-01  TestExecutiveContent_JSONShape   (stored JSON document shape)
 //	AC-02  TestCompliancePct_Rounding       (round-half-up + nil-when-unevaluated)
 //	AC-03  TestExecutiveConstants_Derivation (fixed title/scope/kind/format)
+//	AC-07  TestScopeLabel_Derivation         (scope_label + framework family)
 //
 // The DB-backed generation, list, and fetch paths run against a real
 // schema and are OPENWATCH_TEST_DSN-gated in service_db_test.go.
@@ -15,6 +16,8 @@ package report
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // @ac AC-01
@@ -157,8 +160,9 @@ func TestExecutiveConstants_Derivation(t *testing.T) {
 		if executiveTitle != "Fleet Compliance - Executive Summary" {
 			t.Errorf("executiveTitle = %q", executiveTitle)
 		}
-		if executiveScope != "All hosts" {
-			t.Errorf("executiveScope = %q", executiveScope)
+		// The default (unscoped) label is "All hosts".
+		if allHostsLabel != "All hosts" {
+			t.Errorf("allHostsLabel = %q", allHostsLabel)
 		}
 		if KindExecutive != "executive" {
 			t.Errorf("KindExecutive = %q, want executive", KindExecutive)
@@ -166,6 +170,40 @@ func TestExecutiveConstants_Derivation(t *testing.T) {
 		// The leadership-facing list is intentionally short.
 		if topFailingLimit != 5 {
 			t.Errorf("topFailingLimit = %d, want 5", topFailingLimit)
+		}
+	})
+}
+
+// @ac AC-07
+// scope_label is derived from the resolved scope: the group name (or "All
+// hosts") optionally suffixed with the framework family. The framework key
+// is shortened to its family token (before the first underscore),
+// uppercased. Pure, so the labelling contract is unit-tested directly.
+func TestScopeLabel_Derivation(t *testing.T) {
+	t.Run("api-reports/AC-07", func(t *testing.T) {
+		gid := uuid.New()
+		cases := []struct {
+			name  string
+			scope Scope
+			want  string
+		}{
+			{"unscoped", Scope{}, "All hosts"},
+			{"framework only", Scope{Framework: "cis_rhel9_v2.0.0"}, "All hosts · CIS"},
+			{"group only", Scope{GroupID: &gid, GroupName: "Production"}, "Production"},
+			{"group and framework", Scope{GroupID: &gid, GroupName: "Production", Framework: "stig_rhel9_v2r7"}, "Production · STIG"},
+			{"framework no underscore", Scope{Framework: "pci"}, "All hosts · PCI"},
+		}
+		for _, tc := range cases {
+			if got := scopeLabel(tc.scope); got != tc.want {
+				t.Errorf("%s: scopeLabel = %q, want %q", tc.name, got, tc.want)
+			}
+		}
+		// frameworkFamilyLabel directly: empty in -> empty out.
+		if got := frameworkFamilyLabel(""); got != "" {
+			t.Errorf("frameworkFamilyLabel(\"\") = %q, want empty", got)
+		}
+		if got := frameworkFamilyLabel("nist_800_53_r5"); got != "NIST" {
+			t.Errorf("frameworkFamilyLabel(nist...) = %q, want NIST", got)
 		}
 	})
 }
