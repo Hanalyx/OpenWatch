@@ -54,6 +54,22 @@ kinds, and recurring email delivery.
   `FOR UPDATE SKIP LOCKED`, so concurrent dispatchers never double-send.
 - Report-email subjects are CRLF-sanitized (header-injection defense).
 
+### Docs
+- Consolidated the operator/admin/end-user guides under `docs/guides/`
+  (install guide, the operator runbooks, supported-distros), merged the two
+  upgrade docs into one, and left `docs/engineering/` for internal design docs.
+- Archived completed/Python-era docs out of the repo (legacy install guide,
+  stage plans, the Q1 plan, the backend-functionality inventories) and fixed
+  the stale Go API examples in the Hosts/Remediation guide (real `/api/v1`
+  routes on `:8443`).
+- Removed residual OpenSCAP/SCAP references from the Go-native docs (the
+  engine is Kensa, SSH-based native YAML rules).
+
+### Fixed
+- Favicon: `index.html` referenced a missing `/favicon.svg` (404 on every
+  page). Now ships the OpenWatch logo favicon set (`.ico` + PNG sizes +
+  apple-touch-icon + web manifest), embedded in the single binary.
+
 ---
 
 ## [0.2.0-rc.12] Eyrie — 2026-06-20
