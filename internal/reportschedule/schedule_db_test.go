@@ -114,6 +114,50 @@ func seedChannel(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return id
 }
 
+// @ac AC-05
+// ClaimDue atomically advances next_run_at under FOR UPDATE SKIP LOCKED, so
+// a second claim at the same instant returns nothing - the property that
+// stops two concurrent dispatchers from double-sending a report.
+func TestClaimDue_NoDoubleClaim(t *testing.T) {
+	t.Run("system-report-schedule/AC-05", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		ch := seedChannel(t, pool)
+		sch, err := svc.Create(ctx, CreateParams{
+			Name: "daily", Kind: "executive", Frequency: Daily, Hour: 6, ChannelID: ch,
+		})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		// Make it due.
+		if _, err := pool.Exec(ctx,
+			`UPDATE report_schedules SET next_run_at = now() - interval '1 minute' WHERE id = $1`, sch.ID); err != nil {
+			t.Fatalf("backdate: %v", err)
+		}
+		now := time.Now().UTC()
+
+		first, err := svc.ClaimDue(ctx, now)
+		if err != nil {
+			t.Fatalf("first ClaimDue: %v", err)
+		}
+		if len(first) != 1 {
+			t.Fatalf("first claim = %d schedules, want 1", len(first))
+		}
+		if !first[0].NextRunAt.After(now) {
+			t.Errorf("claim did not advance next_run_at: %v", first[0].NextRunAt)
+		}
+		// A second claim at the same instant must see nothing (already advanced).
+		second, err := svc.ClaimDue(ctx, now)
+		if err != nil {
+			t.Fatalf("second ClaimDue: %v", err)
+		}
+		if len(second) != 0 {
+			t.Errorf("second claim = %d schedules, want 0 (no double-claim)", len(second))
+		}
+	})
+}
+
 // @ac AC-02
 func TestDispatcher_RunsDueSchedule(t *testing.T) {
 	t.Run("system-report-schedule/AC-02", func(t *testing.T) {

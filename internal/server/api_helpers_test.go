@@ -177,6 +177,13 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE posture_snapshots")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE compliance_exceptions")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE job_queue")
+	// Reports: schedules FK notification_channels; report_faces FK
+	// report_snapshots. CASCADE so a leftover schedule/snapshot/channel from a
+	// prior test cannot leak (a stale channel encrypted with a prior ephemeral
+	// key would break notification decrypt in a later test).
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE report_schedules CASCADE")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE report_snapshots CASCADE")
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE notification_channels CASCADE")
 	// SSO config + federation links (cascades to identities + auth states).
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE sso_providers CASCADE")
 	// TRUNCATE…CASCADE delegates child cleanup to the schema — the

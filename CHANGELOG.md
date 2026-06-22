@@ -12,6 +12,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0-rc.13] Eyrie — 2026-06-22
+
+The Reports surface is now a complete compliance-artifact platform, spanning
+the executive summary, an auditor/GRC bulk path, two new GRC read-model
+kinds, and recurring email delivery.
+
+### Added
+- **Framework Attestation report kind** (auditor/GRC): a point-in-time,
+  signed attestation that freezes the latest completed scan per in-scope
+  host. Faces: a fleet **OSCAL 1.0.6 assessment-results (SAR)** with
+  evidence referenced by content hash, a per-(host, rule) **CSV** evidence
+  extract, a bounded one-page **PDF cover**, and the canonical **JSON**.
+  A frozen, signed compliance rollup (compliance %, pass/fail, top-failing)
+  is shown in-app and on the PDF cover.
+- **Exception Register report kind** (Compliance/GRC): a point-in-time
+  read-model of compliance waivers — counts by state (active, pending,
+  expiring-soon) plus the register rows — with CSV + PDF + JSON faces.
+- **Remediation Activity report kind** (Operations): a read-model of
+  remediation requests over a look-back window (last 7/30/90 days), with
+  an outcome summary and CSV + PDF + JSON faces.
+- **Scheduled reports + email delivery**: a daily/weekly/monthly schedule
+  generates a report and emails its rendered PDF (MIME attachment) through
+  an email notification channel. Managed from a live **Scheduled** tab
+  (create / pause-resume / delete). Endpoints under
+  `/api/v1/reports/schedules`.
+- **Asynchronous report rendering** + a new `report.ready` event on the
+  event bus — the first producer of the in-app **notification bell**.
+- **Ed25519 report signing** with an in-browser **offline Verify**, a
+  fleet **framework catalog** endpoint, and a kind selector + scope/period
+  pickers on the Library tab.
+- Report kinds are admitted by `report_snapshots.kind` (migrations
+  0043–0045); `report_schedules` lands in migration 0046.
+
+### Audit
+- Report generation and report-schedule create/delete/enable-disable now
+  emit audit events (`report.generated`, `report.schedule.*`).
+
+### Security / hardening
+- The scheduled-report dispatcher claims due schedules with
+  `FOR UPDATE SKIP LOCKED`, so concurrent dispatchers never double-send.
+- Report-email subjects are CRLF-sanitized (header-injection defense).
+
+---
+
 ## [0.2.0-rc.12] Eyrie — 2026-06-20
 
 The fleet activity stream and audit trail are now readable end to end: every

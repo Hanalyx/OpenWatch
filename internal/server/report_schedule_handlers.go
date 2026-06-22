@@ -14,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -143,11 +145,38 @@ func (h *handlers) CreateReportSchedule(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	// The delivery channel must be an EMAIL channel (only email carries the
+	// PDF attachment). Validate up front so a misconfigured schedule fails at
+	// create rather than silently at every dispatch.
+	if h.notificationSvc != nil {
+		ch, cerr := h.notificationSvc.Get(r.Context(), p.ChannelID)
+		if errors.Is(cerr, notification.ErrChannelNotFound) {
+			writeError(w, http.StatusBadRequest, "schedule.invalid_request", "client", "channel not found", false)
+			return
+		}
+		if cerr == nil && ch.Type != notification.TypeEmail {
+			writeError(w, http.StatusBadRequest, "schedule.invalid_request", "client",
+				"channel must be an email channel", false)
+			return
+		}
+	}
+
 	sch, err := h.reportScheduleSvc.Create(r.Context(), p)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "schedule create failed", true)
 		return
 	}
+
+	ident := auth.FromContext(r.Context())
+	detail, _ := json.Marshal(map[string]string{
+		"schedule_id": sch.ID.String(), "name": sch.Name, "kind": sch.Kind,
+		"frequency": string(sch.Frequency), "channel_id": sch.ChannelID.String(),
+	})
+	audit.Emit(r.Context(), audit.ReportScheduleCreated, audit.Event{
+		ActorType: "user", ActorID: ident.ID,
+		ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail,
+	})
+
 	writeJSON(w, http.StatusCreated, toAPISchedule(sch))
 }
 
@@ -174,6 +203,14 @@ func (h *handlers) UpdateReportSchedule(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "schedule update failed", true)
 		return
 	}
+
+	ident := auth.FromContext(r.Context())
+	detail, _ := json.Marshal(map[string]any{"schedule_id": sch.ID.String(), "enabled": sch.Enabled})
+	audit.Emit(r.Context(), audit.ReportScheduleToggled, audit.Event{
+		ActorType: "user", ActorID: ident.ID,
+		ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail,
+	})
+
 	writeJSON(w, http.StatusOK, toAPISchedule(sch))
 }
 
@@ -195,5 +232,13 @@ func (h *handlers) DeleteReportSchedule(w http.ResponseWriter, r *http.Request, 
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "schedule delete failed", true)
 		return
 	}
+
+	ident := auth.FromContext(r.Context())
+	detail, _ := json.Marshal(map[string]string{"schedule_id": uuid.UUID(id).String()})
+	audit.Emit(r.Context(), audit.ReportScheduleDeleted, audit.Event{
+		ActorType: "user", ActorID: ident.ID,
+		ResourceType: "report_schedule", ResourceID: uuid.UUID(id).String(), Detail: detail,
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 }

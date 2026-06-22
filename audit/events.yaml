@@ -759,6 +759,44 @@ events:
     severity: warning
 
   # =========================================================================
+  # reports — generation + scheduled delivery
+  # =========================================================================
+  - code: report.generated
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        kind: {type: string}
+        scope_label: {type: string}
+        report_id: {type: string}
+
+  - code: report.schedule.created
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        schedule_id: {type: string}
+        name: {type: string}
+        kind: {type: string}
+        frequency: {type: string}
+        channel_id: {type: string}
+
+  - code: report.schedule.deleted
+    severity: warning
+    detail_schema:
+      type: object
+      properties:
+        schedule_id: {type: string}
+
+  - code: report.schedule.toggled
+    severity: info
+    detail_schema:
+      type: object
+      properties:
+        schedule_id: {type: string}
+        enabled: {type: boolean}
+
+  # =========================================================================
   # integration — external systems
   # =========================================================================
   - code: integration.webhook.delivered
