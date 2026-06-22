@@ -1,6 +1,10 @@
 # MUST — Backend Functionality (Phase 1 Rebuild)
 
-> **Source:** `app/docs/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
+> **Status (2026-06-22):** Historical rebuild-triage input, derived from the
+> Python/FastAPI inventory. It lists *required behavior* to carry into the Go
+> rebuild, not Python code to keep. Current SSOT is `specs/` + the Go packages
+> under `internal/`. See [BACKEND_FUNCTIONALITY.md](BACKEND_FUNCTIONALITY.md).
+> **Source:** `docs/engineering/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
 > **Rule:** Items here are non-negotiable for Phase 1. Rebuilding without them produces a non-viable compliance platform.
 > **Method:** Static analysis from inventory + architectural reasoning. **No telemetry data yet.** Items marked **[VALIDATE]** should be confirmed against deployment evidence before final lock-in.
 

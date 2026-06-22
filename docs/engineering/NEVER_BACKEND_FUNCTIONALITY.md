@@ -1,6 +1,10 @@
 # NEVER — Backend Functionality (Not Rebuilt)
 
-> **Source:** `app/docs/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
+> **Status (2026-06-22):** Active deletion log (still the answer to "where's
+> feature X?"). It deliberately catalogs Python-era code + decisions that were
+> NOT carried into the Go rebuild, so the Python/FastAPI/Celery/OpenSCAP terms
+> below are intentional records of what was dropped, not current design.
+> **Source:** `docs/engineering/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
 > **Rule:** Items here will NOT be rebuilt. This file is the deletion log — it makes the discipline of the rebuild visible and answerable.
 > **When asked "where's feature X?"** the answer comes from this file, with a date and rationale.
 

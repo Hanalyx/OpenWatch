@@ -17,8 +17,7 @@ All design work is in `docs/`. Read these before changing anything:
 | Topic | File |
 |-------|------|
 | Vision, goals, decisions | [`docs/openwatch_roadmap.md`](docs/openwatch_roadmap.md) |
-| Stage 0 plan (current) | [`docs/stage_0_walking_skeleton.md`](docs/stage_0_walking_skeleton.md) |
-| Stage 1 audit plan | [`docs/stage_1_usage_audit.md`](docs/stage_1_usage_audit.md) |
+| Stage 0 / Stage 1 plans (complete) | Delivered; the walking-skeleton plan and the Python-backend Stage-1 audits were archived out of the repo (2026-06-22) to `~/hanalyx/OWAR/openwatch-python/docs-archive/`. |
 | API design principles | [`docs/api_design_principles.md`](docs/api_design_principles.md) |
 | Audit event taxonomy | [`docs/audit_event_taxonomy.md`](docs/audit_event_taxonomy.md) |
 | Licensing foundation | [`docs/licensing_foundation.md`](docs/licensing_foundation.md) |
@@ -69,7 +68,7 @@ make test          # run all Go tests
 ./dist/openwatch check-config                                       # uses defaults (silent if /etc/openwatch/openwatch.toml missing)
 ./dist/openwatch --config configs/openwatch.toml.example check-config
 OPENWATCH_SERVER_LISTEN=0.0.0.0:9443 ./dist/openwatch check-config  # env override
-./dist/openwatch --listen 0.0.0.0:8000 check-config                  # flag override (wins over env)
+./dist/openwatch --listen 0.0.0.0:9000 check-config                  # flag override (wins over env)
 ```
 
 Config layering (highest precedence first):
@@ -116,8 +115,9 @@ Foundation packages (`internal/audit/`, `internal/auth/`, `internal/correlation/
 
 ## Stage 0 progress
 
-See [`docs/stage_0_walking_skeleton.md`](docs/stage_0_walking_skeleton.md) for
-the 13-day plan and the 19-step Definition of Done.
+The Stage 0 walking-skeleton plan (the 13-day plan and 19-step Definition of
+Done) is complete and was archived out of the repo (2026-06-22) to
+`~/hanalyx/OWAR/openwatch-python/docs-archive/`. The delivered status is below.
 
 | Day | Topic | Status |
 |----:|-------|--------|

@@ -1,5 +1,7 @@
 # Host Management and Remediation
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
 compliance findings. Most of these tasks are performed in the web UI.
@@ -324,70 +326,62 @@ for the complete matrix.
 ## Appendix: API Automation
 
 For operators who want to script host management or integrate with CI/CD
-pipelines, here are the key API endpoints.
+pipelines, here are the key API endpoints. OpenWatch serves the REST API over
+HTTPS on port `8443`; every path lives under `/api/v1`. The contract source of
+truth is `api/openapi.yaml`. Replace `openwatch.example.com` with your host.
 
 ### Add a Host
 
 ```bash
-curl -s -X POST http://localhost:8000/api/hosts/ \
+curl -s -X POST https://openwatch.example.com:8443/api/v1/hosts \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"hostname": "web-01", "ip_address": "192.168.1.10", "ssh_port": 22}'
+  -d '{"hostname": "web-01", "ip_address": "192.168.1.10", "port": 22, "environment": "prod"}'
 ```
 
-### Bulk Import (JSON)
+`hostname` and `ip_address` are required; `port` defaults to 22. Other optional
+fields: `display_name`, `description`, `tags`, `group_id`, `username`. There is
+no bulk-import or CSV-export API endpoint. Import many hosts from a CSV in the
+web UI (Hosts, Import), which validates each row before insert.
+
+### Create a Group
 
 ```bash
-curl -s -X POST http://localhost:8000/api/bulk/hosts/bulk-import \
+curl -s -X POST https://openwatch.example.com:8443/api/v1/groups \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "hosts": [
-      {"hostname": "web-01", "ip_address": "192.168.1.10", "port": 22},
-      {"hostname": "db-01", "ip_address": "192.168.1.20", "port": 22}
-    ],
-    "update_existing": false,
-    "dry_run": false
-  }'
+  -d '{"name": "Production Web Servers", "kind": "site", "membership": "manual"}'
 ```
 
-### Export Hosts to CSV
+`kind` is `site` or `os_category`; `membership` is `manual` or `auto` (an `auto`
+group also needs `match_family`). Add a host to a manual group via
+`POST /api/v1/groups/{id}/members`.
+
+### Request and Execute Remediation
+
+Remediation is a request lifecycle, not a single call: request a fix for a
+failing rule on a host, then execute it (free-core single-rule fixes
+auto-approve on request; the licensed bulk track keeps the approve/reject step).
 
 ```bash
-curl -s http://localhost:8000/api/bulk/hosts/export-csv \
-  -H "Authorization: Bearer $TOKEN" -o hosts_export.csv
-```
-
-### Create a Host Group
-
-```bash
-curl -s -X POST http://localhost:8000/api/host-groups/ \
+# 1. Request a fix for one failing rule on one host.
+RID=$(curl -s -X POST https://openwatch.example.com:8443/api/v1/remediation/requests \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Production Web Servers", "os_family": "rhel"}'
+  -d '{"host_id": "HOST_UUID", "rule_id": "sshd-disable-root-login"}' \
+  | jq -r '.id')
+
+# 2. Execute it (mutates the host; runs serialized per host).
+curl -s -X POST "https://openwatch.example.com:8443/api/v1/remediation/requests/${RID}:execute" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### Start Remediation
+### Roll Back
 
 ```bash
-curl -s -X POST http://localhost:8000/api/remediation/start \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scan_id": "SCAN_UUID",
-    "host_id": "HOST_UUID",
-    "failed_rules": ["sshd-disable-root-login", "sshd-strong-ciphers"],
-    "provider": "kensa"
-  }'
+curl -s -X POST "https://openwatch.example.com:8443/api/v1/remediation/requests/${RID}:rollback" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-### Rollback
-
-```bash
-curl -s -X POST http://localhost:8000/api/automated-fixes/rollback/REQUEST_ID \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"rollback_reason": "Change caused SSH connectivity loss"}'
-```
-
-See the [API Guide](API_GUIDE.md) for the complete endpoint reference.
+See the [API Guide](API_GUIDE.md) for authentication and the complete endpoint
+reference.

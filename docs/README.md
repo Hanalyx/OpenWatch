@@ -20,7 +20,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 |----------|-------------|
 | [Introduction](INTRODUCTION.md) | Platform philosophy, architecture overview, supported frameworks |
 | [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
-| [Installation](guides/INSTALLATION.md) | Deploy from a native RPM/DEB package or from source |
+| [Installation](engineering/install_guide.md) | Deploy from a native RPM/DEB package or from source |
 
 ## Operator Guides
 
@@ -64,9 +64,10 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 
 For installing OpenWatch from the native RPM/DEB, see
-[guides/INSTALLATION.md](guides/INSTALLATION.md). (The earlier owadm-based
-"Native RPM Installation Plan" was superseded by the single-`openwatch`-binary
-model and archived.)
+[engineering/install_guide.md](engineering/install_guide.md). (The legacy
+Python/Docker-Compose `guides/INSTALLATION.md` and the earlier owadm-based
+"Native RPM Installation Plan" were superseded by the single-`openwatch`-binary
+model and archived out of the repo.)
 
 > **Design documents** — the Python-era `openwatchos/` planning sketches and other
 > dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.
