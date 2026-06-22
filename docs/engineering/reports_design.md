@@ -519,11 +519,26 @@ severity, framework_refs, evidence_sha256, scan_at, exception_id. The
 snapshot content is blob-stored (compressed). Spec: `api-reports`
 (kind=attestation), new `system-report-attestation`.
 
-**B2 — Fleet OSCAL SAR face.** Assemble a single OSCAL 1.0.6
-`assessment-results` from the attestation snapshot: reviewed-controls from
-the framework mapping, one observation + finding per `(host, rule)`,
-evidence referenced by `sha256` (back-matter), streamed to the `oscal_sar`
-face in `report_faces`. Spec: extend the attestation spec.
+**B2 — Fleet OSCAL SAR face.** *(SHIPPED 2026-06-21, PR #643.)* Assemble a
+single OSCAL 1.0.6 `assessment-results` from the attestation snapshot
+(`internal/report/oscal.go`): one result whose findings + observations
+carry one entry per `(host, rule)`, reviewed-controls aggregated as
+framework-prefixed control-id tokens (digit-leading native ids stay valid
+OSCAL tokens), the finding state "satisfied" only on a pass, the host as a
+deterministic-v5 inventory-item subject, narrowed by the snapshot's
+framework lens. Evidence is REFERENCED by `sha256` in back-matter (an rlink
+SHA-256 hash), never inlined as base64 — the bytes stay in `scan_evidence`.
+Since Kensa's `ExportOSCALScan` is per-scan and *inlines* evidence, the
+fleet assembler is a light hash-referencing custom builder (not Kensa's
+exporter), with its own minimal OSCAL structs mirroring the per-scan shape.
+Every uuid is a deterministic v5 from the snapshot id, so the document is
+byte-deterministic and cached in `report_faces` (face `oscal_sar`, status
+`ready`) like the other faces; the assembly is bounded by the same row cap
+as the CSV (a metadata prop discloses truncation). `format=oscal_sar` is
+attestation-only (executive is `ErrInvalidFace`). Spec: `api-reports`
+v1.8.0 (C-14 / AC-20). True streaming to a separate blob store is deferred
+(the in-memory + row-cap + `report_faces.content` pattern matches the CSV
+face).
 
 **B3 — Async generation + report.ready.** Fleet attestation generation
 (the bulk query + SAR/CSV render) moves to the job queue: a

@@ -61,6 +61,11 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 			return nil, "", ErrInvalidFace
 		}
 		return s.exportAttestationCSV(ctx, rep)
+	case FaceOSCALSAR:
+		if rep.Kind != KindAttestation {
+			return nil, "", ErrInvalidFace
+		}
+		return s.exportFleetOSCALSAR(ctx, rep)
 	default:
 		return nil, "", ErrInvalidFace
 	}
@@ -150,7 +155,13 @@ func ExportFilename(rep Report, face string) string {
 	if kind == "" {
 		kind = "report"
 	}
-	return fmt.Sprintf("openwatch-%s-%s-%s.%s", kind, slugify(rep.ScopeLabel), rep.DataAsOf.Format("2006-01-02"), face)
+	// The OSCAL SAR is a JSON document; give it a readable .oscal.json
+	// extension rather than the raw face token.
+	ext := face
+	if face == FaceOSCALSAR {
+		ext = "oscal.json"
+	}
+	return fmt.Sprintf("openwatch-%s-%s-%s.%s", kind, slugify(rep.ScopeLabel), rep.DataAsOf.Format("2006-01-02"), ext)
 }
 
 // slugify lowercases and replaces non-alphanumeric runs with single

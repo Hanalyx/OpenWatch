@@ -16,6 +16,8 @@ package report
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -598,6 +600,182 @@ func seedScanResult(t *testing.T, pool *pgxpool.Pool, scanID, hostID uuid.UUID, 
 	if err != nil {
 		t.Fatalf("seed scan_result: %v", err)
 	}
+}
+
+// seedScanResultEv inserts a (scan, host, rule) outcome whose evidence is
+// content-addressed in scan_evidence, returning the evidence sha256 hex so
+// a test can assert the fleet SAR references it by hash. Evidence inserts
+// are idempotent (content-addressed PK), since scan_evidence survives the
+// hosts-CASCADE truncation in freshPool.
+func seedScanResultEv(t *testing.T, pool *pgxpool.Pool, scanID, hostID uuid.UUID, ruleID, status, frameworkRefs string, evidence string) string {
+	t.Helper()
+	sum := sha256.Sum256([]byte(evidence))
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO scan_evidence (evidence_hash, evidence, byte_size) VALUES ($1, $2::jsonb, $3)
+		 ON CONFLICT (evidence_hash) DO NOTHING`, sum[:], evidence, len(evidence)); err != nil {
+		t.Fatalf("seed scan_evidence: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO scan_results (scan_id, host_id, rule_id, status, framework_refs, evidence_hash)
+		 VALUES ($1, $2, $3, $4, $5::jsonb, $6)`, scanID, hostID, ruleID, status, frameworkRefs, sum[:]); err != nil {
+		t.Fatalf("seed scan_result with evidence: %v", err)
+	}
+	return hex.EncodeToString(sum[:])
+}
+
+// @ac AC-20
+// The attestation kind also renders a fleet OSCAL SAR face: a single OSCAL
+// 1.0.6 assessment-results with one observation + finding per (host, rule),
+// framework-prefixed control selections, and evidence REFERENCED by sha256
+// in back-matter (an rlink hash, never inlined base64). The framework lens
+// narrows the findings/controls; oscal_sar is invalid for executive; the
+// face is cached and deterministic on re-export.
+func TestExport_FleetOSCALSAR(t *testing.T) {
+	t.Run("api-reports/AC-20", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		signer, _ := NewSigner("")
+		svc := NewService(pool).WithSigner(signer)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+		scan := seedScanRun(t, pool, h)
+		evHex := seedScanResultEv(t, pool, scan, h, "r1", "pass", `{"cis_rhel9_v2.0.0": ["1.1"]}`, `{"detail":"login.defs ok"}`)
+		seedScanResult(t, pool, scan, h, "r2", "fail", `{"cis_rhel9_v2.0.0": ["1.2"], "stig_rhel9_v2r7": ["V-1"]}`)
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation})
+		if err != nil {
+			t.Fatalf("Generate attestation: %v", err)
+		}
+
+		sarBytes, media, err := svc.Export(ctx, rep.ID, FaceOSCALSAR)
+		if err != nil {
+			t.Fatalf("Export oscal_sar: %v", err)
+		}
+		if media != "application/json" {
+			t.Errorf("oscal media = %q", media)
+		}
+
+		var doc oscalDoc
+		if err := json.Unmarshal(sarBytes, &doc); err != nil {
+			t.Fatalf("unmarshal oscal sar: %v", err)
+		}
+		ar := doc.AssessmentResults
+		if ar.Metadata.OSCALVersion != "1.0.6" {
+			t.Errorf("oscal-version = %q, want 1.0.6", ar.Metadata.OSCALVersion)
+		}
+		if len(ar.Results) != 1 {
+			t.Fatalf("results = %d, want 1", len(ar.Results))
+		}
+		res := ar.Results[0]
+		if len(res.Findings) != 2 || len(res.Observations) != 2 {
+			t.Fatalf("findings/observations = %d/%d, want 2/2", len(res.Findings), len(res.Observations))
+		}
+
+		// Finding state follows the outcome: r1 pass -> satisfied,
+		// r2 fail -> not-satisfied.
+		state := map[string]string{}
+		for _, f := range res.Findings {
+			state[f.Target.TargetID] = f.Target.Status.State
+		}
+		if state["r1"] != "satisfied" {
+			t.Errorf("r1 state = %q, want satisfied", state["r1"])
+		}
+		if state["r2"] != "not-satisfied" {
+			t.Errorf("r2 state = %q, want not-satisfied", state["r2"])
+		}
+
+		// Control selections are framework-prefixed tokens (digit-leading
+		// native ids stay valid OSCAL tokens).
+		var ctrls []string
+		for _, sel := range res.ReviewedControls.ControlSelections {
+			for _, c := range sel.IncludeControls {
+				ctrls = append(ctrls, c.ControlID)
+			}
+		}
+		joined := strings.Join(ctrls, ",")
+		for _, want := range []string{"cis_rhel9_v2.0.0-1.1", "cis_rhel9_v2.0.0-1.2", "stig_rhel9_v2r7-V-1"} {
+			if !strings.Contains(joined, want) {
+				t.Errorf("control selections %q missing %q", joined, want)
+			}
+		}
+
+		// Evidence is REFERENCED by sha256 in back-matter, not inlined.
+		if ar.BackMatter == nil || len(ar.BackMatter.Resources) != 1 {
+			t.Fatalf("back-matter resources = %v, want 1", ar.BackMatter)
+		}
+		bm := ar.BackMatter.Resources[0]
+		if len(bm.RLinks) != 1 || len(bm.RLinks[0].Hashes) != 1 ||
+			bm.RLinks[0].Hashes[0].Algorithm != "SHA-256" || bm.RLinks[0].Hashes[0].Value != evHex {
+			t.Errorf("evidence resource = %+v, want one SHA-256 rlink == %s", bm, evHex)
+		}
+		if strings.Contains(string(sarBytes), "base64") {
+			t.Errorf("oscal sar inlined evidence (base64 present); must reference by hash")
+		}
+		// The r1 observation references the back-matter resource by href.
+		var r1Obs *oscalObservation
+		for i := range res.Observations {
+			if len(res.Observations[i].RelevantEvidence) > 0 {
+				r1Obs = &res.Observations[i]
+			}
+		}
+		if r1Obs == nil || r1Obs.RelevantEvidence[0].Href != "#"+bm.UUID {
+			t.Errorf("evidence href = %v, want #%s", r1Obs, bm.UUID)
+		}
+
+		// Cached in report_faces; re-export is byte-identical (deterministic).
+		var status string
+		if err := pool.QueryRow(ctx,
+			`SELECT status FROM report_faces WHERE snapshot_id = $1 AND face = 'oscal_sar'`, rep.ID).Scan(&status); err != nil {
+			t.Fatalf("oscal face row: %v", err)
+		}
+		if status != "ready" {
+			t.Errorf("oscal face status = %q, want ready", status)
+		}
+		sar2, _, err := svc.Export(ctx, rep.ID, FaceOSCALSAR)
+		if err != nil {
+			t.Fatalf("re-export oscal: %v", err)
+		}
+		if string(sar2) != string(sarBytes) {
+			t.Errorf("re-export not identical (non-deterministic)")
+		}
+
+		// Framework lens scoping: the stig attestation yields only r2.
+		repStig, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation, Framework: "stig_rhel9_v2r7"})
+		if err != nil {
+			t.Fatalf("Generate stig attestation: %v", err)
+		}
+		stigBytes, _, err := svc.Export(ctx, repStig.ID, FaceOSCALSAR)
+		if err != nil {
+			t.Fatalf("Export stig oscal: %v", err)
+		}
+		var stigDoc oscalDoc
+		if err := json.Unmarshal(stigBytes, &stigDoc); err != nil {
+			t.Fatalf("unmarshal stig oscal: %v", err)
+		}
+		sres := stigDoc.AssessmentResults.Results[0]
+		if len(sres.Findings) != 1 || sres.Findings[0].Target.TargetID != "r2" {
+			t.Errorf("stig findings = %+v, want only r2", sres.Findings)
+		}
+		var stigCtrls []string
+		for _, sel := range sres.ReviewedControls.ControlSelections {
+			for _, c := range sel.IncludeControls {
+				stigCtrls = append(stigCtrls, c.ControlID)
+			}
+		}
+		if strings.Join(stigCtrls, ",") != "stig_rhel9_v2r7-V-1" {
+			t.Errorf("stig controls = %v, want only stig_rhel9_v2r7-V-1", stigCtrls)
+		}
+
+		// oscal_sar is invalid for an executive report.
+		repExec, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate executive: %v", err)
+		}
+		if _, _, err := svc.Export(ctx, repExec.ID, FaceOSCALSAR); !errors.Is(err, ErrInvalidFace) {
+			t.Errorf("Export oscal_sar on executive err = %v, want ErrInvalidFace", err)
+		}
+	})
 }
 
 // @ac AC-19
