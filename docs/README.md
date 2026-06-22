@@ -43,7 +43,8 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Scaling Guide](guides/SCALING_GUIDE.md) | Horizontal scaling and performance tuning |
 | [Backup & Recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore, and disaster recovery |
 | [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, session, and encryption keys |
-| [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch with rollback procedures |
+| [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch (automatic one-command + controlled manual path), with rollback |
+| [Supported Linux Distributions](guides/LINUX_DISTRIBUTION_SUPPORT.md) | Tested RPM/DEB target distributions and versions |
 | [Releasing](runbooks/RELEASING.md) | Gated pre-release process: docs freeze → RC → verification gate → GA, plus signing-key setup |
 | [Compliance Controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC, FedRAMP control mapping |
 
