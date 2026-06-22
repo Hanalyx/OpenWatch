@@ -566,11 +566,18 @@ first producer**. Async is an optimization, not a correctness gate: `Export`
 stays the lazy fallback so a download before the job runs still renders
 inline. Spec: `api-reports` v1.10.0 (C-16 / AC-22) + the new eventbus kind.
 
-**B3c — Notification bell (frontend).** *(REMAINING; needs product input.)*
-Turn the stubbed TopBar bell into a real consumer of `report.ready` (and
-later other events) over SSE — unread state, what the feed shows, whether
-notifications persist. This is the product-design surface of B3 and is
-held for a direction decision rather than guessed.
+**B3c — Notification bell (frontend).** *(SHIPPED 2026-06-21, PR #647 —
+conservative MVP.)* The stubbed TopBar bell is now a real consumer of
+`report.ready`: `useLiveEvents` subscribes to the topic and bumps a
+session-scoped unread counter in a small Zustand store
+(`useNotificationStore`); the bell renders that count as a badge and, on
+click, opens `/reports` and clears it. MVP scope is deliberately small and
+honest — the counter is session-scoped (a refresh resets it), there is no
+dropdown feed of individual notifications, and `report.ready` is the only
+event type. A durable per-user feed (a dropdown list, multiple event types,
+cross-session persistence) is the deferred follow-on and is NOT faked. Spec:
+`frontend-live-events` v1.3.0 (C-08 / AC-10) + new `frontend-notifications`
+v1.0.0.
 
 ### Recommended order
 B0 → B1 → B2 → B3b → B3a → B3c. B0 unblocks attestation scoping + the

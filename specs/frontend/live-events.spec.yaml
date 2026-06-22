@@ -1,7 +1,7 @@
 spec:
   id: frontend-live-events
   title: useLiveEvents SSE hook — topic ↔ query-key invalidation contract
-  version: "1.1.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -66,7 +66,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the six kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed, remediation.completed (v1.2.0). Adding another requires bumping this spec''s version and updating the test'
+      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the seven kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed, remediation.completed (v1.2.0), report.ready (v1.3.0). Adding another requires bumping this spec''s version and updating the test'
       type: technical
       enforcement: error
     - id: C-02
@@ -93,10 +93,14 @@ spec:
       description: 'scan.completed handler MUST invalidate [hosts] AND when the envelope carries a host id also [host, id] — a completed scan changes compliance_summary on both the list and the detail hero card. This is the no-polling refresh path for the Run scan flow'
       type: technical
       enforcement: error
+    - id: C-08
+      description: 'v1.3.0 — the report.ready handler MUST bump the notification store (useNotificationStore.getState().bumpReportReady()) so the bell badge increments, AND invalidate ["reports"] so the Reports library refreshes. A report is fleet-scoped, so the handler does NOT read a host id or invalidate any ["host", id] key. Spec frontend-notifications owns the bell that reads the store'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed", "remediation.completed"]. Verified by importing the const and asserting the array contents + length'
+      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed", "remediation.completed", "report.ready"]. Verified by importing the const and asserting the array contents + length'
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
@@ -131,3 +135,7 @@ spec:
       description: 'Firing remediation.completed with HostID=H invalidates ["host", H, "remediations"] AND ["host", H] — the Remediation tab and the compliance score refresh without a reload when a queued fix or rollback finishes (a committed fix flips a rule to pass)'
       priority: high
       references_constraints: [C-07]
+    - id: AC-10
+      description: 'v1.3.0 — Firing report.ready invalidates ["reports"] and increments the notification store (useNotificationStore.unreadReports goes up by one per event). Spies observe ZERO ["host", ...] invalidation (a report is fleet-scoped, not per-host)'
+      priority: high
+      references_constraints: [C-08]
