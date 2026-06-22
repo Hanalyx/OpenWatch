@@ -7,7 +7,7 @@ PostgreSQL and managed by `systemd`. There is no container runtime, no Redis,
 and no separate web tier to back up.
 
 For install and first-run setup, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md). This
+[`docs/guides/INSTALLATION.md`](INSTALLATION.md). This
 document assumes the layout that guide produces.
 
 ## What you need to back up
@@ -176,7 +176,7 @@ sudo systemctl restart openwatch
 ## Disaster recovery (rebuild on a new host)
 
 1. Install the OpenWatch package on the new host (`dnf install` or `apt
-   install`) per [`install_guide.md`](../engineering/install_guide.md). This
+   install`) per [`INSTALLATION.md`](INSTALLATION.md). This
    creates the `openwatch` user, the binary, `/etc/openwatch/`, and the
    `systemd` unit.
 2. Provision PostgreSQL and create the database. The package does not provision
@@ -344,6 +344,6 @@ The following are not part of OpenWatch today. Do not script against them.
 | Migrate | `sudo -u openwatch env $(cat /etc/openwatch/secrets.env \| xargs) openwatch migrate` |
 | Logs | `journalctl -u openwatch -f` |
 
-See also: [`install_guide.md`](../engineering/install_guide.md),
+See also: [`INSTALLATION.md`](INSTALLATION.md),
 [`rbac_registry.md`](../engineering/rbac_registry.md), and the API contract in
 [`api/openapi.yaml`](../../api/openapi.yaml).

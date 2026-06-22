@@ -7,7 +7,7 @@ UI over HTTPS on port 8443. It uses PostgreSQL only — there is no MongoDB, Red
 Celery, Alembic, or container runtime involved in migrations.
 
 For end-to-end install and configuration, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md). This
+[`docs/guides/INSTALLATION.md`](INSTALLATION.md). This
 document focuses specifically on the migration mechanism.
 
 ## How migrations work
@@ -257,9 +257,9 @@ journalctl -u openwatch -n 50 --no-pager
 | Migration files | `internal/db/migrations/*.sql` |
 | Applier (`Apply`, `Status`, `List`) | `internal/db/migrations/runner.go`, `embed.go` |
 | `migrate` subcommand | `cmd/openwatch/main.go` (`cmdMigrate`) |
-| Config layering and DSN | `internal/config/`, `docs/engineering/install_guide.md` |
+| Config layering and DSN | `internal/config/`, `docs/guides/INSTALLATION.md` |
 | systemd unit | `packaging/common/openwatch.service` |
-| Install and upgrade flow | `docs/engineering/install_guide.md` |
+| Install and upgrade flow | `docs/guides/INSTALLATION.md` |
 | Compliance engine boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
 
 OpenWatch's compliance engine, Kensa, runs SSH-based checks against native YAML

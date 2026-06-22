@@ -21,8 +21,8 @@ This runbook covers the three processes that can saturate CPU on an OpenWatch ho
 | `postgres` | Expensive queries, missing indexes, autovacuum on large tables |
 
 For install and configuration details, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md). For the
-Kensa boundary, see [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
+[`docs/guides/INSTALLATION.md`](../INSTALLATION.md). For the
+Kensa boundary, see [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---
 
@@ -219,7 +219,7 @@ curl -sk -X PUT https://localhost:8443/api/v1/system/discovery/config \
 
 > These endpoints require an authenticated token with the appropriate role. Confirm
 > the exact request body and required permission against `api/openapi.yaml` and
-> [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md) before use.
+> [`docs/engineering/rbac_registry.md`](../../engineering/rbac_registry.md) before use.
 > The schedulers log a warning at startup when paused.
 
 ### Path D: slow the worker poll loop

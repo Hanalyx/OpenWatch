@@ -6,7 +6,7 @@ by `systemd`. There is no container runtime, no separate web tier, no Redis, and
 no Celery — those belonged to the archived Python stack and are gone.
 
 For first-time install and database provisioning, follow the canonical
-[install guide](../engineering/install_guide.md). This document does **not**
+[install guide](INSTALLATION.md). This document does **not**
 repeat those steps; it focuses on production concerns the install guide only
 touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
@@ -52,7 +52,7 @@ OpenSCAP, `oscap`, XCCDF, and OVAL are not used anywhere in OpenWatch.
 
 ## Prerequisites
 
-See the [install guide requirements](../engineering/install_guide.md#requirements)
+See the [install guide requirements](INSTALLATION.md#requirements)
 for the authoritative list. In short:
 
 - A supported RHEL-family or Debian-family host with `systemd`.
@@ -65,7 +65,7 @@ for the authoritative list. In short:
 
 ## Install and first run
 
-Follow the [install guide](../engineering/install_guide.md) end to end:
+Follow the [install guide](INSTALLATION.md) end to end:
 
 1. Install and provision PostgreSQL.
 2. Install the signed `.rpm`/`.deb` (verify `SHA256SUMS.asc` against `KEYS` first).
@@ -416,7 +416,7 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 
 ## See also
 
-- [Install guide](../engineering/install_guide.md) — canonical install and provisioning.
+- [Install guide](INSTALLATION.md) — canonical install and provisioning.
 - [Kensa ↔ OpenWatch boundary](../KENSA_OPENWATCH_BOUNDARY.md) — compliance engine integration.
 - [RBAC registry](../engineering/rbac_registry.md) — roles and permissions.
 - [API contract](../../api/openapi.yaml) — every endpoint, its permission, and audit events.

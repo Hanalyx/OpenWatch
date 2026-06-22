@@ -139,7 +139,7 @@ Rule counts reflect current Kensa mapping files. As Kensa releases new rule vers
 ## What's Next
 
 - [Quickstart Guide](guides/QUICKSTART.md) -- First 15 minutes with OpenWatch
-- [Installation Guide](engineering/install_guide.md) -- Deployment options and configuration
+- [Installation Guide](guides/INSTALLATION.md) -- Deployment options and configuration
 - [User Roles](guides/USER_ROLES.md) -- Permissions and workflows
 - [Scanning and Compliance](guides/SCANNING_AND_COMPLIANCE.md) -- Scan lifecycle, frameworks, and posture queries
 - [Hosts and Remediation](guides/HOSTS_AND_REMEDIATION.md) -- Host management, remediation, and exception workflows

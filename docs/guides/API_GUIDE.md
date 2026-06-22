@@ -347,7 +347,7 @@ Configuration lives in `/etc/openwatch/openwatch.toml`, with environment
 overrides of the form `OPENWATCH_<SECTION>_<KEY>` and the database DSN in
 `/etc/openwatch/secrets.env` (`OPENWATCH_DATABASE_DSN`). For full install and
 configuration steps, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+[`docs/guides/INSTALLATION.md`](INSTALLATION.md).
 
 ---
 
@@ -373,7 +373,7 @@ they appear in `api/openapi.yaml`. For how OpenWatch invokes Kensa, see
 
 ## What's next
 
-- [Install guide](../engineering/install_guide.md) — install, configure, and run the service.
+- [Install guide](INSTALLATION.md) — install, configure, and run the service.
 - [RBAC registry](../engineering/rbac_registry.md) — permission and role reference.
 - [Kensa ↔ OpenWatch boundary](../KENSA_OPENWATCH_BOUNDARY.md) — how scanning works.
 - `api/openapi.yaml` — the authoritative, always-current API contract.

@@ -3,7 +3,7 @@
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
 running. If it is not, follow
-[docs/engineering/install_guide.md](../engineering/install_guide.md) first, then
+[docs/guides/INSTALLATION.md](INSTALLATION.md) first, then
 return here.
 
 OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves both the REST
@@ -245,7 +245,7 @@ counts to a single framework key.
 
 | Task | Where |
 |------|-------|
-| Full install and configuration reference | [docs/engineering/install_guide.md](../engineering/install_guide.md) |
+| Full install and configuration reference | [docs/guides/INSTALLATION.md](INSTALLATION.md) |
 | Roles and permissions | [docs/engineering/rbac_registry.md](../engineering/rbac_registry.md) |
 | Kensa ↔ OpenWatch boundary | [docs/KENSA_OPENWATCH_BOUNDARY.md](../KENSA_OPENWATCH_BOUNDARY.md) |
 | API contract (source of truth) | `api/openapi.yaml` (paths under `/api/v1`) |

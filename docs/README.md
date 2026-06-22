@@ -20,7 +20,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 |----------|-------------|
 | [Introduction](INTRODUCTION.md) | Platform philosophy, architecture overview, supported frameworks |
 | [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
-| [Installation](engineering/install_guide.md) | Deploy from a native RPM/DEB package or from source |
+| [Installation](guides/INSTALLATION.md) | Deploy from a native RPM/DEB package or from source |
 
 ## Operator Guides
 
@@ -51,11 +51,11 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 | Runbook | Trigger |
 |---------|---------|
-| [Service Down](runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
-| [Database Issues](runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
-| [High CPU](runbooks/HIGH_CPU.md) | CPU utilization above threshold |
-| [Disk Full](runbooks/DISK_FULL.md) | Disk space critically low |
-| [Security Incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
+| [Service Down](guides/runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
+| [Database Issues](guides/runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
+| [High CPU](guides/runbooks/HIGH_CPU.md) | CPU utilization above threshold |
+| [Disk Full](guides/runbooks/DISK_FULL.md) | Disk space critically low |
+| [Security Incident](guides/runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
 
 ## Architecture
 
@@ -64,10 +64,9 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 
 For installing OpenWatch from the native RPM/DEB, see
-[engineering/install_guide.md](engineering/install_guide.md). (The legacy
-Python/Docker-Compose `guides/INSTALLATION.md` and the earlier owadm-based
-"Native RPM Installation Plan" were superseded by the single-`openwatch`-binary
-model and archived out of the repo.)
+[guides/INSTALLATION.md](guides/INSTALLATION.md). (The legacy Python/Docker-Compose
+install guide and the earlier owadm-based "Native RPM Installation Plan" were
+superseded by the single-`openwatch`-binary model and archived out of the repo.)
 
 > **Design documents** — the Python-era `openwatchos/` planning sketches and other
 > dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.

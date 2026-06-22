@@ -16,14 +16,14 @@ All design work is in `docs/`. Read these before changing anything:
 
 | Topic | File |
 |-------|------|
-| Vision, goals, decisions | [`docs/openwatch_roadmap.md`](docs/openwatch_roadmap.md) |
+| Vision, goals, decisions | [`openwatch_roadmap.md`](openwatch_roadmap.md) |
 | Stage 0 / Stage 1 plans (complete) | Delivered; the walking-skeleton plan and the Python-backend Stage-1 audits were archived out of the repo (2026-06-22) to `~/hanalyx/OWAR/openwatch-python/docs-archive/`. |
-| API design principles | [`docs/api_design_principles.md`](docs/api_design_principles.md) |
-| Audit event taxonomy | [`docs/audit_event_taxonomy.md`](docs/audit_event_taxonomy.md) |
-| Licensing foundation | [`docs/licensing_foundation.md`](docs/licensing_foundation.md) |
-| Policies-as-data | [`docs/policies_as_data.md`](docs/policies_as_data.md) |
-| RBAC registry | [`docs/rbac_registry.md`](docs/rbac_registry.md) |
-| Correlation ID propagation | [`docs/correlation_id_propagation.md`](docs/correlation_id_propagation.md) |
+| API design principles | [`api_design_principles.md`](api_design_principles.md) |
+| Audit event taxonomy | [`audit_event_taxonomy.md`](audit_event_taxonomy.md) |
+| Licensing foundation | [`licensing_foundation.md`](licensing_foundation.md) |
+| Policies-as-data | [`policies_as_data.md`](policies_as_data.md) |
+| RBAC registry | [`rbac_registry.md`](rbac_registry.md) |
+| Correlation ID propagation | [`correlation_id_propagation.md`](correlation_id_propagation.md) |
 
 Registries (source of truth for codegen):
 
@@ -232,7 +232,7 @@ make rpm    # → dist/openwatch-<ver>-1.x86_64.rpm  (needs rpmbuild)
 make deb    # → dist/openwatch_<ver>_amd64.deb     (needs dpkg-deb)
 ```
 
-Install on a target VM via [`docs/install_guide.md`](docs/install_guide.md).
+Install on a target VM via [`docs/guides/INSTALLATION.md`](../guides/INSTALLATION.md).
 
 ### 5. Code generation
 

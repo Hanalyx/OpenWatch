@@ -11,7 +11,7 @@ configure. OpenSCAP is not used; the compliance engine is Kensa (SSH-based, nati
 YAML rules).
 
 For end-to-end install and first-run steps, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md). This page
+[`docs/guides/INSTALLATION.md`](INSTALLATION.md). This page
 documents only the configuration surface and does not repeat the install flow.
 
 ## Configuration layering

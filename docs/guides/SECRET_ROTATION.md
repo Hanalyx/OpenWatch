@@ -7,7 +7,7 @@ the `openwatch.service` systemd unit. There is no separate web tier, no
 container runtime, and no Redis or message broker.
 
 For install and first-time configuration, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md); this
+[`docs/guides/INSTALLATION.md`](INSTALLATION.md); this
 guide assumes the service is already installed and running.
 
 ## Secrets at a glance

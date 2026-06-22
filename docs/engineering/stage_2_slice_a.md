@@ -211,7 +211,7 @@ By Friday: `internal/identity/` is feature-complete, fully tested at 100% strict
 |---|---|
 | 1 | Remove `auth.StubIdentityBinder` from production code path; tests still use it via a build-tag-isolated test helper. Every API integration test now uses a real login + token. |
 | 2 | OIDC + SAML stubs: handler endpoints exist, return 402 license.feature_unavailable when called, audit-log the attempt. Real implementations are a follow-up. |
-| 3 | Update `docs/install_guide.md` with the first-run flow: bootstrap-admin command, login, MFA enrollment, replace demo cert (which already exists), add a host. |
+| 3 | Update `docs/guides/INSTALLATION.md` with the first-run flow: bootstrap-admin command, login, MFA enrollment, replace demo cert (which already exists), add a host. |
 | 4 | Re-run the 19-step DoD from `release-stage-0-signoff` — every step still passes, but now via real auth instead of stub roles. Update DoD with the new step list (no more `X-Stub-Role`). |
 | 5 | `make check` clean; specter sync clean; `slice-a-complete` tag candidate |
 

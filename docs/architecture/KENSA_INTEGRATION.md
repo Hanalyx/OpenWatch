@@ -201,7 +201,7 @@ psql "$OPENWATCH_DATABASE_DSN" -c \
 ```
 
 For install, configuration, TLS, and database setup, follow the canonical
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md); this
+[`docs/guides/INSTALLATION.md`](../guides/INSTALLATION.md); this
 document does not duplicate those procedures. For role and permission details
 that gate the scan and compliance endpoints, see
 [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md).
@@ -216,5 +216,5 @@ that gate the scan and compliance endpoints, see
 | Worker wiring | `cmd/openwatch/worker.go`, `internal/worker/` |
 | Transaction-log writer | `internal/transactionlog/writer.go` |
 | Health endpoint and Kensa version | `api/openapi.yaml` (`GET /api/v1/health`), `internal/version/version.go` |
-| Install and configuration | `docs/engineering/install_guide.md` |
+| Install and configuration | `docs/guides/INSTALLATION.md` |
 | Roles and permissions | `docs/engineering/rbac_registry.md` |

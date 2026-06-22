@@ -1,5 +1,7 @@
 # OpenWatch install guide (native packages)
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
 first admin user, start the service, and sign in to the web UI.

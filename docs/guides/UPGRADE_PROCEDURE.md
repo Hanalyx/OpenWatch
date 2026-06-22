@@ -1,5 +1,7 @@
 # Upgrade procedure
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
 and the embedded web UI over HTTPS on port 8443, managed by the `openwatch.service`
@@ -7,15 +9,88 @@ systemd unit and backed by PostgreSQL. There is no container runtime, no separat
 web tier, and no Redis/Celery to coordinate, so an upgrade is: install the new
 package, apply migrations, restart the service.
 
-For first-time install and configuration, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md). For the
-database backup and restore commands referenced below, see
-[`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md). For migration mechanics, see
-[`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md).
+There are two paths. The **automatic** path (below) is one command: the package
+scriptlet backs up and migrates the database and restarts the service. The
+**controlled (manual)** path gives you a step at a time and is the right choice
+for production change windows. Both are documented here.
 
-> Version note: the current release line is a pre-release (`0.2.0-rc.11`). Treat
-> upgrades between pre-release builds as potentially breaking and always back up
-> first.
+For first-time install and configuration, see
+[`INSTALLATION.md`](INSTALLATION.md). For the database backup and restore
+commands referenced below, see [`BACKUP_RECOVERY.md`](BACKUP_RECOVERY.md). For
+migration mechanics, see [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md).
+
+> Version note: the current release line is a pre-release (the `0.2.0-rc`
+> series). Treat upgrades between pre-release builds as potentially breaking and
+> always back up first.
+
+## Quick upgrade (automatic, recommended)
+
+On a single-instance install an upgrade is **one command**. The package
+post-install scriptlet applies any pending database migrations automatically —
+taking a backup restore point first — and restarts the service.
+
+```bash
+# RHEL / CentOS / Rocky / Alma / Fedora
+sudo dnf update -y 'openwatch*' 'kensa-rules*'
+
+# Debian / Ubuntu
+sudo apt update && sudo apt install --only-upgrade openwatch kensa-rules
+```
+
+### What happens automatically (on upgrade)
+
+The scriptlet runs **only on upgrade**, never on a fresh install, and does:
+
+1. **Checks the database is reachable.** If it isn't, migrations are skipped
+   with a warning (the upgrade doesn't fail) — run `openwatch migrate` manually
+   once the DB is back, then `systemctl restart openwatch`.
+2. **Stops the service** — so the new binary never runs against an old schema.
+3. **Backs up the database** with `pg_dump` to `/var/lib/openwatch/backups/`
+   (your restore point; the password is passed via the environment, never on the
+   command line).
+4. **Applies pending migrations.** Each runs in a transaction, so a failure
+   rolls back atomically — data is never left half-migrated.
+5. **On success → starts the service** on the new version.
+   **On failure → leaves the service stopped**, prints the restore path, and
+   exits non-zero so `dnf`/`apt` flag that the upgrade needs attention.
+
+Preview what would change before upgrading:
+
+```bash
+sudo openwatch migrate --status
+# -> "up to date — no migrations pending"  OR  "PENDING: N migration(s) ..."
+```
+
+### If an automatic migration fails
+
+The service is left **stopped** and your data is intact (the failed migration
+rolled back). Recover with:
+
+```bash
+# 1. read the error in the dnf/apt output or:  journalctl -u openwatch
+# 2. fix the cause, then re-apply:
+sudo openwatch migrate
+sudo systemctl start openwatch
+# on Debian, also clear the half-configured state:
+sudo dpkg --configure -a
+```
+
+To restore the pre-upgrade dump instead, see [Rollback](#rollback).
+
+### Backups: location, retention, opt-out
+
+- Dumps live in `/var/lib/openwatch/backups/`.
+- A systemd timer (`openwatch-backup-cleanup.timer`, daily) prunes dumps older
+  than `BACKUP_RETENTION_DAYS` (default 30) but **always keeps the most recent
+  one**, so you never lose your last restore point.
+- Tune in `/etc/openwatch/upgrade.conf`: `AUTO_BACKUP=yes|no` (set `no` only if
+  you run your own verified pre-upgrade backups), `BACKUP_DIR`,
+  `BACKUP_RETENTION_DAYS`.
+
+## Controlled (manual) upgrade
+
+The remaining sections are the manual, step-at-a-time path — for production
+change windows, multi-step validation, or when `AUTO_BACKUP=no`.
 
 ## Before you upgrade
 
@@ -207,11 +282,16 @@ Kensa/OpenWatch responsibility boundary, see
 ## Upgrading PostgreSQL
 
 PostgreSQL is provisioned and operated independently of the OpenWatch package
-(see [`docs/engineering/install_guide.md`](../engineering/install_guide.md)).
-Follow your distribution's PostgreSQL major-version upgrade procedure
-(`pg_upgrade` or dump-and-restore). Stop `openwatch.service` first so no
-connections are open during the upgrade, then start it again afterward and run
-the [verification](#step-7--verify-the-upgrade) checks.
+(see [`INSTALLATION.md`](INSTALLATION.md)). A **PostgreSQL major-version upgrade**
+(e.g. 15 to 16) is **never** performed by the OpenWatch package scriptlet — it is
+a data-directory migration (`pg_upgrade` or dump/restore) that needs both server
+versions and must be operator-supervised; doing it silently from a package
+upgrade would risk the whole database. Plan it separately, with its own backup:
+follow your distribution's procedure, stop `openwatch.service` first so no
+connections are open, then start it again afterward and run the
+[verification](#step-7--verify-the-upgrade) checks. (Minor PostgreSQL and
+dependency updates are handled by `dnf`/`apt` via package dependencies — nothing
+extra to do.)
 
 ## Troubleshooting
 

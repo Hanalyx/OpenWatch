@@ -33,7 +33,7 @@ and a human signs off.
 2. Update `CHANGELOG.md` for the version (GitHub auto-notes supplement this).
 3. Refresh user-facing docs that changed this cycle:
    - `README.md` (version/badges, install flow)
-   - `docs/engineering/install_guide.md` (supported-distro matrix, commands)
+   - `docs/guides/INSTALLATION.md` (supported-distro matrix, commands)
    - DB-migration notes for any new migrations
    - API docs if `api/openapi.yaml` changed
 4. Confirm `specter check` and `specter coverage` are clean locally.
