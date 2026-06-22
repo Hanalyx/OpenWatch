@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 2
 
@@ -221,6 +221,22 @@ spec:
         "exception" to "Exception Register". UI copy carries no em-dash.
       type: technical
       enforcement: error
+    - id: C-13
+      description: >-
+        v1.10.0 (Phase C2) - The kind selector offers a fourth option,
+        "Remediation Activity" (value "remediation"); when that kind is
+        selected a period selector (Last 7 / 30 / 90 days) appears, bound to
+        a periodDays state, and the generate body sends period_days only for
+        the remediation kind. The detail body branches to a RemediationBody
+        for the remediation kind, rendering the frozen RemediationContent:
+        the period window, the request summary by outcome (total / executed /
+        rolled_back / failed / rejected / pending), and a recent-activity
+        sample, pointing at the CSV face for the full log. The remediation
+        kind is CSV-led (primary download is the activity-log CSV) with a PDF
+        summary secondary and JSON. kindLabel maps "remediation" to
+        "Remediation Activity". UI copy carries no em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -375,3 +391,18 @@ spec:
         'exception'). The added copy contains no em-dash.
       priority: high
       references_constraints: [C-12]
+    - id: AC-14
+      description: >-
+        v1.10.0 - Source inspection: the kind selector includes an
+        <option value="remediation">Remediation Activity</option>; a period
+        selector (aria-label "Remediation period") renders only when
+        reportKind === 'remediation', and the generate body sets period_days
+        for that kind. kindLabel maps "remediation" to "Remediation Activity".
+        The detail body branches to
+        RemediationBody(asRemediationContent(resolved.content)).
+        asRemediationContent narrows the activity keys; RemediationBody
+        renders the period + the outcome summary ("Total requests",
+        s.executed, s.rolled_back) and the recent-activity table. The added
+        copy contains no em-dash.
+      priority: high
+      references_constraints: [C-13]

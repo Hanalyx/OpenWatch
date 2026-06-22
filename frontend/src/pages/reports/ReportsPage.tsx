@@ -169,10 +169,63 @@ function asExceptionContent(content: Report['content']): ExceptionContent {
   };
 }
 
+// The remediation-activity content shape (see api-reports spec): the period
+// it covers, a summary by outcome, and the activity rows. The CSV face is
+// the full log; the in-app body shows the period + summary + recent sample.
+interface RemediationSummary {
+  total: number;
+  executed: number;
+  rolled_back: number;
+  failed: number;
+  rejected: number;
+  pending: number;
+}
+
+interface RemediationActRow {
+  host_name: string;
+  rule_id: string;
+  status: string;
+  mechanism: string;
+  requested_by: string;
+  requested_at: string;
+  reviewed_by: string;
+  reviewed_at: string | null;
+}
+
+interface RemediationContent {
+  period_from: string;
+  period_to: string;
+  summary: RemediationSummary;
+  activities: RemediationActRow[];
+}
+
+function asRemediationSummary(s: Partial<RemediationSummary> | undefined): RemediationSummary {
+  const n = (v: unknown): number => (typeof v === 'number' ? v : 0);
+  return {
+    total: n(s?.total),
+    executed: n(s?.executed),
+    rolled_back: n(s?.rolled_back),
+    failed: n(s?.failed),
+    rejected: n(s?.rejected),
+    pending: n(s?.pending),
+  };
+}
+
+function asRemediationContent(content: Report['content']): RemediationContent {
+  const c = content as Partial<RemediationContent>;
+  return {
+    period_from: typeof c.period_from === 'string' ? c.period_from : '',
+    period_to: typeof c.period_to === 'string' ? c.period_to : '',
+    summary: asRemediationSummary(c.summary as Partial<RemediationSummary> | undefined),
+    activities: Array.isArray(c.activities) ? c.activities : [],
+  };
+}
+
 function kindLabel(kind: Report['kind']): string {
   if (kind === 'executive') return 'Executive';
   if (kind === 'attestation') return 'Attestation';
   if (kind === 'exception') return 'Exception Register';
+  if (kind === 'remediation') return 'Remediation Activity';
   return kind;
 }
 
@@ -192,11 +245,13 @@ export function ReportsPage() {
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Kind + scope for the next Generate. '' = all hosts / all frameworks.
-  const [reportKind, setReportKind] = useState<'executive' | 'attestation' | 'exception'>(
-    'executive',
-  );
+  const [reportKind, setReportKind] = useState<
+    'executive' | 'attestation' | 'exception' | 'remediation'
+  >('executive');
   const [scopeGroupId, setScopeGroupId] = useState<string>('');
   const [scopeFramework, setScopeFramework] = useState<string>('');
+  // Look-back window (days) for the remediation activity kind.
+  const [periodDays, setPeriodDays] = useState<number>(30);
 
   const queryClient = useQueryClient();
   const canGenerate = useAuthStore((s) => s.hasPermission('host:write'));
@@ -243,14 +298,17 @@ export function ReportsPage() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const body: {
-        kind?: 'executive' | 'attestation' | 'exception';
+        kind?: 'executive' | 'attestation' | 'exception' | 'remediation';
         group_id?: string;
         framework?: string;
+        period_days?: number;
       } = {};
       // executive is the implicit default; send kind only for the others.
       if (reportKind !== 'executive') body.kind = reportKind;
       if (scopeGroupId) body.group_id = scopeGroupId;
       if (scopeFramework) body.framework = scopeFramework;
+      // The period window only applies to the remediation activity kind.
+      if (reportKind === 'remediation') body.period_days = periodDays;
       const { data, error, response } = await api.POST('/api/v1/reports:generate', { body });
       if (error || !response.ok)
         throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
@@ -292,10 +350,12 @@ export function ReportsPage() {
               aria-label="Report kind"
               value={reportKind}
               onChange={(e) =>
-                setReportKind(e.target.value as 'executive' | 'attestation' | 'exception')
+                setReportKind(
+                  e.target.value as 'executive' | 'attestation' | 'exception' | 'remediation',
+                )
               }
               disabled={generateMutation.isPending}
-              title="Executive summary (leadership), Framework Attestation (auditor evidence), or Exception Register (compliance waivers)"
+              title="Executive summary (leadership), Framework Attestation (auditor evidence), Exception Register (compliance waivers), or Remediation Activity (fixes over a period)"
               style={{
                 height: 34,
                 padding: '0 10px',
@@ -311,6 +371,31 @@ export function ReportsPage() {
               <option value="executive">Executive</option>
               <option value="attestation">Attestation</option>
               <option value="exception">Exception Register</option>
+              <option value="remediation">Remediation Activity</option>
+            </select>
+          )}
+          {canGenerate && reportKind === 'remediation' && (
+            <select
+              aria-label="Remediation period"
+              value={periodDays}
+              onChange={(e) => setPeriodDays(Number(e.target.value))}
+              disabled={generateMutation.isPending}
+              title="Look-back window for the remediation activity log"
+              style={{
+                height: 34,
+                padding: '0 10px',
+                borderRadius: 'var(--ow-radius-sm, 6px)',
+                border: '1px solid var(--ow-line)',
+                background: 'var(--ow-bg-2)',
+                color: 'var(--ow-fg-0)',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                cursor: generateMutation.isPending ? 'default' : 'pointer',
+              }}
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
             </select>
           )}
           {canGenerate && (
@@ -764,7 +849,7 @@ function ReportDetail({
   // evidence bundle / the full waiver register). JSON is offered for every
   // kind (it is the signed canonical face).
   const kind = resolved?.kind;
-  const csvLed = kind === 'attestation' || kind === 'exception';
+  const csvLed = kind === 'attestation' || kind === 'exception' || kind === 'remediation';
   const primaryFace: 'pdf' | 'csv' = csvLed ? 'csv' : 'pdf';
   const primaryLabel = csvLed ? 'Download CSV' : 'Download PDF';
   const primaryTitle =
@@ -772,7 +857,9 @@ function ReportDetail({
       ? 'Download the per-host, per-rule CSV evidence'
       : kind === 'exception'
         ? 'Download the full exception register (CSV)'
-        : 'Download the one-page executive PDF';
+        : kind === 'remediation'
+          ? 'Download the full remediation activity log (CSV)'
+          : 'Download the one-page executive PDF';
 
   // Secondary faces offered beside the primary + JSON. An attestation also
   // exposes its bounded PDF cover and the fleet OSCAL SAR; an exception
@@ -790,7 +877,9 @@ function ReportDetail({
         ]
       : kind === 'exception'
         ? [{ face: 'pdf', label: 'PDF', title: 'Download the one-page exception summary PDF' }]
-        : [];
+        : kind === 'remediation'
+          ? [{ face: 'pdf', label: 'PDF', title: 'Download the one-page remediation summary PDF' }]
+          : [];
 
   return (
     <div
@@ -1019,6 +1108,8 @@ function ReportDetail({
               <AttestationBody content={asAttestationContent(resolved.content)} />
             ) : resolved.kind === 'exception' ? (
               <ExceptionBody content={asExceptionContent(resolved.content)} />
+            ) : resolved.kind === 'remediation' ? (
+              <RemediationBody content={asRemediationContent(resolved.content)} />
             ) : (
               <ExecutiveBody content={asExecutiveContent(resolved.content)} />
             ))}
@@ -1377,6 +1468,99 @@ function ExceptionBody({ content }: { content: ExceptionContent }) {
       >
         Point-in-time snapshot of compliance waivers. The full register (every waiver with its
         justification, approver, and dates) is in the downloadable CSV face above.
+      </div>
+    </div>
+  );
+}
+
+function RemediationBody({ content }: { content: RemediationContent }) {
+  const s = content.summary;
+  const recent = content.activities.slice(0, 12);
+  const period =
+    content.period_from && content.period_to
+      ? `${formatDate(content.period_from)} to ${formatDate(content.period_to)}`
+      : 'n/a';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <section>
+        <SectionHead>Remediation requests</SectionHead>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <Stat label="Period" value={period} />
+          <Stat label="Total requests" value={`${s.total}`} />
+          <Stat label="Executed" value={`${s.executed}`} tone="var(--ow-ok)" />
+          <Stat label="Rolled back" value={`${s.rolled_back}`} tone="var(--ow-warn)" />
+          <Stat label="Failed" value={`${s.failed}`} tone="var(--ow-crit)" />
+          <Stat label="Rejected" value={`${s.rejected}`} />
+          <Stat label="In progress" value={`${s.pending}`} />
+        </div>
+      </section>
+
+      <section>
+        <SectionHead>Recent activity</SectionHead>
+        {recent.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--ow-fg-3)', padding: '8px 0' }}>
+            No remediation requests in this period.
+          </div>
+        ) : (
+          <Panel>
+            <Row head cols="1fr 1fr 120px">
+              <span>Host</span>
+              <span>Rule</span>
+              <span>Status</span>
+            </Row>
+            {recent.map((r, i) => (
+              <Row
+                key={`${r.host_name}:${r.rule_id}:${r.requested_at}`}
+                cols="1fr 1fr 120px"
+                first={i === 0}
+              >
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ow-fg-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {r.host_name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontFamily: 'var(--ow-font-mono, monospace)',
+                    color: 'var(--ow-fg-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {r.rule_id}
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>{r.status}</span>
+              </Row>
+            ))}
+          </Panel>
+        )}
+      </section>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--ow-fg-3)',
+          lineHeight: 1.5,
+          paddingTop: 4,
+          borderTop: '1px solid var(--ow-line)',
+        }}
+      >
+        Remediation requests filed in the period above. The full activity log (every request with
+        its requester, approver, mechanism, and timestamps) is in the downloadable CSV face above.
       </div>
     </div>
   );

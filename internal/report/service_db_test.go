@@ -624,6 +624,112 @@ func seedException(t *testing.T, pool *pgxpool.Pool, hostID, requestedBy uuid.UU
 	}
 }
 
+// seedRemediation inserts one remediation request. A non-pending status
+// sets reviewed_by + reviewed_at. requestedAt sets the activity timestamp
+// the period window filters on.
+func seedRemediation(t *testing.T, pool *pgxpool.Pool, hostID, requestedBy uuid.UUID, ruleID, status string, requestedAt time.Time) {
+	t.Helper()
+	var reviewedBy *uuid.UUID
+	var reviewedAt *time.Time
+	if status != "pending_approval" {
+		reviewedBy = &requestedBy
+		reviewedAt = &requestedAt
+	}
+	id, _ := uuid.NewV7()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO remediation_requests (id, host_id, rule_id, status, requested_by, reviewed_by, requested_at, reviewed_at, mechanism)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, hostID, ruleID, status, requestedBy, reviewedBy, requestedAt, reviewedAt, "kensa-handler")
+	if err != nil {
+		t.Fatalf("seed remediation: %v", err)
+	}
+}
+
+// @ac AC-24
+// The remediation kind builds an activity log over a look-back window
+// (requested_at): a summary by outcome plus the activity rows. The window
+// excludes out-of-period requests; CSV is the log, PDF the summary,
+// oscal_sar is invalid for the kind.
+func TestGenerate_RemediationActivity(t *testing.T) {
+	t.Run("api-reports/AC-24", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		signer, _ := NewSigner("")
+		svc := NewService(pool).WithSigner(signer)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+		now := time.Now()
+		seedRemediation(t, pool, h, owner, "r1", "executed", now.Add(-5*24*time.Hour))
+		seedRemediation(t, pool, h, owner, "r2", "rolled_back", now.Add(-10*24*time.Hour))
+		seedRemediation(t, pool, h, owner, "r3", "failed", now.Add(-3*24*time.Hour))
+		seedRemediation(t, pool, h, owner, "r4", "rejected", now.Add(-40*24*time.Hour)) // out of 30d window
+		seedRemediation(t, pool, h, owner, "r5", "pending_approval", now.Add(-1*24*time.Hour))
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindRemediation, PeriodDays: 30})
+		if err != nil {
+			t.Fatalf("Generate remediation: %v", err)
+		}
+		if rep.Kind != KindRemediation || rep.Title != remediationTitle {
+			t.Errorf("kind/title = %s/%q", rep.Kind, rep.Title)
+		}
+		if len(rep.Signature) == 0 {
+			t.Errorf("remediation report should be signed")
+		}
+
+		var c RemediationContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			t.Fatalf("decode remediation content: %v", err)
+		}
+		s := c.Summary
+		if s.Total != 4 || s.Executed != 1 || s.RolledBack != 1 || s.Failed != 1 ||
+			s.Rejected != 0 || s.Pending != 1 {
+			t.Errorf("summary = %+v, want total 4 / executed 1 / rolledBack 1 / failed 1 / rejected 0 / pending 1", s)
+		}
+		if len(c.Activities) != 4 {
+			t.Errorf("rows = %d, want 4 (r4 out of window)", len(c.Activities))
+		}
+		// The window is ~30 days wide.
+		if d := c.PeriodTo.Sub(c.PeriodFrom); d < 29*24*time.Hour || d > 31*24*time.Hour {
+			t.Errorf("period width = %v, want ~30 days", d)
+		}
+
+		// CSV face: header + 4 rows (not r4).
+		csvBytes, media, err := svc.Export(ctx, rep.ID, FaceCSV)
+		if err != nil {
+			t.Fatalf("Export csv: %v", err)
+		}
+		if media != "text/csv" {
+			t.Errorf("csv media = %q", media)
+		}
+		csvStr := string(csvBytes)
+		if !strings.Contains(csvStr, "host,rule_id,status,mechanism") {
+			t.Errorf("csv missing header: %q", csvStr)
+		}
+		if strings.Contains(csvStr, "r4") {
+			t.Errorf("csv should exclude out-of-window r4: %q", csvStr)
+		}
+		for _, r := range []string{"r1", "r2", "r3", "r5"} {
+			if !strings.Contains(csvStr, r) {
+				t.Errorf("csv missing rule %s", r)
+			}
+		}
+
+		// PDF face: real %PDF bytes.
+		pdfBytes, pmedia, err := svc.Export(ctx, rep.ID, FacePDF)
+		if err != nil {
+			t.Fatalf("Export pdf: %v", err)
+		}
+		if pmedia != "application/pdf" || !strings.HasPrefix(string(pdfBytes), "%PDF") {
+			t.Errorf("pdf media/magic = %q", pmedia)
+		}
+
+		// oscal_sar is invalid for the remediation kind.
+		if _, _, err := svc.Export(ctx, rep.ID, FaceOSCALSAR); !errors.Is(err, ErrInvalidFace) {
+			t.Errorf("Export oscal_sar on remediation err = %v, want ErrInvalidFace", err)
+		}
+	})
+}
+
 // @ac AC-23
 // The exception kind builds a point-in-time register: a summary by state
 // (active = approved + unexpired; expiring_soon within 30 days) plus the

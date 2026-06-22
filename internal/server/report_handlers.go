@@ -210,11 +210,14 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 	if body.Framework != nil {
 		req.Framework = *body.Framework
 	}
+	if body.PeriodDays != nil {
+		req.PeriodDays = *body.PeriodDays
+	}
 
 	rep, err := h.reportSvc.Generate(r.Context(), reportActor(r), req)
 	if errors.Is(err, report.ErrInvalidKind) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_kind", "client",
-			"kind must be executive, attestation, or exception", false)
+			"kind must be executive, attestation, exception, or remediation", false)
 		return
 	}
 	if errors.Is(err, group.ErrNotFound) {

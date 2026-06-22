@@ -36,6 +36,11 @@ const (
 	// expiry. Faces: a CSV register + a bounded PDF summary (counts by
 	// status + active + expiring-soon).
 	KindException Kind = "exception"
+	// KindRemediation is the Remediation Activity report: an Operations
+	// read-model of remediation execute/rollback requests over a time
+	// window (remediation_requests filtered on requested_at). Faces: a CSV
+	// activity log + a bounded PDF summary (counts by outcome).
+	KindRemediation Kind = "remediation"
 )
 
 // AttestationContent is the frozen snapshot for a Framework Attestation:
@@ -118,6 +123,42 @@ type ExceptionRow struct {
 	Active      bool       `json:"active"`
 }
 
+// RemediationContent is the frozen snapshot for a Remediation Activity
+// report: the period it covers, a summary of requests by outcome, and the
+// activity rows. The CSV face writes one row per request; the PDF face
+// renders the bounded summary.
+type RemediationContent struct {
+	// PeriodFrom/PeriodTo bound the window (by requested_at). PeriodTo is
+	// the generation instant; PeriodFrom is PeriodTo minus the period.
+	PeriodFrom time.Time           `json:"period_from"`
+	PeriodTo   time.Time           `json:"period_to"`
+	Summary    RemediationSummary  `json:"summary"`
+	Activities []RemediationActRow `json:"activities"`
+}
+
+// RemediationSummary is the bounded rollup of in-window requests by outcome.
+type RemediationSummary struct {
+	Total      int `json:"total"`
+	Executed   int `json:"executed"`
+	RolledBack int `json:"rolled_back"`
+	Failed     int `json:"failed"`
+	Rejected   int `json:"rejected"`
+	Pending    int `json:"pending"`
+}
+
+// RemediationActRow is one remediation request in the activity log.
+// Requester/reviewer are resolved to usernames.
+type RemediationActRow struct {
+	HostName    string     `json:"host_name"`
+	RuleID      string     `json:"rule_id"`
+	Status      string     `json:"status"`
+	Mechanism   string     `json:"mechanism"`
+	RequestedBy string     `json:"requested_by"`
+	RequestedAt time.Time  `json:"requested_at"`
+	ReviewedBy  string     `json:"reviewed_by"`
+	ReviewedAt  *time.Time `json:"reviewed_at"`
+}
+
 // AttestedHost ties an in-scope host to the completed scan that attests
 // it (its latest as of generation time) and when that scan finished.
 type AttestedHost struct {
@@ -178,6 +219,10 @@ type GenerateRequest struct {
 	GroupID *uuid.UUID
 	// Framework scopes the report to one framework lens.
 	Framework string
+	// PeriodDays is the look-back window for time-windowed kinds
+	// (remediation): the report covers requests in the last PeriodDays. 0
+	// defaults to defaultPeriodDays; ignored by point-in-time kinds.
+	PeriodDays int
 }
 
 // ExecutiveContent is the JSON posture document stored for an executive

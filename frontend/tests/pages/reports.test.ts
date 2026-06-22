@@ -18,6 +18,7 @@
 //   AC-12  detail body is kind-aware: AttestationBody(asAttestationContent)
 //          for attestation, ExecutiveBody(asExecutiveContent) otherwise
 //   AC-13  exception register kind: selector option + ExceptionBody(asExceptionContent)
+//   AC-14  remediation activity kind: period selector + RemediationBody(asRemediationContent)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -246,6 +247,30 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('Pending review');
     // The exception kind leads with the CSV register (csvLed covers it).
     expect(PAGE_SRC).toMatch(/csvLed = kind === 'attestation' \|\| kind === 'exception'/);
+  });
+
+  // @ac AC-14
+  test('frontend-reports/AC-14 — remediation activity kind (period selector + body)', () => {
+    // The kind selector offers Remediation Activity + a period selector
+    // shown only for that kind, driving the generate body's period_days.
+    expect(PAGE_SRC).toContain('<option value="remediation">Remediation Activity</option>');
+    expect(PAGE_SRC).toMatch(
+      /reportKind === 'remediation' &&[\s\S]*?aria-label="Remediation period"/,
+    );
+    expect(PAGE_SRC).toMatch(/if \(reportKind === 'remediation'\) body\.period_days = periodDays/);
+    // kindLabel maps remediation; the detail body branches to RemediationBody.
+    expect(PAGE_SRC).toMatch(/kind === 'remediation'\) return 'Remediation Activity'/);
+    expect(PAGE_SRC).toMatch(/resolved\.kind === 'remediation' \?/);
+    expect(PAGE_SRC).toMatch(
+      /<RemediationBody content=\{asRemediationContent\(resolved\.content\)\}/,
+    );
+    // asRemediationContent narrows the activity keys; RemediationBody renders
+    // the period + outcome summary + recent activity table.
+    expect(PAGE_SRC).toContain('function asRemediationContent');
+    expect(PAGE_SRC).toContain('function RemediationBody');
+    expect(PAGE_SRC).toContain('Total requests');
+    expect(PAGE_SRC).toMatch(/s\.executed/);
+    expect(PAGE_SRC).toMatch(/s\.rolled_back/);
   });
 
   // @ac AC-04

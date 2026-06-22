@@ -41,6 +41,15 @@ const attestationTitle = "Framework Attestation"
 // exceptionTitle is the fixed title for the exception register kind.
 const exceptionTitle = "Exception Register"
 
+// remediationTitle is the fixed title for the remediation activity kind.
+const remediationTitle = "Remediation Activity"
+
+// defaultPeriodDays / maxPeriodDays bound the remediation look-back window.
+const (
+	defaultPeriodDays = 30
+	maxPeriodDays     = 365
+)
+
 // allHostsLabel is the scope_label when no group scopes the report.
 const allHostsLabel = "All hosts"
 
@@ -136,7 +145,8 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	if kind == "" {
 		kind = KindExecutive
 	}
-	if kind != KindExecutive && kind != KindAttestation && kind != KindException {
+	if kind != KindExecutive && kind != KindAttestation &&
+		kind != KindException && kind != KindRemediation {
 		return Report{}, ErrInvalidKind
 	}
 
@@ -178,6 +188,22 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		}
 		content = c
 		title = exceptionTitle
+	case KindRemediation:
+		days := req.PeriodDays
+		if days <= 0 {
+			days = defaultPeriodDays
+		}
+		if days > maxPeriodDays {
+			days = maxPeriodDays
+		}
+		to := time.Now().UTC()
+		from := to.AddDate(0, 0, -days)
+		c, err := s.computeRemediationActivity(ctx, hostIDs, from, to)
+		if err != nil {
+			return Report{}, err
+		}
+		content = c
+		title = remediationTitle
 	default:
 		c, err := s.computeExecutive(ctx, hostIDs, scope.Framework)
 		if err != nil {
@@ -388,6 +414,71 @@ func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.U
 	}
 	if err := rows.Err(); err != nil {
 		return ExceptionContent{}, fmt.Errorf("report: exception iterate: %w", err)
+	}
+	return c, nil
+}
+
+// computeRemediationActivity builds the Remediation Activity snapshot over
+// [from, to): a bounded summary of requests by outcome (exact aggregate)
+// plus the activity rows (one per request, requester/reviewer resolved to
+// usernames), scoped to hostIDs when set. The window is filtered on
+// requested_at (when the request was filed).
+func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid.UUID, from, to time.Time) (RemediationContent, error) {
+	c := RemediationContent{PeriodFrom: from, PeriodTo: to, Activities: []RemediationActRow{}}
+
+	// Summary aggregate by outcome (exact, independent of the row cap).
+	sumQ := `
+		SELECT count(*),
+		       count(*) FILTER (WHERE r.status = 'executed'),
+		       count(*) FILTER (WHERE r.status = 'rolled_back'),
+		       count(*) FILTER (WHERE r.status = 'failed'),
+		       count(*) FILTER (WHERE r.status = 'rejected'),
+		       count(*) FILTER (WHERE r.status IN ('pending_approval','approved','dry_run_complete','executing'))
+		  FROM remediation_requests r
+		  JOIN hosts h ON h.id = r.host_id
+		 WHERE h.deleted_at IS NULL AND r.requested_at >= $1 AND r.requested_at < $2`
+	sumArgs := []any{from, to}
+	if hostIDs != nil {
+		sumQ += " AND r.host_id = ANY($3)"
+		sumArgs = append(sumArgs, hostIDs)
+	}
+	sm := &c.Summary
+	if err := s.pool.QueryRow(ctx, sumQ, sumArgs...).Scan(
+		&sm.Total, &sm.Executed, &sm.RolledBack, &sm.Failed, &sm.Rejected, &sm.Pending); err != nil {
+		return RemediationContent{}, fmt.Errorf("report: remediation summary: %w", err)
+	}
+
+	// Activity rows (capped), requester/reviewer resolved to usernames.
+	rowQ := `
+		SELECT COALESCE(h.hostname, ''), r.rule_id, r.status, COALESCE(r.mechanism, ''),
+		       COALESCE(ru.username, ''), r.requested_at,
+		       COALESCE(rv.username, ''), r.reviewed_at
+		  FROM remediation_requests r
+		  JOIN hosts h ON h.id = r.host_id
+		  LEFT JOIN users ru ON ru.id = r.requested_by
+		  LEFT JOIN users rv ON rv.id = r.reviewed_by
+		 WHERE h.deleted_at IS NULL AND r.requested_at >= $1 AND r.requested_at < $2`
+	rowArgs := []any{from, to}
+	if hostIDs != nil {
+		rowQ += " AND r.host_id = ANY($3)"
+		rowArgs = append(rowArgs, hostIDs)
+	}
+	rowQ += fmt.Sprintf(" ORDER BY r.requested_at DESC LIMIT %d", maxRegisterRows)
+	rows, err := s.pool.Query(ctx, rowQ, rowArgs...)
+	if err != nil {
+		return RemediationContent{}, fmt.Errorf("report: remediation rows: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r RemediationActRow
+		if err := rows.Scan(&r.HostName, &r.RuleID, &r.Status, &r.Mechanism,
+			&r.RequestedBy, &r.RequestedAt, &r.ReviewedBy, &r.ReviewedAt); err != nil {
+			return RemediationContent{}, fmt.Errorf("report: remediation row: %w", err)
+		}
+		c.Activities = append(c.Activities, r)
+	}
+	if err := rows.Err(); err != nil {
+		return RemediationContent{}, fmt.Errorf("report: remediation iterate: %w", err)
 	}
 	return c, nil
 }
