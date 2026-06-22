@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -173,6 +173,20 @@ spec:
         em-dash.
       type: technical
       enforcement: error
+    - id: C-10
+      description: >-
+        v1.7.0 - The report detail surfaces ALL faces that apply to the
+        resolved report's kind, not just the primary + JSON. An attestation
+        report additionally offers a PDF (the bounded cover) and an OSCAL
+        SAR (the fleet assessment-results) download beside the primary CSV
+        and JSON; an executive report has no extra faces (its PDF is the
+        primary). The extra controls are driven by a secondaryFaces list
+        keyed on the kind, each invoking the same onDownload handler (so
+        they share the in-flight downloading state and downloadError
+        surface), and downloadReportFace accepts the oscal_sar format. UI
+        copy carries no em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -290,3 +304,13 @@ spec:
         "attestation" to "Attestation". The added copy contains no em-dash.
       priority: high
       references_constraints: [C-09]
+    - id: AC-11
+      description: >-
+        v1.7.0 - Source inspection: a secondaryFaces list is built from the
+        resolved report kind - an attestation yields a 'pdf' entry and an
+        'oscal_sar' entry (label "OSCAL SAR"), an executive yields none -
+        and is rendered as extra download buttons that call onDownload(face)
+        and reflect the downloading state. downloadReportFace's format union
+        includes 'oscal_sar'. The added copy contains no em-dash.
+      priority: high
+      references_constraints: [C-10]

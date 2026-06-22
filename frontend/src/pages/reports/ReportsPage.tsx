@@ -469,7 +469,10 @@ function LibraryTab({
 // session cookie authenticates it (same-origin credentials) and no CSRF
 // token is needed; the filename comes from the server's
 // Content-Disposition. Errors are surfaced to the caller.
-async function downloadReportFace(id: string, format: 'pdf' | 'json' | 'csv'): Promise<void> {
+async function downloadReportFace(
+  id: string,
+  format: 'pdf' | 'json' | 'csv' | 'oscal_sar',
+): Promise<void> {
   const res = await fetch(`/api/v1/reports/${id}/export?format=${format}`, {
     credentials: 'same-origin',
   });
@@ -595,12 +598,12 @@ function ReportDetail({
   id: string;
   onClose: () => void;
 }) {
-  const [downloading, setDownloading] = useState<'pdf' | 'json' | 'csv' | null>(null);
+  const [downloading, setDownloading] = useState<'pdf' | 'json' | 'csv' | 'oscal_sar' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
 
-  async function onDownload(format: 'pdf' | 'json' | 'csv') {
+  async function onDownload(format: 'pdf' | 'json' | 'csv' | 'oscal_sar') {
     setDownloading(format);
     setDownloadError(null);
     try {
@@ -654,6 +657,22 @@ function ReportDetail({
   const primaryTitle = isAttestation
     ? 'Download the per-host, per-rule CSV evidence'
     : 'Download the one-page executive PDF';
+
+  // Secondary faces offered beside the primary + JSON. An attestation also
+  // exposes its bounded PDF cover and the fleet OSCAL SAR (the
+  // machine-readable assessment-results); an executive report has no extra
+  // faces (PDF is its primary, JSON is shown for both below).
+  const secondaryFaces: { face: 'pdf' | 'oscal_sar'; label: string; title: string }[] =
+    isAttestation
+      ? [
+          { face: 'pdf', label: 'PDF', title: 'Download the one-page attestation cover PDF' },
+          {
+            face: 'oscal_sar',
+            label: 'OSCAL SAR',
+            title: 'Download the OSCAL assessment-results (evidence referenced by hash)',
+          },
+        ]
+      : [];
 
   return (
     <div
@@ -769,6 +788,31 @@ function ReportDetail({
               >
                 {downloading === primaryFace ? 'Preparing…' : primaryLabel}
               </button>
+              {secondaryFaces.map((f) => (
+                <button
+                  key={f.face}
+                  type="button"
+                  onClick={() => onDownload(f.face)}
+                  disabled={downloading !== null}
+                  title={f.title}
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    borderRadius: 6,
+                    border: '1px solid var(--ow-line)',
+                    background: 'var(--ow-bg-1)',
+                    color: 'var(--ow-fg-1)',
+                    fontFamily: 'inherit',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: downloading !== null ? 'default' : 'pointer',
+                    opacity: downloading !== null ? 0.6 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {downloading === f.face ? 'Preparing…' : f.label}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => onDownload('json')}
