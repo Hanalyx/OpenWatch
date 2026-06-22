@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -156,6 +156,23 @@ spec:
         content-only) is surfaced, and an ephemeral key is disclosed.
       type: security
       enforcement: error
+    - id: C-09
+      description: >-
+        v1.6.0 (Phase B1b) - A report-kind selector sits in the header
+        beside the scope pickers: a select bound to a reportKind state with
+        options "Executive" (value "executive", the default) and
+        "Attestation" (value "attestation"). On generate the POST body
+        includes kind only when attestation is chosen (executive stays the
+        implicit default, so an unscoped executive still posts {}). It
+        renders only for a host:write caller. The detail header's primary
+        download control is kind-aware: an executive report offers Download
+        PDF, an attestation report offers Download CSV (the per-host,
+        per-rule evidence face), switching on the resolved report's kind;
+        JSON (the signed canonical face) is offered for both. The type chip
+        labels attestation reports "Attestation". UI copy carries no
+        em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -260,3 +277,16 @@ spec:
         host:write affordance.
       priority: high
       references_constraints: [C-08]
+    - id: AC-10
+      description: >-
+        v1.6.0 - Source inspection: a report-kind select bound to a
+        reportKind state offers "executive" (default) and "attestation"
+        options and renders under canGenerate; the generate body sets kind
+        only when reportKind is "attestation". ReportDetail derives a
+        kind-aware primary download from the resolved report kind
+        (attestation yields a Download CSV control for the 'csv' face,
+        otherwise Download PDF for 'pdf'), with the JSON control offered for
+        both; downloadReportFace accepts the 'csv' format. kindLabel maps
+        "attestation" to "Attestation". The added copy contains no em-dash.
+      priority: high
+      references_constraints: [C-09]
