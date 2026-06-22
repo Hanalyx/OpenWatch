@@ -2625,13 +2625,15 @@ paths:
           in: query
           required: false
           description: The face to render. Defaults to pdf.
-          schema: {type: string, enum: [pdf, json], default: pdf}
+          schema: {type: string, enum: [pdf, json, csv], default: pdf}
       responses:
         '200':
           description: The rendered face, as a downloadable attachment
           content:
             application/pdf:
               schema: {type: string, format: binary}
+            text/csv:
+              schema: {type: string}
             application/json:
               schema: {type: object, additionalProperties: true}
         '400':
@@ -5375,16 +5377,23 @@ components:
     GenerateReportRequest:
       type: object
       description: |
-        Optional scope for the executive summary. An empty body (or an
-        empty object) generates the all-hosts, all-frameworks summary.
+        Optional kind + scope for the report. An empty body (or empty
+        object) generates the all-hosts, all-frameworks executive summary.
       properties:
+        kind:
+          type: string
+          enum: [executive, attestation]
+          description: |
+            The report kind; defaults to executive. attestation produces
+            the Framework Attestation (CSV/OSCAL bulk faces over the latest
+            completed scan per in-scope host).
         group_id:
           type: string
           format: uuid
-          description: Scope the summary to this group's member hosts.
+          description: Scope the report to this group's member hosts.
         framework:
           type: string
-          description: Scope the summary to this framework lens (framework_refs key).
+          description: Scope the report to this framework lens (framework_refs key).
 
     Report:
       type: object

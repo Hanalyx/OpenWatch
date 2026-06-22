@@ -9,31 +9,40 @@ package report
 // Spec: api-reports v1.4.0.
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-// ErrInvalidFace is returned by Export for an unknown face. Handlers map
-// it to 400.
+// ErrInvalidFace is returned by Export for an unknown face (or a face that
+// does not apply to the report's kind). Handlers map it to 400.
 var ErrInvalidFace = errors.New("report: invalid face")
 
-// Face identifiers and their media types.
+// Face identifiers.
 const (
 	FaceJSON = "json"
 	FacePDF  = "pdf"
+	FaceCSV  = "csv"
 )
 
+// maxAttestationRows caps the attestation CSV; a capped export appends a
+// disclosure row so a truncated bundle is never mistaken for complete.
+const maxAttestationRows = 100000
+
 // Export returns a rendered face of the report (its bytes + media type),
-// or ErrNotFound for an unknown id / ErrInvalidFace for an unknown face.
-// The JSON face is the canonical content; the PDF face is rendered and
-// cached in report_faces on first request.
+// or ErrNotFound for an unknown id / ErrInvalidFace for a face that does
+// not apply to the report's kind. The JSON face is the canonical content
+// (any kind); the PDF face is executive-only; the CSV face is
+// attestation-only. Rendered faces are cached in report_faces.
 func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte, string, error) {
 	rep, err := s.Get(ctx, id)
 	if err != nil {
@@ -41,25 +50,48 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 	}
 	switch face {
 	case FaceJSON:
-		// Canonical content bytes: re-marshal the decoded content so the
-		// json face reproduces content_sha256 byte-for-byte (the stored
-		// jsonb column is Postgres-normalized, not identical to the bytes
-		// that were hashed and signed). This makes the snapshot
-		// offline-verifiable: sha256(json face) == content_sha256.
-		var c ExecutiveContent
-		if err := json.Unmarshal(rep.Content, &c); err != nil {
-			return nil, "", fmt.Errorf("report: decode content for json face: %w", err)
-		}
-		canonical, err := json.Marshal(c)
-		if err != nil {
-			return nil, "", fmt.Errorf("report: marshal canonical json: %w", err)
-		}
-		return canonical, "application/json", nil
+		return s.canonicalJSON(rep)
 	case FacePDF:
+		if rep.Kind != KindExecutive {
+			return nil, "", ErrInvalidFace
+		}
 		return s.exportPDF(ctx, rep)
+	case FaceCSV:
+		if rep.Kind != KindAttestation {
+			return nil, "", ErrInvalidFace
+		}
+		return s.exportAttestationCSV(ctx, rep)
 	default:
 		return nil, "", ErrInvalidFace
 	}
+}
+
+// canonicalJSON re-marshals the decoded content into the kind's struct so
+// the json face reproduces content_sha256 byte-for-byte (the stored jsonb
+// is Postgres-normalized, not identical to the bytes that were hashed and
+// signed). This makes a snapshot of either kind offline-verifiable:
+// sha256(json face) == content_sha256.
+func (s *Service) canonicalJSON(rep Report) ([]byte, string, error) {
+	var v any
+	switch rep.Kind {
+	case KindAttestation:
+		var c AttestationContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
+		}
+		v = c
+	default:
+		var c ExecutiveContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			return nil, "", fmt.Errorf("report: decode executive content: %w", err)
+		}
+		v = c
+	}
+	canonical, err := json.Marshal(v)
+	if err != nil {
+		return nil, "", fmt.Errorf("report: marshal canonical json: %w", err)
+	}
+	return canonical, "application/json", nil
 }
 
 // exportPDF returns the cached PDF face if present, else renders the
@@ -111,11 +143,14 @@ func (s *Service) exportPDF(ctx context.Context, rep Report) ([]byte, string, er
 }
 
 // ExportFilename builds a download filename for a report face, e.g.
-// "openwatch-executive-all-hosts-2026-06-21.pdf".
+// "openwatch-executive-all-hosts-2026-06-21.pdf" or
+// "openwatch-attestation-production-cis-2026-06-21.csv".
 func ExportFilename(rep Report, face string) string {
-	ext := face
-	slug := slugify(rep.ScopeLabel)
-	return fmt.Sprintf("openwatch-executive-%s-%s.%s", slug, rep.DataAsOf.Format("2006-01-02"), ext)
+	kind := string(rep.Kind)
+	if kind == "" {
+		kind = "report"
+	}
+	return fmt.Sprintf("openwatch-%s-%s-%s.%s", kind, slugify(rep.ScopeLabel), rep.DataAsOf.Format("2006-01-02"), face)
 }
 
 // slugify lowercases and replaces non-alphanumeric runs with single
@@ -151,4 +186,126 @@ func slugify(s string) string {
 		res = "report"
 	}
 	return res
+}
+
+// exportAttestationCSV returns the cached CSV face if present, else
+// renders one row per (host, rule) by reading the IMMUTABLE scan_results
+// of the scans the snapshot froze (point-in-time), scoped by the
+// snapshot's framework lens, caches it in report_faces, and returns it.
+func (s *Service) exportAttestationCSV(ctx context.Context, rep Report) ([]byte, string, error) {
+	const mediaType = "text/csv"
+
+	var cached []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM report_faces WHERE snapshot_id = $1 AND face = $2 AND status = 'ready'`,
+		rep.ID, FaceCSV).Scan(&cached)
+	if err == nil && len(cached) > 0 {
+		return cached, mediaType, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", fmt.Errorf("report: csv face lookup: %w", err)
+	}
+
+	var c AttestationContent
+	if err := json.Unmarshal(rep.Content, &c); err != nil {
+		return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
+	}
+	scanIDs := make([]uuid.UUID, len(c.Attested))
+	for i, a := range c.Attested {
+		scanIDs[i] = a.ScanID
+	}
+
+	q := `
+		SELECT COALESCE(h.hostname, ''), COALESCE(host(h.ip_address), ''),
+		       COALESCE(h.os_family, ''), sr.rule_id, sr.status,
+		       COALESCE(sr.severity, ''), sr.framework_refs::text,
+		       COALESCE(encode(sr.evidence_hash, 'hex'), ''), run.finished_at
+		  FROM scan_results sr
+		  JOIN scan_runs run ON run.id = sr.scan_id
+		  JOIN hosts h ON h.id = sr.host_id
+		 WHERE sr.scan_id = ANY($1)`
+	args := []any{scanIDs}
+	if c.Framework != "" {
+		q += " AND sr.framework_refs ? $2"
+		args = append(args, c.Framework)
+	}
+	q += fmt.Sprintf(" ORDER BY h.hostname, sr.rule_id LIMIT $%d", len(args)+1)
+	args = append(args, maxAttestationRows+1)
+
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, "", fmt.Errorf("report: attestation rows: %w", err)
+	}
+	defer rows.Close()
+
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{
+		"hostname", "ip", "os", "rule_id", "status", "severity",
+		"framework_refs", "evidence_sha256", "scanned_at",
+	})
+	n := 0
+	truncated := false
+	for rows.Next() {
+		if n >= maxAttestationRows {
+			truncated = true
+			break
+		}
+		var hostname, ip, os, ruleID, status, sev, fw, ev string
+		var scannedAt time.Time
+		if err := rows.Scan(&hostname, &ip, &os, &ruleID, &status, &sev, &fw, &ev, &scannedAt); err != nil {
+			return nil, "", fmt.Errorf("report: attestation row scan: %w", err)
+		}
+		_ = w.Write([]string{
+			csvSafe(hostname), csvSafe(ip), csvSafe(os), csvSafe(ruleID),
+			csvSafe(status), csvSafe(sev), csvSafe(fw), csvSafe(ev),
+			scannedAt.UTC().Format(time.RFC3339),
+		})
+		n++
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("report: attestation iterate: %w", err)
+	}
+	if truncated {
+		_ = w.Write([]string{
+			"# NOTE", fmt.Sprintf("export capped at %d rows; not complete", maxAttestationRows),
+			"", "", "", "", "", "", "",
+		})
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, "", fmt.Errorf("report: write csv: %w", err)
+	}
+	csvBytes := buf.Bytes()
+
+	sum := sha256.Sum256(csvBytes)
+	blobSHA := hex.EncodeToString(sum[:])
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO report_faces (snapshot_id, face, media_type, content, size_bytes, blob_sha256, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ready')
+		ON CONFLICT (snapshot_id, face)
+		DO UPDATE SET content = EXCLUDED.content, media_type = EXCLUDED.media_type,
+		              size_bytes = EXCLUDED.size_bytes, blob_sha256 = EXCLUDED.blob_sha256,
+		              status = 'ready'`,
+		rep.ID, FaceCSV, mediaType, csvBytes, len(csvBytes), blobSHA)
+	if err != nil {
+		// A cache write failure should not fail the download.
+		return csvBytes, mediaType, nil
+	}
+	return csvBytes, mediaType, nil
+}
+
+// csvSafe neutralizes spreadsheet formula injection (CWE-1236): a cell
+// whose first byte is = + - @ tab or CR is prefixed with a single quote so
+// it renders as literal text. (Mirrors the audit export's guard; a shared
+// csvutil is a worthwhile follow-up.)
+func csvSafe(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	}
+	return s
 }

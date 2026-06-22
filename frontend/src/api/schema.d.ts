@@ -3561,16 +3561,23 @@ export interface components {
             framework?: string;
         };
         /**
-         * @description Optional scope for the executive summary. An empty body (or an
-         *     empty object) generates the all-hosts, all-frameworks summary.
+         * @description Optional kind + scope for the report. An empty body (or empty
+         *     object) generates the all-hosts, all-frameworks executive summary.
          */
         GenerateReportRequest: {
             /**
+             * @description The report kind; defaults to executive. attestation produces
+             *     the Framework Attestation (CSV/OSCAL bulk faces over the latest
+             *     completed scan per in-scope host).
+             * @enum {string}
+             */
+            kind?: "executive" | "attestation";
+            /**
              * Format: uuid
-             * @description Scope the summary to this group's member hosts.
+             * @description Scope the report to this group's member hosts.
              */
             group_id?: string;
-            /** @description Scope the summary to this framework lens (framework_refs key). */
+            /** @description Scope the report to this framework lens (framework_refs key). */
             framework?: string;
         };
         Report: {
@@ -7773,7 +7780,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description The face to render. Defaults to pdf. */
-                format?: "pdf" | "json";
+                format?: "pdf" | "json" | "csv";
             };
             header?: never;
             path: {
@@ -7790,6 +7797,7 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": string;
+                    "text/csv": string;
                     "application/json": {
                         [key: string]: unknown;
                     };

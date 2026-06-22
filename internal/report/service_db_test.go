@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -571,6 +572,124 @@ func TestFrameworks_FleetCatalog(t *testing.T) {
 			if fws[i] != w {
 				t.Errorf("frameworks[%d] = %+v, want %+v", i, fws[i], w)
 			}
+		}
+	})
+}
+
+// seedScanRun inserts a completed scan_run for a host (finished now).
+func seedScanRun(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) uuid.UUID {
+	t.Helper()
+	id, _ := uuid.NewV7()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO scan_runs (id, host_id, trigger_source, status, finished_at)
+		 VALUES ($1, $2, 'on_demand', 'completed', now())`, id, hostID)
+	if err != nil {
+		t.Fatalf("seed scan_run: %v", err)
+	}
+	return id
+}
+
+// seedScanResult inserts one (scan, host, rule) outcome with framework_refs.
+func seedScanResult(t *testing.T, pool *pgxpool.Pool, scanID, hostID uuid.UUID, ruleID, status, frameworkRefs string) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO scan_results (scan_id, host_id, rule_id, status, framework_refs)
+		 VALUES ($1, $2, $3, $4, $5::jsonb)`, scanID, hostID, ruleID, status, frameworkRefs)
+	if err != nil {
+		t.Fatalf("seed scan_result: %v", err)
+	}
+}
+
+// @ac AC-19
+// The attestation kind freezes the latest completed scan per in-scope host
+// and renders a CSV face of per-(host,rule) outcomes from those immutable
+// scans. The framework lens narrows the CSV rows. pdf is invalid for
+// attestation and csv is invalid for executive; an unknown kind errors.
+func TestGenerate_Attestation(t *testing.T) {
+	t.Run("api-reports/AC-19", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		signer, _ := NewSigner("")
+		svc := NewService(pool).WithSigner(signer)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+		scan := seedScanRun(t, pool, h)
+		seedScanResult(t, pool, scan, h, "r1", "pass", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedScanResult(t, pool, scan, h, "r2", "fail", `{"cis_rhel9_v2.0.0": ["1.2"], "stig_rhel9_v2r7": ["V-1"]}`)
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation})
+		if err != nil {
+			t.Fatalf("Generate attestation: %v", err)
+		}
+		if rep.Kind != KindAttestation || rep.Title != attestationTitle {
+			t.Errorf("kind/title = %s/%q", rep.Kind, rep.Title)
+		}
+		if len(rep.Signature) == 0 {
+			t.Errorf("attestation should be signed")
+		}
+		var c AttestationContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			t.Fatalf("decode attestation content: %v", err)
+		}
+		if c.HostsTotal != 1 || c.HostsAttested != 1 {
+			t.Errorf("hosts total/attested = %d/%d, want 1/1", c.HostsTotal, c.HostsAttested)
+		}
+		if len(c.Attested) != 1 || c.Attested[0].ScanID != scan {
+			t.Errorf("attested = %+v, want the seeded scan %s", c.Attested, scan)
+		}
+
+		// CSV face: header + the two rule rows, cached in report_faces.
+		csvBytes, media, err := svc.Export(ctx, rep.ID, FaceCSV)
+		if err != nil {
+			t.Fatalf("Export csv: %v", err)
+		}
+		if media != "text/csv" {
+			t.Errorf("csv media = %q", media)
+		}
+		csvStr := string(csvBytes)
+		if !strings.Contains(csvStr, "hostname,ip,os,rule_id,status,severity,framework_refs,evidence_sha256,scanned_at") {
+			t.Errorf("csv missing header: %q", csvStr)
+		}
+		if !strings.Contains(csvStr, "r1") || !strings.Contains(csvStr, "r2") {
+			t.Errorf("csv missing rule rows: %q", csvStr)
+		}
+		var status string
+		if err := pool.QueryRow(ctx,
+			`SELECT status FROM report_faces WHERE snapshot_id = $1 AND face = 'csv'`, rep.ID).Scan(&status); err != nil {
+			t.Fatalf("csv face row: %v", err)
+		}
+		if status != "ready" {
+			t.Errorf("csv face status = %q, want ready", status)
+		}
+
+		// Framework-scoped attestation: the stig lens yields only r2.
+		rep2, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation, Framework: "stig_rhel9_v2r7"})
+		if err != nil {
+			t.Fatalf("Generate stig attestation: %v", err)
+		}
+		csv2, _, err := svc.Export(ctx, rep2.ID, FaceCSV)
+		if err != nil {
+			t.Fatalf("Export stig csv: %v", err)
+		}
+		if !strings.Contains(string(csv2), "r2") || strings.Contains(string(csv2), "r1") {
+			t.Errorf("stig-scoped csv = %q, want r2 only", string(csv2))
+		}
+
+		// pdf is invalid for attestation; csv is invalid for executive.
+		if _, _, err := svc.Export(ctx, rep.ID, FacePDF); !errors.Is(err, ErrInvalidFace) {
+			t.Errorf("Export pdf on attestation err = %v, want ErrInvalidFace", err)
+		}
+		repExec, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
+		if err != nil {
+			t.Fatalf("Generate executive: %v", err)
+		}
+		if _, _, err := svc.Export(ctx, repExec.ID, FaceCSV); !errors.Is(err, ErrInvalidFace) {
+			t.Errorf("Export csv on executive err = %v, want ErrInvalidFace", err)
+		}
+
+		// An unknown kind is rejected.
+		if _, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: "bogus"}); !errors.Is(err, ErrInvalidKind) {
+			t.Errorf("unknown kind err = %v, want ErrInvalidKind", err)
 		}
 	})
 }
