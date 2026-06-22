@@ -114,6 +114,15 @@ type Coverage struct {
 	HostsUnreachable int `json:"hosts_unreachable"`
 }
 
+// FrameworkCount is one entry in the fleet framework catalog: a
+// framework_refs key present somewhere in the fleet and the number of
+// distinct rules mapped to it. Backs the report scope picker's framework
+// lens.
+type FrameworkCount struct {
+	Framework string `json:"framework"`
+	RuleCount int    `json:"rule_count"`
+}
+
 // TopFailingRule is one entry in the executive summary's top-failing
 // list: a rule id and how many hosts it fails on.
 type TopFailingRule struct {

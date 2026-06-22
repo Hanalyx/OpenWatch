@@ -85,8 +85,9 @@ export function ReportsPage() {
 
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Scope for the next Generate. '' = all hosts (the unscoped summary).
+  // Scope for the next Generate. '' = all hosts / all frameworks.
   const [scopeGroupId, setScopeGroupId] = useState<string>('');
+  const [scopeFramework, setScopeFramework] = useState<string>('');
 
   const queryClient = useQueryClient();
   const canGenerate = useAuthStore((s) => s.hasPermission('host:write'));
@@ -116,9 +117,25 @@ export function ReportsPage() {
   });
   const groups = groupsQ.data?.groups ?? [];
 
+  // Frameworks populate the lens picker (the fleet framework catalog).
+  // host:read; tolerate failure by falling back to the all-frameworks lens.
+  const frameworksQ = useQuery({
+    queryKey: ['report-frameworks'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/reports/frameworks', {});
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      return data!;
+    },
+    enabled: canGenerate,
+  });
+  const frameworks = frameworksQ.data?.frameworks ?? [];
+
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const body = scopeGroupId ? { group_id: scopeGroupId } : {};
+      const body: { group_id?: string; framework?: string } = {};
+      if (scopeGroupId) body.group_id = scopeGroupId;
+      if (scopeFramework) body.framework = scopeFramework;
       const { data, error, response } = await api.POST('/api/v1/reports:generate', { body });
       if (error || !response.ok)
         throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
@@ -178,6 +195,33 @@ export function ReportsPage() {
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {canGenerate && frameworks.length > 0 && (
+            <select
+              aria-label="Framework lens"
+              value={scopeFramework}
+              onChange={(e) => setScopeFramework(e.target.value)}
+              disabled={generateMutation.isPending}
+              title="Scope the report to one framework lens, or all frameworks"
+              style={{
+                height: 34,
+                padding: '0 10px',
+                borderRadius: 'var(--ow-radius-sm, 6px)',
+                border: '1px solid var(--ow-line)',
+                background: 'var(--ow-bg-2)',
+                color: 'var(--ow-fg-0)',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                cursor: generateMutation.isPending ? 'default' : 'pointer',
+              }}
+            >
+              <option value="">All frameworks</option>
+              {frameworks.map((f) => (
+                <option key={f.framework} value={f.framework}>
+                  {f.framework} ({f.rule_count})
                 </option>
               ))}
             </select>

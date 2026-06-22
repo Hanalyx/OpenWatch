@@ -2513,6 +2513,32 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/reports/frameworks:
+    get:
+      operationId: getReportFrameworks
+      summary: List the framework lenses available across the fleet
+      description: |
+        Returns the distinct framework_refs keys present anywhere in the
+        fleet (across host_rule_state), each with the count of distinct
+        rules mapped to it, most-populated first. Backs the report scope
+        picker's framework lens. RBAC: host:read. Spec api-reports.
+      responses:
+        '200':
+          description: The fleet framework catalog
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportFrameworksResponse'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/reports/signing-key:
     get:
       operationId: getReportSigningKey
@@ -5415,6 +5441,26 @@ components:
           description: |
             True when the server runs a per-boot development key (no durable
             key configured); such signatures do not verify across restarts.
+
+    ReportFramework:
+      type: object
+      required: [framework, rule_count]
+      description: A framework lens present in the fleet, with its rule count.
+      properties:
+        framework:
+          type: string
+          description: The framework_refs key (e.g. cis_rhel9_v2.0.0).
+        rule_count:
+          type: integer
+          description: Distinct rules mapped to this framework across the fleet.
+
+    ReportFrameworksResponse:
+      type: object
+      required: [frameworks]
+      properties:
+        frameworks:
+          type: array
+          items: {$ref: '#/components/schemas/ReportFramework'}
 
     ReportListResponse:
       type: object

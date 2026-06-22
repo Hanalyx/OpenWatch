@@ -1578,6 +1578,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/frameworks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the framework lenses available across the fleet
+         * @description Returns the distinct framework_refs keys present anywhere in the
+         *     fleet (across host_rule_state), each with the count of distinct
+         *     rules mapped to it, most-populated first. Backs the report scope
+         *     picker's framework lens. RBAC: host:read. Spec api-reports.
+         */
+        get: operations["getReportFrameworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reports/signing-key": {
         parameters: {
             query?: never;
@@ -3602,6 +3625,16 @@ export interface components {
              *     key configured); such signatures do not verify across restarts.
              */
             ephemeral: boolean;
+        };
+        /** @description A framework lens present in the fleet, with its rule count. */
+        ReportFramework: {
+            /** @description The framework_refs key (e.g. cis_rhel9_v2.0.0). */
+            framework: string;
+            /** @description Distinct rules mapped to this framework across the fleet. */
+            rule_count: number;
+        };
+        ReportFrameworksResponse: {
+            frameworks: components["schemas"]["ReportFramework"][];
         };
         ReportListResponse: {
             reports: components["schemas"]["Report"][];
@@ -7592,6 +7625,44 @@ export interface operations {
                 };
             };
             /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportFrameworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The fleet framework catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportFrameworksResponse"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
             403: {
                 headers: {
                     [name: string]: unknown;

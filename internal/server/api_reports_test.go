@@ -85,3 +85,39 @@ func TestAPI_ReportSigningAndKeyEndpoint(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-18
+// GET /api/v1/reports/frameworks (host:read) returns the fleet framework
+// catalog as a {frameworks:[{framework,rule_count}]} shape; anonymous is
+// rejected.
+func TestAPI_ReportFrameworks(t *testing.T) {
+	t.Run("api-reports/AC-18", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		req := asRole(t, "GET", url+"/api/v1/reports/frameworks", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("frameworks status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Frameworks []struct {
+				Framework string `json:"framework"`
+				RuleCount int    `json:"rule_count"`
+			} `json:"frameworks"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode frameworks: %v", err)
+		}
+		if body.Frameworks == nil {
+			t.Errorf("frameworks is null, want an array (possibly empty)")
+		}
+
+		anon, _ := http.NewRequest("GET", url+"/api/v1/reports/frameworks", nil)
+		ar, _ := http.DefaultClient.Do(anon)
+		ar.Body.Close()
+		if ar.StatusCode != http.StatusUnauthorized && ar.StatusCode != http.StatusForbidden {
+			t.Errorf("anonymous frameworks status = %d, want 401/403", ar.StatusCode)
+		}
+	})
+}
