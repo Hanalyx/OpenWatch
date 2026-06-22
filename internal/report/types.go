@@ -30,6 +30,12 @@ const (
 	// in-scope host; its bulk faces (CSV now, OSCAL SAR next) reconstruct
 	// per-(host, rule) outcomes from those immutable scan_results.
 	KindAttestation Kind = "attestation"
+	// KindException is the Exception Register: a Compliance/GRC point-in-time
+	// read-model of compliance waivers (compliance_exceptions) - who waived
+	// which rule on which host, the justification, the approver, and the
+	// expiry. Faces: a CSV register + a bounded PDF summary (counts by
+	// status + active + expiring-soon).
+	KindException Kind = "exception"
 )
 
 // AttestationContent is the frozen snapshot for a Framework Attestation:
@@ -71,6 +77,45 @@ type AttestationRollup struct {
 	Errored     int `json:"errored"`
 	// TopFailing lists the rules failing on the most hosts (capped).
 	TopFailing []TopFailingRule `json:"top_failing"`
+}
+
+// ExceptionContent is the frozen snapshot for an Exception Register: a
+// point-in-time summary of compliance waivers plus the register rows. The
+// CSV face writes one row per exception; the PDF face renders the bounded
+// summary (counts + expiring-soon).
+type ExceptionContent struct {
+	Summary    ExceptionSummary `json:"summary"`
+	Exceptions []ExceptionRow   `json:"exceptions"`
+}
+
+// ExceptionSummary is the bounded rollup of the in-scope waivers by state.
+// Active counts approved waivers not past their expiry; ExpiringSoon is the
+// subset of Active whose expiry falls within the next 30 days.
+type ExceptionSummary struct {
+	Total        int `json:"total"`
+	Active       int `json:"active"`
+	Requested    int `json:"requested"`
+	Approved     int `json:"approved"`
+	Rejected     int `json:"rejected"`
+	Revoked      int `json:"revoked"`
+	Expired      int `json:"expired"`
+	ExpiringSoon int `json:"expiring_soon"`
+}
+
+// ExceptionRow is one waiver in the register. Requester/reviewer are
+// resolved to usernames (or "" when unresolved) so the register reads
+// without a second lookup. Active is true for an approved, unexpired waiver.
+type ExceptionRow struct {
+	HostName    string     `json:"host_name"`
+	RuleID      string     `json:"rule_id"`
+	Status      string     `json:"status"`
+	Reason      string     `json:"reason"`
+	RequestedBy string     `json:"requested_by"`
+	RequestedAt time.Time  `json:"requested_at"`
+	ReviewedBy  string     `json:"reviewed_by"`
+	ReviewedAt  *time.Time `json:"reviewed_at"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	Active      bool       `json:"active"`
 }
 
 // AttestedHost ties an in-scope host to the completed scan that attests

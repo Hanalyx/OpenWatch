@@ -214,7 +214,7 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 	rep, err := h.reportSvc.Generate(r.Context(), reportActor(r), req)
 	if errors.Is(err, report.ErrInvalidKind) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_kind", "client",
-			"kind must be executive or attestation", false)
+			"kind must be executive, attestation, or exception", false)
 		return
 	}
 	if errors.Is(err, group.ErrNotFound) {

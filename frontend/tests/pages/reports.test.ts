@@ -17,6 +17,7 @@
 //          (executive none); downloadReportFace accepts 'oscal_sar'
 //   AC-12  detail body is kind-aware: AttestationBody(asAttestationContent)
 //          for attestation, ExecutiveBody(asExecutiveContent) otherwise
+//   AC-13  exception register kind: selector option + ExceptionBody(asExceptionContent)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -174,11 +175,12 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('reportKind');
     expect(PAGE_SRC).toMatch(/<select[\s\S]*?value=\{reportKind\}/);
     expect(PAGE_SRC).toContain('aria-label="Report kind"');
-    // The generate body sets kind only when attestation is chosen.
-    expect(PAGE_SRC).toMatch(/if \(reportKind === 'attestation'\) body\.kind = 'attestation'/);
-    // The primary download is kind-aware: csv face for attestation, pdf
-    // otherwise, with a Download CSV / Download PDF label switch.
-    expect(PAGE_SRC).toMatch(/primaryFace[^\n]*isAttestation \? 'csv' : 'pdf'/);
+    // The generate body sets kind for any non-executive kind (executive is
+    // the implicit default).
+    expect(PAGE_SRC).toMatch(/if \(reportKind !== 'executive'\) body\.kind = reportKind/);
+    // The primary download is kind-aware: csv face for the csv-led kinds
+    // (attestation, exception), pdf otherwise, with a label switch.
+    expect(PAGE_SRC).toMatch(/primaryFace[^\n]*csvLed \? 'csv' : 'pdf'/);
     expect(PAGE_SRC).toContain('Download CSV');
     // downloadReportFace accepts the csv format.
     expect(PAGE_SRC).toMatch(/format: 'pdf' \| 'json' \| 'csv'/);
@@ -188,9 +190,9 @@ describe('frontend-reports — reports library page', () => {
 
   // @ac AC-11
   test('frontend-reports/AC-11 — secondary attestation faces (PDF + OSCAL SAR)', () => {
-    // A secondaryFaces list keyed on the attestation kind.
+    // A secondaryFaces list keyed on the report kind.
     expect(PAGE_SRC).toContain('secondaryFaces');
-    expect(PAGE_SRC).toMatch(/secondaryFaces[\s\S]*?isAttestation/);
+    expect(PAGE_SRC).toMatch(/secondaryFaces[\s\S]*?kind === 'attestation'/);
     // It offers the PDF cover and the OSCAL SAR faces.
     expect(PAGE_SRC).toMatch(/face: 'pdf'/);
     expect(PAGE_SRC).toMatch(/face: 'oscal_sar'/);
@@ -224,6 +226,26 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/r\.passing/);
     expect(PAGE_SRC).toMatch(/r\.failing/);
     expect(PAGE_SRC).toMatch(/r\.top_failing\.map/);
+  });
+
+  // @ac AC-13
+  test('frontend-reports/AC-13 — exception register kind (selector option + body)', () => {
+    // The kind selector offers the Exception Register option.
+    expect(PAGE_SRC).toContain('<option value="exception">Exception Register</option>');
+    // kindLabel maps exception to "Exception Register".
+    expect(PAGE_SRC).toMatch(/kind === 'exception'\) return 'Exception Register'/);
+    // The detail body branches to ExceptionBody for the exception kind.
+    expect(PAGE_SRC).toMatch(/resolved\.kind === 'exception' \?/);
+    expect(PAGE_SRC).toMatch(/<ExceptionBody content=\{asExceptionContent\(resolved\.content\)\}/);
+    // asExceptionContent narrows the register keys; ExceptionBody renders the
+    // waiver summary + the soonest-expiring list (not executive/attestation keys).
+    expect(PAGE_SRC).toContain('function asExceptionContent');
+    expect(PAGE_SRC).toContain('function ExceptionBody');
+    expect(PAGE_SRC).toMatch(/content\.summary/);
+    expect(PAGE_SRC).toContain('Total waivers');
+    expect(PAGE_SRC).toContain('Pending review');
+    // The exception kind leads with the CSV register (csvLed covers it).
+    expect(PAGE_SRC).toMatch(/csvLed = kind === 'attestation' \|\| kind === 'exception'/);
   });
 
   // @ac AC-04

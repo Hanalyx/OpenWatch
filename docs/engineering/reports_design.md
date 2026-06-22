@@ -335,11 +335,21 @@ feel instant.** Build them aware of each other.
   negotiation), `system-report-faces`.
 
 ### Phase C — Delivery spine
-- **Scheduled** reports + **email delivery** (notification-channel
-  dispatch) + the **notification bell** "ready" signal.
-- Add **Exception Register** + **Remediation Activity** kinds (data
-  already exists).
-- **Specs:** `system-report-schedule`, `frontend-reports` Scheduled tab.
+- **C1 — Exception Register kind.** *(SHIPPED 2026-06-22, PR #657.)* A
+  point-in-time Compliance/GRC read-model of compliance waivers
+  (`compliance_exceptions`): a frozen `ExceptionContent` {summary,
+  exceptions[]} (counts by state + active/expiring-soon + the register
+  rows, requester/reviewer resolved to usernames), a CSV register face, a
+  bounded PDF summary face, and a kind-aware in-app `ExceptionBody`.
+  Migration 0044 admits `kind='exception'`. Spec: `api-reports` v1.12.0
+  (C-17 / AC-23), `frontend-reports` v1.9.0 (C-12 / AC-13).
+- **C2 — Remediation Activity kind.** *(REMAINING.)* A read-model of
+  remediation execute/rollback events over a period (`remediation_requests`
+  filtered on `requested_at`); adds a `period` scope dimension.
+- **C3 — Scheduled dispatcher.** *(REMAINING.)* **Scheduled** reports +
+  **email delivery** (notification-channel dispatch); activates the
+  Scheduled tab. Spec: `system-report-schedule`, `frontend-reports`
+  Scheduled tab.
 
 ### Phase D — GRC depth
 - **POA&M** (OSCAL) — open findings → milestones → target dates,

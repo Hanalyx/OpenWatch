@@ -38,6 +38,9 @@ const executiveTitle = "Fleet Compliance - Executive Summary"
 // attestationTitle is the fixed title for the framework attestation kind.
 const attestationTitle = "Framework Attestation"
 
+// exceptionTitle is the fixed title for the exception register kind.
+const exceptionTitle = "Exception Register"
+
 // allHostsLabel is the scope_label when no group scopes the report.
 const allHostsLabel = "All hosts"
 
@@ -133,7 +136,7 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	if kind == "" {
 		kind = KindExecutive
 	}
-	if kind != KindExecutive && kind != KindAttestation {
+	if kind != KindExecutive && kind != KindAttestation && kind != KindException {
 		return Report{}, ErrInvalidKind
 	}
 
@@ -168,6 +171,13 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		}
 		content = c
 		title = attestationTitle
+	case KindException:
+		c, err := s.computeExceptionRegister(ctx, hostIDs)
+		if err != nil {
+			return Report{}, err
+		}
+		content = c
+		title = exceptionTitle
 	default:
 		c, err := s.computeExecutive(ctx, hostIDs, scope.Framework)
 		if err != nil {
@@ -307,6 +317,78 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 		return AttestationContent{}, err
 	}
 	c.Rollup = rollup
+	return c, nil
+}
+
+// computeExceptionRegister builds the Exception Register snapshot: a
+// bounded summary of compliance waivers by state (computed by an aggregate
+// so the counts are exact even when the row list is capped) plus the
+// register rows (one per waiver, requester/reviewer resolved to usernames),
+// scoped to hostIDs when set. Active = approved and not past expiry;
+// ExpiringSoon = active with an expiry within the next 30 days.
+func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.UUID) (ExceptionContent, error) {
+	c := ExceptionContent{Exceptions: []ExceptionRow{}}
+
+	// Summary aggregate (exact, independent of the row cap).
+	sumQ := `
+		SELECT count(*),
+		       count(*) FILTER (WHERE e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > now())),
+		       count(*) FILTER (WHERE e.status = 'requested'),
+		       count(*) FILTER (WHERE e.status = 'approved'),
+		       count(*) FILTER (WHERE e.status = 'rejected'),
+		       count(*) FILTER (WHERE e.status = 'revoked'),
+		       count(*) FILTER (WHERE e.status = 'expired'),
+		       count(*) FILTER (WHERE e.status = 'approved' AND e.expires_at IS NOT NULL
+		                        AND e.expires_at > now() AND e.expires_at <= now() + interval '30 days')
+		  FROM compliance_exceptions e
+		  JOIN hosts h ON h.id = e.host_id
+		 WHERE h.deleted_at IS NULL`
+	sumArgs := []any{}
+	if hostIDs != nil {
+		sumQ += " AND e.host_id = ANY($1)"
+		sumArgs = append(sumArgs, hostIDs)
+	}
+	sm := &c.Summary
+	if err := s.pool.QueryRow(ctx, sumQ, sumArgs...).Scan(
+		&sm.Total, &sm.Active, &sm.Requested, &sm.Approved,
+		&sm.Rejected, &sm.Revoked, &sm.Expired, &sm.ExpiringSoon); err != nil {
+		return ExceptionContent{}, fmt.Errorf("report: exception summary: %w", err)
+	}
+
+	// Register rows (capped), requester/reviewer resolved to usernames.
+	rowQ := `
+		SELECT COALESCE(h.hostname, ''), e.rule_id, e.status, e.reason,
+		       COALESCE(ru.username, ''), e.requested_at,
+		       COALESCE(rv.username, ''), e.reviewed_at, e.expires_at,
+		       (e.status = 'approved' AND (e.expires_at IS NULL OR e.expires_at > now())) AS active
+		  FROM compliance_exceptions e
+		  JOIN hosts h ON h.id = e.host_id
+		  LEFT JOIN users ru ON ru.id = e.requested_by
+		  LEFT JOIN users rv ON rv.id = e.reviewed_by
+		 WHERE h.deleted_at IS NULL`
+	rowArgs := []any{}
+	if hostIDs != nil {
+		rowQ += " AND e.host_id = ANY($1)"
+		rowArgs = append(rowArgs, hostIDs)
+	}
+	rowQ += fmt.Sprintf(" ORDER BY e.requested_at DESC LIMIT %d", maxRegisterRows)
+	rows, err := s.pool.Query(ctx, rowQ, rowArgs...)
+	if err != nil {
+		return ExceptionContent{}, fmt.Errorf("report: exception rows: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r ExceptionRow
+		if err := rows.Scan(&r.HostName, &r.RuleID, &r.Status, &r.Reason,
+			&r.RequestedBy, &r.RequestedAt, &r.ReviewedBy, &r.ReviewedAt,
+			&r.ExpiresAt, &r.Active); err != nil {
+			return ExceptionContent{}, fmt.Errorf("report: exception row: %w", err)
+		}
+		c.Exceptions = append(c.Exceptions, r)
+	}
+	if err := rows.Err(); err != nil {
+		return ExceptionContent{}, fmt.Errorf("report: exception iterate: %w", err)
+	}
 	return c, nil
 }
 

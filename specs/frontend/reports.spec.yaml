@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 2
 
@@ -206,6 +206,21 @@ spec:
         the full per-host, per-rule breakdown. UI copy carries no em-dash.
       type: technical
       enforcement: error
+    - id: C-12
+      description: >-
+        v1.9.0 (Phase C1) - The kind selector offers a third option,
+        "Exception Register" (value "exception"); the generate body sends
+        kind for any non-executive selection (executive stays the implicit
+        default). The detail body branches to an ExceptionBody for the
+        exception kind, rendering the frozen ExceptionContent: the waiver
+        summary (total / active / pending review / expiring-within-30-days /
+        rejected-revoked-expired) and a sampled soonest-expiring active-waiver
+        table, pointing at the CSV face for the full register. The exception
+        kind is CSV-led (primary download is the register CSV) with a PDF
+        summary secondary and JSON; OSCAL SAR is not offered. kindLabel maps
+        "exception" to "Exception Register". UI copy carries no em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -347,3 +362,16 @@ spec:
         any executive content key. The added copy contains no em-dash.
       priority: high
       references_constraints: [C-11]
+    - id: AC-13
+      description: >-
+        v1.9.0 - Source inspection: the kind selector includes an
+        <option value="exception">Exception Register</option>; kindLabel maps
+        "exception" to "Exception Register". The detail body branches to
+        ExceptionBody(asExceptionContent(resolved.content)) for the exception
+        kind. asExceptionContent narrows content.summary + content.exceptions;
+        ExceptionBody reads content.summary and renders the waiver counts
+        ("Total waivers", "Pending review") and the soonest-expiring list. The
+        exception kind is CSV-led (csvLed = kind === 'attestation' || kind ===
+        'exception'). The added copy contains no em-dash.
+      priority: high
+      references_constraints: [C-12]

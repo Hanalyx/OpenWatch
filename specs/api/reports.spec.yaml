@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.11.0"
+  version: "1.12.0"
   status: approved
   tier: 2
 
@@ -359,6 +359,28 @@ spec:
         eventbus.AllEventKinds (system-event-bus closed set).
       type: technical
       enforcement: error
+    - id: C-17
+      description: >-
+        v1.12.0 (Phase C1) - The exception kind is the Compliance/GRC
+        Exception Register: a POINT-IN-TIME read-model of compliance waivers
+        (compliance_exceptions), title "Exception Register", admitted by the
+        report_snapshots.kind CHECK (migration 0044). Generate
+        (kind=exception) freezes an ExceptionContent {summary, exceptions[]}
+        scoped to the in-scope hosts: summary is an exact aggregate by state
+        (total, active, requested, approved, rejected, revoked, expired,
+        expiring_soon) where active = approved AND (no expiry OR expiry in
+        the future) and expiring_soon = active with an expiry within 30 days;
+        exceptions[] is one row per waiver (host, rule_id, status, reason,
+        requester + reviewer usernames, requested_at/reviewed_at/expires_at,
+        active), capped, requester/reviewer resolved to usernames. The CSV
+        face is the full register (one row per waiver, csvSafe-guarded); the
+        PDF face is the bounded one-page summary (counts + a sampled
+        soonest-expiring list); the JSON face is the canonical content; pdf
+        and csv are kind-dispatched to the exception renderers, and oscal_sar
+        is ErrInvalidFace for the exception kind. Signing (C-11) applies (the
+        ExceptionContent is the signed canonical content).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -597,3 +619,15 @@ spec:
         three rendered faces, and the generating principal.
       priority: high
       references_constraints: [C-16]
+    - id: AC-23
+      description: >-
+        v1.12.0 - Generate(kind=exception) over a host with five waivers
+        (approved+expiring-soon, approved no-expiry, requested, expired,
+        revoked) produces a signed Exception Register (kind=exception, title
+        "Exception Register") whose ExceptionContent summary is total 5 /
+        active 2 / requested 1 / approved 2 / revoked 1 / expired 1 /
+        expiring_soon 1, with five register rows. Its csv face is text/csv
+        with the register header + all five rule rows; its pdf face is real
+        %PDF bytes; oscal_sar is ErrInvalidFace for the exception kind.
+      priority: high
+      references_constraints: [C-17]

@@ -38,6 +38,9 @@ const (
 // disclosure row so a truncated bundle is never mistaken for complete.
 const maxAttestationRows = 100000
 
+// maxRegisterRows caps the exception register CSV / row list.
+const maxRegisterRows = 100000
+
 // Export returns a rendered face of the report (its bytes + media type),
 // or ErrNotFound for an unknown id / ErrInvalidFace for a face that does
 // not apply to the report's kind. The JSON face is the canonical content
@@ -52,21 +55,30 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 	case FaceJSON:
 		return s.canonicalJSON(rep)
 	case FacePDF:
-		// PDF is the bounded human narrative for BOTH kinds, dispatched by
-		// kind: the executive summary or the framework attestation cover.
+		// PDF is the bounded human narrative for every kind, dispatched by
+		// kind: the executive summary, the attestation cover, or the
+		// exception register summary.
 		switch rep.Kind {
 		case KindExecutive:
 			return s.exportPDF(ctx, rep)
 		case KindAttestation:
 			return s.exportAttestationPDF(ctx, rep)
+		case KindException:
+			return s.exportExceptionPDF(ctx, rep)
 		default:
 			return nil, "", ErrInvalidFace
 		}
 	case FaceCSV:
-		if rep.Kind != KindAttestation {
+		// CSV is the bulk row export, dispatched by kind: the attestation
+		// evidence extract or the exception register.
+		switch rep.Kind {
+		case KindAttestation:
+			return s.exportAttestationCSV(ctx, rep)
+		case KindException:
+			return s.exportExceptionCSV(ctx, rep)
+		default:
 			return nil, "", ErrInvalidFace
 		}
-		return s.exportAttestationCSV(ctx, rep)
 	case FaceOSCALSAR:
 		if rep.Kind != KindAttestation {
 			return nil, "", ErrInvalidFace
@@ -89,6 +101,12 @@ func (s *Service) canonicalJSON(rep Report) ([]byte, string, error) {
 		var c AttestationContent
 		if err := json.Unmarshal(rep.Content, &c); err != nil {
 			return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
+		}
+		v = c
+	case KindException:
+		var c ExceptionContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			return nil, "", fmt.Errorf("report: decode exception content: %w", err)
 		}
 		v = c
 	default:
@@ -433,6 +451,121 @@ func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.U
 		return AttestationRollup{}, fmt.Errorf("report: attestation rollup iterate: %w", err)
 	}
 	return r, nil
+}
+
+// exportExceptionCSV returns the cached exception-register CSV face if
+// present, else writes one row per frozen waiver (the register is stored on
+// the snapshot content, so this reads the frozen rows rather than
+// re-querying), caches it in report_faces, and returns it.
+func (s *Service) exportExceptionCSV(ctx context.Context, rep Report) ([]byte, string, error) {
+	const mediaType = "text/csv"
+
+	var cached []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM report_faces WHERE snapshot_id = $1 AND face = $2 AND status = 'ready'`,
+		rep.ID, FaceCSV).Scan(&cached)
+	if err == nil && len(cached) > 0 {
+		return cached, mediaType, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", fmt.Errorf("report: exception csv face lookup: %w", err)
+	}
+
+	var c ExceptionContent
+	if err := json.Unmarshal(rep.Content, &c); err != nil {
+		return nil, "", fmt.Errorf("report: decode exception content: %w", err)
+	}
+
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{
+		"host", "rule_id", "status", "active", "reason",
+		"requested_by", "requested_at", "reviewed_by", "reviewed_at", "expires_at",
+	})
+	for _, r := range c.Exceptions {
+		_ = w.Write([]string{
+			csvSafe(r.HostName), csvSafe(r.RuleID), csvSafe(r.Status), boolStr(r.Active),
+			csvSafe(r.Reason), csvSafe(r.RequestedBy), r.RequestedAt.UTC().Format(time.RFC3339),
+			csvSafe(r.ReviewedBy), timePtrStr(r.ReviewedAt), timePtrStr(r.ExpiresAt),
+		})
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, "", fmt.Errorf("report: write exception csv: %w", err)
+	}
+	csvBytes := buf.Bytes()
+
+	sum := sha256.Sum256(csvBytes)
+	blobSHA := hex.EncodeToString(sum[:])
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO report_faces (snapshot_id, face, media_type, content, size_bytes, blob_sha256, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ready')
+		ON CONFLICT (snapshot_id, face)
+		DO UPDATE SET content = EXCLUDED.content, media_type = EXCLUDED.media_type,
+		              size_bytes = EXCLUDED.size_bytes, blob_sha256 = EXCLUDED.blob_sha256,
+		              status = 'ready'`,
+		rep.ID, FaceCSV, mediaType, csvBytes, len(csvBytes), blobSHA)
+	if err != nil {
+		return csvBytes, mediaType, nil
+	}
+	return csvBytes, mediaType, nil
+}
+
+// exportExceptionPDF returns the cached exception-register PDF face if
+// present, else renders the bounded one-page summary (counts by state +
+// expiring-soon) from the frozen content, caches it, and returns it.
+func (s *Service) exportExceptionPDF(ctx context.Context, rep Report) ([]byte, string, error) {
+	const mediaType = "application/pdf"
+
+	var cached []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM report_faces WHERE snapshot_id = $1 AND face = $2 AND status = 'ready'`,
+		rep.ID, FacePDF).Scan(&cached)
+	if err == nil && len(cached) > 0 {
+		return cached, mediaType, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", fmt.Errorf("report: exception pdf face lookup: %w", err)
+	}
+
+	var c ExceptionContent
+	if err := json.Unmarshal(rep.Content, &c); err != nil {
+		return nil, "", fmt.Errorf("report: decode exception content: %w", err)
+	}
+	pdfBytes, err := renderExceptionPDF(rep, c)
+	if err != nil {
+		return nil, "", err
+	}
+	sum := sha256.Sum256(pdfBytes)
+	blobSHA := hex.EncodeToString(sum[:])
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO report_faces (snapshot_id, face, media_type, content, size_bytes, blob_sha256, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ready')
+		ON CONFLICT (snapshot_id, face)
+		DO UPDATE SET content = EXCLUDED.content, media_type = EXCLUDED.media_type,
+		              size_bytes = EXCLUDED.size_bytes, blob_sha256 = EXCLUDED.blob_sha256,
+		              status = 'ready'`,
+		rep.ID, FacePDF, mediaType, pdfBytes, len(pdfBytes), blobSHA)
+	if err != nil {
+		return pdfBytes, mediaType, nil
+	}
+	return pdfBytes, mediaType, nil
+}
+
+// boolStr renders a bool as "yes"/"no" for CSV legibility.
+func boolStr(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
+// timePtrStr renders an optional timestamp as RFC3339 or "" when nil.
+func timePtrStr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // csvSafe neutralizes spreadsheet formula injection (CWE-1236): a cell

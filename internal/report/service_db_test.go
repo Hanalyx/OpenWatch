@@ -602,6 +602,106 @@ func seedScanResult(t *testing.T, pool *pgxpool.Pool, scanID, hostID uuid.UUID, 
 	}
 }
 
+// seedException inserts one compliance waiver. A non-requested status sets
+// reviewed_by + reviewed_at (the DB has no self-review guard; that lives in
+// the service). expiresAt is optional.
+func seedException(t *testing.T, pool *pgxpool.Pool, hostID, requestedBy uuid.UUID, ruleID, status string, expiresAt *time.Time) {
+	t.Helper()
+	var reviewedBy *uuid.UUID
+	var reviewedAt *time.Time
+	if status != "requested" {
+		reviewedBy = &requestedBy
+		now := time.Now()
+		reviewedAt = &now
+	}
+	id, _ := uuid.NewV7()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO compliance_exceptions (id, host_id, rule_id, reason, status, requested_by, reviewed_by, reviewed_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, hostID, ruleID, "waiver for "+ruleID, status, requestedBy, reviewedBy, reviewedAt, expiresAt)
+	if err != nil {
+		t.Fatalf("seed exception: %v", err)
+	}
+}
+
+// @ac AC-23
+// The exception kind builds a point-in-time register: a summary by state
+// (active = approved + unexpired; expiring_soon within 30 days) plus the
+// register rows. Its CSV face is the full register; the PDF is the bounded
+// summary; oscal_sar is invalid for the kind.
+func TestGenerate_ExceptionRegister(t *testing.T) {
+	t.Run("api-reports/AC-23", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		signer, _ := NewSigner("")
+		svc := NewService(pool).WithSigner(signer)
+		owner := seedUser(t, pool)
+		h := seedHost(t, pool, owner, false)
+		soon := time.Now().Add(10 * 24 * time.Hour)
+		seedException(t, pool, h, owner, "r1", "approved", &soon) // active, expiring soon
+		seedException(t, pool, h, owner, "r2", "approved", nil)   // active, no expiry
+		seedException(t, pool, h, owner, "r3", "requested", nil)  // pending
+		seedException(t, pool, h, owner, "r4", "expired", nil)    // terminal
+		seedException(t, pool, h, owner, "r5", "revoked", nil)    // terminal
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindException})
+		if err != nil {
+			t.Fatalf("Generate exception: %v", err)
+		}
+		if rep.Kind != KindException || rep.Title != exceptionTitle {
+			t.Errorf("kind/title = %s/%q", rep.Kind, rep.Title)
+		}
+		if len(rep.Signature) == 0 {
+			t.Errorf("exception register should be signed")
+		}
+
+		var c ExceptionContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			t.Fatalf("decode exception content: %v", err)
+		}
+		s := c.Summary
+		if s.Total != 5 || s.Active != 2 || s.Requested != 1 || s.Approved != 2 ||
+			s.Revoked != 1 || s.Expired != 1 || s.ExpiringSoon != 1 {
+			t.Errorf("summary = %+v, want total 5 / active 2 / requested 1 / approved 2 / revoked 1 / expired 1 / expiringSoon 1", s)
+		}
+		if len(c.Exceptions) != 5 {
+			t.Errorf("rows = %d, want 5", len(c.Exceptions))
+		}
+
+		// CSV face: header + 5 rows, cached.
+		csvBytes, media, err := svc.Export(ctx, rep.ID, FaceCSV)
+		if err != nil {
+			t.Fatalf("Export csv: %v", err)
+		}
+		if media != "text/csv" {
+			t.Errorf("csv media = %q", media)
+		}
+		csvStr := string(csvBytes)
+		if !strings.Contains(csvStr, "host,rule_id,status,active,reason") {
+			t.Errorf("csv missing header: %q", csvStr)
+		}
+		for _, r := range []string{"r1", "r2", "r3", "r4", "r5"} {
+			if !strings.Contains(csvStr, r) {
+				t.Errorf("csv missing rule %s", r)
+			}
+		}
+
+		// PDF face: real %PDF bytes.
+		pdfBytes, pmedia, err := svc.Export(ctx, rep.ID, FacePDF)
+		if err != nil {
+			t.Fatalf("Export pdf: %v", err)
+		}
+		if pmedia != "application/pdf" || !strings.HasPrefix(string(pdfBytes), "%PDF") {
+			t.Errorf("pdf media/magic = %q / %q", pmedia, string(pdfBytes[:min(4, len(pdfBytes))]))
+		}
+
+		// oscal_sar is invalid for the exception kind.
+		if _, _, err := svc.Export(ctx, rep.ID, FaceOSCALSAR); !errors.Is(err, ErrInvalidFace) {
+			t.Errorf("Export oscal_sar on exception err = %v, want ErrInvalidFace", err)
+		}
+	})
+}
+
 // seedScanResultEv inserts a (scan, host, rule) outcome whose evidence is
 // content-addressed in scan_evidence, returning the evidence sha256 hex so
 // a test can assert the fleet SAR references it by hash. Evidence inserts
