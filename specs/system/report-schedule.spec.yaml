@@ -1,7 +1,7 @@
 spec:
   id: system-report-schedule
   title: Scheduled reports - recurring generation + email delivery of the rendered PDF
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -84,13 +84,19 @@ spec:
       enforcement: error
     - id: C-03
       description: >-
-        The cron dispatcher (Tick) claims due schedules (enabled AND
-        next_run_at <= now), and for each: generates the report
+        The cron dispatcher (Tick) claims due schedules atomically:
+        ClaimDue runs ONE transaction that selects enabled AND next_run_at <=
+        now FOR UPDATE SKIP LOCKED and advances next_run_at (ComputeNextRun
+        from now) before commit, so two concurrent dispatchers (a second
+        serve process) see disjoint sets and never double-generate or
+        double-email a report; advancing at claim time also means a crash
+        mid-run skips that run rather than re-firing every tick. For each
+        claimed schedule the dispatcher generates the report
         (report.Service.Generate with the schedule's kind + scope, actor
-        "scheduler"), renders its PDF face, delivers it, records last_run_at
-        + last_status ("ok" or "failed: <err>"), and advances next_run_at via
-        ComputeNextRun from now. A per-schedule error is recorded and does
-        not abort the other due schedules.
+        "scheduler"), renders its PDF face, delivers it, and records the
+        outcome with MarkResult (last_run_at + last_status "ok" or
+        "failed: <err>"). A per-schedule error is recorded and does not abort
+        the other claimed schedules.
       type: technical
       enforcement: error
     - id: C-04
@@ -99,7 +105,9 @@ spec:
         multipart/mixed RFC 5322 message - a text/plain body part and a
         base64 application/pdf attachment with a Content-Disposition filename
         - and sends it via the channel's decrypted SMTP config to its
-        recipients. A non-email channel is rejected (ErrNotEmailChannel);
+        recipients. The subject and attachment filename are stripped of CR/LF
+        before assembly so report-derived values cannot inject extra headers
+        (CWE-93). A non-email channel is rejected (ErrNotEmailChannel);
         only email channels carry attachments.
       type: technical
       enforcement: error
@@ -108,9 +116,13 @@ spec:
         The HTTP surface is CRUD over schedules: GET
         /api/v1/reports/schedules (host:read) lists newest-first; POST
         (host:write) creates after validating the cadence (weekly requires
-        weekday, monthly requires day_of_month); PATCH /{id} (host:write)
-        toggles enabled (re-enabling recomputes next_run_at); DELETE /{id}
-        (host:write) removes it. A missing id is 404.
+        weekday, monthly requires day_of_month) AND that the referenced
+        channel exists and is an email channel (a non-email or unknown
+        channel is rejected 400, since only email channels carry the PDF);
+        PATCH /{id} (host:write) toggles enabled (re-enabling recomputes
+        next_run_at); DELETE /{id} (host:write) removes it. A missing id is
+        404. Create, toggle, and delete each emit an audit event
+        (report.schedule.created / .toggled / .deleted).
       type: technical
       enforcement: error
 
@@ -143,8 +155,19 @@ spec:
       description: >-
         The CRUD surface enforces RBAC and round-trips: a host:read caller
         cannot POST a schedule (403); a host:write caller creates one (201,
-        enabled, with a future next_run_at); GET (host:read) lists it; PATCH
+        enabled, with a future next_run_at) and the create emits a
+        report.schedule.created audit event; a POST referencing a non-email
+        (webhook) channel is rejected 400; GET (host:read) lists it; PATCH
         {enabled:false} (host:write) disables it; DELETE (host:write) removes
         it (204) and the list is then empty.
       priority: high
       references_constraints: [C-05]
+    - id: AC-05
+      description: >-
+        ClaimDue is atomic under FOR UPDATE SKIP LOCKED: for a single due
+        schedule, the first ClaimDue returns it with next_run_at advanced into
+        the future, and a second ClaimDue at the same instant returns nothing,
+        so two concurrent dispatchers never double-claim (and never
+        double-send) the same schedule.
+      priority: high
+      references_constraints: [C-03]

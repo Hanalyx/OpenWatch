@@ -38,26 +38,26 @@ func NewDispatcher(svc *Service, gen Generator, deliver Deliverer) *Dispatcher {
 	return &Dispatcher{svc: svc, gen: gen, deliver: deliver}
 }
 
-// Tick processes every due schedule once. It is the cron TickFunc; an error
-// from one schedule is recorded on that schedule (last_status) and does not
-// abort the others. The return error is non-nil only on a query failure.
+// Tick claims + processes every due schedule once. It is the cron TickFunc.
+// ClaimDue atomically reserves the due schedules (FOR UPDATE SKIP LOCKED +
+// advance), so concurrent dispatchers never double-send. An error from one
+// schedule is recorded on that schedule (last_status) and does not abort the
+// others. The return error is non-nil only on a claim failure.
 func (d *Dispatcher) Tick(ctx context.Context) error {
 	now := time.Now().UTC()
-	due, err := d.svc.Due(ctx, now)
+	claimed, err := d.svc.ClaimDue(ctx, now)
 	if err != nil {
 		return err
 	}
-	for _, sch := range due {
+	for _, sch := range claimed {
 		status := "ok"
 		if rerr := d.run(ctx, sch); rerr != nil {
 			status = "failed: " + rerr.Error()
 			slog.WarnContext(ctx, "report schedule run failed",
 				slog.String("schedule_id", sch.ID.String()), slog.String("error", rerr.Error()))
 		}
-		// Advance from now so a slow/failed run does not immediately re-fire.
-		next := ComputeNextRun(sch.Frequency, sch.Hour, sch.Weekday, sch.DayOfMonth, time.Now().UTC())
-		if merr := d.svc.MarkRun(ctx, sch.ID, next, status); merr != nil {
-			slog.WarnContext(ctx, "report schedule mark-run failed",
+		if merr := d.svc.MarkResult(ctx, sch.ID, status); merr != nil {
+			slog.WarnContext(ctx, "report schedule mark-result failed",
 				slog.String("schedule_id", sch.ID.String()), slog.String("error", merr.Error()))
 		}
 	}

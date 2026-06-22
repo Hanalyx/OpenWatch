@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -57,6 +58,38 @@ func TestAPI_ReportSchedules(t *testing.T) {
 		if err := json.NewDecoder(cr.Body).Decode(&created); err != nil {
 			t.Fatalf("decode created: %v", err)
 		}
+		// The create emits a report.schedule.created audit event. audit.Emit is
+		// async (background writer), so poll briefly for the row to land.
+		var auditCount int
+		for i := 0; i < 30; i++ {
+			if err := pool.QueryRow(context.Background(),
+				`SELECT count(*) FROM audit_events WHERE action = 'report.schedule.created' AND resource_id = $1`,
+				created.ID).Scan(&auditCount); err != nil {
+				t.Fatalf("audit query: %v", err)
+			}
+			if auditCount > 0 {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if auditCount != 1 {
+			t.Errorf("report.schedule.created audit events = %d, want 1", auditCount)
+		}
+
+		// A non-email channel is rejected at create (only email carries the PDF).
+		whID := uuid.New()
+		if _, err := pool.Exec(context.Background(),
+			`INSERT INTO notification_channels (id, type, name, enabled, config_ciphertext)
+			 VALUES ($1, 'webhook', 'ops-hook', true, $2)`, whID, []byte("x")); err != nil {
+			t.Fatalf("seed webhook channel: %v", err)
+		}
+		whBody := map[string]any{"name": "bad", "kind": "executive", "frequency": "daily", "channel_id": whID.String()}
+		wr := doReq(t, asRole(t, "POST", url+"/api/v1/reports/schedules", auth.RoleOpsLead, whBody))
+		wr.Body.Close()
+		if wr.StatusCode != http.StatusBadRequest {
+			t.Errorf("create with webhook channel status = %d, want 400", wr.StatusCode)
+		}
+
 		if created.ID == "" || !created.Enabled || created.NextRunAt == "" {
 			t.Fatalf("created schedule malformed: %+v", created)
 		}

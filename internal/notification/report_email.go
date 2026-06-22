@@ -56,6 +56,11 @@ func (s *Service) SendReportEmail(ctx context.Context, channelID uuid.UUID, subj
 // buildReportEmail assembles a multipart/mixed RFC 5322 message: a
 // text/plain body part and a base64-encoded application/pdf attachment.
 func buildReportEmail(from string, to []string, subject, body, filename string, attachment []byte) []byte {
+	// Defense-in-depth: strip CR/LF from the subject so a value flowing into
+	// the Subject header can never inject additional headers (CWE-93). Report
+	// titles are fixed today, but this future-proofs the header.
+	subject = stripCRLF(subject)
+	filename = stripCRLF(filename)
 	var parts bytes.Buffer
 	w := multipart.NewWriter(&parts)
 
@@ -83,6 +88,12 @@ func buildReportEmail(from string, to []string, subject, body, filename string, 
 	msg.WriteString("\r\n")
 	msg.Write(parts.Bytes())
 	return msg.Bytes()
+}
+
+// stripCRLF removes carriage returns and newlines so a value cannot inject
+// extra MIME/RFC-5322 headers.
+func stripCRLF(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 // wrap76 breaks a base64 string into 76-character CRLF-terminated lines

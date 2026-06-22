@@ -244,6 +244,14 @@ const (
 	//
 	RemediationRolledBack Code = "remediation.rolled_back"
 	//
+	ReportGenerated Code = "report.generated"
+	//
+	ReportScheduleCreated Code = "report.schedule.created"
+	//
+	ReportScheduleDeleted Code = "report.schedule.deleted"
+	//
+	ReportScheduleToggled Code = "report.schedule.toggled"
+	//
 	IntegrationWebhookDelivered Code = "integration.webhook.delivered"
 	//
 	IntegrationWebhookFailed Code = "integration.webhook.failed"
@@ -1094,6 +1102,34 @@ var Metadata = map[Code]EventMeta{
 		Description: ``,
 		ActorTypes:  nil,
 	},
+	ReportGenerated: {
+		Code:        ReportGenerated,
+		Category:    "report",
+		Severity:    SeverityInfo,
+		Description: ``,
+		ActorTypes:  nil,
+	},
+	ReportScheduleCreated: {
+		Code:        ReportScheduleCreated,
+		Category:    "report",
+		Severity:    SeverityInfo,
+		Description: ``,
+		ActorTypes:  nil,
+	},
+	ReportScheduleDeleted: {
+		Code:        ReportScheduleDeleted,
+		Category:    "report",
+		Severity:    SeverityWarning,
+		Description: ``,
+		ActorTypes:  nil,
+	},
+	ReportScheduleToggled: {
+		Code:        ReportScheduleToggled,
+		Category:    "report",
+		Severity:    SeverityInfo,
+		Description: ``,
+		ActorTypes:  nil,
+	},
 	IntegrationWebhookDelivered: {
 		Code:        IntegrationWebhookDelivered,
 		Category:    "integration",
@@ -1452,6 +1488,10 @@ var codeOrder = []Code{
 	RemediationApproved,
 	RemediationExecuted,
 	RemediationRolledBack,
+	ReportGenerated,
+	ReportScheduleCreated,
+	ReportScheduleDeleted,
+	ReportScheduleToggled,
 	IntegrationWebhookDelivered,
 	IntegrationWebhookFailed,
 	IntegrationWebhookSubscribed,

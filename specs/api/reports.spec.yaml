@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.13.0"
+  version: "1.14.0"
   status: approved
   tier: 2
 
@@ -145,7 +145,8 @@ spec:
         with auth.HostRead or auth.HostWrite). A host:read-only caller is
         403 on generate. generated_by records the calling principal's id,
         or 'system' when the request is anonymous, and the wire surfaces no
-        signing, PDF, or OSCAL fields.
+        signing, PDF, or OSCAL fields. A successful generate emits a
+        report.generated audit event (actor, report id, kind, scope_label).
       type: security
       enforcement: error
     - id: C-07

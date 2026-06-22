@@ -1,15 +1,15 @@
 // Package report implements the Reports library: point-in-time,
-// immutable compliance artifacts. The MVP generates exactly one kind,
-// the Fleet Compliance Executive Summary. Generating it computes a
-// posture snapshot from data that already exists (host_rule_state
-// pass/fail counts + critical, host count, top failing rules) and
-// stores it as a JSON document; the row is then never recomputed.
+// immutable, Ed25519-signed compliance artifacts. It generates four kinds
+// (executive summary, framework attestation, exception register,
+// remediation activity), each computed once from data that already exists
+// and stored as a frozen JSON document; the row is never recomputed. Each
+// kind renders to downloadable faces (PDF / CSV / OSCAL SAR / JSON).
 //
-// DEFERRED (not built here, see the migration + spec excludes): Ed25519
-// signing, PDF/OSCAL rendering, the Scheduled dispatcher, the Templates
-// gallery, retention sweeps.
+// DEFERRED: the Templates gallery and retention sweeps (see the spec
+// excludes). Recurring generation + email delivery lives in
+// internal/reportschedule.
 //
-// Spec: api-reports v1.0.0.
+// Spec: api-reports.
 package report
 
 import (

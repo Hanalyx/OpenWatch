@@ -1905,9 +1905,10 @@ function ComingSoon({ what }: { what: string }) {
             lineHeight: 1.5,
           }}
         >
-          {what === 'Templates'
-            ? 'The report kinds (Fleet Compliance Executive Summary and Framework Attestation) are live in the Library tab, each with signed PDF, CSV, OSCAL, and JSON faces. A gallery for building and saving custom report templates is not built yet.'
-            : 'Scheduled report delivery requires a dispatcher, which is not built yet. For now, generate reports on demand from the Library tab.'}
+          The report kinds (executive, attestation, exception, remediation) are live in the Library
+          tab, each with signed PDF, CSV, OSCAL, and JSON faces, and reports can be delivered on a
+          schedule from the Scheduled tab. A gallery for building and saving custom report templates
+          is not built yet.
         </div>
       </div>
     </Panel>

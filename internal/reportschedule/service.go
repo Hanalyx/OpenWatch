@@ -133,13 +133,69 @@ func (s *Service) Due(ctx context.Context, now time.Time) ([]Schedule, error) {
 	return out, rows.Err()
 }
 
-// MarkRun records a run outcome and advances next_run_at.
-func (s *Service) MarkRun(ctx context.Context, id uuid.UUID, next time.Time, status string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE report_schedules SET last_run_at = now(), last_status = $2, next_run_at = $3, updated_at = now() WHERE id = $1`,
-		id, status, next)
+// ClaimDue atomically claims the due schedules: in ONE transaction it locks
+// them with FOR UPDATE SKIP LOCKED and advances next_run_at to the next
+// occurrence. A concurrent dispatcher (a second serve process) therefore
+// sees a DISJOINT set and never re-claims the same schedule, so a report is
+// never double-generated or double-emailed. The claimed schedules are
+// returned for processing; record the per-run outcome with MarkResult.
+// next_run advances at claim time, so a crash mid-run simply skips that run
+// rather than re-firing it every tick.
+func (s *Service) ClaimDue(ctx context.Context, now time.Time) ([]Schedule, error) {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("reportschedule: mark run: %w", err)
+		return nil, fmt.Errorf("reportschedule: claim begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rows, err := tx.Query(ctx,
+		`SELECT `+scheduleCols+` FROM report_schedules
+		  WHERE enabled AND next_run_at <= $1
+		  ORDER BY next_run_at
+		  FOR UPDATE SKIP LOCKED`, now)
+	if err != nil {
+		return nil, fmt.Errorf("reportschedule: claim select: %w", err)
+	}
+	var claimed []Schedule
+	for rows.Next() {
+		sch, serr := scanSchedule(rows)
+		if serr != nil {
+			rows.Close()
+			return nil, serr
+		}
+		claimed = append(claimed, sch)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Advance next_run_at within the same locked transaction so the claim is
+	// effective the moment we commit.
+	for i := range claimed {
+		next := ComputeNextRun(claimed[i].Frequency, claimed[i].Hour,
+			claimed[i].Weekday, claimed[i].DayOfMonth, now)
+		if _, err := tx.Exec(ctx,
+			`UPDATE report_schedules SET next_run_at = $2, updated_at = now() WHERE id = $1`,
+			claimed[i].ID, next); err != nil {
+			return nil, fmt.Errorf("reportschedule: claim advance: %w", err)
+		}
+		claimed[i].NextRunAt = next
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("reportschedule: claim commit: %w", err)
+	}
+	return claimed, nil
+}
+
+// MarkResult records the outcome of a claimed run (last_run_at + last_status).
+// next_run_at was already advanced by ClaimDue.
+func (s *Service) MarkResult(ctx context.Context, id uuid.UUID, status string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE report_schedules SET last_run_at = now(), last_status = $2, updated_at = now() WHERE id = $1`,
+		id, status)
+	if err != nil {
+		return fmt.Errorf("reportschedule: mark result: %w", err)
 	}
 	return nil
 }

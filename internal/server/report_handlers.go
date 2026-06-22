@@ -4,9 +4,10 @@
 // mapping, and report.Report -> api.Report wire shaping live here; the
 // posture computation lives in the service.
 //
-// MVP: generate produces exactly one kind, the Fleet Compliance
-// Executive Summary, for all hosts. Signing, PDF/OSCAL rendering, the
-// Scheduled dispatcher and the Templates gallery are deferred.
+// Generate produces one of four kinds (executive, attestation, exception,
+// remediation), signed (Ed25519), with PDF/CSV/OSCAL/JSON faces. Recurring
+// generation + email delivery lives in report_schedule_handlers.go; only
+// the Templates gallery remains deferred.
 //
 // Spec: api-reports.
 
@@ -22,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
+	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/report"
@@ -241,6 +243,19 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 			"report content decode failed", true)
 		return
 	}
+
+	ident := auth.FromContext(r.Context())
+	detail, _ := json.Marshal(map[string]string{
+		"kind": string(rep.Kind), "scope_label": rep.ScopeLabel, "report_id": rep.ID.String(),
+	})
+	audit.Emit(r.Context(), audit.ReportGenerated, audit.Event{
+		ActorType:    "user",
+		ActorID:      ident.ID,
+		ResourceType: "report",
+		ResourceID:   rep.ID.String(),
+		Detail:       detail,
+	})
+
 	writeJSON(w, http.StatusCreated, out)
 }
 
