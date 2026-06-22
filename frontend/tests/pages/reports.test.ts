@@ -10,6 +10,9 @@
 //          honest loading / empty / error states via apiErrorMessage
 //   AC-04  only mutation is the generate POST (no PUT/DELETE); --ow-* tokens;
 //          no prose em-dash
+//   AC-10  report-kind selector (executive/attestation) drives the generate
+//          body; kind-aware primary download (csv for attestation, pdf
+//          otherwise); kindLabel maps attestation -> "Attestation"
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -119,10 +122,12 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC.includes('Authorization')).toBe(false);
     // The blob is saved via an object URL.
     expect(PAGE_SRC).toContain('URL.createObjectURL');
-    // The detail renders Download PDF + JSON controls calling onDownload,
-    // with an in-flight disabled state and an error surface.
+    // The detail renders a primary (kind-aware) download + a JSON control
+    // calling onDownload, with an in-flight disabled state and an error
+    // surface. (The primary face is computed from the report kind in B1b;
+    // the literal "Download PDF" label still appears for executive reports.)
     expect(PAGE_SRC).toContain('Download PDF');
-    expect(PAGE_SRC).toMatch(/onDownload\('pdf'\)/);
+    expect(PAGE_SRC).toMatch(/onDownload\(primaryFace\)/);
     expect(PAGE_SRC).toMatch(/onDownload\('json'\)/);
     expect(PAGE_SRC).toContain('downloading');
     expect(PAGE_SRC).toContain('downloadError');
@@ -157,6 +162,24 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain("api.GET('/api/v1/reports/frameworks'");
     // The generate body sets framework when chosen (alongside group_id).
     expect(PAGE_SRC).toMatch(/if \(scopeFramework\) body\.framework = scopeFramework/);
+  });
+
+  // @ac AC-10
+  test('frontend-reports/AC-10 — report-kind selector + kind-aware download', () => {
+    // A kind select bound to reportKind, defaulting to executive.
+    expect(PAGE_SRC).toContain('reportKind');
+    expect(PAGE_SRC).toMatch(/<select[\s\S]*?value=\{reportKind\}/);
+    expect(PAGE_SRC).toContain('aria-label="Report kind"');
+    // The generate body sets kind only when attestation is chosen.
+    expect(PAGE_SRC).toMatch(/if \(reportKind === 'attestation'\) body\.kind = 'attestation'/);
+    // The primary download is kind-aware: csv face for attestation, pdf
+    // otherwise, with a Download CSV / Download PDF label switch.
+    expect(PAGE_SRC).toMatch(/primaryFace[^\n]*isAttestation \? 'csv' : 'pdf'/);
+    expect(PAGE_SRC).toContain('Download CSV');
+    // downloadReportFace accepts the csv format.
+    expect(PAGE_SRC).toMatch(/format: 'pdf' \| 'json' \| 'csv'/);
+    // The type chip labels attestation reports "Attestation".
+    expect(PAGE_SRC).toMatch(/kind === 'attestation'\) return 'Attestation'/);
   });
 
   // @ac AC-04

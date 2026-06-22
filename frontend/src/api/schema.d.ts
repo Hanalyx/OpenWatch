@@ -3585,7 +3585,7 @@ export interface components {
             id: string;
             title: string;
             /** @enum {string} */
-            kind: "executive";
+            kind: "executive" | "attestation";
             scope_label: string;
             scope: components["schemas"]["ReportScope"];
             /** Format: date-time */

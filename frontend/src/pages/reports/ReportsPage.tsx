@@ -67,6 +67,7 @@ function asExecutiveContent(content: Report['content']): ExecutiveContent {
 
 function kindLabel(kind: Report['kind']): string {
   if (kind === 'executive') return 'Executive';
+  if (kind === 'attestation') return 'Attestation';
   return kind;
 }
 
@@ -85,7 +86,8 @@ export function ReportsPage() {
 
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Scope for the next Generate. '' = all hosts / all frameworks.
+  // Kind + scope for the next Generate. '' = all hosts / all frameworks.
+  const [reportKind, setReportKind] = useState<'executive' | 'attestation'>('executive');
   const [scopeGroupId, setScopeGroupId] = useState<string>('');
   const [scopeFramework, setScopeFramework] = useState<string>('');
 
@@ -133,7 +135,12 @@ export function ReportsPage() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const body: { group_id?: string; framework?: string } = {};
+      const body: {
+        kind?: 'executive' | 'attestation';
+        group_id?: string;
+        framework?: string;
+      } = {};
+      if (reportKind === 'attestation') body.kind = 'attestation';
       if (scopeGroupId) body.group_id = scopeGroupId;
       if (scopeFramework) body.framework = scopeFramework;
       const { data, error, response } = await api.POST('/api/v1/reports:generate', { body });
@@ -172,6 +179,29 @@ export function ReportsPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {canGenerate && (
+            <select
+              aria-label="Report kind"
+              value={reportKind}
+              onChange={(e) => setReportKind(e.target.value as 'executive' | 'attestation')}
+              disabled={generateMutation.isPending}
+              title="Executive summary (leadership) or Framework Attestation (auditor CSV evidence)"
+              style={{
+                height: 34,
+                padding: '0 10px',
+                borderRadius: 'var(--ow-radius-sm, 6px)',
+                border: '1px solid var(--ow-line)',
+                background: 'var(--ow-bg-2)',
+                color: 'var(--ow-fg-0)',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                cursor: generateMutation.isPending ? 'default' : 'pointer',
+              }}
+            >
+              <option value="executive">Executive</option>
+              <option value="attestation">Attestation</option>
+            </select>
+          )}
           {canGenerate && (
             <select
               aria-label="Report scope"
@@ -439,7 +469,7 @@ function LibraryTab({
 // session cookie authenticates it (same-origin credentials) and no CSRF
 // token is needed; the filename comes from the server's
 // Content-Disposition. Errors are surfaced to the caller.
-async function downloadReportFace(id: string, format: 'pdf' | 'json'): Promise<void> {
+async function downloadReportFace(id: string, format: 'pdf' | 'json' | 'csv'): Promise<void> {
   const res = await fetch(`/api/v1/reports/${id}/export?format=${format}`, {
     credentials: 'same-origin',
   });
@@ -565,12 +595,12 @@ function ReportDetail({
   id: string;
   onClose: () => void;
 }) {
-  const [downloading, setDownloading] = useState<'pdf' | 'json' | null>(null);
+  const [downloading, setDownloading] = useState<'pdf' | 'json' | 'csv' | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
 
-  async function onDownload(format: 'pdf' | 'json') {
+  async function onDownload(format: 'pdf' | 'json' | 'csv') {
     setDownloading(format);
     setDownloadError(null);
     try {
@@ -614,6 +644,16 @@ function ReportDetail({
   });
 
   const resolved = report ?? detailQ.data ?? null;
+
+  // The primary face follows the report kind: executive renders a one-page
+  // PDF, attestation renders the per-(host, rule) CSV evidence bundle. JSON
+  // is offered for both (it is the signed canonical face).
+  const isAttestation = resolved?.kind === 'attestation';
+  const primaryFace: 'pdf' | 'csv' = isAttestation ? 'csv' : 'pdf';
+  const primaryLabel = isAttestation ? 'Download CSV' : 'Download PDF';
+  const primaryTitle = isAttestation
+    ? 'Download the per-host, per-rule CSV evidence'
+    : 'Download the one-page executive PDF';
 
   return (
     <div
@@ -709,9 +749,9 @@ function ReportDetail({
               )}
               <button
                 type="button"
-                onClick={() => onDownload('pdf')}
+                onClick={() => onDownload(primaryFace)}
                 disabled={downloading !== null}
-                title="Download the one-page executive PDF"
+                title={primaryTitle}
                 style={{
                   height: 32,
                   padding: '0 12px',
@@ -727,7 +767,7 @@ function ReportDetail({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {downloading === 'pdf' ? 'Preparing…' : 'Download PDF'}
+                {downloading === primaryFace ? 'Preparing…' : primaryLabel}
               </button>
               <button
                 type="button"
