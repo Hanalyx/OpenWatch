@@ -129,6 +129,32 @@ func (h *handlers) GetReports(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// GetReportFrameworks implements api.ServerInterface: lists the framework
+// lenses present across the fleet.
+// Spec api-reports.
+func (h *handlers) GetReportFrameworks(w http.ResponseWriter, r *http.Request) {
+	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+		return
+	}
+	if !h.reportSvcReady(w) {
+		return
+	}
+	fws, err := h.reportSvc.Frameworks(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"framework catalog failed", true)
+		return
+	}
+	resp := api.ReportFrameworksResponse{Frameworks: []api.ReportFramework{}}
+	for _, f := range fws {
+		resp.Frameworks = append(resp.Frameworks, api.ReportFramework{
+			Framework: f.Framework,
+			RuleCount: f.RuleCount,
+		})
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // GetReportSigningKey implements api.ServerInterface: returns the public
 // key for offline verification of report signatures.
 // Spec api-reports.

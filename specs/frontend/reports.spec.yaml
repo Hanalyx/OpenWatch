@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -101,6 +101,20 @@ spec:
         (alongside the gated Generate control), and the groups query is
         enabled only then. The generated report's scope_label (already shown
         in the Library and detail) reflects the chosen scope.
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >-
+        v1.5.0 (Phase B0) - A framework-lens picker sits beside the group
+        scope picker (the lens deferred in A1, now that a fleet catalog
+        exists). It is a select bound to a scopeFramework state with a
+        default "All frameworks" (value "") option; the other options come
+        from a ["report-frameworks"] query against GET
+        /api/v1/reports/frameworks (each shows the framework key + rule
+        count). It renders only for a host:write caller and only when the
+        catalog is non-empty. On generate the POST body includes framework
+        only when one is selected; the body is built from both pickers
+        (group_id and/or framework), so an empty selection still posts {}.
       type: technical
       enforcement: error
     - id: C-05
@@ -235,3 +249,14 @@ spec:
         verifyResult.
       priority: high
       references_constraints: [C-07]
+    - id: AC-09
+      description: >-
+        v1.5.0 - Source inspection: a framework-lens select bound to a
+        scopeFramework state offers an "All frameworks" default (value "")
+        plus options from a ["report-frameworks"] query against
+        "/api/v1/reports/frameworks"; the generate body sets framework only
+        when scopeFramework is set (built alongside group_id). The
+        frameworks query is enabled on canGenerate so the picker is a
+        host:write affordance.
+      priority: high
+      references_constraints: [C-08]

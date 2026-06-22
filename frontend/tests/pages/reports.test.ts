@@ -93,7 +93,7 @@ describe('frontend-reports — reports library page', () => {
     // The groups query is a host:write affordance (enabled on canGenerate).
     expect(PAGE_SRC).toMatch(/enabled:\s*canGenerate/);
     // The generate body includes group_id only when a group is chosen.
-    expect(PAGE_SRC).toMatch(/scopeGroupId\s*\?\s*\{\s*group_id:\s*scopeGroupId\s*\}\s*:\s*\{\}/);
+    expect(PAGE_SRC).toMatch(/if \(scopeGroupId\) body\.group_id = scopeGroupId/);
   });
 
   // @ac AC-06
@@ -144,6 +144,19 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain('Signed');
     expect(PAGE_SRC).toMatch(/onVerify\(resolved\)/);
     expect(PAGE_SRC).toContain('verifyResult');
+  });
+
+  // @ac AC-09
+  test('frontend-reports/AC-09 — framework lens picker (fleet catalog)', () => {
+    // A framework select bound to scopeFramework, defaulting to "All frameworks".
+    expect(PAGE_SRC).toContain('scopeFramework');
+    expect(PAGE_SRC).toMatch(/<select[\s\S]*?value=\{scopeFramework\}/);
+    expect(PAGE_SRC).toContain('<option value="">All frameworks</option>');
+    // Options come from a ['report-frameworks'] query against the catalog.
+    expect(PAGE_SRC).toContain("queryKey: ['report-frameworks']");
+    expect(PAGE_SRC).toContain("api.GET('/api/v1/reports/frameworks'");
+    // The generate body sets framework when chosen (alongside group_id).
+    expect(PAGE_SRC).toMatch(/if \(scopeFramework\) body\.framework = scopeFramework/);
   });
 
   // @ac AC-04

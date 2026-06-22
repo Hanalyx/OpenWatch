@@ -536,6 +536,45 @@ func TestGenerate_FrameworkScoped(t *testing.T) {
 	})
 }
 
+// @ac AC-17
+// Frameworks returns the distinct framework_refs keys present in the
+// fleet, each counted by DISTINCT rule_id (not row), ordered by count
+// desc then key asc. Seeded: cis on r1 (two hosts) + r3, stig on r2, nist
+// on r3 -> cis=2 distinct rules, stig=1, nist=1.
+func TestFrameworks_FleetCatalog(t *testing.T) {
+	t.Run("api-reports/AC-17", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		owner := seedUser(t, pool)
+		h1 := seedHost(t, pool, owner, false)
+		h2 := seedHost(t, pool, owner, false)
+
+		seedRuleStateFW(t, pool, h1, "r1", "pass", "low", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedRuleStateFW(t, pool, h2, "r1", "pass", "low", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedRuleStateFW(t, pool, h1, "r2", "fail", "high", `{"stig_rhel9_v2r7": ["V-1"]}`)
+		seedRuleStateFW(t, pool, h2, "r3", "pass", "low", `{"cis_rhel9_v2.0.0": ["1.2"], "nist_800_53_r5": ["AC-1"]}`)
+
+		fws, err := svc.Frameworks(ctx)
+		if err != nil {
+			t.Fatalf("Frameworks: %v", err)
+		}
+		want := []FrameworkCount{
+			{Framework: "cis_rhel9_v2.0.0", RuleCount: 2},
+			{Framework: "nist_800_53_r5", RuleCount: 1},
+			{Framework: "stig_rhel9_v2r7", RuleCount: 1},
+		}
+		if len(fws) != len(want) {
+			t.Fatalf("frameworks = %+v, want %+v", fws, want)
+		}
+		for i, w := range want {
+			if fws[i] != w {
+				t.Errorf("frameworks[%d] = %+v, want %+v", i, fws[i], w)
+			}
+		}
+	})
+}
+
 // decodeContent unmarshals a report's frozen JSON content into the typed
 // executive shape, failing the test on malformed content.
 func decodeContent(t *testing.T, rep Report) ExecutiveContent {

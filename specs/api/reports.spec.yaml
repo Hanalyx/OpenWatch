@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -240,6 +240,19 @@ spec:
         503 when no signer is wired.
       type: security
       enforcement: error
+    - id: C-12
+      description: >-
+        v1.6.0 (Phase B0) - GET /api/v1/reports/frameworks (host:read)
+        returns the fleet framework catalog: the distinct framework_refs
+        keys present anywhere in host_rule_state, each with the count of
+        DISTINCT rules mapped to it, ordered by count descending then key
+        ascending. It backs the report scope picker's framework lens (the
+        lens deferred in A1 for lack of a catalog) and the later
+        attestation kind's framework selection. Response shape
+        {frameworks: [{framework, rule_count}]} (an empty array when the
+        fleet has no scanned rules); anonymous callers are rejected.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -406,3 +419,20 @@ spec:
         rejected (401/403) on the signing-key endpoint.
       priority: high
       references_constraints: [C-11]
+    - id: AC-17
+      description: >-
+        v1.6.0 - Frameworks returns the distinct framework_refs keys in the
+        fleet counted by DISTINCT rule_id (not row), ordered by count desc
+        then key asc. Over a seeded fleet (cis on r1 across two hosts + r3,
+        stig on r2, nist on r3) it returns cis (2 distinct rules), nist (1),
+        stig (1) in that order.
+      priority: high
+      references_constraints: [C-12]
+    - id: AC-18
+      description: >-
+        v1.6.0 - GET /api/v1/reports/frameworks (host:read) returns 200 with
+        a {frameworks:[{framework,rule_count}]} body (a non-null array, empty
+        when no rules are scanned); an anonymous caller is rejected
+        (401/403).
+      priority: high
+      references_constraints: [C-12]

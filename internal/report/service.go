@@ -168,6 +168,33 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	return rep, nil
 }
 
+// Frameworks returns the distinct framework_refs keys present anywhere in
+// the fleet, each with the count of distinct rules mapped to it,
+// most-populated first. Backs the report scope picker's framework lens.
+func (s *Service) Frameworks(ctx context.Context) ([]FrameworkCount, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT k AS framework, count(DISTINCT rule_id)::int AS rule_count
+		  FROM host_rule_state, jsonb_object_keys(framework_refs) AS k
+		 GROUP BY k
+		 ORDER BY rule_count DESC, k ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("report: frameworks: %w", err)
+	}
+	defer rows.Close()
+	out := []FrameworkCount{}
+	for rows.Next() {
+		var f FrameworkCount
+		if err := rows.Scan(&f.Framework, &f.RuleCount); err != nil {
+			return nil, fmt.Errorf("report: frameworks scan: %w", err)
+		}
+		out = append(out, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("report: frameworks iterate: %w", err)
+	}
+	return out, nil
+}
+
 // computeExecutive samples the fleet posture from host_rule_state and
 // the hosts table. Same shape as the Groups fleet rollup and
 // fleetrollup.TopFailingRules so the numbers agree across the app. When
