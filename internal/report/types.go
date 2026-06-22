@@ -45,6 +45,32 @@ type AttestationContent struct {
 	HostsAttested int `json:"hosts_attested"`
 	// Attested lists, per attested host, the scan the attestation is over.
 	Attested []AttestedHost `json:"attested"`
+	// Rollup is the headline compliance aggregate, FROZEN into the signed
+	// snapshot at generation time (computed once from the frozen scans'
+	// immutable scan_results, framework-lensed). Because it is part of the
+	// content it is signed + tamper-evident, and the in-app view, the PDF
+	// cover, and the signature all read the same numbers (P1: one snapshot,
+	// identical across every face). It is bounded (aggregates + a small
+	// top-N), never the per-(host, rule) rows.
+	Rollup AttestationRollup `json:"rollup"`
+}
+
+// AttestationRollup is the bounded compliance aggregate stored on an
+// attestation snapshot: pass/fail/total counts, fleet compliance percent,
+// and a sampled top-failing list, over the frozen scans (framework-lensed).
+type AttestationRollup struct {
+	// CompliancePct is passing / (passing + failing), rounded half up; nil
+	// when nothing was evaluated (so an unevaluated set reads as n/a, not 0%).
+	CompliancePct *int `json:"compliance_pct"`
+	// TotalChecks is every (host, rule) outcome counted; the rest are the
+	// per-status splits.
+	TotalChecks int `json:"total_checks"`
+	Passing     int `json:"passing"`
+	Failing     int `json:"failing"`
+	Skipped     int `json:"skipped"`
+	Errored     int `json:"errored"`
+	// TopFailing lists the rules failing on the most hosts (capped).
+	TopFailing []TopFailingRule `json:"top_failing"`
 }
 
 // AttestedHost ties an in-scope host to the completed scan that attests
