@@ -78,6 +78,7 @@ domains:
             - frontend-groups
             - api-reports
             - frontend-reports
+            - frontend-notifications
             - system-scan-results-store
             - api-scans
             - frontend-scan-detail

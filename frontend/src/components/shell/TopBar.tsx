@@ -5,6 +5,7 @@ import api from '@/api/client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { useColorSchemeStore, type ColorScheme } from '@/store/useColorSchemeStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 // TopBar — sticky header with breadcrumb, theme toggle, notifications,
 // and the account menu (button + dropdown with Sign out).
@@ -243,29 +244,49 @@ function ThemeIconToggle() {
 }
 
 function NotificationBell() {
-  // The /activity route is deferred (see app/docs/activity_and_os_intelligence.md).
-  // Render the bell with the unread indicator; click is a no-op for now.
+  // The bell's first (and currently only) producer is report.ready: when a
+  // generated attestation's bulk faces finish rendering async, useLiveEvents
+  // bumps the unread counter. Clicking opens Reports and clears the count.
+  // Session-scoped, no dropdown feed yet (spec frontend-notifications).
+  const navigate = useNavigate();
+  const unread = useNotificationStore((s) => s.unreadReports);
+  const clearReports = useNotificationStore((s) => s.clearReports);
+  const label = unread > 0 ? `${unread} report${unread > 1 ? 's' : ''} ready` : 'Notifications';
   return (
     <button
       type="button"
-      aria-label="Notifications (coming soon)"
-      title="Notifications"
-      style={{ ...iconBtn, position: 'relative', cursor: 'not-allowed', opacity: 0.85 }}
-      disabled
+      aria-label={label}
+      title={label}
+      onClick={() => {
+        clearReports();
+        navigate({ to: '/reports' });
+      }}
+      style={{ ...iconBtn, position: 'relative' }}
     >
       <Bell size={14} />
-      <span
-        style={{
-          position: 'absolute',
-          top: 6,
-          right: 6,
-          width: 7,
-          height: 7,
-          background: 'var(--ow-crit)',
-          borderRadius: '50%',
-          boxShadow: '0 0 0 2px var(--ow-bg-0)',
-        }}
-      />
+      {unread > 0 && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -3,
+            minWidth: 14,
+            height: 14,
+            padding: '0 3px',
+            background: 'var(--ow-crit)',
+            color: '#fff',
+            borderRadius: 7,
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: '14px',
+            textAlign: 'center',
+            boxShadow: '0 0 0 2px var(--ow-bg-0)',
+          }}
+        >
+          {unread > 9 ? '9+' : unread}
+        </span>
+      )}
     </button>
   );
 }

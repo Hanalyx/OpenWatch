@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 // useLiveEvents — opens one SSE connection to /api/v1/events?topics=…
 // and dispatches each incoming event to the right TanStack Query
@@ -22,9 +23,10 @@ import { useAuthStore } from '@/store/useAuthStore';
 // 3-5s backoff. If we ever need explicit backoff control we'll switch
 // to a manual fetch + ReadableStream loop.
 
-// Closed set of topics this hook subscribes to (v1.1.0: + scan.completed).
-// Each MUST exist in backend eventbus.AllEventKinds (Go-side closed
-// enum). Spec frontend-live-events C-01 + AC-01 enforce.
+// Closed set of topics this hook subscribes to (v1.1.0: + scan.completed;
+// v1.2.0: + remediation.completed; v1.3.0: + report.ready). Each MUST
+// exist in backend eventbus.AllEventKinds (Go-side closed enum). Spec
+// frontend-live-events C-01 + AC-01 enforce.
 export const ALL_TOPICS = [
   'host.changed',
   'monitoring.band.changed',
@@ -32,6 +34,7 @@ export const ALL_TOPICS = [
   'intelligence.event',
   'scan.completed',
   'remediation.completed',
+  'report.ready',
 ] as const;
 
 type Topic = (typeof ALL_TOPICS)[number];
@@ -155,6 +158,17 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
           queryClient.invalidateQueries({ queryKey: ['host', hostId, 'remediations'] });
           queryClient.invalidateQueries({ queryKey: ['host', hostId] });
         }
+      },
+      // report.ready -> the report's bulk faces finished rendering async
+      // (spec api-reports B3a). Bump the notification bell's unread counter
+      // (the first producer of the in-app bell) and refresh the Reports
+      // library so the new report's faces are downloadable without a manual
+      // refresh. No host id: a report is fleet-scoped, not per-host.
+      'report.ready': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        useNotificationStore.getState().bumpReportReady();
+        queryClient.invalidateQueries({ queryKey: ['reports'] });
       },
     };
 

@@ -10,6 +10,7 @@
 //   AC-06  test('frontend-live-events/AC-06 — missing host_id falls back to list-only')
 //   AC-07  test('frontend-live-events/AC-07 — source-inspect: exactly one new EventSource(...) call')
 //   AC-08  test('frontend-live-events/AC-08 — scan.completed invalidates [hosts] + [host, id]')
+//   AC-10  test('frontend-live-events/AC-10 — report.ready invalidates [reports] + bumps the bell')
 
 import { expect, test, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -19,6 +20,7 @@ import { resolve } from 'node:path';
 import type { ReactNode } from 'react';
 import { ALL_TOPICS, useLiveEvents } from '@/hooks/useLiveEvents';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 // ---------- EventSource stub --------------------------------------------
 
@@ -84,7 +86,7 @@ beforeEach(() => {
 
 // @ac AC-01
 // AC-01: ALL_TOPICS exported as the closed set (v1.1.0 adds scan.completed;
-// v1.2.0 adds remediation.completed).
+// v1.2.0 adds remediation.completed; v1.3.0 adds report.ready).
 test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
   const want = [
     'host.changed',
@@ -93,9 +95,10 @@ test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
     'intelligence.event',
     'scan.completed',
     'remediation.completed',
+    'report.ready',
   ];
   expect([...ALL_TOPICS]).toEqual(want);
-  expect(ALL_TOPICS.length).toBe(6);
+  expect(ALL_TOPICS.length).toBe(7);
 });
 
 // Helper to mount the hook and return the stub + spies.
@@ -183,6 +186,21 @@ test('frontend-live-events/AC-06 — missing host_id falls back to list-only', (
   // Must NOT invalidate ["host", undefined] — defensive.
   const hostKeyed = calls.filter((k) => Array.isArray(k) && k[0] === 'host');
   expect(hostKeyed).toEqual([]);
+});
+
+// @ac AC-10
+// AC-10: report.ready invalidates ["reports"] and bumps the notification
+// store's unread counter; a report is fleet-scoped, so NO ["host", ...]
+// invalidation fires.
+test('frontend-live-events/AC-10 — report.ready invalidates [reports] + bumps the bell', () => {
+  useNotificationStore.setState({ unreadReports: 0 });
+  const { es, spy } = mountHook();
+  es.fire('report.ready', { SnapshotID: 'rep-1', ReportKind: 'attestation', Faces: ['csv'] });
+  const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
+  expect(calls).toContainEqual(['reports']);
+  const hostKeyed = calls.filter((k) => Array.isArray(k) && k[0] === 'host');
+  expect(hostKeyed).toEqual([]);
+  expect(useNotificationStore.getState().unreadReports).toBe(1);
 });
 
 // @ac AC-07
