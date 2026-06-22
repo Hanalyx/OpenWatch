@@ -35,8 +35,8 @@ Source: `cmd/openwatch/main.go`, `packaging/common/openwatch.service`,
 `internal/server/server.go`.
 
 The compliance engine is Kensa, which connects to managed hosts over SSH and
-runs native YAML checks. OpenSCAP, `oscap`, XCCDF, and OVAL are not used and
-never have been in this build. See
+runs native YAML checks.
+See
 [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---

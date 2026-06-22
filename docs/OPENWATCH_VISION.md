@@ -136,7 +136,7 @@ This is the single highest-leverage change to OpenWatch in the next six months. 
 
 As important as naming what OpenWatch is: naming what it is not, so scope creep does not dilute the identity.
 
-- **OpenWatch is not a compliance aggregator.** It does not ingest findings from Tenable, Qualys, Rapid7, OpenSCAP, or any other scanner. It records Kensa transactions. Customers who want a compliance aggregator should buy a compliance aggregator.
+- **OpenWatch is not a compliance aggregator.** It does not ingest findings from Tenable, Qualys, Rapid7, or any other scanner. It records Kensa transactions. Customers who want a compliance aggregator should buy a compliance aggregator.
 - **OpenWatch is not a GRC platform.** It does not track policies, manage SOC 2 evidence collection, or produce organization-wide compliance dashboards across non-Linux systems. Drata, Vanta, and Secureframe exist for that. OpenWatch is focused on the Linux transactional layer.
 - **OpenWatch is not an observability tool.** It does not replace Datadog, Grafana, Prometheus, or New Relic. It tells you what changed, not what is happening. The heartbeat is about state, not about metrics and logs.
 - **OpenWatch is not a configuration management system.** Customers should still use Ansible, Chef, Puppet, or Salt for day-to-day provisioning. OpenWatch is where those changes become transactional and auditable — not where they originate.

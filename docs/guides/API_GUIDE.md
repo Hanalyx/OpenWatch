@@ -366,8 +366,7 @@ include:
 
 These are roadmap or worker-internal today. Do not script against them until
 they appear in `api/openapi.yaml`. For how OpenWatch invokes Kensa, see
-[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md). OpenSCAP,
-`oscap`, XCCDF, and OVAL are not used anywhere in OpenWatch.
+[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---
 

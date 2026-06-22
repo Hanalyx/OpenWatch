@@ -263,5 +263,5 @@ journalctl -u openwatch -n 50 --no-pager
 | Compliance engine boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
 
 OpenWatch's compliance engine, Kensa, runs SSH-based checks against native YAML
-rules; OpenSCAP, `oscap`, XCCDF, and OVAL are not used and have no schema in this
+rules. There is no separate scan-content schema in this
 database.

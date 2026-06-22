@@ -10,7 +10,7 @@ API and the embedded React UI over HTTPS on port `8443`. Background scan jobs ar
 drained by a separate `openwatch worker` process that reads from a PostgreSQL-native
 job queue. Both processes share one PostgreSQL database. There is no container
 runtime, no Redis, and no Celery. Compliance checks run through Kensa (SSH-based,
-native YAML rules); OpenSCAP/`oscap` are not used.
+native YAML rules).
 
 This runbook covers the three processes that can saturate CPU on an OpenWatch host:
 

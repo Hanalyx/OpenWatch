@@ -46,7 +46,6 @@ step today (write a unit that runs `ExecStart=/usr/bin/openwatch worker`).
 | Job queue | PostgreSQL table, `SKIP LOCKED` | No external broker. Drained by `serve`/`worker`. |
 | Compliance engine | Kensa (Go), in-process | SSH-based, native YAML rules. See [the boundary doc](../KENSA_OPENWATCH_BOUNDARY.md). |
 
-OpenSCAP, `oscap`, XCCDF, and OVAL are not used anywhere in OpenWatch.
 
 ---
 

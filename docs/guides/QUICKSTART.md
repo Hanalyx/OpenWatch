@@ -10,7 +10,7 @@ OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves both the REST
 API and the embedded React UI over HTTPS on port `8443`. It is managed by
 `systemd` as `openwatch.service` and stores all state in PostgreSQL. There is no
 container runtime, no separate web tier, no Redis, and no Celery. Compliance
-checks run over SSH via the embedded Kensa engine; OpenSCAP/`oscap` is not used.
+checks run over SSH via the embedded Kensa engine.
 
 ## Before you begin
 

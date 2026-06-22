@@ -25,8 +25,7 @@ inventory, the credential store, scheduling, persistence (the transaction log),
 drift detection, fleet rollups, alerting, and the API plus embedded UI.
 
 Kensa is integrated as a Go module dependency, not a separate process or
-container. OpenSCAP, `oscap`, XCCDF, and OVAL are not used and never have been in
-the Go rebuild; Kensa runs its own SSH-based checks against native YAML rules.
+container. Kensa runs its own SSH-based checks against native YAML rules.
 
 ## Version pin
 

@@ -273,7 +273,7 @@ Keep the pre-upgrade dump until you have validated the upgrade in production
 
 Kensa is the SSH-based compliance engine, integrated as a Go dependency
 (`internal/kensa/`); its native YAML rules are compiled into the `openwatch`
-binary. (OpenSCAP/`oscap`/XCCDF/OVAL are not used.) Rules therefore travel with
+binary. Rules therefore travel with
 the binary — installing a new OpenWatch package is what updates the bundled
 rule set. There is no separate rule-pull or out-of-band rule-sync step. For the
 Kensa/OpenWatch responsibility boundary, see

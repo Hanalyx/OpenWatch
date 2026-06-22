@@ -7,7 +7,7 @@ that the service reads at boot.
 OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves both the REST
 API and the embedded React UI over HTTPS on port `8443`. It uses PostgreSQL only.
 There is no container runtime, no Redis, no Celery, and no separate web tier to
-configure. OpenSCAP is not used; the compliance engine is Kensa (SSH-based, native
+configure. The compliance engine is Kensa (SSH-based, native
 YAML rules).
 
 For end-to-end install and first-run steps, see
@@ -352,6 +352,5 @@ present in the current Go binary. Do not configure them; they have no effect.
 | Redis / Celery configuration | Removed. Background jobs use a PostgreSQL-native queue (`SKIP LOCKED`); there is nothing to configure. |
 | MongoDB configuration | Removed. OpenWatch is PostgreSQL-only. |
 | Container-runtime / docker-compose variables | Removed. The service is a native binary under systemd. |
-| OpenSCAP / SCAP content directories | Not used and never were in the Go rebuild. Kensa runs SSH-based checks against native YAML rules. |
 | SMTP / LDAP environment variables | Not read by the binary today. Notification channels and SSO are configured through the API and database, not environment variables. |
 | Separate CORS / `ALLOWED_ORIGINS` variable | Not a recognized config key. The UI is served from the same origin as the API by the single binary. |
