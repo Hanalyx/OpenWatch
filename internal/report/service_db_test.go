@@ -814,13 +814,10 @@ func TestExport_AttestationPDF(t *testing.T) {
 			t.Fatalf("hosts total/attested = %d/%d, want 2/2", c.HostsTotal, c.HostsAttested)
 		}
 
-		// The rollup aggregates the frozen scans (no per-row materialization).
-		r, err := svc.computeAttestationRollup(ctx, c)
-		if err != nil {
-			t.Fatalf("computeAttestationRollup: %v", err)
-		}
-		if r.TotalChecks != 4 || r.Pass != 1 || r.Fail != 3 {
-			t.Errorf("rollup counts = total %d / pass %d / fail %d, want 4/1/3", r.TotalChecks, r.Pass, r.Fail)
+		// The rollup is FROZEN into the signed content at generation time.
+		r := c.Rollup
+		if r.TotalChecks != 4 || r.Passing != 1 || r.Failing != 3 {
+			t.Errorf("frozen rollup = total %d / pass %d / fail %d, want 4/1/3", r.TotalChecks, r.Passing, r.Failing)
 		}
 		if r.CompliancePct == nil || *r.CompliancePct != 25 {
 			t.Errorf("compliance = %v, want 25", r.CompliancePct)
@@ -857,13 +854,18 @@ func TestExport_AttestationPDF(t *testing.T) {
 		}
 
 		// The framework lens narrows the rollup: stig tags only r2 rows
-		// (one per host), all failing.
-		stig, err := svc.computeAttestationRollup(ctx, AttestationContent{Framework: "stig_rhel9_v2r7", Attested: c.Attested})
+		// (one per host), all failing. A stig-scoped attestation freezes that.
+		stigRep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation, Framework: "stig_rhel9_v2r7"})
 		if err != nil {
-			t.Fatalf("computeAttestationRollup stig: %v", err)
+			t.Fatalf("Generate stig attestation: %v", err)
 		}
-		if stig.TotalChecks != 2 || stig.Fail != 2 || stig.Pass != 0 {
-			t.Errorf("stig rollup = total %d / pass %d / fail %d, want 2/0/2", stig.TotalChecks, stig.Pass, stig.Fail)
+		var sc AttestationContent
+		if err := json.Unmarshal(stigRep.Content, &sc); err != nil {
+			t.Fatalf("decode stig content: %v", err)
+		}
+		if sc.Rollup.TotalChecks != 2 || sc.Rollup.Failing != 2 || sc.Rollup.Passing != 0 {
+			t.Errorf("stig rollup = total %d / pass %d / fail %d, want 2/0/2",
+				sc.Rollup.TotalChecks, sc.Rollup.Passing, sc.Rollup.Failing)
 		}
 	})
 }

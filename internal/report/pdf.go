@@ -144,7 +144,8 @@ func renderExecutivePDF(rep Report, c ExecutiveContent) ([]byte, error) {
 // POINTS to the full machine-readable bundle by content hash. The bulk
 // evidence lives in the CSV and OSCAL SAR faces; the PDF is the signed,
 // auditor-facing summary that references them.
-func renderAttestationPDF(rep Report, c AttestationContent, r attestationRollup) ([]byte, error) {
+func renderAttestationPDF(rep Report, c AttestationContent) ([]byte, error) {
+	r := c.Rollup
 	pdf := fpdf.New("P", "mm", "A4", "")
 	pdf.SetTitle(rep.Title, true)
 	pdf.SetMargins(18, 18, 18)
@@ -194,8 +195,8 @@ func renderAttestationPDF(rep Report, c AttestationContent, r attestationRollup)
 	}
 	stat(pdf, "Compliance", pct)
 	stat(pdf, "Checks evaluated", fmt.Sprintf("%d", r.TotalChecks))
-	stat(pdf, "Passing", fmt.Sprintf("%d", r.Pass))
-	stat(pdf, "Failing", fmt.Sprintf("%d", r.Fail))
+	stat(pdf, "Passing", fmt.Sprintf("%d", r.Passing))
+	stat(pdf, "Failing", fmt.Sprintf("%d", r.Failing))
 	stat(pdf, "Skipped / error", fmt.Sprintf("%d / %d", r.Skipped, r.Errored))
 	pdf.Ln(2)
 

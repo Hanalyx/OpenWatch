@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -187,6 +187,25 @@ spec:
         copy carries no em-dash.
       type: technical
       enforcement: error
+    - id: C-11
+      description: >-
+        v1.8.0 - The report detail body is KIND-AWARE. An executive report
+        renders the ExecutiveBody (posture rollup from the executive content
+        keys). An attestation report renders a distinct AttestationBody from
+        the attestation content shape (framework, hosts_total,
+        hosts_attested, rollup) - NOT through asExecutiveContent, whose
+        executive keys are absent from attestation content and would
+        otherwise read as zero. AttestationBody renders the FROZEN
+        compliance rollup carried on the attestation content
+        (content.rollup): the compliance percent, checks evaluated, and
+        passing/failing/skipped/errored counts, plus a top-failing-rules
+        table - the same headline numbers the signed snapshot and the PDF
+        cover show. It also shows the framework lens and the
+        attested-of-in-scope coverage, discloses any in-scope hosts with no
+        completed scan, and points the reader at the downloadable faces for
+        the full per-host, per-rule breakdown. UI copy carries no em-dash.
+      type: technical
+      enforcement: error
     - id: C-03
       description: >-
         The Templates and Scheduled tabs render an explicit deferred state
@@ -314,3 +333,17 @@ spec:
         includes 'oscal_sar'. The added copy contains no em-dash.
       priority: high
       references_constraints: [C-10]
+    - id: AC-12
+      description: >-
+        v1.8.0 - Source inspection: the detail body branches on the resolved
+        report kind - an attestation renders AttestationBody(asAttestationContent(...)),
+        otherwise ExecutiveBody(asExecutiveContent(...)). asAttestationContent
+        narrows the attestation keys (framework, hosts_total, hosts_attested,
+        attested) and asAttestationRollup narrows content.rollup;
+        AttestationBody reads content.rollup and renders the compliance
+        percent (r.compliance_pct), the passing/failing counts (r.passing /
+        r.failing), and the top-failing table (r.top_failing.map), plus the
+        framework lens and the hosts_attested-of-hosts_total coverage - not
+        any executive content key. The added copy contains no em-dash.
+      priority: high
+      references_constraints: [C-11]

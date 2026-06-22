@@ -297,6 +297,16 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 		return AttestationContent{}, fmt.Errorf("report: attestation iterate: %w", err)
 	}
 	c.HostsAttested = len(c.Attested)
+
+	// Freeze the headline compliance rollup into the signed content (one
+	// query set over the frozen scans, framework-lensed). This makes the
+	// in-app number, the PDF cover, and the signature agree, and keeps the
+	// rollup immutable + reproducible like the rest of the snapshot.
+	rollup, err := s.computeAttestationRollup(ctx, scanIDsOf(c), framework)
+	if err != nil {
+		return AttestationContent{}, err
+	}
+	c.Rollup = rollup
 	return c, nil
 }
 

@@ -312,25 +312,12 @@ func (s *Service) exportAttestationCSV(ctx context.Context, rep Report) ([]byte,
 	return csvBytes, mediaType, nil
 }
 
-// attestationRollup is the bounded aggregate the attestation PDF renders:
-// pass/fail/total counts (and a sampled top-failing list) computed from the
-// frozen scans' scan_results, never the per-(host, rule) rows themselves.
-type attestationRollup struct {
-	TotalChecks   int
-	Pass          int
-	Fail          int
-	Skipped       int
-	Errored       int
-	CompliancePct *int
-	TopFailing    []TopFailingRule
-}
-
 // exportAttestationPDF returns the cached attestation PDF face if present,
-// else computes the bounded rollup from the frozen scans (aggregate
-// queries scoped by the snapshot's framework lens), renders the one-page
-// cover via renderAttestationPDF, caches it in report_faces, and returns
-// it. The rollup is O(1) in fleet size (aggregates + a small top-N), so
-// the PDF stays bounded regardless of host/rule count.
+// else renders the one-page cover via renderAttestationPDF and caches it in
+// report_faces. The rollup is read from the FROZEN content (computed once
+// at generation time and signed), so the PDF, the in-app view, and the
+// signature all show the same numbers. A pre-rollup snapshot (generated
+// before the rollup was frozen) is handled by recomputing on the fly.
 func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte, string, error) {
 	const mediaType = "application/pdf"
 
@@ -349,11 +336,16 @@ func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte,
 	if err := json.Unmarshal(rep.Content, &c); err != nil {
 		return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
 	}
-	rollup, err := s.computeAttestationRollup(ctx, c)
-	if err != nil {
-		return nil, "", err
+	// Back-compat: a snapshot frozen before the rollup was part of the
+	// content has an empty rollup but attested hosts; recompute it live.
+	if c.Rollup.TotalChecks == 0 && c.HostsAttested > 0 {
+		rollup, err := s.computeAttestationRollup(ctx, scanIDsOf(c), c.Framework)
+		if err != nil {
+			return nil, "", err
+		}
+		c.Rollup = rollup
 	}
-	pdfBytes, err := renderAttestationPDF(rep, c, rollup)
+	pdfBytes, err := renderAttestationPDF(rep, c)
 	if err != nil {
 		return nil, "", err
 	}
@@ -374,17 +366,25 @@ func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte,
 	return pdfBytes, mediaType, nil
 }
 
-// computeAttestationRollup runs two aggregate queries over the frozen
-// scans (counts by status, and the top failing rules by distinct failing
-// host), applying the snapshot's framework lens. Compliance is passing /
-// (passing + failing), rounded half up, nil when nothing was evaluated.
-func (s *Service) computeAttestationRollup(ctx context.Context, c AttestationContent) (attestationRollup, error) {
-	scanIDs := make([]uuid.UUID, len(c.Attested))
+// scanIDsOf extracts the frozen scan ids from an attestation's attested list.
+func scanIDsOf(c AttestationContent) []uuid.UUID {
+	ids := make([]uuid.UUID, len(c.Attested))
 	for i, a := range c.Attested {
-		scanIDs[i] = a.ScanID
+		ids[i] = a.ScanID
 	}
+	return ids
+}
 
-	var r attestationRollup
+// computeAttestationRollup runs two aggregate queries over the given frozen
+// scans (counts by status, and the top failing rules by distinct failing
+// host), applying the framework lens. Compliance is passing / (passing +
+// failing), rounded half up, nil when nothing was evaluated. Called at
+// generation time to FREEZE the rollup into the signed content (and as a
+// back-compat fallback when rendering a pre-rollup snapshot).
+func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.UUID, framework string) (AttestationRollup, error) {
+	var r AttestationRollup
+	r.TopFailing = []TopFailingRule{}
+
 	countQ := `
 		SELECT count(*),
 		       count(*) FILTER (WHERE status = 'pass'),
@@ -394,16 +394,16 @@ func (s *Service) computeAttestationRollup(ctx context.Context, c AttestationCon
 		  FROM scan_results sr
 		 WHERE sr.scan_id = ANY($1)`
 	countArgs := []any{scanIDs}
-	if c.Framework != "" {
+	if framework != "" {
 		countQ += " AND sr.framework_refs ? $2"
-		countArgs = append(countArgs, c.Framework)
+		countArgs = append(countArgs, framework)
 	}
 	if err := s.pool.QueryRow(ctx, countQ, countArgs...).
-		Scan(&r.TotalChecks, &r.Pass, &r.Fail, &r.Skipped, &r.Errored); err != nil {
-		return attestationRollup{}, fmt.Errorf("report: attestation rollup counts: %w", err)
+		Scan(&r.TotalChecks, &r.Passing, &r.Failing, &r.Skipped, &r.Errored); err != nil {
+		return AttestationRollup{}, fmt.Errorf("report: attestation rollup counts: %w", err)
 	}
-	if evaluated := r.Pass + r.Fail; evaluated > 0 {
-		pct := int((float64(r.Pass)/float64(evaluated))*100 + 0.5)
+	if evaluated := r.Passing + r.Failing; evaluated > 0 {
+		pct := int((float64(r.Passing)/float64(evaluated))*100 + 0.5)
 		r.CompliancePct = &pct
 	}
 
@@ -412,25 +412,25 @@ func (s *Service) computeAttestationRollup(ctx context.Context, c AttestationCon
 		  FROM scan_results sr
 		 WHERE sr.scan_id = ANY($1) AND sr.status = 'fail'`
 	topArgs := []any{scanIDs}
-	if c.Framework != "" {
+	if framework != "" {
 		topQ += " AND sr.framework_refs ? $2"
-		topArgs = append(topArgs, c.Framework)
+		topArgs = append(topArgs, framework)
 	}
 	topQ += " GROUP BY sr.rule_id ORDER BY count(DISTINCT sr.host_id) DESC, sr.rule_id LIMIT 10"
 	rows, err := s.pool.Query(ctx, topQ, topArgs...)
 	if err != nil {
-		return attestationRollup{}, fmt.Errorf("report: attestation rollup top-failing: %w", err)
+		return AttestationRollup{}, fmt.Errorf("report: attestation rollup top-failing: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var t TopFailingRule
 		if err := rows.Scan(&t.RuleID, &t.FailingHostCount); err != nil {
-			return attestationRollup{}, fmt.Errorf("report: attestation rollup scan: %w", err)
+			return AttestationRollup{}, fmt.Errorf("report: attestation rollup scan: %w", err)
 		}
 		r.TopFailing = append(r.TopFailing, t)
 	}
 	if err := rows.Err(); err != nil {
-		return attestationRollup{}, fmt.Errorf("report: attestation rollup iterate: %w", err)
+		return AttestationRollup{}, fmt.Errorf("report: attestation rollup iterate: %w", err)
 	}
 	return r, nil
 }

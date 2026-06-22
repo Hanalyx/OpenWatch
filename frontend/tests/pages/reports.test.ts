@@ -15,6 +15,8 @@
 //          otherwise); kindLabel maps attestation -> "Attestation"
 //   AC-11  secondaryFaces surfaces the attestation PDF + OSCAL SAR downloads
 //          (executive none); downloadReportFace accepts 'oscal_sar'
+//   AC-12  detail body is kind-aware: AttestationBody(asAttestationContent)
+//          for attestation, ExecutiveBody(asExecutiveContent) otherwise
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -198,6 +200,30 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/onDownload\(f\.face\)/);
     // downloadReportFace's format union includes oscal_sar.
     expect(PAGE_SRC).toMatch(/format: 'pdf' \| 'json' \| 'csv' \| 'oscal_sar'/);
+  });
+
+  // @ac AC-12
+  test('frontend-reports/AC-12 — kind-aware body renders the frozen attestation rollup', () => {
+    // The detail body branches on the resolved kind.
+    expect(PAGE_SRC).toMatch(/resolved\.kind === 'attestation' \?/);
+    expect(PAGE_SRC).toMatch(
+      /<AttestationBody content=\{asAttestationContent\(resolved\.content\)\}/,
+    );
+    expect(PAGE_SRC).toMatch(/<ExecutiveBody content=\{asExecutiveContent\(resolved\.content\)\}/);
+    // asAttestationContent narrows the attestation keys incl. the frozen rollup.
+    expect(PAGE_SRC).toContain('function asAttestationContent');
+    expect(PAGE_SRC).toMatch(/hosts_attested:/);
+    expect(PAGE_SRC).toContain('function asAttestationRollup');
+    // AttestationBody reads the rollup and renders compliance + pass/fail +
+    // the top-failing table (not the executive content keys).
+    expect(PAGE_SRC).toContain('function AttestationBody');
+    expect(PAGE_SRC).toMatch(/const r = content\.rollup/);
+    expect(PAGE_SRC).toContain('Hosts attested');
+    expect(PAGE_SRC).toContain('Framework');
+    expect(PAGE_SRC).toMatch(/r\.compliance_pct/);
+    expect(PAGE_SRC).toMatch(/r\.passing/);
+    expect(PAGE_SRC).toMatch(/r\.failing/);
+    expect(PAGE_SRC).toMatch(/r\.top_failing\.map/);
   });
 
   // @ac AC-04

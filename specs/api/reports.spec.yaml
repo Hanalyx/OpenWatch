@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 2
 
@@ -268,10 +268,18 @@ spec:
         evidence path. Generate (kind=attestation) FREEZES which completed
         scan attests each in-scope active host - the latest as of generation
         time - as the snapshot's AttestationContent {framework, hosts_total,
-        hosts_attested, attested:[{host_id, scan_id, scanned_at}]}; it does
-        NOT copy the bulk rows. Because scan_results are immutable, the
-        snapshot is point-in-time while staying small (inline JSONB, no blob
-        needed). The CSV face (C-10) reconstructs one row per (host, rule)
+        hosts_attested, attested:[{host_id, scan_id, scanned_at}], rollup};
+        it does NOT copy the bulk rows. Because scan_results are immutable,
+        the snapshot is point-in-time while staying small (inline JSONB, no
+        blob needed). v1.11.0: the headline compliance rollup is FROZEN into
+        the content at generation time - rollup {compliance_pct,
+        total_checks, passing, failing, skipped, errored, top_failing} -
+        computed once by aggregate queries over the frozen scans
+        (framework-lensed), so it is part of the signed content and the
+        in-app view, the PDF cover, and the signature all show the same
+        numbers (the PDF reads the frozen rollup; a pre-rollup snapshot is
+        recomputed on the fly for back-compat). The CSV face (C-10)
+        reconstructs one row per (host, rule)
         from those frozen scans' scan_results - hostname, ip, os, rule_id,
         status, severity, framework_refs, evidence_sha256, scanned_at -
         applying the snapshot's framework lens (framework_refs ? key) to

@@ -65,6 +65,57 @@ function asExecutiveContent(content: Report['content']): ExecutiveContent {
   };
 }
 
+// The attestation-summary content shape (see api-reports spec). Unlike the
+// executive shape it carries no pass/fail rollup — those numbers live in the
+// downloadable faces (PDF/CSV/OSCAL). The in-app body shows coverage (hosts
+// attested of in-scope) and the framework lens, then points at the faces.
+interface AttestedHostRef {
+  host_id: string;
+  scan_id: string;
+  scanned_at: string;
+}
+
+interface AttestationRollup {
+  compliance_pct: number | null;
+  total_checks: number;
+  passing: number;
+  failing: number;
+  skipped: number;
+  errored: number;
+  top_failing: { rule_id: string; failing_host_count: number }[];
+}
+
+interface AttestationContent {
+  framework: string;
+  hosts_total: number;
+  hosts_attested: number;
+  attested: AttestedHostRef[];
+  rollup: AttestationRollup;
+}
+
+function asAttestationRollup(r: Partial<AttestationRollup> | undefined): AttestationRollup {
+  return {
+    compliance_pct: typeof r?.compliance_pct === 'number' ? r.compliance_pct : null,
+    total_checks: typeof r?.total_checks === 'number' ? r.total_checks : 0,
+    passing: typeof r?.passing === 'number' ? r.passing : 0,
+    failing: typeof r?.failing === 'number' ? r.failing : 0,
+    skipped: typeof r?.skipped === 'number' ? r.skipped : 0,
+    errored: typeof r?.errored === 'number' ? r.errored : 0,
+    top_failing: Array.isArray(r?.top_failing) ? r.top_failing : [],
+  };
+}
+
+function asAttestationContent(content: Report['content']): AttestationContent {
+  const c = content as Partial<AttestationContent>;
+  return {
+    framework: typeof c.framework === 'string' ? c.framework : '',
+    hosts_total: typeof c.hosts_total === 'number' ? c.hosts_total : 0,
+    hosts_attested: typeof c.hosts_attested === 'number' ? c.hosts_attested : 0,
+    attested: Array.isArray(c.attested) ? c.attested : [],
+    rollup: asAttestationRollup(c.rollup as Partial<AttestationRollup> | undefined),
+  };
+}
+
 function kindLabel(kind: Report['kind']): string {
   if (kind === 'executive') return 'Executive';
   if (kind === 'attestation') return 'Attestation';
@@ -896,7 +947,12 @@ function ReportDetail({
               {verifyResult.detail}
             </div>
           )}
-          {resolved && <ExecutiveBody content={asExecutiveContent(resolved.content)} />}
+          {resolved &&
+            (resolved.kind === 'attestation' ? (
+              <AttestationBody content={asAttestationContent(resolved.content)} />
+            ) : (
+              <ExecutiveBody content={asExecutiveContent(resolved.content)} />
+            ))}
         </div>
       </div>
     </div>
@@ -1037,6 +1093,127 @@ function ExecutiveBody({ content }: { content: ExecutiveContent }) {
       >
         Figures reflect the last successful scan per host, not current state. Signing, PDF, and
         OSCAL export are not part of this MVP.
+      </div>
+    </div>
+  );
+}
+
+function AttestationBody({ content }: { content: AttestationContent }) {
+  const lens = content.framework || 'All frameworks';
+  const notAttested = Math.max(0, content.hosts_total - content.hosts_attested);
+  const r = content.rollup;
+  const pct = r.compliance_pct;
+  const pctTone =
+    pct === null
+      ? 'var(--ow-fg-2)'
+      : pct >= 80
+        ? 'var(--ow-ok)'
+        : pct >= 50
+          ? 'var(--ow-warn)'
+          : 'var(--ow-crit)';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <section>
+        <SectionHead>Compliance</SectionHead>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <Stat
+            label="Compliance"
+            value={pct === null ? 'n/a' : `${Math.round(pct)}%`}
+            tone={pctTone}
+          />
+          <Stat label="Framework" value={lens} />
+          <Stat
+            label="Hosts attested"
+            value={`${content.hosts_attested} of ${content.hosts_total}`}
+            tone={notAttested > 0 ? 'var(--ow-warn)' : 'var(--ow-ok)'}
+          />
+          <Stat label="Checks evaluated" value={`${r.total_checks}`} />
+          <Stat label="Passing" value={`${r.passing}`} tone="var(--ow-ok)" />
+          <Stat label="Failing" value={`${r.failing}`} tone="var(--ow-warn)" />
+          <Stat label="Skipped / error" value={`${r.skipped} / ${r.errored}`} />
+        </div>
+      </section>
+
+      {notAttested > 0 && (
+        <div
+          role="note"
+          style={{
+            display: 'flex',
+            gap: 12,
+            alignItems: 'flex-start',
+            padding: '12px 14px',
+            borderRadius: 'var(--ow-radius)',
+            border: '1px solid var(--ow-warn)',
+            borderLeft: '3px solid var(--ow-warn)',
+            background: 'var(--ow-warn-bg, rgba(200,160,40,0.12))',
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            color: 'var(--ow-fg-1)',
+          }}
+        >
+          <span aria-hidden="true" style={{ color: 'var(--ow-warn)', flexShrink: 0 }}>
+            !
+          </span>
+          <div>
+            {notAttested} of {content.hosts_total} in-scope{' '}
+            {notAttested === 1 ? 'host has' : 'hosts have'} no completed scan and{' '}
+            {notAttested === 1 ? 'is' : 'are'} not attested here.
+          </div>
+        </div>
+      )}
+
+      <section>
+        <SectionHead>Top failing rules</SectionHead>
+        {r.top_failing.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--ow-fg-3)', padding: '8px 0' }}>
+            No failing rules recorded.
+          </div>
+        ) : (
+          <Panel>
+            <Row head cols="1fr 140px">
+              <span>Rule</span>
+              <span>Failing hosts</span>
+            </Row>
+            {r.top_failing.map((rule, i) => (
+              <Row key={rule.rule_id} cols="1fr 140px" first={i === 0}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontFamily: 'var(--ow-font-mono, monospace)',
+                    color: 'var(--ow-fg-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {rule.rule_id}
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
+                  {rule.failing_host_count}
+                </span>
+              </Row>
+            ))}
+          </Panel>
+        )}
+      </section>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--ow-fg-3)',
+          lineHeight: 1.5,
+          paddingTop: 4,
+          borderTop: '1px solid var(--ow-line)',
+        }}
+      >
+        Figures are frozen from the latest completed scan per host, not live. The full per-host,
+        per-rule breakdown and evidence are in the downloadable PDF, CSV, and OSCAL faces above.
       </div>
     </div>
   );
