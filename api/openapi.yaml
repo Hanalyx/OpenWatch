@@ -2539,6 +2539,132 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/reports/schedules:
+    get:
+      operationId: getReportSchedules
+      summary: List the report delivery schedules
+      description: |
+        Returns every scheduled report (daily/weekly/monthly cadence that
+        generates a report and emails its PDF through a notification
+        channel), newest first. RBAC: host:read. Spec system-report-schedule.
+      responses:
+        '200':
+          description: The schedules
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportScheduleList'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    post:
+      operationId: createReportSchedule
+      summary: Create a report delivery schedule
+      description: |
+        Schedules a report to generate on a daily/weekly/monthly cadence and
+        email its PDF through an email notification channel. RBAC:
+        host:write. Spec system-report-schedule.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateReportScheduleRequest'}
+      responses:
+        '201':
+          description: The created schedule
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportSchedule'}
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/reports/schedules/{id}:
+    patch:
+      operationId: updateReportSchedule
+      summary: Enable or disable a report schedule
+      description: |
+        Toggles a schedule's enabled flag. Re-enabling recomputes the next
+        run from now. RBAC: host:write. Spec system-report-schedule.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateReportScheduleRequest'}
+      responses:
+        '200':
+          description: The updated schedule
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportSchedule'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Schedule not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    delete:
+      operationId: deleteReportSchedule
+      summary: Delete a report schedule
+      description: |
+        Removes a schedule (does not delete reports it already generated).
+        RBAC: host:write. Spec system-report-schedule.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Schedule not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/reports/signing-key:
     get:
       operationId: getReportSigningKey
@@ -5488,6 +5614,64 @@ components:
         frameworks:
           type: array
           items: {$ref: '#/components/schemas/ReportFramework'}
+
+    ReportSchedule:
+      type: object
+      required: [id, name, kind, frequency, hour, channel_id, enabled, next_run_at, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        kind:
+          type: string
+          enum: [executive, attestation, exception, remediation]
+        group_id: {type: string, format: uuid, description: Optional group scope.}
+        framework: {type: string, description: Optional framework lens.}
+        period_days: {type: integer, description: Period window for the remediation kind.}
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly]
+        hour: {type: integer, description: Hour of day (UTC) to run (0-23).}
+        weekday: {type: integer, description: 0=Sunday..6=Saturday, for weekly.}
+        day_of_month: {type: integer, description: 1-28, for monthly.}
+        channel_id: {type: string, format: uuid, description: The email channel used for delivery.}
+        enabled: {type: boolean}
+        next_run_at: {type: string, format: date-time}
+        last_run_at: {type: string, format: date-time}
+        last_status: {type: string}
+        created_at: {type: string, format: date-time}
+
+    ReportScheduleList:
+      type: object
+      required: [schedules]
+      properties:
+        schedules:
+          type: array
+          items: {$ref: '#/components/schemas/ReportSchedule'}
+
+    CreateReportScheduleRequest:
+      type: object
+      required: [name, kind, frequency, channel_id]
+      properties:
+        name: {type: string}
+        kind:
+          type: string
+          enum: [executive, attestation, exception, remediation]
+        group_id: {type: string, format: uuid}
+        framework: {type: string}
+        period_days: {type: integer, minimum: 1, maximum: 365}
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly]
+        hour: {type: integer, minimum: 0, maximum: 23, description: Defaults to 6.}
+        weekday: {type: integer, minimum: 0, maximum: 6, description: Required for weekly.}
+        day_of_month: {type: integer, minimum: 1, maximum: 28, description: Required for monthly.}
+        channel_id: {type: string, format: uuid, description: An email notification channel.}
+
+    UpdateReportScheduleRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: {type: boolean}
 
     ReportListResponse:
       type: object

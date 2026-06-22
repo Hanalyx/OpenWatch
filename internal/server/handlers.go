@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/sso"
@@ -105,6 +106,10 @@ type handlers struct {
 	// Reports library service. Set via (*Server).WithReports; nil makes
 	// the report endpoints 503. Spec api-reports.
 	reportSvc *report.Service
+
+	// Report schedule service. Set via (*Server).WithReportSchedules; nil
+	// makes the schedule endpoints 503. Spec system-report-schedule.
+	reportScheduleSvc *reportschedule.Service
 
 	// Durable per-scan results reader. Set via (*Server).WithScanResults;
 	// nil makes the /api/v1/scans endpoints 503. Spec api-scans.

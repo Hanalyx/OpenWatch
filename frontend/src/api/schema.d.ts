@@ -1601,6 +1601,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the report delivery schedules
+         * @description Returns every scheduled report (daily/weekly/monthly cadence that
+         *     generates a report and emails its PDF through a notification
+         *     channel), newest first. RBAC: host:read. Spec system-report-schedule.
+         */
+        get: operations["getReportSchedules"];
+        put?: never;
+        /**
+         * Create a report delivery schedule
+         * @description Schedules a report to generate on a daily/weekly/monthly cadence and
+         *     email its PDF through an email notification channel. RBAC:
+         *     host:write. Spec system-report-schedule.
+         */
+        post: operations["createReportSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/schedules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a report schedule
+         * @description Removes a schedule (does not delete reports it already generated).
+         *     RBAC: host:write. Spec system-report-schedule.
+         */
+        delete: operations["deleteReportSchedule"];
+        options?: never;
+        head?: never;
+        /**
+         * Enable or disable a report schedule
+         * @description Toggles a schedule's enabled flag. Re-enabling recomputes the next
+         *     run from now. RBAC: host:write. Spec system-report-schedule.
+         */
+        patch: operations["updateReportSchedule"];
+        trace?: never;
+    };
     "/api/v1/reports/signing-key": {
         parameters: {
             query?: never;
@@ -3658,6 +3712,71 @@ export interface components {
         };
         ReportFrameworksResponse: {
             frameworks: components["schemas"]["ReportFramework"][];
+        };
+        ReportSchedule: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            kind: "executive" | "attestation" | "exception" | "remediation";
+            /**
+             * Format: uuid
+             * @description Optional group scope.
+             */
+            group_id?: string;
+            /** @description Optional framework lens. */
+            framework?: string;
+            /** @description Period window for the remediation kind. */
+            period_days?: number;
+            /** @enum {string} */
+            frequency: "daily" | "weekly" | "monthly";
+            /** @description Hour of day (UTC) to run (0-23). */
+            hour: number;
+            /** @description 0=Sunday..6=Saturday */
+            weekday?: number;
+            /** @description 1-28 */
+            day_of_month?: number;
+            /**
+             * Format: uuid
+             * @description The email channel used for delivery.
+             */
+            channel_id: string;
+            enabled: boolean;
+            /** Format: date-time */
+            next_run_at: string;
+            /** Format: date-time */
+            last_run_at?: string;
+            last_status?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ReportScheduleList: {
+            schedules: components["schemas"]["ReportSchedule"][];
+        };
+        CreateReportScheduleRequest: {
+            name: string;
+            /** @enum {string} */
+            kind: "executive" | "attestation" | "exception" | "remediation";
+            /** Format: uuid */
+            group_id?: string;
+            framework?: string;
+            period_days?: number;
+            /** @enum {string} */
+            frequency: "daily" | "weekly" | "monthly";
+            /** @description Defaults to 6. */
+            hour?: number;
+            /** @description Required for weekly. */
+            weekday?: number;
+            /** @description Required for monthly. */
+            day_of_month?: number;
+            /**
+             * Format: uuid
+             * @description An email notification channel.
+             */
+            channel_id: string;
+        };
+        UpdateReportScheduleRequest: {
+            enabled: boolean;
         };
         ReportListResponse: {
             reports: components["schemas"]["Report"][];
@@ -7687,6 +7806,195 @@ export interface operations {
             };
             /** @description Caller lacks host:read permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReportSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The schedules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleList"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The created schedule */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSchedule"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Schedule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReportScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated schedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSchedule"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Schedule not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

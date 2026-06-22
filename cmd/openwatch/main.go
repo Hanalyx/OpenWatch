@@ -31,6 +31,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/Hanalyx/openwatch/internal/cron"
 	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/google/uuid"
 
@@ -53,6 +54,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/posture"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -65,6 +67,11 @@ import (
 	"github.com/Hanalyx/openwatch/internal/version"
 	"github.com/Hanalyx/openwatch/internal/worker"
 )
+
+// reportScheduleTickInterval is how often the scheduled-report dispatcher
+// checks for due schedules. A minute is fine: schedule cadences are
+// daily/weekly/monthly, so sub-minute precision is unnecessary.
+const reportScheduleTickInterval = time.Minute
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -658,6 +665,14 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithAsyncRender()
 	reportRenderProc := report.NewRenderProcessor(reportSvc, bus)
 
+	// Scheduled reports: a cron dispatcher generates due schedules and
+	// emails the rendered PDF through an email notification channel.
+	reportScheduleSvc := reportschedule.NewService(pool)
+	reportScheduleCron := cron.New(reportScheduleTickInterval,
+		reportschedule.NewDispatcher(reportScheduleSvc, reportSvc, notifSvc).Tick)
+	reportScheduleCron.Start(ctx)
+	defer reportScheduleCron.Stop()
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
@@ -680,6 +695,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
 		WithReports(reportSvc).
+		WithReportSchedules(reportScheduleSvc).
 		WithReportWorker(reportRenderProc).
 		WithScanResults(scanresult.NewReader(pool)).
 		WithNotifications(notifSvc)

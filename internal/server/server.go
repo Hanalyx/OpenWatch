@@ -30,6 +30,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/sso"
@@ -153,6 +154,13 @@ func (s *Server) WithRemediation(rm *remediation.Service) *Server {
 // routable. Nil makes the group endpoints 503. Spec api-groups.
 func (s *Server) WithGroups(g *group.Service) *Server {
 	s.handlers.groupSvc = g
+	return s
+}
+
+// WithReportSchedules wires the report schedule service for the
+// /api/v1/reports/schedules endpoints. Spec system-report-schedule.
+func (s *Server) WithReportSchedules(svc *reportschedule.Service) *Server {
+	s.handlers.reportScheduleSvc = svc
 	return s
 }
 

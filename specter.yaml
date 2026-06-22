@@ -79,6 +79,7 @@ domains:
             - api-reports
             - frontend-reports
             - frontend-notifications
+            - system-report-schedule
             - system-scan-results-store
             - api-scans
             - frontend-scan-detail

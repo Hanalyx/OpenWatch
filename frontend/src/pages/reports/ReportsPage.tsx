@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/client';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -526,7 +526,7 @@ export function ReportsPage() {
         />
       )}
       {tab === 'templates' && <ComingSoon what="Templates" />}
-      {tab === 'scheduled' && <ComingSoon what="Scheduled" />}
+      {tab === 'scheduled' && <SchedulesTab canGenerate={canGenerate} />}
 
       {selectedId && (
         <ReportDetail
@@ -1565,6 +1565,328 @@ function RemediationBody({ content }: { content: RemediationContent }) {
     </div>
   );
 }
+
+type ReportScheduleRow = components['schemas']['ReportSchedule'];
+
+// SchedulesTab manages report delivery schedules: a list with enable/disable
+// + delete, and a create form. Delivery is by email through an email
+// notification channel; the channel picker lists the email channels.
+function SchedulesTab({ canGenerate }: { canGenerate: boolean }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'executive' | 'attestation' | 'exception' | 'remediation'>(
+    'attestation',
+  );
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [weekday, setWeekday] = useState(1);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [channelId, setChannelId] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const schedulesQ = useQuery({
+    queryKey: ['report-schedules'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/reports/schedules', {});
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      return data!;
+    },
+  });
+
+  // Email channels back the delivery picker (only email can carry a PDF).
+  const channelsQ = useQuery({
+    queryKey: ['notification-channels'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/notifications/channels', {});
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      return data!;
+    },
+    enabled: canGenerate,
+  });
+  const emailChannels = (channelsQ.data?.channels ?? []).filter((c) => c.type === 'email');
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const body: {
+        name: string;
+        kind: typeof kind;
+        frequency: typeof frequency;
+        channel_id: string;
+        weekday?: number;
+        day_of_month?: number;
+      } = { name, kind, frequency, channel_id: channelId };
+      if (frequency === 'weekly') body.weekday = weekday;
+      if (frequency === 'monthly') body.day_of_month = dayOfMonth;
+      const { data, error, response } = await api.POST('/api/v1/reports/schedules', { body });
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+      return data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+      setName('');
+      setFormError(null);
+    },
+    onError: (e) => setFormError(e instanceof Error ? e.message : 'Failed to create schedule'),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const { error, response } = await api.PATCH('/api/v1/reports/schedules/{id}', {
+        params: { path: { id } },
+        body: { enabled },
+      });
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-schedules'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error, response } = await api.DELETE('/api/v1/reports/schedules/{id}', {
+        params: { path: { id } },
+      });
+      if (error || !response.ok)
+        throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-schedules'] }),
+  });
+
+  const schedules = schedulesQ.data?.schedules ?? [];
+  const canSubmit = canGenerate && name.trim() !== '' && channelId !== '';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {canGenerate && (
+        <Panel>
+          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ow-fg-1)' }}>
+              New schedule
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+              <input
+                aria-label="Schedule name"
+                placeholder="Schedule name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={scheduleInputStyle}
+              />
+              <select
+                aria-label="Schedule kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as typeof kind)}
+                style={scheduleInputStyle}
+              >
+                <option value="executive">Executive</option>
+                <option value="attestation">Attestation</option>
+                <option value="exception">Exception Register</option>
+                <option value="remediation">Remediation Activity</option>
+              </select>
+              <select
+                aria-label="Schedule frequency"
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as typeof frequency)}
+                style={scheduleInputStyle}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              {frequency === 'weekly' && (
+                <select
+                  aria-label="Weekday"
+                  value={weekday}
+                  onChange={(e) => setWeekday(Number(e.target.value))}
+                  style={scheduleInputStyle}
+                >
+                  {[
+                    'Sunday',
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                    'Saturday',
+                  ].map((d, i) => (
+                    <option key={d} value={i}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {frequency === 'monthly' && (
+                <select
+                  aria-label="Day of month"
+                  value={dayOfMonth}
+                  onChange={(e) => setDayOfMonth(Number(e.target.value))}
+                  style={scheduleInputStyle}
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>
+                      Day {d}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                aria-label="Delivery channel"
+                value={channelId}
+                onChange={(e) => setChannelId(e.target.value)}
+                style={scheduleInputStyle}
+              >
+                <option value="">Select email channel</option>
+                {emailChannels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!canSubmit || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+                style={{
+                  height: 34,
+                  padding: '0 16px',
+                  borderRadius: 6,
+                  border: '1px solid var(--ow-info)',
+                  background: canSubmit ? 'var(--ow-info)' : 'var(--ow-bg-2)',
+                  color: canSubmit ? '#0a1424' : 'var(--ow-fg-3)',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: canSubmit ? 'pointer' : 'default',
+                }}
+              >
+                {createMutation.isPending ? 'Saving…' : 'Create schedule'}
+              </button>
+            </div>
+            {emailChannels.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>
+                No email notification channels yet. Add one in Settings to deliver scheduled
+                reports.
+              </div>
+            )}
+            {formError && (
+              <div style={{ fontSize: 12.5, color: 'var(--ow-crit)' }}>{formError}</div>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {schedulesQ.isPending ? (
+        <State kind="loading" text="Loading schedules" />
+      ) : schedulesQ.isError ? (
+        <State kind="error" text={apiErrorMessage(schedulesQ.error, 'Failed to load schedules')} />
+      ) : schedules.length === 0 ? (
+        <State kind="empty" text="No schedules yet." />
+      ) : (
+        <Panel>
+          <Row head cols="1.4fr 1fr 1fr 100px 90px">
+            <span>Schedule</span>
+            <span>Cadence</span>
+            <span>Next run</span>
+            <span>Status</span>
+            <span />
+          </Row>
+          {schedules.map((s, i) => (
+            <ScheduleRow
+              key={s.id}
+              schedule={s}
+              first={i === 0}
+              canGenerate={canGenerate}
+              onToggle={(enabled) => toggleMutation.mutate({ id: s.id, enabled })}
+              onDelete={() => deleteMutation.mutate(s.id)}
+            />
+          ))}
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+function ScheduleRow({
+  schedule,
+  first,
+  canGenerate,
+  onToggle,
+  onDelete,
+}: {
+  schedule: ReportScheduleRow;
+  first: boolean;
+  canGenerate: boolean;
+  onToggle: (enabled: boolean) => void;
+  onDelete: () => void;
+}) {
+  const cadence =
+    schedule.frequency === 'weekly'
+      ? `Weekly (day ${schedule.weekday ?? 0})`
+      : schedule.frequency === 'monthly'
+        ? `Monthly (day ${schedule.day_of_month ?? 1})`
+        : 'Daily';
+  return (
+    <Row cols="1.4fr 1fr 1fr 100px 90px" first={first}>
+      <span style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>{schedule.name}</span>
+        <span style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>{kindLabel(schedule.kind)}</span>
+      </span>
+      <span style={{ fontSize: 12.5, color: 'var(--ow-fg-2)' }}>{cadence}</span>
+      <span style={{ fontSize: 12.5, color: 'var(--ow-fg-2)' }}>
+        {formatDate(schedule.next_run_at)}
+      </span>
+      <span style={{ fontSize: 12, color: schedule.enabled ? 'var(--ow-ok)' : 'var(--ow-fg-3)' }}>
+        {schedule.enabled ? 'Active' : 'Paused'}
+      </span>
+      <span style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        {canGenerate && (
+          <>
+            <button
+              type="button"
+              onClick={() => onToggle(!schedule.enabled)}
+              title={schedule.enabled ? 'Pause' : 'Resume'}
+              style={scheduleActionStyle}
+            >
+              {schedule.enabled ? 'Pause' : 'Resume'}
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Delete schedule"
+              style={{ ...scheduleActionStyle, color: 'var(--ow-crit)' }}
+            >
+              Delete
+            </button>
+          </>
+        )}
+      </span>
+    </Row>
+  );
+}
+
+const scheduleInputStyle: CSSProperties = {
+  height: 34,
+  padding: '0 10px',
+  borderRadius: 'var(--ow-radius-sm, 6px)',
+  border: '1px solid var(--ow-line)',
+  background: 'var(--ow-bg-2)',
+  color: 'var(--ow-fg-0)',
+  fontFamily: 'inherit',
+  fontSize: 13,
+};
+
+const scheduleActionStyle: CSSProperties = {
+  height: 26,
+  padding: '0 8px',
+  borderRadius: 5,
+  border: '1px solid var(--ow-line)',
+  background: 'var(--ow-bg-1)',
+  color: 'var(--ow-fg-2)',
+  fontFamily: 'inherit',
+  fontSize: 11,
+  cursor: 'pointer',
+};
 
 function ComingSoon({ what }: { what: string }) {
   return (
