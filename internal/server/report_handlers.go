@@ -200,6 +200,9 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	req := report.GenerateRequest{}
+	if body.Kind != nil {
+		req.Kind = report.Kind(*body.Kind)
+	}
 	if body.GroupId != nil {
 		gid := uuid.UUID(*body.GroupId)
 		req.GroupID = &gid
@@ -209,6 +212,11 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rep, err := h.reportSvc.Generate(r.Context(), reportActor(r), req)
+	if errors.Is(err, report.ErrInvalidKind) {
+		writeError(w, http.StatusBadRequest, "reports.invalid_kind", "client",
+			"kind must be executive or attestation", false)
+		return
+	}
 	if errors.Is(err, group.ErrNotFound) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_scope", "client",
 			"unknown group_id scope", false)

@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -106,12 +106,14 @@ spec:
       enforcement: error
     - id: C-03
       description: >-
-        The MVP generates exactly one kind: the artifact's identity is
-        fixed (title "Fleet Compliance - Executive Summary", kind
-        'executive', format 'json') and the top-failing embed limit is a
-        small constant. scope_label is derived from the report's scope
-        (v1.1.0) and defaults to "All hosts" for an unscoped report. The
-        library lists newest first by created_at.
+        Each kind has a fixed identity: executive (title "Fleet Compliance
+        - Executive Summary", small top-failing embed limit) and, as of
+        v1.7.0 (Phase B1), attestation (title "Framework Attestation"). The
+        generate request's kind defaults to executive when omitted; an
+        unknown kind is rejected (report.ErrInvalidKind -> 400
+        reports.invalid_kind). format is 'json'. scope_label is derived from
+        the report's scope (v1.1.0) and defaults to "All hosts" for an
+        unscoped report. The library lists newest first by created_at.
       type: technical
       enforcement: error
     - id: C-04
@@ -217,6 +219,10 @@ spec:
         export re-streams the cached bytes rather than re-rendering. RBAC:
         host:read. An unknown id is 404 reports.not_found; an unknown
         format is 400 reports.invalid_format (report.ErrInvalidFace).
+        v1.7.0: faces are KIND-scoped - pdf is executive-only and csv (the
+        attestation evidence extract, C-13) is attestation-only; requesting
+        a face that does not apply to the report's kind is ErrInvalidFace
+        (400). The json face applies to any kind (canonical content).
       type: technical
       enforcement: error
     - id: C-11
@@ -251,6 +257,26 @@ spec:
         attestation kind's framework selection. Response shape
         {frameworks: [{framework, rule_count}]} (an empty array when the
         fleet has no scanned rules); anonymous callers are rejected.
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >-
+        v1.7.0 (Phase B1) - The attestation kind is the auditor/GRC bulk
+        evidence path. Generate (kind=attestation) FREEZES which completed
+        scan attests each in-scope active host - the latest as of generation
+        time - as the snapshot's AttestationContent {framework, hosts_total,
+        hosts_attested, attested:[{host_id, scan_id, scanned_at}]}; it does
+        NOT copy the bulk rows. Because scan_results are immutable, the
+        snapshot is point-in-time while staying small (inline JSONB, no blob
+        needed). The CSV face (C-10) reconstructs one row per (host, rule)
+        from those frozen scans' scan_results - hostname, ip, os, rule_id,
+        status, severity, framework_refs, evidence_sha256, scanned_at -
+        applying the snapshot's framework lens (framework_refs ? key) to
+        narrow the rows (not which hosts are attested). Each cell is
+        csvSafe-guarded (CWE-1236); the export is capped at a large row
+        limit with a trailing disclosure row when truncated. The CSV is
+        cached in report_faces like the PDF. Signing (C-11) applies the same
+        way (the AttestationContent is the signed canonical content).
       type: technical
       enforcement: error
 
@@ -436,3 +462,16 @@ spec:
         (401/403).
       priority: high
       references_constraints: [C-12]
+    - id: AC-19
+      description: >-
+        v1.7.0 - Generate(kind=attestation) over a host with a completed
+        scan + two scan_results (r1 cis, r2 cis+stig) produces a signed
+        attestation snapshot (kind=attestation, title "Framework
+        Attestation") whose AttestationContent has hosts_total 1,
+        hosts_attested 1, and the frozen scan id. Its csv face is text/csv
+        with the header + an r1 and r2 row, cached as a report_faces 'ready'
+        row; a framework=stig-scoped attestation's csv contains r2 but not
+        r1. pdf is ErrInvalidFace on an attestation and csv is
+        ErrInvalidFace on an executive; an unknown kind is ErrInvalidKind.
+      priority: critical
+      references_constraints: [C-13]

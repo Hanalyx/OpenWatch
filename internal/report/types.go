@@ -25,7 +25,35 @@ type Kind string
 const (
 	// KindExecutive is the Fleet Compliance Executive Summary.
 	KindExecutive Kind = "executive"
+	// KindAttestation is the Framework Attestation: the auditor/GRC bulk
+	// evidence path. Its snapshot freezes the latest completed scan per
+	// in-scope host; its bulk faces (CSV now, OSCAL SAR next) reconstruct
+	// per-(host, rule) outcomes from those immutable scan_results.
+	KindAttestation Kind = "attestation"
 )
+
+// AttestationContent is the frozen snapshot for a Framework Attestation:
+// it captures WHICH scan attests each in-scope host (point-in-time, since
+// scan_results are immutable), not the bulk rows themselves - the CSV /
+// OSCAL faces reconstruct those from the referenced scans on demand.
+type AttestationContent struct {
+	// Framework is the lens (a framework_refs key), or "" for all.
+	Framework string `json:"framework"`
+	// HostsTotal is the active in-scope host count; HostsAttested is how
+	// many of those have a completed scan to attest from.
+	HostsTotal    int `json:"hosts_total"`
+	HostsAttested int `json:"hosts_attested"`
+	// Attested lists, per attested host, the scan the attestation is over.
+	Attested []AttestedHost `json:"attested"`
+}
+
+// AttestedHost ties an in-scope host to the completed scan that attests
+// it (its latest as of generation time) and when that scan finished.
+type AttestedHost struct {
+	HostID    uuid.UUID `json:"host_id"`
+	ScanID    uuid.UUID `json:"scan_id"`
+	ScannedAt time.Time `json:"scanned_at"`
+}
 
 // Report is one row of the report_snapshots table. Content holds the
 // rendered JSON posture document (see ExecutiveContent for the executive
@@ -72,9 +100,12 @@ type Scope struct {
 // request generates the all-hosts, all-frameworks executive summary —
 // the pre-A1 behavior.
 type GenerateRequest struct {
-	// GroupID scopes the summary to one group's member hosts.
+	// Kind selects the report kind; "" defaults to executive. attestation
+	// produces the Framework Attestation (CSV/OSCAL bulk faces).
+	Kind Kind
+	// GroupID scopes the report to one group's member hosts.
 	GroupID *uuid.UUID
-	// Framework scopes the summary to one framework lens.
+	// Framework scopes the report to one framework lens.
 	Framework string
 }
 

@@ -24,12 +24,19 @@ var ErrNotFound = errors.New("report: not found")
 // the resolver is always wired, so this is a programmer/config error.
 var ErrGroupScopeUnavailable = errors.New("report: group scope unavailable")
 
+// ErrInvalidKind is returned by Generate for an unknown report kind.
+// Handlers map it to 400.
+var ErrInvalidKind = errors.New("report: invalid kind")
+
 // topFailingLimit caps how many failing rules the executive summary
 // embeds. Small, leadership-facing list (matches the prototype).
 const topFailingLimit = 5
 
-// executiveTitle is the fixed title for the one MVP report kind.
+// executiveTitle is the fixed title for the executive summary kind.
 const executiveTitle = "Fleet Compliance - Executive Summary"
+
+// attestationTitle is the fixed title for the framework attestation kind.
+const attestationTitle = "Framework Attestation"
 
 // allHostsLabel is the scope_label when no group scopes the report.
 const allHostsLabel = "All hosts"
@@ -106,6 +113,14 @@ func scanReport(row pgx.Row) (Report, error) {
 // the artifact (an email or "scheduler"). The returned Report carries
 // the stored JSON content and the resolved scope.
 func (s *Service) Generate(ctx context.Context, generatedBy string, req GenerateRequest) (Report, error) {
+	kind := req.Kind
+	if kind == "" {
+		kind = KindExecutive
+	}
+	if kind != KindExecutive && kind != KindAttestation {
+		return Report{}, ErrInvalidKind
+	}
+
 	scope := Scope{Framework: req.Framework}
 	var hostIDs []uuid.UUID // nil = all hosts (no host filter)
 	if req.GroupID != nil {
@@ -126,10 +141,25 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		}
 	}
 
-	content, err := s.computeExecutive(ctx, hostIDs, scope.Framework)
-	if err != nil {
-		return Report{}, err
+	// Compute the kind's frozen content.
+	var content any
+	title := executiveTitle
+	switch kind {
+	case KindAttestation:
+		c, err := s.computeAttestation(ctx, hostIDs, scope.Framework)
+		if err != nil {
+			return Report{}, err
+		}
+		content = c
+		title = attestationTitle
+	default:
+		c, err := s.computeExecutive(ctx, hostIDs, scope.Framework)
+		if err != nil {
+			return Report{}, err
+		}
+		content = c
 	}
+
 	raw, err := json.Marshal(content)
 	if err != nil {
 		return Report{}, fmt.Errorf("report: marshal content: %w", err)
@@ -159,7 +189,7 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING `+reportCols,
-		uuid.New(), executiveTitle, KindExecutive, scopeLabel(scope), scopeRaw,
+		uuid.New(), title, kind, scopeLabel(scope), scopeRaw,
 		dataAsOf, generatedBy, "json", raw, contentSHA, signature, signingKeyID)
 	rep, err := scanReport(row)
 	if err != nil {
@@ -193,6 +223,57 @@ func (s *Service) Frameworks(ctx context.Context) ([]FrameworkCount, error) {
 		return nil, fmt.Errorf("report: frameworks iterate: %w", err)
 	}
 	return out, nil
+}
+
+// computeAttestation freezes which completed scan attests each in-scope
+// active host (the latest as of now). Point-in-time without copying the
+// bulk rows: scan_results are immutable, so the CSV/OSCAL faces
+// reconstruct per-(host, rule) outcomes from these frozen scan ids on
+// demand. The framework lens narrows the rows in the faces, not which
+// hosts are attested (a host is attested if it has any completed scan).
+func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, framework string) (AttestationContent, error) {
+	c := AttestationContent{Framework: framework, Attested: []AttestedHost{}}
+
+	// Active in-scope host count (whether or not scanned).
+	hostQ := `SELECT count(*) FROM hosts WHERE deleted_at IS NULL`
+	hostArgs := []any{}
+	if hostIDs != nil {
+		hostQ += " AND id = ANY($1)"
+		hostArgs = append(hostArgs, hostIDs)
+	}
+	if err := s.pool.QueryRow(ctx, hostQ, hostArgs...).Scan(&c.HostsTotal); err != nil {
+		return AttestationContent{}, fmt.Errorf("report: attestation host count: %w", err)
+	}
+
+	// Latest completed scan per active in-scope host.
+	scanQ := `
+		SELECT DISTINCT ON (sr.host_id) sr.host_id, sr.id, sr.finished_at
+		  FROM scan_runs sr
+		  JOIN hosts h ON h.id = sr.host_id
+		 WHERE sr.status = 'completed' AND sr.finished_at IS NOT NULL AND h.deleted_at IS NULL`
+	scanArgs := []any{}
+	if hostIDs != nil {
+		scanQ += " AND sr.host_id = ANY($1)"
+		scanArgs = append(scanArgs, hostIDs)
+	}
+	scanQ += " ORDER BY sr.host_id, sr.finished_at DESC"
+	rows, err := s.pool.Query(ctx, scanQ, scanArgs...)
+	if err != nil {
+		return AttestationContent{}, fmt.Errorf("report: attestation scans: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a AttestedHost
+		if err := rows.Scan(&a.HostID, &a.ScanID, &a.ScannedAt); err != nil {
+			return AttestationContent{}, fmt.Errorf("report: attestation scan: %w", err)
+		}
+		c.Attested = append(c.Attested, a)
+	}
+	if err := rows.Err(); err != nil {
+		return AttestationContent{}, fmt.Errorf("report: attestation iterate: %w", err)
+	}
+	c.HostsAttested = len(c.Attested)
+	return c, nil
 }
 
 // computeExecutive samples the fleet posture from host_rule_state and
