@@ -13,6 +13,8 @@
 //   AC-10  report-kind selector (executive/attestation) drives the generate
 //          body; kind-aware primary download (csv for attestation, pdf
 //          otherwise); kindLabel maps attestation -> "Attestation"
+//   AC-11  secondaryFaces surfaces the attestation PDF + OSCAL SAR downloads
+//          (executive none); downloadReportFace accepts 'oscal_sar'
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -180,6 +182,22 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/format: 'pdf' \| 'json' \| 'csv'/);
     // The type chip labels attestation reports "Attestation".
     expect(PAGE_SRC).toMatch(/kind === 'attestation'\) return 'Attestation'/);
+  });
+
+  // @ac AC-11
+  test('frontend-reports/AC-11 — secondary attestation faces (PDF + OSCAL SAR)', () => {
+    // A secondaryFaces list keyed on the attestation kind.
+    expect(PAGE_SRC).toContain('secondaryFaces');
+    expect(PAGE_SRC).toMatch(/secondaryFaces[\s\S]*?isAttestation/);
+    // It offers the PDF cover and the OSCAL SAR faces.
+    expect(PAGE_SRC).toMatch(/face: 'pdf'/);
+    expect(PAGE_SRC).toMatch(/face: 'oscal_sar'/);
+    expect(PAGE_SRC).toContain('OSCAL SAR');
+    // Rendered as buttons wired to the shared onDownload + downloading state.
+    expect(PAGE_SRC).toMatch(/secondaryFaces\.map/);
+    expect(PAGE_SRC).toMatch(/onDownload\(f\.face\)/);
+    // downloadReportFace's format union includes oscal_sar.
+    expect(PAGE_SRC).toMatch(/format: 'pdf' \| 'json' \| 'csv' \| 'oscal_sar'/);
   });
 
   // @ac AC-04
