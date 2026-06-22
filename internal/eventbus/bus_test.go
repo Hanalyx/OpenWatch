@@ -254,7 +254,8 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 		// HostDiscovered (system-host-discovery PR 1.1),
 		// IntelligenceEvent (system-os-intelligence PR 1.2),
 		// ScanCompleted (api-host-scan / scan foundation),
-		// RemediationCompleted (api-remediation execute/rollback).
+		// RemediationCompleted (api-remediation execute/rollback),
+		// ReportReady (api-reports async render, B3a).
 		expected := map[EventKind]bool{
 			EventKindHeartbeatPulse:        false,
 			EventKindDriftDetected:         false,
@@ -264,6 +265,7 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 			EventKindIntelligenceEvent:     false,
 			EventKindScanCompleted:         false,
 			EventKindRemediationCompleted:  false,
+			EventKindReportReady:           false,
 		}
 		if len(AllEventKinds) != len(expected) {
 			t.Errorf("AllEventKinds = %d, want %d", len(AllEventKinds), len(expected))

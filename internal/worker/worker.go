@@ -47,6 +47,15 @@ type HostDiscoveryRunner interface {
 // (WithConcurrency) so a fleet of queued scans does not drain one host at a
 // time; the queue's SKIP LOCKED claim and the scan path's per-host advisory
 // lock keep concurrent draining safe (system-job-queue C-07).
+// ReportRenderer renders a report's faces for a claimed "report.render"
+// job and publishes the ready event. Implemented by
+// report.RenderProcessor; defined as an interface here so the worker
+// package does not import the report package (which would cycle through
+// the queue/eventbus packages they share).
+type ReportRenderer interface {
+	ProcessJob(ctx context.Context, j *queue.Job)
+}
+
 type Worker struct {
 	pool        *pgxpool.Pool
 	stop        chan struct{}
@@ -54,6 +63,7 @@ type Worker struct {
 	discovery   HostDiscoveryRunner
 	scanProc    *ScanWorker
 	remProc     *RemediationWorker
+	reportProc  ReportRenderer
 	concurrency int
 }
 
@@ -109,6 +119,16 @@ func (w *Worker) WithScanProcessor(sw *ScanWorker) *Worker {
 // remediation jobs rather than fail them as unsupported. Spec api-remediation.
 func (w *Worker) WithRemediationProcessor(rw *RemediationWorker) *Worker {
 	w.remProc = rw
+	return w
+}
+
+// WithReportProcessor registers a report RenderProcessor whose ProcessJob
+// handles "report.render" jobs claimed by THIS worker's loop. Like scan
+// and remediation jobs, queue.Dequeue is not type-filtered, so the
+// in-process worker must route report renders rather than fail them as
+// unsupported. Spec api-reports.
+func (w *Worker) WithReportProcessor(rp ReportRenderer) *Worker {
+	w.reportProc = rp
 	return w
 }
 
@@ -203,6 +223,12 @@ func (w *Worker) process(ctx context.Context, j *queue.Job) {
 			return
 		}
 		w.remProc.ProcessJob(ctx, j)
+	case "report.render":
+		if w.reportProc == nil {
+			_ = queue.Fail(ctx, w.pool, j.ID, "report processor not registered on this worker")
+			return
+		}
+		w.reportProc.ProcessJob(ctx, j)
 	default:
 		_ = queue.Fail(ctx, w.pool, j.ID, "unsupported job_type for Stage 0 worker: "+j.JobType)
 	}

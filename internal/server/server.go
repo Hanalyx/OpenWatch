@@ -209,6 +209,17 @@ func (s *Server) WithRemediationWorker(rw *worker.RemediationWorker) *Server {
 	return s
 }
 
+// WithReportWorker registers the report render processor on the in-process
+// job worker, so "report.render" jobs claimed by the serve process render
+// the report's faces and publish ReportReady instead of dead-ending. Spec
+// api-reports.
+func (s *Server) WithReportWorker(rp worker.ReportRenderer) *Server {
+	if s.wkr != nil {
+		s.wkr.WithReportProcessor(rp)
+	}
+	return s
+}
+
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from

@@ -57,6 +57,14 @@ const (
 	// remediation queue + host compliance surfaces without polling.
 	// Spec api-remediation.
 	EventKindRemediationCompleted EventKind = "remediation.completed"
+
+	// EventKindReportReady is emitted by the report render worker once a
+	// report's bulk faces (CSV / OSCAL SAR / PDF for an attestation) have
+	// been rendered and cached 'ready' in report_faces. It is the first
+	// producer of the in-app notification bell: a generator who kicked off
+	// a fleet attestation learns the bundle is downloadable without polling.
+	// Spec api-reports.
+	EventKindReportReady EventKind = "report.ready"
 )
 
 // AllEventKinds is the closed set, in registration order. Spec AC-07's
@@ -70,6 +78,7 @@ var AllEventKinds = []EventKind{
 	EventKindIntelligenceEvent,
 	EventKindScanCompleted,
 	EventKindRemediationCompleted,
+	EventKindReportReady,
 }
 
 // Event is the contract every bus event satisfies. Implementations are
@@ -254,6 +263,26 @@ func (r RemediationCompleted) Kind() EventKind { return EventKindRemediationComp
 
 // Timestamp satisfies Event.
 func (r RemediationCompleted) Timestamp() time.Time { return r.CompletedAt }
+
+// ReportReady is fired by the report render worker once a report's bulk
+// faces are rendered and cached. SnapshotID is the report; ReportKind is
+// the report kind (e.g. "attestation"); Faces lists the faces that were
+// rendered ready (e.g. ["csv","oscal_sar","pdf"]). GeneratedBy carries the
+// principal who generated the report so the notification can be routed to
+// the right operator.
+type ReportReady struct {
+	SnapshotID  uuid.UUID
+	ReportKind  string
+	Faces       []string
+	GeneratedBy string
+	OccurredAt  time.Time
+}
+
+// Kind satisfies Event.
+func (r ReportReady) Kind() EventKind { return EventKindReportReady }
+
+// Timestamp satisfies Event.
+func (r ReportReady) Timestamp() time.Time { return r.OccurredAt }
 
 // DefaultBufferSize is the per-subscriber channel buffer when
 // SubscribeOptions.BufferSize is zero. Spec C-04.

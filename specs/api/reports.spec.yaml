@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 2
 
@@ -329,6 +329,28 @@ spec:
         like the other faces.
       type: technical
       enforcement: error
+    - id: C-16
+      description: >-
+        v1.10.0 (Phase B3a) - Attestation bulk faces render ASYNCHRONOUSLY.
+        When async rendering is enabled (WithAsyncRender, set in production
+        where a worker drains the queue), Generate(kind=attestation) marks
+        the bulk faces (csv, oscal_sar, pdf) as report_faces rows with status
+        'pending' and enqueues a report.render job, then returns immediately
+        (the executive summary stays synchronous - it is a tiny rollup). A
+        RenderProcessor registered on the in-process worker claims the job,
+        renders each applicable face via Export (flipping its row 'pending'
+        -> 'ready'; a render error marks that face 'failed' and fails the job
+        for retry), completes the job, and publishes an eventbus.ReportReady
+        event (kind report.ready) carrying the snapshot id, report kind, the
+        rendered faces, and the generating principal - the first producer of
+        the in-app notification bell. Async rendering is an
+        optimization/notification path, NOT a correctness gate: Export
+        remains the lazy fallback, so a download that arrives before the job
+        runs still renders the face inline. Enqueue failures are logged and
+        do not fail Generate. The new event is registered in
+        eventbus.AllEventKinds (system-event-bus closed set).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -556,3 +578,14 @@ spec:
         re-served byte-identical from cache on a second export.
       priority: high
       references_constraints: [C-15]
+    - id: AC-22
+      description: >-
+        v1.10.0 - With async rendering enabled, Generate(kind=attestation)
+        leaves the three bulk faces (csv, oscal_sar, pdf) as report_faces
+        rows with status 'pending' and enqueues a report.render job. After a
+        RenderProcessor processes the dequeued job: every bulk face row is
+        'ready', the job is 'completed', and a single eventbus.ReportReady
+        event is published carrying the snapshot id, kind "attestation", the
+        three rendered faces, and the generating principal.
+      priority: high
+      references_constraints: [C-16]
