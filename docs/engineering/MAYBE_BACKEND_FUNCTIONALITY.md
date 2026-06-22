@@ -1,6 +1,10 @@
 # MAYBE — Backend Functionality (Phase 1+ Backlog)
 
-> **Source:** `app/docs/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
+> **Status (2026-06-22):** Historical rebuild-triage input, derived from the
+> Python/FastAPI inventory. Deferred-feature backlog for the Go rebuild, not
+> Python code. Current SSOT is `specs/` + the Go packages under `internal/`.
+> See [BACKEND_FUNCTIONALITY.md](BACKEND_FUNCTIONALITY.md).
+> **Source:** `docs/engineering/BACKEND_FUNCTIONALITY.md`, triaged 2026-04-27
 > **Rule:** Items here are deferred from Phase 1 unless usage evidence or a specific customer requirement promotes them. They will be considered for Phase 1+ backlog after MVP ships.
 > **Method:** Static analysis from inventory. Without telemetry, this list is best-guess; some items may move to MUST or NEVER once usage data arrives.
 

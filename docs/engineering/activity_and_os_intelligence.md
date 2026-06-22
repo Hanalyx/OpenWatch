@@ -46,7 +46,7 @@ A user navigates to `/activity` and sees, time-ordered and severity-colored, eve
 
 The mental model is the "Eye": complete visibility into what's happening across the infrastructure. Not just OpenWatch's own internal events, but real signals from each managed host — account changes, security events, system changes — synthesized into a coherent operator view.
 
-This is a meaningful product differentiator vs. SCAP-scanner-shaped products: most compliance tools only show you scan results. OpenWatch should show you what *changed* on the host between scans.
+This is a meaningful product differentiator vs. traditional point-in-time compliance scanners: most compliance tools only show you scan results. OpenWatch should show you what *changed* on the host between scans.
 
 ---
 

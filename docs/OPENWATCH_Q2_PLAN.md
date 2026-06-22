@@ -4,7 +4,7 @@
 **Window:** Months 4-6 (~12 weeks)
 **Parent:** [OPENWATCH_Q1_Q3_PLAN.md](OPENWATCH_Q1_Q3_PLAN.md)
 **Vision:** [OPENWATCH_VISION.md](OPENWATCH_VISION.md) Quarters 2-3
-**Predecessor:** [OPENWATCH_Q1_PLAN.md](OPENWATCH_Q1_PLAN.md) (completed 2026-04-13)
+**Predecessor:** OPENWATCH_Q1_PLAN.md (completed 2026-04-13; archived to OWAR docs-archive)
 
 ---
 

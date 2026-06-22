@@ -7,7 +7,7 @@
 
 OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by `systemd` (`openwatch.service`). It serves the REST API and the embedded UI over HTTPS on port `8443` and stores all data in PostgreSQL (there is no MongoDB, Redis, Celery, or container runtime). Audit events are written to the `audit_events` table; the service logs to the journal (`journalctl -u openwatch`). Adjust `psql` connection flags (`-h`, `-p`) for your deployment.
 
-This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see [docs/engineering/install_guide.md](../engineering/install_guide.md) and [docs/engineering/rbac_registry.md](../engineering/rbac_registry.md).
+This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see [docs/guides/INSTALLATION.md](../INSTALLATION.md) and [docs/engineering/rbac_registry.md](../../engineering/rbac_registry.md).
 
 ---
 
@@ -172,7 +172,7 @@ ORDER BY ur.granted_at DESC;
 "
 ```
 
-The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [docs/engineering/rbac_registry.md](../engineering/rbac_registry.md) for the full permission sets.
+The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [docs/engineering/rbac_registry.md](../../engineering/rbac_registry.md) for the full permission sets.
 
 ### Active sessions and refresh tokens
 
@@ -299,7 +299,7 @@ sudo sed -i 's#OPENWATCH_DATABASE_DSN=.*#OPENWATCH_DATABASE_DSN=postgres://openw
 sudo systemctl restart openwatch
 ```
 
-`secrets.env` should be owned `root:openwatch` and mode `0640`. See [docs/engineering/install_guide.md](../engineering/install_guide.md) for the canonical secret-handling procedure.
+`secrets.env` should be owned `root:openwatch` and mode `0640`. See [docs/guides/INSTALLATION.md](../INSTALLATION.md) for the canonical secret-handling procedure.
 
 ### Block attacker IP addresses
 
@@ -423,7 +423,7 @@ Escalate immediately for any of:
 - **Least privilege**: Grant the narrowest built-in role that fits each user; reserve `admin` for break-glass. Review role grants quarterly using the `user_roles` query above.
 - **Session limits**: Sessions enforce a 15-minute inactivity timeout and a 12-hour absolute cap by default; refresh-token rotation flags reuse automatically.
 - **Secret hygiene**: Keep `/etc/openwatch/secrets.env`, the JWT key, the credential DEK, and `/etc/openwatch/tls/key.pem` owned by `root`/`openwatch` with restrictive modes. Rotate the JWT and database credentials on a schedule.
-- **TLS**: Replace the packaged self-signed certificate with a trusted one; the server reads the cert on every handshake, so swapping files needs no restart. See [docs/engineering/install_guide.md](../engineering/install_guide.md).
+- **TLS**: Replace the packaged self-signed certificate with a trusted one; the server reads the cert on every handshake, so swapping files needs no restart. See [docs/guides/INSTALLATION.md](../INSTALLATION.md).
 - **Backups**: Maintain and test PostgreSQL backups out-of-band; restoration is the only recovery path for data tampering.
 
 ---

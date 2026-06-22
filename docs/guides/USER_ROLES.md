@@ -202,7 +202,7 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 The command connects to PostgreSQL using `OPENWATCH_DATABASE_DSN` from
 `/etc/openwatch/secrets.env` and exits non-zero if the user is created but the
 role assignment fails, so you can detect a partial state. See
-`docs/engineering/install_guide.md` for the full install sequence
+`docs/guides/INSTALLATION.md` for the full install sequence
 (`openwatch migrate`, `create-admin`, `systemctl enable --now openwatch`).
 
 ## Managing users and roles through the API
@@ -257,6 +257,6 @@ wildcards and newly added permissions, see `docs/engineering/rbac_registry.md`.
 ## Related documentation
 
 - `docs/engineering/rbac_registry.md` — RBAC design, codegen workflow, custom roles
-- `docs/engineering/install_guide.md` — install, `migrate`, `create-admin`, service start
+- `docs/guides/INSTALLATION.md` — install, `migrate`, `create-admin`, service start
 - `api/openapi.yaml` — API contract and `x-required-permission` per operation
 - `auth/permissions.yaml` — the editable permission and role registry

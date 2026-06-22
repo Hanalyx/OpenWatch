@@ -8,7 +8,7 @@ Kensa compliance engine built in. There is no separate web tier, no container
 runtime, no Redis, and no Celery.
 
 For first-time install and configuration, follow
-`docs/engineering/install_guide.md` — this guide assumes a working install and
+`docs/guides/INSTALLATION.md` — this guide assumes a working install and
 focuses only on capacity and tuning.
 
 ## What scales, and how
@@ -239,7 +239,7 @@ around features that are absent:
 
 | Topic | Document |
 |-------|----------|
-| Install and configuration | `docs/engineering/install_guide.md` |
+| Install and configuration | `docs/guides/INSTALLATION.md` |
 | Roles and permissions | `docs/engineering/rbac_registry.md` |
 | Kensa scanning boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
 | API contract | `api/openapi.yaml` (paths under `/api/v1`) |
