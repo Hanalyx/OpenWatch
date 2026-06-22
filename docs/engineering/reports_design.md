@@ -553,13 +553,18 @@ framework-lensed), so the PDF stays bounded. Cached in `report_faces` (face
 `pdf`) like the others. Spec: `api-reports` v1.9.0 (C-15 / AC-21; C-10
 updated: pdf kind-dispatched, not executive-only).
 
-**B3a — Async generation + report.ready.** *(REMAINING.)* Fleet attestation
-generation (the bulk query + SAR/CSV/PDF render) moves to the job queue: a
-`FleetReportJobType` + payload + a worker processor that flips
-`report_faces` status `pending → ready` and publishes
+**B3a — Async generation + report.ready.** *(SHIPPED 2026-06-21, PR #646.)*
+Generating an attestation marks its bulk faces (`csv`, `oscal_sar`, `pdf`)
+`pending` in `report_faces` and enqueues a `report.render` job
+(`internal/report/job.go`), returning immediately (the executive summary
+stays synchronous). A `RenderProcessor` registered on the in-process worker
+(`worker.WithReportProcessor`) claims the job, renders each face via
+`Export` (flipping `pending → ready`; a render error marks the face
+`failed` and fails the job for retry), and publishes
 `EventKindReportReady` on the event bus — **the in-app notification bell's
-first producer** (closes that coupling). Spec: `system-report-faces`
-(async + status), eventbus types.
+first producer**. Async is an optimization, not a correctness gate: `Export`
+stays the lazy fallback so a download before the job runs still renders
+inline. Spec: `api-reports` v1.10.0 (C-16 / AC-22) + the new eventbus kind.
 
 **B3c — Notification bell (frontend).** *(REMAINING; needs product input.)*
 Turn the stubbed TopBar bell into a real consumer of `report.ready` (and

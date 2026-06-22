@@ -55,6 +55,11 @@ type Service struct {
 	pool   *pgxpool.Pool
 	groups GroupScoper // nil until WithGroups; group scoping then 503s
 	signer *Signer     // nil until WithSigner; snapshots then go unsigned
+	// asyncRender, when true, makes Generate enqueue a report.render job for
+	// an attestation (pre-marking its bulk faces 'pending') instead of
+	// leaving every face to lazy first-download rendering. Set by
+	// WithAsyncRender in production wiring; off in tests that have no worker.
+	asyncRender bool
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -78,6 +83,17 @@ func (s *Service) WithSigner(signer *Signer) *Service {
 
 // Signer exposes the wired signer (for the signing-key endpoint), or nil.
 func (s *Service) Signer() *Signer { return s.signer }
+
+// WithAsyncRender enables async rendering of attestation bulk faces:
+// Generate then marks the faces 'pending' and enqueues a report.render job
+// (a RenderProcessor on the in-process worker renders them and publishes
+// ReportReady). Enable it only when a worker is running to drain the queue;
+// without it Generate stays synchronous and faces render lazily on first
+// download.
+func (s *Service) WithAsyncRender() *Service {
+	s.asyncRender = true
+	return s
+}
 
 const reportCols = `id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id, created_at`
 
@@ -194,6 +210,14 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	rep, err := scanReport(row)
 	if err != nil {
 		return Report{}, fmt.Errorf("report: generate insert: %w", err)
+	}
+
+	// Attestation faces (CSV / OSCAL SAR / PDF) are the expensive bulk
+	// renders; when async is enabled, queue them so Generate returns fast
+	// and the operator is notified (ReportReady) when the bundle is ready.
+	// The executive summary is a tiny rollup - it stays synchronous.
+	if s.asyncRender && kind == KindAttestation {
+		s.enqueueRender(ctx, rep.ID)
 	}
 	return rep, nil
 }

@@ -648,6 +648,16 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.String("key_id", reportSigner.KeyID()))
 	}
 
+	// Report service + async render processor. The service enqueues a
+	// report.render job for each generated attestation (WithAsyncRender);
+	// the processor, registered on the in-process worker, renders the bulk
+	// faces and publishes ReportReady on the bus.
+	reportSvc := report.NewService(pool).
+		WithGroups(group.NewService(pool)).
+		WithSigner(reportSigner).
+		WithAsyncRender()
+	reportRenderProc := report.NewRenderProcessor(reportSvc, bus)
+
 	srv := server.New(cfg, pool).
 		WithConnectivityConfig(cfgStore, liveSvc).
 		WithDiscovery(discoSvc).
@@ -669,7 +679,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithExceptions(exceptionSvc).
 		WithRemediation(remediationSvc).
 		WithGroups(group.NewService(pool)).
-		WithReports(report.NewService(pool).WithGroups(group.NewService(pool)).WithSigner(reportSigner)).
+		WithReports(reportSvc).
+		WithReportWorker(reportRenderProc).
 		WithScanResults(scanresult.NewReader(pool)).
 		WithNotifications(notifSvc)
 	runErr := srv.Run(ctx)
