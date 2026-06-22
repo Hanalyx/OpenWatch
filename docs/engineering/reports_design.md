@@ -477,3 +477,66 @@ new `system-report-snapshot`)*
 A1 → A2 → A3 → A4. A1 ships visible value immediately and is fully
 additive; A2 lays the architecture; A3 delivers the CISO's signed-looking
 document; A4 turns on cryptographic signing once the key is provisioned.
+
+---
+
+## 12. Phase B — resolved decisions & implementation plan
+
+Phase B builds the **Framework Attestation** kind: the scale-correct bulk
+path (fleet **OSCAL SAR** + **CSV** evidence extract, generated **async**)
+for auditors/GRC. Grounded in an infrastructure audit (2026-06-21): the
+per-scan OSCAL emitter, the content-addressed evidence store, the
+audit-CSV pattern (`csvSafe` + truncation header), the generic job queue,
+and the SSE event bus all exist; the gaps are a fleet framework catalog,
+a fleet SAR assembler, the async report job, and a "report.ready" event.
+
+### Resolved decisions (the §10 items Phase B touches)
+
+| # | Decision | Phase B resolution |
+| - | -------- | ------------------ |
+| 1 | OSCAL version | **Stay on 1.0.6.** The per-scan emitter delegates OSCAL marshaling to the Kensa library (`kensapkg.ExportOSCALScan`), which emits **1.0.6 assessment-results**; the version is Kensa-controlled. The fleet SAR must match the per-scan output, so align *down* to 1.0.6 rather than force a Kensa change to chase the prototype's aspirational 1.1.2. Revisit only if a GRC consumer requires 1.1.x (a coordinated Kensa + OpenWatch bump). |
+| 2 | Fleet OSCAL shape | **Single `assessment-results` document; evidence REFERENCED by content hash (not inlined); STREAMED to the blob store.** A fleet SAR that inlined 100+ hosts × ~500 rules × up-to-256 KiB evidence is the 1000-page problem in OSCAL form. Instead the SAR carries one observation + finding per `(host, rule)` with the evidence `sha256` as a back-matter resource reference; the bytes stay in `scan_evidence`. Streaming the SAR to the blob bounds memory without the complexity of per-host shards + an assembly index (deferred unless a single SAR proves unwieldy). |
+| 3 | Retention | **Keep indefinitely (unchanged).** A retention sweep (AU-11, relate to the host soft-delete sweep) is a later phase. |
+| 5 | Snapshot storage | **Bulk-kind content goes to a content-addressed blob, not inline JSONB.** The attestation snapshot is the ~50k-row per-`(host, rule)` result set, too large for the reports row. Reuse the `scan_evidence` content-addressing pattern (or `report_faces.content` bytea, already present) and compress. The executive kind stays inline (small). |
+
+(§10.4 signing-key custody was resolved in A4a: `[reports].signing_key_file`.)
+
+### Slices (each a reviewable PR: spec + migration/code + tests)
+
+**B0 — Fleet framework catalog.** `GET /api/v1/reports/frameworks`
+(host:read) returns the distinct `framework_refs` keys present across the
+in-scope fleet (`SELECT DISTINCT jsonb_object_keys(framework_refs) FROM
+host_rule_state` [scoped]). Small, and it ALSO closes the **A1 deferred
+gap**: the frontend framework-lens picker (deferred in A1 for lack of a
+catalog) can now populate. Spec: `api-reports`.
+
+**B1 — Attestation kind + CSV face.** A new `attestation` report kind
+whose snapshot is `{scope, framework, per-(host,rule) outcomes}`, queried
+via `host_rule_state` → `scan_runs` (`last_scan_id`) → `scan_results`. The
+CSV face (reusing `csvSafe` + the truncation-disclosure header) streams one
+row per `(host, rule)`: host, ip, group, os, rule_id, title, status,
+severity, framework_refs, evidence_sha256, scan_at, exception_id. The
+snapshot content is blob-stored (compressed). Spec: `api-reports`
+(kind=attestation), new `system-report-attestation`.
+
+**B2 — Fleet OSCAL SAR face.** Assemble a single OSCAL 1.0.6
+`assessment-results` from the attestation snapshot: reviewed-controls from
+the framework mapping, one observation + finding per `(host, rule)`,
+evidence referenced by `sha256` (back-matter), streamed to the `oscal_sar`
+face in `report_faces`. Spec: extend the attestation spec.
+
+**B3 — Async generation + report.ready.** Fleet attestation generation
+(the bulk query + SAR/CSV render) moves to the job queue: a
+`FleetReportJobType` + payload + a worker processor that flips
+`report_faces` status `pending → ready` and publishes
+`EventKindReportReady` on the event bus — **the in-app notification bell's
+first producer** (closes that coupling). The bounded **PDF attestation**
+face (cover + methodology + framework rollup + SAMPLED findings + a hash
+pointer to the SAR/CSV bundle) lands here. Spec: `system-report-faces`
+(async + status), eventbus types.
+
+### Recommended order
+B0 → B1 → B2 → B3. B0 is a quick win that unblocks both attestation
+scoping and the deferred A1 framework picker; B1/B2 build the bulk faces;
+B3 makes generation async and wires the "ready" signal (the notification
+bell's first producer).
