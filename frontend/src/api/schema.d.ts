@@ -1652,15 +1652,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download a rendered face of a report (PDF or JSON)
+         * Download a rendered face of a report (PDF, JSON, CSV, or OSCAL SAR)
          * @description Streams a rendered face of the report as a downloadable
-         *     attachment. format=pdf (default) renders the bounded one-page
-         *     executive PDF (a fixed posture block, the coverage caveat, and the
-         *     top-failing list - never the full per-host/per-rule evidence);
-         *     format=json returns the canonical frozen posture content. The PDF
-         *     is rendered on first request and cached in report_faces, so a
-         *     repeat download re-streams the stored bytes. RBAC: host:read. Spec
-         *     api-reports.
+         *     attachment. format=pdf (default) renders the bounded one-page PDF,
+         *     dispatched by kind: the executive summary (a fixed posture block,
+         *     the coverage caveat, and the top-failing list) or the framework
+         *     attestation cover (a methodology note, the aggregate coverage +
+         *     framework rollup, a sampled top-failing list, and a content-hash
+         *     pointer to the bulk faces) - never the full per-host/per-rule
+         *     evidence. format=json returns the canonical frozen posture content
+         *     (any kind). For an attestation report, format=csv returns the
+         *     per-(host, rule) evidence extract and format=oscal_sar returns a
+         *     single OSCAL 1.0.6 assessment-results document (one observation +
+         *     finding per (host, rule), evidence referenced by sha256 in
+         *     back-matter, not inlined). A face that does not apply to the
+         *     report's kind is a 400. Each face is rendered on first request and
+         *     cached in report_faces, so a repeat download re-streams the stored
+         *     bytes. RBAC: host:read. Spec api-reports.
          */
         get: operations["getReportExport"];
         put?: never;
@@ -3571,7 +3579,7 @@ export interface components {
              *     completed scan per in-scope host).
              * @enum {string}
              */
-            kind?: "executive" | "attestation";
+            kind?: "executive" | "attestation" | "exception";
             /**
              * Format: uuid
              * @description Scope the report to this group's member hosts.
@@ -3585,7 +3593,7 @@ export interface components {
             id: string;
             title: string;
             /** @enum {string} */
-            kind: "executive" | "attestation";
+            kind: "executive" | "attestation" | "exception";
             scope_label: string;
             scope: components["schemas"]["ReportScope"];
             /** Format: date-time */
@@ -7780,7 +7788,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description The face to render. Defaults to pdf. */
-                format?: "pdf" | "json" | "csv";
+                format?: "pdf" | "json" | "csv" | "oscal_sar";
             };
             header?: never;
             path: {

@@ -115,9 +115,64 @@ function asAttestationContent(content: Report['content']): AttestationContent {
   };
 }
 
+// The exception-register content shape (see api-reports spec): a summary by
+// state plus the register rows. The CSV face carries the full register; the
+// in-app body shows the summary + a sampled soonest-expiring list.
+interface ExceptionSummary {
+  total: number;
+  active: number;
+  requested: number;
+  approved: number;
+  rejected: number;
+  revoked: number;
+  expired: number;
+  expiring_soon: number;
+}
+
+interface ExceptionRow {
+  host_name: string;
+  rule_id: string;
+  status: string;
+  reason: string;
+  requested_by: string;
+  requested_at: string;
+  reviewed_by: string;
+  reviewed_at: string | null;
+  expires_at: string | null;
+  active: boolean;
+}
+
+interface ExceptionContent {
+  summary: ExceptionSummary;
+  exceptions: ExceptionRow[];
+}
+
+function asExceptionSummary(s: Partial<ExceptionSummary> | undefined): ExceptionSummary {
+  const n = (v: unknown): number => (typeof v === 'number' ? v : 0);
+  return {
+    total: n(s?.total),
+    active: n(s?.active),
+    requested: n(s?.requested),
+    approved: n(s?.approved),
+    rejected: n(s?.rejected),
+    revoked: n(s?.revoked),
+    expired: n(s?.expired),
+    expiring_soon: n(s?.expiring_soon),
+  };
+}
+
+function asExceptionContent(content: Report['content']): ExceptionContent {
+  const c = content as Partial<ExceptionContent>;
+  return {
+    summary: asExceptionSummary(c.summary as Partial<ExceptionSummary> | undefined),
+    exceptions: Array.isArray(c.exceptions) ? c.exceptions : [],
+  };
+}
+
 function kindLabel(kind: Report['kind']): string {
   if (kind === 'executive') return 'Executive';
   if (kind === 'attestation') return 'Attestation';
+  if (kind === 'exception') return 'Exception Register';
   return kind;
 }
 
@@ -137,7 +192,9 @@ export function ReportsPage() {
   const [tab, setTab] = useState<'library' | 'templates' | 'scheduled'>('library');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Kind + scope for the next Generate. '' = all hosts / all frameworks.
-  const [reportKind, setReportKind] = useState<'executive' | 'attestation'>('executive');
+  const [reportKind, setReportKind] = useState<'executive' | 'attestation' | 'exception'>(
+    'executive',
+  );
   const [scopeGroupId, setScopeGroupId] = useState<string>('');
   const [scopeFramework, setScopeFramework] = useState<string>('');
 
@@ -186,11 +243,12 @@ export function ReportsPage() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const body: {
-        kind?: 'executive' | 'attestation';
+        kind?: 'executive' | 'attestation' | 'exception';
         group_id?: string;
         framework?: string;
       } = {};
-      if (reportKind === 'attestation') body.kind = 'attestation';
+      // executive is the implicit default; send kind only for the others.
+      if (reportKind !== 'executive') body.kind = reportKind;
       if (scopeGroupId) body.group_id = scopeGroupId;
       if (scopeFramework) body.framework = scopeFramework;
       const { data, error, response } = await api.POST('/api/v1/reports:generate', { body });
@@ -233,9 +291,11 @@ export function ReportsPage() {
             <select
               aria-label="Report kind"
               value={reportKind}
-              onChange={(e) => setReportKind(e.target.value as 'executive' | 'attestation')}
+              onChange={(e) =>
+                setReportKind(e.target.value as 'executive' | 'attestation' | 'exception')
+              }
               disabled={generateMutation.isPending}
-              title="Executive summary (leadership) or Framework Attestation (auditor CSV evidence)"
+              title="Executive summary (leadership), Framework Attestation (auditor evidence), or Exception Register (compliance waivers)"
               style={{
                 height: 34,
                 padding: '0 10px',
@@ -250,6 +310,7 @@ export function ReportsPage() {
             >
               <option value="executive">Executive</option>
               <option value="attestation">Attestation</option>
+              <option value="exception">Exception Register</option>
             </select>
           )}
           {canGenerate && (
@@ -699,21 +760,26 @@ function ReportDetail({
   const resolved = report ?? detailQ.data ?? null;
 
   // The primary face follows the report kind: executive renders a one-page
-  // PDF, attestation renders the per-(host, rule) CSV evidence bundle. JSON
-  // is offered for both (it is the signed canonical face).
-  const isAttestation = resolved?.kind === 'attestation';
-  const primaryFace: 'pdf' | 'csv' = isAttestation ? 'csv' : 'pdf';
-  const primaryLabel = isAttestation ? 'Download CSV' : 'Download PDF';
-  const primaryTitle = isAttestation
-    ? 'Download the per-host, per-rule CSV evidence'
-    : 'Download the one-page executive PDF';
+  // PDF; attestation and exception lead with their CSV (the per-(host, rule)
+  // evidence bundle / the full waiver register). JSON is offered for every
+  // kind (it is the signed canonical face).
+  const kind = resolved?.kind;
+  const csvLed = kind === 'attestation' || kind === 'exception';
+  const primaryFace: 'pdf' | 'csv' = csvLed ? 'csv' : 'pdf';
+  const primaryLabel = csvLed ? 'Download CSV' : 'Download PDF';
+  const primaryTitle =
+    kind === 'attestation'
+      ? 'Download the per-host, per-rule CSV evidence'
+      : kind === 'exception'
+        ? 'Download the full exception register (CSV)'
+        : 'Download the one-page executive PDF';
 
   // Secondary faces offered beside the primary + JSON. An attestation also
-  // exposes its bounded PDF cover and the fleet OSCAL SAR (the
-  // machine-readable assessment-results); an executive report has no extra
-  // faces (PDF is its primary, JSON is shown for both below).
+  // exposes its bounded PDF cover and the fleet OSCAL SAR; an exception
+  // exposes its bounded PDF summary; an executive has no extra faces (PDF is
+  // its primary, JSON is shown for every kind below).
   const secondaryFaces: { face: 'pdf' | 'oscal_sar'; label: string; title: string }[] =
-    isAttestation
+    kind === 'attestation'
       ? [
           { face: 'pdf', label: 'PDF', title: 'Download the one-page attestation cover PDF' },
           {
@@ -722,7 +788,9 @@ function ReportDetail({
             title: 'Download the OSCAL assessment-results (evidence referenced by hash)',
           },
         ]
-      : [];
+      : kind === 'exception'
+        ? [{ face: 'pdf', label: 'PDF', title: 'Download the one-page exception summary PDF' }]
+        : [];
 
   return (
     <div
@@ -949,6 +1017,8 @@ function ReportDetail({
           {resolved &&
             (resolved.kind === 'attestation' ? (
               <AttestationBody content={asAttestationContent(resolved.content)} />
+            ) : resolved.kind === 'exception' ? (
+              <ExceptionBody content={asExceptionContent(resolved.content)} />
             ) : (
               <ExecutiveBody content={asExecutiveContent(resolved.content)} />
             ))}
@@ -1212,6 +1282,101 @@ function AttestationBody({ content }: { content: AttestationContent }) {
       >
         Figures are frozen from the latest completed scan per host, not live. The full per-host,
         per-rule breakdown and evidence are in the downloadable PDF, CSV, and OSCAL faces above.
+      </div>
+    </div>
+  );
+}
+
+function ExceptionBody({ content }: { content: ExceptionContent }) {
+  const s = content.summary;
+  const expiring = content.exceptions
+    .filter((e) => e.active && e.expires_at)
+    .sort((a, b) => (a.expires_at ?? '').localeCompare(b.expires_at ?? ''))
+    .slice(0, 10);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <section>
+        <SectionHead>Exception waivers</SectionHead>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <Stat label="Total waivers" value={`${s.total}`} />
+          <Stat label="Active" value={`${s.active}`} tone="var(--ow-ok)" />
+          <Stat label="Pending review" value={`${s.requested}`} tone="var(--ow-warn)" />
+          <Stat
+            label="Expiring within 30 days"
+            value={`${s.expiring_soon}`}
+            tone={s.expiring_soon > 0 ? 'var(--ow-warn)' : undefined}
+          />
+          <Stat
+            label="Rejected / revoked / expired"
+            value={`${s.rejected} / ${s.revoked} / ${s.expired}`}
+          />
+        </div>
+      </section>
+
+      <section>
+        <SectionHead>Soonest-expiring active waivers</SectionHead>
+        {expiring.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--ow-fg-3)', padding: '8px 0' }}>
+            No active waivers with an expiry date.
+          </div>
+        ) : (
+          <Panel>
+            <Row head cols="1fr 1fr 120px">
+              <span>Host</span>
+              <span>Rule</span>
+              <span>Expires</span>
+            </Row>
+            {expiring.map((e, i) => (
+              <Row key={`${e.host_name}:${e.rule_id}`} cols="1fr 1fr 120px" first={i === 0}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--ow-fg-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {e.host_name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontFamily: 'var(--ow-font-mono, monospace)',
+                    color: 'var(--ow-fg-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {e.rule_id}
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
+                  {e.expires_at ? formatDate(e.expires_at) : ''}
+                </span>
+              </Row>
+            ))}
+          </Panel>
+        )}
+      </section>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--ow-fg-3)',
+          lineHeight: 1.5,
+          paddingTop: 4,
+          borderTop: '1px solid var(--ow-line)',
+        }}
+      >
+        Point-in-time snapshot of compliance waivers. The full register (every waiver with its
+        justification, approver, and dates) is in the downloadable CSV face above.
       </div>
     </div>
   );

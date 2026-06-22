@@ -5390,7 +5390,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [executive, attestation]
+          enum: [executive, attestation, exception]
           description: |
             The report kind; defaults to executive. attestation produces
             the Framework Attestation (CSV/OSCAL bulk faces over the latest
@@ -5411,7 +5411,7 @@ components:
         title: {type: string}
         kind:
           type: string
-          enum: [executive, attestation]
+          enum: [executive, attestation, exception]
         scope_label: {type: string}
         scope: {$ref: '#/components/schemas/ReportScope'}
         data_as_of: {type: string, format: date-time}
