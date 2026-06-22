@@ -2609,12 +2609,15 @@ paths:
       summary: Download a rendered face of a report (PDF, JSON, CSV, or OSCAL SAR)
       description: |
         Streams a rendered face of the report as a downloadable
-        attachment. format=pdf (default, executive only) renders the
-        bounded one-page executive PDF (a fixed posture block, the coverage
-        caveat, and the top-failing list - never the full per-host/per-rule
-        evidence); format=json returns the canonical frozen posture
-        content (any kind). For an attestation report, format=csv returns
-        the per-(host, rule) evidence extract and format=oscal_sar returns a
+        attachment. format=pdf (default) renders the bounded one-page PDF,
+        dispatched by kind: the executive summary (a fixed posture block,
+        the coverage caveat, and the top-failing list) or the framework
+        attestation cover (a methodology note, the aggregate coverage +
+        framework rollup, a sampled top-failing list, and a content-hash
+        pointer to the bulk faces) - never the full per-host/per-rule
+        evidence. format=json returns the canonical frozen posture content
+        (any kind). For an attestation report, format=csv returns the
+        per-(host, rule) evidence extract and format=oscal_sar returns a
         single OSCAL 1.0.6 assessment-results document (one observation +
         finding per (host, rule), evidence referenced by sha256 in
         back-matter, not inlined). A face that does not apply to the

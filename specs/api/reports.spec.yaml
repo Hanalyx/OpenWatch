@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 2
 
@@ -219,10 +219,13 @@ spec:
         export re-streams the cached bytes rather than re-rendering. RBAC:
         host:read. An unknown id is 404 reports.not_found; an unknown
         format is 400 reports.invalid_format (report.ErrInvalidFace).
-        v1.7.0: faces are KIND-scoped - pdf is executive-only and csv (the
-        attestation evidence extract, C-13) is attestation-only; requesting
-        a face that does not apply to the report's kind is ErrInvalidFace
-        (400). The json face applies to any kind (canonical content).
+        v1.7.0: faces are KIND-scoped - csv (the attestation evidence
+        extract, C-13) is attestation-only; requesting a face that does not
+        apply to the report's kind is ErrInvalidFace (400). The json face
+        applies to any kind (canonical content). v1.9.0: the pdf face is
+        KIND-DISPATCHED, not executive-only - it renders the executive
+        summary PDF (C-10) for an executive report and the bounded
+        attestation cover PDF (C-15) for an attestation report.
       type: technical
       enforcement: error
     - id: C-11
@@ -302,6 +305,28 @@ spec:
         is bounded by the same row cap as the CSV (a metadata prop discloses
         truncation). The OSCAL version stays 1.0.6 to match the per-scan
         emitter (Kensa-controlled).
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: >-
+        v1.9.0 (Phase B3b) - The attestation kind also renders a BOUNDED PDF
+        cover face (format=pdf is kind-dispatched per C-10; for an
+        attestation it renders the attestation cover, for an executive the
+        executive summary). Like the executive PDF it is O(1) pages
+        regardless of fleet size: a methodology note, the aggregate
+        attestation coverage (hosts attested of in-scope) + framework rollup
+        (compliance %, checks evaluated, pass/fail/skipped/error counts), a
+        SAMPLED top-failing list (the rules failing on the most hosts,
+        capped), and a footer carrying the snapshot content hash + signing
+        status as the pointer to the bulk faces - never the per-(host, rule)
+        rows. The rollup is computed by aggregate queries over the frozen
+        scans (counts by status; top failing by distinct failing host),
+        applying the snapshot's framework lens; compliance is passing /
+        (passing + failing) rounded half up, null when nothing was
+        evaluated. A host with no completed scan is disclosed as not
+        attested. The PDF is rendered via the pure-Go go-pdf/fpdf core fonts
+        (airgap-safe) and cached in report_faces (face pdf, status 'ready')
+        like the other faces.
       type: technical
       enforcement: error
 
@@ -496,8 +521,9 @@ spec:
         hosts_attested 1, and the frozen scan id. Its csv face is text/csv
         with the header + an r1 and r2 row, cached as a report_faces 'ready'
         row; a framework=stig-scoped attestation's csv contains r2 but not
-        r1. pdf is ErrInvalidFace on an attestation and csv is
-        ErrInvalidFace on an executive; an unknown kind is ErrInvalidKind.
+        r1. csv is ErrInvalidFace on an executive (pdf is kind-dispatched
+        and valid for both kinds, see AC-21); an unknown kind is
+        ErrInvalidKind.
       priority: critical
       references_constraints: [C-13]
     - id: AC-20
@@ -519,3 +545,14 @@ spec:
         ErrInvalidFace on an executive report.
       priority: high
       references_constraints: [C-14]
+    - id: AC-21
+      description: >-
+        v1.9.0 - computeAttestationRollup over two hosts (h1 r1 pass/r2 fail,
+        h2 r1 fail/r2 fail) returns total 4, pass 1, fail 3, compliance 25,
+        and a top-failing list led by r2 (2 failing hosts) then r1 (1); a
+        framework=stig lens narrows it to total 2 / fail 2. Export(pdf) on
+        the attestation returns application/pdf bytes starting with the
+        %PDF magic, cached as a report_faces 'ready' row (face pdf) and
+        re-served byte-identical from cache on a second export.
+      priority: high
+      references_constraints: [C-15]
