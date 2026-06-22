@@ -1,5 +1,10 @@
 # OpenWatch Backend Functionality Inventory
 
+> **Status (2026-06-22):** Historical rebuild input. A point-in-time catalog of
+> the **Python/FastAPI** backend as it stood on 2026-04-27, used to triage the
+> Go rebuild. The Python tree was archived out of the repo on 2026-06-05; this
+> does **not** describe current Go code. Current behavioral SSOT is `specs/`
+> (+ `specter.yaml`) and the Go packages under `internal/`.
 > **Generated:** 2026-04-27
 > **Source:** `backend/app/` — Python/FastAPI implementation
 > **Purpose:** Stage 1 input for the Go rebuild — complete catalog of features that exist today, so we can triage MUST / MAYBE / NEVER for the rebuild.

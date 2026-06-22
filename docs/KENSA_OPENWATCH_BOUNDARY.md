@@ -238,6 +238,6 @@ Each side cites this document in its own internal docs (Kensa's `KENSA_API_DOC.m
 ## 9. Reference
 
 - April 14 memo (still authoritative outside §3.4): [`KENSA_OPENWATCH_COORDINATION_2026-04-14.md`](./KENSA_OPENWATCH_COORDINATION_2026-04-14.md)
-- OpenWatch quarterly plans: [`OPENWATCH_Q1_PLAN.md`](./OPENWATCH_Q1_PLAN.md), [`OPENWATCH_Q2_PLAN.md`](./OPENWATCH_Q2_PLAN.md), [`OPENWATCH_Q1_Q3_PLAN.md`](./OPENWATCH_Q1_Q3_PLAN.md)
+- OpenWatch quarterly plans: [`OPENWATCH_Q2_PLAN.md`](./OPENWATCH_Q2_PLAN.md), [`OPENWATCH_Q1_Q3_PLAN.md`](./OPENWATCH_Q1_Q3_PLAN.md)
 - OpenWatch vision: [`OPENWATCH_VISION.md`](./OPENWATCH_VISION.md)
 - Stage 2 Slice A plan (shipped): [`engineering/stage_2_slice_a.md`](./engineering/stage_2_slice_a.md)

@@ -43,7 +43,8 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Scaling Guide](guides/SCALING_GUIDE.md) | Horizontal scaling and performance tuning |
 | [Backup & Recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore, and disaster recovery |
 | [Secret Rotation](guides/SECRET_ROTATION.md) | Rotating database, session, and encryption keys |
-| [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch with rollback procedures |
+| [Upgrade Procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch (automatic one-command + controlled manual path), with rollback |
+| [Supported Linux Distributions](guides/LINUX_DISTRIBUTION_SUPPORT.md) | Tested RPM/DEB target distributions and versions |
 | [Releasing](runbooks/RELEASING.md) | Gated pre-release process: docs freeze → RC → verification gate → GA, plus signing-key setup |
 | [Compliance Controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC, FedRAMP control mapping |
 
@@ -51,11 +52,11 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 | Runbook | Trigger |
 |---------|---------|
-| [Service Down](runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
-| [Database Issues](runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
-| [High CPU](runbooks/HIGH_CPU.md) | CPU utilization above threshold |
-| [Disk Full](runbooks/DISK_FULL.md) | Disk space critically low |
-| [Security Incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
+| [Service Down](guides/runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
+| [Database Issues](guides/runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
+| [High CPU](guides/runbooks/HIGH_CPU.md) | CPU utilization above threshold |
+| [Disk Full](guides/runbooks/DISK_FULL.md) | Disk space critically low |
+| [Security Incident](guides/runbooks/SECURITY_INCIDENT.md) | Unauthorized access, data breach |
 
 ## Architecture
 
@@ -64,9 +65,9 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 | [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
 
 For installing OpenWatch from the native RPM/DEB, see
-[guides/INSTALLATION.md](guides/INSTALLATION.md). (The earlier owadm-based
-"Native RPM Installation Plan" was superseded by the single-`openwatch`-binary
-model and archived.)
+[guides/INSTALLATION.md](guides/INSTALLATION.md). (The legacy Python/Docker-Compose
+install guide and the earlier owadm-based "Native RPM Installation Plan" were
+superseded by the single-`openwatch`-binary model and archived out of the repo.)
 
 > **Design documents** — the Python-era `openwatchos/` planning sketches and other
 > dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.

@@ -9,7 +9,7 @@ HTTPS on port `8443`, backed by PostgreSQL and managed by systemd. There is no
 container runtime, no separate web tier, and no message broker.
 
 For installation, configuration layering, and first-run setup, see
-`docs/engineering/install_guide.md`. This guide does not repeat those steps; it
+`docs/guides/INSTALLATION.md`. This guide does not repeat those steps; it
 focuses on observing the service and running it day to day.
 
 ## Contents
@@ -111,7 +111,7 @@ sudo journalctl -u openwatch -o cat | jq 'select(.correlation_id == "<id>")'
 Set `level = "debug"` in `[logging]` (or pass `--log-level debug`, or set
 `OPENWATCH_LOGGING_LEVEL=debug`) to raise verbosity, then restart the service.
 Log level precedence follows the standard config layering documented in
-`docs/engineering/install_guide.md`.
+`docs/guides/INSTALLATION.md`.
 
 ## 4. Audit events
 

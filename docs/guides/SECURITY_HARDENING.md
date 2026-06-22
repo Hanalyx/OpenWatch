@@ -10,7 +10,7 @@ managed by `systemd`. It documents what the current build enforces, what you
 configure at the host level, and what is not yet implemented.
 
 For installation, database provisioning, the admin bootstrap, and TLS-cert
-replacement, follow [`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+replacement, follow [`docs/guides/INSTALLATION.md`](INSTALLATION.md).
 This guide does not repeat those steps; it focuses on hardening the result.
 
 Verify any claim here against the source before you rely on it. The grounding
@@ -35,8 +35,8 @@ Source: `cmd/openwatch/main.go`, `packaging/common/openwatch.service`,
 `internal/server/server.go`.
 
 The compliance engine is Kensa, which connects to managed hosts over SSH and
-runs native YAML checks. OpenSCAP, `oscap`, XCCDF, and OVAL are not used and
-never have been in this build. See
+runs native YAML checks.
+See
 [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---
@@ -60,7 +60,7 @@ Hardening steps you perform at the host level:
   so the process cannot open raw or exotic sockets even if compromised.
 
 Source: `packaging/common/openwatch.service`,
-`docs/engineering/install_guide.md` (Step 2).
+`docs/guides/INSTALLATION.md` (Step 2).
 
 ### Outbound SSH to managed hosts
 
@@ -103,7 +103,7 @@ install guide. Set the key file to mode `0600`, owned `openwatch:openwatch`.
 > requirement; it is not configurable today.
 
 Source: `internal/server/server.go`, `internal/server/tls.go`,
-`docs/engineering/install_guide.md`.
+`docs/guides/INSTALLATION.md`.
 
 ---
 
@@ -165,7 +165,7 @@ Hardening steps:
   redacted, so it is safe to capture in tickets.
 
 Source: `packaging/common/openwatch.service`, `internal/config/config.go`
-(`RedactDSN`, `Summary`), `docs/engineering/install_guide.md` (Step 4).
+(`RedactDSN`, `Summary`), `docs/guides/INSTALLATION.md` (Step 4).
 
 ---
 
@@ -358,7 +358,7 @@ Hardening steps:
 
 - Require TLS to PostgreSQL when it is not on the loopback interface: use
   `sslmode=require` (or `verify-full` with a CA) in `OPENWATCH_DATABASE_DSN`.
-  Source: `docs/engineering/install_guide.md` (Step 4).
+  Source: `docs/guides/INSTALLATION.md` (Step 4).
 - Back up with the standard PostgreSQL tooling on a schedule that meets your
   retention requirement, and store backups encrypted off-host:
 
@@ -399,7 +399,7 @@ curl -k https://localhost:8443/api/v1/health
 4. Restart once the cause is fixed: `sudo systemctl restart openwatch`. The unit
    uses `Restart=on-failure` with a 5 s delay, so transient crashes self-heal.
 
-Source: `docs/engineering/install_guide.md` (Troubleshooting),
+Source: `docs/guides/INSTALLATION.md` (Troubleshooting),
 `internal/server/server.go`, `packaging/common/openwatch.service`.
 
 ### DISK_FULL — the host is out of disk
@@ -535,7 +535,7 @@ Source for every checklist item is cited in the section above that introduces it
 ## Related documentation
 
 - Install, configure, TLS replacement, uninstall:
-  [`docs/engineering/install_guide.md`](../engineering/install_guide.md)
+  [`docs/guides/INSTALLATION.md`](INSTALLATION.md)
 - RBAC registry and permission model:
   [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md)
 - Audit event taxonomy:

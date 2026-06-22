@@ -14,7 +14,7 @@ manifests as PostgreSQL write failures and a failing health probe rather than
 container or volume errors.
 
 For install and configuration layout, see
-[`docs/engineering/install_guide.md`](../engineering/install_guide.md).
+[`docs/guides/INSTALLATION.md`](../INSTALLATION.md).
 
 ---
 

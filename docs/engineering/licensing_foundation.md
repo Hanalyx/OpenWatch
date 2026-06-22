@@ -170,10 +170,10 @@ features:
 
 # Deprecated features kept for backwards compatibility:
 deprecated_features:
-  - id: legacy_scap_reports
+  - id: legacy_csv_export
     deprecated_in: "1.0.0"
     removed_in: "2.0.0"
-    description: SCAP-era report generation (replaced by Kensa native reports)
+    description: Legacy flat CSV report export (replaced by signed report faces)
 ```
 
 **Rules:**
