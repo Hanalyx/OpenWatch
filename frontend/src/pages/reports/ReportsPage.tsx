@@ -8,19 +8,18 @@ import type { components } from '@/api/schema';
 
 // ReportsPage — the compliance-artifact library at /reports.
 //
-// MVP scope (matches docs/engineering/prototypes/openwatch-v1/Reports.html
-// but built honestly): ONE template, the Fleet Compliance Executive
-// Summary. "Generate report" computes a point-in-time posture snapshot
-// from data that already exists (host_rule_state pass/fail + critical,
-// the fleet rollup, recent drift) and stores it as a report row with
-// JSON content. The Library tab lists those rows; clicking one opens a
-// simple detail panel rendering the stored content JSON.
+// Two report kinds, generatable from the Library's kind selector: the
+// Fleet Compliance Executive Summary (leadership) and the Framework
+// Attestation (auditor/GRC). "Generate report" computes a point-in-time,
+// immutable snapshot from data that already exists and stores it as a
+// report row; the Library lists those rows and the detail panel renders a
+// kind-aware body (ExecutiveBody / AttestationBody) over the frozen content.
 //
-// Live: scope picker, coverage caveat, PDF/JSON download, Ed25519 signing
-// with a "Signed" badge + offline Verify (re-hash the canonical JSON face,
-// Ed25519-verify the signature against the published key). Still deferred
-// (honest "coming soon" states, NOT faked): OSCAL export, the Templates
-// gallery, the Scheduled dispatcher.
+// Live: kind selector, scope + framework pickers, coverage caveat, Ed25519
+// signing with a "Signed" badge + offline Verify, and downloadable faces
+// (PDF cover, CSV evidence, OSCAL SAR, canonical JSON). Still deferred
+// (honest "coming soon" states, NOT faked): the Templates gallery and the
+// Scheduled dispatcher.
 
 type Report = components['schemas']['Report'];
 
@@ -1091,8 +1090,7 @@ function ExecutiveBody({ content }: { content: ExecutiveContent }) {
           borderTop: '1px solid var(--ow-line)',
         }}
       >
-        Figures reflect the last successful scan per host, not current state. Signing, PDF, and
-        OSCAL export are not part of this MVP.
+        Figures reflect the last successful scan per host, not current state.
       </div>
     </div>
   );
@@ -1237,8 +1235,8 @@ function ComingSoon({ what }: { what: string }) {
           }}
         >
           {what === 'Templates'
-            ? 'A gallery of report templates (attestation, remediation, exceptions) requires signing and PDF/OSCAL rendering, which are not built yet. Today the Library generates a Fleet Compliance Executive Summary.'
-            : 'Scheduled report delivery requires a dispatcher and signing, which are not built yet. For now, generate reports on demand from the Library tab.'}
+            ? 'The report kinds (Fleet Compliance Executive Summary and Framework Attestation) are live in the Library tab, each with signed PDF, CSV, OSCAL, and JSON faces. A gallery for building and saving custom report templates is not built yet.'
+            : 'Scheduled report delivery requires a dispatcher, which is not built yet. For now, generate reports on demand from the Library tab.'}
         </div>
       </div>
     </Panel>
