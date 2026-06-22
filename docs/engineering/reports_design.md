@@ -540,18 +540,36 @@ v1.8.0 (C-14 / AC-20). True streaming to a separate blob store is deferred
 (the in-memory + row-cap + `report_faces.content` pattern matches the CSV
 face).
 
-**B3 — Async generation + report.ready.** Fleet attestation generation
-(the bulk query + SAR/CSV render) moves to the job queue: a
+**B3b — Bounded attestation PDF face.** *(SHIPPED 2026-06-21, PR #644.)*
+The `pdf` face is now KIND-DISPATCHED (`internal/report/export.go`): an
+executive report renders the executive summary PDF, an attestation report
+renders a bounded one-page cover (`renderAttestationPDF` in `pdf.go`) —
+methodology note, aggregate attestation coverage + framework rollup
+(compliance %, checks evaluated, pass/fail/skipped/error), a SAMPLED
+top-failing list, and a footer carrying the snapshot content hash + signing
+status as the pointer to the bulk faces. The rollup is O(1) in fleet size
+(aggregate `count(*) FILTER` over the frozen scans + a top-N grouped query,
+framework-lensed), so the PDF stays bounded. Cached in `report_faces` (face
+`pdf`) like the others. Spec: `api-reports` v1.9.0 (C-15 / AC-21; C-10
+updated: pdf kind-dispatched, not executive-only).
+
+**B3a — Async generation + report.ready.** *(REMAINING.)* Fleet attestation
+generation (the bulk query + SAR/CSV/PDF render) moves to the job queue: a
 `FleetReportJobType` + payload + a worker processor that flips
 `report_faces` status `pending → ready` and publishes
 `EventKindReportReady` on the event bus — **the in-app notification bell's
-first producer** (closes that coupling). The bounded **PDF attestation**
-face (cover + methodology + framework rollup + SAMPLED findings + a hash
-pointer to the SAR/CSV bundle) lands here. Spec: `system-report-faces`
+first producer** (closes that coupling). Spec: `system-report-faces`
 (async + status), eventbus types.
 
+**B3c — Notification bell (frontend).** *(REMAINING; needs product input.)*
+Turn the stubbed TopBar bell into a real consumer of `report.ready` (and
+later other events) over SSE — unread state, what the feed shows, whether
+notifications persist. This is the product-design surface of B3 and is
+held for a direction decision rather than guessed.
+
 ### Recommended order
-B0 → B1 → B2 → B3. B0 is a quick win that unblocks both attestation
-scoping and the deferred A1 framework picker; B1/B2 build the bulk faces;
-B3 makes generation async and wires the "ready" signal (the notification
-bell's first producer).
+B0 → B1 → B2 → B3b → B3a → B3c. B0 unblocks attestation scoping + the
+deferred A1 framework picker; B1/B2/B3b build the three bulk/cover faces
+(CSV, OSCAL SAR, PDF); B3a makes generation async and emits the "ready"
+signal; B3c surfaces it in the notification bell (the product-sensitive
+slice, sequenced last).

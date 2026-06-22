@@ -778,6 +778,96 @@ func TestExport_FleetOSCALSAR(t *testing.T) {
 	})
 }
 
+// @ac AC-21
+// The attestation kind also renders a bounded PDF cover face (face 'pdf',
+// kind-dispatched): a one-page A4 document driven by an aggregate rollup
+// (pass/fail/total counts + a sampled top-failing list) computed from the
+// frozen scans, never the per-(host, rule) rows. The rollup honours the
+// framework lens; the PDF is cached and re-served from report_faces.
+func TestExport_AttestationPDF(t *testing.T) {
+	t.Run("api-reports/AC-21", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		signer, _ := NewSigner("")
+		svc := NewService(pool).WithSigner(signer)
+		owner := seedUser(t, pool)
+		h1 := seedHost(t, pool, owner, false)
+		h2 := seedHost(t, pool, owner, false)
+		s1 := seedScanRun(t, pool, h1)
+		s2 := seedScanRun(t, pool, h2)
+		// h1: r1 pass, r2 fail. h2: r1 fail, r2 fail. So r2 fails on 2
+		// hosts, r1 on 1; pass=1, fail=3 of 4 checks (compliance 25%).
+		seedScanResult(t, pool, s1, h1, "r1", "pass", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedScanResult(t, pool, s1, h1, "r2", "fail", `{"cis_rhel9_v2.0.0": ["1.2"], "stig_rhel9_v2r7": ["V-1"]}`)
+		seedScanResult(t, pool, s2, h2, "r1", "fail", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
+		seedScanResult(t, pool, s2, h2, "r2", "fail", `{"cis_rhel9_v2.0.0": ["1.2"], "stig_rhel9_v2r7": ["V-1"]}`)
+
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Kind: KindAttestation})
+		if err != nil {
+			t.Fatalf("Generate attestation: %v", err)
+		}
+		var c AttestationContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			t.Fatalf("decode attestation content: %v", err)
+		}
+		if c.HostsTotal != 2 || c.HostsAttested != 2 {
+			t.Fatalf("hosts total/attested = %d/%d, want 2/2", c.HostsTotal, c.HostsAttested)
+		}
+
+		// The rollup aggregates the frozen scans (no per-row materialization).
+		r, err := svc.computeAttestationRollup(ctx, c)
+		if err != nil {
+			t.Fatalf("computeAttestationRollup: %v", err)
+		}
+		if r.TotalChecks != 4 || r.Pass != 1 || r.Fail != 3 {
+			t.Errorf("rollup counts = total %d / pass %d / fail %d, want 4/1/3", r.TotalChecks, r.Pass, r.Fail)
+		}
+		if r.CompliancePct == nil || *r.CompliancePct != 25 {
+			t.Errorf("compliance = %v, want 25", r.CompliancePct)
+		}
+		if len(r.TopFailing) != 2 || r.TopFailing[0].RuleID != "r2" || r.TopFailing[0].FailingHostCount != 2 {
+			t.Errorf("top failing = %+v, want r2 (2 hosts) first", r.TopFailing)
+		}
+
+		// PDF face: real %PDF bytes, cached 'ready', re-served from cache.
+		pdfBytes, media, err := svc.Export(ctx, rep.ID, FacePDF)
+		if err != nil {
+			t.Fatalf("Export attestation pdf: %v", err)
+		}
+		if media != "application/pdf" {
+			t.Errorf("pdf media = %q", media)
+		}
+		if !strings.HasPrefix(string(pdfBytes), "%PDF") {
+			t.Errorf("pdf does not start with %%PDF magic")
+		}
+		var status string
+		if err := pool.QueryRow(ctx,
+			`SELECT status FROM report_faces WHERE snapshot_id = $1 AND face = 'pdf'`, rep.ID).Scan(&status); err != nil {
+			t.Fatalf("pdf face row: %v", err)
+		}
+		if status != "ready" {
+			t.Errorf("pdf face status = %q, want ready", status)
+		}
+		pdf2, _, err := svc.Export(ctx, rep.ID, FacePDF)
+		if err != nil {
+			t.Fatalf("re-export pdf: %v", err)
+		}
+		if string(pdf2) != string(pdfBytes) {
+			t.Errorf("re-export not served from cache (bytes differ)")
+		}
+
+		// The framework lens narrows the rollup: stig tags only r2 rows
+		// (one per host), all failing.
+		stig, err := svc.computeAttestationRollup(ctx, AttestationContent{Framework: "stig_rhel9_v2r7", Attested: c.Attested})
+		if err != nil {
+			t.Fatalf("computeAttestationRollup stig: %v", err)
+		}
+		if stig.TotalChecks != 2 || stig.Fail != 2 || stig.Pass != 0 {
+			t.Errorf("stig rollup = total %d / pass %d / fail %d, want 2/0/2", stig.TotalChecks, stig.Pass, stig.Fail)
+		}
+	})
+}
+
 // @ac AC-19
 // The attestation kind freezes the latest completed scan per in-scope host
 // and renders a CSV face of per-(host,rule) outcomes from those immutable
@@ -853,10 +943,8 @@ func TestGenerate_Attestation(t *testing.T) {
 			t.Errorf("stig-scoped csv = %q, want r2 only", string(csv2))
 		}
 
-		// pdf is invalid for attestation; csv is invalid for executive.
-		if _, _, err := svc.Export(ctx, rep.ID, FacePDF); !errors.Is(err, ErrInvalidFace) {
-			t.Errorf("Export pdf on attestation err = %v, want ErrInvalidFace", err)
-		}
+		// csv is invalid for executive (pdf is kind-dispatched and valid
+		// for both kinds - see TestExport_AttestationPDF/AC-21).
 		repExec, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{})
 		if err != nil {
 			t.Fatalf("Generate executive: %v", err)
