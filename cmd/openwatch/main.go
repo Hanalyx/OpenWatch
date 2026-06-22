@@ -373,7 +373,10 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// adds the per-host auth-method learning (system-connection-profile).
 	privProbe := sshprivilege.Probe(credSvc,
 		sshprivilege.WithPolicyLoader(cfgStore),
-		sshprivilege.WithProfiles(connStore))
+		sshprivilege.WithProfiles(connStore),
+		// Dial through internal/ssh (same path as scans/discovery) and pin
+		// host keys via the shared TOFU registry instead of ignoring them.
+		sshprivilege.WithKnownHosts(knownhosts.NewStore(pool)))
 
 	liveSvc := liveness.NewService(pool, audit.Emit, bus).
 		WithConfigLoader(cfgStore.LoadConnectivity).

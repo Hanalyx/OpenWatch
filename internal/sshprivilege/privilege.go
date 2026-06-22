@@ -28,8 +28,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -37,6 +38,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/liveness"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
 )
@@ -99,9 +101,10 @@ type ConnProfileStore interface {
 // probeConfig accumulates the optional dependencies a Probe needs.
 // Constructed by Probe(...) and the With* options.
 type probeConfig struct {
-	dialer   Dialer
-	policy   PolicyLoader
-	profiles ConnProfileStore
+	dialer     Dialer
+	policy     PolicyLoader
+	profiles   ConnProfileStore
+	knownHosts owssh.KnownHostsStore
 }
 
 // ProbeOption configures the probe at construction time. Use
@@ -131,6 +134,16 @@ func WithProfiles(p ConnProfileStore) ProbeOption {
 	return func(c *probeConfig) { c.profiles = p }
 }
 
+// WithKnownHosts pins the probe's SSH dial to the shared host-key registry
+// (TOFU), so the liveness probe verifies host keys exactly like the scan and
+// discovery paths instead of ignoring them. Pass the same pool-backed store
+// the other paths use (knownhosts.NewStore(pool)). nil (the default) still
+// uses TOFU but against an in-process memory store (no cross-restart
+// persistence) — fine for tests, not for production.
+func WithKnownHosts(store owssh.KnownHostsStore) ProbeOption {
+	return func(c *probeConfig) { c.knownHosts = store }
+}
+
 // Probe builds a liveness.PrivilegeProbeFunc backed by the given
 // resolver. The returned function:
 //
@@ -146,13 +159,20 @@ func WithProfiles(p ConnProfileStore) ProbeOption {
 //
 // Spec system-ssh-connectivity v1.2.0 C-09, AC-18, AC-19, AC-21.
 //
-// Host key verification is intentionally permissive (InsecureIgnoreHostKey)
-// because this probe is just answering "would sudo work today?" — the
-// real scan path validates host keys via internal/ssh.
+// The probe dials through internal/ssh.Dial — the SAME path the compliance
+// scan and discovery use — so its auth-method handling (key, password, AND
+// PAM keyboard-interactive) and host-key verification stay identical and
+// cannot drift. In particular it offers keyboard-interactive, so a hardened
+// host (PasswordAuthentication no + UsePAM keyboard-interactive) authenticates
+// here exactly as it does for a scan. Host keys are verified via TOFU against
+// the shared registry when WithKnownHosts is wired.
 func Probe(resolver Resolver, opts ...ProbeOption) liveness.PrivilegeProbeFunc {
-	cfg := probeConfig{dialer: realDialer{}}
+	cfg := probeConfig{}
 	for _, o := range opts {
 		o(&cfg)
+	}
+	if cfg.dialer == nil {
+		cfg.dialer = realDialer{mode: owssh.ModeTOFU, store: cfg.knownHosts}
 	}
 	return func(ctx context.Context, hostID liveness.HostID, addr string, timeout time.Duration) (attempted, ok bool, err error) {
 		id, perr := uuid.Parse(string(hostID))
@@ -290,132 +310,46 @@ func canFallback(ctx context.Context, loader PolicyLoader, cred *credential.Cred
 // Production dialer + session executor.
 // ---------------------------------------------------------------------
 
-type realDialer struct{}
+// realDialer is the production Dialer. It delegates to internal/ssh.Dial —
+// the SAME dial the compliance scan and discovery use — so the probe inherits
+// that path's auth-method handling (key, password, AND PAM keyboard-interactive)
+// and host-key verification instead of forking its own. A forked auth list was
+// the bug behind the "[none publickey], no supported methods remain" failures
+// on hardened hosts (PasswordAuthentication no + PAM keyboard-interactive): the
+// old probe offered only the bare password method, which such a server never
+// advertises, so a password-fallback host that scanned fine showed degraded.
+type realDialer struct {
+	mode  owssh.Mode
+	store owssh.KnownHostsStore
+}
 
-func (realDialer) Dial(_ context.Context, cred *credential.Credential, addr string, timeout time.Duration, prefer connprofile.SSHAuthMethod) (SessionExecutor, connprofile.SSHAuthMethod, error) {
-	obs := &authObserver{}
-	methods, merr := buildAuthMethods(cred, prefer, obs)
-	if merr != nil {
-		return nil, "", merr
+func (d realDialer) Dial(ctx context.Context, cred *credential.Credential, addr string, timeout time.Duration, prefer connprofile.SSHAuthMethod) (SessionExecutor, connprofile.SSHAuthMethod, error) {
+	host, portStr, serr := net.SplitHostPort(addr)
+	if serr != nil {
+		return nil, "", fmt.Errorf("invalid addr %q: %w", addr, serr)
 	}
-	cfg := &ssh.ClientConfig{
-		User:    cred.Username,
-		Timeout: timeout,
-		Auth:    methods,
-		// #nosec G106 -- this probe answers "would sudo work
-		// today?" and is decoupled from compliance scans. Host-key
-		// pinning belongs on the real scan path (internal/ssh's
-		// KnownHostsManager). Verifying here would require the
-		// liveness loop to learn the host-key registry — exactly
-		// the cross-cutting coupling we kept out of the package.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	port, perr := strconv.Atoi(portStr)
+	if perr != nil {
+		return nil, "", fmt.Errorf("invalid port in %q: %w", addr, perr)
 	}
 
-	client, derr := ssh.Dial("tcp", addr, cfg)
+	// PreferAuth / ObservedAuth speak the same "key"/"password" string values
+	// as connprofile.SSHAuthMethod, so the mapping is a direct cast.
+	var observed string
+	client, derr := owssh.Dial(ctx, host, port, cred, owssh.DialOptions{
+		Mode:         d.mode,
+		Store:        d.store,
+		Timeout:      timeout,
+		PreferAuth:   string(prefer),
+		ObservedAuth: &observed,
+	})
 	if derr != nil {
+		// The Probe caller prefixes "ssh dial:"; return the internal/ssh
+		// sentinel (ErrAuthFailed / ErrHostKeyUnknown / ...) unwrapped so it
+		// stays errors.Is-inspectable and isn't double-prefixed.
 		return nil, "", derr
 	}
-	// obs.Last() is the method that authenticated (single-factor: the
-	// client stops at the first accepted method). "" when nothing fired.
-	return &realSession{client: client}, obs.Last(), nil
-}
-
-// authObserver records which auth-method callback last fired during a
-// handshake. For OpenWatch's single-factor model the client stops at the
-// first accepted method, so the last-attempted method after a SUCCESSFUL
-// handshake is the one that authenticated. Mirrors internal/ssh's observer
-// (kept local so this package stays decoupled from the scan dial path,
-// which pins host keys — see the package doc).
-type authObserver struct {
-	mu   sync.Mutex
-	last connprofile.SSHAuthMethod
-}
-
-func (o *authObserver) note(m connprofile.SSHAuthMethod) {
-	o.mu.Lock()
-	o.last = m
-	o.mu.Unlock()
-}
-
-func (o *authObserver) Last() connprofile.SSHAuthMethod {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.last
-}
-
-// buildAuthMethods translates the resolved credential into the ssh
-// auth-method list crypto/ssh will try in order. For AuthBoth we offer
-// BOTH the public key AND the password so a host that rejects the key
-// (e.g. a sudoer where /home was mounted but ~/.ssh/authorized_keys is
-// stale) still falls back to password auth. Returning a key-only list
-// for AuthBoth was the dialer bug behind the post-v1.2.0 regression
-// where the probe never made it past handshake on password-fallback
-// hosts.
-//
-// prefer reorders the AuthBoth list to lead with the host's learned
-// method; both methods stay offered (a hint, not a lock). Each method is
-// wrapped so obs records which one authenticated.
-func buildAuthMethods(cred *credential.Credential, prefer connprofile.SSHAuthMethod, obs *authObserver) ([]ssh.AuthMethod, error) {
-	mkKey := func() (ssh.AuthMethod, error) {
-		signer, perr := parseSigner(cred)
-		if perr != nil {
-			return nil, perr
-		}
-		return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-			obs.note(connprofile.AuthKey)
-			return []ssh.Signer{signer}, nil
-		}), nil
-	}
-	mkPassword := func() ssh.AuthMethod {
-		pw := cred.Password
-		return ssh.PasswordCallback(func() (string, error) {
-			obs.note(connprofile.AuthPassword)
-			return pw, nil
-		})
-	}
-
-	switch cred.AuthMethod {
-	case credential.AuthSSHKey:
-		keyM, perr := mkKey()
-		if perr != nil {
-			return nil, perr
-		}
-		return []ssh.AuthMethod{keyM}, nil
-	case credential.AuthPassword:
-		return []ssh.AuthMethod{mkPassword()}, nil
-	case credential.AuthBoth:
-		var keyM, pwM ssh.AuthMethod
-		if cred.PrivateKey != "" {
-			k, perr := mkKey()
-			if perr != nil {
-				return nil, perr
-			}
-			keyM = k
-		}
-		if cred.Password != "" {
-			pwM = mkPassword()
-		}
-		if keyM == nil && pwM == nil {
-			return nil, fmt.Errorf("auth method 'both' but credential carries neither key nor password")
-		}
-		if prefer == connprofile.AuthPassword {
-			return compactMethods(pwM, keyM), nil
-		}
-		return compactMethods(keyM, pwM), nil
-	default:
-		return nil, fmt.Errorf("unknown auth method %q", cred.AuthMethod)
-	}
-}
-
-// compactMethods drops nil entries, preserving order.
-func compactMethods(ms ...ssh.AuthMethod) []ssh.AuthMethod {
-	out := make([]ssh.AuthMethod, 0, len(ms))
-	for _, m := range ms {
-		if m != nil {
-			out = append(out, m)
-		}
-	}
-	return out
+	return &realSession{client: client}, connprofile.SSHAuthMethod(observed), nil
 }
 
 type realSession struct {
@@ -471,13 +405,4 @@ func (s *realSession) Close() error {
 		return nil
 	}
 	return s.client.Close()
-}
-
-// parseSigner builds the ssh.Signer for a key-bearing credential,
-// honoring the passphrase when present.
-func parseSigner(cred *credential.Credential) (ssh.Signer, error) {
-	if cred.PrivateKeyPassphrase != "" {
-		return ssh.ParsePrivateKeyWithPassphrase([]byte(cred.PrivateKey), []byte(cred.PrivateKeyPassphrase))
-	}
-	return ssh.ParsePrivateKey([]byte(cred.PrivateKey))
 }
