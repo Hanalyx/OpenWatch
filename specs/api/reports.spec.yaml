@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.12.0"
+  version: "1.13.0"
   status: approved
   tier: 2
 
@@ -381,6 +381,27 @@ spec:
         ExceptionContent is the signed canonical content).
       type: technical
       enforcement: error
+    - id: C-18
+      description: >-
+        v1.13.0 (Phase C2) - The remediation kind is the Operations
+        Remediation Activity report: a read-model of remediation requests
+        over a LOOK-BACK WINDOW, title "Remediation Activity", admitted by
+        the report_snapshots.kind CHECK (migration 0045). The generate
+        request's period_days (1..365, default 30, clamped) sets the window;
+        Generate (kind=remediation) resolves [from, to) = [now - period_days,
+        now] and freezes a RemediationContent {period_from, period_to,
+        summary, activities[]} over remediation_requests filtered on
+        requested_at and scoped to the in-scope hosts. summary is an exact
+        aggregate by outcome (total, executed, rolled_back, failed, rejected,
+        pending = pending_approval|approved|dry_run_complete|executing);
+        activities[] is one capped row per request (host, rule, status,
+        mechanism, requester + reviewer usernames, requested_at/reviewed_at).
+        The CSV face is the full activity log (csvSafe-guarded); the PDF face
+        is the bounded one-page summary (counts + a recent-activity sample);
+        the JSON face is the canonical content; pdf/csv are kind-dispatched
+        and oscal_sar is ErrInvalidFace for the kind. Signing (C-11) applies.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -631,3 +652,16 @@ spec:
         %PDF bytes; oscal_sar is ErrInvalidFace for the exception kind.
       priority: high
       references_constraints: [C-17]
+    - id: AC-24
+      description: >-
+        v1.13.0 - Generate(kind=remediation, period_days=30) over a host with
+        five requests (executed -5d, rolled_back -10d, failed -3d, rejected
+        -40d, pending -1d) produces a signed Remediation Activity (title
+        "Remediation Activity") whose RemediationContent summary is total 4 /
+        executed 1 / rolled_back 1 / failed 1 / rejected 0 / pending 1 (the
+        -40d request is outside the 30-day window) with four activity rows
+        and a ~30-day period. Its csv face is text/csv with the activity-log
+        header and r1/r2/r3/r5 but not r4; its pdf face is real %PDF bytes;
+        oscal_sar is ErrInvalidFace for the remediation kind.
+      priority: high
+      references_constraints: [C-18]

@@ -5390,11 +5390,13 @@ components:
       properties:
         kind:
           type: string
-          enum: [executive, attestation, exception]
+          enum: [executive, attestation, exception, remediation]
           description: |
             The report kind; defaults to executive. attestation produces
             the Framework Attestation (CSV/OSCAL bulk faces over the latest
-            completed scan per in-scope host).
+            completed scan per in-scope host); exception produces the
+            Exception Register; remediation produces the Remediation
+            Activity log over a look-back period.
         group_id:
           type: string
           format: uuid
@@ -5402,6 +5404,14 @@ components:
         framework:
           type: string
           description: Scope the report to this framework lens (framework_refs key).
+        period_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: |
+            Look-back window in days for time-windowed kinds (remediation):
+            the report covers requests filed in the last period_days.
+            Defaults to 30; ignored by point-in-time kinds.
 
     Report:
       type: object
@@ -5411,7 +5421,7 @@ components:
         title: {type: string}
         kind:
           type: string
-          enum: [executive, attestation, exception]
+          enum: [executive, attestation, exception, remediation]
         scope_label: {type: string}
         scope: {$ref: '#/components/schemas/ReportScope'}
         data_as_of: {type: string, format: date-time}

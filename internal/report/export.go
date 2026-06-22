@@ -65,17 +65,21 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 			return s.exportAttestationPDF(ctx, rep)
 		case KindException:
 			return s.exportExceptionPDF(ctx, rep)
+		case KindRemediation:
+			return s.exportRemediationPDF(ctx, rep)
 		default:
 			return nil, "", ErrInvalidFace
 		}
 	case FaceCSV:
 		// CSV is the bulk row export, dispatched by kind: the attestation
-		// evidence extract or the exception register.
+		// evidence extract, the exception register, or the remediation log.
 		switch rep.Kind {
 		case KindAttestation:
 			return s.exportAttestationCSV(ctx, rep)
 		case KindException:
 			return s.exportExceptionCSV(ctx, rep)
+		case KindRemediation:
+			return s.exportRemediationCSV(ctx, rep)
 		default:
 			return nil, "", ErrInvalidFace
 		}
@@ -107,6 +111,12 @@ func (s *Service) canonicalJSON(rep Report) ([]byte, string, error) {
 		var c ExceptionContent
 		if err := json.Unmarshal(rep.Content, &c); err != nil {
 			return nil, "", fmt.Errorf("report: decode exception content: %w", err)
+		}
+		v = c
+	case KindRemediation:
+		var c RemediationContent
+		if err := json.Unmarshal(rep.Content, &c); err != nil {
+			return nil, "", fmt.Errorf("report: decode remediation content: %w", err)
 		}
 		v = c
 	default:
@@ -533,6 +543,104 @@ func (s *Service) exportExceptionPDF(ctx context.Context, rep Report) ([]byte, s
 		return nil, "", fmt.Errorf("report: decode exception content: %w", err)
 	}
 	pdfBytes, err := renderExceptionPDF(rep, c)
+	if err != nil {
+		return nil, "", err
+	}
+	sum := sha256.Sum256(pdfBytes)
+	blobSHA := hex.EncodeToString(sum[:])
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO report_faces (snapshot_id, face, media_type, content, size_bytes, blob_sha256, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ready')
+		ON CONFLICT (snapshot_id, face)
+		DO UPDATE SET content = EXCLUDED.content, media_type = EXCLUDED.media_type,
+		              size_bytes = EXCLUDED.size_bytes, blob_sha256 = EXCLUDED.blob_sha256,
+		              status = 'ready'`,
+		rep.ID, FacePDF, mediaType, pdfBytes, len(pdfBytes), blobSHA)
+	if err != nil {
+		return pdfBytes, mediaType, nil
+	}
+	return pdfBytes, mediaType, nil
+}
+
+// exportRemediationCSV returns the cached remediation-activity CSV face if
+// present, else writes one row per frozen request (the log is stored on the
+// snapshot content), caches it, and returns it.
+func (s *Service) exportRemediationCSV(ctx context.Context, rep Report) ([]byte, string, error) {
+	const mediaType = "text/csv"
+
+	var cached []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM report_faces WHERE snapshot_id = $1 AND face = $2 AND status = 'ready'`,
+		rep.ID, FaceCSV).Scan(&cached)
+	if err == nil && len(cached) > 0 {
+		return cached, mediaType, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", fmt.Errorf("report: remediation csv face lookup: %w", err)
+	}
+
+	var c RemediationContent
+	if err := json.Unmarshal(rep.Content, &c); err != nil {
+		return nil, "", fmt.Errorf("report: decode remediation content: %w", err)
+	}
+
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{
+		"host", "rule_id", "status", "mechanism",
+		"requested_by", "requested_at", "reviewed_by", "reviewed_at",
+	})
+	for _, r := range c.Activities {
+		_ = w.Write([]string{
+			csvSafe(r.HostName), csvSafe(r.RuleID), csvSafe(r.Status), csvSafe(r.Mechanism),
+			csvSafe(r.RequestedBy), r.RequestedAt.UTC().Format(time.RFC3339),
+			csvSafe(r.ReviewedBy), timePtrStr(r.ReviewedAt),
+		})
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, "", fmt.Errorf("report: write remediation csv: %w", err)
+	}
+	csvBytes := buf.Bytes()
+
+	sum := sha256.Sum256(csvBytes)
+	blobSHA := hex.EncodeToString(sum[:])
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO report_faces (snapshot_id, face, media_type, content, size_bytes, blob_sha256, status)
+		VALUES ($1, $2, $3, $4, $5, $6, 'ready')
+		ON CONFLICT (snapshot_id, face)
+		DO UPDATE SET content = EXCLUDED.content, media_type = EXCLUDED.media_type,
+		              size_bytes = EXCLUDED.size_bytes, blob_sha256 = EXCLUDED.blob_sha256,
+		              status = 'ready'`,
+		rep.ID, FaceCSV, mediaType, csvBytes, len(csvBytes), blobSHA)
+	if err != nil {
+		return csvBytes, mediaType, nil
+	}
+	return csvBytes, mediaType, nil
+}
+
+// exportRemediationPDF returns the cached remediation-activity PDF face if
+// present, else renders the bounded one-page summary from the frozen
+// content, caches it, and returns it.
+func (s *Service) exportRemediationPDF(ctx context.Context, rep Report) ([]byte, string, error) {
+	const mediaType = "application/pdf"
+
+	var cached []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM report_faces WHERE snapshot_id = $1 AND face = $2 AND status = 'ready'`,
+		rep.ID, FacePDF).Scan(&cached)
+	if err == nil && len(cached) > 0 {
+		return cached, mediaType, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", fmt.Errorf("report: remediation pdf face lookup: %w", err)
+	}
+
+	var c RemediationContent
+	if err := json.Unmarshal(rep.Content, &c); err != nil {
+		return nil, "", fmt.Errorf("report: decode remediation content: %w", err)
+	}
+	pdfBytes, err := renderRemediationPDF(rep, c)
 	if err != nil {
 		return nil, "", err
 	}

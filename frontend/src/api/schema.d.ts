@@ -3576,10 +3576,12 @@ export interface components {
             /**
              * @description The report kind; defaults to executive. attestation produces
              *     the Framework Attestation (CSV/OSCAL bulk faces over the latest
-             *     completed scan per in-scope host).
+             *     completed scan per in-scope host); exception produces the
+             *     Exception Register; remediation produces the Remediation
+             *     Activity log over a look-back period.
              * @enum {string}
              */
-            kind?: "executive" | "attestation" | "exception";
+            kind?: "executive" | "attestation" | "exception" | "remediation";
             /**
              * Format: uuid
              * @description Scope the report to this group's member hosts.
@@ -3587,13 +3589,19 @@ export interface components {
             group_id?: string;
             /** @description Scope the report to this framework lens (framework_refs key). */
             framework?: string;
+            /**
+             * @description Look-back window in days for time-windowed kinds (remediation):
+             *     the report covers requests filed in the last period_days.
+             *     Defaults to 30; ignored by point-in-time kinds.
+             */
+            period_days?: number;
         };
         Report: {
             /** Format: uuid */
             id: string;
             title: string;
             /** @enum {string} */
-            kind: "executive" | "attestation" | "exception";
+            kind: "executive" | "attestation" | "exception" | "remediation";
             scope_label: string;
             scope: components["schemas"]["ReportScope"];
             /** Format: date-time */

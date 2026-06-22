@@ -343,9 +343,17 @@ feel instant.** Build them aware of each other.
   bounded PDF summary face, and a kind-aware in-app `ExceptionBody`.
   Migration 0044 admits `kind='exception'`. Spec: `api-reports` v1.12.0
   (C-17 / AC-23), `frontend-reports` v1.9.0 (C-12 / AC-13).
-- **C2 — Remediation Activity kind.** *(REMAINING.)* A read-model of
-  remediation execute/rollback events over a period (`remediation_requests`
-  filtered on `requested_at`); adds a `period` scope dimension.
+- **C2 — Remediation Activity kind.** *(SHIPPED 2026-06-22, PR #658.)* A
+  read-model of remediation requests over a look-back window
+  (`remediation_requests` filtered on `requested_at`): a frozen
+  `RemediationContent` {period_from, period_to, summary, activities[]}
+  (exact counts by outcome + the activity rows, requester/reviewer resolved
+  to usernames), a CSV activity-log face, a bounded PDF summary face, and a
+  kind-aware in-app `RemediationBody`. The generate request gains
+  `period_days` (1..365, default 30); the UI shows a Last 7/30/90 days
+  selector for the kind. Migration 0045 admits `kind='remediation'`. Spec:
+  `api-reports` v1.13.0 (C-18 / AC-24), `frontend-reports` v1.10.0
+  (C-13 / AC-14).
 - **C3 — Scheduled dispatcher.** *(REMAINING.)* **Scheduled** reports +
   **email delivery** (notification-channel dispatch); activates the
   Scheduled tab. Spec: `system-report-schedule`, `frontend-reports`
