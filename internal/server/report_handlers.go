@@ -263,7 +263,7 @@ func (h *handlers) GetReportExport(w http.ResponseWriter, r *http.Request, id op
 	}
 	if errors.Is(err, report.ErrInvalidFace) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_format", "client",
-			"format must be pdf or json", false)
+			"format does not apply to this report kind", false)
 		return
 	}
 	if err != nil {

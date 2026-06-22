@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -74,7 +74,7 @@ spec:
         - The frozen JSON content as a wire contract (exact keys, nil compliance encoding, list-never-null top-failing)
         - The write-once row whose data_as_of is the posture sample instant and whose format is json
       excludes:
-        - OSCAL rendering or export (the OSCAL SAR/POA&M faces are a later phase)
+        - The OSCAL POA&M face (open-findings milestones; a later phase. The fleet OSCAL SAR face ships in v1.8.0 / C-14)
         - The Scheduled dispatcher (auto-generated and delivered reports)
         - The Templates gallery (the six prototype templates beyond the one executive kind)
         - Retention sweeps (rows are kept; no expiry or purge in the MVP)
@@ -279,6 +279,31 @@ spec:
         way (the AttestationContent is the signed canonical content).
       type: technical
       enforcement: error
+    - id: C-14
+      description: >-
+        v1.8.0 (Phase B2) - The attestation kind also renders a fleet OSCAL
+        SAR face (format=oscal_sar, attestation-only, a face that does not
+        apply to executive is ErrInvalidFace/400 per C-10). It is a SINGLE
+        OSCAL 1.0.6 assessment-results document assembled from the frozen
+        scans' scan_results: one result whose findings + observations carry
+        one entry per (host, rule), the finding target state "satisfied"
+        only for a pass (else "not-satisfied"), the host as an
+        inventory-item subject (a deterministic v5 uuid), and the reviewed
+        controls aggregated as framework-prefixed control-id tokens (so
+        digit-leading native ids like CIS "1.1" stay valid OSCAL tokens),
+        narrowed by the snapshot's framework lens. Evidence is REFERENCED by
+        sha256 in back-matter (an rlink with a SHA-256 hash), never inlined
+        as base64 - the bytes stay in scan_evidence - so a 100-host x
+        500-rule attestation does not become the 1000-page problem in OSCAL
+        form. Every uuid is a deterministic v5 derived from the snapshot id
+        (and host/rule), and every timestamp comes from the frozen snapshot,
+        so the document is byte-deterministic and cached in report_faces
+        (face oscal_sar, status 'ready') like the other faces; the assembly
+        is bounded by the same row cap as the CSV (a metadata prop discloses
+        truncation). The OSCAL version stays 1.0.6 to match the per-scan
+        emitter (Kensa-controlled).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -475,3 +500,22 @@ spec:
         ErrInvalidFace on an executive; an unknown kind is ErrInvalidKind.
       priority: critical
       references_constraints: [C-13]
+    - id: AC-20
+      description: >-
+        v1.8.0 - Export(oscal_sar) on an attestation snapshot returns
+        application/json that unmarshals as an OSCAL assessment-results with
+        oscal-version "1.0.6" and one result: its findings + observations
+        carry one entry per (host, rule), the r1 (pass) finding state is
+        "satisfied" and the r2 (fail) state "not-satisfied", and the
+        reviewed controls include the framework-prefixed tokens
+        (cis_rhel9_v2.0.0-1.1, cis_rhel9_v2.0.0-1.2, stig_rhel9_v2r7-V-1).
+        A scan_result whose evidence is content-addressed yields exactly one
+        back-matter resource with a single SHA-256 rlink hash equal to that
+        evidence sha256 (no base64 inlined), and the host's observation
+        references it by href (#resource-uuid). The face is cached
+        (report_faces oscal_sar 'ready') and a re-export is byte-identical
+        (deterministic). A framework=stig-scoped attestation's SAR has only
+        the r2 finding and only the stig control token. oscal_sar is
+        ErrInvalidFace on an executive report.
+      priority: high
+      references_constraints: [C-14]
