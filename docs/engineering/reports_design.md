@@ -354,10 +354,18 @@ feel instant.** Build them aware of each other.
   selector for the kind. Migration 0045 admits `kind='remediation'`. Spec:
   `api-reports` v1.13.0 (C-18 / AC-24), `frontend-reports` v1.10.0
   (C-13 / AC-14).
-- **C3 — Scheduled dispatcher.** *(REMAINING.)* **Scheduled** reports +
-  **email delivery** (notification-channel dispatch); activates the
-  Scheduled tab. Spec: `system-report-schedule`, `frontend-reports`
-  Scheduled tab.
+- **C3 — Scheduled dispatcher.** *(SHIPPED 2026-06-22, PR #659.)* A
+  `report_schedules` row (migration 0046) recurs a report on a
+  daily/weekly/monthly cadence and emails its PDF through an email
+  notification channel. A cron dispatcher (`internal/reportschedule`,
+  ticking each minute) claims due schedules, generates the report, renders
+  the PDF, emails it as a MIME-multipart attachment
+  (`notification.Service.SendReportEmail`), records last_run/last_status,
+  and advances next_run_at. The Scheduled tab is live (create form +
+  pause/resume + delete over the host:read/host:write CRUD endpoints). Spec:
+  `system-report-schedule` v1.0.0, `frontend-reports` v1.11.0 (C-14 /
+  AC-15). Chosen design: daily/weekly/monthly cadence (not cron),
+  email-with-PDF-attached delivery, recipients from the email channel's To.
 
 ### Phase D — GRC depth
 - **POA&M** (OSCAL) — open findings → milestones → target dates,

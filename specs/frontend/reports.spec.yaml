@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 2
 
@@ -239,13 +239,30 @@ spec:
       enforcement: error
     - id: C-03
       description: >-
-        The Templates and Scheduled tabs render an explicit deferred state
-        (a "coming soon" message) and call no endpoint, so the page never
-        fakes a signed artifact, a PDF, an OSCAL document, or a schedule.
+        The Templates tab renders an explicit deferred state (a "coming soon"
+        message) and calls no endpoint, so the page never fakes a template
+        gallery. (The Scheduled tab is live as of v1.11.0 - see C-14.)
         Loading, empty, and error states are honest: apiErrorMessage drives
         the error text rather than a crash, and an empty Library renders an
         empty state rather than a blank table. Prose UI copy carries no
         em-dashes.
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: >-
+        v1.11.0 (Phase C3) - The Scheduled tab is live: it renders a
+        SchedulesTab over the report-schedule endpoints. It issues a
+        ["report-schedules"] query against GET /api/v1/reports/schedules and
+        a ["notification-channels"] query against GET
+        /api/v1/notifications/channels, filtered to email channels for the
+        delivery picker. A host:write caller sees a create form (name, kind,
+        frequency with a weekday picker for weekly / day-of-month for
+        monthly, and an email channel) that POSTs /api/v1/reports/schedules;
+        each schedule row offers pause/resume (PATCH
+        /api/v1/reports/schedules/{id} {enabled}) and delete (DELETE), all
+        invalidating ["report-schedules"]. The create form is gated on
+        canGenerate (host:write). Loading/empty/error states are honest. UI
+        copy carries no em-dash.
       type: technical
       enforcement: error
 
@@ -406,3 +423,16 @@ spec:
         copy contains no em-dash.
       priority: high
       references_constraints: [C-13]
+    - id: AC-15
+      description: >-
+        v1.11.0 - Source inspection: the Scheduled tab renders <SchedulesTab>
+        (not ComingSoon). SchedulesTab queries ["report-schedules"] against
+        GET /api/v1/reports/schedules and ["notification-channels"] against
+        GET /api/v1/notifications/channels (filtered to c.type === 'email'),
+        and mutates via api.POST /api/v1/reports/schedules,
+        api.PATCH /api/v1/reports/schedules/{id}, and api.DELETE
+        /api/v1/reports/schedules/{id}, each invalidating ["report-schedules"].
+        The create form is gated on canGenerate (canSubmit = canGenerate
+        && ...). The added copy contains no em-dash.
+      priority: high
+      references_constraints: [C-14]

@@ -1,0 +1,150 @@
+spec:
+  id: system-report-schedule
+  title: Scheduled reports - recurring generation + email delivery of the rendered PDF
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch-go
+    feature: A daily/weekly/monthly schedule that generates a report and emails its PDF through an email notification channel
+    description: >
+      A report_schedules row (migration 0046) recurs a report generation on
+      a daily, weekly, or monthly cadence and delivers the rendered PDF by
+      email. The schedule captures the report kind + scope (group, framework
+      lens, period window), the cadence (hour of day UTC; weekday for
+      weekly; day-of-month 1..28 for monthly), and the email notification
+      channel that provides SMTP transport + recipients.
+
+      A cron dispatcher (internal/cron.Scheduler ticking each minute) claims
+      due schedules (enabled AND next_run_at <= now), generates the report
+      via report.Service.Generate, renders its PDF face, emails it as a
+      MIME-multipart attachment through the channel, records the outcome
+      (last_run_at, last_status), and advances next_run_at to the next
+      occurrence. A failure on one schedule is recorded on that schedule and
+      does not abort the others.
+
+      Delivery reuses the existing email notification channel: the new
+      notification.Service.SendReportEmail builds a multipart/mixed message
+      (text body + base64 application/pdf attachment) and sends it via the
+      channel's decrypted SMTP config to its configured recipients. Only
+      email channels can carry an attachment.
+
+      The HTTP surface is CRUD over the schedules: list (host:read), create,
+      enable/disable, and delete (host:write). Re-enabling a paused schedule
+      recomputes next_run_at from now so it does not fire for every missed
+      run.
+
+    related_specs:
+      - api-reports
+      - api-notifications
+      - system-notifications
+      - system-job-queue
+
+  objective:
+    summary: >
+      Recurring report delivery: a schedule model with a correct
+      daily/weekly/monthly next-run computation, a cron dispatcher that
+      generates + renders + emails + advances, email delivery of the PDF as
+      a multipart attachment, and a host:read/host:write CRUD surface.
+    scope:
+      includes:
+        - 'report_schedules table (migration 0046) + internal/reportschedule service'
+        - 'Daily/weekly/monthly next-run computation (ComputeNextRun)'
+        - 'The cron dispatcher: due detection, generate + render PDF + deliver, advance, last_status'
+        - 'Email delivery of the PDF as a MIME-multipart attachment via an email channel'
+        - 'CRUD endpoints (list/create/patch-enable/delete) with host:read / host:write RBAC'
+      excludes:
+        - 'Cron-expression recurrence (only daily/weekly/monthly cadences)'
+        - 'Delivery via non-email channels (slack/webhook cannot carry an attachment)'
+        - 'Per-schedule recipient lists (recipients come from the email channel To)'
+        - 'Retries / dead-lettering of a failed delivery (recorded in last_status, retried next cadence)'
+
+  constraints:
+    - id: C-01
+      description: >-
+        A report_schedules row captures: name, kind (executive | attestation
+        | exception | remediation), scope JSONB ({group_id, framework,
+        period_days}), frequency (daily | weekly | monthly), hour (0..23 UTC),
+        weekday (0..6, weekly), day_of_month (1..28, monthly), channel_id (FK
+        notification_channels), enabled, next_run_at, last_run_at,
+        last_status, created_by. The kind CHECK + the frequency/hour/weekday/
+        day_of_month CHECKs enforce the domains. Create computes the first
+        next_run_at from now.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        ComputeNextRun returns the next run strictly after the given instant,
+        at the configured hour (UTC), honouring the cadence: daily = the next
+        day's hour (or today's if still before it); weekly = the next
+        occurrence of weekday at hour; monthly = the next occurrence of
+        day_of_month at hour (capped at 28 so every month has it).
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        The cron dispatcher (Tick) claims due schedules (enabled AND
+        next_run_at <= now), and for each: generates the report
+        (report.Service.Generate with the schedule's kind + scope, actor
+        "scheduler"), renders its PDF face, delivers it, records last_run_at
+        + last_status ("ok" or "failed: <err>"), and advances next_run_at via
+        ComputeNextRun from now. A per-schedule error is recorded and does
+        not abort the other due schedules.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        Email delivery: notification.Service.SendReportEmail builds a
+        multipart/mixed RFC 5322 message - a text/plain body part and a
+        base64 application/pdf attachment with a Content-Disposition filename
+        - and sends it via the channel's decrypted SMTP config to its
+        recipients. A non-email channel is rejected (ErrNotEmailChannel);
+        only email channels carry attachments.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        The HTTP surface is CRUD over schedules: GET
+        /api/v1/reports/schedules (host:read) lists newest-first; POST
+        (host:write) creates after validating the cadence (weekly requires
+        weekday, monthly requires day_of_month); PATCH /{id} (host:write)
+        toggles enabled (re-enabling recomputes next_run_at); DELETE /{id}
+        (host:write) removes it. A missing id is 404.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        ComputeNextRun: a daily 06:00 schedule from 09:00 yields the next
+        day's 06:00 (and from 03:00 yields the same day's 06:00); a weekly
+        Monday schedule from a Monday 09:00 yields the following Monday; a
+        monthly day-1 schedule from the 22nd yields the 1st of next month.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: >-
+        A freshly created schedule is not due (next_run is in the future);
+        after backdating next_run_at, the dispatcher Tick generates the
+        report, renders + delivers the PDF to the schedule's channel, sets
+        last_status "ok", and advances next_run_at into the future so the
+        schedule is no longer due.
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-03
+      description: >-
+        buildReportEmail produces a multipart/mixed message with the To /
+        Subject headers, a text/plain body part, and a base64
+        application/pdf attachment carrying the Content-Disposition filename.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-04
+      description: >-
+        The CRUD surface enforces RBAC and round-trips: a host:read caller
+        cannot POST a schedule (403); a host:write caller creates one (201,
+        enabled, with a future next_run_at); GET (host:read) lists it; PATCH
+        {enabled:false} (host:write) disables it; DELETE (host:write) removes
+        it (204) and the list is then empty.
+      priority: high
+      references_constraints: [C-05]

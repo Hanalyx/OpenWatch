@@ -25,7 +25,11 @@ func freshService(t *testing.T) (*Service, *pgxpool.Pool) {
 	}
 	t.Cleanup(secretkey.Reset)
 	ctx := context.Background()
-	_, _ = pool.Exec(ctx, "TRUNCATE TABLE notification_channels")
+	// CASCADE because report_schedules (migration 0046) references
+	// notification_channels; a plain TRUNCATE would fail on the FK and
+	// (since the error is ignored) leave stale rows encrypted with a prior
+	// ephemeral key, breaking decrypt in later tests.
+	_, _ = pool.Exec(ctx, "TRUNCATE TABLE notification_channels CASCADE")
 	return NewService(pool), pool
 }
 

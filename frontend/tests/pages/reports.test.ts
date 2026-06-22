@@ -19,6 +19,7 @@
 //          for attestation, ExecutiveBody(asExecutiveContent) otherwise
 //   AC-13  exception register kind: selector option + ExceptionBody(asExceptionContent)
 //   AC-14  remediation activity kind: period selector + RemediationBody(asRemediationContent)
+//   AC-15  Scheduled tab manages schedules (list/create/toggle/delete)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -75,11 +76,11 @@ describe('frontend-reports — reports library page', () => {
   });
 
   // @ac AC-03
-  test('frontend-reports/AC-03 — deferred Templates/Scheduled + honest states', () => {
-    // Templates and Scheduled tabs render the deferred ComingSoon state.
+  test('frontend-reports/AC-03 — deferred Templates + honest states', () => {
+    // The Templates tab renders the deferred ComingSoon state (the Scheduled
+    // tab is now live, see AC-15).
     expect(PAGE_SRC).toContain('ComingSoon');
     expect(PAGE_SRC).toContain('what="Templates"');
-    expect(PAGE_SRC).toContain('what="Scheduled"');
     expect(PAGE_SRC.toLowerCase()).toContain('coming soon');
     // Honest loading / empty / error states wired off the query.
     expect(PAGE_SRC).toContain('reportsQ.isPending');
@@ -273,13 +274,34 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/s\.rolled_back/);
   });
 
+  // @ac AC-15
+  test('frontend-reports/AC-15 — Scheduled tab manages report schedules', () => {
+    // The Scheduled tab renders the SchedulesTab (not ComingSoon).
+    expect(PAGE_SRC).toMatch(/tab === 'scheduled' && <SchedulesTab/);
+    expect(PAGE_SRC).toContain('function SchedulesTab');
+    // It queries the schedules + the notification channels (email picker).
+    expect(PAGE_SRC).toContain("queryKey: ['report-schedules']");
+    expect(PAGE_SRC).toContain("api.GET('/api/v1/reports/schedules'");
+    expect(PAGE_SRC).toContain("queryKey: ['notification-channels']");
+    expect(PAGE_SRC).toMatch(/filter\(\(c\) => c\.type === 'email'\)/);
+    // Create / toggle / delete mutations over the schedule endpoints.
+    expect(PAGE_SRC).toContain("api.POST('/api/v1/reports/schedules'");
+    expect(PAGE_SRC).toContain("api.PATCH('/api/v1/reports/schedules/{id}'");
+    expect(PAGE_SRC).toContain("api.DELETE('/api/v1/reports/schedules/{id}'");
+    // Mutations invalidate the schedules query; create is host:write gated.
+    expect(PAGE_SRC).toContain("invalidateQueries({ queryKey: ['report-schedules'] })");
+    expect(PAGE_SRC).toMatch(/canSubmit = canGenerate/);
+  });
+
   // @ac AC-04
   test('frontend-reports/AC-04 — generate is the only mutation, tokens, no em-dash', () => {
-    // The only mutating call is the generate POST; no PUT/DELETE.
+    // The Library generate is a POST; the Scheduled tab also mutates schedules
+    // (create POST, toggle PATCH, delete DELETE) - the assertion below is
+    // scoped to the report-generation surface, not the schedule CRUD.
     expect(PAGE_SRC.includes('api.PUT')).toBe(false);
-    expect(PAGE_SRC.includes('api.DELETE')).toBe(false);
+    // Two POSTs: the Library generate and the Scheduled-tab schedule create.
     const posts = PAGE_SRC.split('api.POST(').length - 1;
-    expect(posts).toBe(1);
+    expect(posts).toBe(2);
     // Chrome is styled with --ow-* tokens, not raw hex literals.
     expect(PAGE_SRC).toContain('var(--ow-bg-1)');
     expect(PAGE_SRC).toContain('var(--ow-line)');

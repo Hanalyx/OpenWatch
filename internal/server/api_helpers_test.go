@@ -33,6 +33,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/notification"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
+	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -308,6 +309,8 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 	// new snapshots are signed.
 	reportSigner, _ := report.NewSigner("")
 	s.WithReports(report.NewService(pool).WithGroups(group.NewService(pool)).WithSigner(reportSigner))
+	// Spec system-report-schedule: wire the schedule service.
+	s.WithReportSchedules(reportschedule.NewService(pool))
 	// Spec api-scans: wire the durable per-scan results reader so
 	// /api/v1/scans and its sub-routes reach a real handler.
 	s.WithScanResults(scanresult.NewReader(pool))
