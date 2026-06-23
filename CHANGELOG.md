@@ -10,7 +10,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.14] Eyrie — 2026-06-23
+
+A maintenance candidate on top of rc.13: the Kensa engine moves to v0.6.0, a
+known-hosts trust race is closed, hardened hosts that require
+keyboard-interactive auth no longer report as falsely degraded, and the
+operator guides + README were corrected to the Go reality.
+
+### Changed
+- **Kensa engine bumped to v0.6.0** ("atomicity engine" — remediation
+  crash-recovery). The bundled rule corpus is now **538** (one rule removed
+  upstream; was 539), verified by a live end-to-end scan against a RHEL host
+  (completed, 538 rules, 0 errors). The three Kensa version pins (`go.mod`, the
+  `internal/kensa` module constant, and the `kensa-executor` spec) move
+  together. (#670)
+
+### Security
+- **Known-hosts `Put` fails closed on a concurrent first-use key conflict.**
+  When a row already exists for a hostname with a different key — the first-use
+  race where another connection recorded a key first — `Put` now returns a
+  host-key mismatch instead of silently reporting success, so the
+  trust-on-first-use callback can no longer accept an unverified (possibly
+  MITM) host key on that connection. (#668)
+
 ### Fixed
+- **Liveness privilege probe now routes through `internal/ssh`.** Hardened
+  hosts that only offer keyboard-interactive (PAM) auth after a successful
+  key/password handshake no longer show as falsely "degraded": the probe now
+  shares the same ordered auth methods (key + password + keyboard-interactive)
+  as the rest of the SSH layer, instead of a forked dialer that lacked
+  keyboard-interactive. (#664)
+- **Settings to Scanning**: removed the fake group-maintenance list; the
+  section now points to the real Groups page. (#665)
+- **Settings to Users**: renamed the "Invite member" action to "Add member" to
+  match what it does. (#666)
 - Operator-guide truthfulness + accuracy pass (`docs/guides/`): verified every
   documented `openwatch` CLI subcommand, REST endpoint, file path, env var, and
   systemd unit against the binary, `api/openapi.yaml`, and `packaging/`. Fixed
@@ -20,8 +55,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `POST /api/v1/hosts/{id}/scans`, also corrected in the Quickstart, which had
   wrongly said no run-scan action exists), stale example versions
   (`0.2.0-rc.11` to `rc.13`), the migration-count example (22 to 46), the
-  Kensa rule count (508 to 539), and password-policy claims (12-char to the
-  real 8/15). Added "Last Updated" headers to every guide.
+  Kensa rule count (508 to 538), and password-policy claims (12-char to the
+  real 8/15). Added "Last Updated" headers to every guide. (#667)
+
+### Docs
+- README rewritten to reflect the Go rebuild (accurate built-in roles, FIPS
+  build path, per-IP auth rate limiting, 4h to 48h adaptive scan cadence) with
+  a current host-management screenshot; redundancy trimmed. (#669)
 
 ---
 
