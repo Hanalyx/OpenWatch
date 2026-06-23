@@ -1,5 +1,7 @@
 # User roles and permissions
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
 you create users and assign roles from the single `openwatch` binary.
@@ -35,8 +37,8 @@ read-only to full administration; there is no parallel "compliance officer" or
 |---------|-------------|------------------|
 | `viewer` | Read-only access across the platform | 16 |
 | `auditor` | Read-only plus exception authority and audit export | 20 |
-| `ops_lead` | Day-to-day operations: hosts, scans, alerts | 30 |
-| `security_admin` | Full security operations including dangerous and license-gated actions | 51 |
+| `ops_lead` | Day-to-day operations: hosts, scans, alerts | 32 |
+| `security_admin` | Full security operations including dangerous and license-gated actions | 56 |
 | `admin` | Full system administration | All permissions (bare `*` wildcard) |
 
 A user may hold more than one role. Their effective permission set is the union
