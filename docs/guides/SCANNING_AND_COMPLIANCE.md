@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-539 YAML rules evaluated (check commands, config values, file permissions)
+538 YAML rules evaluated (check commands, config values, file permissions)
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
