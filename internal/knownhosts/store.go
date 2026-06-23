@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 )
 
 // Store implements ssh.KnownHostsStore against the ssh_known_hosts table.
@@ -47,11 +49,25 @@ func (s *Store) Get(hostname string) ([]byte, bool) {
 func (s *Store) Put(hostname string, marshalled []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := s.pool.Exec(ctx,
+	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO ssh_known_hosts (hostname, public_key)
 		 VALUES ($1, $2)
 		 ON CONFLICT (hostname) DO UPDATE SET last_seen = now()
 		 WHERE ssh_known_hosts.public_key = EXCLUDED.public_key`,
 		hostname, marshalled)
-	return err
+	if err != nil {
+		return err
+	}
+	// Zero rows affected means a row already existed for this hostname with a
+	// DIFFERENT key: a concurrent first-use race lost to another connection
+	// that recorded a different key (or a changed key slipped past Get). The
+	// INSERT conflicted and the UPDATE's key-equality predicate was false, so
+	// nothing was written. Fail closed — never let Put report success for a key
+	// that does not match what is now stored, which would otherwise let the
+	// TOFU callback accept an unverified (possibly MITM) host key on this
+	// connection.
+	if tag.RowsAffected() == 0 {
+		return owssh.ErrHostKeyMismatch
+	}
+	return nil
 }
