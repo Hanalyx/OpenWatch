@@ -22,7 +22,7 @@ OpenWatch is the compliance operating system for teams managing Linux infrastruc
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
 > version is `0.2.0-rc.13`, a pre-release, not a GA build.
 
-![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 539 Kensa rules](docs/images/host-management.png)
+![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 538 Kensa rules](docs/images/host-management.png)
 
 ## The Problem with Point-in-Time Compliance
 
