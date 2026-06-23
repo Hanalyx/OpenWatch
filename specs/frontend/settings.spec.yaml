@@ -59,7 +59,7 @@ spec:
         - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
         - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Edit (in-place PATCH /credentials/{id}) and Delete (DELETE) modals; editing keeps the stored secret when the field is left blank (v1.9.0)"
         - "SSH keys section is a derived view of key-bearing credentials; Add/Edit/Delete a key operates on the parent credential"
-        - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Invite (POST /users) and Manage (role assign/unassign + soft-delete) modals (v1.4.0); Manage also offers admin password reset (POST /users/{id}:reset-password) and disable/enable (POST /users/{id}:disable|:enable), gated on admin:user_manage; disabled members show a Disabled status on the roster and in the modal (v1.10.0)"
+        - "Users & teams — list from GET /api/v1/users (admin-gated), with roles per member, Add member (POST /users, direct create) and Manage (role assign/unassign + soft-delete) modals (v1.4.0); Manage also offers admin password reset (POST /users/{id}:reset-password) and disable/enable (POST /users/{id}:disable|:enable), gated on admin:user_manage; disabled members show a Disabled status on the roster and in the modal (v1.10.0)"
         - "Audit log — filterable, cursor-paginated GET /api/v1/audit/events, audit:read gated, read-only (v1.3.0)"
         - "About — version from GET /api/v1/version + license state from GET /api/v1/license (v1.3.0)"
         - "Notifications — Slack/webhook channel CRUD + test over /api/v1/notifications/channels, notification:read gated, secrets write-only (v1.5.0)"
@@ -139,7 +139,8 @@ spec:
         Non-admin sessions visiting /settings/users render the 403
         ForbiddenPage. Admin sessions see the list from GET
         /api/v1/users. v1.4.0 — the roster renders each member's roles
-        (UserResponse.roles). Invite (POST /api/v1/users) and Manage
+        (UserResponse.roles). Add member (POST /api/v1/users, a direct
+        create with an admin-set temporary password — not an email invite) and Manage
         (role assign/unassign via /users/{id}/roles:assign|:unassign,
         soft-delete via DELETE /users/{id}) open modals; all four
         mutations invalidate the ['users'] query on success. Write
@@ -323,7 +324,7 @@ spec:
       priority: high
       references_constraints: [C-14]
     - id: AC-21
-      description: "v1.4.0 source-inspection: the Invite member button is enabled (gated on user:write/admin, not statically disabled) and opens AddUserModal, which POSTs /api/v1/users with {username,email,password} and invalidates the ['users'] query on success. The roster renders user.roles per member."
+      description: "v1.4.0 source-inspection: the Add member button is enabled (gated on user:write/admin, not statically disabled) and opens AddUserModal, which POSTs /api/v1/users with {username,email,password} and invalidates the ['users'] query on success. The roster renders user.roles per member."
       priority: high
       references_constraints: [C-08]
     - id: AC-22

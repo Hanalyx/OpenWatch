@@ -22,7 +22,7 @@
 //   AC-18  axe-core dependency present (browser scan runs via Playwright)
 //   AC-19  Audit log: audit:read gate, infinite query, cursor, read-only
 //   AC-20  About: license state from GET /api/v1/license, not hardcoded
-//   AC-21  Users: Invite member opens AddUserModal (POST /users) + roles roster
+//   AC-21  Users: Add member opens AddUserModal (POST /users) + roles roster
 //   AC-22  Users: Manage opens ManageUserModal (role assign/unassign + delete)
 //   AC-23  Notifications: notification:read gate, channel CRUD + test, secret-free
 //   AC-24  Security: admin gate, live API tokens (list/create/revoke), secret-once
@@ -324,8 +324,8 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-21
-  test('frontend-settings/AC-21 — Users Invite opens AddUserModal (POST /users) + roles roster', () => {
-    // Invite button is no longer statically disabled; it gates on write
+  test('frontend-settings/AC-21 — Users Add member opens AddUserModal (POST /users) + roles roster', () => {
+    // Add member button is no longer statically disabled; it gates on write
     // permission and opens the modal.
     expect(USERS_SRC).toContain('AddUserModal');
     expect(USERS_SRC).toMatch(/onClick=\{\(\)\s*=>\s*setAddOpen\(true\)\}/);
