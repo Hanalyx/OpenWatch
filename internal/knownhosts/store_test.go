@@ -5,9 +5,11 @@
 package knownhosts
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 )
 
 // @ac AC-22
@@ -46,6 +48,35 @@ func TestStore_DurableTOFU(t *testing.T) {
 		// Re-Put of the SAME key is idempotent (refreshes last_seen, no error).
 		if err := s.Put("host-a", key); err != nil {
 			t.Errorf("idempotent re-Put: %v", err)
+		}
+	})
+}
+
+// @ac AC-22
+// Regression (known-hosts TOCTOU): when a row already exists for the hostname
+// with a DIFFERENT key — the concurrent first-use race where another connection
+// recorded a different key first — Put MUST fail closed with ErrHostKeyMismatch.
+// Before the fix the conflicting UPDATE touched 0 rows but Exec returned nil, so
+// Put reported success and the TOFU callback accepted an unverified key.
+func TestStore_Put_ConflictingKeyFailsClosed(t *testing.T) {
+	t.Run("system-ssh-connectivity/AC-22", func(t *testing.T) {
+		pool := dbtest.Pool(t)
+		s := NewStore(pool)
+
+		// First connection records key A.
+		if err := s.Put("host-x", []byte("first-key-A")); err != nil {
+			t.Fatalf("Put A: %v", err)
+		}
+		// A racing first-use connection presents a DIFFERENT key B for the same
+		// host. Put must NOT report success.
+		err := s.Put("host-x", []byte("racing-different-key-B"))
+		if !errors.Is(err, owssh.ErrHostKeyMismatch) {
+			t.Fatalf("Put with conflicting key = %v, want ErrHostKeyMismatch", err)
+		}
+		// The originally-stored key still wins; the conflicting key was rejected.
+		got, ok := s.Get("host-x")
+		if !ok || string(got) != "first-key-A" {
+			t.Fatalf("stored key = (%q, %v), want first-key-A unchanged", got, ok)
 		}
 	})
 }
