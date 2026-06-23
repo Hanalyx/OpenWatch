@@ -17,9 +17,9 @@ import {
   Btn,
   SchedSummary,
   AdvancedDisclosure,
-  BackendPendingBanner,
   Callout,
 } from '@/components/settings/primitives';
+import { Link } from '@tanstack/react-router';
 import { OSIntelligenceSection } from '@/components/settings/OSIntelligenceSection';
 import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 
@@ -45,7 +45,9 @@ import { OSDiscoverySection } from '@/components/settings/OSDiscoverySection';
 //                              scheduler in the backend yet.
 //   • Maintenance (global)  — wired via the connectivity config's
 //                              maintenance_global flag.
-//   • Group maintenance     — local state only. No group entity yet.
+//   • Group maintenance     — NOT here. Per-group pause lives on the Groups
+//                              page (POST /api/v1/groups/{id}:maintenance);
+//                              Settings only carries the global switch.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Compliance scanner — six backend states (the five score bands plus
@@ -160,44 +162,6 @@ const CONNECTIVITY_ROW_SEEDS: ConnectivityRowSeed[] = [
     name: 'Down',
     desc: '3+ consecutive failures',
     rangeText: 'Use on-demand probe to retest',
-  },
-];
-
-const GROUPS = [
-  {
-    id: 'production',
-    name: 'Production',
-    kind: 'Site',
-    desc: '3 hosts · environment',
-    paused: false,
-  },
-  {
-    id: 'development',
-    name: 'Development',
-    kind: 'Site',
-    desc: '4 hosts · environment · currently paused',
-    paused: true,
-  },
-  {
-    id: 'dr',
-    name: 'DR · Warm standby',
-    kind: 'Site',
-    desc: '2 hosts · disaster recovery',
-    paused: false,
-  },
-  {
-    id: 'rhel',
-    name: 'RHEL',
-    kind: 'OS',
-    desc: '4 hosts · auto · caps.os.family == rhel',
-    paused: false,
-  },
-  {
-    id: 'ubuntu',
-    name: 'Ubuntu',
-    kind: 'OS',
-    desc: '3 hosts · auto · caps.os.family == ubuntu',
-    paused: false,
   },
 ];
 
@@ -456,9 +420,6 @@ export function ScanningPage() {
   const [connectivityAdvancedOpen, setConnectivityAdvancedOpen] = useState(false);
 
   const [autoResume, setAutoResume] = useState('4h');
-  const [groupMaintenance, setGroupMaintenance] = useState(
-    () => Object.fromEntries(GROUPS.map((g) => [g.id, g.paused])) as Record<string, boolean>,
-  );
 
   // ─── Live-derived display values ─────────────────────────────────────
   const breakdown = breakdownQuery.data;
@@ -891,24 +852,15 @@ export function ScanningPage() {
         </SettingCard>
 
         <div style={{ marginTop: 14 }}>
-          <BackendPendingBanner
-            slice="Group maintenance (groups entity)"
-            text="Per-group pause requires a groups entity (not in the Go backend yet). Toggles below are display-only."
-          />
+          <Callout tier="info">
+            Maintenance for a specific group of servers is managed on the{' '}
+            <Link to="/groups" style={{ color: 'var(--ow-info)', fontWeight: 600 }}>
+              Groups page
+            </Link>
+            , where each group has a live pause toggle. Per-host maintenance lives on each host.
+            Settings keeps only the global switch above.
+          </Callout>
         </div>
-        <SettingCard>
-          {GROUPS.map((group, i) => (
-            <GroupRow
-              key={group.id}
-              isFirst={i === 0}
-              name={group.name}
-              kind={group.kind}
-              desc={group.desc}
-              paused={groupMaintenance[group.id] ?? false}
-              onPauseChange={(v) => setGroupMaintenance((s) => ({ ...s, [group.id]: v }))}
-            />
-          ))}
-        </SettingCard>
       </Section>
 
       {(dirty || scanDirty) && (
@@ -1167,70 +1119,6 @@ function StateRow({
 // ─────────────────────────────────────────────────────────────────────────
 // Group row
 // ─────────────────────────────────────────────────────────────────────────
-
-function GroupRow({
-  name,
-  kind,
-  desc,
-  paused,
-  onPauseChange,
-  isFirst,
-}: {
-  name: string;
-  kind: string;
-  desc: string;
-  paused: boolean;
-  onPauseChange: (v: boolean) => void;
-  isFirst: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr minmax(180px, auto)',
-        gap: 20,
-        alignItems: 'center',
-        padding: '14px 20px',
-        borderTop: isFirst ? 'none' : '1px solid var(--ow-line)',
-      }}
-    >
-      <div>
-        <div
-          style={{
-            fontWeight: 500,
-            color: 'var(--ow-fg-0)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          {name}
-          <span
-            style={{
-              fontSize: 10,
-              padding: '2px 7px',
-              background: 'var(--ow-info-bg)',
-              color: 'var(--ow-info)',
-              borderRadius: 'var(--ow-radius-full)',
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {kind}
-          </span>
-        </div>
-        <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 4 }}>{desc}</div>
-      </div>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
-        <Btn size="sm" disabled>
-          Schedule window
-        </Btn>
-        <Toggle value={paused} onChange={onPauseChange} ariaLabel={`Pause ${name}`} />
-      </div>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Save bar
