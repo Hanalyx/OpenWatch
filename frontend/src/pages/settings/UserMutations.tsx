@@ -101,7 +101,7 @@ export function AddUserModal({ open, onClose }: { open: boolean; onClose: () => 
     <Modal
       open={open}
       onClose={handleClose}
-      title="Invite member"
+      title="Add member"
       width={460}
       footer={
         <>
@@ -246,7 +246,9 @@ export function ManageUserModal({
       });
       if (!response.ok) {
         // 400 surfaces the policy reason (too short / breached / etc.).
-        throw new Error(apiErrorMessage(error, `Failed to reset password (HTTP ${response.status})`));
+        throw new Error(
+          apiErrorMessage(error, `Failed to reset password (HTTP ${response.status})`),
+        );
       }
     },
     onSuccess: () => {
@@ -271,7 +273,9 @@ export function ManageUserModal({
         params: { path: { id: user!.id } },
       });
       if (!response.ok) {
-        throw new Error(apiErrorMessage(error, `Failed to update account (HTTP ${response.status})`));
+        throw new Error(
+          apiErrorMessage(error, `Failed to update account (HTTP ${response.status})`),
+        );
       }
     },
     onSuccess: () => {
@@ -451,10 +455,7 @@ export function ManageUserModal({
               Account status
             </div>
             {isDisabled ? (
-              <Btn
-                disabled={busy}
-                onClick={() => toggleMutation.mutate('enable')}
-              >
+              <Btn disabled={busy} onClick={() => toggleMutation.mutate('enable')}>
                 {toggleMutation.isPending ? (
                   <>
                     <Loader2 size={13} /> Enabling.

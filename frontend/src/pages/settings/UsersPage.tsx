@@ -12,7 +12,8 @@ import { AddUserModal, ManageUserModal, type ManagedUser } from './UserMutations
 
 // Settings → Users & teams.
 //
-// Wired to GET /api/v1/users (admin-gated). Invite (POST /users) and
+// Wired to GET /api/v1/users (admin-gated). Add member (POST /users, direct
+// create with an admin-set temporary password — not an email invite) and
 // per-member Manage (role assign/unassign + soft-delete) open modals
 // from UserMutations. The roster shows each member's assigned roles
 // (UserResponse.roles, populated by the list endpoint).
@@ -57,10 +58,10 @@ export function UsersPage() {
     <SettingsLayout>
       <PageHead
         title="Users & teams"
-        description="Workspace members and their roles. Only admins can invite new members."
+        description="Workspace members and their roles. Only admins can add new members."
         actions={
           <Btn variant="primary" disabled={!canWrite} onClick={() => setAddOpen(true)}>
-            <UserPlus size={14} /> Invite member
+            <UserPlus size={14} /> Add member
           </Btn>
         }
       />
