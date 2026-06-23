@@ -20,9 +20,9 @@ OpenWatch is the compliance operating system for teams managing Linux infrastruc
 > Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
 > Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
-> version is `0.2.0-rc.11`, a pre-release — not a GA build.
+> version is `0.2.0-rc.13`, a pre-release, not a GA build.
 
-![OpenWatch Compliance Dashboard](docs/images/dashboard-preview.png)
+![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 538 Kensa rules](docs/images/host-management.png)
 
 ## The Problem with Point-in-Time Compliance
 
@@ -40,7 +40,7 @@ OpenWatch solves all five problems.
 
 ### Continuous Compliance Posture
 
-Scan your fleet on a schedule — or let OpenWatch adapt the schedule based on host health. Healthy servers scan every 15 minutes. Degraded servers every 5. Critical servers every 2. The posture dashboard updates in real time.
+Scan your fleet on a schedule, or let OpenWatch adapt the cadence to each host's compliance state: worse posture scans more often. The defaults run from every 4 hours for a critical host to every 48 hours for a fully compliant one, and are operator-tunable per band. The posture dashboard updates in real time.
 
 ### Temporal Compliance Queries
 
@@ -102,7 +102,7 @@ Open **https://localhost:8443** and sign in with the admin user you created.
 
 1. **Add credentials** — Settings > System Credentials > add your SSH user/key
 2. **Add a host** — Hosts > Add Host > enter IP, select credentials
-3. **Scan** — Click the play button on the host card
+3. **Scan** — Click **Scan** on the host card
 
 Results appear in under a minute. OpenWatch ships with 538 built-in [Kensa](https://github.com/Hanalyx/kensa) rules — human-readable YAML, not XML — ready to go.
 
@@ -132,7 +132,7 @@ Results appear in under a minute. OpenWatch ships with 538 built-in [Kensa](http
                       SSH (port 22)
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
-│            Your Linux Servers (RHEL 8/9, Rocky, Alma)       │
+│   Your Linux servers (RHEL, Rocky, Alma, Oracle, Ubuntu)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -145,10 +145,10 @@ OpenWatch is built for environments where security is the requirement, not an af
 | Encryption at rest | AES-256-GCM for stored credentials and sensitive data |
 | Authentication | RS256 JWT with Argon2id password hashing |
 | Multi-factor auth | TOTP (Google Authenticator, Authy) with backup codes |
-| FIPS 140-2 | Compliant cryptography (enable via `OPENWATCH_FIPS_MODE=true`) |
-| Authorization | RBAC with 6 roles — Superadmin, Security Admin, Analyst, Compliance Officer, Auditor, Guest |
+| FIPS 140-3 | Optional FIPS build (`make build-fips`) using the Go-native FIPS module |
+| Authorization | RBAC with 5 built-in roles (viewer, auditor, ops_lead, security_admin, admin) and 67 permissions; custom roles supported |
 | Audit logging | All authentication, authorization, and compliance events logged |
-| Rate limiting | 100 req/min per user, 1,000 req/min per IP |
+| Rate limiting | Per-IP sliding window on the auth endpoints (login, MFA verify): 20 attempts/min, then 429 |
 | Transport | TLS 1.2+ with FIPS cipher suites in production |
 | Target security | No agents — scans over SSH, nothing installed on targets |
 
@@ -170,7 +170,7 @@ TOKEN=$(curl -sk -X POST https://localhost:8443/api/v1/auth/login \
 HOST_ID=$(curl -sk -X POST https://localhost:8443/api/v1/hosts \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"hostname":"web-01","ip_address":"192.168.1.10","ssh_port":22}' | jq -r '.id')
+  -d '{"hostname":"web-01","ip_address":"192.168.1.10","port":22}' | jq -r '.id')
 
 # List hosts
 curl -sk https://localhost:8443/api/v1/hosts \
@@ -203,34 +203,27 @@ curl -k https://localhost:8443/api/v1/health
 
 ## Production Deployment
 
-Install the native package (see [docs/guides/INSTALLATION.md](docs/guides/INSTALLATION.md)):
-
-```bash
-sudo dnf install ./openwatch-*.rpm     # RHEL / Rocky / Fedora / Oracle
-sudo apt install ./openwatch_*.deb     # Ubuntu / Debian
-
-sudo openwatch migrate                 # apply migrations
-sudo openwatch create-admin --username admin --email you@example.com --password '...'
-sudo systemctl enable --now openwatch  # start at boot
-```
-
-The package installs the `openwatch` binary (API + embedded UI), a hardened
-systemd unit, default config under `/etc/openwatch/`, and a system user.
-Replace the demo TLS cert under `/etc/openwatch/tls/` with your own before
-production use. FIPS-mode builds are available via `make build-fips`.
+The native package (installed above) lays down the `openwatch` binary (API +
+embedded UI), a hardened systemd unit, default config under `/etc/openwatch/`,
+and a dedicated system user. Before production use, replace the demo TLS cert
+under `/etc/openwatch/tls/` with your own; FIPS 140-3 builds come from
+`make build-fips`. See
+[docs/guides/PRODUCTION_DEPLOYMENT.md](docs/guides/PRODUCTION_DEPLOYMENT.md) and
+[docs/guides/SECURITY_HARDENING.md](docs/guides/SECURITY_HARDENING.md).
 
 ## Monitoring
 
-OpenWatch exposes Prometheus metrics and a liveness probe for external
-monitoring:
+OpenWatch exposes a health endpoint for external liveness checks. It returns
+`200` when healthy and `503` when a dependency (such as the database) is down:
 
 ```bash
 curl -k https://localhost:8443/api/v1/health
+# {"status":"healthy","db_connected":true,"version":"..."}
 ```
 
-See [docs/guides/MONITORING_SETUP.md](docs/guides/MONITORING_SETUP.md) for
-wiring Prometheus, Grafana dashboards, and alerting against the metrics
-endpoint.
+See [docs/guides/MONITORING_SETUP.md](docs/guides/MONITORING_SETUP.md) for the
+health/version endpoints, fleet liveness, and audit-event monitoring. (A
+Prometheus `/metrics` endpoint is on the roadmap, not in the current build.)
 
 ## Documentation
 
