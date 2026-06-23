@@ -1,5 +1,7 @@
 # Quickstart guide
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
 running. If it is not, follow
@@ -49,7 +51,7 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.2.0-rc.11"
+  "version": "0.2.0-rc.13"
 }
 ```
 
@@ -184,8 +186,7 @@ results.
 
 ## Step 6: Let automatic compliance checks run
 
-OpenWatch does not have a manual "run scan" button or a scan-trigger API
-endpoint. Compliance checking is scheduler-driven: background loops in the
+Compliance checking is primarily scheduler-driven: background loops in the
 service discover each host's OS, then run Kensa compliance checks over SSH on an
 adaptive cadence and write the results into PostgreSQL. The `serve` process runs
 these schedulers; the `openwatch worker` subcommand drains the PostgreSQL job
@@ -193,7 +194,20 @@ queue (`SKIP LOCKED`) for queued background work.
 
 You do not need to do anything to start the first check beyond adding the host
 and working credentials. The first OS-discovery and compliance cycle runs once
-the host is due. To watch progress:
+the host is due.
+
+You can also trigger an on-demand scan instead of waiting for the schedule: use
+the **Run scan** action on the host detail page in the UI, or
+`POST /api/v1/hosts/{id}/scans`, which enqueues an HMAC-signed scan job and
+returns `202` with the new scan id (the scan itself runs asynchronously on the
+worker):
+
+```bash
+curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/scans" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+To watch progress:
 
 ```bash
 journalctl -u openwatch --no-pager -f

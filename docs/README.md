@@ -28,7 +28,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 |----------|-------------|
 | [Scanning and Compliance](guides/SCANNING_AND_COMPLIANCE.md) | Run scans, read posture scores, detect drift, manage alerts |
 | [Hosts and Remediation](guides/HOSTS_AND_REMEDIATION.md) | Add hosts, configure credentials, remediate findings, rollback |
-| [User Roles](guides/USER_ROLES.md) | 6 roles, 33 permissions, workflows per role |
+| [User Roles](guides/USER_ROLES.md) | 5 built-in roles, 67 permissions, workflows per role |
 | [API Guide](guides/API_GUIDE.md) | REST API reference for automation and CI/CD integration |
 
 ## Operations

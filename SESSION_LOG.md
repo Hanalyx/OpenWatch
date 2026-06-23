@@ -6,6 +6,36 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-22 — Opus 4.8 (1M context) — Release-grade review + operator-guide truthfulness pass
+
+**Done** — Full quality+security review (4 parallel audit agents + live testing
+against the running dev system) and a docs-accuracy remediation.
+- **Security review:** GO for release, no BLOCKER/HIGH. One verified MEDIUM
+  (known-hosts TOCTOU in `internal/knownhosts/store.go:50-56` — a 0-rows
+  `ON CONFLICT` returns nil, so a concurrent first-use can accept an unverified
+  key); LOWs (alert-email CRLF parity in `internal/notification/delivery.go`,
+  OIDC nonce constant-time, CSRF SameSite). The probe `InsecureIgnoreHostKey`
+  LOW is already fixed by PR #664.
+- **Guides:** dated all 17, fixed verified truthfulness defects (RBAC counts,
+  scan-trigger endpoint `/scans/kensa` -> `POST /hosts/{id}/scans`, stale
+  versions/migration-count, 508->539 rules, password 12->8/15). Operator guides
+  verified 95%+ accurate against binary/openapi/packaging.
+- **Meta:** README + docs/README + CLAUDE.md (508->539, 5 roles/67 perms),
+  CHANGELOG [Unreleased] docs note.
+
+**Next** — (1) Land the MEDIUM known-hosts TOCTOU fix (small, fail-closed
+RowsAffected check). (2) Optional: em-dash cleanup across guides (style guide
+says "sparingly"; not truthfulness). (3) Framework rule counts (CIS 271/STIG
+338/etc) remain unverified-from-code — sourced from Kensa mappings; left as-is.
+
+**Notes** — Verify agent findings before acting: the style agent's
+"planned-as-shipped" flags were false (guides correctly say "not yet
+implemented"), and the user/API agent marked QUICKSTART all-OK but it wrongly
+claimed no run-scan action exists. Package/systemd commands aren't live-testable
+in dev; cross-checked statically against `packaging/`.
+
+---
+
 ## 2026-06-21 — Opus 4.8 (1M context) — Reports Phase A: scoped, coverage-honest, signed reports (PRs #629–#637)
 
 **Done** — the full reports build-out Phase A, 9 PRs (2 design/plan + 7
