@@ -13,7 +13,7 @@ An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
 
 With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query — executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
 
-OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 539 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
+OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 538 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
 
 > **Project status — Go rebuild, pre-release.** OpenWatch is a single Go binary
 > that serves both the REST API and the embedded React UI (the original
@@ -104,7 +104,7 @@ Open **https://localhost:8443** and sign in with the admin user you created.
 2. **Add a host** — Hosts > Add Host > enter IP, select credentials
 3. **Scan** — Click the play button on the host card
 
-Results appear in under a minute. OpenWatch ships with 539 built-in [Kensa](https://github.com/Hanalyx/kensa) rules — human-readable YAML, not XML — ready to go.
+Results appear in under a minute. OpenWatch ships with 538 built-in [Kensa](https://github.com/Hanalyx/kensa) rules — human-readable YAML, not XML — ready to go.
 
 ## Architecture
 
@@ -121,7 +121,7 @@ Results appear in under a minute. OpenWatch ships with 539 built-in [Kensa](http
 │  Auth · RBAC · Scheduling · Audit · Exports                 │
 ├────────────────────────┬────────────────────────────────────┤
 │  Kensa Engine          │  Worker (Go)                       │
-│  539 YAML rules        │  Async scanning                   │
+│  538 YAML rules        │  Async scanning                   │
 │  23 remediation types  │  Adaptive scheduling              │
 │  Evidence capture      │  Drift detection                  │
 ├────────────────────────┴────────────────────────────────────┤
@@ -246,7 +246,7 @@ endpoint.
 
 ## Part of the Hanalyx Compliance Platform
 
-OpenWatch is the compliance operating system — the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath — 539 rules, 23 remediation mechanisms, automatic rollback, all over SSH.
+OpenWatch is the compliance operating system — the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath — 538 rules, 23 remediation mechanisms, automatic rollback, all over SSH.
 
 If you want a CLI that integrates into scripts and pipelines, start with Kensa. If you want a platform for your team with a dashboard, scheduling, and audit workflows, start here.
 

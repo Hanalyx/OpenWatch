@@ -91,7 +91,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Kensa compliance scanning (539-rule corpus) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (538-rule corpus) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
 | 5.2 | Unique Passwords | Argon2id hashing, 8-char minimum (15 for admin), breached-password screening |
 | 5.4 | MFA | TOTP-based MFA with backup codes |
