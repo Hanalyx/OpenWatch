@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Docs
+### Fixed
 - Operator-guide truthfulness + accuracy pass (`docs/guides/`): verified every
   documented `openwatch` CLI subcommand, REST endpoint, file path, env var, and
   systemd unit against the binary, `api/openapi.yaml`, and `packaging/`. Fixed
