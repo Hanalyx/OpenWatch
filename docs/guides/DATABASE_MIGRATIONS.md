@@ -1,5 +1,7 @@
 # Database migration guide
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
 Go binary (`/usr/bin/openwatch`) that serves the REST API and the embedded React
@@ -64,8 +66,8 @@ in `goose_db_version`), and reports output like:
 
 ```
 applying migrations against postgres://openwatch:***@127.0.0.1:5432/openwatch ...
-  current version: 22
-  migration files: 22
+  current version: 46
+  migration files: 46
     - 0001_initial.sql
     - 0002_audit_events_taxonomy.sql
     ...
