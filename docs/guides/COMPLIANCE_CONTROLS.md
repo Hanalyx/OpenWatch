@@ -1,5 +1,7 @@
 # Compliance Control Mapping
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
 ## Framework Coverage
@@ -52,7 +54,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 |---------|-------|-------------------------|----------|
 | IA-2 | Identification and Authentication | Session cookie and JWT auth with username/password | `internal/auth/` |
 | IA-2(1) | MFA for Privileged Accounts | TOTP-based MFA with backup codes | `internal/auth/` |
-| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 12-char minimum | `internal/users/` |
+| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 8-char minimum (15 for admin) | `internal/users/` |
 | IA-5(1) | Password-Based Authentication | Complexity requirements (upper, lower, digit, special) | `internal/auth/` (password policy) |
 
 ### Risk Assessment (RA)
@@ -89,9 +91,9 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Kensa compliance scanning (338 rules) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (538-rule corpus) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
-| 5.2 | Unique Passwords | Argon2id hashing, 12-char minimum, complexity enforced |
+| 5.2 | Unique Passwords | Argon2id hashing, 8-char minimum (15 for admin), breached-password screening |
 | 5.4 | MFA | TOTP-based MFA with backup codes |
 | 6.1 | Audit Log Management | Structured JSON audit logs, audit query API |
 | 6.3 | Centralized Log Collection | JSON logging, configurable log aggregation |

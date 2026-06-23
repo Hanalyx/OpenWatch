@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Operator-guide truthfulness + accuracy pass (`docs/guides/`): verified every
+  documented `openwatch` CLI subcommand, REST endpoint, file path, env var, and
+  systemd unit against the binary, `api/openapi.yaml`, and `packaging/`. Fixed
+  the verified defects: the RBAC permission counts (`ops_lead` 30 to 32,
+  `security_admin` 51 to 56), the scan-trigger endpoint (was the nonexistent
+  `/api/v1/scans/kensa/`; the real on-demand trigger is
+  `POST /api/v1/hosts/{id}/scans`, also corrected in the Quickstart, which had
+  wrongly said no run-scan action exists), stale example versions
+  (`0.2.0-rc.11` to `rc.13`), the migration-count example (22 to 46), the
+  Kensa rule count (508 to 539), and password-policy claims (12-char to the
+  real 8/15). Added "Last Updated" headers to every guide.
+
 ---
 
 ## [0.2.0-rc.13] Eyrie — 2026-06-22

@@ -1,5 +1,7 @@
 # Secret rotation procedures
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide describes how to rotate each secret used by OpenWatch on the current
 single-binary stack: one `/usr/bin/openwatch` process that serves the REST API
 and embedded UI over HTTPS on port `8443`, backed by PostgreSQL and run under
