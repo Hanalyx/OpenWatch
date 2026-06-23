@@ -1,5 +1,7 @@
 # API guide
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 Most operators use the web UI for daily work — managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
 automation: scripting repetitive tasks, integrating with CI/CD, or building
@@ -11,7 +13,7 @@ contract source of truth is `api/openapi.yaml` in the repository; the running
 binary serves the same document, and `GET /api/v1/version` reports the build it
 came from.
 
-This guide reflects OpenWatch `0.2.0-rc.11`, a pre-release. The API surface is
+This guide reflects OpenWatch `0.2.0-rc.13`, a pre-release. The API surface is
 still growing — endpoints that the legacy Python API exposed (scan execution,
 remediation, exceptions, posture history, audit exports, the rule-reference
 browser) are not yet part of `api/v1`. See [What is not yet in the
@@ -276,7 +278,7 @@ curl -s --cacert /etc/openwatch/tls/ca.crt https://localhost:8443/api/v1/health 
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.11"}
+{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.13"}
 ```
 
 `status` is `healthy` or `degraded`; the endpoint returns `503` when the service
@@ -354,7 +356,7 @@ configuration steps, see
 ## What is not yet in the API
 
 The compliance scanning workflow runs through Kensa and the background worker,
-not yet through public REST endpoints. As of `0.2.0-rc.11`, `api/v1` does not
+not yet through public REST endpoints. As of `0.2.0-rc.13`, `api/v1` does not
 include:
 
 - Scan execution or scan-result endpoints (`/api/v1/scans/…`).

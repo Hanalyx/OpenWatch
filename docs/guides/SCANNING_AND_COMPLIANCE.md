@@ -1,5 +1,7 @@
 # Scanning and Compliance
 
+**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
 audit exports. Most of these tasks are performed in the web UI.
@@ -25,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-539 YAML rules evaluated (check commands, config values, file permissions)
+538 YAML rules evaluated (check commands, config values, file permissions)
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
@@ -404,11 +406,14 @@ pipelines, here are the key API endpoints.
 
 ### Start a Scan
 
+Enqueue an on-demand scan for one host. The scan runs the full Kensa rule corpus
+(frameworks are lenses applied to the results, not a scan parameter). The call
+returns `202` with the new scan id; the scan itself runs asynchronously on the
+worker.
+
 ```bash
-curl -k -X POST https://localhost:8443/api/v1/scans/kensa/ \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"host_id": "HOST_UUID", "framework": "cis-rhel9-v2.0.0"}'
+curl -k -X POST https://localhost:8443/api/v1/hosts/HOST_UUID/scans \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Query Posture
