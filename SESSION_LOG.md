@@ -6,6 +6,56 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-23 — Opus 4.8 (1M context) — Kensa v0.6.0 + v0.2.0-rc.14 (Eyrie) released
+
+**Done** — Bumped Kensa, landed the open fix backlog, cut and published rc.14,
+and verified the released build live.
+- **Kensa v0.6.0 (#670):** go.mod v0.5.2->v0.6.0 (atomicity engine; +3 indirect
+  deps), all three version pins aligned (go.mod, `internal/kensa` const,
+  `kensa-executor` spec). Corpus 539->538 (one rule removed upstream). Verified
+  by a live end-to-end scan on owas-tst02 (.211, RHEL): completed, **538 rules,
+  0 errors**.
+- **539->538 docs follow-up:** corrected the factual rule-count claims in README
+  (4) + SCANNING/COMPLIANCE_CONTROLS guides + CLAUDE.md. Left version-pinned
+  historical statements (LINUX_DISTRIBUTION_SUPPORT "v0.4.3 = 539",
+  scan_implementation_plan past measurements) and the explicitly-approximate
+  `~539` architectural bounds in the lens handler/openapi/spec unchanged.
+- **Landed the open PR backlog:** #668 (known-hosts TOCTOU fail-closed — the
+  MEDIUM from the 2026-06-22 review), #664 (liveness privilege probe via
+  `internal/ssh`, fixes false "degraded" on hardened/keyboard-interactive
+  hosts), #665 (settings group-maintenance stub removed), #666 (Users "Invite
+  member"->"Add member"), #667 (guide accuracy), #669 (README Go-reality +
+  screenshot). Branch protection requires up-to-date branches, so each was
+  re-synced onto main before merge (sequential, no `--admin`).
+- **Cut + published v0.2.0-rc.14 (Eyrie) (#671):** version.env bump + CHANGELOG
+  `[Unreleased]`->`[0.2.0-rc.14]` with entries for all of the above. Tag
+  `v0.2.0-rc.14` (-> commit `407fb3d8`) triggered `release.yml`: **Release +
+  package-smoke both green**, signed pre-release live with RPM (x86_64+aarch64),
+  DEB (amd64+arm64), `kensa-rules-0.6.0` RPM/DEB, per-artifact CycloneDX SBOMs,
+  GPG-signed `SHA256SUMS.asc`.
+- **Dev server rebuilt from the rc.14 tag** via `make build` (proper ldflags:
+  `openwatch 0.2.0-rc.14 / 407fb3d8`, Kensa v0.6.0). Re-verified live: scan
+  completed (538 rules, 0 errors) and owas-tst02 connectivity **online /
+  reachable, privilege-probe failures 0** — confirming the #664 fix in the
+  shipped build.
+
+**Next** — (1) Optional: update the `~539`->`~538` approximate bounds in
+openapi/spec/lens-handler (DOC-2; cosmetic, drags in `make generate-api`).
+(2) Stage 3 GA fleet-verification gate still pending per
+`docs/runbooks/RELEASING.md` (rc.14 is a pre-release). (3) Remaining licensed
+remediation track + framework rule-count verification unchanged.
+
+**Notes** — `pgrep -f 'dist/openwatch serve'` matches your own shell commands;
+find the real serve PID by listening port (`ss -ltnp 'sport = :8443'`) before
+SIGTERM, or you kill a wrapper and the old server keeps the port (cost a
+"bind: address already in use" restart this session). Dev environ saved at
+`/tmp/ow-serve-env-v60.bin` (KENSA_RULES_DIR -> v0.6.0 rules, 538 files); serve
+is manual (not systemd), logs `.dev/openwatch.log`, restart = SIGTERM + execve
+with `/proc` environ. `.kensa/*.db-wal/shm` show as tracked-modified runtime
+files — `git checkout -- .kensa/` before branch ops.
+
+---
+
 ## 2026-06-22 — Opus 4.8 (1M context) — Release-grade review + operator-guide truthfulness pass
 
 **Done** — Full quality+security review (4 parallel audit agents + live testing

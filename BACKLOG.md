@@ -3,7 +3,7 @@
 > **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
 > Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-06-23
 **Active Tree**: repo root (Go backend `cmd/`+`internal/`, React/TypeScript `frontend/`)
 **Frozen Tree**: the legacy Python/FastAPI backend was archived out of the repo on 2026-06-05 to `~/hanalyx/OWAR/openwatch-python/` (see CLAUDE.md)
 
@@ -140,6 +140,7 @@ Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current Ope
 | ID | Item | Priority | Status | Notes |
 |----|------|----------|--------|-------|
 | DOC-1 | CLAUDE.md "Packaging Infrastructure" describes a Python-era layout that doesn't exist in the Go native package | P2 | Open | The section claims package contents include `/opt/openwatch/backend/` (Python backend + requirements.txt), `/opt/openwatch/frontend/` (built SPA), and `/opt/openwatch/backend/kensa/` (rules, mappings, config, 508 rules), plus systemd units `openwatch-api`/`openwatch-worker@`/`openwatch-beat` and an nginx reverse proxy. None of that matches the rc7 Go RPM/DEB: the payload is a single `openwatch` Go binary (with embedded SPA), `openwatch.toml`, `openwatch.service`, and demo TLS certs (`packaging/rpm/openwatch.spec` + `build-rpm.sh`). The Kensa-rules-bundled claim is the same gap tracked in PKG-2. Fix: rewrite the section to match the Go packaging, or banner it as historical Python-era reference like the other frozen sections |
+| DOC-2 | `~539` approximate rule-count bounds not updated to `~538` after Kensa v0.6.0 | P3 | Open | The factual rule counts moved 539->538 with Kensa v0.6.0 (rc.14), but the explicitly-approximate `~539` bounds that justify the unpaginated host-compliance lens were left as-is in `internal/server/host_compliance_lens_handler.go`, `api/openapi.yaml` (+ generated `openapi_embed.yaml` / `frontend/src/api/schema.d.ts`), and specs `host-compliance` / `host-compliance-tab`. Cosmetic only (the `~` already disclaims precision and the bounded->no-pagination claim is unaffected by ±1); updating the openapi source requires `make generate-api` to re-sync the two generated copies |
 
 ---
 
