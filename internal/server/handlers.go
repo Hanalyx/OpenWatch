@@ -27,6 +27,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/notifyfeed"
 	"github.com/Hanalyx/openwatch/internal/policy"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
@@ -132,6 +133,10 @@ type handlers struct {
 	// Notification-channel CRUD + test. Set via (*Server).WithNotifications;
 	// nil makes the /api/v1/notifications endpoints 503. Spec api-notifications.
 	notificationSvc *notification.Service
+
+	// In-app notification feed (the bell). Set via (*Server).WithNotifyFeed;
+	// nil makes the bell endpoints 503. Spec system-notifications.
+	notifyFeed *notifyfeed.Store
 
 	// API service-account tokens. Always wired in server.New (it only
 	// wraps the pool), so the /api/v1/tokens endpoints are never 503.

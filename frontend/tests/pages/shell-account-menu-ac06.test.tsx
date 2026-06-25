@@ -2,8 +2,8 @@
 // @ac AC-06
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { signIn, clearAuth } from './shell-account-menu-helpers';
+import { fireEvent, screen } from '@testing-library/react';
+import { signIn, clearAuth, renderTopBar } from './shell-account-menu-helpers';
 
 const navigateMock = vi.fn();
 vi.mock('@tanstack/react-router', async () => {
@@ -23,7 +23,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: vi.fn(async () => ({ response: { ok: true, status: 204 } })) },
 }));
 
-import { TopBar } from '@/components/shell/TopBar';
 
 beforeEach(() => {
   clearAuth();
@@ -33,7 +32,7 @@ beforeEach(() => {
 describe('frontend-shell-account-menu — behavioral', () => {
   test('frontend-shell-account-menu/AC-06 — click outside the menu closes it', () => {
     signIn();
-    render(<TopBar />);
+    renderTopBar();
     fireEvent.click(screen.getByRole('button', { name: /account/i }));
     expect(screen.getByRole('menu')).toBeInTheDocument();
     // Mousedown outside the menu container (the body itself).

@@ -3788,6 +3788,58 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  # Spec: system-notifications — the in-app notification feed (the bell).
+  /api/v1/notifications/feed:
+    get:
+      operationId: getNotificationFeed
+      summary: List the calling user's in-app notifications (the bell)
+      description: >
+        Self-scoped: any authenticated identity reads its own notifications; no
+        special permission. Returns recent notifications newest-first plus the
+        unread count for the badge. Spec system-notifications.
+      parameters:
+        - name: unread
+          in: query
+          required: false
+          schema: {type: boolean}
+          description: When true, return only unread notifications.
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 200}
+          description: Max items to return (default 50).
+      responses:
+        '200':
+          description: The caller's notification feed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationFeed'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/notifications/feed:read-all:
+    post:
+      operationId: postNotificationFeedReadAll
+      summary: Mark all the calling user's notifications read
+      responses:
+        '200':
+          description: Number of notifications marked read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NotificationReadResult'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v1/notifications/feed/{id}:read:
+    post:
+      operationId: postNotificationFeedRead
+      summary: Mark one notification read (must belong to the caller)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Marked read}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
+
   # Spec: api-notifications — operator-managed alert-delivery channels.
   /api/v1/notifications/channels:
     get:
@@ -4243,6 +4295,33 @@ components:
         channels:
           type: array
           items: {$ref: '#/components/schemas/NotificationChannel'}
+    NotificationFeedItem:
+      type: object
+      required: [id, kind, severity, title, occurred_at, read]
+      description: One in-app notification (the bell). Self-scoped to the caller.
+      properties:
+        id:          {type: string, format: uuid}
+        kind:        {type: string, description: 'Change/alert kind, e.g. host_unreachable or drift_major'}
+        severity:    {type: string, enum: [critical, high, medium, low, info]}
+        title:       {type: string}
+        body:        {type: string}
+        host_id:     {type: string, format: uuid, nullable: true, description: 'Present for host-scoped changes'}
+        link:        {type: string, description: 'Deep-link target for the notification'}
+        occurred_at: {type: string, format: date-time}
+        read:        {type: boolean, description: 'True when the caller has read it'}
+    NotificationFeed:
+      type: object
+      required: [items, unread_count]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/NotificationFeedItem'}
+        unread_count: {type: integer, description: 'Count of the unread notifications (badge value)'}
+    NotificationReadResult:
+      type: object
+      required: [marked_read]
+      properties:
+        marked_read: {type: integer, description: Number of notifications marked read}
     NotificationChannelCreate:
       type: object
       required: [type, name]
