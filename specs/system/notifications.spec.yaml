@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -102,6 +102,25 @@ spec:
         self-scoped to the caller (no cross-user access).
       type: security
       enforcement: error
+    - id: C-07
+      description: >-
+        v1.4.0 (Slice 2) — the bell's second producer is a transaction-log
+        regression projector (notifyfeed.Projector). After a scan's outcomes
+        persist, ProjectScan reads that scan's transactions for the host and
+        records ONE grouped "rule_regression" notification (fanned per active
+        recipient) when any rule regressed. A regression is a state_changed ->
+        fail row (a passing/skipped/errored rule now fails); a first_seen ->
+        fail row counts ONLY when its severity is critical AND the host has
+        prior scan history (on a host's first scan every rule is first_seen —
+        baseline, not regression — and MUST NOT flood the bell). The grouped
+        row's group_key is per host ("rule_regression:<host>") so a burst of N
+        rules in one scan is one row and a later scan's regressions collapse
+        onto (and re-surface) it; the notification severity is the highest among
+        the regressed rules and the title summarizes the counts. The projector
+        runs best-effort in the scan worker: a projection failure never fails or
+        retries the scan.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -163,3 +182,30 @@ spec:
         the group_key; a fleet alert (no host) carries no host link.
       priority: high
       references_constraints: [C-06]
+    - id: AC-12
+      description: >-
+        v1.4.0 — Projector.ProjectScan turns a scan's state_changed -> fail
+        transactions into ONE grouped rule_regression notification per active
+        recipient: severity is the highest among the regressed rules, the title
+        reads "<host>: <N> rule(s) regressed (<C> critical)", host_id + a
+        /hosts/{id} deep-link are set, and fail->pass recoveries and
+        severity_changed rows are excluded from the count.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-13
+      description: >-
+        v1.4.0 — first-scan baseline suppression: a scan whose fail rows are all
+        first_seen with no prior host scan history produces NO notification; once
+        the host has prior history, a NEW first_seen critical fail is counted
+        (and a first_seen high fail is not), so a follow-up scan with one new
+        critical yields "1 rule regressed (1 critical)".
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-14
+      description: >-
+        v1.4.0 — no-op + collapse: a scan with only a recovery + severity churn
+        records nothing; two regressing scans on the same host collapse onto one
+        per-host row (group_key rule_regression:<host>) and the second
+        re-surfaces it unread with the latest scan's severity.
+      priority: high
+      references_constraints: [C-07]

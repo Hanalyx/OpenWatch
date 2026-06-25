@@ -10,6 +10,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- In-app notifications now flag when a scan turns a passing rule into a failing
+  one: the bell shows one grouped per-host notification ("web-01: 3 rules
+  regressed (1 critical)"), severity-ranked and deep-linked to the host. A
+  host's first scan (all-new baseline) does not flood the bell, and repeat
+  failures collapse onto a single re-surfacing entry. (notifications Slice 2)
+
 ---
 
 ## [0.2.0-rc.15] Eyrie — 2026-06-25

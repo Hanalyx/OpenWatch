@@ -78,9 +78,10 @@ type ScanWorker struct {
 	writer      *transactionlog.Writer
 	scanResults *scanresult.Writer // nil = durable per-scan results not recorded (legacy tests)
 	queueKey    []byte
-	bus         *eventbus.Bus      // nil = no scan.completed publication (dedicated worker process)
-	sched       *scheduler.Service // nil = no post-scan schedule update (legacy tests)
-	remProc     *RemediationWorker // nil = "remediation" jobs fail (legacy tests)
+	bus         *eventbus.Bus       // nil = no scan.completed publication (dedicated worker process)
+	sched       *scheduler.Service  // nil = no post-scan schedule update (legacy tests)
+	remProc     *RemediationWorker  // nil = "remediation" jobs fail (legacy tests)
+	regressions RegressionProjector // nil = no in-app rule-regression notifications
 
 	pollInterval time.Duration
 
@@ -136,9 +137,24 @@ type Config struct {
 	// dead-lettering them. Spec api-remediation.
 	RemediationProcessor *RemediationWorker
 
+	// Regressions, when non-nil, projects each completed scan's
+	// transaction-log regressions (a passing rule now fails) into a grouped
+	// in-app notification. Best-effort: a projection error never fails the
+	// scan. nil disables the in-app rule-regression bell (legacy tests, and
+	// any boot path without the notification feed). Spec system-notifications.
+	Regressions RegressionProjector
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
+}
+
+// RegressionProjector turns a completed scan's transaction-log changes into a
+// grouped in-app notification. notifyfeed.Projector implements it; the worker
+// holds the interface to avoid importing the feed package's concrete type and
+// to let tests stub it. Spec system-notifications (Slice 2).
+type RegressionProjector interface {
+	ProjectScan(ctx context.Context, scanID, hostID uuid.UUID) error
 }
 
 // NewScanWorker wires a ScanWorker. The dependencies are constructed at
@@ -165,6 +181,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		bus:          cfg.Bus,
 		sched:        cfg.Sched,
 		remProc:      cfg.RemediationProcessor,
+		regressions:  cfg.Regressions,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -386,6 +403,19 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 				slog.String("host_id", payload.HostID.String()),
 				slog.String("error", err.Error()))
 			// Non-fatal: the scan itself succeeded and persisted.
+		}
+	}
+
+	// Project rule-level regressions (a passing rule now fails) into a
+	// grouped in-app notification. Best-effort and non-fatal: the scan and
+	// its compliance state already persisted; a feed write must never fail or
+	// retry the scan. Spec system-notifications (Slice 2).
+	if w.regressions != nil {
+		if err := w.regressions.ProjectScan(ctx, j.ID, payload.HostID); err != nil {
+			slog.WarnContext(ctx, "worker regression projection failed",
+				slog.String("scan_id", j.ID.String()),
+				slog.String("host_id", payload.HostID.String()),
+				slog.String("error", err.Error()))
 		}
 	}
 
