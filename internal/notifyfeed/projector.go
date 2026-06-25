@@ -127,7 +127,7 @@ func (p *Projector) ProjectScan(ctx context.Context, scanID, hostID uuid.UUID) e
 		topSeverity = "low" // a fail with no severity still warrants a low-rank ping
 	}
 
-	name := p.hostName(ctx, hostID)
+	name := p.store.hostName(ctx, hostID)
 
 	n := Notification{
 		Kind:     "rule_regression",
@@ -142,19 +142,6 @@ func (p *Projector) ProjectScan(ctx context.Context, scanID, hostID uuid.UUID) e
 		return fmt.Errorf("notifyfeed: project record: %w", err)
 	}
 	return nil
-}
-
-// hostName returns the host's display name (falling back to hostname, then the
-// id) for the notification title. A lookup failure degrades to the id rather
-// than failing the projection.
-func (p *Projector) hostName(ctx context.Context, hostID uuid.UUID) string {
-	var name string
-	if err := p.store.pool.QueryRow(ctx,
-		`SELECT COALESCE(NULLIF(display_name, ''), hostname) FROM hosts WHERE id = $1`,
-		hostID).Scan(&name); err != nil || name == "" {
-		return hostID.String()
-	}
-	return name
 }
 
 // hasFirstSeen reports whether any candidate is a first_seen change (so we only

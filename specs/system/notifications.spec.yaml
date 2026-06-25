@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -121,6 +121,28 @@ spec:
         retries the scan.
       type: technical
       enforcement: error
+    - id: C-08
+      description: >-
+        v1.5.0 (Slice 3) — the bell's third producer is the governance
+        action-queue: a notifyfeed.GovernanceProjector with RBAC-scoped fan-out.
+        notifyfeed.Store.RecordForRoles MUST fan one row per active user holding
+        any of the given built-in roles (DISTINCT, same upsert/collapse as
+        RecordFanout), and auth.RolesWithPermission(p) MUST resolve a permission
+        to the role IDs that grant it. The projector MUST: (a) on an exception
+        request, notify only users who can approve it
+        (roles granting exception:approve), kind "exception_pending", severity
+        high, deep-linked to the exception queue (/settings/policies), grouped
+        per exception; (b) on an approve/reject, notify only the requester, kind
+        "exception_approved"/"exception_rejected", severity medium; (c) on a
+        TERMINAL remediation FAILURE (an execute that failed, or a rollback that
+        did not restore — NOT a successful user-initiated rollback), notify only
+        users who can act (roles granting remediation:execute), kind
+        "remediation_failed", severity high, deep-linked to /hosts/{id}, grouped
+        per (host, rule). The exception service and remediation worker hold the
+        producer interfaces (so neither imports notifyfeed) and call best-effort:
+        a notify failure never fails the governance transition or the job.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -209,3 +231,29 @@ spec:
         re-surfaces it unread with the latest scan's severity.
       priority: high
       references_constraints: [C-07]
+    - id: AC-15
+      description: >-
+        v1.5.0 — GovernanceProjector.ExceptionRequested fans an
+        "exception_pending" (severity high, link /settings/policies, grouped per
+        exception) to every user whose role grants exception:approve (auditor,
+        security_admin, admin) and to no one else (a viewer does not receive
+        it). auth.RolesWithPermission(exception:approve) resolves that role set;
+        RecordForRoles fans one row per holder.
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-16
+      description: >-
+        v1.5.0 — GovernanceProjector.ExceptionDecided notifies ONLY the
+        requester: an approve records kind "exception_approved" (severity
+        medium) for the requesting user and no one else; a reject records
+        "exception_rejected".
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-17
+      description: >-
+        v1.5.0 — GovernanceProjector.RemediationFailed fans a "remediation_failed"
+        (severity high, link /hosts/{id}, grouped per host+rule) to every user
+        whose role grants remediation:execute (ops_lead, security_admin, admin)
+        and to no one else (a viewer does not receive it).
+      priority: high
+      references_constraints: [C-08]

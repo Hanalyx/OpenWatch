@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -19,15 +20,33 @@ import (
 // pass a fake.
 type EmitFunc func(ctx context.Context, code audit.Code, ev audit.Event)
 
+// Notifier receives exception lifecycle signals for the in-app notification
+// feed. notifyfeed.GovernanceProjector implements it; the service holds the
+// interface so it does not import the feed package. Methods are best-effort:
+// the service logs (never fails the transition on) a notifier error. nil
+// disables in-app exception notifications.
+type Notifier interface {
+	ExceptionRequested(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error
+	ExceptionDecided(ctx context.Context, exceptionID, requestedBy uuid.UUID, ruleID string, approved bool) error
+}
+
 // Service is the exception governance service.
 type Service struct {
-	pool *pgxpool.Pool
-	emit EmitFunc
+	pool     *pgxpool.Pool
+	emit     EmitFunc
+	notifier Notifier
 }
 
 // NewService wires the service. emit is audit.Emit in production.
 func NewService(pool *pgxpool.Pool, emit EmitFunc) *Service {
 	return &Service{pool: pool, emit: emit}
+}
+
+// WithNotifier attaches the in-app notification projector and returns the
+// service for chaining at boot. nil leaves in-app notifications disabled.
+func (s *Service) WithNotifier(n Notifier) *Service {
+	s.notifier = n
+	return s
 }
 
 const selectCols = `id, host_id, rule_id, reason, status, requested_by,
@@ -91,6 +110,7 @@ func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID, reason 
 	}
 
 	s.emitEvent(ctx, audit.ComplianceExceptionRequested, e, requestedBy, "requested")
+	s.notifyRequested(ctx, e)
 	return e, nil
 }
 
@@ -98,16 +118,24 @@ func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID, reason 
 // reviewer must differ from the requester (separation of duties).
 // Emits compliance.exception.approved.
 func (s *Service) Approve(ctx context.Context, id, reviewedBy uuid.UUID, note string) (Exception, error) {
-	return s.review(ctx, id, reviewedBy, note, StatusRequested, StatusApproved,
+	e, err := s.review(ctx, id, reviewedBy, note, StatusRequested, StatusApproved,
 		audit.ComplianceExceptionApproved, true)
+	if err == nil {
+		s.notifyDecided(ctx, e, true)
+	}
+	return e, err
 }
 
 // Reject transitions a 'requested' exception to 'rejected'. Like
 // Approve, the reviewer must differ from the requester. Emits
 // compliance.exception.rejected.
 func (s *Service) Reject(ctx context.Context, id, reviewedBy uuid.UUID, note string) (Exception, error) {
-	return s.review(ctx, id, reviewedBy, note, StatusRequested, StatusRejected,
+	e, err := s.review(ctx, id, reviewedBy, note, StatusRequested, StatusRejected,
 		audit.ComplianceExceptionRejected, true)
+	if err == nil {
+		s.notifyDecided(ctx, e, false)
+	}
+	return e, err
 }
 
 // Revoke transitions an 'approved' exception to 'revoked' before its
@@ -309,6 +337,31 @@ func (s *Service) emitEvent(ctx context.Context, code audit.Code, e Exception, a
 		ResourceID:   e.ID.String(),
 		Detail:       detail,
 	})
+}
+
+// notifyRequested fans an "exception pending approval" notification to
+// approvers. Best-effort: a notifier error is logged, never propagated (the
+// exception was already persisted). No-op when no notifier is wired.
+func (s *Service) notifyRequested(ctx context.Context, e Exception) {
+	if s.notifier == nil {
+		return
+	}
+	if err := s.notifier.ExceptionRequested(ctx, e.ID, e.HostID, e.RuleID); err != nil {
+		slog.WarnContext(ctx, "exception requested notification failed",
+			slog.String("exception_id", e.ID.String()), slog.String("error", err.Error()))
+	}
+}
+
+// notifyDecided notifies the requester that their exception was approved or
+// rejected. Best-effort, like notifyRequested.
+func (s *Service) notifyDecided(ctx context.Context, e Exception, approved bool) {
+	if s.notifier == nil {
+		return
+	}
+	if err := s.notifier.ExceptionDecided(ctx, e.ID, e.RequestedBy, e.RuleID, approved); err != nil {
+		slog.WarnContext(ctx, "exception decided notification failed",
+			slog.String("exception_id", e.ID.String()), slog.String("error", err.Error()))
+	}
 }
 
 // isUniqueViolation reports whether err is a Postgres unique-violation

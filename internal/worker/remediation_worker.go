@@ -53,9 +53,18 @@ type RemediationWorker struct {
 	svc      *remediation.Service
 	writer   *transactionlog.Writer
 	queueKey []byte
-	bus      *eventbus.Bus // nil = no remediation.completed publication (dedicated worker)
+	bus      *eventbus.Bus      // nil = no remediation.completed publication (dedicated worker)
+	gov      GovernanceNotifier // nil = no in-app remediation-failure notification
 	emit     EmitFunc
 	clock    func() time.Time
+}
+
+// GovernanceNotifier receives terminal remediation-failure signals for the
+// in-app feed. notifyfeed.GovernanceProjector implements it; the worker holds
+// the interface to avoid importing the feed package. Best-effort at the call
+// site — a notify error never fails the job. Spec system-notifications (Slice 3).
+type GovernanceNotifier interface {
+	RemediationFailed(ctx context.Context, hostID uuid.UUID, ruleID, action, finalStatus string) error
 }
 
 // RemediationConfig is the constructor bundle. All fields except Bus/Clock/Emit
@@ -69,6 +78,12 @@ type RemediationConfig struct {
 	Bus      *eventbus.Bus
 	Emit     EmitFunc
 	Clock    func() time.Time
+
+	// Governance, when non-nil, receives a notification when a remediation
+	// reaches a terminal FAILURE (an execute that failed, or a rollback that
+	// did not restore). A successful user-initiated rollback is the intended
+	// outcome and is NOT notified. Spec system-notifications (Slice 3).
+	Governance GovernanceNotifier
 }
 
 // NewRemediationWorker wires a RemediationWorker.
@@ -86,8 +101,24 @@ func NewRemediationWorker(cfg RemediationConfig) *RemediationWorker {
 		writer:   cfg.Writer,
 		queueKey: cfg.QueueKey,
 		bus:      cfg.Bus,
+		gov:      cfg.Governance,
 		emit:     cfg.Emit,
 		clock:    cfg.Clock,
+	}
+}
+
+// notifyRemediationFailed fans a terminal-failure notification to the operators
+// who can act (remediation:execute holders). Best-effort + nil-safe: a notify
+// error is logged, never propagated.
+func (w *RemediationWorker) notifyRemediationFailed(ctx context.Context, hostID uuid.UUID, ruleID, action string) {
+	if w.gov == nil {
+		return
+	}
+	if err := w.gov.RemediationFailed(ctx, hostID, ruleID, action, "failed"); err != nil {
+		slog.WarnContext(ctx, "remediation failure notification failed",
+			slog.String("host_id", hostID.String()),
+			slog.String("rule_id", ruleID),
+			slog.String("error", err.Error()))
 	}
 }
 
@@ -257,6 +288,9 @@ func (w *RemediationWorker) finishExecute(ctx context.Context, j *queue.Job,
 		RuleFlipped: committed,
 		CompletedAt: w.clock().UTC(),
 	})
+	if final.Status == remediation.StatusFailed {
+		w.notifyRemediationFailed(ctx, final.HostID, final.RuleID, RemediationActionExecute)
+	}
 
 	if err := queue.Complete(ctx, w.pool, j.ID); err != nil {
 		slog.WarnContext(ctx, "remediation queue.Complete failed",
@@ -347,6 +381,7 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 		detail = rbErr.Error()
 	}
 	_ = queue.Fail(ctx, w.pool, j.ID, "rollback did not restore: "+detail)
+	w.notifyRemediationFailed(ctx, p.HostID, p.RuleID, RemediationActionRollback)
 }
 
 // flipRuleToPass writes a single-rule transaction-log batch marking p.RuleID
