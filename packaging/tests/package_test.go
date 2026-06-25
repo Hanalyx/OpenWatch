@@ -504,6 +504,49 @@ func TestOpenwatch_DependsOnKensaRules(t *testing.T) {
 	})
 }
 
+// @ac AC-23
+// AC-23: the hardened unit pins the Kensa rollback store inside the writable
+// state tree. Backstops the rc.14 regression where ProtectSystem=strict left
+// the store path on the read-only root, so remediation boot-wiring failed and
+// every remediation/rollback returned "not wired" while scans still worked.
+func TestUnit_KensaStorePathIsWritable(t *testing.T) {
+	t.Run("release-package-build/AC-23", func(t *testing.T) {
+		dir := appDir(t)
+		unit, err := os.ReadFile(filepath.Join(dir, "packaging", "common", "openwatch.service"))
+		if err != nil {
+			t.Fatalf("read openwatch.service: %v", err)
+		}
+		u := string(unit)
+
+		// The store path must be set and live under /var/lib/openwatch, which is
+		// the unit's ReadWritePaths entry (so it is writable under
+		// ProtectSystem=strict).
+		storeRe := regexp.MustCompile(`(?m)^Environment=OPENWATCH_KENSA_STORE_PATH=(\S+)`)
+		m := storeRe.FindStringSubmatch(u)
+		if m == nil {
+			t.Fatal("openwatch.service must set Environment=OPENWATCH_KENSA_STORE_PATH (else the Kensa rollback store lands on the read-only root and remediation degrades to \"not wired\")")
+		}
+		if !strings.HasPrefix(m[1], "/var/lib/openwatch/") {
+			t.Errorf("OPENWATCH_KENSA_STORE_PATH=%q must be under /var/lib/openwatch/ (a ReadWritePaths entry)", m[1])
+		}
+
+		// Defense in depth: WorkingDirectory must be writable too, so the store's
+		// default fallback (.kensa/ relative to the working dir) cannot land on
+		// the read-only root if the env var is ever dropped.
+		wdRe := regexp.MustCompile(`(?m)^WorkingDirectory=(\S+)`)
+		if wm := wdRe.FindStringSubmatch(u); wm == nil {
+			t.Error("openwatch.service must set WorkingDirectory to a writable path")
+		} else if !strings.HasPrefix(wm[1], "/var/lib/openwatch") {
+			t.Errorf("WorkingDirectory=%q must be under /var/lib/openwatch", wm[1])
+		}
+
+		// Sanity: the writable path we point at is actually granted by the unit.
+		if !strings.Contains(u, "ReadWritePaths=") || !strings.Contains(u, "/var/lib/openwatch") {
+			t.Error("openwatch.service must grant ReadWritePaths=/var/lib/openwatch")
+		}
+	})
+}
+
 // @ac AC-17
 // AC-17: make packages builds the kensa-rules corpus package too.
 func TestMake_PackagesBuildsKensaRules(t *testing.T) {
