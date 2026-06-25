@@ -192,6 +192,7 @@ Dependabot major bumps closed (skipped) 2026-06-16, with the reason + revisit pa
 | `internal/license.TestVerify_P99Latency` | P3 | 1ms p99 budget, non-gating via `perftest.Budgetf()`. No `-race` skip needed (helper absorbs it). Watch only |
 | `internal/audit.TestEmitSync_Latency` | P3 | `10ms * internalrace.Multiplier()` budget, non-gating. Watch only |
 | `internal/queue.TestEnqueue_LatencyP99` | P3 | 10ms budget (spec target 5ms), non-gating. Watch only |
+| `internal/transactionlog.TestApply_1000Rules_Under2Seconds` | P2 | **GATING flake** — missed the 2026-06-21 migration: still a HARD `if elapsed > 2*time.Second { t.Errorf }` (`writer_test.go:476`), so under `-race` + CI load it fails the build (took 2.54s on #676's gate 2026-06-25; passed on rerun). Fix: move AC-10's assertion to the non-gating `perftest.Budgetf()` with `internalrace.Multiplier()` like the other three perf tests, so a slow p99 emits a note instead of gating merges |
 
 ---
 
