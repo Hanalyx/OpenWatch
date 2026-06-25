@@ -2,8 +2,8 @@
 // @ac AC-07
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { clearAuth } from './shell-account-menu-helpers';
+import { screen } from '@testing-library/react';
+import { clearAuth, renderTopBar } from './shell-account-menu-helpers';
 
 const navigateMock = vi.fn();
 vi.mock('@tanstack/react-router', async () => {
@@ -23,7 +23,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: vi.fn(async () => ({ response: { ok: true, status: 204 } })) },
 }));
 
-import { TopBar } from '@/components/shell/TopBar';
 
 beforeEach(() => {
   clearAuth();
@@ -33,7 +32,7 @@ beforeEach(() => {
 describe('frontend-shell-account-menu — behavioral', () => {
   test('frontend-shell-account-menu/AC-07 — without identity the avatar button does not render', () => {
     // useAuthStore identity is null by default after clearAuth.
-    render(<TopBar />);
+    renderTopBar();
     expect(screen.queryByRole('button', { name: /account/i })).toBeNull();
   });
 });

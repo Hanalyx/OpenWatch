@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 
 // useLiveEvents — opens one SSE connection to /api/v1/events?topics=…
 // and dispatches each incoming event to the right TanStack Query
@@ -160,15 +159,16 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
         }
       },
       // report.ready -> the report's bulk faces finished rendering async
-      // (spec api-reports B3a). Bump the notification bell's unread counter
-      // (the first producer of the in-app bell) and refresh the Reports
-      // library so the new report's faces are downloadable without a manual
-      // refresh. No host id: a report is fleet-scoped, not per-host.
+      // (spec api-reports B3a). Refresh the Reports library so the new
+      // report's faces are downloadable without a manual refresh, and
+      // invalidate the notification feed so the bell reflects any new
+      // notification promptly (the durable feed is server-backed; this is a
+      // liveness nudge on top of the poll). No host id: report is fleet-scoped.
       'report.ready': (e) => {
         const env = parseEnvelope(e);
         if (!env) return;
-        useNotificationStore.getState().bumpReportReady();
         queryClient.invalidateQueries({ queryKey: ['reports'] });
+        queryClient.invalidateQueries({ queryKey: ['notifications', 'feed'] });
       },
     };
 

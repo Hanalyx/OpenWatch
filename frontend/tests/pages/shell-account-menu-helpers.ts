@@ -10,7 +10,19 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createElement } from 'react';
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/useAuthStore';
+import { TopBar } from '@/components/shell/TopBar';
+
+// renderTopBar renders the TopBar inside a QueryClientProvider — the bell now
+// reads the durable notification feed via TanStack Query (frontend-notifications
+// v2.0.0), so a client must be present. Each call gets a fresh client.
+export function renderTopBar() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(createElement(QueryClientProvider, { client: qc }, createElement(TopBar)));
+}
 
 // Module-level source snapshot of TopBar.tsx, read once. AC-01 asserts
 // against this string directly (source inspection); the others use the

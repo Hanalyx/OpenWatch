@@ -51,6 +51,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/liveness"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/notifyfeed"
 	"github.com/Hanalyx/openwatch/internal/posture"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
@@ -332,6 +333,13 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	notifSvc := notification.NewService(pool)
 	router.Register(alertrouter.ChannelRegistration{
 		Channel: notification.NewDispatchChannel(notifSvc),
+	})
+	// In-app notification feed (the bell): fan every alert into a durable
+	// per-user notification row. Wildcard filter — receives every alert the
+	// engine classifies. Spec system-notifications. Design notifications_design.md.
+	notifFeedStore := notifyfeed.NewStore(pool)
+	router.Register(alertrouter.ChannelRegistration{
+		Channel: notifyfeed.NewChannel(notifFeedStore),
 	})
 	router.Start(ctx) // C-09: subscriber active before any publisher.
 
@@ -701,7 +709,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithReportSchedules(reportScheduleSvc).
 		WithReportWorker(reportRenderProc).
 		WithScanResults(scanresult.NewReader(pool)).
-		WithNotifications(notifSvc)
+		WithNotifications(notifSvc).
+		WithNotifyFeed(notifFeedStore)
 	runErr := srv.Run(ctx)
 
 	// Shutdown order REVERSE of boot (C-02). liveness.Run + alertrouter

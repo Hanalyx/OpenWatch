@@ -28,6 +28,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/notifyfeed"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/reportschedule"
@@ -185,6 +186,14 @@ func (s *Server) WithScanResults(rd *scanresult.Reader) *Server {
 // notification endpoints 503. Spec api-notifications.
 func (s *Server) WithNotifications(svc *notification.Service) *Server {
 	s.handlers.notificationSvc = svc
+	return s
+}
+
+// WithNotifyFeed threads the in-app notification feed store into the API
+// handlers so /api/v1/notifications (the bell) is routable. Nil makes those
+// endpoints 503. Spec system-notifications / api-notifications.
+func (s *Server) WithNotifyFeed(store *notifyfeed.Store) *Server {
+	s.handlers.notifyFeed = store
 	return s
 }
 

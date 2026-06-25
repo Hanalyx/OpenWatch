@@ -24,6 +24,26 @@ const CSRF_HEADER = 'X-CSRF-Token';
 const REFRESH_PATH = '/api/v1/auth/refresh-cookie';
 const LOGIN_PATH = '/login';
 
+// AUTH-1 (c): the server slides the session idle window only on user-initiated
+// requests. We mark background/poll GETs with X-Background-Refresh so they do
+// NOT keep an unattended session alive. "User-initiated" is inferred from the
+// idle-timer's activity signal (the same localStorage key useIdleLogout writes
+// on real pointer/keyboard input). Fail-safe: until that key is written (e.g.
+// the idle timer is not present), we never mark, so the server slides exactly
+// as before — no premature logout.
+const BACKGROUND_HEADER = 'X-Background-Refresh';
+const ACTIVITY_KEY = 'ow.session.lastActivity';
+let lastReportedActivity = 0;
+
+function lastUserActivity(): number {
+  try {
+    const n = Number(localStorage.getItem(ACTIVITY_KEY));
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const target = name + '=';
@@ -131,8 +151,20 @@ baseClient.use({
   onRequest({ request }) {
     const method = request.method.toUpperCase();
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+      // AUTH-1 (c): a safe read rides genuine user activity (don't mark → the
+      // server slides) only when there is NEW activity since the last reported
+      // request; otherwise it is background churn and must not slide the window.
+      const last = lastUserActivity();
+      if (last > 0) {
+        if (last > lastReportedActivity) {
+          lastReportedActivity = last;
+        } else {
+          request.headers.set(BACKGROUND_HEADER, '1');
+        }
+      }
       return request;
     }
+    // Mutations are always user-initiated → never marked background (they slide).
     const token = readCookie(CSRF_COOKIE);
     if (token) request.headers.set(CSRF_HEADER, token);
     return request;

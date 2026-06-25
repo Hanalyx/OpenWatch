@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -78,6 +78,30 @@ spec:
         only, mirroring alertrouter's no-SDK rule.
       type: technical
       enforcement: error
+    - id: C-05
+      description: >-
+        v1.3.0 — the in-app notification feed (the bell) is a durable per-user
+        store (notifications, migration 0048): one row per (recipient, change).
+        Record MUST upsert on (user_id, group_key) so a recurring change
+        collapses onto one row and re-surfaces it UNREAD (read_at reset), rather
+        than flooding the bell. Read-state is per user: MarkRead MUST be scoped
+        to the owning user (a user can never read or mutate another user's row),
+        UnreadCount counts that user's unread rows, MarkAllRead clears them. List
+        returns the user's rows newest-first with an optional unread-only filter.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        v1.3.0 — the bell is fed by an in-app alertrouter.Channel
+        (notifyfeed.Channel) registered alongside the stdout/Slack/email
+        channels, so every alert the engine classifies fans into the feed. Send
+        MUST fan one row per active recipient (Slice 1: all non-deleted users;
+        per-host RBAC scoping is a later refinement), mapping the alert's
+        type/severity/title/host onto the notification and deep-linking a
+        host-scoped alert to /hosts/{id}. The API read/mutate endpoints are
+        self-scoped to the caller (no cross-user access).
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -112,3 +136,30 @@ spec:
       description: "v1.1.0 (Phase 2b) — email channels: validateEmail requires smtp_host, a valid port, a from address, and >=1 recipient (else ErrInvalidConfig) and returns the smtp_host as target_hint; a created email channel round-trips its smtp host/port/username/password/from/to through the encrypted config; deliver routes email via SMTP (net/smtp) and slack/webhook via HTTP. The SMTP host is NOT public-host-restricted (internal relays allowed)."
       priority: high
       references_constraints: [C-01, C-03]
+    - id: AC-09
+      description: >-
+        v1.3.0 — notifyfeed.Store.Record inserts a notification for a user; a
+        second Record with the same (user_id, group_key) collapses onto the same
+        row (one row, not two), refreshes its content + occurred_at, and
+        re-surfaces it as unread even if it had been read. List returns a user's
+        rows newest-first and, with unreadOnly, only unread rows.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-10
+      description: >-
+        v1.3.0 — read-state is per user: UnreadCount returns the user's unread
+        count; MarkRead marks one of the user's rows read (idempotent) and
+        returns ErrNotFound for an id that is not the caller's (so a user cannot
+        mutate another user's notification); MarkAllRead marks all the user's
+        unread rows read and returns the count affected.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: >-
+        v1.3.0 — notifyfeed.Channel (an alertrouter.Channel named "in-app")
+        fans an alert into one notification row per active recipient, mapping
+        the alert's Type->kind, Severity->severity, Title/Body, and HostID, with
+        a host-scoped alert deep-linked to /hosts/{id} and the alert DedupKey as
+        the group_key; a fleet alert (no host) carries no host link.
+      priority: high
+      references_constraints: [C-06]
