@@ -107,6 +107,16 @@ type Session struct {
 //
 // Spec AC-06, C-05, C-06.
 func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, remoteAddr, userAgent string) (token string, sess Session, err error) {
+	return IssueSessionWithAbsolute(ctx, pool, userID, remoteAddr, userAgent,
+		time.Now().UTC().Add(CurrentWindows().Absolute))
+}
+
+// IssueSessionWithAbsolute is IssueSession with an explicit absolute deadline,
+// used by the cookie-refresh path to carry the ORIGINAL login's absolute
+// ceiling onto a re-minted session instead of granting a fresh window (AUTH-1
+// b). The idle expiry is capped at the absolute deadline, so a session minted
+// close to its ceiling expires at the ceiling, not idle+window beyond it.
+func IssueSessionWithAbsolute(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, remoteAddr, userAgent string, absoluteExpiresAt time.Time) (token string, sess Session, err error) {
 	raw := make([]byte, SessionTokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return "", Session{}, fmt.Errorf("identity: read session entropy: %w", err)
@@ -120,13 +130,23 @@ func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, rem
 	}
 	now := time.Now().UTC()
 	win := CurrentWindows()
+	// Defensive: a zero deadline would otherwise cap the idle expiry to the zero
+	// time and mint an always-expired session. Treat it as "no carried deadline"
+	// and grant a fresh absolute window (the IssueSession default).
+	if absoluteExpiresAt.IsZero() {
+		absoluteExpiresAt = now.Add(win.Absolute)
+	}
+	expires := now.Add(win.Idle)
+	if expires.After(absoluteExpiresAt) {
+		expires = absoluteExpiresAt
+	}
 	sess = Session{
 		ID:                id,
 		UserID:            userID,
 		CreatedAt:         now,
 		LastSeen:          now,
-		ExpiresAt:         now.Add(win.Idle),
-		AbsoluteExpiresAt: now.Add(win.Absolute),
+		ExpiresAt:         expires,
+		AbsoluteExpiresAt: absoluteExpiresAt,
 		RemoteAddr:        remoteAddr,
 		UserAgent:         userAgent,
 	}
@@ -145,11 +165,29 @@ func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, rem
 	return token, sess, nil
 }
 
+// VerifyOption tunes VerifySession. AUTH-1 (c).
+type VerifyOption func(*verifyOpts)
+
+type verifyOpts struct{ noSlide bool }
+
+// WithoutSlide validates the session and enforces the idle + absolute
+// deadlines, but does NOT advance expires_at/last_seen. The identity binder
+// passes this for requests that are NOT user-initiated (background polling,
+// SSE), so the server-side idle window tracks REAL user activity rather than
+// HTTP traffic — otherwise the SPA's polling keeps every session alive forever.
+// AUTH-1 (c).
+func WithoutSlide() VerifyOption { return func(o *verifyOpts) { o.noSlide = true } }
+
 // VerifySession looks up the session row by token, applies inactivity +
-// absolute timeout rules, and touches last_seen + extends expires_at.
+// absolute timeout rules, and (unless WithoutSlide is passed) touches
+// last_seen + extends expires_at.
 //
 // Spec AC-07, AC-08, AC-10.
-func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string) (Session, error) {
+func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string, opts ...VerifyOption) (Session, error) {
+	var o verifyOpts
+	for _, f := range opts {
+		f(&o)
+	}
 	if token == "" {
 		return Session{}, ErrSessionNotFound
 	}
@@ -181,6 +219,21 @@ func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string) (Sessi
 	}
 	if now.After(s.ExpiresAt) {
 		return Session{}, ErrSessionExpired
+	}
+
+	// AUTH-1 (c): a non-user-initiated request (background poll, SSE) validates
+	// the session but must NOT advance the idle window — otherwise the SPA's
+	// polling keeps an unattended session alive indefinitely. Return the
+	// validated session as-is without touching last_seen/expires_at.
+	if o.noSlide {
+		s.RevokedAt = revokedAt
+		if remoteAddr != nil {
+			s.RemoteAddr = *remoteAddr
+		}
+		if userAgent != nil {
+			s.UserAgent = *userAgent
+		}
+		return s, nil
 	}
 
 	// Touch last_seen and extend expires_at by the inactivity window —

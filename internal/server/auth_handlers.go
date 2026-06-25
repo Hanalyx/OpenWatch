@@ -99,7 +99,7 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mint session + refresh + access tokens. All three share this users row.
-	sessionToken, _, err := identity.IssueSession(r.Context(), h.pool, u.ID, r.RemoteAddr, r.UserAgent())
+	sessionToken, sess, err := identity.IssueSession(r.Context(), h.pool, u.ID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"session issue failed", true)
@@ -112,7 +112,9 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 			"jwt issue failed", true)
 		return
 	}
-	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, u.ID)
+	// AUTH-1 (b): anchor the refresh lineage to the session's absolute deadline
+	// so refreshing cannot extend the session past its absolute timeout.
+	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, u.ID, sess.AbsoluteExpiresAt)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"refresh issue failed", true)
@@ -231,7 +233,8 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 				"refresh token reuse detected; all sessions revoked", false)
 		case errors.Is(err, identity.ErrRefreshTokenExpired),
 			errors.Is(err, identity.ErrRefreshTokenRevoked),
-			errors.Is(err, identity.ErrRefreshTokenNotFound):
+			errors.Is(err, identity.ErrRefreshTokenNotFound),
+			errors.Is(err, identity.ErrRefreshSessionExpired):
 			writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 				"refresh token invalid or expired", false)
 		default:
@@ -288,6 +291,13 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 			clearAuthCookies(w)
 			writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 				"refresh token invalid or expired", false)
+		case errors.Is(err, identity.ErrRefreshSessionExpired):
+			// AUTH-1 (b): the session's absolute timeout has passed. Refusing to
+			// refresh is the whole point — clear cookies and make the browser
+			// re-authenticate rather than silently extend past the ceiling.
+			clearAuthCookies(w)
+			writeError(w, http.StatusUnauthorized, "auth.session_expired", "client",
+				"session absolute timeout reached; please sign in again", false)
 		default:
 			writeError(w, http.StatusInternalServerError, "server.error", "server",
 				"refresh failed", true)
@@ -298,10 +308,16 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 	userID, _ := uuid.Parse(pair.Claims.Subject)
 	role, _ := h.users.PrimaryRoleFor(r.Context(), userID)
 
-	// Mint a fresh session so the user gets a new 15-min inactivity
-	// window. The old session (whose cookie may be expired) is left to
-	// the inactivity-sweep — issuing a new one is enough.
-	sessionToken, _, err := identity.IssueSession(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent())
+	// Mint a new session, but carry the ORIGINAL absolute deadline so the
+	// refresh cannot reset the absolute ceiling (AUTH-1 b). Legacy refresh
+	// tokens (minted before migration 0047, no carried deadline) fall back to a
+	// fresh window until they age out within 7 days.
+	var sessionToken string
+	if pair.AbsoluteExpiresAt.IsZero() {
+		sessionToken, _, err = identity.IssueSession(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent())
+	} else {
+		sessionToken, _, err = identity.IssueSessionWithAbsolute(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent(), pair.AbsoluteExpiresAt)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"session issue failed", true)

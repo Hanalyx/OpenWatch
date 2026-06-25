@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"testing"
+	"time"
 )
 
 // @ac AC-24
@@ -24,7 +25,7 @@ func TestRefresh_Revoke(t *testing.T) {
 		userID := seedUser(t, pool, "refresh-revoke")
 
 		ctx := context.Background()
-		token, err := IssueRefreshToken(ctx, pool, userID)
+		token, err := IssueRefreshToken(ctx, pool, userID, time.Now().UTC().Add(12*time.Hour))
 		if err != nil {
 			t.Fatalf("issue: %v", err)
 		}
@@ -66,6 +67,75 @@ func TestRefresh_Revoke_Idempotent(t *testing.T) {
 		}
 		if err := RevokeRefreshToken(ctx, pool, "unknown-token-value"); err != nil {
 			t.Errorf("unknown token: %v", err)
+		}
+	})
+}
+
+// @ac AC-28
+// AC-28 (AUTH-1 b): ConsumeRefreshToken refuses a token whose carried absolute
+// deadline has passed (ErrRefreshSessionExpired), even though the 7-day window
+// is still open; a token with a future deadline rotates normally.
+func TestRefresh_AbsoluteCeiling(t *testing.T) {
+	t.Run("system-auth-identity/AC-28", func(t *testing.T) {
+		ensureKey(t)
+		pool := freshPool(t)
+		ctx := context.Background()
+		userID := seedUser(t, pool, "refresh-abs-ceiling")
+
+		// Past absolute deadline → refused (the 7-day refresh window is open).
+		expired, err := IssueRefreshToken(ctx, pool, userID, time.Now().UTC().Add(-time.Minute))
+		if err != nil {
+			t.Fatalf("issue expired: %v", err)
+		}
+		if _, err := ConsumeRefreshToken(ctx, pool, expired, ""); !isOneOf(err, ErrRefreshSessionExpired) {
+			t.Fatalf("consume past-deadline: want ErrRefreshSessionExpired, got %v", err)
+		}
+
+		// Future deadline → rotates normally.
+		live, err := IssueRefreshToken(ctx, pool, userID, time.Now().UTC().Add(12*time.Hour))
+		if err != nil {
+			t.Fatalf("issue live: %v", err)
+		}
+		if _, err := ConsumeRefreshToken(ctx, pool, live, "viewer"); err != nil {
+			t.Fatalf("consume live: %v", err)
+		}
+	})
+}
+
+// @ac AC-29
+// AC-29 (AUTH-1 b): a successful rotation carries the ORIGINAL absolute deadline
+// onto the rotated row unchanged and returns it on the TokenPair (so the
+// cookie-refresh handler can preserve the ceiling).
+func TestRefresh_CarriesAbsoluteForward(t *testing.T) {
+	t.Run("system-auth-identity/AC-29", func(t *testing.T) {
+		ensureKey(t)
+		pool := freshPool(t)
+		ctx := context.Background()
+		userID := seedUser(t, pool, "refresh-carry")
+		deadline := time.Now().UTC().Add(8 * time.Hour).Truncate(time.Second)
+
+		tok, err := IssueRefreshToken(ctx, pool, userID, deadline)
+		if err != nil {
+			t.Fatalf("issue: %v", err)
+		}
+		pair, err := ConsumeRefreshToken(ctx, pool, tok, "viewer")
+		if err != nil {
+			t.Fatalf("consume: %v", err)
+		}
+		// The TokenPair carries the original deadline.
+		if !pair.AbsoluteExpiresAt.UTC().Truncate(time.Second).Equal(deadline) {
+			t.Errorf("pair.AbsoluteExpiresAt = %v, want %v", pair.AbsoluteExpiresAt, deadline)
+		}
+		// The rotated DB row inherits the same deadline (not a fresh one).
+		newHash := sha256.Sum256([]byte(pair.RefreshToken))
+		var got time.Time
+		if err := pool.QueryRow(ctx,
+			"SELECT absolute_expires_at FROM refresh_tokens WHERE token_hash = $1",
+			newHash[:]).Scan(&got); err != nil {
+			t.Fatalf("scan new row: %v", err)
+		}
+		if !got.UTC().Truncate(time.Second).Equal(deadline) {
+			t.Errorf("rotated absolute_expires_at = %v, want %v", got, deadline)
 		}
 	})
 }

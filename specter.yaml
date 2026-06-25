@@ -96,6 +96,7 @@ domains:
             - api-sso
             - api-remediation
             - frontend-remediation-tab
+            - frontend-session-idle
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes
