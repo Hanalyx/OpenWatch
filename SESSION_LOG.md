@@ -6,6 +6,62 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-25 (notifications) — Opus 4.8 (1M context) — change-driven bell: Slices 2–4
+
+**Done** — Built out the change-driven in-app notification feed end to end
+(Slice 1 had shipped earlier in #679). Each slice was its own branch + PR,
+spec-driven, merged green.
+- **Slice 2 — rule-regression projector (#685, main 76f8939a).** The bell's
+  headline signal: a scan that flips a passing rule to failing now produces ONE
+  grouped per-host notification ("web-01: 3 rules regressed (1 critical)"),
+  severity-ranked, deep-linked. `internal/notifyfeed/projector.go`
+  (`ProjectScan`), called best-effort after `transactionlog.Writer.Apply` in the
+  scan worker (both serve + dedicated-worker boot paths). **First-scan
+  suppression** is the key correctness piece: a host's first scan is all
+  `first_seen` (baseline) — only `state_changed→fail` (and `first_seen→fail`
+  critical WITH prior history) count, else a new host floods the bell. group_key
+  per host collapses a burst + re-surfaces on later scans. spec
+  system-notifications v1.4.0 (C-07, AC-12/13/14).
+- **Slice 3 — governance action queue, RBAC-scoped (#686, main 9cb8ce8b).** New
+  primitives: `auth.RolesWithPermission(p)` + `notifyfeed.Store.RecordForRoles`
+  (fan to active holders of any role, EXISTS-deduped). `GovernanceProjector`
+  routes: exception pending → approvers (`exception:approve`: **auditor** +
+  security/admin — caught by the unit test, not just security roles), decided →
+  the requester only, remediation failed → operators (`remediation:execute`). A
+  successful user-initiated rollback is deliberately NOT notified. Producers
+  (`exception.Service.WithNotifier`, remediation worker `GovernanceNotifier`)
+  hold interfaces in their own packages so neither imports notifyfeed. spec
+  v1.5.0 (C-08, AC-15/16/17).
+- **Slice 4 — exception expiry lifecycle (#687, main 3e83eb2b).** Warn approvers
+  ≤72h before an approved exception lapses + notify when it does (rules back in
+  scope). New `RecordForRolesQuiet` (ON CONFLICT DO NOTHING) so the HOURLY sweep
+  doesn't re-nag a read "expiring soon" warning. Driven from the existing
+  `exception.Service` sweep loop (`Run → sweepOnce`: ExpireSweep then new
+  ExpiringSoonSweep); no new cron, no cmd change (extended Notifier already
+  satisfied by the wired projector). spec v1.6.0 (C-09, AC-18/19).
+
+**Next** — Notifications has three TRACKED deferrals, each gated on a
+prerequisite (do the prereq first, not the notifier): (1) **license
+grace/expiry** — license is verified at BOOT ONLY, never re-verified at runtime,
+so needs a periodic re-verification loop first; (2) **failed-login/lockout** —
+no lockout primitive exists (only auth rate-limiting), needs a windowed
+failed-login threshold projector over the audit log; (3) **good-news digests**
+(batched recoveries) — lowest value, needs a batching-window design. User
+explicitly chose to stop after Slice 4; pick these up only on request.
+
+**Notes** — No frontend changes across Slices 2–4: every new row renders in the
+existing Slice-1 bell drawer (generic title/body/severity/link). CHANGELOG gotcha
+hit twice: `TestChangelog_RegressionsNameAVersion` fails any `[Unreleased]`
+bullet containing "regression" without a version token — reword feature entries
+("turns a passing rule into a failing one") rather than fake a version. specter
+system-notifications now at **19/19 ACs, 100%** across 114 specs. Shared
+per-package test DB + RecordFanout/RecordForRoles fan to ALL matching users, so
+tests assert on host/group_key-scoped rows (embedding a per-test uuid), not total
+list length, and seed unique usernames (v7 uuid TAIL — the leading bytes are the
+ms timestamp and collide within a run).
+
+---
+
 ## 2026-06-25 (later) — Opus 4.8 (1M context) — merge 8-PR stack, cut + verify v0.2.0-rc.15 (Eyrie), DOC-3
 
 **Done** — Landed the prior session's feature/fix stack, cut and fully verified
