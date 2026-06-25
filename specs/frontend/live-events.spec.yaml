@@ -1,7 +1,7 @@
 spec:
   id: frontend-live-events
   title: useLiveEvents SSE hook — topic ↔ query-key invalidation contract
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -94,7 +94,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-08
-      description: 'v1.3.0 — the report.ready handler MUST bump the notification store (useNotificationStore.getState().bumpReportReady()) so the bell badge increments, AND invalidate ["reports"] so the Reports library refreshes. A report is fleet-scoped, so the handler does NOT read a host id or invalidate any ["host", id] key. Spec frontend-notifications owns the bell that reads the store'
+      description: 'v1.4.0 — the report.ready handler MUST invalidate ["reports"] so the Reports library refreshes AND invalidate ["notifications","feed"] so the durable notification bell refreshes promptly. A report is fleet-scoped, so the handler does NOT read a host id or invalidate any ["host", id] key. Spec frontend-notifications / system-notifications own the bell'
       type: technical
       enforcement: error
 
@@ -136,6 +136,6 @@ spec:
       priority: high
       references_constraints: [C-07]
     - id: AC-10
-      description: 'v1.3.0 — Firing report.ready invalidates ["reports"] and increments the notification store (useNotificationStore.unreadReports goes up by one per event). Spies observe ZERO ["host", ...] invalidation (a report is fleet-scoped, not per-host)'
+      description: 'v1.4.0 — Firing report.ready invalidates ["reports"] AND ["notifications","feed"] (the durable bell refreshes). Spies observe ZERO ["host", ...] invalidation (a report is fleet-scoped, not per-host)'
       priority: high
       references_constraints: [C-08]

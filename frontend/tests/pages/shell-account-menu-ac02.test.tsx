@@ -2,8 +2,8 @@
 // @ac AC-02
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { signIn, clearAuth } from './shell-account-menu-helpers';
+import { fireEvent, screen } from '@testing-library/react';
+import { signIn, clearAuth, renderTopBar } from './shell-account-menu-helpers';
 
 const navigateMock = vi.fn();
 vi.mock('@tanstack/react-router', async () => {
@@ -23,7 +23,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: vi.fn(async () => ({ response: { ok: true, status: 204 } })) },
 }));
 
-import { TopBar } from '@/components/shell/TopBar';
 
 beforeEach(() => {
   clearAuth();
@@ -33,7 +32,7 @@ beforeEach(() => {
 describe('frontend-shell-account-menu — behavioral', () => {
   test('frontend-shell-account-menu/AC-02 — clicking the avatar opens the menu and flips aria-expanded', () => {
     signIn();
-    render(<TopBar />);
+    renderTopBar();
     const btn = screen.getByRole('button', { name: /account/i });
     expect(btn).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('menu')).toBeNull();

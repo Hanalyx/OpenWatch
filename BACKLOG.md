@@ -96,6 +96,22 @@
 
 ---
 
+## Packaging / Deployment
+
+| ID | Item | Priority | Status | Notes |
+|----|------|----------|--------|-------|
+| PKG-3 | Remediation broken on every packaged install — Kensa rollback store can't open under the hardened unit | **P1** | Open | **Symptom (prod rc.14):** boot WARN `kensa remediation wiring unavailable` with `error=kensa: compose remediation service: …`; scans work but every remediation/rollback returns `kensa: remediate path not wired` (`internal/kensa/executor.go:153`). **Root cause:** `packaging/common/openwatch.service` sets `ProtectSystem=strict` + `ReadWritePaths=/var/lib/openwatch /var/log/openwatch` but (a) sets **no `WorkingDirectory`** (systemd defaults it to read-only `/`) and (b) **never sets `OPENWATCH_KENSA_STORE_PATH`**. So `kensaStorePath()` (`cmd/openwatch/main.go:768`) falls back to `.kensa/remediation.db` -> `/.kensa/remediation.db`, and Kensa's `OpenSQLite` `MkdirAll` fails on the read-only root. Scans are unaffected because the scan path composes a store-less Kensa; only remediation needs the SQLite rollback-pre-state store (`pkgkensa.DefaultWithTransportFactory`, pure-Go `modernc.org/sqlite`). **Fix:** add to the unit `Environment=OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db` and `WorkingDirectory=/var/lib/openwatch` (both `serve` and any `worker` unit — `worker.go:209` wires identically). **Regression:** a release test asserting remediation wiring composes under the hardened unit so it can't silently break again. **Operator workaround (no new pkg):** `systemctl edit openwatch` -> `[Service]\nEnvironment=OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db` -> restart. Worth an rc.15 since it breaks all remediation on hardened packaged installs |
+
+---
+
+## Security / Auth
+
+| ID | Item | Priority | Status | Notes |
+|----|------|----------|--------|-------|
+| AUTH-1 | Idle + Absolute session timeouts (`/settings/security` Authentication policy) are not effectively enforced for the browser | **P1** | In progress | **Symptom:** a user who walks away stays logged in far past the configured idle timeout; the absolute timeout never bites either. The real ceiling is the 7-day refresh token. Security/compliance gap (NIST 800-53 AC-11/AC-12 — the frameworks OpenWatch itself scans for). **Backend is correct in isolation:** `internal/identity/sessions.go` `VerifySession` rejects on idle/absolute expiry and uses the configured windows. **Three compounding causes defeat it:** (1) the SPA polls many endpoints every 15-60s (ScansPage 15s, ScanningPage 30s, HostDetailPage 60s, ActivityPage 15s) + a persistent SSE stream; every authenticated request slides `expires_at = now + idle` (`sessions.go:188`), so "idle" tracks HTTP traffic, not user activity, and the window never elapses. (2) the cookie-refresh path (`internal/server/auth_handlers.go:269` `PostAuthRefreshCookie`) validates only the 7-day refresh token and mints a **fresh** session with new idle AND new absolute windows (`IssueSession` line 304) on the API client's transparent 401 retry (`frontend/src/api/client.ts:142`), masking expiry and resetting the absolute cap. (3) there is **no client-side user-activity idle timer** in the frontend — no mousemove/keydown tracking, no proactive logout/redirect. **Fix (layered):** (a) client-side idle timer keyed to real user input, reads `session_idle_timeout_seconds` from `/api/v1/auth-policy`, on inactivity calls logout (revoke session+refresh) + redirect `/login` [slice 1, in progress]; (b) enforce the absolute ceiling in refresh-cookie — carry the original login's absolute deadline in the refresh token; refuse to refresh past it; (c) defense-in-depth: only slide the server idle window on user-initiated requests (e.g. an `X-User-Activity` header), so server-side idle is real even if the client timer is bypassed |
+
+---
+
 ## Kensa Integration Gaps
 
 Gaps identified comparing `docs/KENSA_OPENWATCH_BOUNDARY.md` against current OpenWatch implementation.
