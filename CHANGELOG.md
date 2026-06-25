@@ -10,6 +10,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.15] Eyrie — 2026-06-25
+
+A security + reliability candidate on top of rc.14: a production-breaking
+remediation fix, full session-timeout enforcement, the durable change-driven
+notification bell, and a dashboard/hosts compliance-parity fix.
+
 ### Added
 - In-app notification feed (the bell): a durable, per-user feed of meaningful
   changes fanned in from the alert engine (host unreachable/recovered,
