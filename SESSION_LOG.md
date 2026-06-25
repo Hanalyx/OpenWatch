@@ -6,6 +6,50 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-25 — Opus 4.8 (1M context) — AUTH-1 completion, notifications Slice 1, PKG-3, review
+
+**Done** — A large feature + fix session, all on feature branches (7 open PRs;
+none merged to main yet — review/merge pending).
+- **PKG-3 (#673)** — remediation "not wired" on every hardened packaged
+  install: the Kensa rollback SQLite store defaulted to `.kensa/` under the
+  read-only root (ProtectSystem=strict, no WorkingDirectory, no
+  `OPENWATCH_KENSA_STORE_PATH`). Unit now sets both. Spec C-13/AC-23 + test.
+  Production-breaking → rc.15-worthy.
+- **AUTH-1 fully delivered** — session idle/absolute timeouts were not enforced
+  for the browser (polling slid the window; refresh-cookie re-minted sessions
+  on the 7-day token; no client idle timer). Slice 1 (#675): client idle timer
+  → logout/redirect on real inactivity (`frontend-session-idle`). Slices b+c
+  (#678): (b) absolute deadline carried through `refresh_tokens.absolute_expires_at`
+  (migration 0047), refresh refuses past it; (c) server slides only on
+  user-initiated requests (`X-Background-Refresh`, fail-safe). `system-auth-identity`
+  v1.4.0, AC-28..31.
+- **Notifications redesign** — repointed the bell from the `report.ready`
+  session counter to a durable, change-driven feed. Design doc (#677,
+  `docs/engineering/notifications_design.md`). Slice 1 (#679): `notifications`
+  table (0048) + `internal/notifyfeed` store + an `alertrouter` in-app channel
+  + self-scoped `/notifications/feed` API + frontend drawer. `system-notifications`
+  v1.3.0, `frontend-notifications` v2.0.0.
+- **Avg-compliance parity (#676)** — `/hosts` and `/dashboard` showed different
+  "Avg compliance" (different denominators). `/hosts` now sources the canonical
+  `/fleet/score`. `frontend-hosts-list` v1.8.0.
+- **Diagnosed (no code change needed):** the Eyrie landing/login "stuck
+  animation" in prod is almost certainly `prefers-reduced-motion` (the radar +
+  pulse intentionally freeze under it), not a CSP/build issue — the page being
+  styled rules out the CSP path.
+
+**Next** — Merge order matters: land #673 (prod-breaking) and #675 before #678
+(its client-side slide-on-activity is inert until #675's activity key ships).
+Then notifications Slice 2 (transaction-log rule-regression projector: critical
+pass→fail, grouped per host/scan) + per-host RBAC recipient scoping. Fold this
+session's security-review findings into BACKLOG.
+
+**Notes** — All 7 PRs green locally (specter 100%, frontend suites green); each
+is isolated on its own branch off main. CHANGELOG `[Unreleased]` + this entry +
+STATUS.md document the in-flight work. The git stash has 10 pre-existing entries
+from other branches — do not `git stash pop` blindly.
+
+---
+
 ## 2026-06-23 — Opus 4.8 (1M context) — Kensa v0.6.0 + v0.2.0-rc.14 (Eyrie) released
 
 **Done** — Bumped Kensa, landed the open fix backlog, cut and published rc.14,

@@ -1,6 +1,6 @@
 # API guide
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 Most operators use the web UI for daily work — managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
@@ -13,11 +13,12 @@ contract source of truth is `api/openapi.yaml` in the repository; the running
 binary serves the same document, and `GET /api/v1/version` reports the build it
 came from.
 
-This guide reflects OpenWatch `0.2.0-rc.13`, a pre-release. The API surface is
-still growing — endpoints that the legacy Python API exposed (scan execution,
-remediation, exceptions, posture history, audit exports, the rule-reference
-browser) are not yet part of `api/v1`. See [What is not yet in the
-API](#what-is-not-yet-in-the-api) before you script against them.
+This guide reflects OpenWatch `0.2.0-rc.14`, a pre-release. The compliance
+surface (scan execution + results, remediation, exceptions, posture/drift, audit
+export, the rule browser) IS exposed over `api/v1` — see [Compliance API surface
+(now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
+Prometheus `/metrics` endpoint, `/security-info`) are listed under [What is
+genuinely not in the API yet](#what-is-genuinely-not-in-the-api-yet).
 
 When the OpenAPI document and this guide disagree, the OpenAPI document wins.
 
@@ -101,6 +102,7 @@ protected endpoint declares the permission it requires (visible as
 |------|--------|
 | `viewer` | Read-only access |
 | `auditor` | Read plus audit/compliance review |
+| `ops_lead` | Host + scan + remediation operations |
 | `security_admin` | Security configuration |
 | `admin` | Full system administration |
 
@@ -278,7 +280,7 @@ curl -s --cacert /etc/openwatch/tls/ca.crt https://localhost:8443/api/v1/health 
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.13"}
+{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.14"}
 ```
 
 `status` is `healthy` or `degraded`; the endpoint returns `503` when the service
@@ -353,21 +355,31 @@ configuration steps, see
 
 ---
 
-## What is not yet in the API
+## Compliance API surface (now live)
 
-The compliance scanning workflow runs through Kensa and the background worker,
-not yet through public REST endpoints. As of `0.2.0-rc.13`, `api/v1` does not
-include:
+As of `0.2.0-rc.14`, the compliance workflow IS exposed over `api/v1` (it is no
+longer worker-internal only):
 
-- Scan execution or scan-result endpoints (`/api/v1/scans/…`).
-- Remediation, compliance exceptions, posture history, or drift endpoints.
-- Audit export / saved-query endpoints.
-- A rule-reference browser endpoint.
-- A Prometheus `/metrics` endpoint and a `/security-info` endpoint. Metrics are
-  tracked as a roadmap item; use `GET /api/v1/health` for liveness today.
+- **Scans**: trigger with `POST /api/v1/hosts/{id}/scans`; browse durable
+  per-scan history + per-rule evidence + OSCAL export under `/api/v1/scans` and
+  `/api/v1/scans/{id}` (scan:read).
+- **Remediation**: request/approve/reject + execute/rollback under
+  `/api/v1/remediation/requests` (and `/api/v1/hosts/{id}/scans/{rule}:remediate`).
+- **Compliance exceptions**: `/api/v1/compliance/exceptions` (request/approve/
+  revoke/expire).
+- **Posture + drift**: per-host `/api/v1/hosts/{id}/compliance` and
+  `/api/v1/hosts/{id}/compliance/trend`; fleet `/api/v1/fleet/score`.
+- **Audit export**: `POST /api/v1/audit/events:query` and
+  `/api/v1/audit/events/export` (CSV/JSON, signed bundle).
+- **Rule browser**: `/api/v1/rules` (the Kensa rule-library read model).
 
-These are roadmap or worker-internal today. Do not script against them until
-they appear in `api/openapi.yaml`. For how OpenWatch invokes Kensa, see
+## What is genuinely not in the API yet
+
+- A Prometheus `/metrics` endpoint and a `/security-info` endpoint — both are
+  roadmap items (use `GET /api/v1/health` for liveness today). Do not script
+  against them until they appear in `api/openapi.yaml`.
+
+For how OpenWatch invokes Kensa, see
 [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
 
 ---

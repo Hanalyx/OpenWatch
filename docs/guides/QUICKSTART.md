@@ -1,6 +1,6 @@
 # Quickstart guide
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
@@ -51,7 +51,7 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.2.0-rc.13"
+  "version": "0.2.0-rc.14"
 }
 ```
 
@@ -68,13 +68,13 @@ Common causes are an unreachable database (check
 migrations. To verify the resolved configuration without starting the server:
 
 ```bash
-openwatch check-config --config /etc/openwatch/openwatch.toml
+openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 To confirm the schema is current:
 
 ```bash
-openwatch migrate --config /etc/openwatch/openwatch.toml
+openwatch --config /etc/openwatch/openwatch.toml migrate
 ```
 
 `migrate` is idempotent; if everything is applied it prints the current version
@@ -324,7 +324,7 @@ PostgreSQL. Replace `<dsn>` with the value from
 2. If it crash-loops, look for the boot-time fatal log line (missing key, bad
    DSN, validation error). Fix the config, then `systemctl restart openwatch`.
 3. Validate config out-of-band before restarting:
-   `openwatch check-config --config /etc/openwatch/openwatch.toml`.
+   `openwatch --config /etc/openwatch/openwatch.toml check-config`.
 4. Confirm the dependency is up: `systemctl status postgresql`.
 5. After restart, confirm recovery:
    `curl -sk https://localhost:8443/api/v1/health`.

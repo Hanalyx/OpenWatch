@@ -1,6 +1,6 @@
 # Compliance Control Mapping
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
@@ -20,10 +20,10 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| AC-2 | Account Management | User CRUD with RBAC (admin, analyst, viewer) | `internal/users/`, user audit events |
+| AC-2 | Account Management | User CRUD with RBAC (5 roles: viewer, auditor, ops_lead, security_admin, admin) | `internal/users/`, user audit events |
 | AC-3 | Access Enforcement | Role-based permission checks on each route | `internal/auth/`, generated permission registry |
-| AC-6 | Least Privilege | Three-tier role model, default viewer role | `internal/auth/permissions.gen.go` |
-| AC-7 | Unsuccessful Logon Attempts | Rate limiting (100/min per user, 1000/min per IP) | `internal/server/` middleware |
+| AC-6 | Least Privilege | Five built-in roles (least-privilege viewer baseline) | `internal/auth/roles.gen.go` |
+| AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `internal/server/` middleware |
 | AC-8 | System Use Notification | Configurable login banner | Frontend login page |
 | AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | `internal/systemconfig/` (session-timeout) |
 | AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | `internal/auth/` |
@@ -111,7 +111,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Practice | Domain | OpenWatch Implementation |
 |----------|--------|-------------------------|
-| AC.L2-3.1.1 | Access Control | RBAC with three-tier role model |
+| AC.L2-3.1.1 | Access Control | RBAC with five built-in roles |
 | AC.L2-3.1.2 | Access Control | Transaction-level access enforcement |
 | AC.L2-3.1.5 | Access Control | Least privilege (viewer default role) |
 | AC.L2-3.1.7 | Access Control | Prevent non-privileged users from executing privileged functions |

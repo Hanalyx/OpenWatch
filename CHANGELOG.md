@@ -10,6 +10,33 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- In-app notification feed (the bell): a durable, per-user feed of meaningful
+  changes fanned in from the alert engine (host unreachable/recovered,
+  compliance drift), with an unread badge, a drawer, and per-item / mark-all
+  read state. Replaces the session-scoped report counter. (#679)
+- Client-side session idle timeout: the browser now logs out and returns to
+  the sign-in page after real user inactivity for the configured window,
+  reading the operator-set idle policy. (#675)
+
+### Security
+- Session absolute timeout is now a hard ceiling: the cookie-refresh path
+  carries the original login's absolute deadline through the refresh-token
+  lineage and refuses to extend a session past it (previously a browser could
+  be kept alive for the full 7-day refresh window). (#678)
+- The server-side idle window now tracks real user activity rather than HTTP
+  traffic: background polling and SSE no longer keep an unattended session
+  alive. (#678)
+
+### Fixed
+- Remediation failed with "not wired" on every hardened packaged install: the
+  Kensa rollback store fell on the read-only root under the hardened systemd
+  unit. The unit now pins the store inside the writable state tree. (#673)
+- The /hosts "Avg compliance" KPI no longer disagrees with the /dashboard
+  figure: both now read the same canonical fleet score (passing over
+  passing-plus-failing), so skipped rules no longer skew the host page lower.
+  (#676)
+
 ---
 
 ## [0.2.0-rc.14] Eyrie — 2026-06-23

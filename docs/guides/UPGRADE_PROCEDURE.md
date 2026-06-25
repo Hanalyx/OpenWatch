@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
@@ -183,7 +183,7 @@ openwatch --version
 Catch missing or renamed config keys before starting the server:
 
 ```bash
-sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 This prints the resolved configuration with secrets redacted and exits non-zero
@@ -194,7 +194,7 @@ vars (`OPENWATCH_<SECTION>_<KEY>`) > the TOML file > built-in defaults.
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  openwatch migrate --config /etc/openwatch/openwatch.toml
+  openwatch --config /etc/openwatch/openwatch.toml migrate
 ```
 
 The command prints the current version, the count of migration files, and each
@@ -305,7 +305,7 @@ sudo journalctl -u openwatch -n 200 --no-pager
 Common causes:
 
 - Invalid or incomplete config — run
-  `sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml`.
+  `sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config`.
 - Missing database secret — confirm `/etc/openwatch/secrets.env` defines
   `OPENWATCH_DATABASE_DSN`.
 - Missing signing/encryption key material — the server refuses to start without
