@@ -646,6 +646,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Emit:        audit.Emit,
 		Bus:         bus,
 		Sched:       complianceSched,
+		Regressions: notifyfeed.NewProjector(notifFeedStore),
 	})
 
 	// Report signing key. Optional: an empty path yields an ephemeral

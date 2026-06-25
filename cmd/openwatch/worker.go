@@ -30,6 +30,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/Hanalyx/openwatch/internal/license"
 	openlog "github.com/Hanalyx/openwatch/internal/log"
+	"github.com/Hanalyx/openwatch/internal/notifyfeed"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
@@ -266,6 +267,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		Emit:                 audit.Emit,
 		Sched:                sched,
 		RemediationProcessor: remediationWorker,
+		Regressions:          notifyfeed.NewProjector(notifyfeed.NewStore(pool)),
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)
