@@ -159,5 +159,61 @@ func TestBinder_ExpiredSession_Writes401(t *testing.T) {
 	})
 }
 
+// @ac AC-31
+// AC-31 (AUTH-1 c): the binder slides the idle window only on user-initiated
+// requests. A request carrying X-Background-Refresh validates the session but
+// does NOT advance expires_at; an unmarked request does.
+func TestBinder_SlideOnlyOnUserActivity(t *testing.T) {
+	t.Run("system-auth-identity/AC-31", func(t *testing.T) {
+		pool := freshPool(t)
+		userID := seedUser(t, pool, "slide-binder")
+		token, sess, err := IssueSession(context.Background(), pool, userID, "127.0.0.1", "ua")
+		if err != nil {
+			t.Fatalf("issue: %v", err)
+		}
+		// Backdate expires_at so a slide is observable.
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE sessions SET expires_at = expires_at - interval '10 minutes' WHERE id = $1`,
+			sess.ID); err != nil {
+			t.Fatalf("backdate: %v", err)
+		}
+		readExpiry := func() time.Time {
+			var e time.Time
+			if err := pool.QueryRow(context.Background(),
+				`SELECT expires_at FROM sessions WHERE id = $1`, sess.ID).Scan(&e); err != nil {
+				t.Fatalf("read expiry: %v", err)
+			}
+			return e
+		}
+		h := Binder(pool, adminLookups)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		do := func(background bool) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/hosts", nil)
+			req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+			if background {
+				req.Header.Set(BackgroundRefreshHeader, "1")
+			}
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status: want 200, got %d", rr.Code)
+			}
+		}
+
+		before := readExpiry()
+		// Background request must NOT slide.
+		do(true)
+		if got := readExpiry(); !got.Equal(before) {
+			t.Errorf("background request slid the window: before=%v after=%v", before, got)
+		}
+		// User-initiated request must slide.
+		do(false)
+		if got := readExpiry(); !got.After(before) {
+			t.Errorf("user request did not slide the window: before=%v after=%v", before, got)
+		}
+	})
+}
+
 // Silence the unused-import warning when the test runs without DB.
 var _ = pgxpool.Config{}

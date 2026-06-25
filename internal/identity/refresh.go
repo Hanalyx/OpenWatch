@@ -25,6 +25,11 @@ var (
 	ErrRefreshTokenExpired  = errors.New("identity: refresh token expired")
 	ErrRefreshTokenRevoked  = errors.New("identity: refresh token revoked")
 	ErrRefreshTokenReused   = errors.New("identity: refresh token reuse detected")
+	// ErrRefreshSessionExpired — the refresh token is still inside its 7-day
+	// window, but the session's ABSOLUTE deadline (carried through the lineage
+	// from login) has passed. Refresh is refused; the user must re-authenticate.
+	// AUTH-1 (b).
+	ErrRefreshSessionExpired = errors.New("identity: session absolute timeout reached")
 )
 
 // RevokeRefreshToken marks the row identified by presentation-token as
@@ -50,8 +55,14 @@ func RevokeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token string) e
 // presentation token. Token is stored as SHA-256 hash; presentation
 // form is never in the DB.
 //
+// absoluteExpiresAt is the session's absolute deadline (login time + the
+// configured absolute window). It is carried through every rotation so the
+// session cannot be refreshed past it (AUTH-1 b). A zero value stores NULL —
+// the legacy "no absolute ceiling" behavior, used only by callers that have no
+// session deadline to anchor to.
+//
 // Spec AC-12.
-func IssueRefreshToken(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID) (token string, err error) {
+func IssueRefreshToken(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, absoluteExpiresAt time.Time) (token string, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("identity: refresh entropy: %w", err)
@@ -64,12 +75,22 @@ func IssueRefreshToken(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID
 		return "", fmt.Errorf("identity: uuid: %w", err)
 	}
 	const stmt = `
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3, $4)`
-	if _, err := pool.Exec(ctx, stmt, id, userID, hash[:], time.Now().UTC().Add(RefreshTokenWindow)); err != nil {
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at)
+		VALUES ($1, $2, $3, $4, $5)`
+	if _, err := pool.Exec(ctx, stmt, id, userID, hash[:],
+		time.Now().UTC().Add(RefreshTokenWindow), nullableTime(absoluteExpiresAt)); err != nil {
 		return "", fmt.Errorf("identity: insert refresh: %w", err)
 	}
 	return token, nil
+}
+
+// nullableTime returns nil for the zero time (stored as SQL NULL) or the time
+// otherwise — so a missing absolute deadline is recorded honestly as "none".
+func nullableTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
 }
 
 // TokenPair is the result of a successful ConsumeRefreshToken call —
@@ -79,6 +100,11 @@ type TokenPair struct {
 	AccessToken  string
 	RefreshToken string
 	Claims       Claims
+	// AbsoluteExpiresAt is the session's carried absolute deadline (AUTH-1 b),
+	// zero when the consumed token had none (legacy). The cookie-refresh handler
+	// stamps it onto the re-minted session so the absolute ceiling is preserved
+	// across refreshes rather than reset.
+	AbsoluteExpiresAt time.Time
 }
 
 // ConsumeRefreshToken atomically:
@@ -106,17 +132,18 @@ func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role st
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var (
-		rowID     uuid.UUID
-		userID    uuid.UUID
-		expiresAt time.Time
-		rotatedTo *uuid.UUID
-		revokedAt *time.Time
+		rowID       uuid.UUID
+		userID      uuid.UUID
+		expiresAt   time.Time
+		absoluteExp *time.Time
+		rotatedTo   *uuid.UUID
+		revokedAt   *time.Time
 	)
 	err = tx.QueryRow(ctx, `
-		SELECT id, user_id, expires_at, rotated_to_id, revoked_at
+		SELECT id, user_id, expires_at, absolute_expires_at, rotated_to_id, revoked_at
 		FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
 		hash[:],
-	).Scan(&rowID, &userID, &expiresAt, &rotatedTo, &revokedAt)
+	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrRefreshTokenNotFound
@@ -129,6 +156,13 @@ func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role st
 	}
 	if time.Now().UTC().After(expiresAt) {
 		return nil, ErrRefreshTokenExpired
+	}
+	// AUTH-1 (b): the session's absolute deadline is a hard ceiling. Once it
+	// passes, the chain ends even though the 7-day refresh window is still
+	// open. Legacy tokens (absolute_expires_at NULL) are exempt until they age
+	// out. Checked before reuse so an expired-session token simply fails closed.
+	if absoluteExp != nil && time.Now().UTC().After(*absoluteExp) {
+		return nil, ErrRefreshSessionExpired
 	}
 	if rotatedTo != nil {
 		// Reuse! This row was already consumed. An attacker has the old
@@ -167,10 +201,12 @@ func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role st
 	if err != nil {
 		return nil, fmt.Errorf("identity: uuid: %w", err)
 	}
+	// Carry the original absolute deadline UNCHANGED onto the rotated row, so
+	// the absolute ceiling cannot be reset by refreshing (AUTH-1 b).
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3, $4)`,
-		newID, userID, newHash[:], time.Now().UTC().Add(RefreshTokenWindow),
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at)
+		VALUES ($1, $2, $3, $4, $5)`,
+		newID, userID, newHash[:], time.Now().UTC().Add(RefreshTokenWindow), absoluteExp,
 	); err != nil {
 		return nil, fmt.Errorf("identity: insert rotated refresh: %w", err)
 	}
@@ -188,9 +224,13 @@ func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role st
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("identity: refresh commit (happy): %w", err)
 	}
-	return &TokenPair{
+	pair := &TokenPair{
 		AccessToken:  access,
 		RefreshToken: newPres,
 		Claims:       claims,
-	}, nil
+	}
+	if absoluteExp != nil {
+		pair.AbsoluteExpiresAt = *absoluteExp
+	}
+	return pair, nil
 }
