@@ -112,6 +112,14 @@ func TestStore_ReadState(t *testing.T) {
 		list, _ := s.List(ctx, alice, false, 10)
 		id := list[0].ID
 
+		// Cross-user isolation: Bob sees none of Alice's rows.
+		if bl, _ := s.List(ctx, bob, false, 10); len(bl) != 0 {
+			t.Errorf("Bob's List leaked %d of Alice's rows", len(bl))
+		}
+		if bn, _ := s.UnreadCount(ctx, bob); bn != 0 {
+			t.Errorf("Bob's UnreadCount = %d, want 0", bn)
+		}
+
 		// Bob cannot mark Alice's notification read.
 		if err := s.MarkRead(ctx, bob, id); !errors.Is(err, ErrNotFound) {
 			t.Errorf("bob mark-read alice's row = %v, want ErrNotFound", err)
@@ -137,7 +145,7 @@ func TestChannel_FanOut(t *testing.T) {
 		ctx := context.Background()
 		u1 := seedUser(t, pool, "ac11-a")
 		u2 := seedUser(t, pool, "ac11-b")
-		ch := NewChannel(pool, NewStore(pool))
+		ch := NewChannel(NewStore(pool))
 
 		alert := alertrouter.Alert{
 			Type:       alertrouter.AlertTypeDriftMajor,

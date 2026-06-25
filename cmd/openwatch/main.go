@@ -339,7 +339,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// engine classifies. Spec system-notifications. Design notifications_design.md.
 	notifFeedStore := notifyfeed.NewStore(pool)
 	router.Register(alertrouter.ChannelRegistration{
-		Channel: notifyfeed.NewChannel(pool, notifFeedStore),
+		Channel: notifyfeed.NewChannel(notifFeedStore),
 	})
 	router.Start(ctx) // C-09: subscriber active before any publisher.
 

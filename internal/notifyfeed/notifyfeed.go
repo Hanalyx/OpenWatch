@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -85,6 +84,41 @@ func (s *Store) Record(ctx context.Context, n Notification) error {
 		n.HostID, n.Link, n.GroupKey, n.OccurredAt,
 	); err != nil {
 		return fmt.Errorf("notifyfeed: record: %w", err)
+	}
+	return nil
+}
+
+// RecordFanout records one notification for EVERY active (non-deleted) user in
+// a single statement (one row per recipient, same upsert/collapse semantics as
+// Record). This replaces a per-user Record loop, so a fleet alert is one DB
+// round-trip rather than N — important on large user bases. The UserID on the
+// template is ignored; recipients come from the users table.
+func (s *Store) RecordFanout(ctx context.Context, n Notification) error {
+	if n.GroupKey == "" {
+		return errors.New("notifyfeed: RecordFanout requires GroupKey")
+	}
+	if n.OccurredAt.IsZero() {
+		n.OccurredAt = time.Now().UTC()
+	}
+	const stmt = `
+		INSERT INTO notifications
+			(id, user_id, kind, severity, title, body, host_id, link, group_key, occurred_at)
+		SELECT gen_random_uuid(), u.id, $1, $2, $3, $4, $5, $6, $7, $8
+		  FROM users u
+		 WHERE u.deleted_at IS NULL
+		ON CONFLICT (user_id, group_key) DO UPDATE SET
+			kind        = EXCLUDED.kind,
+			severity    = EXCLUDED.severity,
+			title       = EXCLUDED.title,
+			body        = EXCLUDED.body,
+			host_id     = EXCLUDED.host_id,
+			link        = EXCLUDED.link,
+			occurred_at = EXCLUDED.occurred_at,
+			read_at     = NULL`
+	if _, err := s.pool.Exec(ctx, stmt,
+		n.Kind, n.Severity, n.Title, n.Body, n.HostID, n.Link, n.GroupKey, n.OccurredAt,
+	); err != nil {
+		return fmt.Errorf("notifyfeed: record fanout: %w", err)
 	}
 	return nil
 }
@@ -159,26 +193,4 @@ func (s *Store) MarkAllRead(ctx context.Context, userID uuid.UUID) (int, error) 
 		return 0, fmt.Errorf("notifyfeed: mark all read: %w", err)
 	}
 	return int(tag.RowsAffected()), nil
-}
-
-// activeUserIDs returns every non-deleted user — the Slice-1 recipient set for
-// a fleet-visible change. Per-host RBAC scoping is a later refinement.
-func activeUserIDs(ctx context.Context, pool *pgxpool.Pool) ([]uuid.UUID, error) {
-	rows, err := pool.Query(ctx, `SELECT id FROM users WHERE deleted_at IS NULL`)
-	if err != nil {
-		return nil, fmt.Errorf("notifyfeed: recipients: %w", err)
-	}
-	defer rows.Close()
-	var ids []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("notifyfeed: recipient scan: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-	return ids, nil
 }
