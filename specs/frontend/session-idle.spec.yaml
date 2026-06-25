@@ -1,0 +1,128 @@
+spec:
+  id: frontend-session-idle
+  title: Frontend client-side idle-session timeout
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Browser inactivity timeout that enforces the Authentication-policy "Idle timeout" against real user activity
+    description: >
+      The backend enforces the operator-configured session idle window
+      (system-auth-policy / internal/identity/sessions.go), but it measures
+      "idle" by HTTP request activity and slides expires_at forward on every
+      authenticated request. The SPA polls several endpoints every 15-60s and
+      holds a persistent SSE stream, so the server-side window never elapses
+      even when the human has walked away. The result: the "Idle timeout"
+      setting under /settings/security has no observable effect in the browser.
+
+      This spec adds a client-side idle timer that measures REAL user input
+      (pointer, keyboard, touch) rather than HTTP traffic. When the user is
+      inactive for the configured window, the session is terminated
+      (POST /api/v1/auth/logout) and the app returns to /login. The timer reads
+      the configured window from GET /api/v1/auth-policy and falls back to the
+      backend default (15 minutes) when that cannot be read.
+
+      Tier 1 because session termination is a security control (NIST 800-53
+      AC-11/AC-12) and the frameworks OpenWatch itself scans for require it.
+
+      Scope note: this is slice 1 of AUTH-1. The absolute-timeout ceiling in the
+      cookie-refresh path (PostAuthRefreshCookie re-mints a session on the
+      7-day refresh token, resetting the absolute deadline) and the server-side
+      "slide only on user-initiated requests" hardening are tracked separately.
+    related_specs:
+      - frontend-auth-login
+      - system-auth-policy
+      - api-auth-policy
+
+  objective:
+    summary: >
+      A signed-in user who stops interacting with the page for the configured
+      idle window is logged out and returned to /login, regardless of any
+      background polling or SSE traffic the SPA generates.
+    scope:
+      includes:
+        - Idle timer armed only while authenticated, mounted from the app shell
+        - Idle window read from GET /api/v1/auth-policy with a safe default
+        - User-input activity (pointer/keyboard/touch) resets the idle clock
+        - Cross-tab shared activity clock so one active tab keeps all alive
+        - Server-side session revoke + redirect to /login on expiry
+      excludes:
+        - Absolute-timeout enforcement in the refresh-cookie path (backend)
+        - A pre-expiry warning/countdown dialog (follow-up)
+        - Server-side "slide only on user activity" hardening (backend)
+
+  constraints:
+    - id: C-01
+      description: >
+        The idle timer MUST measure real user input (pointer, keyboard, touch
+        events) and MUST NOT treat background HTTP traffic, SSE messages, or tab
+        focus/visibility changes as activity. It MUST be armed only while a user
+        is authenticated, and mounted from the persistent authenticated shell
+        (AppFrame) so it is active across every authenticated route.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >
+        The idle window MUST come from session_idle_timeout_seconds in
+        GET /api/v1/auth-policy. When the policy cannot be read the timer MUST
+        fall back to the backend default of 15 minutes (fail toward enforcing a
+        timeout, never leaving the session open indefinitely).
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >
+        On reaching the idle window with no user activity, the timer MUST
+        terminate the session server-side via POST /api/v1/auth/logout (so the
+        cookie session is actually revoked, not merely hidden from the tab) and
+        then clear the client identity and redirect to /login.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >
+        User activity MUST reset the idle clock. The clock MUST be shared across
+        tabs of the same origin (via localStorage) so activity in one tab keeps
+        every tab's session alive and a background tab does not log the user out
+        while they work in another.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        With an idle window W and no user-input events, after W elapses the hook
+        calls POST /api/v1/auth/logout and then the shared auth-failure handler
+        (clear identity + redirect to /login).
+      priority: critical
+      references_constraints: [C-01, C-03]
+    - id: AC-02
+      description: >-
+        A user-input event (e.g. keydown) dispatched before W elapses resets the
+        clock: advancing time to just under W from the last event does NOT log
+        the user out.
+      priority: critical
+      references_constraints: [C-01, C-04]
+    - id: AC-03
+      description: >-
+        The timer honors the configured window: with the auth-policy returning a
+        specific session_idle_timeout_seconds, logout fires at that value, and
+        when the policy is unavailable it falls back to the 15-minute default
+        (not before).
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: >-
+        Cross-tab — a fresher activity timestamp written to the shared
+        localStorage key by another tab prevents logout in this tab even when
+        this tab has seen no local input events.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        Source-inspection — AppFrame (the authenticated shell) mounts
+        useIdleLogout, and the hook's activity listeners are user-input events
+        (mousemove/mousedown/keydown/wheel/scroll/touchstart) with no
+        visibilitychange or HTTP-driven reset.
+      priority: high
+      references_constraints: [C-01]

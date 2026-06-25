@@ -84,7 +84,7 @@ func TestRefresh_RotationOnConsume(t *testing.T) {
 		userID := seedUser(t, pool, "ac12-user")
 
 		// Issue an initial refresh token.
-		refresh1, err := IssueRefreshToken(context.Background(), pool, userID)
+		refresh1, err := IssueRefreshToken(context.Background(), pool, userID, time.Now().UTC().Add(12*time.Hour))
 		if err != nil {
 			t.Fatalf("IssueRefreshToken: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestRefresh_ReuseDetectionCascadeRevokes(t *testing.T) {
 			t.Fatalf("IssueSession: %v", err)
 		}
 
-		refresh1, err := IssueRefreshToken(context.Background(), pool, userID)
+		refresh1, err := IssueRefreshToken(context.Background(), pool, userID, time.Now().UTC().Add(12*time.Hour))
 		if err != nil {
 			t.Fatalf("IssueRefreshToken: %v", err)
 		}
