@@ -1,6 +1,6 @@
 # Production deployment guide
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide covers running OpenWatch in production: a single Go binary that serves
 the REST API and the embedded React UI over HTTPS, backed by PostgreSQL, managed
@@ -14,7 +14,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current line is a pre-release
-> (`0.2.0-rc.13` per `packaging/version.env`), not a GA build. Treat it
+> (`0.2.0-rc.14` per `packaging/version.env`), not a GA build. Treat it
 > accordingly until a GA tag ships.
 
 ---

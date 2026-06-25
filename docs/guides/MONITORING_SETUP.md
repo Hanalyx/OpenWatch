@@ -54,7 +54,7 @@ curl -k https://localhost:8443/api/v1/health
 A healthy response returns `200 OK`:
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.13"}
+{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.14"}
 ```
 
 When the database ping fails, the endpoint returns `503 Service Unavailable`
@@ -76,7 +76,7 @@ curl -k https://localhost:8443/api/v1/version
 
 ```json
 {
-  "openwatch": "0.2.0-rc.13",
+  "openwatch": "0.2.0-rc.14",
   "kensa": "<embedded engine version>",
   "go": "<go toolchain>",
   "commit": "<abbrev commit>",
@@ -168,7 +168,7 @@ monitored fleet or the OpenWatch host's network path is degrading. The schemas
 ## 6. Service lifecycle
 
 OpenWatch runs as the `openwatch.service` systemd unit, which executes
-`openwatch serve --config /etc/openwatch/openwatch.toml`.
+`openwatch --config /etc/openwatch/openwatch.toml serve`.
 
 ```bash
 sudo systemctl status openwatch     # current state
@@ -180,7 +180,7 @@ sudo systemctl enable --now openwatch  # start now and at boot
 Before restarting after a config change, validate the resolved configuration:
 
 ```bash
-sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 Other CLI subcommands (`cmd/openwatch/main.go`): `migrate` applies pending
@@ -222,7 +222,7 @@ The service is unreachable or `GET /api/v1/health` does not return `200`.
 4. If the config is suspect, validate it before restarting:
 
    ```bash
-   sudo -u openwatch openwatch check-config --config /etc/openwatch/openwatch.toml
+   sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
    ```
 
 5. Restart and confirm recovery:

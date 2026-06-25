@@ -1,6 +1,6 @@
 # Configuration and environment reference
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This document is the field reference for how you configure the OpenWatch Go
 binary: the TOML file, the environment-variable overrides, and the on-disk paths
@@ -170,7 +170,7 @@ Validate configuration before starting the service:
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch check-config --config /etc/openwatch/openwatch.toml
+    openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 ## Service control and verification
