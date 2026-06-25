@@ -1,6 +1,6 @@
 # Scanning and Compliance
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
@@ -416,49 +416,48 @@ curl -k -X POST https://localhost:8443/api/v1/hosts/HOST_UUID/scans \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Query Posture
+### Query compliance (current lens)
+
+Per-host compliance is read from the host's lens, not a `/compliance/posture`
+endpoint. Add `?framework=cis-rhel9-v2.0.0` to project a specific framework.
 
 ```bash
-curl -k "https://localhost:8443/api/v1/compliance/posture?host_id=HOST_UUID" \
+curl -k "https://localhost:8443/api/v1/hosts/HOST_UUID/compliance" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Query Historical Posture
+### Query compliance trend
+
+Point-in-time posture history is served as a trend over the last N days (daily
+posture snapshots), not an `as_of` query.
 
 ```bash
-curl -k "https://localhost:8443/api/v1/compliance/posture?host_id=HOST_UUID&as_of=2026-02-15" \
+curl -k "https://localhost:8443/api/v1/hosts/HOST_UUID/compliance/trend?days=30" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Query Drift
+### List alerts
 
 ```bash
-curl -k "https://localhost:8443/api/v1/compliance/posture/drift?host_id=HOST_UUID&start_date=2026-02-01&end_date=2026-02-28" \
+curl -k "https://localhost:8443/api/v1/alerts?state=active" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### List Alerts
+### Acknowledge an alert
 
 ```bash
-curl -k "https://localhost:8443/api/v1/compliance/alerts?status=active" \
+curl -k -X POST "https://localhost:8443/api/v1/alerts/ALERT_ID:acknowledge" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Acknowledge an Alert
+### Export audit events
+
+The audit export is a `GET` with query filters (defaults to CSV); add filters
+like `action`, `actor_type`, `resource_type`.
 
 ```bash
-curl -k -X POST "https://localhost:8443/api/v1/compliance/alerts/ALERT_ID/acknowledge" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{}'
-```
-
-### Create an Export
-
-```bash
-curl -k -X POST https://localhost:8443/api/v1/compliance/audit/exports \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query_definition": {"severities": ["critical"], "statuses": ["fail"]}, "format": "csv"}'
+curl -k "https://localhost:8443/api/v1/audit/events/export?format=csv" \
+  -H "Authorization: Bearer $TOKEN" -o audit.csv
 ```
 
 See the [API Guide](API_GUIDE.md) for the complete endpoint reference.

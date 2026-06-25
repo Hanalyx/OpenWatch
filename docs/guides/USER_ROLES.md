@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
@@ -68,20 +68,24 @@ The day-to-day operator. Adds write and execute authority over the operational
 surface: `host:write`, `host:connectivity_check`, `host:intelligence_refresh`,
 `credential:read`, `scan:execute`, `scan:cancel`, `scan_template:write`,
 `baseline:write`, alert `acknowledge`/`resolve`, `notification:test`,
-`remediation:request`, and the exception request/comment verbs.
+`remediation:request`, the free-core `remediation:execute`/`remediation:rollback`
+host-mutating verbs, and the exception request/comment verbs.
 
 Cannot delete hosts, manage credentials beyond reading them, approve
-remediations, install licenses or policies, or manage users.
+remediations (separation of duties: a different `security_admin`/`admin`
+approves), install licenses or policies, or manage users.
 
 ### `security_admin`
 
 Full security operations. Grants category wildcards (`host:*`, `credential:*`,
 `scan:*`, `scan_template:*`, `baseline:*`, `exception:*`, `alert:*`,
-`notification:*`, `remediation:*`, `integration:*`, `audit:*`) plus
-`user:read`, `user:write`, `license:install`, and the policy
-`reload`/`install` verbs. This includes the dangerous and license-gated actions
-`remediation:execute` and `remediation:rollback` (both gated by the
-`remediation_execution` feature).
+`notification:*`, `remediation:*`, `integration:*`, `audit:*`, `token:*`) plus
+`user:read`, `user:write`, `license:install`, the
+`system:auth_policy_read`/`auth_policy_write` verbs, and the policy
+`reload`/`install` verbs. This includes the dangerous host-mutating actions
+`remediation:execute` and `remediation:rollback` (free-core, not license-gated)
+and the license-gated `audit:export` (via `audit:*`, requires the `audit_export`
+feature at runtime).
 
 Cannot perform the high-privilege `admin:*` bundle: managing other users' roles,
 SSO providers, retention policy, system settings, or `user:delete`.
@@ -98,7 +102,7 @@ the `admin:*` bundle (`user_manage`, `role_manage`, `retention_policy`,
 
 Permissions are named `resource:action`, both lowercase
 (for example `host:read`, `scan:execute`, `remediation:rollback`). The registry
-defines 19 categories. Two attributes affect enforcement:
+defines 67 permissions across 20 categories. Two attributes affect enforcement:
 
 - `dangerous: true` marks destructive or high-impact actions (for example
   `host:delete`, `license:install`, `user:delete`). The UI uses this for
@@ -106,8 +110,9 @@ defines 19 categories. Two attributes affect enforcement:
 - `license_gated: <feature>` makes a permission inert unless the active license
   enables that feature. A role may grant the permission, but the combined
   RBAC-plus-license middleware denies the call with `402` until the license
-  enables it. Today this applies to `audit:export` (`audit_export`) and
-  `remediation:execute` / `remediation:rollback` (`remediation_execution`).
+  enables it. Today this applies to exactly one permission: `audit:export`
+  (`audit_export`). Remediation (`remediation:execute` / `remediation:rollback`)
+  is free-core and not license-gated; it is marked `dangerous` instead.
 
 Enforcement happens in middleware generated from the OpenAPI `x-required-permission`
 extension, so handlers never check RBAC inline. A request with a missing or
@@ -160,14 +165,17 @@ they are granted by the role but require the matching license feature at runtime
 | `license:read` | Y | Y | Y | Y | Y |
 | `license:install` | - | - | - | Y | Y |
 | `license:revoke` | - | - | - | - | Y |
+| `token:read` | - | - | - | Y | Y |
+| `token:write` | - | - | - | Y | Y |
+| `token:delete` | - | - | - | Y | Y |
 | `policy:read` | Y | Y | Y | Y | Y |
 | `policy:reload` | - | - | - | Y | Y |
 | `policy:install` | - | - | - | Y | Y |
 | `remediation:read` | Y | Y | Y | Y | Y |
 | `remediation:request` | - | - | Y | Y | Y |
 | `remediation:approve` | - | - | - | Y | Y |
-| `remediation:execute` (LG) | - | - | - | Y | Y |
-| `remediation:rollback` (LG) | - | - | - | Y | Y |
+| `remediation:execute` | - | - | Y | Y | Y |
+| `remediation:rollback` | - | - | Y | Y | Y |
 | `integration:read` | Y | Y | Y | Y | Y |
 | `integration:write` | - | - | - | Y | Y |
 | `integration:execute` | - | - | - | Y | Y |
@@ -175,6 +183,8 @@ they are granted by the role but require the matching license feature at runtime
 | `audit:export` (LG) | - | Y | - | Y | Y |
 | `system:read` | Y | Y | Y | Y | Y |
 | `system:config_write` | - | - | - | - | Y |
+| `system:auth_policy_read` | - | - | - | Y | Y |
+| `system:auth_policy_write` | - | - | - | Y | Y |
 | `role:read` | Y | - | - | - | Y |
 | `role:write` | - | - | - | - | Y |
 | `role:assign` | - | - | - | - | Y |

@@ -1,6 +1,6 @@
 # Database migration guide
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
@@ -51,8 +51,7 @@ development; OpenWatch does not expose a rollback subcommand (see
 ## Applying migrations in production
 
 Run the `migrate` subcommand. It connects with the configured database DSN,
-applies every pending `Up` migration, and prints the resulting version and the
-list of embedded migration files.
+applies every pending `Up` migration, and prints the resulting schema version.
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
@@ -61,18 +60,15 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 
 The DSN comes from `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (or
 `[database].dsn` in `/etc/openwatch/openwatch.toml`). The command times out after
-60 seconds, applies migrations idempotently (goose skips versions already recorded
-in `goose_db_version`), and reports output like:
+10 minutes, applies migrations idempotently (goose skips versions already recorded
+in `goose_db_version`), and prints the version transition:
 
 ```
-applying migrations against postgres://openwatch:***@127.0.0.1:5432/openwatch ...
-  current version: 46
-  migration files: 46
-    - 0001_initial.sql
-    - 0002_audit_events_taxonomy.sql
-    ...
-migrations applied
+migrations applied — version 47 -> 48
 ```
+
+When the schema is already current it reports that no migrations were pending
+(the version is unchanged). A failure aborts before changing the version.
 
 Run `openwatch migrate` after every package upgrade and before starting (or
 restarting) the service, so the schema matches the binary. The systemd unit

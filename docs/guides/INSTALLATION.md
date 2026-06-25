@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
@@ -108,7 +108,7 @@ Install **both** files in one transaction. `openwatch` declares a hard
 dependency on `kensa-rules` — the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (e.g. `0.5.0`), independent of the
+and versioned on the Kensa content line (e.g. `0.6.0`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
@@ -180,7 +180,10 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 ```
 
 `create-admin` reads the password from stdin when `--password` is omitted, which
-keeps it out of your shell history. For automation, pipe it instead:
+keeps it out of your shell history. Note that the interactive prompt does not
+mask input: the characters you type are echoed to the terminal. Run it where the
+screen is not observed or recorded, or pipe the password in. For automation,
+pipe it instead:
 
 ```bash
 printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
