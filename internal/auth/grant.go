@@ -22,3 +22,22 @@ func RoleGrantsWithin(caller Identity, requested RoleID) bool {
 	}
 	return true
 }
+
+// RolesWithPermission returns the built-in role IDs whose definition grants p,
+// in declaration order. It is the recipient-resolution primitive for
+// permission-scoped fan-out (e.g. "every role that can approve an exception"):
+// callers translate a permission into the set of roles, then query user_roles
+// for the holders. An unknown/empty permission yields no roles.
+func RolesWithPermission(p Permission) []RoleID {
+	var out []RoleID
+	for _, id := range BuiltInRoleIDs() {
+		def := BuiltInRoles[id]
+		for _, granted := range def.Permissions {
+			if granted == p {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	return out
+}

@@ -588,9 +588,13 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// a fresh boot has today's row. Spec system-posture-snapshots.
 	posture.Run(ctx, pool, 0)
 
+	// Governance action-queue notifications (Slice 3): exceptions pending /
+	// decided, remediation failures. Reuses the Slice-1 feed store.
+	govProjector := notifyfeed.NewGovernanceProjector(notifFeedStore)
+
 	// Compliance exception governance + its hourly expiry sweep.
 	// Spec api-compliance-exceptions.
-	exceptionSvc := exception.NewService(pool, audit.Emit)
+	exceptionSvc := exception.NewService(pool, audit.Emit).WithNotifier(govProjector)
 	exceptionSvc.Run(ctx, 0)
 
 	// Remediation governance: request/approve/reject + projected lift (free
@@ -628,13 +632,14 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		remExecutor = remExecutor.WithRemediateFunc(remFn, rbFn)
 	}
 	remediationWorker := worker.NewRemediationWorker(worker.RemediationConfig{
-		Pool:     pool,
-		Executor: remExecutor,
-		Service:  remediationSvc,
-		Writer:   remTxWriter,
-		QueueKey: scanQueueKey,
-		Bus:      bus,
-		Emit:     audit.Emit,
+		Pool:       pool,
+		Executor:   remExecutor,
+		Service:    remediationSvc,
+		Writer:     remTxWriter,
+		QueueKey:   scanQueueKey,
+		Bus:        bus,
+		Emit:       audit.Emit,
+		Governance: govProjector,
 	})
 
 	scanWorker := worker.NewScanWorker(worker.Config{

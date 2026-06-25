@@ -230,13 +230,18 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	} else {
 		remExecutor = remExecutor.WithRemediateFunc(remFn, rbFn)
 	}
+	// One in-app feed store, shared by the remediation-failure governance
+	// notifier and the scan worker's regression projector.
+	notifFeedStore := notifyfeed.NewStore(pool)
+
 	remediationWorker := worker.NewRemediationWorker(worker.RemediationConfig{
-		Pool:     pool,
-		Executor: remExecutor,
-		Service:  remediation.NewService(pool, audit.Emit),
-		Writer:   writer,
-		QueueKey: queueKey,
-		Emit:     audit.Emit,
+		Pool:       pool,
+		Executor:   remExecutor,
+		Service:    remediation.NewService(pool, audit.Emit),
+		Writer:     writer,
+		QueueKey:   queueKey,
+		Emit:       audit.Emit,
+		Governance: notifyfeed.NewGovernanceProjector(notifFeedStore),
 		// Bus nil: the dedicated worker has no SSE subscribers (cross-process
 		// delivery is a known non-goal, same as scan.completed).
 	})
@@ -267,7 +272,7 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		Emit:                 audit.Emit,
 		Sched:                sched,
 		RemediationProcessor: remediationWorker,
-		Regressions:          notifyfeed.NewProjector(notifyfeed.NewStore(pool)),
+		Regressions:          notifyfeed.NewProjector(notifFeedStore),
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)

@@ -16,6 +16,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   regressed (1 critical)"), severity-ranked and deep-linked to the host. A
   host's first scan (all-new baseline) does not flood the bell, and repeat
   failures collapse onto a single re-surfacing entry. (notifications Slice 2)
+- The notification bell is now an action queue for governance: an exception
+  awaiting approval reaches the users who can approve it (auditors and
+  security/admin roles), an approve or reject reaches the requester, and a
+  remediation that fails (or a rollback that does not restore) reaches the
+  operators who can re-run it. Each item is severity-ranked and deep-links to
+  where you act on it. (notifications Slice 3)
 
 ---
 

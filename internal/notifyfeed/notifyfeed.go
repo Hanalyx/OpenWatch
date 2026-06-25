@@ -47,6 +47,20 @@ type Store struct {
 // NewStore returns a feed store over the given pool.
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
+// hostName returns the host's display name (falling back to hostname, then the
+// id) for a notification title. A lookup failure degrades to the id string
+// rather than failing the projection. Shared by the regression + governance
+// projectors.
+func (s *Store) hostName(ctx context.Context, hostID uuid.UUID) string {
+	var name string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT COALESCE(NULLIF(display_name, ''), hostname) FROM hosts WHERE id = $1`,
+		hostID).Scan(&name); err != nil || name == "" {
+		return hostID.String()
+	}
+	return name
+}
+
 // Record upserts one notification for one user. A repeat of the same change
 // (same user_id + group_key) collapses onto the existing row, refreshing its
 // content + occurred_at and re-surfacing it as UNREAD — so a recurring problem
@@ -119,6 +133,51 @@ func (s *Store) RecordFanout(ctx context.Context, n Notification) error {
 		n.Kind, n.Severity, n.Title, n.Body, n.HostID, n.Link, n.GroupKey, n.OccurredAt,
 	); err != nil {
 		return fmt.Errorf("notifyfeed: record fanout: %w", err)
+	}
+	return nil
+}
+
+// RecordForRoles records one notification for every active (non-deleted) user
+// who holds at least one of the given built-in roles, in a single statement
+// (same upsert/collapse semantics as RecordFanout). This is the RBAC-scoped
+// fan-out behind governance notifications — e.g. an exception pending approval
+// reaches only users whose role grants exception:approve, not the whole fleet.
+// An empty roleIDs slice matches no one (a no-op). The UserID on the template
+// is ignored; recipients come from users joined to user_roles. EXISTS (not
+// JOIN) keeps a user holding two matching roles to one row, avoiding an ON
+// CONFLICT double-hit within the statement.
+func (s *Store) RecordForRoles(ctx context.Context, roleIDs []string, n Notification) error {
+	if n.GroupKey == "" {
+		return errors.New("notifyfeed: RecordForRoles requires GroupKey")
+	}
+	if len(roleIDs) == 0 {
+		return nil
+	}
+	if n.OccurredAt.IsZero() {
+		n.OccurredAt = time.Now().UTC()
+	}
+	const stmt = `
+		INSERT INTO notifications
+			(id, user_id, kind, severity, title, body, host_id, link, group_key, occurred_at)
+		SELECT gen_random_uuid(), u.id, $1, $2, $3, $4, $5, $6, $7, $8
+		  FROM users u
+		 WHERE u.deleted_at IS NULL
+		   AND EXISTS (
+			SELECT 1 FROM user_roles ur
+			 WHERE ur.user_id = u.id AND ur.role_id = ANY($9::text[]))
+		ON CONFLICT (user_id, group_key) DO UPDATE SET
+			kind        = EXCLUDED.kind,
+			severity    = EXCLUDED.severity,
+			title       = EXCLUDED.title,
+			body        = EXCLUDED.body,
+			host_id     = EXCLUDED.host_id,
+			link        = EXCLUDED.link,
+			occurred_at = EXCLUDED.occurred_at,
+			read_at     = NULL`
+	if _, err := s.pool.Exec(ctx, stmt,
+		n.Kind, n.Severity, n.Title, n.Body, n.HostID, n.Link, n.GroupKey, n.OccurredAt, roleIDs,
+	); err != nil {
+		return fmt.Errorf("notifyfeed: record for roles: %w", err)
 	}
 	return nil
 }
