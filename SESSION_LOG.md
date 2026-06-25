@@ -6,6 +6,57 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-25 (later) — Opus 4.8 (1M context) — merge 8-PR stack, cut + verify v0.2.0-rc.15 (Eyrie), DOC-3
+
+**Done** — Landed the prior session's feature/fix stack, cut and fully verified
+rc.15, and finished the operator-guide truthfulness audit.
+- **Merged the 8-PR stack** (#673 PKG-3, #675/#678 AUTH-1, #677/#679
+  notifications, #676 avg-compliance parity, #680 docs/STATUS/CHANGELOG) in
+  dependency order, resolving the branch-protection rebase cascade and BACKLOG
+  date conflicts. One CI flake en route: `TestApply_1000Rules_Under2Seconds`
+  (transactionlog) — a P2 gating flake (hard 2s assert under `-race`, missed the
+  `perftest.Budgetf()` migration), filed in BACKLOG; cleared on rerun.
+- **Cut v0.2.0-rc.15 "Eyrie" (#681):** `version.env` 0.2.0-rc.15, CHANGELOG
+  `[0.2.0-rc.15] — 2026-06-25`. Annotated tag `v0.2.0-rc.15` → `8e468ce6`
+  triggered `release.yml`.
+- **rc.15 release verified end-to-end** (signed pre-release, 16 assets,
+  published 14:44 UTC):
+  1. **Detached GPG** — `SHA256SUMS.asc` is a **Good signature** from "Hanalyx
+     LLC (release signing) <ops@hanalyx.com>", RSA subkey
+     `C78B8AFF…FF7E515E` (primary `4CB70E1C…E239E50C`).
+  2. **Manifest → bytes** — `sha256sum -c SHA256SUMS`: **13/13 OK** (6 packages
+     + 7 CycloneDX SBOMs).
+  3. **In-header RPM** — `rpm -Kv` against an isolated rpmdb with `KEYS`
+     imported: **3/3** `V4 RSA/SHA256, key ID ff7e515e: OK` + all header/payload
+     digests OK. (`.deb` files aren't header-signed; covered by the signed
+     manifest.) Same key signs the manifest and each RPM header.
+- **DOC-3 done (#682, all code-verified):** SCANNING appendix dead
+  `/api/v1/compliance/*` paths → real endpoints (verified vs `openapi_embed.yaml`);
+  USER_ROLES matrix → 67 rows = full registry (+`token:*`, `+system:auth_policy_*`),
+  `remediation:execute/rollback` corrected to **free-core + ops_lead-held** (only
+  `audit:export` is license-gated), 19→20 categories; DATABASE_MIGRATIONS real
+  `migrations applied — version N -> N` + 10-min timeout; HOSTS_AND_REMEDIATION
+  5-min `DefaultProbeInterval` + ICMP/SSH-banner/privilege layering;
+  INSTALLATION kensa-rules `0.5.0`→`0.6.0` + create-admin password-echo caveat;
+  LINUX_DISTRIBUTION_SUPPORT re-verified Kensa v0.6.0 = **538/538 rhel-family**.
+  BACKLOG DOC-3 → Done (#683).
+
+**Next** — Notifications Slice 2 (transaction-log rule-regression projector:
+critical pass→fail, grouped per host/scan) + per-host RBAC recipient scoping.
+Deferred guide cleanup: blanket spaced-em-dash close-up across `docs/guides/`
+(pre-existing, large mechanical diff); MONITORING date left at 2026-06-10 (no
+content review). GA gate: Stage 3 fleet-verification per `docs/runbooks/RELEASING.md`.
+
+**Notes** — Two BACKLOG assumptions in the DOC-3 entry were themselves wrong and
+corrected during the pass: (1) INSTALLATION's PostgreSQL dependency is **real**
+(`packaging/rpm/openwatch.spec:37` `Requires: postgresql-server`), not phantom —
+kept; (2) LINUX_DISTRIBUTION_SUPPORT **did** carry the stale `v0.4.3`/`539` (the
+other guides were already 538). The `~539` approximate lens bounds (DOC-2) and
+CLAUDE.md Python-era packaging section (DOC-1) remain open. The git stash still
+has 10 pre-existing entries — do not `git stash pop` blindly.
+
+---
+
 ## 2026-06-25 — Opus 4.8 (1M context) — AUTH-1 completion, notifications Slice 1, PKG-3, review
 
 **Done** — A large feature + fix session, all on feature branches (7 open PRs;
