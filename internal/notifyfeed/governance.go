@@ -82,6 +82,49 @@ func (g *GovernanceProjector) ExceptionDecided(ctx context.Context, exceptionID,
 	return nil
 }
 
+// ExceptionExpiringSoon warns approvers that an approved exception is about to
+// lapse (after which its rules re-enter scope). Uses the QUIET fan-out: the
+// expiry sweep re-evaluates hourly, so a non-quiet record would re-surface the
+// same warning unread every hour. Grouped per exception.
+func (g *GovernanceProjector) ExceptionExpiringSoon(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error {
+	host := g.store.hostName(ctx, hostID)
+	h := hostID
+	n := Notification{
+		Kind:     "exception_expiring",
+		Severity: "medium",
+		Title:    fmt.Sprintf("Exception expiring soon: %s on %s", ruleID, host),
+		Body:     "An approved compliance exception is about to expire. Its rules will re-enter scope unless renewed.",
+		HostID:   &h,
+		Link:     exceptionQueueLink,
+		GroupKey: "exception_expiring:" + exceptionID.String(),
+	}
+	if err := g.store.RecordForRolesQuiet(ctx, roleStrings(auth.RolesWithPermission(auth.ExceptionApprove)), n); err != nil {
+		return fmt.Errorf("notifyfeed: exception expiring soon: %w", err)
+	}
+	return nil
+}
+
+// ExceptionExpired notifies approvers that an exception has lapsed and its rules
+// are back in scope. Fires once per exception (the sweep flips each to expired
+// exactly once), so the standard fan-out is used. Grouped per exception.
+func (g *GovernanceProjector) ExceptionExpired(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error {
+	host := g.store.hostName(ctx, hostID)
+	h := hostID
+	n := Notification{
+		Kind:     "exception_expired",
+		Severity: "medium",
+		Title:    fmt.Sprintf("Exception expired: %s on %s", ruleID, host),
+		Body:     "A compliance exception has expired. Its rules are back in scope and will be evaluated on the next scan.",
+		HostID:   &h,
+		Link:     exceptionQueueLink,
+		GroupKey: "exception_expired:" + exceptionID.String(),
+	}
+	if err := g.store.RecordForRoles(ctx, roleStrings(auth.RolesWithPermission(auth.ExceptionApprove)), n); err != nil {
+		return fmt.Errorf("notifyfeed: exception expired: %w", err)
+	}
+	return nil
+}
+
 // RemediationFailed records a "remediation failed / rolled back" notification
 // for the operators who can act on it (remediation:execute → ops_lead,
 // security_admin, admin). Grouped per (host, rule). finalStatus is the

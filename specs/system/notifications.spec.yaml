@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -143,6 +143,25 @@ spec:
         a notify failure never fails the governance transition or the job.
       type: security
       enforcement: error
+    - id: C-09
+      description: >-
+        v1.6.0 (Slice 4) — the governance action queue completes the exception
+        lifecycle: GovernanceProjector.ExceptionExpiringSoon warns approvers
+        (roles granting exception:approve) that an approved exception is within
+        ExpiringSoonWindow (72h) of lapsing — kind "exception_expiring", medium,
+        deep-linked to the queue, grouped per exception; and
+        GovernanceProjector.ExceptionExpired notifies approvers when one lapses
+        (rules back in scope) — kind "exception_expired", medium. The
+        expiring-soon warning MUST use notifyfeed.Store.RecordForRolesQuiet (ON
+        CONFLICT DO NOTHING) so the hourly sweep notifies each recipient AT MOST
+        ONCE and does not re-surface a read warning every hour; expired fires
+        once per exception so it uses the standard fan-out. exception.Service
+        drives both from its existing sweep loop: ExpireSweep notifies per newly
+        expired exception, and ExpiringSoonSweep selects only approved
+        exceptions with expires_at in (now, now+window] and warns each. All
+        notifications are best-effort (a failure never fails the sweep).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -257,3 +276,22 @@ spec:
         and to no one else (a viewer does not receive it).
       priority: high
       references_constraints: [C-08]
+    - id: AC-18
+      description: >-
+        v1.6.0 — ExceptionExpiringSoon records a medium "exception_expiring"
+        (link /settings/policies, grouped per exception) for approvers and not
+        viewers, via the QUIET fan-out: after a recipient reads it, a repeated
+        record for the same exception leaves it READ (does not re-surface
+        unread). ExceptionExpired records a medium "exception_expired" for
+        approvers.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-19
+      description: >-
+        v1.6.0 — Service.ExpiringSoonSweep warns only approved exceptions whose
+        expires_at is within (now, now+ExpiringSoonWindow]: an in-window
+        approved exception is warned, an out-of-window approved one and an
+        in-window still-requested one are not; the count returned matches the
+        warned set.
+      priority: high
+      references_constraints: [C-09]

@@ -22,6 +22,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remediation that fails (or a rollback that does not restore) reaches the
   operators who can re-run it. Each item is severity-ranked and deep-links to
   where you act on it. (notifications Slice 3)
+- Approvers are now warned before a compliance exception lapses (within 72
+  hours) and notified when it does, so a waiver expiring and its rules snapping
+  back into scope never goes unnoticed. The "expiring soon" warning is shown
+  once per approver rather than re-pinging on every hourly sweep. (notifications
+  Slice 4)
 
 ---
 
