@@ -138,8 +138,12 @@ spec:
         session and enforces both deadlines but MUST NOT advance expires_at /
         last_seen. The identity binder passes WithoutSlide when the request
         carries the X-Background-Refresh marker (set by the SPA on background
-        polls / SSE). Fail-safe: an UNMARKED request slides as before, so a client
-        that does not send the header is unaffected (no premature logout).
+        polls) OR targets the SSE events stream (/api/v1/events) — a long-lived
+        subscription that reconnects through proxies and cannot send a custom
+        header (EventSource), so without this exemption an open SPA would keep an
+        unattended session alive forever. Fail-safe: an UNMARKED non-SSE request
+        slides as before, so a client that does not send the header is unaffected
+        (no premature logout).
       type: security
       enforcement: error
 

@@ -130,6 +130,12 @@ func IssueSessionWithAbsolute(ctx context.Context, pool *pgxpool.Pool, userID uu
 	}
 	now := time.Now().UTC()
 	win := CurrentWindows()
+	// Defensive: a zero deadline would otherwise cap the idle expiry to the zero
+	// time and mint an always-expired session. Treat it as "no carried deadline"
+	// and grant a fresh absolute window (the IssueSession default).
+	if absoluteExpiresAt.IsZero() {
+		absoluteExpiresAt = now.Add(win.Absolute)
+	}
 	expires := now.Add(win.Idle)
 	if expires.After(absoluteExpiresAt) {
 		expires = absoluteExpiresAt

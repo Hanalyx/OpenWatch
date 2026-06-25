@@ -212,6 +212,17 @@ func TestBinder_SlideOnlyOnUserActivity(t *testing.T) {
 		if got := readExpiry(); !got.After(before) {
 			t.Errorf("user request did not slide the window: before=%v after=%v", before, got)
 		}
+
+		// The SSE events stream must NOT slide — it cannot send the header but
+		// is a long-lived background subscription.
+		afterUser := readExpiry()
+		req := httptest.NewRequest(http.MethodGet, sseEventsPath, nil)
+		req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if got := readExpiry(); !got.Equal(afterUser) {
+			t.Errorf("SSE request slid the window: before=%v after=%v", afterUser, got)
+		}
 	})
 }
 

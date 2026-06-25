@@ -24,6 +24,14 @@ const SessionCookieName = "openwatch_session"
 // user-driven navigation and mutations omit it and slide as before. AUTH-1 (c).
 const BackgroundRefreshHeader = "X-Background-Refresh"
 
+// sseEventsPath is the live-events SSE stream. EventSource cannot set custom
+// headers, so it can never send BackgroundRefreshHeader; yet it is a long-lived
+// background subscription that reconnects (often through a proxy idle-timeout).
+// Treating it as user activity would let an open SPA keep an unattended session
+// alive forever, defeating the idle timeout — so the binder never slides for it.
+// AUTH-1 (c).
+const sseEventsPath = "/api/v1/events"
+
 // authBypassPaths are credential-lifecycle endpoints where the binder
 // MUST NOT 401 on a stale session cookie — they handle their own
 // credential semantics. Login does not need any cookie; logout is
@@ -148,7 +156,7 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		// HTTP traffic. Fail-safe: an unmarked request slides as before, so a
 		// client that does not send the header is unaffected.
 		var vopts []VerifyOption
-		if r.Header.Get(BackgroundRefreshHeader) == "1" {
+		if r.Header.Get(BackgroundRefreshHeader) == "1" || r.URL.Path == sseEventsPath {
 			vopts = append(vopts, WithoutSlide())
 		}
 		sess, err := VerifySession(ctx, pool, cookie.Value, vopts...)
