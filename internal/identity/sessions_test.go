@@ -213,6 +213,63 @@ func TestSession_AbsoluteTimeout(t *testing.T) {
 	})
 }
 
+// @ac AC-30
+// AC-30 (AUTH-1 c): VerifySession with WithoutSlide validates the session but
+// does NOT advance expires_at/last_seen, while a normal VerifySession on the
+// same session still extends it.
+func TestSession_VerifyNoSlide(t *testing.T) {
+	t.Run("system-auth-identity/AC-30", func(t *testing.T) {
+		pool := freshPool(t)
+		userID := seedUser(t, pool, "ac30-user")
+		token, sess, err := IssueSession(context.Background(), pool, userID, "", "")
+		if err != nil {
+			t.Fatalf("IssueSession: %v", err)
+		}
+		// Roll expires_at + last_seen back 10 min so a slide would be observable.
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE sessions SET expires_at = expires_at - interval '10 minutes',
+			                     last_seen  = last_seen  - interval '10 minutes' WHERE id = $1`,
+			sess.ID); err != nil {
+			t.Fatalf("adjust: %v", err)
+		}
+		var before time.Time
+		if err := pool.QueryRow(context.Background(),
+			`SELECT expires_at FROM sessions WHERE id = $1`, sess.ID).Scan(&before); err != nil {
+			t.Fatalf("read before: %v", err)
+		}
+
+		// WithoutSlide: validates but must NOT extend.
+		got, err := VerifySession(context.Background(), pool, token, WithoutSlide())
+		if err != nil {
+			t.Fatalf("VerifySession(WithoutSlide): %v", err)
+		}
+		if got.ID != sess.ID {
+			t.Errorf("session ID mismatch")
+		}
+		var after time.Time
+		if err := pool.QueryRow(context.Background(),
+			`SELECT expires_at FROM sessions WHERE id = $1`, sess.ID).Scan(&after); err != nil {
+			t.Fatalf("read after: %v", err)
+		}
+		if !after.Equal(before) {
+			t.Errorf("WithoutSlide advanced expires_at: before=%v after=%v", before, after)
+		}
+
+		// Contrast: a normal verify on the same session DOES extend it.
+		if _, err := VerifySession(context.Background(), pool, token); err != nil {
+			t.Fatalf("VerifySession (slide): %v", err)
+		}
+		var extended time.Time
+		if err := pool.QueryRow(context.Background(),
+			`SELECT expires_at FROM sessions WHERE id = $1`, sess.ID).Scan(&extended); err != nil {
+			t.Fatalf("read extended: %v", err)
+		}
+		if !extended.After(before) {
+			t.Errorf("normal VerifySession did not extend: before=%v after=%v", before, extended)
+		}
+	})
+}
+
 // VerifySession with a never-issued token returns ErrSessionNotFound.
 // Not an AC; defensive sanity check.
 func TestSession_VerifyUnknownToken(t *testing.T) {

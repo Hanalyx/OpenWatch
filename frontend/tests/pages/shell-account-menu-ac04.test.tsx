@@ -2,9 +2,9 @@
 // @ac AC-04
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { useAuthStore } from '@/store/useAuthStore';
-import { signIn, clearAuth } from './shell-account-menu-helpers';
+import { signIn, clearAuth, renderTopBar } from './shell-account-menu-helpers';
 
 const navigateMock = vi.fn();
 const logoutPostSpy = vi.fn(async (..._args: unknown[]) => ({
@@ -27,7 +27,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: (...args: unknown[]) => logoutPostSpy(...args) },
 }));
 
-import { TopBar } from '@/components/shell/TopBar';
 
 beforeEach(() => {
   clearAuth();
@@ -38,7 +37,7 @@ beforeEach(() => {
 describe('frontend-shell-account-menu — behavioral', () => {
   test('frontend-shell-account-menu/AC-04 — clicking Sign out calls /auth/logout, clears identity, and navigates to /login', async () => {
     signIn();
-    render(<TopBar />);
+    renderTopBar();
     fireEvent.click(screen.getByRole('button', { name: /account/i }));
     const signOut = screen.getByRole('menuitem', { name: /sign out/i });
     fireEvent.click(signOut);

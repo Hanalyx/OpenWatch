@@ -138,6 +138,20 @@ spec:
         the tilde form. Source-inspection enforces (AC-21).
       type: technical
       enforcement: error
+    - id: C-13
+      description: >
+        The systemd unit MUST set OPENWATCH_KENSA_STORE_PATH to a path inside
+        the unit's writable state tree (a ReadWritePaths entry, e.g.
+        /var/lib/openwatch). Kensa remediation composes a full engine backed by
+        a durable SQLite transaction store for rollback pre-state; under
+        ProtectSystem=strict the store path MUST resolve to a writable location
+        or the store fails to open and remediation degrades to "not wired"
+        (scans, which compose a store-less engine, are unaffected and mask the
+        failure). The unit MUST also set WorkingDirectory to a writable path so
+        the store's default fallback (.kensa/ relative to the working dir) does
+        not land on the read-only root.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -247,3 +261,14 @@ spec:
         removes) an operator's replacement certificate, including the transition.
       priority: critical
       references_constraints: [C-05]
+    - id: AC-23
+      description: >-
+        Source-inspection of packaging/common/openwatch.service: the unit sets
+        OPENWATCH_KENSA_STORE_PATH to a path under /var/lib/openwatch (a
+        ReadWritePaths entry), and sets WorkingDirectory to a writable path
+        (not the default read-only /). Backstops the rc.14 regression where the
+        hardened unit left the Kensa rollback store unwritable, so remediation
+        boot-wiring failed ("compose remediation service") and every
+        remediation/rollback returned "not wired" while scans worked.
+      priority: critical
+      references_constraints: [C-13]

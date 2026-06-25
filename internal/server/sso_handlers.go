@@ -246,12 +246,13 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 
 	// Mint the session + refresh cookies (the session cookie is the
 	// credential; no JSON body on a redirect). Mirrors PostAuthLogin.
-	sessionToken, _, err := identity.IssueSession(r.Context(), h.pool, result.UserID, r.RemoteAddr, r.UserAgent())
+	sessionToken, ssoSess, err := identity.IssueSession(r.Context(), h.pool, result.UserID, r.RemoteAddr, r.UserAgent())
 	if err != nil {
 		http.Redirect(w, r, "/login?sso_error=session", http.StatusFound)
 		return
 	}
-	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, result.UserID)
+	// AUTH-1 (b): anchor the refresh lineage to the session absolute deadline.
+	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, result.UserID, ssoSess.AbsoluteExpiresAt)
 	if err != nil {
 		http.Redirect(w, r, "/login?sso_error=session", http.StatusFound)
 		return

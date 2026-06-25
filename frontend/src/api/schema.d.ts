@@ -2368,6 +2368,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the calling user's in-app notifications (the bell)
+         * @description Self-scoped: any authenticated identity reads its own notifications; no special permission. Returns recent notifications newest-first plus the unread count for the badge. Spec system-notifications.
+         */
+        get: operations["getNotificationFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/feed:read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark all the calling user's notifications read */
+        post: operations["postNotificationFeedReadAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/feed/{id}:read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one notification read (must belong to the caller) */
+        post: operations["postNotificationFeedRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -2666,6 +2720,37 @@ export interface components {
         };
         NotificationChannelList: {
             channels: components["schemas"]["NotificationChannel"][];
+        };
+        /** @description One in-app notification (the bell). Self-scoped to the caller. */
+        NotificationFeedItem: {
+            /** Format: uuid */
+            id: string;
+            /** @description Change/alert kind, e.g. host_unreachable or drift_major */
+            kind: string;
+            /** @enum {string} */
+            severity: "critical" | "high" | "medium" | "low" | "info";
+            title: string;
+            body?: string;
+            /**
+             * Format: uuid
+             * @description Present for host-scoped changes
+             */
+            host_id?: string | null;
+            /** @description Deep-link target for the notification */
+            link?: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** @description True when the caller has read it */
+            read: boolean;
+        };
+        NotificationFeed: {
+            items: components["schemas"]["NotificationFeedItem"][];
+            /** @description Count of the unread notifications (badge value) */
+            unread_count: number;
+        };
+        NotificationReadResult: {
+            /** @description Number of notifications marked read */
+            marked_read: number;
         };
         /** @description For slack/webhook supply url (https, public host). For email supply smtp_host/smtp_port/from/to (and username/password if the relay authenticates). All secrets are stored encrypted and never returned. */
         NotificationChannelCreate: {
@@ -9365,6 +9450,75 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+        };
+    };
+    getNotificationFeed: {
+        parameters: {
+            query?: {
+                /** @description When true, return only unread notifications. */
+                unread?: boolean;
+                /** @description Max items to return (default 50). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's notification feed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeed"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    postNotificationFeedReadAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of notifications marked read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationReadResult"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    postNotificationFeedRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Marked read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getNotificationChannels: {

@@ -242,7 +242,29 @@ export function HostsListPage() {
     refetchInterval: 60_000,
   });
 
+  // Avg-compliance KPI value: source the SAME fleet score the dashboard KPI
+  // uses (GET /api/v1/fleet/score = passing / (passing + failing), the
+  // canonical compliance metric that also drives the scheduler bands) so the
+  // two surfaces can never diverge. The client-side kpisFromHosts value (which
+  // divides by the all-status rule total) is only a fallback shown until this
+  // resolves. Shared queryKey with the dashboard widget, so it dedupes/caches.
+  // Spec frontend-hosts-list AC-26.
+  const fleetScoreQuery = useQuery({
+    queryKey: ['fleet', 'score'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/fleet/score', {});
+      if (error || !response.ok) throw new Error(`HTTP ${response.status}`);
+      return data!;
+    },
+  });
+
   const kpis = kpisFromHosts(hosts);
+  // Authoritative fleet score wins over the client-side aggregate so the
+  // /hosts headline equals the /dashboard headline exactly (same endpoint,
+  // same integer rounding). Spec frontend-hosts-list AC-26.
+  if (fleetScoreQuery.data && fleetScoreQuery.data.total_evaluations > 0) {
+    kpis.avgCompliance.value = Math.round(fleetScoreQuery.data.passing_fraction * 100);
+  }
   if (scanQueueQuery.data) {
     const q = scanQueueQuery.data.queued;
     const r = scanQueueQuery.data.running;

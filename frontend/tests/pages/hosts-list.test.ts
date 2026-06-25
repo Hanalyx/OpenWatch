@@ -13,6 +13,7 @@
 //   AC-16  test('frontend-hosts-list/AC-16 — compliance_summary maps to real compliance with null honesty')
 //   AC-17  test('frontend-hosts-list/AC-17 — avg compliance KPI excludes never-scanned hosts')
 //   AC-18  test('frontend-hosts-list/AC-18 — critical issues KPI sums critical_failing with affected-hosts scope')
+//   AC-26  test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)')
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -123,6 +124,23 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
   expect(btnSlice).toContain('if (!canWrite) return null');
   // No polling loops.
   expect(btnSlice).not.toMatch(/setInterval/);
+});
+
+// @ac AC-26
+// AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score
+// (the same fleet score, and the same round(passing_fraction*100) expression,
+// the dashboard KPI uses) so /hosts and /dashboard can never show a different
+// fleet-compliance number. The client-side kpisFromHosts aggregate (which
+// divides by the all-status rule total) is only a fallback.
+test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
+  // Shares the dashboard's query key + endpoint.
+  expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score']");
+  expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
+  // The KPI value is overridden with the canonical fleet score, same rounding
+  // as the dashboard widget (Math.round(passing_fraction * 100)).
+  expect(PAGE_SRC).toMatch(/kpis\.avgCompliance\.value\s*=\s*Math\.round\(\s*fleetScoreQuery\.data\.passing_fraction\s*\*\s*100\s*\)/);
+  // Guarded so an empty fleet (no pass/fail evaluations) keeps the fallback.
+  expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.total_evaluations\s*>\s*0/);
 });
 
 // @ac AC-14

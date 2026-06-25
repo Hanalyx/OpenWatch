@@ -1,7 +1,7 @@
 spec:
   id: frontend-notifications
-  title: In-app notification bell — session-scoped report.ready unread counter
-  version: "1.0.0"
+  title: In-app notification bell — durable per-user feed (change-driven)
+  version: "2.0.0"
   status: approved
   tier: 2
 
@@ -53,41 +53,48 @@ spec:
   constraints:
     - id: C-01
       description: >-
-        useNotificationStore is a Zustand store exposing a numeric
-        unreadReports counter and two actions: bumpReportReady (increments
-        the counter by one) and clearReports (resets it to zero). The store
-        is the shared state between the useLiveEvents report.ready handler
-        (the producer) and the TopBar bell (the consumer). It holds no
-        server data and is not persisted, so the counter is session-scoped.
+        v2.0.0 — the bell is backed by the DURABLE server feed, not a
+        session counter. useNotifications (src/hooks/useNotifications.ts)
+        exposes useNotificationFeed (a TanStack query of
+        GET /api/v1/notifications/feed returning {items, unread_count}, polled
+        on an interval) plus useMarkNotificationRead and
+        useMarkAllNotificationsRead mutations that POST the :read / :read-all
+        endpoints and invalidate the feed query key ['notifications','feed'].
+        useLiveEvents also invalidates that key on report.ready
+        (frontend-live-events C-08).
       type: technical
       enforcement: error
     - id: C-02
       description: >-
-        The TopBar NotificationBell reads unreadReports from the store and
-        renders it as a badge ONLY when the count is greater than zero (a
-        zero count shows the plain bell, no badge). The bell is an enabled
-        control (not the prior disabled "coming soon" stub); its
-        aria-label/title reflects the count. On click it calls clearReports
-        and navigates to /reports, so opening the library is what marks the
-        reports seen. UI copy carries no em-dash.
+        v2.0.0 — the TopBar NotificationBell renders the badge from the feed's
+        unread_count ONLY when greater than zero. Clicking the bell toggles a
+        drawer listing the caller's recent notifications (severity dot + title
+        + body); an item click marks it read (useMarkNotificationRead) and, when
+        the notification carries a same-origin link, navigates there; a "Mark
+        all read" control calls useMarkAllNotificationsRead. The bell is an
+        enabled control (not the disabled "coming soon" stub) and its added copy
+        carries no em-dash.
       type: technical
       enforcement: error
 
   acceptance_criteria:
     - id: AC-01
       description: >-
-        Source inspection: useNotificationStore (src/store/useNotificationStore.ts)
-        is created via zustand create with an unreadReports number initialised
-        to 0, a bumpReportReady action that increments it, and a clearReports
-        action that resets it to 0.
+        v2.0.0 source inspection: useNotifications (src/hooks/useNotifications.ts)
+        defines useNotificationFeed querying GET /api/v1/notifications/feed under
+        queryKey ['notifications','feed'], plus useMarkNotificationRead and
+        useMarkAllNotificationsRead mutations that POST
+        /api/v1/notifications/feed/{id}:read and /api/v1/notifications/feed:read-all
+        and invalidate the feed query key on success.
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
       description: >-
-        Source inspection: TopBar's NotificationBell reads unreadReports from
-        useNotificationStore and renders a badge only when unreadReports > 0;
-        on click it calls clearReports and navigates to /reports. The bell is
-        not the disabled "coming soon" stub (no disabled attribute / not-allowed
-        cursor) and its added copy contains no em-dash.
+        v2.0.0 source inspection: TopBar's NotificationBell reads the unread
+        count from the feed query (unread_count) and renders a badge only when
+        it is greater than zero; clicking toggles a drawer, an item click calls
+        the mark-read mutation, and a "Mark all read" control calls the
+        mark-all mutation. The bell is not the disabled "coming soon" stub and
+        its added copy contains no em-dash.
       priority: high
       references_constraints: [C-02]

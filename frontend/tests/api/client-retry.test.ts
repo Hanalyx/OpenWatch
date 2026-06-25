@@ -207,3 +207,22 @@ describe('api/client — 401 retry middleware', () => {
     expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });
+
+// @ac AC-31
+// AC-31 (AUTH-1 c) — the client marks background/poll reads with
+// X-Background-Refresh so the server does not slide the idle window for them,
+// gated on the idle-timer activity signal (fail-safe: inert until that
+// localStorage key is written). Source-inspection of the request middleware.
+test('system-auth-identity/AC-31 — marks background reads with X-Background-Refresh, gated on activity', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const src = readFileSync(resolve(process.cwd(), 'src/api/client.ts'), 'utf8');
+  // Sets the background marker header...
+  expect(src).toContain("'X-Background-Refresh'");
+  // ...gated on the idle-timer activity signal (the fail-safe localStorage key).
+  expect(src).toContain("'ow.session.lastActivity'");
+  // ...via the request middleware on safe reads (mutations always slide).
+  expect(src).toMatch(/BACKGROUND_HEADER/);
+  // Fail-safe: only marks when an activity timestamp actually exists.
+  expect(src).toMatch(/last > 0/);
+});
