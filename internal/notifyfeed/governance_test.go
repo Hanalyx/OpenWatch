@@ -5,6 +5,7 @@
 //	AC-15  TestGovernance_ExceptionRequestedFansToApprovers — pending → approvers only (RBAC-scoped fan-out)
 //	AC-16  TestGovernance_ExceptionDecidedNotifiesRequester — decision → requester only
 //	AC-17  TestGovernance_RemediationFailedFansToOperators — failure → remediation operators only
+//	AC-18  TestGovernance_ExceptionExpiry — expiring-soon (quiet/sticky) + expired → approvers
 //
 // Skipped without OPENWATCH_TEST_DSN. Assertions filter by the per-test-unique
 // group_key so the role-scoped fan-out from other tests on the shared DB does
@@ -159,6 +160,58 @@ func TestGovernance_RemediationFailedFansToOperators(t *testing.T) {
 		// A viewer (no remediation:execute) does NOT receive it.
 		if n := notifByGroupKey(t, s, viewer, gk); n != nil {
 			t.Errorf("viewer must not receive an operator-scoped notification")
+		}
+	})
+}
+
+// @ac AC-18
+func TestGovernance_ExceptionExpiry(t *testing.T) {
+	t.Run("system-notifications/AC-18", func(t *testing.T) {
+		pool := dbtest.Pool(t)
+		ctx := context.Background()
+		s := NewStore(pool)
+		g := NewGovernanceProjector(s)
+
+		approver := seedUserWithRole(t, pool, "secadmin-"+uniq(), "security_admin")
+		viewer := seedUserWithRole(t, pool, "viewer-"+uniq(), "viewer")
+		creator := seedUser(t, pool, "creator-"+uniq())
+		host := seedHost(t, pool, creator, "web-"+uniq(), "Web One")
+
+		// Expiring-soon → approvers (medium), and NOT viewers.
+		soonID, _ := uuid.NewV7()
+		if err := g.ExceptionExpiringSoon(ctx, soonID, host, "rule.ssh"); err != nil {
+			t.Fatalf("ExceptionExpiringSoon: %v", err)
+		}
+		soonGK := "exception_expiring:" + soonID.String()
+		n := notifByGroupKey(t, s, approver, soonGK)
+		if n == nil || n.Kind != "exception_expiring" || n.Severity != "medium" {
+			t.Fatalf("approver should get a medium exception_expiring notification, got %+v", n)
+		}
+		if notifByGroupKey(t, s, viewer, soonGK) != nil {
+			t.Errorf("viewer must not receive an approver-scoped warning")
+		}
+
+		// Quiet/sticky: the approver reads it, then a repeat sweep records the
+		// same warning — it must STAY read (ON CONFLICT DO NOTHING), not
+		// re-surface unread.
+		if err := s.MarkRead(ctx, approver, n.ID); err != nil {
+			t.Fatalf("mark read: %v", err)
+		}
+		if err := g.ExceptionExpiringSoon(ctx, soonID, host, "rule.ssh"); err != nil {
+			t.Fatalf("ExceptionExpiringSoon repeat: %v", err)
+		}
+		if again := notifByGroupKey(t, s, approver, soonGK); again == nil || again.ReadAt == nil {
+			t.Errorf("repeated expiring-soon warning must stay read (quiet), got %+v", again)
+		}
+
+		// Expired → approvers (medium), distinct kind/group.
+		expID, _ := uuid.NewV7()
+		if err := g.ExceptionExpired(ctx, expID, host, "rule.ssh"); err != nil {
+			t.Fatalf("ExceptionExpired: %v", err)
+		}
+		e := notifByGroupKey(t, s, approver, "exception_expired:"+expID.String())
+		if e == nil || e.Kind != "exception_expired" || e.Severity != "medium" {
+			t.Errorf("approver should get a medium exception_expired notification, got %+v", e)
 		}
 	})
 }

@@ -182,6 +182,41 @@ func (s *Store) RecordForRoles(ctx context.Context, roleIDs []string, n Notifica
 	return nil
 }
 
+// RecordForRolesQuiet is RecordForRoles with at-most-once-per-recipient
+// semantics: ON CONFLICT it does NOTHING (the existing row is left untouched —
+// content, occurred_at, AND read state preserved). This is for repeatedly-swept
+// warnings (e.g. "exception expiring soon", re-evaluated every hour): a
+// recipient is notified once and the row does not re-surface unread on every
+// sweep, which would be noise. A recipient who joins later still gets it on the
+// next sweep (their INSERT). Empty roleIDs is a no-op.
+func (s *Store) RecordForRolesQuiet(ctx context.Context, roleIDs []string, n Notification) error {
+	if n.GroupKey == "" {
+		return errors.New("notifyfeed: RecordForRolesQuiet requires GroupKey")
+	}
+	if len(roleIDs) == 0 {
+		return nil
+	}
+	if n.OccurredAt.IsZero() {
+		n.OccurredAt = time.Now().UTC()
+	}
+	const stmt = `
+		INSERT INTO notifications
+			(id, user_id, kind, severity, title, body, host_id, link, group_key, occurred_at)
+		SELECT gen_random_uuid(), u.id, $1, $2, $3, $4, $5, $6, $7, $8
+		  FROM users u
+		 WHERE u.deleted_at IS NULL
+		   AND EXISTS (
+			SELECT 1 FROM user_roles ur
+			 WHERE ur.user_id = u.id AND ur.role_id = ANY($9::text[]))
+		ON CONFLICT (user_id, group_key) DO NOTHING`
+	if _, err := s.pool.Exec(ctx, stmt,
+		n.Kind, n.Severity, n.Title, n.Body, n.HostID, n.Link, n.GroupKey, n.OccurredAt, roleIDs,
+	); err != nil {
+		return fmt.Errorf("notifyfeed: record for roles quiet: %w", err)
+	}
+	return nil
+}
+
 // List returns a user's notifications newest-first (by occurred_at). When
 // unreadOnly is true, only unread rows are returned. limit caps the result
 // (defaulted/clamped to a sane page size).

@@ -28,6 +28,8 @@ type EmitFunc func(ctx context.Context, code audit.Code, ev audit.Event)
 type Notifier interface {
 	ExceptionRequested(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error
 	ExceptionDecided(ctx context.Context, exceptionID, requestedBy uuid.UUID, ruleID string, approved bool) error
+	ExceptionExpiringSoon(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error
+	ExceptionExpired(ctx context.Context, exceptionID, hostID uuid.UUID, ruleID string) error
 }
 
 // Service is the exception governance service.
@@ -308,6 +310,7 @@ func (s *Service) ExpireSweep(ctx context.Context) (int, error) {
 	for _, e := range expired {
 		// System-actor expiry: no reviewer.
 		s.emitEvent(ctx, audit.ComplianceExceptionExpired, e, uuid.Nil, "expired")
+		s.notifyExpired(ctx, e)
 	}
 	return len(expired), nil
 }
@@ -362,6 +365,70 @@ func (s *Service) notifyDecided(ctx context.Context, e Exception, approved bool)
 		slog.WarnContext(ctx, "exception decided notification failed",
 			slog.String("exception_id", e.ID.String()), slog.String("error", err.Error()))
 	}
+}
+
+// notifyExpiringSoon warns approvers an approved exception is about to lapse.
+// Best-effort; quiet fan-out at the projector keeps the hourly sweep from
+// re-nagging.
+func (s *Service) notifyExpiringSoon(ctx context.Context, e Exception) {
+	if s.notifier == nil {
+		return
+	}
+	if err := s.notifier.ExceptionExpiringSoon(ctx, e.ID, e.HostID, e.RuleID); err != nil {
+		slog.WarnContext(ctx, "exception expiring-soon notification failed",
+			slog.String("exception_id", e.ID.String()), slog.String("error", err.Error()))
+	}
+}
+
+// notifyExpired tells approvers an exception lapsed (rules back in scope).
+func (s *Service) notifyExpired(ctx context.Context, e Exception) {
+	if s.notifier == nil {
+		return
+	}
+	if err := s.notifier.ExceptionExpired(ctx, e.ID, e.HostID, e.RuleID); err != nil {
+		slog.WarnContext(ctx, "exception expired notification failed",
+			slog.String("exception_id", e.ID.String()), slog.String("error", err.Error()))
+	}
+}
+
+// ExpiringSoonWindow is how far ahead the expiring-soon sweep looks: approvers
+// are warned this long before an approved exception lapses.
+const ExpiringSoonWindow = 72 * time.Hour
+
+// ExpiringSoonSweep warns approvers about approved exceptions whose expires_at
+// falls within ExpiringSoonWindow. Read-only (no state change); the projector's
+// quiet fan-out makes repeated hourly sweeps notify each recipient at most once.
+// A no-op without a notifier wired. Returns the count warned.
+func (s *Service) ExpiringSoonSweep(ctx context.Context) (int, error) {
+	if s.notifier == nil {
+		return 0, nil
+	}
+	cutoff := time.Now().UTC().Add(ExpiringSoonWindow)
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+selectCols+`
+		  FROM compliance_exceptions
+		 WHERE status = 'approved' AND expires_at IS NOT NULL
+		   AND expires_at > now() AND expires_at <= $1
+		 ORDER BY expires_at`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("exception: expiring-soon sweep: %w", err)
+	}
+	defer rows.Close()
+	var soon []Exception
+	for rows.Next() {
+		e, err := scanException(rows)
+		if err != nil {
+			return 0, fmt.Errorf("exception: expiring-soon scan: %w", err)
+		}
+		soon = append(soon, e)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("exception: expiring-soon iterate: %w", err)
+	}
+	for _, e := range soon {
+		s.notifyExpiringSoon(ctx, e)
+	}
+	return len(soon), nil
 }
 
 // isUniqueViolation reports whether err is a Postgres unique-violation
