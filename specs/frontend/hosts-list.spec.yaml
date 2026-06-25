@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -94,6 +94,18 @@ spec:
       enforcement: error
     - id: C-12
       description: 'v1.7.0 — the card/table view is chosen as: URL ?view= (table|cards) when present (so a link or refresh is stable), otherwise the user''s server-persisted default usePreferencesStore.hostsViewDefault (system-user-preferences). Toggling the view MUST both call setHostsViewDefault(v) (persisting the new per-user default) AND set ?view= for the session — so the choice "becomes the default until the user changes it"'
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >-
+        v1.8.0 — the headline Avg compliance KPI value MUST be sourced from the
+        same fleet score the dashboard KPI uses (GET /api/v1/fleet/score,
+        passing / (passing + failing) — the canonical compliance metric that
+        also drives the scheduler bands), so the /hosts and /dashboard surfaces
+        cannot show different fleet-compliance numbers. The client-side
+        kpisFromHosts average (which divides by the all-status rule total,
+        including skipped + error) is a fallback shown only until the fleet
+        score resolves, never the authoritative displayed value.
       type: technical
       enforcement: error
 
@@ -198,3 +210,18 @@ spec:
       description: "v1.7.0 source-inspection: the view resolves to search.view when it is 'table' or 'cards', otherwise usePreferencesStore.hostsViewDefault (not a hardcoded 'cards'). The ViewToggle onChange calls setHostsViewDefault(v) AND updateSearch({view:v}) so the toggle persists the per-user default and updates the URL together."
       priority: high
       references_constraints: [C-12]
+    - id: AC-26
+      description: >-
+        v1.8.0 — the Avg compliance KPI value is taken from GET
+        /api/v1/fleet/score (queryKey ['fleet','score'], shared with the
+        dashboard KPI): when the fleet score has loaded with total_evaluations
+        > 0, kpis.avgCompliance.value is round(passing_fraction * 100) — the
+        same number and rounding the dashboard shows — overriding the
+        client-side kpisFromHosts aggregate so /hosts and /dashboard agree.
+        Source-inspection of HostsListPage: a useQuery with queryKey
+        ['fleet','score'] hits GET /api/v1/fleet/score, and the avg-compliance
+        KPI value is set to round(passing_fraction * 100) from that query
+        (guarded on total_evaluations > 0), the same expression the dashboard
+        widget uses.
+      priority: high
+      references_constraints: [C-13]
