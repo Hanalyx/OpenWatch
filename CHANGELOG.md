@@ -10,6 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.16] Eyrie — 2026-06-25
+
+Extends the change-driven notification bell from a durable feed into a full,
+severity-ranked, RBAC-scoped action queue: compliance regressions, governance
+decisions, remediation failures, and exception-expiry warnings now reach the
+specific users who must act on them.
+
 ### Added
 - In-app notifications now flag when a scan turns a passing rule into a failing
   one: the bell shows one grouped per-host notification ("web-01: 3 rules
