@@ -9,6 +9,13 @@ Type=simple
 User=openwatch
 Group=openwatch
 EnvironmentFile=-/etc/openwatch/secrets.env
+# Kensa remediation needs a durable SQLite store for rollback pre-state. Pin it
+# inside the writable state tree: ProtectSystem=strict makes / read-only, and
+# without this the path defaults to `.kensa/remediation.db` under the working
+# dir (systemd defaults that to read-only /), so the store fails to open and
+# remediation silently degrades to "not wired" while scans still work.
+Environment=OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db
+WorkingDirectory=/var/lib/openwatch
 ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml
 Restart=on-failure
 RestartSec=5s
