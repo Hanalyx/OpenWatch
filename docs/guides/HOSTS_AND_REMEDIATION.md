@@ -1,6 +1,6 @@
 # Host Management and Remediation
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -148,9 +148,11 @@ hosts that have not been identified yet.
 
 ### Connectivity Monitoring
 
-Host connectivity is checked every 30 seconds automatically. Each check
-verifies ICMP reachability, SSH port availability, and SSH authentication.
-Host status (online, offline, degraded) updates in the host list.
+Host connectivity is probed every 5 minutes by default (operator-tunable, with
+a 60-second floor). Each probe layers ICMP reachability, then SSH port + banner
+reachability, then a privilege check; a host is marked degraded when a higher
+layer fails after a lower one succeeds. Host status (online, degraded,
+unreachable) updates in the host list.
 
 ---
 

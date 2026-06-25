@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Applies to:** OpenWatch 0.2.0 pre-release (rc series; Go single-binary build)
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0 pre-release (rc series; Go single-binary build)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch

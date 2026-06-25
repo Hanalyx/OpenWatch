@@ -7,7 +7,9 @@
 > (1) running the OpenWatch server and (2) being added as a managed/scanned
 > host.
 
-**Last verified:** 2026-06-16 against Kensa rule corpus **v0.4.3** (539 rules).
+**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+
+**Last verified:** 2026-06-25 against Kensa rule corpus **v0.6.0** (538 rules).
 
 ---
 
@@ -99,9 +101,9 @@ crash:
    cycle).
 3. **The compliance scan skips everything.** Kensa SSHes to the host, reads
    `/etc/os-release`, and filters its corpus to rules whose `platforms` match
-   the detected distro. **Every rule in v0.4.3 declares `platforms: family:
+   the detected distro. **Every rule in v0.6.0 declares `platforms: family:
    rhel`** (version-pinned to `rhel8`/`rhel9`/`rhel10`). A Fedora or Ubuntu
-   host matches none, so **all ~539 rules are skipped**.
+   host matches none, so **all 538 rules are skipped**.
 
 Skipping is the correct outcome: applying RHEL 9 STIG/CIS checks to Fedora 40 or
 Ubuntu 24.04 would evaluate the wrong files, services, and defaults and report
@@ -163,5 +165,5 @@ compliance score.
 - Collector (OS-agnostic, `rpm || dpkg`): `internal/intelligence/collector/collector.go`
 - Kensa invocation / rule load: `internal/kensa/scanfunc.go`, `internal/kensa/catalog.go`
 - Framework-lens OS filter (`osFamilyTokens`): `internal/server/host_compliance_lens_handler.go`
-- Rule corpus applicability (verified): Kensa v0.4.3 — **539/539 rules `platforms: family: rhel`**, pinned `rhel8`/`rhel9`/`rhel10`
+- Rule corpus applicability (verified): Kensa v0.6.0 — **538/538 rules `platforms: family: rhel`**, pinned `rhel8`/`rhel9`/`rhel10`
 - Framework mappings: `CLAUDE.md` (CIS RHEL 9 v2.0.0, STIG RHEL 9 V2R7)
