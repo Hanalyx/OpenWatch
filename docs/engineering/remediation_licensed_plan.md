@@ -1,7 +1,7 @@
 # Remediation — OpenWatch+ (Licensed) Plan
 
 > **Companion doc:** [`remediation_core_plan.md`](remediation_core_plan.md)
-> covers the free AGPLv3 half (see-and-govern). This doc covers the **paid**
+> covers the free Apache-2.0 core half (see-and-govern). This doc covers the **paid**
 > capabilities: the act of mutating a host, and the fleet automation on top.
 >
 > **Status:** scoping / design. Builds on the same schema + `internal/remediation`
@@ -9,7 +9,7 @@
 > second feature for the automation engine.
 >
 > **Ratified (2026-06-18):** **auto-remediation is an OpenWatch+ (licensed)
-> feature.** Tier B below is paid; it is not part of the free AGPL core. The
+> feature.** Tier B below is paid; it is not part of the free Apache 2.0 core. The
 > remaining open points are the *granularity* (own key vs. shared) and *SKU
 > level* of that gate (D-2) and *where the code lives* (D-3).
 
@@ -45,8 +45,8 @@ requiring the feature.
 
 Tier A is built **in the core tree** (`internal/remediation`), gated at the
 handler by `EnforceFeature(remediation_execution)`. This is an *honor-system +
-friction* gate: under AGPLv3 the execute code is publishable source a user
-could recompile without the check. **That is an accepted posture for Tier A**
+friction* gate: under Apache 2.0 the execute code is permissively licensed; a
+user could recompile without the check. **That is an accepted posture for Tier A**
 because:
 
 - The manual single-host primitive (apply one Kensa transaction, capture
@@ -115,7 +115,7 @@ first.
 
 Tier B is the right place to spend the open-core architecture cost. Recommended:
 build the **auto-remediation policy engine as a separate licensed module**
-loaded through the existing plugin interface (ORSA), **not** in the AGPL core.
+loaded through the existing plugin interface (ORSA), **not** in the Apache core.
 Rationale:
 
 - It is the flagship paid capability and the most defensible to truly gate.

@@ -6,30 +6,30 @@
 >
 > **Status:** scoping / design. No remediation handler, service, or schema
 > exists yet — only the registries (RBAC, license feature, audit codes) and the
-> OpenAPI skeleton. This doc defines what ships **free, in the AGPLv3 core**.
+> OpenAPI skeleton. This doc defines what ships **free, in the Apache-2.0 core**.
 
 ---
 
 ## 1. Why a free/paid line exists here at all
 
-OpenWatch Core is **AGPLv3 + Managed Service Exception** (`LICENSE`). The MSE
-restricts *offering OpenWatch as a hosted service to third parties*; it does
-**not** grant feature tiering. Feature tiering is a separate **open-core /
-dual-licensing** decision layered on top of the AGPL base, enforced by the
-license subsystem (`internal/license/`, `licensing/features.yaml`, signed
-Ed25519 JWTs minted by `cmd/owlicgen`).
+OpenWatch Core is **Apache 2.0** (`LICENSE`); optional enterprise modules under
+`ee/` are separately, commercially licensed (`ee/LICENSE`). Feature tiering is
+the **open-core** decision: a permissive core plus license-gated EE
+capabilities, enforced by the license subsystem (`internal/license/`,
+`licensing/features.yaml`, signed Ed25519 JWTs minted by `cmd/owlicgen`) and the
+`internal/eereg` injection seam.
 
 The product line is **"OpenWatch sees, plans, and governs remediation for
 free; the act of mutating a host is OpenWatch+."** This doc is the *free* side
 of that line. The paid side is the companion doc.
 
-> **AGPL implication, stated plainly.** Any code that ships in this core tree is
-> source you are obliged to publish (AGPLv3 §13) and that a user may legally
-> modify, including deleting a runtime license check (§2). So an in-core 402
-> gate is an *honor-system + friction* control, not DRM. That is an acceptable
-> and common open-core posture for the manual-execution tier; the robustly
-> gated capability (the auto-remediation engine) is treated differently in the
-> companion doc. See Decision D-3 there.
+> **Open-core implication, stated plainly.** Any code that ships in this core
+> tree is Apache-2.0 source that a user may legally modify, including deleting a
+> runtime license check (§2). So an in-core 402 gate is an *honor-system +
+> friction* control, not DRM. That is an acceptable and common open-core posture
+> for the manual-execution tier; the robustly gated capability (the
+> auto-remediation engine) lives in the separately licensed `ee/` tree and is
+> treated differently in the companion doc. See Decision D-3 there.
 
 ---
 
@@ -52,7 +52,7 @@ of that line. The paid side is the companion doc.
 > button on their approved request and applies the fix to that one finding. The
 > OpenWatch+ `remediation_execution` feature now gates **bulk** (many rules /
 > fleet) and **auto** remediation only. Because Tier A is free, its execution
-> engine lives in-core (AGPL); the open-core "separate plugin" option applies
+> engine lives in-core (Apache); the open-core "separate plugin" option applies
 > only to the bulk/auto engine.
 
 > **Execution status (2026-06-18): live and working as of kensa v0.5.1.** The
