@@ -1,0 +1,25 @@
+OpenWatch Enterprise (EE) License
+Copyright 2025 Hanalyx LLC. All rights reserved.
+
+This directory (the "EE Modules") is NOT part of the Apache 2.0 licensed
+OpenWatch core. It is licensed separately and is made available as
+source-available, commercially licensed software.
+
+1. Source availability. The source of the EE Modules is published for
+   transparency and inspection. Publication does NOT grant a license to use,
+   run, or distribute the EE Modules except as set out below.
+
+2. Permitted use. You may use, run, and distribute the EE Modules only with a
+   valid commercial license from Hanalyx LLC, and only in accordance with the
+   terms of that commercial license. Each EE feature additionally performs a
+   runtime license check; absent a valid entitlement it is unavailable.
+
+3. No Apache grant. The Apache License, Version 2.0 that governs the rest of
+   this repository does NOT apply to the EE Modules. Nothing in this file
+   limits the Apache 2.0 rights you have in the OpenWatch core, which builds
+   and runs as a complete product without the EE Modules.
+
+4. Trademarks. This license grants no rights in the "OpenWatch" or "Kensa"
+   names or marks.
+
+Commercial licensing: legal@hanalyx.com

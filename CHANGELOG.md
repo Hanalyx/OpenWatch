@@ -10,6 +10,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **License: relicensed the OpenWatch core from AGPLv3 + Managed Service
+  Exception to the Apache License 2.0** (`LICENSE`, `NOTICE`). OpenWatch is now
+  open core: the core is Apache 2.0; optional enterprise feature modules under
+  `ee/` are separately, commercially licensed (`ee/LICENSE`). The compiled
+  binary statically links the BSL-1.1 Kensa engine, so a binary distribution is
+  a combined Apache/BSL work — see `NOTICE` and `THIRD-PARTY-NOTICES.md`.
+  Inbound contributions to the core are now under Apache 2.0 with a DCO
+  sign-off (`CONTRIBUTING.md`). Released AGPL versions remain under AGPL.
+
+### Added
+
+- `internal/eereg`: the capability-injection seam for the open-core boundary.
+  The core depends only on capability interfaces and free-tier defaults; an
+  `-tags ee` build injects implementations. A CI guard
+  (`scripts/check-ee-boundary.sh`, `make check-ee-boundary`) and a Go test
+  (spec `system-ee-capability-seam`) enforce that the core never imports `ee/`.
+
 ---
 
 ## [0.2.0-rc.16] Eyrie — 2026-06-25

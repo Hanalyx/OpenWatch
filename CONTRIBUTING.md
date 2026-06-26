@@ -350,14 +350,26 @@ wired into a GitHub Actions workflow; configure `SONAR_TOKEN` only if you re-ena
 - **Security issues**: security@hanalyx.com
 - **Partnership inquiries**: contact@hanalyx.com
 
-## License
+## License and Developer Certificate of Origin
 
-By contributing to OpenWatch, you agree that your contributions will be licensed under the [OpenWatch Community License (AGPLv3 + Managed Service Exception)](LICENSE).
+The OpenWatch core is licensed under the [Apache License 2.0](LICENSE). By
+contributing to the core, you agree that your contributions are licensed under
+Apache 2.0.
 
-Your contributions will be subject to the same AGPLv3 + MSE terms as the rest of the codebase, ensuring:
-- Your code remains open source
-- Modifications must be shared under the same terms
-- Commercial SaaS offerings require separate licensing from Hanalyx LLC
+Contributions are accepted under the [Developer Certificate of Origin](https://developercertificate.org/)
+(DCO). Sign off each commit to certify you have the right to submit it under the
+project license:
+
+```
+git commit -s
+```
+
+This adds a `Signed-off-by: Your Name <you@example.com>` trailer asserting the
+DCO. Commits without a sign-off may be asked to amend.
+
+Note: the [`ee/`](ee/) directory is separately, commercially licensed (see
+[`ee/LICENSE`](ee/LICENSE)) and is not covered by the Apache 2.0 inbound terms
+above; contributions there are by arrangement with Hanalyx LLC.
 
 ---
 

@@ -30,7 +30,7 @@ Version:        %{ow_version}
 Release:        %{ow_release}%{?dist}
 Summary:        OpenWatch Compliance Platform (Go binary)
 
-License:        Proprietary
+License:        Apache-2.0
 URL:            https://github.com/Hanalyx/openwatch
 Source0:        %{name}-%{version}.tar.gz
 
