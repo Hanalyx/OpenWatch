@@ -192,7 +192,7 @@ curl -k https://localhost:8443/api/v1/health
 
 The API is served under `/api/v1/`; `api/openapi.yaml` is the contract
 source of truth. Role definitions live in
-[`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md) and
+`docs/engineering/rbac_registry.md` and
 `internal/auth/permissions.yaml`.
 
 ## Operational runbooks

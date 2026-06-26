@@ -311,7 +311,7 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 
 4. **Review access.** Audit user accounts and role assignments. Roles and
    permissions are defined in
-   [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md).
+   `docs/engineering/rbac_registry.md`.
 
 5. **Recover.** If integrity is in doubt, rebuild on a clean host from a
    known-good backup using the disaster-recovery procedure above, then rotate
@@ -347,5 +347,5 @@ The following are not part of OpenWatch today. Do not script against them.
 | Logs | `journalctl -u openwatch -f` |
 
 See also: [`INSTALLATION.md`](INSTALLATION.md),
-[`rbac_registry.md`](../engineering/rbac_registry.md), and the API contract in
+`rbac_registry.md`, and the API contract in
 [`api/openapi.yaml`](../../api/openapi.yaml).

@@ -108,7 +108,7 @@ protected endpoint declares the permission it requires (visible as
 
 A caller missing the required permission receives `403`. The full permission and
 role registry is the source of truth at
-[`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md); it is
+`docs/engineering/rbac_registry.md`; it is
 served at runtime via `GET /api/v1/auth/permissions:registry`.
 
 ---
@@ -380,13 +380,13 @@ longer worker-internal only):
   against them until they appear in `api/openapi.yaml`.
 
 For how OpenWatch invokes Kensa, see
-[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
+`docs/KENSA_OPENWATCH_BOUNDARY.md`.
 
 ---
 
 ## What's next
 
 - [Install guide](INSTALLATION.md) — install, configure, and run the service.
-- [RBAC registry](../engineering/rbac_registry.md) — permission and role reference.
-- [Kensa ↔ OpenWatch boundary](../KENSA_OPENWATCH_BOUNDARY.md) — how scanning works.
+- RBAC registry — permission and role reference.
+- Kensa ↔ OpenWatch boundary — how scanning works.
 - `api/openapi.yaml` — the authoritative, always-current API contract.

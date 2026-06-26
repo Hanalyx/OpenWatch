@@ -2,7 +2,7 @@
 
 Production documentation for deploying, operating, and maintaining OpenWatch.
 
-Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
+Start here: Introduction | [Quickstart](guides/QUICKSTART.md)
 
 > **⚠️ Migration note (2026-06-05).** OpenWatch is being rebuilt on Go (the Go tree
 > now lives at the repo root); the Python implementation was archived to
@@ -18,7 +18,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 | Document | Description |
 |----------|-------------|
-| [Introduction](INTRODUCTION.md) | Platform philosophy, architecture overview, supported frameworks |
+| Introduction | Platform philosophy, architecture overview, supported frameworks |
 | [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
 | [Installation](guides/INSTALLATION.md) | Deploy from a native RPM/DEB package or from source |
 
@@ -62,7 +62,7 @@ Start here: [Introduction](INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 | Document | Description |
 |----------|-------------|
-| [Kensa Integration](architecture/KENSA_INTEGRATION.md) | Kensa compliance engine integration manual |
+| Kensa Integration | Kensa compliance engine integration manual |
 
 For installing OpenWatch from the native RPM/DEB, see
 [guides/INSTALLATION.md](guides/INSTALLATION.md). (The legacy Python/Docker-Compose
