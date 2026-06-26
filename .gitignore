@@ -30,24 +30,11 @@ security/certs/dhparam.pem
 **/*.p12
 **/*.pfx
 
-# MongoDB certificates directory (CRITICAL - was exposed!)
-security/certs/mongodb/*.pem
-security/certs/mongodb/*.key
-security/certs/mongodb/*.crt
-security/certs/mongodb/ca.*
-security/certs/mongodb/server.*
-security/certs/mongodb/client.*
-security/certs/mongodb/backup-*/
 
 # PostgreSQL certificates
 security/certs/postgres/*.pem
 security/certs/postgres/*.key
 security/certs/postgres/*.crt
-
-# Redis certificates
-security/certs/redis/*.pem
-security/certs/redis/*.key
-security/certs/redis/*.crt
 
 # ======================================
 # ENVIRONMENT AND CONFIG FILES
@@ -73,105 +60,15 @@ database.json
 **/database_config.*
 
 # ======================================
-# PYTHON ENVIRONMENT
+# BUILD OUTPUT
 # ======================================
 
-# Virtual environments
-backend/venv/
-backend/env/
-backend/.venv/
-backend/docs
-venv/
-env/
-.venv/
-
-# Python cache and compiled files
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+# Go dist/, frontend build/ (SPA output), and shared objects.
+# (Python venv/cache/test/PyInstaller/Celery stanzas were removed in the GA
+# cleanup — the Go rebuild produces none of them.)
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
+*.so
 
 # ======================================
 # NODE.JS / FRONTEND
@@ -292,6 +189,8 @@ data/
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 
@@ -661,21 +560,6 @@ cache/
 # PROJECT-SPECIFIC DEVELOPMENT FILES
 # ======================================
 
-# Temporary test files created during development/testing
-mock_backend.py
-test_e2e*.py
-test_backend_functionality.py
-test_frontend_e2e.py
-test_complete_e2e.py
-test_comprehensive*.py
-
-# One-time debug, test, and migration scripts (backend root)
-backend/debug_*.py
-backend/test_*.py
-backend/verify_*.py
-backend/migrate_*.py
-backend/run_migration*.py
-
 # Test report and summary files
 *_TEST_REPORT.md
 *_TEST_SUMMARY.md
@@ -726,8 +610,6 @@ dist/
 # RPM spec files (development versions)
 *.spec
 !packaging/rpm/*.spec
-# Same exception for the Go rebuild's RPM spec
-!app/packaging/rpm/*.spec
 # The kensa-rules corpus package ships its own RPM spec
 !packaging/kensa-rules/*.spec
 
