@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: GET /api/v1/intelligence/{events,state} endpoints
     description: >
       Operator-facing read surface over the OS Intelligence data the

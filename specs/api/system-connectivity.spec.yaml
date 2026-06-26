@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: HTTP surface for the connectivity-monitor runtime config and the live status snapshot
     description: >
       The /api/v1/system/connectivity/* endpoints let an operator read and

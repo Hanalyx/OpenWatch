@@ -1,4 +1,4 @@
-# Pre-merge gates for the OpenWatch Go tree (repo root).
+# Pre-merge gates for OpenWatch (repo root).
 #
 # Runs: make vet, make lint (staticcheck + gosec + ...), make vuln
 # (govulncheck), a single `go test -race -json` run (data races + full

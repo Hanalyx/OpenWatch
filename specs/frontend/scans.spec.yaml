@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The /scans fleet scan overview — a scan-queue header plus Coverage and History tabs, composed from endpoints that already ship
     description: >
       /scans is the fleet scan overview. It is composed entirely from

@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Server-Sent Events fan-out of in-process bus events to operator browsers
     description: >
       One persistent SSE connection per browser tab carries every

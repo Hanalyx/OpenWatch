@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Operator-triggered, on-demand connectivity probe for a single host
     description: >
       POST /api/v1/hosts/{id}/connectivity:check runs an immediate connectivity

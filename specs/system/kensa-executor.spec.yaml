@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa

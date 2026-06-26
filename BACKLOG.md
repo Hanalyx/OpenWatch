@@ -1,6 +1,6 @@
-# BACKLOG.md — OpenWatch Go Prioritized Work Queue
+# BACKLOG.md — OpenWatch Prioritized Work Queue
 
-> **Purpose**: Single source of truth for **pending** work in the OpenWatch Go rebuild (repo root).
+> **Purpose**: Single source of truth for **pending** work in OpenWatch (repo root).
 > Completed work is removed from this file; provenance lives in the commit history + `SESSION_LOG.md`.
 
 **Last Updated**: 2026-06-25

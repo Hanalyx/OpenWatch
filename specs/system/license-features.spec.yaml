@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: License feature registry and runtime gating
     description: >
       License features come from a codegen pipeline: features.yaml is

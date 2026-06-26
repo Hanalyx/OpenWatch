@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: License inspection and verification
     description: >
       GET /api/v1/license returns the current license state: tier, status,

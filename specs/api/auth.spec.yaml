@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: HTTP auth endpoints
     description: >
       The HTTP face of internal/identity. Login is single-step with an

@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Operator-approved rule waivers with a request -> approve/reject -> revoke/expire lifecycle, DB-backed, as a governance overlay that never mutates scan results
     description: >
       A compliance exception is an operator's documented acceptance of

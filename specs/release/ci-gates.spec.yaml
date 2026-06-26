@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Mandatory pre-merge gates
     description: >
       Every PR against the Go rebuild must pass a fixed set of gates

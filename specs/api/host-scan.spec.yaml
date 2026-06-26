@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Operator-triggered compliance scan enqueue for a single host
     description: >
       POST /api/v1/hosts/{id}/scans creates a scan run (the scan_runs

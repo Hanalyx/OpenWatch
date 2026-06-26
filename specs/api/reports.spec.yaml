@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: A library of immutable compliance reports whose one MVP kind, the Fleet Compliance Executive Summary, is computed from data that already exists and stored as a frozen JSON document
     description: >
       A report is a point-in-time, immutable compliance artifact. The MVP

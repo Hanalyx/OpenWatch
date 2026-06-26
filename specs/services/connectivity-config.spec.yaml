@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Operator-tunable runtime config for the host liveness probe loop, with per-state probe cadences
     description: >
       v1.0.0 shipped a single global IntervalSec. The Settings UI

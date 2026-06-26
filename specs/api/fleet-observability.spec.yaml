@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Read-only HTTP exposure of internal/fleetrollup aggregations
     description: >
       Slice B built fleetrollup as a Go-level API but exposed nothing

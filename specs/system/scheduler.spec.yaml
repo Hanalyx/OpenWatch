@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Adaptive scan scheduling
     description: >
       The scheduler decides WHEN to run a scan against a host. A scan

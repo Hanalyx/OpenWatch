@@ -6,7 +6,7 @@ spec:
   tier: 3
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Built-in API documentation
     description: >
       The Go rebuild ships no frontend in 0.2.0. Operators and reviewers

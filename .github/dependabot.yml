@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Go module for the OpenWatch Go rebuild. The module lives at the repo root
+  # Go module for OpenWatch. The module lives at the repo root
   # (promoted from app/ on 2026-06-05), so the directory is "/".
   # See specs/system/supply-chain.spec.yaml — every accepted update must also
   # update the depguard allowlist in .golangci.yml if the module set changes.

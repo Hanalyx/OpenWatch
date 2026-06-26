@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Browser inactivity timeout that enforces the Authentication-policy "Idle timeout" against real user activity
     description: >
       The backend enforces the operator-configured session idle window

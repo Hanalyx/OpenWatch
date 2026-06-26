@@ -1,6 +1,6 @@
 # OpenWatch Scripts
 
-Developer and CI helper scripts for the OpenWatch Go rebuild (single Go binary
+Developer and CI helper scripts for OpenWatch (single Go binary
 serving the API + embedded UI, PostgreSQL-only). The legacy Python/FastAPI +
 Docker-Compose helper scripts were removed in the GA cleanup; the Go quality
 gate is `make check` (see the Makefile).

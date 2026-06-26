@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: >
       The free (AGPLv3 core) Phase 7 remediation surface: a see-govern-and-act
       loop over failing rules. Operators view what is remediable and the

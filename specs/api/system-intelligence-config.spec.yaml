@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Admin endpoints for reading and updating the OS Intelligence scheduler's runtime config
     description: >
       The OS Intelligence scheduler reads three fields from

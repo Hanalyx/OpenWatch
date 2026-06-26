@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: GET /api/v1/alerts + PATCH lifecycle endpoints
     description: >
       Operator-facing surface over the alerts table that

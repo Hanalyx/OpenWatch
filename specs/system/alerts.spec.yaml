@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Lifecycle service that owns acknowledge / silence / resolve / dismiss transitions on persisted alerts
     description: >
       system-alert-router v1.1.0 (PR 2) persists every routed alert

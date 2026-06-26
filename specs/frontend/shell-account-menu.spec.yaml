@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Shell TopBar avatar exposes account actions (Sign out at minimum) instead of being a decorative initial
     description: >
       Pre-this spec, the TopBar avatar in the shell was a non-

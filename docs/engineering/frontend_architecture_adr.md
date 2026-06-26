@@ -2,7 +2,7 @@
 
 > **Status:** Locked 2026-05-30
 > **Authority:** This document is the rulebook for `frontend/`. If code at `frontend/` violates a rule here, the code is wrong.
-> **Audience:** Anyone scaffolding, specing, or implementing frontend modules for OpenWatch Go.
+> **Audience:** Anyone scaffolding, specing, or implementing frontend modules for OpenWatch.
 
 ---
 

@@ -6,7 +6,7 @@ spec:
   tier: 3
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: HTTP health endpoint
     description: >
       GET /api/v1/health is the liveness + readiness probe. Anonymous,

@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: One-shot OS / kernel / hardware fingerprint on first contact + on-demand
     description: >
       Host Discovery is the operator-facing inventory layer that

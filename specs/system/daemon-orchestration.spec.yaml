@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Process lifecycle for openwatch serve
     description: >
       Defines what `openwatch serve` instantiates from the Slice B

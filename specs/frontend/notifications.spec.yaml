@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The TopBar notification bell and its Zustand store, the first consumer of report.ready
     description: >
       The TopBar bell is the in-app notification surface. Its first (and

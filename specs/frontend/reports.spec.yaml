@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The /reports page - a Library tab listing generated reports with a Generate action, plus deferred Templates and Scheduled tabs, over api-reports
     description: >
       ReportsPage is the operator's compliance-artifact library over

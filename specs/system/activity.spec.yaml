@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: UNION query over alerts + transactions + intelligence_events + audit_events + host_monitoring_history with row-level RBAC and seek-cursor pagination
     description: >
       Activity is the operator-facing "Eye on the fleet" — a unified

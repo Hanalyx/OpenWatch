@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Correlation ID propagation
     description: >
       Every audit event, every log line, and every job carries a

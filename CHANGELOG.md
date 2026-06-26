@@ -1,6 +1,6 @@
 # OpenWatch (Go rebuild) — Changelog
 
-Changelog for the OpenWatch Go rebuild, which lives at the repo root. The
+Changelog for OpenWatch, which lives at the repo root. The
 legacy Python project was archived out of the repo on 2026-06-05.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
