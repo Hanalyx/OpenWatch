@@ -6,6 +6,72 @@ and their provenance lives here + in the commit history.
 
 ---
 
+## 2026-06-26 (license) — Opus 4.8 (1M context) — AGPL→Apache open-core relicense (HELD, not pushed)
+
+**Done** — Designed and built (on a held branch) the relicensing of the
+OpenWatch core from AGPLv3 + Managed Service Exception to **Apache 2.0**, as an
+explicit open-core model. All decisions and rationale live in private docs under
+`~/hanalyx/OWAR/licensing/` (NOT in the repo): `LICENSING_STRATEGY.md`,
+`LICENSING_CARVE.md`, `LICENSING_EE_ARCHITECTURE.md`, `SIGNOFF_CHECKLIST.md`,
+`PR_eereg_scaffold.md`, `ANNOUNCEMENT_apache_relicense.md`.
+- **Dependency audit (clean):** no GPL/AGPL/LGPL in the Go binary or frontend.
+  The binary statically links **BSL-1.1 Kensa**, so a binary distribution is a
+  combined Apache/BSL work. Inventory shipped as `THIRD-PARTY-NOTICES.md`,
+  **merged to main via #690** (the one public artifact, license-agnostic).
+- **eereg seam:** `internal/eereg` capability-injection seam (interfaces +
+  free-tier defaults + `ErrRequiresLicense`), build-tag wiring pair
+  (`cmd/openwatch/wire_ce.go` / `wire_ee.go`), and a two-way boundary guard:
+  `scripts/check-ee-boundary.sh` (in `make check`) + `TestCoreDoesNotImportEE`.
+  Spec `system-ee-capability-seam` (tier 1, 4 ACs) registered in `specter.yaml`;
+  `specter check`/`coverage --strictness annotation` = 100%, `check --test` 0 err.
+- **Relicense changeset:** `LICENSE`→Apache 2.0; `NOTICE` (Kensa-BSL combined-work
+  disclosure); `ee/` tree established (`ee/LICENSE` commercial source-available,
+  `ee/README`); README badge+section; `CONTRIBUTING` (Apache + **DCO sign-off**);
+  `frontend/package.json` license; `packaging/rpm/openwatch.spec`
+  `Proprietary`→`Apache-2.0`; CHANGELOG `[Unreleased]`. All stale AGPL refs swept
+  (remediation comments/spec + the two remediation engineering docs).
+- **Key finding (reframed the plan):** NONE of the 4 EE-designated features
+  (`temporal_queries`, signed-bundle `audit_export`, multi-stage
+  `structured_exceptions`, bulk/auto `remediation_execution`) are implemented yet
+  — all are spec stubs or free-core-only. So there is **no paid-feature code in
+  the Apache tree**; the "relocate EE before flip" gate is satisfied vacuously and
+  the flip is low-risk. Future EE features get built directly in `ee/` behind the
+  seam. Carve decisions (locked): SSO/SAML + FIDO2 MFA = free-core; audit_export
+  basic free / signed = EE; exceptions basic free / multi-stage = EE.
+- **Branch `feat/apache-relicense`** (renamed from refactor/eereg-seam): 4 commits,
+  rebased onto post-#690 main, validated green, **HELD — not pushed**.
+
+**Next** — All remaining steps are outward-facing and intentionally held:
+1. Push `feat/apache-relicense` → open PR → merge, **paired with the community
+   announcement** (draft B+C in `ANNOUNCEMENT_apache_relicense.md`; pinned GitHub
+   Discussion). The AGPL→Apache change must not land silently for copyleft
+   contributors.
+2. Prereq the user reported **done**: copyright assignment (founder→Hanalyx LLC)
+   + IP counsel sign-off. (Counsel should still confirm the combined Apache/BSL
+   framing + BSL grant + trademark before the flip — see SIGNOFF_CHECKLIST §B.)
+3. Trademark registration for "OpenWatch"/"Kensa" (separate track; the
+   foreclosure lever, since Apache §6 grants no trademark rights).
+4. Reconcile `licensing/features.yaml` tiers when the first `ee/` feature is built.
+
+**Notes / gotchas**
+- **This SESSION_LOG entry lives on the held branch, NOT main**, to avoid
+  telegraphing the relicense before the announcement. It publishes with the
+  relicense. If main's SESSION_LOG moves meanwhile, re-rebase the branch.
+- In-tree license gating is **unenforceable under Apache** (anyone may strip the
+  check and even resell). Real enforcement = server-side resources, `ee/`
+  separately-licensed code (GitLab EE model), and trademark. The `eereg` seam is
+  the plug point; `internal/license/` stays Apache (gating server-side/EE, not
+  in-core code).
+- Do not market the **binary** as flat Apache/OSI-open — it bundles BSL Kensa.
+  Only the core repo (sans Kensa) is Apache.
+- `cmd/owlicgen` (license minting) should move to a private repo before/with the
+  flip (defense-in-depth; security rests on the private key, not the tool).
+- `feat/apache-relicense` is local-only; the private licensing docs are outside
+  the repo in `~/hanalyx/OWAR/licensing/` (which is a plain dir, not git — offer
+  to `git init` it for history through counsel review).
+
+---
+
 ## 2026-06-25 (notifications) — Opus 4.8 (1M context) — change-driven bell: Slices 2–4
 
 **Done** — Built out the change-driven in-app notification feed end to end
