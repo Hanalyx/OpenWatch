@@ -167,10 +167,17 @@ vuln: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 test-race: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	go test -race -p 1 ./...
 
-# check: the single pre-push gate. Chains vet → lint → vuln → test-race.
+# check-ee-boundary: enforce that the permissively licensed core (internal/, cmd/)
+# never imports the separately licensed ee/ module tree. Core reaches EE
+# capabilities only through internal/eereg. Cheap; runs first in `check`.
+.PHONY: check-ee-boundary
+check-ee-boundary: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
+	@bash scripts/check-ee-boundary.sh
+
+# check: the single pre-push gate. Chains ee-boundary → vet → lint → vuln → test-race.
 # First failure aborts the chain (make's default target dependency semantics).
 .PHONY: check
-check: vet lint vuln test-race
+check: check-ee-boundary vet lint vuln test-race
 	@echo "make check: all gates passed"
 
 .PHONY: clean
