@@ -1,0 +1,79 @@
+spec:
+  id: system-ee-capability-seam
+  title: EE capability-injection seam and core/ee dependency boundary
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch-go
+    feature: Open-core capability seam (internal/eereg)
+    description: >
+      OpenWatch is open-core: a permissively licensed core plus optional,
+      separately licensed feature modules under ee/. The core depends only on
+      the capability interfaces in internal/eereg and on free-tier default
+      implementations. A build with the "ee" tag injects richer implementations
+      at process init via the Set* functions; the default (CE) build registers
+      nothing and the free-tier defaults stand. The dependency arrow points one
+      way: ee -> core, never core -> ee.
+
+  objective:
+    summary: >
+      The core reaches EE capabilities only through internal/eereg, so the
+      community build is a complete product on its own and the licensing
+      boundary is mechanically enforced rather than a matter of discipline.
+    scope:
+      includes:
+        - Capability interfaces and the registry (Set*/getters)
+        - Free-tier default implementations (Available()=false)
+        - The core/ee one-way import boundary
+        - ErrRequiresLicense sentinel
+      excludes:
+        - The ee module implementations themselves (built per-feature later)
+        - License validation and feature gating (system-license-features)
+
+  constraints:
+    - id: C-01
+      description: >
+        No core package (internal/, cmd/) may import github.com/Hanalyx/openwatch/ee
+        in the CE build. Only the ee-tagged wiring file may import the ee tree.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >
+        In the CE build (no "ee" tag) every capability getter MUST return a
+        default whose Available() reports false.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >
+        Licensed implementations are injected only via the Set* functions; the
+        registry exposes no other mutation path.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        With no EE module wired (default build), TemporalQueries, BulkRemediation,
+        SignedExport, and StagedApproval each return a default whose Available()
+        is false.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-02
+      description: >
+        After Set*(impl) is called, the corresponding getter returns the injected
+        implementation and its Available() reflects that implementation.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: >
+        ErrRequiresLicense is detectable through error wrapping (errors.Is finds
+        it through errors.Join / %w).
+      priority: high
+    - id: AC-04
+      description: >
+        No core package under internal/ or cmd/ imports the ee module tree in the
+        CE build; only files carrying the "ee" build tag may import it.
+      priority: critical
+      references_constraints: [C-01]

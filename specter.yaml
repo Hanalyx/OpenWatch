@@ -22,6 +22,7 @@ domains:
             - system-idempotency
             - system-license-features
             - system-license-validation
+            - system-ee-capability-seam
             - system-rbac
             - system-job-queue
             - system-policy
