@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Idempotency replay caching
     description: >
       Caches the full response (status + body) for mutating requests

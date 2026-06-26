@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Settings > Scanning & monitoring "Compliance scanner" section edits the live scheduler config and shows fleet states + the 24h schedule projection
     description: >
       Replaces the prior "UI only" Compliance scanner placeholder

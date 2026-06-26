@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The authenticated /dashboard fleet overview — a default grid of widgets, each a lens into a live fleet endpoint
     description: >
       /dashboard is the authenticated home (the public homepage lives at

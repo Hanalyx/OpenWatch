@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Settings > Scanning & monitoring page exposes the three OS Intelligence scheduler knobs landed by api-system-intelligence-config v1.0 (PR 8)
     description: >
       The Scanning & monitoring page already exposes a connectivity-

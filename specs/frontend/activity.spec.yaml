@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The /activity unified event feed — a day-grouped stream over GET /api/v1/activity with filters, pagination, alert-source lifecycle actions, and a detail drawer
     description: >
       /activity renders the unified activity feed (api-activity): a

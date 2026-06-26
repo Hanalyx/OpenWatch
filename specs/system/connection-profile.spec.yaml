@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: SSH connection memory shared by all host-communication paths
     description: >
       OpenWatch talks to a managed host from several paths (liveness

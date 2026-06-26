@@ -3,12 +3,12 @@
 
 schema_version: 1
 system:
-    name: openwatch-go
+    name: openwatch
     tier: 2
 domains:
     default:
         tier: 2
-        description: Default domain for the OpenWatch Go rebuild. Specs are the .spec.yaml files under specs/ (indexed below); coverage is gated in CI via specter ingest + sync (strictness threshold).
+        description: Default domain for OpenWatch. Specs are the .spec.yaml files under specs/ (indexed below); coverage is gated in CI via specter ingest + sync (strictness threshold).
         specs:
             - api-audit-events-query
             - api-diagnostics-echo

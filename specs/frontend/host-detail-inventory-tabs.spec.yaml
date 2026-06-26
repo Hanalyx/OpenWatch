@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Activate four snapshot-backed inventory tabs on the host detail page; each reads from the existing GET /intelligence/state/{host_id} response
     description: >
       Pre-this spec, the Packages / Services / Users / Network tabs

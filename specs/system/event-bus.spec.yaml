@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Typed pub/sub for OpenWatch-internal events
     description: >
       The event bus is OpenWatch's typed pub/sub layer between

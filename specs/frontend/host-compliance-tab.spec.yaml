@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Activate the Compliance tab on the host detail page; render the lens model (one scan, viewed through any framework) from GET /hosts/{id}/compliance + /compliance/frameworks
     description: >
       Pre-this spec, the Compliance tab on the host detail page rendered

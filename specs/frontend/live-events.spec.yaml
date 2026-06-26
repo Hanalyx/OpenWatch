@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Client-side SSE subscriber that auto-invalidates TanStack Query keys on bus events
     description: >
       The frontend opens ONE SSE connection to /api/v1/events (spec

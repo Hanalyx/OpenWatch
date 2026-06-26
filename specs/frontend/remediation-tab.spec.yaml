@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch+ upsell.
     description: >
       The frontend half of the remediation feature. The backend exposes

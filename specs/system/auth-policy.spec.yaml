@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: >-
       The workspace authentication policy is a single row (migration 0033)
       holding the require-MFA flag and the session idle/absolute timeout

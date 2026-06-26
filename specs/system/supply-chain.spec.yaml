@@ -15,10 +15,10 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Third-party dependency allowlist + vulnerability + reproducibility gates
     description: >
-      OpenWatch Go's third-party dependency surface is gated by an explicit
+      OpenWatch's third-party dependency surface is gated by an explicit
       allowlist in app/.golangci.yml's depguard linter — list-mode "strict"
       so any unlisted import fails the lint. govulncheck blocks merge on any
       reachable CVE (declared canonically in release-ci-gates). Dependabot

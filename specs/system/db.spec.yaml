@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Database access layer
     description: >
       PostgreSQL connectivity (pgxpool), migration runner (goose), and

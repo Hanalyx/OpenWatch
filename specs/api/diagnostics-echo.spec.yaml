@@ -6,7 +6,7 @@ spec:
   tier: 3
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Stage-0 diagnostic endpoint
     description: >
       POST /api/v1/diagnostics:echo exercises the full request lifecycle:

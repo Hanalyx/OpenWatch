@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: >-
       CRUD + test for operator-managed alert-delivery channels under
       /api/v1/notifications/channels. Backed by internal/notification

@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Periodic SSH-reachability probe
     description: >
       The liveness loop is OpenWatch's "is this host reachable right

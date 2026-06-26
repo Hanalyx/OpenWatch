@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The fleet exception governance queue on Settings > Compliance policies - status-filtered list with permission-gated approve/reject/revoke
     description: >
       The approver counterpart to the host-detail request surfaces

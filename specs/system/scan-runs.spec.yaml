@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: scan_runs table + lifecycle writes (the scan "logbook")
     description: >
       OpenWatch records every compliance-scan attempt as one scan_runs

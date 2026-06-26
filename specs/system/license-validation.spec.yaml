@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: License JWT (EdDSA) validation
     description: >
       License files are JWTs signed with EdDSA (Ed25519). The OpenWatch

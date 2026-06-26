@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Kensa rule-library browser
     description: >
       /api/v1/rules serves the full Kensa rule catalog as reference data

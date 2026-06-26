@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Recurring SSH-pull snapshot of operator-visible host state with write-on-change event emission
     description: >
       OS Intelligence is the recurring, write-on-change counterpart to

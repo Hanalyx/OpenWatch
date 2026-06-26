@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Per-host daily posture rollup powering the 30-day trend card and the fleet delta
     description: >
       posture_snapshots holds one row per (host, day): the

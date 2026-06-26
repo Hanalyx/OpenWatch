@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Async job queue
     description: >
       A PostgreSQL-native job queue using the SELECT ... FOR UPDATE SKIP

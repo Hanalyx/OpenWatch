@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Host onboarding flow — single-host form OR bulk CSV/JSON import, plus credentials in one operator session
     description: >
       Route /hosts/new renders a tabbed page with two modes:

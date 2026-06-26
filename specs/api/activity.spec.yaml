@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: GET /api/v1/activity — single endpoint exposing the union feed
     description: >
       Sole HTTP surface over system-activity.Service.List. Cursor

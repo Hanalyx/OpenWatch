@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: >-
       CRUD-lite for API service-account tokens under /api/v1/tokens:
       list, create (secret returned once), revoke. Backed by

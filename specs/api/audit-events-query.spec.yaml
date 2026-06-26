@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Audit events query
     description: >
       GET /api/v1/audit/events returns a cursor-paginated list of audit

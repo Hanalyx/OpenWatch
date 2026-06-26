@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Periodic OS-fingerprint sweep + first-contact policy gate
     description: >
       Scheduler is the recurring driver that turns the one-shot

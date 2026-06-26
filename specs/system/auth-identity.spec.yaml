@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Real identity surface (replaces Stage-0 X-Stub-Role shim)
     description: >
       The package internal/identity owns: password hashing (Argon2id),

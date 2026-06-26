@@ -23,7 +23,7 @@ Operational follow-ups still open (small, not blocking Phase 7):
 - Scan-context Capabilities line needs stored capability data from Kensa.
 - Found + fixed during the host-detail tile work: the alerts lifecycle service was never wired in serve (every /api/v1/alerts endpoint 503'd in production); a generic source-test (system-daemon-orchestration AC-11) now guards that EVERY server builder is wired in main.go.
 
-Covers end-to-end compliance scanning for the OpenWatch Go rebuild: wiring the
+Covers end-to-end compliance scanning for OpenWatch: wiring the
 Kensa engine, triggering scans (on-demand + adaptive auto-scan), persisting and
 serving results, and the two operator surfaces in the prototypes —
 `docs/engineering/prototypes/openwatch-v1/Host Detail.html` and `Host Management.html`.

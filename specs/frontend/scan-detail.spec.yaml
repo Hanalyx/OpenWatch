@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The /scans host-history expansion and the /scans/$scanId scan detail page with a per-rule Formatted/Evidence/OSCAL drill-down
     description: >
       The durable scan store (api-scans) is surfaced in the UI as: a host

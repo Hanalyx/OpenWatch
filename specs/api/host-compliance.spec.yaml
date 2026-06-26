@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Host-scoped compliance lens (one scan, many framework views), failing-rule listing (severity-ordered, framework-projectable), and the fleet scan-queue depth breakdown
     description: >
       GET /api/v1/hosts/{id}/compliance/failed-rules returns the host's

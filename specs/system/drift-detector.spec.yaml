@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Per-host compliance drift detection
     description: >
       The drift detector runs at the end of every scan. It computes the

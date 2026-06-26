@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Audit event taxonomy and writer
     description: >
       Audit events are emitted via codegen-typed constants from

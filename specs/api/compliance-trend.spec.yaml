@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Read endpoints over posture_snapshots for the host trend card and the hosts-page fleet delta
     description: >
       GET /api/v1/hosts/{id}/compliance/trend?days=N returns the

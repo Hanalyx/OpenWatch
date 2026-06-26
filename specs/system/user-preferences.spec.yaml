@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Per-user UI preferences that follow the user across devices
     description: >
       Personal UI preferences (the /hosts grid-vs-table default, density,

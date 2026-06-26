@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: The Groups page - a KPI row plus Sites and OS-category card sections with per-group rollups, a maintenance toggle, and a create flow, over api-groups
     description: >
       GroupsPage is the operator's fleet-organization view over

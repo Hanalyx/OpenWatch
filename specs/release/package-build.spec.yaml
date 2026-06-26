@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Linux distribution packaging
     description: >
       The Go binary ships as a native RPM (CentOS Stream 9 / RHEL 9

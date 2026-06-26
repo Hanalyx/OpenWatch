@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: 0.2.0 Definition of Done
     description: >
       Release 0.2.0 done means a reviewer can drive the full

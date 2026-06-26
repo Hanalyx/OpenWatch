@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Host grouping with two kinds (site, os_category), two membership models (manual, auto by os_family), a maintenance flag, and computed per-group rollups for the Groups page
     description: >
       A group is an operator's lens over the fleet. There are two

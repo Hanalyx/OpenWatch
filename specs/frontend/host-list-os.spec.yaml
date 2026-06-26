@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Host list /hosts page renders the OS column from the denormalized hosts.os_family column populated by Discovery (system-host-discovery v1.0.0)
     description: >
       Pre-PR 5c the host list rendered the OS column via detectOS(hostname),

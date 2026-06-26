@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
 
-This document is the field reference for how you configure the OpenWatch Go
+This document is the field reference for how you configure the OpenWatch
 binary: the TOML file, the environment-variable overrides, and the on-disk paths
 that the service reads at boot.
 

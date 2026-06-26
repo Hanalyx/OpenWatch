@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Settings > Scanning & monitoring page exposes the four OS discovery scheduler knobs landed by api-system-discovery-config v1.0 + the "Run now" sweep button
     description: >
       Sibling section to OSIntelligenceSection (frontend-settings-

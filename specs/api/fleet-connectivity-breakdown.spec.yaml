@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Derived per-state connectivity counts for the fleet, classified by consecutive-failure hysteresis
     description: >
       GET /api/v1/fleet/connectivity/breakdown returns derived per-state host

@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: A daily/weekly/monthly schedule that generates a report and emails its PDF through an email notification channel
     description: >
       A report_schedules row (migration 0046) recurs a report generation on

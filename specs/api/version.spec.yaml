@@ -6,7 +6,7 @@ spec:
   tier: 3
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: HTTP version endpoint
     description: >
       GET /api/v1/version returns build/version metadata for the running

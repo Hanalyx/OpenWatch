@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: CHANGELOG.md authoring discipline
     description: >
       CHANGELOG.md is the operator-facing record of what changed between

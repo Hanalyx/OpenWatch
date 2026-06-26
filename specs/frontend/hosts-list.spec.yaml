@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: First user-facing page after login — the host inventory
     description: >
       Route /hosts renders the host inventory as a paginated table.

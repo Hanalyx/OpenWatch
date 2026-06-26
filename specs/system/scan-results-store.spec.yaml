@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Durable compliance audit memory
     description: >
       The transaction log (system-transaction-log-writer) keeps only the

@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Workspace + personal settings surface — 11 categories grouped Workspace / Access / Personal, each its own routed sub-page
     description: >-
       Route /settings is a two-pane shell mirroring the v1 prototype

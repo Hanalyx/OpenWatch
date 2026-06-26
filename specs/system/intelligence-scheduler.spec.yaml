@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Per-host cadence loop driving collector.Service.RunCycle
     description: >
       Scheduler is the recurring driver that turns the one-shot

@@ -1,4 +1,4 @@
-# SESSION_LOG.md — OpenWatch Go session handoff
+# SESSION_LOG.md — OpenWatch session handoff
 
 Append-only handoff log, most recent first. Each entry records what shipped,
 what's next, and gotchas. Completed BACKLOG items are removed from BACKLOG.md

@@ -2,7 +2,7 @@
 
 > **Status:** Ratified 2026-05-25. Authoritative.
 > **Supersedes:** [`KENSA_OPENWATCH_COORDINATION_2026-04-14.md`](./KENSA_OPENWATCH_COORDINATION_2026-04-14.md) §3.4 ("Event subscription for Heartbeat"). The rest of the 2026-04-14 memo remains accurate; only the event-subscription plan was overtaken by this decision.
-> **Audience:** OpenWatch Go rebuild engineers, Kensa engineers, anyone scoping work that crosses the boundary.
+> **Audience:** OpenWatch engineers, Kensa engineers, anyone scoping work that crosses the boundary.
 > **One-line summary:** Kensa is the per-host measurement engine; OpenWatch is the fleet orchestration and monitoring platform.
 
 ---
@@ -44,7 +44,7 @@ Everything in this column is built in the OpenWatch repo. Kensa has zero runtime
 | Responsibility | Notes |
 |---|---|
 | **Scheduler** | Decides which hosts run which frameworks at which cadence. Replaces what Kensa would never have done. |
-| **Host inventory** | Already shipped in the OpenWatch Go rebuild Slice A (`internal/host/`). |
+| **Host inventory** | Already shipped in OpenWatch Slice A (`internal/host/`). |
 | **Credential store + resolver** | Already shipped in Slice A (`internal/credential/`). Kensa is handed credentials per invocation; OpenWatch never relies on Kensa to look them up. |
 | **Liveness pulse loop** | Per-host periodic reachability probe. Calls Kensa's `Reachable()` primitive when available; until then, OpenWatch SSH-dials directly via its existing `internal/ssh` package. |
 | **Drift detection** | Reads OpenWatch's transaction history, compares latest result to previous per (host, rule), emits drift signals. |

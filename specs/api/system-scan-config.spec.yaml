@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Settings -> Scanning "Compliance scanner" backend - read/update the scheduler config, per-state host counts, and the 24h schedule strip
     description: >
       The adaptive compliance scheduler (system-scheduler v3.0.0) reads

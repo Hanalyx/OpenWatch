@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: HTTP server bootstrap
     description: >
       HTTPS server with chi router and TLS cert hot-reload (mtime-cached

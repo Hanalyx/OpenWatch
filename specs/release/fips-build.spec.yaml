@@ -6,7 +6,7 @@ spec:
   tier: 1
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: FIPS-validated build
     description: >
       A second binary, openwatch-fips, built with Go 1.25's native

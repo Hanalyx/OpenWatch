@@ -6,7 +6,7 @@ spec:
   tier: 2
 
   context:
-    system: openwatch-go
+    system: openwatch
     feature: Host detail /hosts/{id} System card surfaces the real OS discovery + intelligence snapshot data instead of "unknown" placeholders
     description: >
       Pre-PR 6 the System card on the host detail page rendered the
