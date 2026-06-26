@@ -32,9 +32,9 @@ const (
 	StructuredExceptions Feature = "structured_exceptions"
 	// Early access to Kensa rule updates and framework mappings
 	PriorityUpdates Feature = "priority_updates"
-	// SAML 2.0 single sign-on integration
+	// SAML 2.0 single sign-on integration (free core)
 	SsoSaml Feature = "sso_saml"
-	// FIDO2 / WebAuthn second factor for user authentication
+	// FIDO2 / WebAuthn second factor for user authentication (free core)
 	Fido2Mfa Feature = "fido2_mfa"
 	// Premium diagnostic endpoints (Stage 0 demo and future operator tooling)
 	PremiumDiagnostics Feature = "premium_diagnostics"
@@ -94,14 +94,14 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	},
 	SsoSaml: {
 		ID:          SsoSaml,
-		Tier:        TierOpenWatchPlus,
-		Description: `SAML 2.0 single sign-on integration`,
+		Tier:        TierFree,
+		Description: `SAML 2.0 single sign-on integration (free core)`,
 		Introduced:  "1.0.0",
 	},
 	Fido2Mfa: {
 		ID:          Fido2Mfa,
-		Tier:        TierOpenWatchPlus,
-		Description: `FIDO2 / WebAuthn second factor for user authentication`,
+		Tier:        TierFree,
+		Description: `FIDO2 / WebAuthn second factor for user authentication (free core)`,
 		Introduced:  "1.0.0",
 	},
 	PremiumDiagnostics: {

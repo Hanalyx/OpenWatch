@@ -60,13 +60,13 @@ features:
     introduced: "1.0.0"
 
   - id: sso_saml
-    tier: openwatch_plus
-    description: SAML 2.0 single sign-on integration
+    tier: free
+    description: SAML 2.0 single sign-on integration (free core)
     introduced: "1.0.0"
 
   - id: fido2_mfa
-    tier: openwatch_plus
-    description: FIDO2 / WebAuthn second factor for user authentication
+    tier: free
+    description: FIDO2 / WebAuthn second factor for user authentication (free core)
     introduced: "1.0.0"
 
   # Stage 0 demo feature — used by the walking skeleton's
