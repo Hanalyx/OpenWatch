@@ -107,7 +107,7 @@ export function IntegrationsPage() {
 
 // ── About ───────────────────────────────────────────────────────────────
 const LICENSE_TIER_LABEL: Record<string, string> = {
-  free: 'Free',
+  free: 'Open-core',
   openwatch_plus: 'OpenWatch+',
   enterprise: 'Enterprise',
 };
@@ -234,33 +234,6 @@ export function AboutPage() {
                   </span>
                 </>
               ) : null}
-
-              <span style={{ color: 'var(--ow-fg-2)', alignSelf: 'start' }}>Features</span>
-              <span>
-                {lic && lic.features.length > 0 ? (
-                  <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {lic.features.map((f) => (
-                      <span
-                        key={f}
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 'var(--ow-radius-sm)',
-                          background: 'var(--ow-bg-3)',
-                          color: 'var(--ow-fg-1)',
-                          fontSize: 12,
-                          fontFamily: 'var(--ow-font-mono)',
-                        }}
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span style={{ color: 'var(--ow-fg-3)' }}>
-                    {lic ? 'No paid features entitled' : '…'}
-                  </span>
-                )}
-              </span>
             </div>
           )}
         </SettingCard>
