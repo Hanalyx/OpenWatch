@@ -10,8 +10,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0-rc.17] Eyrie — 2026-06-27
+
 ### Security
 
+- Replaced the embedded license and admin-policy signing keys with production
+  keys generated offline; the private keys never enter the repository, and a
+  build guard now fails the build if a shipped key matches the test key. This
+  closes a flaw where anyone with repository access could forge a license or
+  an admin policy.
+- Hardened the SSO/OIDC client against server-side request forgery: the
+  discovery, token, and JWKS fetches now refuse to connect to loopback,
+  private, carrier-grade NAT, and link-local addresses, including the cloud
+  metadata endpoint. The same guard now backs outbound notification webhooks.
 - Bumped `js-yaml` to `>= 4.2.0` (CVE-2026-53550, a quadratic-complexity
   denial-of-service in YAML merge-key handling). Dev-only transitive
   dependency; not in the shipped UI bundle.
