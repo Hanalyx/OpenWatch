@@ -182,7 +182,11 @@ backend_start() {
   ow_version="$( . "$ROOT/packaging/version.env" >/dev/null 2>&1; echo "${VERSION:-dev}" )"
   ow_commit="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   ow_built="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  go build -ldflags "\
+  # -tags dev compiles the local-dev entitlement bypass (entitlements_dev.go) so
+  # paid features can be exercised locally without a license. The bypass is
+  # physically absent from release builds (the Makefile does not pass this tag)
+  # and still requires OPENWATCH_DEV_MODE=true at runtime (set below).
+  go build -tags dev -ldflags "\
     -X github.com/Hanalyx/openwatch/internal/version.Version=${ow_version} \
     -X github.com/Hanalyx/openwatch/internal/version.Commit=${ow_commit} \
     -X github.com/Hanalyx/openwatch/internal/version.BuildTime=${ow_built}" \
@@ -193,6 +197,7 @@ backend_start() {
   OPENWATCH_SERVER_TLS_KEY="$TLS_DIR/key.pem" \
   OPENWATCH_IDENTITY_JWT_PRIVATE_KEY="$JWT_KEY" \
   OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE="$CRED_KEY" \
+  OPENWATCH_DEV_MODE="true" \
     nohup "$BIN" serve >"$BE_LOG" 2>&1 &
   echo $! > "$BE_PID"
   poll_health "https://${OPENWATCH_SERVER_LISTEN}/api/v1/health" "$BE_PID" "$BE_LOG" "backend" 1
