@@ -1,7 +1,7 @@
 spec:
   id: system-policy
   title: Policies-as-data framework
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -77,6 +77,10 @@ spec:
       description: OPENWATCH_DEV_MODE=true MUST allow loading unsigned policies (dev-mode bypass); production builds reject unsigned files
       type: security
       enforcement: error
+    - id: C-10
+      description: The embedded current admin public key (policy-pubkey-current.pem) MUST NOT be the testdata signing key; a build embedding the test trust anchor is forgeable and MUST fail (SEC-H1)
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -125,3 +129,7 @@ spec:
       description: Evaluate hot path p99 < 50µs (atomic.Pointer load + map lookup; no I/O).
       priority: medium
       references_constraints: [C-03]
+    - id: AC-13
+      description: The embedded policy-pubkey-current.pem MUST NOT equal the public half of the testdata test key; a regression to the test trust anchor fails the build (SEC-H1 guard).
+      priority: critical
+      references_constraints: [C-10]

@@ -1,7 +1,7 @@
 spec:
   id: system-license-validation
   title: License JWT validation
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -64,6 +64,10 @@ spec:
       description: Fingerprint mismatch MUST emit license.tampered audit event
       type: security
       enforcement: error
+    - id: C-09
+      description: The embedded current public key (license-pubkey-current.pem) MUST NOT be the testdata signing key; a build embedding the test trust anchor is forgeable and MUST fail (SEC-H1)
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -113,3 +117,7 @@ spec:
     - id: AC-13
       description: Validator latency p99 < 1ms for a single JWT signature verify.
       priority: medium
+    - id: AC-14
+      description: The embedded license-pubkey-current.pem MUST NOT equal the public half of the testdata test key; a regression to the test trust anchor fails the build (SEC-H1 guard).
+      priority: critical
+      references_constraints: [C-09]

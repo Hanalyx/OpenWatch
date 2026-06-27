@@ -72,13 +72,14 @@ func validClaims() claims {
 	}
 }
 
+// mustRing builds a key ring from the testdata signing key — the same key
+// signJWT signs with — so the verification-logic tests are independent of
+// whichever real production key is embedded in keys/license-pubkey-current.pem.
+// That the embedded key is NOT this test key is covered separately by
+// TestEmbeddedKey_NotTestKey (AC-14).
 func mustRing(t *testing.T) *publicKeyRing {
 	t.Helper()
-	ring, err := loadEmbeddedKeys()
-	if err != nil {
-		t.Fatalf("loadEmbeddedKeys: %v", err)
-	}
-	return ring
+	return &publicKeyRing{current: testKeyPublic(t, "license-privkey-test.pem")}
 }
 
 // @ac AC-01  (Valid JWT validates and returns a populated License.)
