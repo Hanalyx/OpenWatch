@@ -277,7 +277,7 @@ binary. Rules therefore travel with
 the binary — installing a new OpenWatch package is what updates the bundled
 rule set. There is no separate rule-pull or out-of-band rule-sync step. For the
 Kensa/OpenWatch responsibility boundary, see
-[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
+`docs/KENSA_OPENWATCH_BOUNDARY.md`.
 
 ## Upgrading PostgreSQL
 

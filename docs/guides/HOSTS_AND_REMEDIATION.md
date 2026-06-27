@@ -232,9 +232,9 @@ For organizations that require an approval step:
 3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
-See [Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+See Remediation & Exception Governance
 for the full role matrix. Single-operator workspaces cannot self-approve today;
-see the [governance ADR](../engineering/remediation_governance_adr.md).
+see the governance ADR.
 
 ---
 
@@ -284,7 +284,7 @@ returned to its previous state.
 Built-in roles, least to most privilege: `viewer` → `auditor` → `ops_lead` →
 `security_admin` → `admin` (`admin` holds every permission). The permission
 source of truth is `auth/permissions.yaml`; see
-[Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+Remediation & Exception Governance
 for the complete matrix.
 
 | Operation | Permission | Roles that hold it |

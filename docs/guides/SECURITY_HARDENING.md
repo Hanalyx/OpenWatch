@@ -37,7 +37,7 @@ Source: `cmd/openwatch/main.go`, `packaging/common/openwatch.service`,
 The compliance engine is Kensa, which connects to managed hosts over SSH and
 runs native YAML checks.
 See
-[`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md).
+`docs/KENSA_OPENWATCH_BOUNDARY.md`.
 
 ---
 
@@ -207,7 +207,7 @@ error.
 Source of truth: `auth/permissions.yaml` →
 `internal/auth/permissions.gen.go` and `internal/auth/roles.gen.go`. Enforcement:
 `internal/auth/middleware.go` (`EnforcePermission`, `RequirePermission`).
-Design doc: [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md).
+Design doc: `docs/engineering/rbac_registry.md`.
 
 Built-in roles, least to most privileged:
 
@@ -245,7 +245,7 @@ the process logs JSON to `journald`.
 
 Source: `cmd/openwatch/main.go` (`audit.Init`, `audit.EmitSync`),
 `internal/audit/`, `internal/db/migrations/0002_audit_events_taxonomy.sql`,
-[`docs/engineering/audit_event_taxonomy.md`](../engineering/audit_event_taxonomy.md).
+`docs/engineering/audit_event_taxonomy.md`.
 
 Representative event codes (taxonomy):
 
@@ -537,11 +537,11 @@ Source for every checklist item is cited in the section above that introduces it
 - Install, configure, TLS replacement, uninstall:
   [`docs/guides/INSTALLATION.md`](INSTALLATION.md)
 - RBAC registry and permission model:
-  [`docs/engineering/rbac_registry.md`](../engineering/rbac_registry.md)
+  `docs/engineering/rbac_registry.md`
 - Audit event taxonomy:
-  [`docs/engineering/audit_event_taxonomy.md`](../engineering/audit_event_taxonomy.md)
+  `docs/engineering/audit_event_taxonomy.md`
 - Kensa ↔ OpenWatch boundary:
-  [`docs/KENSA_OPENWATCH_BOUNDARY.md`](../KENSA_OPENWATCH_BOUNDARY.md)
+  `docs/KENSA_OPENWATCH_BOUNDARY.md`
 - API contract (per-operation required permission, license gate, audit events):
   [`api/openapi.yaml`](../../api/openapi.yaml)
 - Behavioral specs: [`specs/`](../../specs/)

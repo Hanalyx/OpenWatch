@@ -46,7 +46,7 @@ step today (write a unit that runs `ExecStart=/usr/bin/openwatch worker`).
 | API + UI | `https://<host>:8443/` | UI embedded via `go:embed`; API under `/api/v1/` |
 | Database | PostgreSQL 14+ | The only datastore. Not provisioned by the package. |
 | Job queue | PostgreSQL table, `SKIP LOCKED` | No external broker. Drained by `serve`/`worker`. |
-| Compliance engine | Kensa (Go), in-process | SSH-based, native YAML rules. See [the boundary doc](../KENSA_OPENWATCH_BOUNDARY.md). |
+| Compliance engine | Kensa (Go), in-process | SSH-based, native YAML rules. See the boundary doc. |
 
 
 ---
@@ -418,7 +418,7 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 ## See also
 
 - [Install guide](INSTALLATION.md) — canonical install and provisioning.
-- [Kensa ↔ OpenWatch boundary](../KENSA_OPENWATCH_BOUNDARY.md) — compliance engine integration.
-- [RBAC registry](../engineering/rbac_registry.md) — roles and permissions.
+- Kensa ↔ OpenWatch boundary — compliance engine integration.
+- RBAC registry — roles and permissions.
 - [API contract](../../api/openapi.yaml) — every endpoint, its permission, and audit events.
 - [Releasing runbook](../runbooks/RELEASING.md) — building and signing releases.
