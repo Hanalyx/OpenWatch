@@ -61,7 +61,7 @@ jobs:
       OPENWATCH_TEST_DSN_ALLOW_NONTEST: "no"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -106,7 +106,7 @@ jobs:
       - name: Cache golangci-lint binary
         if: steps.paths.outputs.go == 'true'
         id: cache-golangci-bin
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/bin/golangci-lint
           key: golangci-bin-v1.64.8-go1.26.4-${{ runner.os }}
@@ -122,7 +122,7 @@ jobs:
       # falls back to the newest partial cache when no exact hit.
       - name: Cache golangci-lint analysis cache
         if: steps.paths.outputs.go == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/golangci-lint
           key: golangci-cache-${{ runner.os }}-${{ hashFiles('**/*.go') }}
