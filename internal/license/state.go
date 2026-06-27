@@ -22,6 +22,12 @@ var (
 //
 // p99 < 50ns; no allocation. Spec AC-8, AC-9.
 func IsEnabled(f Feature) bool {
+	// Local-dev bypass: only ever true in `-tags dev` builds with
+	// OPENWATCH_DEV_MODE=true (see entitlements_{dev,release}.go). Always false
+	// in release binaries — the bypass code is not compiled in.
+	if devEntitlementsEnabled() {
+		return true
+	}
 	s := current.Load()
 	return s.IsEnabled(f)
 }

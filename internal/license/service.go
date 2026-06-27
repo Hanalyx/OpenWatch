@@ -65,7 +65,8 @@ func LoadFile(path string, opts VerifyOptions) (VerifyResult, error) {
 }
 
 // LoadJWT validates a raw JWT string and swaps it into runtime state on
-// success. Useful for tests and for owlicgen-driven local installs.
+// success. Useful for tests and for installing a license JWT minted by the
+// Hanalyx issuer (the product only verifies licenses; it never mints them).
 func LoadJWT(jwtBlob string, opts VerifyOptions) (VerifyResult, error) {
 	if err := Init(); err != nil {
 		return VerifyMalformedJWT, err

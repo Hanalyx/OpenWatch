@@ -84,5 +84,5 @@ spec:
       description: POST /:premium-echo with license that includes premium_diagnostics returns 200 with echoed message.
       priority: critical
     - id: AC-10
-      description: Installing license (owlicgen + file drop + SIGHUP) makes GET /license reflect new state without restart.
+      description: Installing license (file drop + SIGHUP) makes GET /license reflect new state without restart.
       priority: high
