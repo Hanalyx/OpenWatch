@@ -1,23 +1,22 @@
 # API guide
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
-Most operators use the web UI for daily work — managing hosts, viewing fleet
+Most operators use the web UI for daily work—managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
 automation: scripting repetitive tasks, integrating with CI/CD, or building
 tooling on top of OpenWatch.
 
 OpenWatch is a single Go binary that serves both the REST API and the embedded
 React UI over HTTPS on port `8443`. All API paths live under `/api/v1`. The
-contract source of truth is `api/openapi.yaml` in the repository; the running
-binary serves the same document, and `GET /api/v1/version` reports the build it
-came from.
+running binary serves its own OpenAPI document as the contract source of truth,
+and `GET /api/v1/version` reports the build it came from.
 
-This guide reflects OpenWatch `0.2.0-rc.14`, a pre-release. The compliance
+This guide reflects OpenWatch `v0.2.0-rc.14`, a pre-release. The compliance
 surface (scan execution + results, remediation, exceptions, posture/drift, audit
-export, the rule browser) IS exposed over `api/v1` — see [Compliance API surface
+export, the rule browser) IS exposed over `/api/v1`. See [the compliance API surface
 (now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
-Prometheus `/metrics` endpoint, `/security-info`) are listed under [What is
+Prometheus `/metrics` endpoint, `/security-info`) are listed under [what is
 genuinely not in the API yet](#what-is-genuinely-not-in-the-api-yet).
 
 When the OpenAPI document and this guide disagree, the OpenAPI document wins.
@@ -94,9 +93,9 @@ All later examples assume `-H "Authorization: Bearer $TOKEN"`.
 ## Authorization
 
 Authorization is permission-based, not role-based, at the endpoint level. Each
-protected endpoint declares the permission it requires (visible as
-`x-required-permission` in `api/openapi.yaml`, for example `host:read` or
-`host:write`). Built-in roles bundle permission sets:
+protected endpoint declares the permission it requires (visible in the served
+OpenAPI document, for example `host:read` or `host:write`). Built-in roles
+bundle permission sets:
 
 | Role | Intent |
 |------|--------|
@@ -108,8 +107,8 @@ protected endpoint declares the permission it requires (visible as
 
 A caller missing the required permission receives `403`. The full permission and
 role registry is the source of truth at
-`docs/engineering/rbac_registry.md`; it is
-served at runtime via `GET /api/v1/auth/permissions:registry`.
+[User roles](USER_ROLES.md); the running service exposes it through the
+permissions-registry endpoint under `/api/v1/auth`.
 
 ---
 
@@ -291,7 +290,7 @@ cannot serve. `GET /api/v1/version` returns build metadata (`openwatch`, `kensa`
 
 ## Error responses
 
-Errors use a single envelope shape, not field-level Pydantic detail:
+Errors use a single envelope shape, not field-level validation detail:
 
 ```json
 {
@@ -310,18 +309,18 @@ will encounter:
 
 | Code | Meaning |
 |------|---------|
-| `400` | Bad request — invalid input or a violated business rule |
-| `401` | Unauthorized — missing, expired, or invalid credential |
-| `402` | Payment required — the license tier lacks this feature |
-| `403` | Forbidden — the caller lacks the required permission |
+| `400` | Bad request—invalid input or a violated business rule |
+| `401` | Unauthorized—missing, expired, or invalid credential |
+| `402` | Payment required—the license tier lacks this feature |
+| `403` | Forbidden—the caller lacks the required permission |
 | `404` | Not found |
 | `405` | Method not allowed |
-| `409` | Conflict — duplicate resource, or a reused `Idempotency-Key` with a different body |
-| `502` | Bad gateway — an external dependency failed |
-| `503` | Service unavailable — the service is degraded |
+| `409` | Conflict—duplicate resource, or a reused `Idempotency-Key` with a different body |
+| `502` | Bad gateway—an external dependency failed |
+| `503` | Service unavailable—the service is degraded |
 
 There is no API-layer request rate limiting in this release, and there is no
-`422` validation status — validation failures return `400` with the envelope
+`422` validation status—validation failures return `400` with the envelope
 above.
 
 ---
@@ -357,7 +356,7 @@ configuration steps, see
 
 ## Compliance API surface (now live)
 
-As of `0.2.0-rc.14`, the compliance workflow IS exposed over `api/v1` (it is no
+As of `v0.2.0-rc.14`, the compliance workflow IS exposed over `api/v1` (it is no
 longer worker-internal only):
 
 - **Scans**: trigger with `POST /api/v1/hosts/{id}/scans`; browse durable
@@ -375,18 +374,18 @@ longer worker-internal only):
 
 ## What is genuinely not in the API yet
 
-- A Prometheus `/metrics` endpoint and a `/security-info` endpoint — both are
+- A Prometheus `/metrics` endpoint and a `/security-info` endpoint—both are
   roadmap items (use `GET /api/v1/health` for liveness today). Do not script
-  against them until they appear in `api/openapi.yaml`.
+  against them until they appear in the served OpenAPI document.
 
 For how OpenWatch invokes Kensa, see
-`docs/KENSA_OPENWATCH_BOUNDARY.md`.
+the Kensa scanning engine.
 
 ---
 
 ## What's next
 
-- [Install guide](INSTALLATION.md) — install, configure, and run the service.
-- RBAC registry — permission and role reference.
-- Kensa ↔ OpenWatch boundary — how scanning works.
-- `api/openapi.yaml` — the authoritative, always-current API contract.
+- [Install guide](INSTALLATION.md)—install, configure, and run the service.
+- RBAC registry—permission and role reference.
+- Kensa and OpenWatch boundary—how scanning works.
+- The served OpenAPI document—the authoritative, always-current API contract.

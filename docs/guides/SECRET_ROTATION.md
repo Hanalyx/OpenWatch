@@ -1,6 +1,6 @@
 # Secret rotation procedures
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide describes how to rotate each secret used by OpenWatch on the current
 single-binary stack: one `/usr/bin/openwatch` process that serves the REST API
@@ -8,8 +8,8 @@ and embedded UI over HTTPS on port `8443`, backed by PostgreSQL and run under
 the `openwatch.service` systemd unit. There is no separate web tier, no
 container runtime, and no Redis or message broker.
 
-For install and first-time configuration, see
-[`docs/guides/INSTALLATION.md`](INSTALLATION.md); this
+For install and first-time configuration, see the
+[installation guide](INSTALLATION.md); this
 guide assumes the service is already installed and running.
 
 ## Secrets at a glance
@@ -28,11 +28,8 @@ file, then built-in defaults.
 | Credential DEK (AES-256 key) | `[identity].credential_key_file` file (default `/etc/openwatch/keys/credential.key`) | Service start | Stored SSH credentials and MFA secrets become unreadable unless re-encrypted |
 | TLS certificate and key | `[server].tls_cert` / `[server].tls_key` (default `/etc/openwatch/tls/{cert,key}.pem`) | Read on each TLS handshake | New connections pick up the new cert; restart to drop keep-alives |
 
-> The credential DEK and JWT key fields are verified in
-> [`internal/config/config.go`](../../internal/config/config.go)
-> (`IdentityConfig`). The server refuses to start if either path is empty or the
-> file fails to load — see
-> [`cmd/openwatch/main.go`](../../cmd/openwatch/main.go) (`cmdServe`).
+> The server refuses to start if either the credential DEK or the JWT key path
+> is empty or the file fails to load.
 
 There is no separate "master key" or second "encryption key" on this stack. The
 single credential DEK encrypts every at-rest secret (SSH credentials and MFA
@@ -101,11 +98,10 @@ Impact: a brief restart while the service reconnects. The DSN lives in
 ## Rotate the JWT signing key
 
 Impact: all active sessions are invalidated and users must sign in again. The
-key is an RSA private key in PEM form (PKCS#1 or PKCS#8), and the loader rejects
-keys smaller than 2048 bits
-([`internal/identity/jwt.go`](../../internal/identity/jwt.go), `LoadJWTKey`).
-Access tokens have a 30-minute lifetime, but rotating the key invalidates the
-refresh tokens too, so plan for a full re-login.
+key is an RSA private key in PEM form (PKCS#1 or PKCS#8), and the service rejects
+keys smaller than 2048 bits at startup. Access tokens have a 30-minute lifetime,
+but rotating the key invalidates the refresh tokens too, so plan for a full
+re-login.
 
 1. Generate a new 2048-bit (or larger) RSA key as the `openwatch` user, mode
    `0600`:
@@ -139,7 +135,7 @@ refresh tokens too, so plan for a full re-login.
    ```
 
    If the key is missing, unparseable, or under 2048 bits, the service logs
-   `load jwt key failed` and exits — `journalctl -u openwatch` shows the reason.
+   `load jwt key failed` and exits—`journalctl -u openwatch` shows the reason.
 
 4. Confirm users can sign in. Existing tokens are no longer accepted.
 
@@ -150,21 +146,19 @@ forced re-logins.
 ## Rotate the credential DEK
 
 Impact: high. The DEK is a single 32-byte AES-256 key that directly encrypts
-every stored SSH credential and every MFA secret with AES-256-GCM
-([`internal/secretkey/secretkey.go`](../../internal/secretkey/secretkey.go)).
-There is no per-credential wrapped key, so changing the DEK without
-re-encrypting every row makes those secrets permanently unreadable.
+every stored SSH credential and every MFA secret with AES-256-GCM. There is no
+per-credential wrapped key, so changing the DEK without re-encrypting every row
+makes those secrets permanently unreadable.
 
 > **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
 > command. The CLI subcommands are `serve`, `worker`, `migrate`,
-> `create-admin`, and `check-config`
-> ([`cmd/openwatch/main.go`](../../cmd/openwatch/main.go)) — none re-wraps
-> stored secrets. Rotating the DEK in place therefore requires either
+> `create-admin`, and `check-config`—none re-wraps stored secrets. Rotating
+> the DEK in place therefore requires either
 > re-entering the affected secrets by hand or a one-off migration written for
 > your deployment. An online rotation command is roadmap work; until it lands,
 > treat DEK rotation as a manual, planned operation.
 
-### Option A — re-enter secrets (no custom tooling)
+### Option A—re-enter secrets (no custom tooling)
 
 This is the supported path when you have a manageable number of credentials.
 
@@ -189,7 +183,7 @@ This is the supported path when you have a manageable number of credentials.
    be replaced. Keep the old key file until you have confirmed every secret is
    re-entered, in case you need to roll back.
 
-### Option B — offline re-encryption (custom)
+### Option B—offline re-encryption (custom)
 
 For a large credential set, write a one-off program that opens the database,
 decrypts each ciphertext column with the old DEK, re-encrypts it with the new

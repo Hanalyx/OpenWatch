@@ -1,6 +1,6 @@
-# Scanning and Compliance
+# Scanning and compliance
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
@@ -8,7 +8,7 @@ audit exports. Most of these tasks are performed in the web UI.
 
 ---
 
-## How Scanning Works
+## How scanning works
 
 When a scan runs, OpenWatch uses the Kensa compliance engine to connect to the
 target host over SSH, execute each rule's check command, and return a pass/fail
@@ -50,7 +50,7 @@ Key points:
 
 ---
 
-## Available Frameworks
+## Available frameworks
 
 | Framework | Mapping ID | Rules |
 |-----------|------------|-------|
@@ -63,19 +63,19 @@ Key points:
 Framework mappings are carried per-rule as Kensa's normalized `framework_refs`
 (a multi-valued framework_id -> control-ids map, since one rule can satisfy
 several controls within a framework). They are stored on each `host_rule_state`
-row as `framework_refs` JSONB and projected into the lens views at query time --
+row as `framework_refs` JSONB and projected into the lens views at query time—
 there is no separate sync service in the Go rebuild.
 
 ---
 
-## Running a Scan
+## Running a scan
 
 ### From the UI
 
 1. Navigate to **Hosts** and select the host you want to scan.
 2. On the host detail page, click **Run Scan**.
 
-A scan always runs the **full applicable rule corpus** -- you do not pick a
+A scan always runs the **full applicable rule corpus**—you do not pick a
 framework to scan. Frameworks (CIS, STIG, NIST, PCI) are **reporting lenses**
 applied at view time on the Compliance tab: one scan, viewed through any
 framework. The lens bar only offers frameworks compatible with the host's
@@ -86,9 +86,9 @@ OS-neutral frameworks (NIST, PCI, SRG) always appear.
 
 The scan runs in the background. A progress indicator shows the scan status.
 Results appear on the host's compliance tab once the scan completes
-(typically 1--5 minutes).
+(typically 1–5 minutes).
 
-### Automatic Scanning
+### Automatic scanning
 
 Most hosts are scanned automatically by the adaptive scheduler. You do not need
 to trigger scans manually unless you want immediate results. See the
@@ -96,46 +96,46 @@ to trigger scans manually unless you want immediate results. See the
 
 ---
 
-## Reading Scan Results
+## Reading scan results
 
 After a scan completes, the results are displayed on the host detail page under
 the **Compliance** tab.
 
 ![Scan results page with findings table](../images/scanning/scan-results.png)
 
-### What You See
+### What you see
 
-- **Compliance score** -- percentage of rules passing (e.g., 85.0%)
-- **Summary bar** -- pass, fail, error, and skipped counts
-- **Severity breakdown** -- counts by critical, high, medium, low
-- **Findings table** -- sortable, filterable list of all findings
+- **Compliance score**—percentage of rules passing (for example, 85.0%)
+- **Summary bar**—pass, fail, error, and skipped counts
+- **Severity breakdown**—counts by critical, high, medium, low
+- **Findings table**—sortable, filterable list of all findings
 
-### Finding Details
+### Finding details
 
 Click any finding row to expand it. Each finding shows:
 
 | Field | Description |
 |-------|-------------|
-| Rule ID | Kensa rule identifier (e.g., `sshd-disable-root-login`) |
+| Rule ID | Kensa rule identifier (for example, `sshd-disable-root-login`) |
 | Title | Human-readable description |
 | Severity | critical, high, medium, or low |
 | Status | pass, fail, error, or skipped |
 | Detail | Explanation of the check result |
 | Evidence | Command executed, expected value, actual value |
 
-### Filtering Results
+### Filtering results
 
 Use the filter controls above the findings table to narrow results:
 
-- **By severity** -- show only critical and high findings
-- **By status** -- show only failures
-- **By search** -- search rule titles and descriptions
+- **By severity**—show only critical and high findings
+- **By status**—show only failures
+- **By search**—search rule titles and descriptions
 
 ---
 
-## Compliance Posture
+## Compliance posture
 
-### What the Score Means
+### What the score means
 
 The compliance score is the percentage of evaluated rules that passed:
 
@@ -146,7 +146,7 @@ compliance_score = (passed_rules / total_rules) * 100
 A score of 85.0 means 85% of rules passed. Skipped rules are excluded from
 the total.
 
-### Viewing Posture in the Dashboard
+### Viewing posture in the dashboard
 
 Navigate to the **Dashboard** from the sidebar. The posture overview shows:
 
@@ -157,7 +157,7 @@ Navigate to the **Dashboard** from the sidebar. The posture overview shows:
 
 ![Compliance posture dashboard](../images/scanning/posture-dashboard.png)
 
-### Historical Posture
+### Historical posture
 
 OpenWatch captures daily posture snapshots at 00:30 UTC. To view historical
 posture:
@@ -170,13 +170,13 @@ Historical posture queries with specific `as_of` dates require OpenWatch+.
 
 ---
 
-## Drift Detection
+## Drift detection
 
 Drift occurs when a rule's status changes between two points in time. A rule
 that was passing and now fails is a **regression**. A rule that was failing
 and now passes is an **improvement**.
 
-### Viewing Drift in the UI
+### Viewing drift in the UI
 
 1. Navigate to the host detail page.
 2. Select the **Drift** tab.
@@ -186,18 +186,18 @@ and now passes is an **improvement**.
 
 The drift view shows:
 
-- **Score delta** -- how much the compliance score changed
-- **Drift type** -- stable, minor, major, or improvement
-- **Rules improved** and **rules regressed** -- counts with expandable lists
-- **Timeline** -- when each drift event occurred
+- **Score delta**—how much the compliance score changed
+- **Drift type**—stable, minor, major, or improvement
+- **Rules improved** and **rules regressed**—counts with expandable lists
+- **Timeline**—when each drift event occurred
 
-### Field-Level Value Drift
+### Field-level value drift
 
 Enable **Include value drift** to see rules where the underlying configuration
 value changed even though the pass/fail status did not. For example, a password
 minimum length changing from 14 to 12 while both still pass the threshold.
 
-### What to Do When Drift Is Detected
+### What to do when drift is detected
 
 1. Review the regressed rules and their evidence.
 2. Investigate the root cause on the host (configuration change, package update).
@@ -205,16 +205,16 @@ minimum length changing from 14 to 12 while both still pass the threshold.
 
 ---
 
-## Adaptive Scheduling
+## Adaptive scheduling
 
 The compliance scheduler automatically scans hosts at intervals based on their
 compliance state. You do not need to trigger manual scans for routine monitoring.
 
-### How It Works
+### How it works
 
 A host is classified into one of five score bands (plus Unknown for
 never-scanned hosts) after every scan, and the next scan is scheduled from the
-band's interval. The intervals below are the **defaults** -- they are
+band's interval. The intervals below are the **defaults**—they are
 operator-editable per band under **Settings -> Scanning & monitoring ->
 Compliance scanner**, clamped to a 5-minute floor and a 48-hour ceiling.
 
@@ -231,7 +231,7 @@ The maximum interval is 48 hours. No active host goes unscanned longer than
 that. A per-host or fleet-wide maintenance flag pauses scheduled scans without
 affecting on-demand Run Scan.
 
-### Viewing a Host's Schedule
+### Viewing a host's schedule
 
 On the host detail page, the **Scheduling** section shows:
 
@@ -240,33 +240,33 @@ On the host detail page, the **Scheduling** section shows:
 - Compliance state driving the interval
 - Whether the host is in maintenance mode
 
-### Maintenance Mode
+### Maintenance mode
 
 To pause scanning for a host (during planned maintenance):
 
 1. Go to the host detail page.
 2. Click **Maintenance Mode**.
-3. Set the duration (1--168 hours).
+3. Set the duration (1–168 hours).
 4. Click **Enable**.
 
 Maintenance mode expires automatically. You can disable it early from the same page.
 
-### Force Scan
+### Force scan
 
 To trigger an immediate scan outside the normal schedule, click **Force Scan**
 on the host detail page. This bypasses the schedule and runs at highest priority.
 
 ---
 
-## Compliance Exceptions
+## Compliance exceptions
 
 A compliance exception is a documented, operator-approved waiver for a failing
-rule on a host -- accepted risk ("rule X on host Y is accepted because Z, until
+rule on a host—accepted risk ("rule X on host Y is accepted because Z, until
 date D"). Exceptions are governed through a request and approval workflow.
 
 **Overlay model (important):** an exception **never changes a rule's scan
 verdict**. A failing rule with an active exception still shows as failing in the
-raw results and still counts against the raw compliance score -- Kensa's verdict
+raw results and still counts against the raw compliance score—Kensa's verdict
 is authoritative. The exception is a governance annotation that marks the
 failure as accepted risk wherever it surfaces. This keeps the score honest and
 keeps the audit trail showing both "the control failed" and "the failure was
@@ -309,11 +309,11 @@ expiry passes are swept to **expired** automatically.
 
 ---
 
-## Alert Management
+## Alert management
 
 Alerts are generated automatically when scan results meet configured thresholds.
 
-### Alert Categories
+### Alert categories
 
 | Category | Alert Types |
 |----------|-------------|
@@ -322,7 +322,7 @@ Alerts are generated automatically when scan results meet configured thresholds.
 | Exception | Exception expiring, exception expired, exception requested |
 | Drift | Configuration drift, unexpected remediation, mass drift |
 
-### Viewing Alerts
+### Viewing alerts
 
 Navigate to **Alerts** in the sidebar. The alert list shows all active,
 acknowledged, and recently resolved alerts.
@@ -331,11 +331,11 @@ acknowledged, and recently resolved alerts.
 
 Use filters to narrow by:
 
-- **Status** -- active, acknowledged, resolved
-- **Severity** -- critical, high, medium, low
-- **Category** -- compliance, operational, exception, drift
+- **Status**—active, acknowledged, resolved
+- **Severity**—critical, high, medium, low
+- **Category**—compliance, operational, exception, drift
 
-### Alert Lifecycle
+### Alert lifecycle
 
 ```
 Active --> Acknowledged --> Resolved
@@ -345,7 +345,7 @@ Active --> Acknowledged --> Resolved
 - **Acknowledged**: Click **Acknowledge** to indicate you are investigating.
 - **Resolved**: Click **Resolve** after the issue is fixed or accepted.
 
-### Configuring Thresholds
+### Configuring thresholds
 
 Navigate to **Settings > Alert Thresholds** to customize when alerts fire.
 
@@ -360,12 +360,12 @@ Navigate to **Settings > Alert Thresholds** to customize when alerts fire.
 
 ---
 
-## Exporting for Audits
+## Exporting for audits
 
 OpenWatch provides audit query and export tools for generating compliance
 evidence.
 
-### Creating a Saved Query
+### Creating a saved query
 
 1. Navigate to **Compliance > Audit Queries**.
 2. Click **New Query**.
@@ -373,12 +373,12 @@ evidence.
 4. Name the query and set visibility (private or shared).
 5. Click **Save**.
 
-### Previewing Results
+### Previewing results
 
 Before generating a full export, click **Preview** to see a sample of matching
 findings and the total count.
 
-### Generating an Export
+### Generating an export
 
 1. From a saved query, click **Export**.
 2. Choose a format: **CSV**, **JSON**, or **PDF**.
@@ -391,20 +391,20 @@ after 7 days by default.
 
 ---
 
-## What's Next
+## What's next
 
-- [Hosts and Remediation](HOSTS_AND_REMEDIATION.md) -- managing hosts and fixing findings
-- [User Roles](USER_ROLES.md) -- role-based access control
-- [API Guide](API_GUIDE.md) -- REST API for automation and scripting
+- [Hosts and remediation](HOSTS_AND_REMEDIATION.md)—managing hosts and fixing findings
+- [User roles](USER_ROLES.md)—role-based access control
+- [API guide](API_GUIDE.md)—REST API for automation and scripting
 
 ---
 
-## Appendix: API Automation
+## Appendix: API automation
 
 For operators who want to script scanning workflows or integrate with CI/CD
 pipelines, here are the key API endpoints.
 
-### Start a Scan
+### Start a scan
 
 Enqueue an on-demand scan for one host. The scan runs the full Kensa rule corpus
 (frameworks are lenses applied to the results, not a scan parameter). The call
@@ -460,4 +460,4 @@ curl -k "https://localhost:8443/api/v1/audit/events/export?format=csv" \
   -H "Authorization: Bearer $TOKEN" -o audit.csv
 ```
 
-See the [API Guide](API_GUIDE.md) for the complete endpoint reference.
+See the [API guide](API_GUIDE.md) for the complete endpoint reference.

@@ -1,20 +1,20 @@
 # Runbook: disk space issues
 
 **Severity**: P1 - High
-**Last updated**: 2026-06-10
+**Last updated**: 2026-06-26
 **Owner**: Platform engineering
 **Estimated resolution time**: 10-30 minutes
 
 This runbook covers a full or nearly full disk on a host running OpenWatch as a
 native package (single Go binary on systemd) with a PostgreSQL database. There is
-no container runtime, no Redis, and no Celery — OpenWatch is one binary,
+no container runtime, no Redis, and no Celery—OpenWatch is one binary,
 `/usr/bin/openwatch`, that serves the REST API and the embedded UI over HTTPS on
 port `8443`. Background jobs run through a PostgreSQL-native queue, so a full disk
 manifests as PostgreSQL write failures and a failing health probe rather than
 container or volume errors.
 
-For install and configuration layout, see
-[`docs/guides/INSTALLATION.md`](../INSTALLATION.md).
+For install and configuration layout, see the
+[install guide](../INSTALLATION.md).
 
 ---
 
@@ -29,9 +29,9 @@ For install and configuration layout, see
 | `/etc/openwatch` | `root`/`openwatch` | Config, TLS, keys, license | Static |
 
 The OpenWatch binary logs JSON to stdout/stderr, which systemd routes to the
-journal (`StandardOutput=journal`, `StandardError=journal` in
-`packaging/common/openwatch.service`). It does not write its own application log
-files by default, so most disk growth is in PostgreSQL and the journal.
+journal (`StandardOutput=journal`, `StandardError=journal`). It does not write
+its own application log files by default, so most disk growth is in PostgreSQL
+and the journal.
 
 The PostgreSQL data directory location depends on how PostgreSQL was installed
 (for example `/var/lib/pgsql/data` on RPM-based systems or
@@ -114,9 +114,8 @@ LIMIT 15;"
 ```
 
 The tables most likely to be large are `audit_events`, `transactions`,
-`idempotency_keys`, `job_queue`, and the host intelligence tables. These names
-are defined in `internal/db/migrations/`; verify against that directory before
-acting on any specific table.
+`idempotency_keys`, `job_queue`, and the host intelligence tables. Verify the
+table names against your database before acting on any specific table.
 
 ---
 
@@ -142,7 +141,7 @@ To make the cap permanent, set `SystemMaxUse=` in
 
 `VACUUM` reclaims space from dead rows for reuse within the database. `VACUUM
 FULL` returns space to the operating system but takes an exclusive lock on the
-table — run it only in a maintenance window.
+table—run it only in a maintenance window.
 
 ```bash
 # Reuse space within the database (no exclusive lock)
@@ -150,7 +149,7 @@ psql -U openwatch -d openwatch -c "VACUUM (VERBOSE, ANALYZE);"
 ```
 
 If a specific large table needs to return space to the OS (maintenance window
-only — confirm the table exists first):
+only—confirm the table exists first):
 
 ```bash
 psql -U openwatch -d openwatch -c "VACUUM FULL VERBOSE audit_events;"
@@ -164,9 +163,8 @@ disk that is already full, free space with path A or C before attempting it.
 OpenWatch does not ship an automated retention or pruning job today (see
 "Not yet implemented" below). If a table such as `audit_events` has grown beyond
 your retention requirement, delete old rows manually, then vacuum. Confirm the
-column names against the relevant file in `internal/db/migrations/` before
-running a delete, and take a backup first if the data is subject to a compliance
-retention policy.
+column names against your database before running a delete, and take a backup
+first if the data is subject to a compliance retention policy.
 
 ```bash
 # Example only — verify the table and timestamp column exist before running.
@@ -264,7 +262,7 @@ Restart `systemd-journald` after changing it.
 
 Use your existing host monitoring (for example a `node_exporter` filesystem
 alert or a cron check on `df`) to alert before the disk fills. OpenWatch does not
-expose its own filesystem metrics endpoint — see below.
+expose its own filesystem metrics endpoint—see below.
 
 ### Plan database growth
 
@@ -278,7 +276,7 @@ retention planning.
 
 ## Not yet implemented
 
-OpenWatch is currently `0.2.0-rc.5`, a pre-release. The following do not exist in
+OpenWatch is currently `v0.2.0-rc.16`, a pre-release. The following do not exist in
 the current code and must not be relied on:
 
 - **Automated retention / pruning jobs** for `audit_events` or other tables.
@@ -289,5 +287,4 @@ the current code and must not be relied on:
   capacity.
 - **A backup or restore command in the `openwatch` CLI.** Use standard PostgreSQL
   tooling (`pg_dump` / `pg_basebackup`) for backups. The CLI subcommands are
-  `serve`, `worker`, `migrate`, `create-admin`, and `check-config`
-  (see `cmd/openwatch/main.go`).
+  `serve`, `worker`, `migrate`, `create-admin`, and `check-config`.

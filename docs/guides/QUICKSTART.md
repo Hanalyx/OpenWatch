@@ -1,11 +1,11 @@
 # Quickstart guide
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
 running. If it is not, follow
-[docs/guides/INSTALLATION.md](INSTALLATION.md) first, then
+[Installation](INSTALLATION.md) first, then
 return here.
 
 OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves both the REST
@@ -180,7 +180,7 @@ curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/connectivity:chec
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-A failure here means SSH cannot connect — wrong credentials, an unreachable
+A failure here means SSH cannot connect—wrong credentials, an unreachable
 address, or a firewall blocking TCP/22. Fix that before expecting compliance
 results.
 
@@ -237,7 +237,7 @@ The summary counts are integers:
 }
 ```
 
-All-zero counts mean no compliance check has completed against the host yet —
+All-zero counts mean no compliance check has completed against the host yet—
 give the scheduler time, and confirm Step 5 passed.
 
 For a fleet-wide view, the dashboard aggregates across hosts. The backing
@@ -259,10 +259,10 @@ counts to a single framework key.
 
 | Task | Where |
 |------|-------|
-| Full install and configuration reference | [docs/guides/INSTALLATION.md](INSTALLATION.md) |
-| Roles and permissions | docs/engineering/rbac_registry.md |
-| Kensa ↔ OpenWatch boundary | docs/KENSA_OPENWATCH_BOUNDARY.md |
-| API contract (source of truth) | `api/openapi.yaml` (paths under `/api/v1`) |
+| Full install and configuration reference | [Installation](INSTALLATION.md) |
+| Roles and permissions | [User roles](USER_ROLES.md) |
+| Kensa and OpenWatch boundary | the Kensa scanning engine |
+| API contract (source of truth) | the served `/api/v1` OpenAPI document |
 
 ## Troubleshooting
 
@@ -338,7 +338,7 @@ PostgreSQL. Replace `<dsn>` with the value from
 3. Check PostgreSQL data growth and look for table bloat:
    `psql "<dsn>" -c "SELECT pg_size_pretty(pg_database_size(current_database()));"`.
 4. If audit or history tables dominate, apply your retention policy rather than
-   deleting rows ad hoc — these back compliance evidence.
+   deleting rows ad hoc—these back compliance evidence.
 5. After freeing space, confirm the service recovered:
    `systemctl status openwatch` and the health endpoint.
 
@@ -356,8 +356,8 @@ PostgreSQL. Replace `<dsn>` with the value from
    `psql "<dsn>" -c "SELECT status, count(*) FROM job_queue GROUP BY status;"`.
 5. If load is sustained and harmful, lower scheduler pressure via the runtime
    config endpoints (`PUT /api/v1/system/intelligence/config`,
-   `PUT /api/v1/system/discovery/config`) — for example by enabling the
-   maintenance pause — rather than killing the process.
+   `PUT /api/v1/system/discovery/config`)—for example by enabling the
+   maintenance pause—rather than killing the process.
 
 ### Security incident
 

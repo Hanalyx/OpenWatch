@@ -1,15 +1,15 @@
 # Database migration guide
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
 Go binary (`/usr/bin/openwatch`) that serves the REST API and the embedded React
-UI over HTTPS on port 8443. It uses PostgreSQL only — there is no MongoDB, Redis,
+UI over HTTPS on port 8443. It uses PostgreSQL only—there is no MongoDB, Redis,
 Celery, Alembic, or container runtime involved in migrations.
 
-For end-to-end install and configuration, see
-[`docs/guides/INSTALLATION.md`](INSTALLATION.md). This
+For end-to-end install and configuration, see the
+[install guide](INSTALLATION.md). This
 document focuses specifically on the migration mechanism.
 
 ## How migrations work
@@ -21,12 +21,10 @@ in SQL-flavor mode.
 | Aspect | Value |
 |--------|-------|
 | Database | PostgreSQL (UUID primary keys on most tables) |
-| Migration tool | `goose` v3 (SQL flavor), embedded via `go:embed` |
-| Migration directory | `internal/db/migrations/*.sql` |
+| Migration tool | `goose` v3 (SQL flavor), embedded into the binary |
 | File naming | `NNNN_description.sql` (zero-padded ascending integer) |
 | Version table | `goose_db_version` (created and managed by goose) |
-| Applier code | `internal/db/migrations/runner.go` (`Apply`, `Status`) |
-| CLI entry point | `openwatch migrate` (`cmd/openwatch/main.go`, `cmdMigrate`) |
+| CLI entry point | `openwatch migrate` |
 
 Because the SQL files are compiled into the binary, the version of the schema a
 binary expects always travels with that binary. There is no separate migration
@@ -43,10 +41,9 @@ CREATE TABLE example (...);
 DROP TABLE IF EXISTS example;
 ```
 
-The applier (`migrations.Apply`) only ever runs the `Up` direction
-(`goose.UpContext`). The `Down` blocks exist for completeness and local
-development; OpenWatch does not expose a rollback subcommand (see
-[Rollback](#rollback)).
+The applier only ever runs the `Up` direction. The `Down` blocks exist for
+completeness and local development; OpenWatch does not expose a rollback
+subcommand (see [Rollback](#rollback)).
 
 ## Applying migrations in production
 
@@ -71,9 +68,9 @@ When the schema is already current it reports that no migrations were pending
 (the version is unchanged). A failure aborts before changing the version.
 
 Run `openwatch migrate` after every package upgrade and before starting (or
-restarting) the service, so the schema matches the binary. The systemd unit
-(`/usr/lib/systemd/system/openwatch.service`, `ExecStart=/usr/bin/openwatch serve`)
-does not run migrations on boot — `serve` and `migrate` are separate subcommands.
+restarting) the service, so the schema matches the binary. The systemd unit runs
+`openwatch serve` and does not run migrations on boot—`serve` and `migrate` are
+separate subcommands.
 
 A typical upgrade sequence:
 
@@ -99,7 +96,7 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
 
 ## Adding a new migration
 
-1. Create a new file in `internal/db/migrations/` named with the next ascending
+1. Create a new migration file named with the next ascending
    integer, for example `0023_add_scan_findings.sql`. Migration order is driven
    by the filename prefix, not by dates.
 
@@ -126,24 +123,23 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
    - Add indexes for foreign keys and common query columns.
    - Make `Down` reverse `Up` exactly, dropping indexes before tables and using
      `IF EXISTS` guards.
-   - Reference the owning behavioral spec in a comment when one exists (see
-     existing files such as `0012_transaction_log.sql`).
+   - Reference the owning behavioral spec in a comment when one exists, following
+     the convention in existing migration files.
 
 4. Never edit a migration that has already shipped or been applied to a shared
    database. goose records each applied version; changing an applied file does
    not re-run it and leaves environments inconsistent. Add a new migration
    instead.
 
-5. Verify locally:
+5. Verify locally by building the binary, running the database test suite, and
+   applying the migration against a local development PostgreSQL:
 
    ```bash
-   go build ./...
-   go test ./internal/db/...
    openwatch migrate          # against a local dev PostgreSQL
    ```
 
-   The `internal/db/` package includes tests that exercise the embedded
-   migration set; run them before committing.
+   The database test suite exercises the embedded migration set; run it before
+   committing.
 
 ## Rollback
 
@@ -184,7 +180,7 @@ pg_restore --clean --if-exists --dbname "$OPENWATCH_DATABASE_DSN" \
   openwatch_20260610T120000Z.dump
 ```
 
-Run `pg_dump`/`pg_restore` from the host (or a PostgreSQL client package) — there
+Run `pg_dump`/`pg_restore` from the host (or a PostgreSQL client package)—there
 is no container to `exec` into.
 
 ## Troubleshooting
@@ -250,15 +246,13 @@ journalctl -u openwatch -n 50 --no-pager
 
 ## Reference
 
-| Item | Location |
-|------|----------|
-| Migration files | `internal/db/migrations/*.sql` |
-| Applier (`Apply`, `Status`, `List`) | `internal/db/migrations/runner.go`, `embed.go` |
-| `migrate` subcommand | `cmd/openwatch/main.go` (`cmdMigrate`) |
-| Config layering and DSN | `internal/config/`, `docs/guides/INSTALLATION.md` |
-| systemd unit | `packaging/common/openwatch.service` |
-| Install and upgrade flow | `docs/guides/INSTALLATION.md` |
-| Compliance engine boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
+| Item | Reference |
+|------|-----------|
+| Migration files | Embedded in the `openwatch` binary |
+| `migrate` subcommand | `openwatch migrate` |
+| Config layering and DSN | [Install guide](INSTALLATION.md) |
+| systemd unit | `openwatch.service` |
+| Install and upgrade flow | [Install guide](INSTALLATION.md) |
 
 OpenWatch's compliance engine, Kensa, runs SSH-based checks against native YAML
 rules. There is no separate scan-content schema in this

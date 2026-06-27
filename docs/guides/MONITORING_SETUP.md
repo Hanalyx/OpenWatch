@@ -1,6 +1,6 @@
 # OpenWatch monitoring and operations guide
 
-**Last updated**: 2026-06-10
+**Last updated**: 2026-06-26
 
 This guide describes how you monitor a running OpenWatch deployment and how you
 respond to common operational incidents. OpenWatch ships as a single Go binary
@@ -8,8 +8,8 @@ respond to common operational incidents. OpenWatch ships as a single Go binary
 HTTPS on port `8443`, backed by PostgreSQL and managed by systemd. There is no
 container runtime, no separate web tier, and no message broker.
 
-For installation, configuration layering, and first-run setup, see
-`docs/guides/INSTALLATION.md`. This guide does not repeat those steps; it
+For installation, configuration layering, and first-run setup, see the
+[install guide](INSTALLATION.md). This guide does not repeat those steps; it
 focuses on observing the service and running it day to day.
 
 ## Contents
@@ -43,9 +43,7 @@ not ship a Prometheus, Grafana, Jaeger, or exporter stack. See
 ### Health probe
 
 The health endpoint is anonymous and is the right target for an external uptime
-check or a load-balancer probe. It is implemented in
-`internal/server/handlers.go` (`GetHealth`) and pings PostgreSQL with a
-two-second timeout.
+check or a load-balancer probe. It pings PostgreSQL with a two-second timeout.
 
 ```bash
 curl -k https://localhost:8443/api/v1/health
@@ -61,14 +59,14 @@ When the database ping fails, the endpoint returns `503 Service Unavailable`
 with an error envelope. Treat a non-`200` status, or a connection failure, as
 service-down.
 
-The response schema (`status`, `db_connected`, `version`) is defined in
-`api/openapi.yaml` under `HealthResponse`. The current contract reports only a
+The response schema (`status`, `db_connected`, `version`) is defined by the
+`HealthResponse` contract. The current contract reports only a
 binary `healthy`/`degraded` status driven by database reachability.
 
 ### Version metadata
 
 The version endpoint is also anonymous and reports build metadata sourced from
-ldflags and Go build info (`internal/server/handlers.go`, `GetVersion`):
+ldflags and Go build info:
 
 ```bash
 curl -k https://localhost:8443/api/v1/version
@@ -89,10 +87,9 @@ prints from the CLI with `openwatch --version`.
 
 ## 3. Logs via journald
 
-The systemd unit (`packaging/common/openwatch.service`) sends both stdout and
-stderr to the journal. With `format = "json"` in `[logging]` (the packaged
-default in `packaging/common/openwatch.toml`), every line is a structured JSON
-record that carries a correlation ID.
+The systemd unit sends both stdout and stderr to the journal. With
+`format = "json"` in `[logging]` (the packaged default), every line is a
+structured JSON record that carries a correlation ID.
 
 ```bash
 sudo journalctl -u openwatch -f                    # tail live
@@ -110,8 +107,8 @@ sudo journalctl -u openwatch -o cat | jq 'select(.correlation_id == "<id>")'
 
 Set `level = "debug"` in `[logging]` (or pass `--log-level debug`, or set
 `OPENWATCH_LOGGING_LEVEL=debug`) to raise verbosity, then restart the service.
-Log level precedence follows the standard config layering documented in
-`docs/guides/INSTALLATION.md`.
+Log level precedence follows the standard config layering documented in the
+[install guide](INSTALLATION.md).
 
 ## 4. Audit events
 
@@ -128,7 +125,7 @@ curl -k -H "Authorization: Bearer $TOKEN" \
   'https://localhost:8443/api/v1/audit/events'
 ```
 
-The endpoint (`getAuditEvents` in `api/openapi.yaml`) is cursor-paginated. For
+The audit-events endpoint is cursor-paginated. For
 direct inspection during an incident you can also read the table with `psql`:
 
 ```bash
@@ -140,15 +137,12 @@ psql "$OPENWATCH_DATABASE_DSN" -c \
 ```
 
 Indexed columns include `recorded_at`, `action`, `severity`, and
-`(actor_type, actor_id)`, so filtered queries on those fields stay fast. For the
-event taxonomy (action names and severities), see
-`docs/engineering/audit_event_taxonomy.md`.
+`(actor_type, actor_id)`, so filtered queries on those fields stay fast.
 
 ## 5. Fleet and connectivity signals
 
-OpenWatch continuously probes managed hosts (the liveness loop wired in
-`cmd/openwatch/main.go`). These endpoints expose the resulting fleet state and
-require a bearer token:
+OpenWatch continuously probes managed hosts through an in-process liveness loop.
+These endpoints expose the resulting fleet state and require a bearer token:
 
 | Endpoint | Reports |
 |----------|---------|
@@ -162,8 +156,8 @@ curl -k -H "Authorization: Bearer $TOKEN" \
 ```
 
 A rising `unreachable`/`down` count is a useful early signal that either the
-monitored fleet or the OpenWatch host's network path is degrading. The schemas
-(`FleetLiveness`, `ConnectivityBreakdown`) are defined in `api/openapi.yaml`.
+monitored fleet or the OpenWatch host's network path is degrading. The responses
+follow the `FleetLiveness` and `ConnectivityBreakdown` schemas.
 
 ## 6. Service lifecycle
 
@@ -183,7 +177,7 @@ Before restarting after a config change, validate the resolved configuration:
 sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
-Other CLI subcommands (`cmd/openwatch/main.go`): `migrate` applies pending
+Other CLI subcommands: `migrate` applies pending
 database migrations, `create-admin` bootstraps the first admin user, and
 `worker` runs the background scan-job loop. The packaged systemd unit runs only
 `serve`; the in-process schedulers and liveness loop run inside the `serve`
@@ -352,8 +346,8 @@ failures.
    restart. Preserve the journal and a copy of relevant `audit_events` rows
    before you prune anything.
 
-For role and permission definitions referenced by audit `action`/`actor` fields,
-see `docs/engineering/rbac_registry.md`.
+Role and permission definitions are referenced by the audit `action`/`actor`
+fields.
 
 ## 8. Not yet implemented
 
@@ -361,16 +355,16 @@ The following observability capabilities described in earlier (Python-era)
 documentation do not exist in the current Go build. They are recorded here so
 operators do not look for them:
 
-- **Prometheus `/metrics` endpoint** — not exposed. The only health signal is
+- **Prometheus `/metrics` endpoint**—not exposed. The only health signal is
   `GET /api/v1/health`.
 - **Bundled monitoring stack** (Prometheus, Grafana, Jaeger, Alertmanager,
-  node/redis/postgres exporters, cAdvisor) — not shipped. There is no
+  node/redis/postgres exporters, cAdvisor)—not shipped. There is no
   `monitoring/` Compose stack and no container runtime in this architecture.
-- **Distributed tracing** — not implemented. Correlation IDs in the JSON logs
+- **Distributed tracing**—not implemented. Correlation IDs in the JSON logs
   are the current mechanism for following a request across log lines.
 - **Detailed authenticated health endpoints** (per-service, content, history) —
   not implemented. The current health contract is a single binary
   `healthy`/`degraded` status.
 
-If and when metrics or tracing land, this section and the contract in
-`api/openapi.yaml` will be updated together.
+If and when metrics or tracing land, this section and the API contract will be
+updated together.

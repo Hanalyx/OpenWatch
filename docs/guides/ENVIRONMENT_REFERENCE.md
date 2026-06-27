@@ -1,6 +1,6 @@
 # Configuration and environment reference
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This document is the field reference for how you configure the OpenWatch
 binary: the TOML file, the environment-variable overrides, and the on-disk paths
@@ -12,8 +12,8 @@ There is no container runtime, no Redis, no Celery, and no separate web tier to
 configure. The compliance engine is Kensa (SSH-based, native
 YAML rules).
 
-For end-to-end install and first-run steps, see
-[`docs/guides/INSTALLATION.md`](INSTALLATION.md). This page
+For end-to-end install and first-run steps, see the
+[install guide](INSTALLATION.md). This page
 documents only the configuration surface and does not repeat the install flow.
 
 ## Configuration layering
@@ -27,10 +27,9 @@ The binary resolves configuration from four layers. Higher layers win:
 | 3 | TOML file | `/etc/openwatch/openwatch.toml` (override with `--config`) |
 | 4 (lowest) | Built-in defaults | compiled into the binary |
 
-The layering is defined in `internal/config/load.go` and `internal/config/config.go`.
-Only the environment variables listed in `internal/config/load.go` (`envOverrides`)
-are recognized. There is no reflection-based mapping, so an unrecognized
-`OPENWATCH_*` variable has no effect.
+Only the environment variables listed below are recognized. There is no
+reflection-based mapping, so an unrecognized `OPENWATCH_*` variable has no
+effect.
 
 Run `openwatch check-config` to print the resolved configuration (secrets redacted)
 and validate it. Exit code `0` means valid, `1` means invalid.
@@ -59,7 +58,7 @@ variable that overrides each one:
 | `identity` | `credential_key_file` | `/etc/openwatch/keys/credential.key` | `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` |
 
 These are the only configuration keys the binary reads. The values are validated
-by `internal/config/validate.go`.
+at load time.
 
 Example `/etc/openwatch/openwatch.toml`:
 
@@ -143,7 +142,7 @@ DSN. Prefer encoding connection options in the DSN query string
 | `/var/lib/openwatch` | `openwatch` | Service state directory (`ReadWritePaths` in the unit). |
 | `/var/log/openwatch` | `openwatch` | Log directory; journald remains the primary log sink. |
 
-The systemd unit (`packaging/common/openwatch.service`) runs the service as the
+The systemd unit runs the service as the
 `openwatch` user with `ProtectSystem=strict` and writes only to
 `/var/lib/openwatch` and `/var/log/openwatch`. Both `[server].tls_key`,
 `[identity].jwt_private_key`, and `[identity].credential_key_file` must be present
@@ -152,14 +151,14 @@ back to ephemeral keys.
 
 ## CLI subcommands
 
-The binary's lifecycle is driven through these subcommands
-(`cmd/openwatch/main.go`). All of them honor the same configuration layering.
+The binary's lifecycle is driven through these subcommands. All of them honor the
+same configuration layering.
 
 | Subcommand | Purpose |
 |------------|---------|
 | `serve` | Run the HTTPS API + UI server. This is the default when no subcommand is given, which is what the systemd unit invokes. |
 | `worker` | Run the scan-job claimer/dispatcher loop against the PostgreSQL-native queue. |
-| `migrate` | Apply pending database migrations (`internal/db/migrations/`) and print the resulting version. |
+| `migrate` | Apply pending database migrations and print the resulting version. |
 | `create-admin` | Create the first admin user. Requires `--username` and `--email`; reads the password from `--password` or stdin. |
 | `check-config` | Print the resolved, secret-redacted config and validate it. |
 
@@ -190,10 +189,8 @@ and per-request events carry a correlation ID. Health check:
 curl -k https://localhost:8443/api/v1/health
 ```
 
-The API is served under `/api/v1/`; `api/openapi.yaml` is the contract
-source of truth. Role definitions live in
-`docs/engineering/rbac_registry.md` and
-`internal/auth/permissions.yaml`.
+The API is served under `/api/v1/`. Each endpoint has a required permission and
+audit events defined by the API contract.
 
 ## Operational runbooks
 
@@ -324,8 +321,9 @@ A full disk most often manifests as failed writes to `/var/lib/openwatch`,
 
 3. Rotate credentials. If key material may be exposed, rotate the database
    password (update `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`), and
-   rotate the JWT signing key and credential key only with a planned procedure —
-   replacing `credential.key` makes previously encrypted SSH credentials and MFA
+   rotate the JWT signing key and credential key only with a planned
+   procedure—replacing `credential.key` makes previously encrypted SSH
+   credentials and MFA
    secrets unreadable, so re-enrollment is required.
 
 4. Verify file ownership and modes have not drifted:
@@ -350,7 +348,7 @@ present in the current Go binary. Do not configure them; they have no effect.
 
 | Capability | Status |
 |------------|--------|
-| Prometheus `/metrics` endpoint | Not implemented. Audit counters exist internally (`internal/audit/emit.go`) but are not exposed over HTTP. Use journald metrics and `pg_stat_*` views for observability. |
+| Prometheus `/metrics` endpoint | Not implemented. Audit counters exist internally but are not exposed over HTTP. Use journald metrics and `pg_stat_*` views for observability. |
 | Redis / Celery configuration | Removed. Background jobs use a PostgreSQL-native queue (`SKIP LOCKED`); there is nothing to configure. |
 | MongoDB configuration | Removed. OpenWatch is PostgreSQL-only. |
 | Container-runtime / docker-compose variables | Removed. The service is a native binary under systemd. |

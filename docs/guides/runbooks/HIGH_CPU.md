@@ -1,7 +1,7 @@
 # Runbook: high CPU usage
 
 **Severity**: P2 - medium
-**Last updated**: 2026-06-10
+**Last updated**: 2026-06-26
 **Owner**: Platform Engineering
 **Estimated resolution time**: 10-45 minutes
 
@@ -20,9 +20,8 @@ This runbook covers the three processes that can saturate CPU on an OpenWatch ho
 | `openwatch worker` | Kensa SSH compliance checks running against hosts |
 | `postgres` | Expensive queries, missing indexes, autovacuum on large tables |
 
-For install and configuration details, see
-[`docs/guides/INSTALLATION.md`](../INSTALLATION.md). For the
-Kensa boundary, see `docs/KENSA_OPENWATCH_BOUNDARY.md`.
+For install and configuration details, see the
+[install guide](../INSTALLATION.md).
 
 ---
 
@@ -35,7 +34,7 @@ Kensa boundary, see `docs/KENSA_OPENWATCH_BOUNDARY.md`.
 
 > Note: OpenWatch does not currently expose a Prometheus `/metrics` endpoint.
 > The only in-process metrics surfaced over the API are connectivity-monitor
-> counters under `/api/v1/system/connectivity` (see `api/openapi.yaml`). CPU
+> counters under `/api/v1/system/connectivity`. CPU
 > diagnosis relies on host tools (`top`, `mpstat`) and `journalctl`, not a
 > metrics scrape. A metrics/observability endpoint is not yet implemented.
 
@@ -108,8 +107,7 @@ ORDER BY status;
 The `job_queue` table holds all background jobs (`status` is one of `pending`,
 `processing`, `completed`, `failed`; `job_type` distinguishes scan jobs from other
 work). A growing `processing` count with stale `locked_at` timestamps indicates work
-that is not draining. The schema is defined in
-`internal/db/migrations/0003_job_queue.sql`.
+that is not draining.
 
 The worker serializes work per host via a PostgreSQL advisory lock
 (`pg_advisory_xact_lock`), so two scans against the same host cannot run at once.
@@ -176,7 +174,7 @@ LIMIT 10;
 
 A table with a high `seq_scan` count and a large row count is a candidate for an
 added index. Do not add indexes ad hoc in production; raise the finding so the
-schema change lands as a migration in `internal/db/migrations/`.
+schema change lands as a migration.
 
 ### Path B: tune the database connection pool
 
@@ -218,8 +216,7 @@ curl -sk -X PUT https://localhost:8443/api/v1/system/discovery/config \
 ```
 
 > These endpoints require an authenticated token with the appropriate role. Confirm
-> the exact request body and required permission against `api/openapi.yaml` and
-> `docs/engineering/rbac_registry.md` before use.
+> the exact request body and required permission against the API contract before use.
 > The schedulers log a warning at startup when paused.
 
 ### Path D: slow the worker poll loop
@@ -325,8 +322,7 @@ Information to include when escalating:
 - **Scheduler tuning**: Keep liveness, intelligence, and discovery intervals
   reasonable for your fleet size via the `/api/v1/system/*/config` endpoints.
 - **Index review**: When a query is slow, profile it with `EXPLAIN ANALYZE` and land
-  any new index as a migration in `internal/db/migrations/` rather than hand-editing
-  production.
+  any new index as a migration rather than hand-editing production.
 - **Worker placement**: For sustained high scan demand, run the `openwatch worker`
   process on a host with adequate CPU; the per-host advisory lock prevents duplicate
   work, so the lever is total scan concurrency, not a single tunable.

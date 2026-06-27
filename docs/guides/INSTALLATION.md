@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
@@ -10,7 +10,7 @@ first admin user, start the service, and sign in to the web UI.
 
 Installing the package gives you a single `systemd`-managed service that serves
 both the REST API and the web UI over HTTPS on port 8443. One binary contains
-everything — the API, the embedded React UI, and the Kensa compliance engine; no
+everything—the API, the embedded React UI, and the Kensa compliance engine; no
 separate web tier, no container runtime, no external cache.
 
 After the steps below you have:
@@ -48,7 +48,7 @@ On a host that already runs PostgreSQL, this takes about five minutes.
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
 - **Disk:** 500 MB for the binary plus database growth sized to your retention.
 - **PostgreSQL:** 14 or newer. The package depends on the PostgreSQL client/server
-  but does **not** create a database — you do that in Step 2.
+  but does **not** create a database—you do that in Step 2.
 - **Network:**
   - TCP/8443 inbound for the API and UI.
   - TCP/22 outbound from this host to every managed host (Kensa scans over SSH).
@@ -58,14 +58,14 @@ On a host that already runs PostgreSQL, this takes about five minutes.
 > Download the `.rpm`/`.deb`, the `SHA256SUMS`, `SHA256SUMS.asc`, and `KEYS`
 > from the GitHub release. To verify authenticity before installing:
 > `gpg --import KEYS && gpg --verify SHA256SUMS.asc SHA256SUMS`, then
-> `sha256sum -c SHA256SUMS`. RPMs are also signed in-header — import `KEYS`
+> `sha256sum -c SHA256SUMS`. RPMs are also signed in-header—import `KEYS`
 > with `rpm --import KEYS` and check with `rpm -K openwatch-*.rpm`.
 
 ---
 
 ## Install on RHEL family (RPM)
 
-### Step 1 — Install PostgreSQL
+### Step 1—Install PostgreSQL
 
 ```bash
 sudo dnf install -y postgresql-server postgresql-contrib
@@ -73,7 +73,7 @@ sudo postgresql-setup --initdb
 sudo systemctl enable --now postgresql
 ```
 
-### Step 2 — Provision the database
+### Step 2—Provision the database
 
 Create the role and database:
 
@@ -98,17 +98,17 @@ PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the packages
+### Step 3—Install the packages
 
 ```bash
 sudo dnf install -y ./openwatch-*.x86_64.rpm ./kensa-rules-*.noarch.rpm
 ```
 
 Install **both** files in one transaction. `openwatch` declares a hard
-dependency on `kensa-rules` — the rule corpus the scan engine loads from
+dependency on `kensa-rules`—the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (e.g. `0.6.0`), independent of the
+and versioned on the Kensa content line (for example `0.6.0`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
@@ -125,9 +125,9 @@ packages:
    `/etc/openwatch/keys/credential.key` (AES-256 credential DEK). This is
    generate-if-absent: a reinstall or upgrade never overwrites existing keys
    (regenerating them would invalidate sessions and make stored SSH/MFA
-   secrets undecryptable). The server does **not** auto-generate these — it
-   exits if they are missing — so the package lays them down at install time.
-4. Reloads `systemd`. It does **not** start the service — you do that in Step 7,
+   secrets undecryptable). The server does **not** auto-generate these—it
+   exits if they are missing—so the package lays them down at install time.
+4. Reloads `systemd`. It does **not** start the service—you do that in Step 7,
    after the database and admin user exist.
 
 Confirm the install:
@@ -137,7 +137,7 @@ rpm -q openwatch
 openwatch --version
 ```
 
-### Step 4 — Configure the database secret
+### Step 4—Configure the database secret
 
 The service reads its database connection string from
 `/etc/openwatch/secrets.env` so the password stays out of the world-readable
@@ -154,7 +154,7 @@ sudo chmod 0640 /etc/openwatch/secrets.env
 > Use `sslmode=require` (or stronger) for any PostgreSQL that is not on the
 > loopback interface.
 
-### Step 5 — Run database migrations
+### Step 5—Run database migrations
 
 This creates the schema (hosts, scans, transactions, audit events, the job
 queue, and more). Run it as the `openwatch` user with the same DSN the service
@@ -168,7 +168,7 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 The command applies every pending migration and reports the version it reached.
 Re-running it when the schema is current is a safe no-op.
 
-### Step 6 — Create the first admin user
+### Step 6—Create the first admin user
 
 This is the account you sign in with. The admin password policy requires **at
 least 15 characters**; pick a single line with no spaces.
@@ -193,14 +193,14 @@ printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secre
 On success it prints `created admin user admin (admin@example.com) with id=…` and
 assigns the built-in `admin` role.
 
-### Step 7 — Start the service
+### Step 7—Start the service
 
 ```bash
 sudo systemctl enable --now openwatch
 sudo systemctl status openwatch
 ```
 
-### Step 8 — Sign in
+### Step 8—Sign in
 
 Confirm the API is healthy, then open the UI:
 
@@ -210,8 +210,8 @@ curl -k https://localhost:8443/api/v1/health
 ```
 
 In a browser, go to **`https://<host>:8443/`**. The browser warns about the
-self-signed cert — accept it (or install a CA cert first; see
-[Replace the demo TLS cert](#replace-the-demo-tls-cert)) — then sign in with the
+self-signed cert—accept it (or install a CA cert first; see
+[Replace the demo TLS cert](#replace-the-demo-tls-cert))—then sign in with the
 admin username and password from Step 6.
 
 The `-k` flag and the browser warning both come from the bundled self-signed
@@ -223,7 +223,7 @@ cert. Replace it before any non-loopback use.
 
 The flow is identical to the RPM path; only Steps 1–3 differ.
 
-### Step 1 — Install PostgreSQL
+### Step 1—Install PostgreSQL
 
 ```bash
 sudo apt update
@@ -231,7 +231,7 @@ sudo apt install -y postgresql postgresql-contrib
 sudo systemctl enable --now postgresql
 ```
 
-### Step 2 — Provision the database
+### Step 2—Provision the database
 
 ```bash
 sudo -u postgres psql <<'SQL'
@@ -249,13 +249,13 @@ PGPASSWORD='replace-with-a-strong-password' \
   psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
-### Step 3 — Install the packages
+### Step 3—Install the packages
 
 ```bash
 sudo apt install -y ./openwatch_*_amd64.deb ./kensa-rules_*_all.deb
 ```
 
-Install **both** files together — `openwatch` `Depends` on `kensa-rules` (the
+Install **both** files together—`openwatch` `Depends` on `kensa-rules` (the
 scan engine's rule corpus at `/usr/share/kensa/rules`), so installing the
 openwatch `.deb` alone fails the dependency check by design. The `kensa-rules`
 package is `Architecture: all` (one file for every arch). Use the openwatch
@@ -271,7 +271,7 @@ openwatch --version
 
 ### Steps 4–8
 
-Follow Steps 4 through 8 from the RPM section above — configure
+Follow Steps 4 through 8 from the RPM section above—configure
 `/etc/openwatch/secrets.env`, run `openwatch migrate`, run
 `openwatch create-admin`, `systemctl enable --now openwatch`, and sign in at
 `https://<host>:8443/`. The commands are the same.
@@ -290,9 +290,8 @@ Once you are signed in:
    exceptions over time.
 4. **Add more administrators or scoped roles** from Settings as needed.
 
-For the day-to-day workflows, see the operator guides under
-[`docs/guides/`](../guides/) (hosts and remediation, scanning and compliance,
-user roles). For the API, see [`api/openapi.yaml`](../../api/openapi.yaml).
+For the day-to-day workflows, see [the operator guides](../guides/) (hosts and
+remediation, scanning and compliance, user roles).
 
 ---
 
@@ -423,7 +422,7 @@ sudo dnf install -y ./openwatch-<new>.x86_64.rpm ./kensa-rules-<new>.noarch.rpm
 sudo apt install -y ./openwatch_<new>_amd64.deb ./kensa-rules_<new>_all.deb
 ```
 
-On an upgrade (and only on an upgrade — never on a fresh install) the package
+On an upgrade (and only on an upgrade—never on a fresh install) the package
 post-install step runs the upgrade helper, which:
 
 1. Checks the database is reachable. If it is not, it leaves the service alone,
@@ -433,7 +432,7 @@ post-install step runs the upgrade helper, which:
    schema.
 3. Takes a full `pg_dump` restore point into `/var/lib/openwatch/backups/`
    before touching the schema. If the backup fails, it aborts **without**
-   migrating (fail-closed) — your data is untouched.
+   migrating (fail-closed)—your data is untouched.
 4. Applies any pending migrations, then starts the service again.
 
 If a migration fails, the helper leaves the service **stopped** and exits
@@ -461,8 +460,7 @@ most recent one** regardless of age.
 > Scope: this automates the OpenWatch **application** schema only. A PostgreSQL
 > **engine** major-version upgrade (for example PostgreSQL 15 -> 16) is a
 > separate, operator-supervised `pg_upgrade` and is never triggered from a
-> package scriptlet. See `specs/release/upgrade.spec.yaml` for the full
-> contract.
+> package scriptlet.
 
 ---
 
@@ -509,12 +507,11 @@ SQL
 
 ## Where to go next
 
-- **Operator guides:** [`docs/guides/`](../guides/) — hosts and remediation,
+- **Operator guides:** [the operator guides](../guides/)—hosts and remediation,
   scanning and compliance, user roles.
-- **API contract:** [`api/openapi.yaml`](../../api/openapi.yaml) — every endpoint
-  with its required permission, license gate, and audit events.
-- **Behavioral specs:** [`specs/`](../../specs/).
-- **Release process:** [`docs/runbooks/RELEASING.md`](../runbooks/RELEASING.md).
+- **API contract:** every endpoint with its required permission, license gate,
+  and audit events.
+- **Release process:** `docs/runbooks/RELEASING.md`.
 
 ---
 
