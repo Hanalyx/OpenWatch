@@ -431,6 +431,10 @@ func mintSignedAlertThresholds(t *testing.T, version string, critBelow, highBelo
 	if !ok {
 		t.Fatalf("not ed25519 priv key")
 	}
+	// The server verifies against the real embedded key, but this envelope is
+	// signed with the testdata key — install it as the active verifier (after
+	// InitKeys above, restored on cleanup). Embedded key asserted real by AC-13.
+	t.Cleanup(policy.SetVerificationKeyForTesting(priv.Public().(ed25519.PublicKey)))
 	env := policy.Envelope{
 		PolicyType: policy.TypeAlertThresholds,
 		Version:    version,

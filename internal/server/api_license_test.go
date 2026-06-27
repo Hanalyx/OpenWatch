@@ -39,6 +39,10 @@ func mintTestLicenseJWT(t *testing.T, features []string) string {
 	if !ok {
 		t.Fatalf("not ed25519 key: %T", keyAny)
 	}
+	// The server verifies against the real embedded key, but this JWT is signed
+	// with the testdata key — install it as the active verifier (restored on
+	// cleanup). The embedded key is asserted real by license AC-14's guard test.
+	t.Cleanup(license.SetVerificationKeyForTesting(priv.Public().(ed25519.PublicKey)))
 	now := time.Now().Add(-1 * time.Minute)
 	mc := jwt.MapClaims{
 		"iss":         "hanalyx-openwatch-licensing",

@@ -49,6 +49,11 @@ func setupKeys(t *testing.T) {
 	if err := InitKeys(); err != nil {
 		t.Fatalf("InitKeys: %v", err)
 	}
+	// The binary embeds the real offline admin key, but these tests sign with
+	// the testdata key — install it as the active verifier (restored on
+	// cleanup). The embedded key is asserted real by TestEmbeddedPolicyKey_NotTestKey.
+	testPub := loadTestPrivKey(t).Public().(ed25519.PublicKey)
+	t.Cleanup(SetVerificationKeyForTesting(testPub))
 }
 
 // signAlertThresholds builds a signed policy envelope for the
