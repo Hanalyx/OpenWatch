@@ -361,7 +361,7 @@ Include when escalating:
 
 ## Not yet implemented
 
-OpenWatch is currently `v0.2.0-rc.16`, a pre-release. The following do not exist in
+OpenWatch is currently `v0.2.0-rc.17`, a pre-release. The following do not exist in
 the current code and must not be relied on in this runbook:
 
 - **A packaged systemd unit for the scan worker.** Only `openwatch.service`
