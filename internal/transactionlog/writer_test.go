@@ -29,6 +29,8 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/internalrace"
+	"github.com/Hanalyx/openwatch/internal/perftest"
 )
 
 // ---------------------------------------------------------------------
@@ -473,8 +475,12 @@ func TestApply_1000Rules_Under2Seconds(t *testing.T) {
 		}
 		elapsed := time.Since(start)
 
-		if elapsed > 2*time.Second {
-			t.Errorf("1000-rule Apply took %v, budget 2s", elapsed)
+		// Non-gating budget: a slow p99 under -race / CI load emits a note
+		// rather than failing the build (matches the other perf tests). The
+		// race multiplier absorbs the instrumentation slowdown.
+		budget := 2 * time.Second * time.Duration(internalrace.Multiplier())
+		if elapsed > budget {
+			perftest.Budgetf(t, "1000-rule Apply took %v, budget %v", elapsed, budget)
 		}
 		t.Logf("1000-rule Apply: %v", elapsed)
 
