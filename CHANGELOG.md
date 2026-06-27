@@ -10,6 +10,38 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Bumped `js-yaml` to `>= 4.2.0` (CVE-2026-53550, a quadratic-complexity
+  denial-of-service in YAML merge-key handling). Dev-only transitive
+  dependency; not in the shipped UI bundle.
+
+### Changed
+
+- Rewrote the operator guides under `docs/guides/` for public publication at
+  hanalyx.com/docs: corrected truthfulness defects (rule count is 538;
+  FIPS is the Go-native FIPS 140-3 module, not an OpenSSL provider; removed a
+  non-shipped Prometheus-metrics claim and a stale multi-container deployment
+  description), removed internal source-code references and links, and applied
+  the developer documentation style guide.
+- The repository now tracks only operator-facing documentation
+  (`docs/guides/`, `docs/runbooks/`, `docs/images/`, `docs/README.md`).
+  Internal engineering and planning documents are kept local.
+- Moved the GPG release-signing public keyring to `security/KEYS`. Operator
+  verification is unchanged: import the `KEYS` file from the release with
+  `gpg --import KEYS`.
+
+### Fixed
+
+- The local dev launcher (`scripts/openwatch.sh`) now injects the version at
+  build time, so a development build reports its real version instead of `dev`.
+
+### Removed
+
+- Removed leftover Python/container-era helper scripts and dead `.gitignore`
+  and pre-commit entries. OpenWatch is Go-native; the Python backend was
+  archived out of the repository on 2026-06-05.
+
 ---
 
 ## [0.2.0-rc.16] Eyrie — 2026-06-25
