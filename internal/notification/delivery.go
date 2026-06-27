@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/alertrouter"
+	"github.com/Hanalyx/openwatch/internal/httpclient"
 	"github.com/google/uuid"
 )
 
@@ -31,15 +32,13 @@ func isBlockedHost(host string) bool {
 }
 
 // isBlockedIP reports whether ip is in a range an operator-supplied
-// webhook must not reach (SSRF). Covers loopback, RFC1918 private,
-// link-local (incl. the 169.254.169.254 cloud-metadata endpoint), and
+// webhook must not reach (SSRF). Delegates to the shared guard
+// (httpclient.BlockedIP) so the SSRF range list is a single source of truth
+// across notifications and the OIDC flow — covers loopback, RFC1918, RFC6598
+// CGNAT, link-local (incl. the 169.254.169.254 cloud-metadata endpoint), and
 // the unspecified address.
 func isBlockedIP(ip net.IP) bool {
-	return ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified()
+	return httpclient.BlockedIP(ip)
 }
 
 // ssrfControl runs after DNS resolution with the concrete dial address;

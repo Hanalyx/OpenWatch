@@ -26,7 +26,12 @@ type httpDoer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-func defaultHTTP() httpDoer { return httpclient.NewClient() }
+// defaultHTTP returns the SSRF-guarded outbound client. Discovery, token,
+// and JWKS URLs come from IdP-controlled metadata, so the client refuses to
+// dial loopback/private/CGNAT/link-local space (incl. the cloud-metadata
+// endpoint) — SEC-H2. Tests inject their own client via WithHTTP (their
+// httptest server is on loopback, which the guard would otherwise block).
+func defaultHTTP() httpDoer { return httpclient.NewGuardedClient(30 * time.Second) }
 
 // discoveryDoc is the subset of the OIDC discovery document we use.
 type discoveryDoc struct {
