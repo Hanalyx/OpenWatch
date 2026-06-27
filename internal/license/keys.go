@@ -68,3 +68,18 @@ func parsePEMPublicKey(path string) (ed25519.PublicKey, error) {
 	}
 	return ed, nil
 }
+
+// SetVerificationKeyForTesting installs pub as the sole active license
+// verification key and returns a function that restores the prior keyring.
+//
+// It exists so tests (including in dependent packages such as internal/server)
+// can verify JWTs signed with the testdata key while the shipped binary embeds
+// the real, offline-generated key. internal/-scoped; never used on a production
+// code path. That the embedded trust anchor is NOT the testdata key is asserted
+// by TestEmbeddedKey_NotTestKey (system-license-validation AC-14).
+func SetVerificationKeyForTesting(pub ed25519.PublicKey) (restore func()) {
+	_ = Init()
+	prev := activeKeyring()
+	setKeyring(&publicKeyRing{current: pub})
+	return func() { setKeyring(prev) }
+}
