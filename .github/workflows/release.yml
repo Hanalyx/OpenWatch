@@ -207,4 +207,4 @@ jobs:
             dist/SHA256SUMS.asc
             dist/SHA256SUMS.cosign.sig
             dist/*.cdx.json
-            KEYS
+            security/KEYS

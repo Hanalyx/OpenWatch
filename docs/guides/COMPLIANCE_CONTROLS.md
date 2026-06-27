@@ -1,10 +1,10 @@
-# Compliance Control Mapping
+# Compliance control mapping
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
-## Framework Coverage
+## Framework coverage
 
 | Framework | Controls Mapped | Coverage |
 |-----------|----------------|----------|
@@ -14,77 +14,77 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | FedRAMP Moderate | 42 | Inherited from NIST |
 | ISO 27001:2022 | 15 | Annex A controls |
 
-## NIST SP 800-53 Control Mapping
+## NIST SP 800-53 control mapping
 
-### Access Control (AC)
-
-| Control | Title | OpenWatch Implementation | Evidence |
-|---------|-------|-------------------------|----------|
-| AC-2 | Account Management | User CRUD with RBAC (5 roles: viewer, auditor, ops_lead, security_admin, admin) | `internal/users/`, user audit events |
-| AC-3 | Access Enforcement | Role-based permission checks on each route | `internal/auth/`, generated permission registry |
-| AC-6 | Least Privilege | Five built-in roles (least-privilege viewer baseline) | `internal/auth/roles.gen.go` |
-| AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `internal/server/` middleware |
-| AC-8 | System Use Notification | Configurable login banner | Frontend login page |
-| AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | `internal/systemconfig/` (session-timeout) |
-| AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | `internal/auth/` |
-| AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | `internal/ssh/` |
-
-### Audit and Accountability (AU)
+### Access control (AC)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| AU-2 | Event Logging | Structured audit events for auth/scan/admin actions | `internal/audit/` |
-| AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome | `internal/audit/` |
-| AU-6 | Audit Record Review | Audit query API (`/api/v1/audit/events`) | `internal/audit/`, `api/openapi.yaml` |
-| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | `audit_events` table (`internal/db/migrations/`) |
-| AU-12 | Audit Record Generation | API routes generate audit events | `internal/server/`, `internal/audit/` |
+| AC-2 | Account Management | User CRUD with RBAC (5 roles: viewer, auditor, ops_lead, security_admin, admin) | User list from the Users API; user audit events |
+| AC-3 | Access Enforcement | Role-based permission checks on each route | `403` denials in the audit log; permission registry served by the API |
+| AC-6 | Least Privilege | Five built-in roles (least-privilege viewer baseline) | Role list from `/api/v1/roles` |
+| AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `429` responses with `Retry-After`; rate-limit denials in the audit log |
+| AC-8 | System Use Notification | Configurable login banner | Banner shown on the login page |
+| AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | Session-timeout value in the running configuration |
+| AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | Token expiry observed on the API; logout audit events |
+| AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | Host-key validation behavior on connect |
 
-### Configuration Management (CM)
-
-| Control | Title | OpenWatch Implementation | Evidence |
-|---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (338 native YAML rules) |
-| CM-3 | Configuration Change Control | SQL migration tracking, git version control | `internal/db/migrations/` (run via `openwatch migrate`) |
-| CM-6 | Configuration Settings | Configuration validation at startup | `internal/config/`, `openwatch check-config` |
-| CM-8 | System Component Inventory | Host management with discovery and metadata | `internal/host/`, `internal/intelligence/` |
-
-### Identification and Authentication (IA)
+### Audit and accountability (AU)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| IA-2 | Identification and Authentication | Session cookie and JWT auth with username/password | `internal/auth/` |
-| IA-2(1) | MFA for Privileged Accounts | TOTP-based MFA with backup codes | `internal/auth/` |
-| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 8-char minimum (15 for admin) | `internal/users/` |
-| IA-5(1) | Password-Based Authentication | Complexity requirements (upper, lower, digit, special) | `internal/auth/` (password policy) |
+| AU-2 | Event Logging | Structured audit events for auth/scan/admin actions | Audit events from `/api/v1/audit/events` |
+| AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome | Fields in each record from `/api/v1/audit/events` |
+| AU-6 | Audit Record Review | Audit query API (`/api/v1/audit/events`) | Query results from `/api/v1/audit/events` |
+| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | Append-only `audit_events` table in the database |
+| AU-12 | Audit Record Generation | API routes generate audit events | Events emitted per action in the audit log |
 
-### Risk Assessment (RA)
-
-| Control | Title | OpenWatch Implementation | Evidence |
-|---------|-------|-------------------------|----------|
-| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Kensa | `internal/kensa/` |
-| RA-5(2) | Update Vulnerabilities | Kensa rule updates via rule sync | `internal/kensa/` |
-
-### System and Communications Protection (SC)
+### Configuration management (CM)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| SC-8 | Transmission Confidentiality | TLS 1.2/1.3 for all connections | `internal/server/` (HTTPS listener) |
-| SC-8(1) | Cryptographic Protection | FIPS-approved cipher suites | `internal/config/` |
-| SC-10 | Network Disconnect | Configurable session timeout | `internal/systemconfig/` |
-| SC-12 | Cryptographic Key Establishment | AES-256-GCM with environment-sourced keys | `internal/secretkey/`, `internal/credential/` |
-| SC-13 | Cryptographic Protection | FIPS via OpenSSL 3.x FIPS provider | `internal/config/` |
-| SC-23 | Session Authenticity | Session cookie plus JWT, HttpOnly cookies | `internal/auth/` |
-| SC-28 | Protection of Information at Rest | AES-256-GCM encryption for credentials | `internal/credential/`, `internal/secretkey/` |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (538 native YAML rules); scan results |
+| CM-3 | Configuration Change Control | Database migration tracking, version control | Migration version reported by `openwatch migrate` |
+| CM-6 | Configuration Settings | Configuration validation at startup | Output of `openwatch check-config` |
+| CM-8 | System Component Inventory | Host management with discovery and metadata | Host list and collected system info from the API |
 
-### System and Information Integrity (SI)
+### Identification and authentication (IA)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| SI-2 | Flaw Remediation | Single Go binary built from a maintained Go toolchain | `go.mod`, native RPM/DEB packages |
-| SI-4 | System Monitoring | Health checks and fleet monitoring endpoints | `/api/v1/health`, `internal/liveness/` |
-| SI-10 | Information Input Validation | Request validation at the API boundary, parameterized SQL | `internal/server/`, `sqlc`-generated queries |
+| IA-2 | Identification and Authentication | Session cookie and JWT auth with username/password | Login behavior at `/api/v1/auth/login`; auth audit events |
+| IA-2(1) | MFA for Privileged Accounts | TOTP-based MFA with backup codes | MFA enrollment status per user; MFA audit events |
+| IA-5 | Authenticator Management | Argon2id hashing (64MB, 3 iterations), 8-char minimum (15 for admin) | Password policy enforced at user creation |
+| IA-5(1) | Password-Based Authentication | Complexity requirements (upper, lower, digit, special) | Password policy enforced at user creation |
 
-## CIS Controls v8 Mapping
+### Risk assessment (RA)
+
+| Control | Title | OpenWatch Implementation | Evidence |
+|---------|-------|-------------------------|----------|
+| RA-5 | Vulnerability Monitoring | Automated compliance scanning via Kensa | Scan results and posture trend from the API |
+| RA-5(2) | Update Vulnerabilities | Kensa rule updates via rule sync | Rule corpus version in the rule browser |
+
+### System and communications protection (SC)
+
+| Control | Title | OpenWatch Implementation | Evidence |
+|---------|-------|-------------------------|----------|
+| SC-8 | Transmission Confidentiality | TLS 1.2/1.3 for all connections | HTTPS-only listener on port 8443 |
+| SC-8(1) | Cryptographic Protection | FIPS-approved cipher suites | FIPS mode reported by `openwatch --version` |
+| SC-10 | Network Disconnect | Configurable session timeout | Session-timeout value in the running configuration |
+| SC-12 | Cryptographic Key Establishment | AES-256-GCM with environment-sourced keys | Key files under `/etc/openwatch/keys/` |
+| SC-13 | Cryptographic Protection | FIPS via the Go-native FIPS module | FIPS mode reported by `openwatch --version` |
+| SC-23 | Session Authenticity | Session cookie plus JWT, HttpOnly cookies | Cookie attributes observed on the API |
+| SC-28 | Protection of Information at Rest | AES-256-GCM encryption for credentials | Secrets redacted in API responses; encrypted at rest in the database |
+
+### System and information integrity (SI)
+
+| Control | Title | OpenWatch Implementation | Evidence |
+|---------|-------|-------------------------|----------|
+| SI-2 | Flaw Remediation | Single Go binary built from a maintained Go toolchain | Build metadata from `openwatch --version`; native RPM/DEB packages |
+| SI-4 | System Monitoring | Health checks and fleet monitoring endpoints | `/api/v1/health` and fleet liveness responses |
+| SI-10 | Information Input Validation | Request validation at the API boundary, parameterized SQL | `400` validation errors on malformed requests |
+
+## CIS Controls v8 mapping
 
 | CIS Control | Title | OpenWatch Implementation |
 |-------------|-------|-------------------------|
@@ -102,12 +102,12 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 8.11 | Audit Log Retention | Configurable retention, export to CSV/JSON/PDF |
 | 9.1 | Email Security | SMTP TLS for notifications |
 | 10.1 | Anti-Malware | File upload validation, no executable uploads |
-| 13.1 | Network Monitoring | Health check endpoints, Prometheus metrics |
+| 13.1 | Network Monitoring | Health check endpoints, audit-event queries (no Prometheus endpoint) |
 | 16.1 | Application Security | Request validation at the API boundary, parameterized SQL (no raw SQL) |
 | 16.9 | Security Headers | CSP, X-Frame-Options, HSTS, X-Content-Type-Options |
 | 16.11 | Web Application Firewalls | Built-in rate limiting, request size limits |
 
-## CMMC Level 2 Practice Mapping
+## CMMC Level 2 practice mapping
 
 | Practice | Domain | OpenWatch Implementation |
 |----------|--------|-------------------------|
@@ -136,11 +136,11 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | RA.L2-3.11.3 | Risk Assessment | Vulnerability remediation |
 | SC.L2-3.13.1 | System/Comms | Boundary protection (network segmentation) |
 | SC.L2-3.13.8 | System/Comms | Cryptographic mechanisms for CUI |
-| SC.L2-3.13.11 | System/Comms | FIPS-validated cryptography |
+| SC.L2-3.13.11 | System/Comms | FIPS 140-3 cryptography via the Go-native FIPS module |
 | SI.L2-3.14.1 | System Integrity | Flaw identification and remediation |
 | SI.L2-3.14.6 | System Integrity | System monitoring |
 
-## Compliance Evidence Collection
+## Compliance evidence collection
 
 To generate evidence for an audit:
 
@@ -164,5 +164,5 @@ curl https://localhost:8443/api/v1/fleet/score \
 ```
 
 > Note: dedicated compliance-posture and Kensa-framework export endpoints are pending
-> a Go-era rewrite. See `api/openapi.yaml` for the current endpoint surface and `specs/`
-> for the behavioral contracts.
+> a Go-era rewrite. The running binary serves its current API contract at `/api/v1`;
+> `GET /api/v1/version` reports the build it came from.

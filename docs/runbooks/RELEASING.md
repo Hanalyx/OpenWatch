@@ -126,7 +126,7 @@ unsigned):
 > A signed apt **repository** is the proper path if per-DEB trust is ever
 > required.
 
-The Hanalyx GPG public key ships in the repo as [`KEYS`](../../KEYS) and is
+The Hanalyx GPG public key ships in the repo as [`KEYS`](../../security/KEYS) and is
 attached to every release.
 
 ## Configuring the signing keys

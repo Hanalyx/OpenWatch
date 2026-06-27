@@ -1,7 +1,7 @@
 # Runbook: service unavailable
 
 **Severity**: P1 - High
-**Last updated**: 2026-06-10
+**Last updated**: 2026-06-26
 **Owner**: Platform engineering
 **Estimated resolution time**: 5-30 minutes (typical)
 
@@ -13,8 +13,8 @@ separate web tier, no Redis, and no Celery. The most common failure modes are th
 service being stopped or crash-looping, a TLS or config error that prevents
 startup, or PostgreSQL being unreachable.
 
-For install and configuration layout, see
-[`docs/guides/INSTALLATION.md`](../INSTALLATION.md).
+For install and configuration layout, see the
+[install guide](../INSTALLATION.md).
 
 ---
 
@@ -22,8 +22,8 @@ For install and configuration layout, see
 
 | Component | What it is | How it runs |
 |-----------|------------|-------------|
-| API + UI server | `openwatch serve` — HTTPS on `8443`, REST under `/api/v1`, embedded SPA | systemd unit `openwatch.service` (`ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml`) |
-| Scan worker | `openwatch worker` — drains the PostgreSQL job queue and runs Kensa scans | Separate process; not shipped as a packaged unit (see "Scan worker" below) |
+| API + UI server | `openwatch serve`—HTTPS on `8443`, REST under `/api/v1`, embedded SPA | systemd unit `openwatch.service` (`ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml`) |
+| Scan worker | `openwatch worker`—drains the PostgreSQL job queue and runs Kensa scans | Separate process; not shipped as a packaged unit (see "Scan worker" below) |
 | Database | PostgreSQL | Separate service (`postgresql.service`); the unit declares `After=`/`Wants=postgresql.service` |
 
 The `serve` process also runs in-process schedulers (host liveness, OS
@@ -50,14 +50,14 @@ Configuration lives under `/etc/openwatch`:
   `inactive (dead)`.
 - `journalctl -u openwatch` shows a fatal boot error (config invalid, TLS key
   missing, JWT key missing, or DB pool open failure).
-- Logins fail or writes error while the process is up — usually PostgreSQL is
+- Logins fail or writes error while the process is up—usually PostgreSQL is
   unreachable; the health response reports `db_connected: false`.
 
 The health endpoint is anonymous and returns a small JSON body. A healthy
 response is HTTP `200` with `{"status":"healthy","db_connected":true,"version":"..."}`.
 A degraded response is HTTP `503`. The fields are `status`, `db_connected`, and
-`version` only (defined in `api/openapi.yaml`, `HealthResponse`). There is no
-`redis` field — earlier Python-era runbooks that reference one are obsolete.
+`version` only (the `HealthResponse` contract). There is no
+`redis` field—earlier Python-era runbooks that reference one are obsolete.
 
 ---
 
@@ -83,7 +83,7 @@ curl -sk https://localhost:8443/api/v1/health
 |--------|--------------|
 | HTTP `200`, `db_connected: true` | Server is up; the problem is upstream (TLS trust, reverse proxy, network, DNS) |
 | HTTP `503`, `db_connected: false` | Server is up but PostgreSQL is unreachable (see path B) |
-| Connection refused / no response | Process is not listening — it failed to start or crashed (see path A) |
+| Connection refused / no response | Process is not listening—it failed to start or crashed (see path A) |
 | TLS error | TLS cert/key problem (see path C) |
 
 The `-k` flag skips certificate verification so the probe works with the
@@ -98,8 +98,7 @@ journal (`StandardOutput=journal`, `StandardError=journal`).
 journalctl -u openwatch -n 200 --no-pager
 ```
 
-Look for the fatal startup messages emitted by `cmd/openwatch/main.go` before the
-process exits non-zero:
+Look for the fatal startup messages emitted before the process exits non-zero:
 
 | Log message | Meaning | Path |
 |-------------|---------|------|
@@ -148,7 +147,7 @@ If it exited cleanly (operator stop, host reboot), start it:
 sudo systemctl start openwatch
 ```
 
-If it is crash-looping, do not just restart it — it will fail again. Identify the
+If it is crash-looping, do not restart it blindly—it will fail again. Identify the
 fatal log line from Step 3 and follow the matching path (B for database, C for
 config/keys/TLS). After fixing the root cause:
 
@@ -206,7 +205,7 @@ These all cause `serve` to exit non-zero during boot.
 - **Missing JWT or credential key**: the log names the missing key and the env
   var that sets it (`OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` /
   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`). Confirm the configured path exists
-  and is readable. See [`docs/guides/INSTALLATION.md`](../INSTALLATION.md)
+  and is readable. See the [installation guide](../INSTALLATION.md)
   for how these keys are provisioned.
 
 After correcting the file:
@@ -228,7 +227,7 @@ sudo systemctl restart openwatch
 ### Path E: Disk full
 
 A full disk surfaces as PostgreSQL write failures and a failing health probe.
-See [`DISK_FULL.md`](DISK_FULL.md).
+See the [disk space runbook](DISK_FULL.md).
 
 ### Path F: Resource exhaustion (OOM)
 
@@ -241,7 +240,7 @@ journalctl -k | grep -i "out of memory\|killed process" | tail -20
 
 If OpenWatch was the target, investigate memory pressure on the host (other
 processes, PostgreSQL `shared_buffers`/`work_mem` sizing) before relying on the
-systemd auto-restart. See [`HIGH_CPU.md`](HIGH_CPU.md) for load-related triage.
+systemd auto-restart. See the [high CPU runbook](HIGH_CPU.md) for load-related triage.
 
 ---
 
@@ -356,13 +355,13 @@ Include when escalating:
   network reachability before OpenWatch starts.
 - **Bound the journal**: OpenWatch logs to the journal; cap it with
   `SystemMaxUse=` in `/etc/systemd/journald.conf` so logs never fill the disk
-  (see [`DISK_FULL.md`](DISK_FULL.md)).
+  (see the [disk space runbook](DISK_FULL.md)).
 
 ---
 
 ## Not yet implemented
 
-OpenWatch is currently `0.2.0-rc.5`, a pre-release. The following do not exist in
+OpenWatch is currently `v0.2.0-rc.16`, a pre-release. The following do not exist in
 the current code and must not be relied on in this runbook:
 
 - **A packaged systemd unit for the scan worker.** Only `openwatch.service`
@@ -372,7 +371,7 @@ the current code and must not be relied on in this runbook:
   `GET /api/v1/health`, which reports liveness and database connectivity, not
   metrics. Use host-level monitoring for CPU, memory, and disk.
 - **Separate `/livez` / `/readyz` probes.** Liveness and readiness are combined in
-  the single `GET /api/v1/health` endpoint (`api/openapi.yaml`).
+  the single `GET /api/v1/health` endpoint.
 - **A backup/restore subcommand.** Use standard PostgreSQL tooling
   (`pg_dump` / `pg_basebackup`). The CLI subcommands are `serve`, `worker`,
-  `migrate`, `create-admin`, and `check-config` (`cmd/openwatch/main.go`).
+  `migrate`, `create-admin`, and `check-config`.

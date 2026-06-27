@@ -176,7 +176,17 @@ backend_start() {
   set -a; source "$ENV_FILE"; set +a
 
   log "building dist/openwatch ..."
-  go build -o "$BIN" ./cmd/openwatch
+  # Inject version metadata (same -X flags as the Makefile) so the dev app
+  # reports the real version (e.g. on /settings/about and `--version`) instead
+  # of the "dev" default. Without this, every dev build reports "dev".
+  ow_version="$( . "$ROOT/packaging/version.env" >/dev/null 2>&1; echo "${VERSION:-dev}" )"
+  ow_commit="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  ow_built="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  go build -ldflags "\
+    -X github.com/Hanalyx/openwatch/internal/version.Version=${ow_version} \
+    -X github.com/Hanalyx/openwatch/internal/version.Commit=${ow_commit} \
+    -X github.com/Hanalyx/openwatch/internal/version.BuildTime=${ow_built}" \
+    -o "$BIN" ./cmd/openwatch
 
   log "starting backend (listen ${OPENWATCH_SERVER_LISTEN}) ..."
   OPENWATCH_SERVER_TLS_CERT="$TLS_DIR/cert.pem" \

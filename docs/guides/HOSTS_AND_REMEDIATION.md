@@ -1,6 +1,6 @@
-# Host Management and Remediation
+# Host management and remediation
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -8,7 +8,7 @@ compliance findings. Most of these tasks are performed in the web UI.
 
 ---
 
-## Adding a Host
+## Adding a host
 
 ### From the UI
 
@@ -31,7 +31,7 @@ compliance findings. Most of these tasks are performed in the web UI.
 
 The host appears in the host list immediately after creation.
 
-### Bulk Import
+### Bulk import
 
 For adding many hosts at once:
 
@@ -49,7 +49,7 @@ Existing** to overwrite hosts that match by hostname or IP address.
 
 ---
 
-## Configuring SSH Credentials
+## Configuring SSH credentials
 
 OpenWatch connects to hosts over SSH to run compliance checks. No agent is
 installed on target hosts.
@@ -71,7 +71,7 @@ installed on target hosts.
 
 ![Credential configuration form](../images/hosts/credentials.png)
 
-### Testing Connectivity
+### Testing connectivity
 
 After saving credentials, click **Test Connection** to verify that OpenWatch
 can reach the host via SSH. The test checks:
@@ -82,7 +82,7 @@ can reach the host via SSH. The test checks:
 
 Fix any connection issues before running a scan.
 
-### System Credentials
+### System credentials
 
 For organizations where all hosts share the same SSH credentials, configure a
 system-wide default:
@@ -91,7 +91,7 @@ system-wide default:
 2. Add the shared SSH key or password.
 3. When adding hosts, select **System Default** as the auth method.
 
-### Credential Security
+### Credential security
 
 All credentials are encrypted with AES-256-GCM before being stored in the
 database. Decryption happens only at scan time, in memory. Plaintext credentials
@@ -99,12 +99,12 @@ are never written to disk or logs.
 
 ---
 
-## Host Groups
+## Host groups
 
 Host groups let you organize hosts into logical collections for group-level
 compliance reporting and batch scanning.
 
-### Creating a Group
+### Creating a group
 
 1. Navigate to **Host Groups** in the sidebar.
 2. Click **Create Group**.
@@ -113,7 +113,7 @@ compliance reporting and batch scanning.
 
 ![Create host group dialog](../images/hosts/create-group.png)
 
-### Assigning Hosts
+### Assigning hosts
 
 1. Open the group detail page.
 2. Click **Add Hosts**.
@@ -122,12 +122,12 @@ compliance reporting and batch scanning.
 
 Each host can belong to one group at a time.
 
-### Smart Group Creation
+### Smart group creation
 
 Select multiple hosts and click **Smart Group**. OpenWatch analyzes their OS,
 architecture, and compliance profile to recommend group settings automatically.
 
-### Group Scanning
+### Group scanning
 
 From the group detail page, click **Scan Group** to start a compliance scan
 for all hosts in the group simultaneously. Monitor progress on the group's
@@ -135,9 +135,9 @@ scan session page.
 
 ---
 
-## Host Discovery
+## Host discovery
 
-### OS Detection
+### OS detection
 
 OpenWatch automatically detects the operating system for hosts during scans.
 You can also trigger manual OS discovery from the host detail page by clicking
@@ -146,7 +146,7 @@ You can also trigger manual OS discovery from the host detail page by clicking
 A scheduled task runs daily at 02:00 UTC to discover the OS for all active
 hosts that have not been identified yet.
 
-### Connectivity Monitoring
+### Connectivity monitoring
 
 Host connectivity is probed every 5 minutes by default (operator-tunable, with
 a 60-second floor). Each probe layers ICMP reachability, then SSH port + banner
@@ -156,14 +156,14 @@ unreachable) updates in the host list.
 
 ---
 
-## Server Intelligence
+## Server intelligence
 
 During compliance scans, OpenWatch collects detailed information about each host.
 This data is available on the host detail page under the **Intelligence** tab.
 
 ![Server intelligence overview](../images/hosts/server-intelligence.png)
 
-### Data Collected
+### Data collected
 
 | Category | What It Contains |
 |----------|------------------|
@@ -172,7 +172,7 @@ This data is available on the host detail page under the **Intelligence** tab.
 | Users | User accounts, groups, shell, last login |
 | Network | Interfaces, IP addresses, firewall rules |
 
-### System Information
+### System information
 
 The host detail page also shows:
 
@@ -187,13 +187,13 @@ needing to SSH in manually.
 
 ---
 
-## Remediation Overview
+## Remediation overview
 
 OpenWatch can automatically fix compliance findings through Kensa's 23
-remediation mechanisms. All changes are made over SSH -- nothing is installed
+remediation mechanisms. All changes are made over SSH—nothing is installed
 on target hosts.
 
-### What Remediation Can Fix
+### What remediation can fix
 
 | Category | Examples |
 |----------|----------|
@@ -207,7 +207,7 @@ on target hosts.
 
 ---
 
-## Starting a Remediation
+## Starting a remediation
 
 ### From the UI
 
@@ -232,13 +232,13 @@ For organizations that require an approval step:
 3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
-See [Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+See Remediation and Exception Governance
 for the full role matrix. Single-operator workspaces cannot self-approve today;
-see the [governance ADR](../engineering/remediation_governance_adr.md).
+see the governance ADR.
 
 ---
 
-## Monitoring Remediation Progress
+## Monitoring remediation progress
 
 After starting a remediation, track its progress on the host detail page
 under the **Remediation** tab.
@@ -272,19 +272,19 @@ If a remediation causes problems, you can roll back to the pre-change state.
 Rollback requires the `remediation:rollback` permission (`ops_lead`,
 `security_admin`, or `admin`).
 
-### After Rolling Back
+### After rolling back
 
 After a rollback completes, run a follow-up compliance scan to verify the host
 returned to its previous state.
 
 ---
 
-## Required Permissions
+## Required permissions
 
 Built-in roles, least to most privilege: `viewer` → `auditor` → `ops_lead` →
 `security_admin` → `admin` (`admin` holds every permission). The permission
 source of truth is `auth/permissions.yaml`; see
-[Remediation & Exception Governance](../engineering/remediation_exception_governance.md)
+Remediation and Exception Governance
 for the complete matrix.
 
 | Operation | Permission | Roles that hold it |
@@ -300,7 +300,7 @@ for the complete matrix.
 
 ---
 
-## Best Practices
+## Best practices
 
 1. **Test credentials before scanning.** Use the Test Connection button to
    confirm SSH access before running a compliance scan.
@@ -317,22 +317,22 @@ for the complete matrix.
 
 ---
 
-## What's Next
+## What's next
 
-- [Scanning and Compliance](SCANNING_AND_COMPLIANCE.md) -- understanding scan results and posture
-- [User Roles](USER_ROLES.md) -- role permissions and what each role can access
-- [API Guide](API_GUIDE.md) -- REST API for automation
+- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)—understanding scan results and posture
+- [User roles](USER_ROLES.md)—role permissions and what each role can access
+- [API guide](API_GUIDE.md)—REST API for automation
 
 ---
 
-## Appendix: API Automation
+## Appendix: API automation
 
 For operators who want to script host management or integrate with CI/CD
 pipelines, here are the key API endpoints. OpenWatch serves the REST API over
 HTTPS on port `8443`; every path lives under `/api/v1`. The contract source of
-truth is `api/openapi.yaml`. Replace `openwatch.example.com` with your host.
+truth is the served `/api/v1` OpenAPI document. Replace `openwatch.example.com` with your host.
 
-### Add a Host
+### Add a host
 
 ```bash
 curl -s -X POST https://openwatch.example.com:8443/api/v1/hosts \
@@ -346,7 +346,7 @@ fields: `display_name`, `description`, `tags`, `group_id`, `username`. There is
 no bulk-import or CSV-export API endpoint. Import many hosts from a CSV in the
 web UI (Hosts, Import), which validates each row before insert.
 
-### Create a Group
+### Create a group
 
 ```bash
 curl -s -X POST https://openwatch.example.com:8443/api/v1/groups \
@@ -359,7 +359,7 @@ curl -s -X POST https://openwatch.example.com:8443/api/v1/groups \
 group also needs `match_family`). Add a host to a manual group via
 `POST /api/v1/groups/{id}/members`.
 
-### Request and Execute Remediation
+### Request and execute remediation
 
 Remediation is a request lifecycle, not a single call: request a fix for a
 failing rule on a host, then execute it (free-core single-rule fixes
@@ -378,12 +378,12 @@ curl -s -X POST "https://openwatch.example.com:8443/api/v1/remediation/requests/
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Roll Back
+### Roll back
 
 ```bash
 curl -s -X POST "https://openwatch.example.com:8443/api/v1/remediation/requests/${RID}:rollback" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-See the [API Guide](API_GUIDE.md) for authentication and the complete endpoint
+See the [API guide](API_GUIDE.md) for authentication and the complete endpoint
 reference.

@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last Updated:** 2026-06-25 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
@@ -10,21 +10,22 @@ OpenWatch runs as one Go binary that serves the REST API and the embedded React
 UI over HTTPS on port `8443`. All RBAC state lives in PostgreSQL. There is no
 separate web tier, container runtime, or Python service.
 
-## Source of truth
+## How the model is defined
 
-RBAC is registry-driven. Do not hand-edit role or permission lists; they are
-generated from one file.
+RBAC is registry-driven. The built-in roles and the permissions they grant are
+fixed by the platform; you assign roles to users, but you do not redefine what a
+built-in role contains.
 
-| Artifact | Path | Role |
-|----------|------|------|
-| Permission and role registry | `auth/permissions.yaml` | The single source you edit |
-| Generated permission constants | `internal/auth/permissions.gen.go` | Typed Go constants (do not edit) |
-| Generated role definitions | `internal/auth/roles.gen.go` | Built-in roles with wildcards expanded (do not edit) |
-| Design reference | `docs/engineering/rbac_registry.md` | Rationale, codegen workflow, custom-role design |
-| API contract | `api/openapi.yaml` | `x-required-permission` per operation, paths under `/api/v1` |
+The live model is observable from the running service:
 
-When this guide and the registry disagree, the registry wins. Regenerate the Go
-code with `make generate-rbac` after changing `auth/permissions.yaml`.
+- The current role list is available from `GET /api/v1/roles`.
+- The full permission and role registry is served at runtime by the
+  permissions-registry API endpoint.
+- Each protected operation declares the permission it requires; a request
+  missing that permission is denied.
+
+For the rationale, the custom-role design, and how wildcards expand, see
+[User roles](USER_ROLES.md).
 
 ## Built-in roles
 
@@ -114,8 +115,8 @@ defines 67 permissions across 20 categories. Two attributes affect enforcement:
   (`audit_export`). Remediation (`remediation:execute` / `remediation:rollback`)
   is free-core and not license-gated; it is marked `dangerous` instead.
 
-Enforcement happens in middleware generated from the OpenAPI `x-required-permission`
-extension, so handlers never check RBAC inline. A request with a missing or
+Enforcement happens centrally for every protected operation, so each endpoint
+checks the caller's permission before running. A request with a missing or
 insufficient permission returns `403` with `error.code = "authz.permission_denied"`
 and emits an `authz.permission_denied` audit event.
 
@@ -234,7 +235,7 @@ then call the user and role endpoints. The required permission for each is below
 | List built-in roles | `GET /api/v1/roles` | `role:read` |
 | Create a custom role | `POST /api/v1/roles:create` | `role:write` |
 | Effective permissions for the caller | `GET /api/v1/auth/me/permissions` | authenticated |
-| Full RBAC registry | `GET /api/v1/auth/permissions:registry` | authenticated |
+| Full RBAC registry | `GET` the `permissions:registry` endpoint under `/api/v1/auth` | authenticated |
 
 Creating a user does not assign a role. `POST /api/v1/users` takes only
 `username`, `email`, and `password`; role assignment is a separate
@@ -264,11 +265,11 @@ custom role lists is validated against the registry; unknown permissions are
 rejected with `400`.
 
 For the custom-role design, validation rules, and the relationship between
-wildcards and newly added permissions, see `docs/engineering/rbac_registry.md`.
+wildcards and newly added permissions, see [User roles](USER_ROLES.md).
 
 ## Related documentation
 
-- `docs/engineering/rbac_registry.md` — RBAC design, codegen workflow, custom roles
-- `docs/guides/INSTALLATION.md` — install, `migrate`, `create-admin`, service start
-- `api/openapi.yaml` — API contract and `x-required-permission` per operation
-- `auth/permissions.yaml` — the editable permission and role registry
+- [User roles](USER_ROLES.md)—RBAC design and custom roles
+- `docs/guides/INSTALLATION.md`—install, `migrate`, `create-admin`, service start
+- The running binary serves its API contract under `/api/v1`; the permission and
+  role registry is available from the permissions-registry API endpoint

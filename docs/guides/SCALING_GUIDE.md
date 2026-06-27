@@ -1,6 +1,6 @@
 # Scaling guide
 
-**Last Updated:** 2026-06-22 · **Applies to:** OpenWatch 0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
 
 This guide covers how OpenWatch behaves as you add hosts, run more scans, and
 push more concurrent API traffic, and what you can tune today. It describes the
@@ -10,8 +10,8 @@ Kensa compliance engine built in. There is no separate web tier, no container
 runtime, no Redis, and no Celery.
 
 For first-time install and configuration, follow
-`docs/guides/INSTALLATION.md` — this guide assumes a working install and
-focuses only on capacity and tuning.
+the [installation guide](INSTALLATION.md)—this guide assumes a working
+install and focuses only on capacity and tuning.
 
 ## What scales, and how
 
@@ -24,10 +24,9 @@ OpenWatch has two long-lived processes and one database:
 | PostgreSQL | All state: hosts, scans, transactions, audit events, queue | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
 
 `openwatch serve` runs an in-process worker that **does** drain the scan-job
-queue — the single-binary deployment scans with no extra process. By default it
-runs **`scan_concurrency` (4) scans concurrently** (`internal/worker/worker.go`,
-wired in `internal/server/server.go`). A separate `openwatch worker` is
-optional, for additional or off-box capacity.
+queue—the single-binary deployment scans with no extra process. By default it
+runs **`scan_concurrency` (4) scans concurrently**. A separate `openwatch worker`
+is optional, for additional or off-box capacity.
 
 ## Scaling the scan workers
 
@@ -41,7 +40,7 @@ The in-process worker runs `[server].scan_concurrency` scan loops at once
 (default `4`). Each loop independently claims a job with `SKIP LOCKED`, so up to
 that many **different hosts** scan in parallel; a per-host advisory lock still
 prevents two scans of the **same** host from overlapping. This is the simplest
-way to clear a large queue — one config value, no extra processes:
+way to clear a large queue—one config value, no extra processes:
 
 ```toml
 # /etc/openwatch/openwatch.toml
@@ -51,7 +50,7 @@ scan_concurrency = 8
 
 Restart `openwatch` to apply. Sizing: scans are SSH/IO-bound (they spend most of
 their time waiting on the remote host), so concurrency can comfortably exceed
-CPU core count. Mind two ceilings — the PostgreSQL pool (`[database].max_connections`
+CPU core count. Mind two ceilings—the PostgreSQL pool (`[database].max_connections`
 / pool size: each in-flight scan uses a connection plus the advisory-lock
 transaction) and how many simultaneous SSH sessions your targets and network
 tolerate. `8`–`16` is a reasonable range for a few dozen to a few hundred hosts;
@@ -67,15 +66,15 @@ processes pointed at the same database and config:
 openwatch worker --config /etc/openwatch/openwatch.toml
 ```
 
-Each worker claims one scan job at a time (`internal/worker/scan_worker.go`).
-Within a single worker, a per-host `pg_advisory_xact_lock` serializes work so
-two jobs for the same host never run concurrently. Across workers, the queue's
-`SKIP LOCKED` semantics prevent any two workers from claiming the same job.
+Each worker claims one scan job at a time. Within a single worker, a per-host
+`pg_advisory_xact_lock` serializes work so two jobs for the same host never run
+concurrently. Across workers, the queue's `SKIP LOCKED` semantics prevent any
+two workers from claiming the same job.
 
-The package ships only the `openwatch.service` unit, which runs `serve`
-(`packaging/common/openwatch.service`). There is no packaged worker unit yet, so
-run the worker under your own `systemd` unit or process supervisor. A minimal
-unit mirrors the shipped one but changes the `ExecStart` command:
+The package ships only the `openwatch.service` unit, which runs `serve`. There
+is no packaged worker unit yet, so run the worker under your own `systemd` unit
+or process supervisor. A minimal unit mirrors the shipped one but changes the
+`ExecStart` command:
 
 ```ini
 [Unit]
@@ -104,8 +103,7 @@ required.
 ### Poll interval
 
 Each worker sleeps between dequeue attempts when the queue is empty. The
-`--poll-interval` flag controls this; it defaults to `1s` and is capped at `5s`
-(`internal/worker/scan_worker.go`, `DefaultPollInterval` / `MaxPollInterval`):
+`--poll-interval` flag controls this; it defaults to `1s` and is capped at `5s`:
 
 ```bash
 openwatch worker --poll-interval 2s
@@ -115,7 +113,7 @@ A shorter interval lowers scan-pickup latency on an idle queue at the cost of
 more empty database round-trips. A longer interval does the reverse. The cap
 exists because raising it further only adds latency without a corresponding
 benefit. Worker concurrency comes from running more processes, not from a
-per-worker concurrency knob — there is no `--concurrency` flag.
+per-worker concurrency knob—there is no `--concurrency` flag.
 
 ## Scaling PostgreSQL
 
@@ -124,10 +122,9 @@ the queue. Tune it before reaching for anything else.
 
 ### Connection pool
 
-OpenWatch opens one pgx pool per process (`internal/db/db.go`,
-`db.NewPool`). The pool size is the `max_connections` value under `[database]`
-in `/etc/openwatch/openwatch.toml`; it defaults to `25`
-(`packaging/common/openwatch.toml`, `internal/config/config.go`):
+OpenWatch opens one database connection pool per process. The pool size is the
+`max_connections` value under `[database]` in `/etc/openwatch/openwatch.toml`;
+it defaults to `25`:
 
 ```toml
 [database]
@@ -137,8 +134,8 @@ max_connections = 25
 
 You can also override it with the environment variable
 `OPENWATCH_DATABASE_MAX_CONNECTIONS` (set it in `/etc/openwatch/secrets.env` or
-the unit's `EnvironmentFile`). Each running process — `serve` and every
-`worker` — opens its own pool of up to `max_connections`. Size PostgreSQL's
+the unit's `EnvironmentFile`). Each running process—`serve` and every
+`worker`—opens its own pool of up to `max_connections`. Size PostgreSQL's
 server-side `max_connections` to cover the sum across all OpenWatch processes
 plus headroom for `psql`, backups, and monitoring. As a rule of thumb:
 
@@ -151,50 +148,49 @@ postgres max_connections  >=  (1 serve + N workers) * openwatch max_connections 
 Standard PostgreSQL tuning applies; OpenWatch does nothing unusual here. Start
 from your host's RAM and adjust `shared_buffers`, `effective_cache_size`,
 `work_mem`, and `max_wal_size` to match. Keep the database on fast local or
-network-attached SSD storage — the transaction log and audit-event tables are
+network-attached SSD storage—the transaction log and audit-event tables are
 the highest-write paths.
 
 ### Migrations
 
-Schema changes ship as ordered migrations in `internal/db/migrations/`, applied
-with `openwatch migrate`. Run migrations once per upgrade against a single
+Schema changes ship as ordered, bundled migrations applied with
+`openwatch migrate`. Run migrations once per upgrade against a single
 database before starting the new binary; the command is safe to re-run and
 reports the resulting version. Multiple processes can then connect to the
 already-migrated schema.
 
 ## Capacity planning
 
-OpenWatch has no fixed sizing matrix, and the scan cadence — not raw host
-count — drives load. The intelligence and liveness schedulers run on
+OpenWatch has no fixed sizing matrix, and the scan cadence—not raw host
+count—drives load. The intelligence and liveness schedulers run on
 operator-tunable intervals, and scans are enqueued on a per-host schedule, so a
 large fleet scanned infrequently can be lighter than a small fleet scanned
 aggressively.
 
 Plan capacity from these levers rather than a host-count table:
 
-- **Scan throughput** — add `openwatch worker` processes until the scan queue
+- **Scan throughput**—add `openwatch worker` processes until the scan queue
   drains as fast as you enqueue. Watch for jobs sitting in the queue.
-- **API/UI responsiveness** — give the `serve` host enough CPU and RAM; it is a
+- **API/UI responsiveness**—give the `serve` host enough CPU and RAM; it is a
   single process today, so vertical sizing is the lever.
-- **PostgreSQL** — size RAM and connections to the combined pool demand above;
+- **PostgreSQL**—size RAM and connections to the combined pool demand above;
   this is usually the first thing to upgrade for a large fleet.
 
 Measure on your own workload before committing hardware. The numbers that matter
 are queue depth, scan duration, API latency, and PostgreSQL connection count and
-query latency — all observable with the tools below.
+query latency—all observable with the tools below.
 
 ## Observing load
 
 There is no Prometheus endpoint and no Grafana stack in the current build (see
 "Not yet implemented"). What you have today:
 
-- **Health** — `GET /api/v1/health` returns `200` when the service and its
-  database connection are healthy, `503` when degraded
-  (`api/openapi.yaml`, `internal/server/handlers.go`). Use it for load-balancer
+- **Health**—`GET /api/v1/health` returns `200` when the service and its
+  database connection are healthy, `503` when degraded. Use it for load-balancer
   and uptime probes.
-- **Version** — `GET /api/v1/version` returns build metadata
-  (`api/openapi.yaml`). `openwatch --version` prints the same locally.
-- **Logs** — both processes emit structured JSON logs to `journald`. Follow them
+- **Version**—`GET /api/v1/version` returns build metadata. `openwatch --version`
+  prints the same locally.
+- **Logs**—both processes emit structured JSON logs to `journald`. Follow them
   with `journalctl`:
 
   ```bash
@@ -202,9 +198,9 @@ There is no Prometheus endpoint and no Grafana stack in the current build (see
   ```
 
   The worker logs a periodic `worker.loop.tick` line (roughly every 60s) with
-  idle/claimed/in-flight/completed counters — a lightweight way to confirm a
-  worker is alive and draining (`internal/worker/scan_worker.go`).
-- **Audit and queue state** — query PostgreSQL directly:
+  idle/claimed/in-flight/completed counters—a lightweight way to confirm a
+  worker is alive and draining.
+- **Audit and queue state**—query PostgreSQL directly:
 
   ```bash
   psql "$OPENWATCH_DATABASE_DSN" -c \
@@ -242,7 +238,6 @@ around features that are absent:
 | Topic | Document |
 |-------|----------|
 | Install and configuration | `docs/guides/INSTALLATION.md` |
-| Roles and permissions | `docs/engineering/rbac_registry.md` |
-| Kensa scanning boundary | `docs/KENSA_OPENWATCH_BOUNDARY.md` |
-| API contract | `api/openapi.yaml` (paths under `/api/v1`) |
-| Worker behavior spec | `specs/system/worker-subcommand.spec.yaml` |
+| Roles and permissions | [User roles](USER_ROLES.md) |
+| Kensa scanning boundary | the Kensa scanning engine |
+| API contract | Served by the running binary under `/api/v1` |

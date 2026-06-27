@@ -1,9 +1,9 @@
-# Runbook: PostgreSQL Database Issues
+# Runbook: PostgreSQL database issues
 
 **Severity**: P1 - High
-**Last Updated**: 2026-06-10
+**Last updated**: 2026-06-26
 **Owner**: Platform Engineering
-**Estimated Resolution Time**: 5-60 minutes depending on root cause
+**Estimated resolution time**: 5-60 minutes depending on root cause
 
 OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by systemd (`openwatch.service`). It connects to a PostgreSQL server (PostgreSQL is the only datastore; there is no MongoDB, Redis, or Celery). The `psql` commands below assume you have a PostgreSQL client on the database host or a host that can reach it; adjust the connection flags (`-h`, `-p`) for your deployment.
 
@@ -259,7 +259,7 @@ For more aggressive space reclamation (requires exclusive table lock):
 psql -U openwatch -d openwatch -c "VACUUM FULL scan_findings;"
 ```
 
-Also see the [DISK_FULL.md](DISK_FULL.md) runbook for broader disk cleanup.
+Also see the [disk space runbook](DISK_FULL.md) for broader disk cleanup.
 
 ### Path F: Corrupted indexes
 
@@ -290,7 +290,7 @@ Consider reducing `work_mem` if it is set high, or adding a memory limit to the 
 
 ---
 
-## Recovery Verification
+## Recovery verification
 
 ### 1. PostgreSQL accepts connections
 

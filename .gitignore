@@ -744,6 +744,7 @@ backend/CLAUDE.md
 frontend/CLAUDE.md
 docs/guides/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.md
 BACKLOG.md
+SESSION_LOG.md
 MONGODB_INDEX_MIGRATION_PLAN.md
 docs/engineering/navigation_mvp_plan.md
 
@@ -771,35 +772,15 @@ scap_json_to_openwatch_converter_enhanced.py
 backend/debug_*.py
 backend/scripts/
 
-# Documentation directories (user-generated, do not commit)
+# docs/: only operator-facing material is tracked — the guides, the runbooks,
+# their images, and the docs index. Engineering/planning/architecture/vision
+# docs (including docs/engineering/STATUS.md) are local-only.
 docs/*
 !docs/.gitkeep
 !docs/README.md
-!docs/INTRODUCTION.md
 !docs/guides/
-!docs/architecture/
-!docs/api/
-!docs/decisions/
 !docs/runbooks/
-!docs/engineering/
 !docs/images/
-docs/images/*
-!docs/images/*.png
-!docs/images/quickstart/
-!docs/images/scanning/
-!docs/images/hosts/
-# Security reviews and assessments (tracked in git for audit trail)
-!docs/OW_SECURITY_ASSESSMENT.md
-!docs/*_SECURITY_REVIEW_*.md
-# Planning documents (tracked in git so cross-team coordination docs can
-# reference them and so the Kensa↔OpenWatch convergence schedule is
-# reviewable)
-!docs/OPENWATCH_Q1_PLAN.md
-!docs/OPENWATCH_Q2_PLAN.md
-!docs/OPENWATCH_Q1_Q3_PLAN.md
-!docs/OPENWATCH_VISION.md
-!docs/OPENWATCH_VISION_STATUS.md
-!docs/KENSA_OPENWATCH_*.md
 PRD/
 backend/docs/
 frontend/docs/

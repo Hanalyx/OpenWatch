@@ -1,13 +1,13 @@
-# Runbook: Security Incident Response
+# Runbook: security incident response
 
 **Severity**: P0 - Critical
-**Last Updated**: 2026-06-10
+**Last updated**: 2026-06-26
 **Owner**: Security Engineering
-**Estimated Resolution Time**: Hours to days depending on scope
+**Estimated resolution time**: Hours to days depending on scope
 
 OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by `systemd` (`openwatch.service`). It serves the REST API and the embedded UI over HTTPS on port `8443` and stores all data in PostgreSQL (there is no MongoDB, Redis, Celery, or container runtime). Audit events are written to the `audit_events` table; the service logs to the journal (`journalctl -u openwatch`). Adjust `psql` connection flags (`-h`, `-p`) for your deployment.
 
-This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see [docs/guides/INSTALLATION.md](../INSTALLATION.md) and [docs/engineering/rbac_registry.md](../../engineering/rbac_registry.md).
+This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see the [installation guide](../INSTALLATION.md) and [User roles](USER_ROLES.md).
 
 ---
 
@@ -172,7 +172,7 @@ ORDER BY ur.granted_at DESC;
 "
 ```
 
-The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [docs/engineering/rbac_registry.md](../../engineering/rbac_registry.md) for the full permission sets.
+The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [User roles](USER_ROLES.md) for the full permission sets.
 
 ### Active sessions and refresh tokens
 
@@ -199,7 +199,7 @@ LIMIT 20;
 "
 ```
 
-A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated — treat the owning account as compromised.
+A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated—treat the owning account as compromised.
 
 ### Credential access
 
@@ -278,7 +278,7 @@ sudo chmod 0640 /etc/openwatch/identity/jwt_private_key.pem
 sudo systemctl restart openwatch
 ```
 
-Confirm the configured path before generating a new key — `openwatch check-config` prints the resolved configuration with secrets redacted:
+Confirm the configured path before generating a new key—`openwatch check-config` prints the resolved configuration with secrets redacted:
 
 ```bash
 sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
@@ -292,14 +292,14 @@ If the database password may be exposed:
 
 ```bash
 # Set a new password in PostgreSQL
-psql -U openwatch -d openwatch -c "ALTER ROLE openwatch WITH PASSWORD 'NEW_PASSWORD_HERE';"  # pragma: allowlist secret
+psql -U openwatch -d openwatch -c "ALTER ROLE openwatch WITH PASSWORD 'NEW_PASSWORD_HERE';"
 
 # Update the DSN in the secrets file, then restart
 sudo sed -i 's#OPENWATCH_DATABASE_DSN=.*#OPENWATCH_DATABASE_DSN=postgres://openwatch:NEW_PASSWORD_HERE@127.0.0.1:5432/openwatch?sslmode=require#' /etc/openwatch/secrets.env
 sudo systemctl restart openwatch
 ```
 
-`secrets.env` should be owned `root:openwatch` and mode `0640`. See [docs/guides/INSTALLATION.md](../INSTALLATION.md) for the canonical secret-handling procedure.
+`secrets.env` should be owned `root:openwatch` and mode `0640`. See the [installation guide](../INSTALLATION.md) for the canonical secret-handling procedure.
 
 ### Block attacker IP addresses
 
@@ -423,7 +423,7 @@ Escalate immediately for any of:
 - **Least privilege**: Grant the narrowest built-in role that fits each user; reserve `admin` for break-glass. Review role grants quarterly using the `user_roles` query above.
 - **Session limits**: Sessions enforce a 15-minute inactivity timeout and a 12-hour absolute cap by default; refresh-token rotation flags reuse automatically.
 - **Secret hygiene**: Keep `/etc/openwatch/secrets.env`, the JWT key, the credential DEK, and `/etc/openwatch/tls/key.pem` owned by `root`/`openwatch` with restrictive modes. Rotate the JWT and database credentials on a schedule.
-- **TLS**: Replace the packaged self-signed certificate with a trusted one; the server reads the cert on every handshake, so swapping files needs no restart. See [docs/guides/INSTALLATION.md](../INSTALLATION.md).
+- **TLS**: Replace the packaged self-signed certificate with a trusted one; the server reads the cert on every handshake, so swapping files needs no restart. See the [installation guide](../INSTALLATION.md).
 - **Backups**: Maintain and test PostgreSQL backups out-of-band; restoration is the only recovery path for data tampering.
 
 ---
@@ -432,7 +432,7 @@ Escalate immediately for any of:
 
 The following do not exist in the current Go build; do not rely on them during an incident:
 
-- **Prometheus / metrics endpoint**: There is no `secureops_*` metric or `/metrics` scrape target. Use audit-event queries instead.
+- **Prometheus / metrics endpoint**: There is no Prometheus metric or `/metrics` scrape target. Use audit-event queries instead.
 - **Account-lockout columns**: `users` has no failed-login counter or lockout timestamp. Brute-force containment is manual (block the IP, revoke sessions, soft-delete the account). The `security.login.failed_threshold` event is a host-intelligence signal, not a control-plane lockout.
 - **Admin session-management API**: There is no endpoint to list or revoke another user's sessions; `POST /api/v1/auth/logout` revokes only the caller's session. Use the database `UPDATE` statements above for administrative revocation.
 - **Built-in backup/restore tooling**: Database backup and restore are operator responsibilities; the binary provides only `migrate`.
