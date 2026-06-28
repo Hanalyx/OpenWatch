@@ -192,6 +192,15 @@ backend_start() {
     -X github.com/Hanalyx/openwatch/internal/version.BuildTime=${ow_built}" \
     -o "$BIN" ./cmd/openwatch
 
+  # Keep the dev DB in lockstep with the freshly-built binary. goose is
+  # idempotent (a no-op when already current), so this is cheap on every start
+  # and prevents the drift class where a rebuilt binary expects a newer schema
+  # than the dev DB has — which surfaces as a 500 only on code paths that touch
+  # the new columns/tables (e.g. login's refresh-token insert). OPENWATCH_*
+  # config (incl. the DSN) is already sourced from $ENV_FILE above.
+  log "applying database migrations ..."
+  "$BIN" migrate || die "migrate failed — refusing to start against an unmigrated DB (see above)"
+
   log "starting backend (listen ${OPENWATCH_SERVER_LISTEN}) ..."
   OPENWATCH_SERVER_TLS_CERT="$TLS_DIR/cert.pem" \
   OPENWATCH_SERVER_TLS_KEY="$TLS_DIR/key.pem" \
