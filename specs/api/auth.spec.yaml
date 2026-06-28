@@ -1,7 +1,7 @@
 spec:
   id: api-auth
   title: Auth HTTP surface (login, MFA, refresh, me, password change)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -112,3 +112,6 @@ spec:
       description: POST /auth/password:change with current_password + new_password validates the current password, applies the NIST policy to the new password, updates the hash, and emits auth.password.changed audit; wrong current_password returns 401 auth.invalid_credentials.
       priority: critical
       references_constraints: [C-05]
+    - id: AC-13
+      description: POST /auth/login for a user with an UNVERIFIED MFA enrollment (a secret row exists but last_verified_at IS NULL — enrollment was begun via mfa:enroll but never confirmed via mfa:verify) does NOT require an OTP; it returns 200 and signs the user in. Only a verified secret gates login, so an abandoned enrollment cannot lock a user out.
+      priority: high

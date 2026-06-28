@@ -505,11 +505,18 @@ func userToMe(u users.User, role string) api.AuthMeResponse {
 	}
 }
 
-// mfaEnrolled returns whether the user has an MFA secret row.
+// mfaEnrolled returns whether the user has a VERIFIED MFA secret. A secret
+// row alone is not enough: EnrollMFA writes the secret with last_verified_at
+// NULL when a user *begins* enrollment, and VerifyMFA stamps last_verified_at
+// once they prove they hold the authenticator. Gating login on mere row
+// presence would lock out a user who started enrollment but never verified
+// (e.g. closed the QR before scanning) — they would be asked for an OTP they
+// cannot produce, with no recovery codes to fall back on. Only a verified
+// secret requires an OTP at sign-in.
 func mfaEnrolled(ctx context.Context, h *handlers, userID uuid.UUID) (bool, error) {
 	var count int64
 	err := h.pool.QueryRow(ctx,
-		`SELECT count(*) FROM auth_mfa_secrets WHERE user_id = $1`, userID,
+		`SELECT count(*) FROM auth_mfa_secrets WHERE user_id = $1 AND last_verified_at IS NOT NULL`, userID,
 	).Scan(&count)
 	if err != nil {
 		return false, err

@@ -164,6 +164,12 @@ func TestAuthLogin_MFARequired(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnrollMFA: %v", err)
 		}
+		// Mark the enrollment verified — only a verified secret gates login.
+		// EnrollMFA alone leaves last_verified_at NULL (see AC-13).
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE auth_mfa_secrets SET last_verified_at = now() WHERE user_id = $1`, u.ID); err != nil {
+			t.Fatalf("mark verified: %v", err)
+		}
 		resp := login(t, url, map[string]string{
 			"username": u.Username, "password": u.Password,
 		})
@@ -174,6 +180,32 @@ func TestAuthLogin_MFARequired(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		if !strings.Contains(string(b), "auth.mfa_required") {
 			t.Errorf("body lacks auth.mfa_required: %s", b)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13: an unverified MFA enrollment (secret written by EnrollMFA but never
+// confirmed via VerifyMFA, so last_verified_at IS NULL) must NOT require an OTP
+// at sign-in — the user logs in normally (200) and can re-attempt enrollment.
+// Regression guard for the lockout where a begun-but-abandoned enrollment
+// stranded the user behind an OTP they could not produce.
+func TestAuthLogin_UnverifiedMFA_DoesNotGate(t *testing.T) {
+	t.Run("api-auth/AC-13", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		usrSvc := users.NewService(pool, nil)
+		u := seedAuthUser(t, usrSvc, "ac12", false)
+		// Begin enrollment only — no VerifyMFA, so last_verified_at stays NULL.
+		if _, err := identity.EnrollMFA(context.Background(), pool, u.ID, u.Username); err != nil {
+			t.Fatalf("EnrollMFA: %v", err)
+		}
+		resp := login(t, url, map[string]string{
+			"username": u.Username, "password": u.Password,
+		})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status = %d (want 200; unverified enrollment must not gate login): %s", resp.StatusCode, b)
 		}
 	})
 }
@@ -190,6 +222,11 @@ func TestAuthLogin_MFASucceeds(t *testing.T) {
 		uri, err := identity.EnrollMFA(context.Background(), pool, u.ID, u.Username)
 		if err != nil {
 			t.Fatalf("EnrollMFA: %v", err)
+		}
+		// Mark verified so the secret gates login (only verified MFA does; AC-13).
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE auth_mfa_secrets SET last_verified_at = now() WHERE user_id = $1`, u.ID); err != nil {
+			t.Fatalf("mark verified: %v", err)
 		}
 		secret := otpSecretFromURI(t, uri)
 		otp, _ := totp.GenerateCode(secret, time.Now().UTC())
@@ -212,6 +249,11 @@ func TestAuthLogin_MFAInvalid(t *testing.T) {
 		usrSvc := users.NewService(pool, nil)
 		u := seedAuthUser(t, usrSvc, "ac06", false)
 		_, _ = identity.EnrollMFA(context.Background(), pool, u.ID, u.Username)
+		// Mark verified so the secret gates login (only verified MFA does; AC-13).
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE auth_mfa_secrets SET last_verified_at = now() WHERE user_id = $1`, u.ID); err != nil {
+			t.Fatalf("mark verified: %v", err)
+		}
 		resp := login(t, url, map[string]any{
 			"username": u.Username, "password": u.Password, "otp": "000000",
 		})
