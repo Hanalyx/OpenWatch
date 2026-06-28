@@ -221,7 +221,9 @@ function CoverageTab({
                   textAlign: 'left',
                 }}
               >
-                <span aria-hidden style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>{open ? '▾' : '▸'}</span>
+                <span aria-hidden style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>
+                  {open ? '▾' : '▸'}
+                </span>
                 {h.hostname}
               </button>
               <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
@@ -272,7 +274,8 @@ function HostScanHistory({ hostId }: { hostId: string }) {
     },
   });
   if (q.isPending) return <SubState text="Loading scans." />;
-  if (q.isError) return <SubState tone="crit" text={apiErrorMessage(q.error, 'Failed to load scans')} />;
+  if (q.isError)
+    return <SubState tone="crit" text={apiErrorMessage(q.error, 'Failed to load scans')} />;
   const scans = q.data.scans ?? [];
   if (scans.length === 0) return <SubState text="No scans recorded for this host yet." />;
   return (
@@ -299,7 +302,9 @@ function HostScanHistory({ hostId }: { hostId: string }) {
           </span>
           <span style={{ color: 'var(--ow-ok)' }}>{s.rules_pass} pass</span>
           <span style={{ color: 'var(--ow-crit)' }}>{s.rules_fail} fail</span>
-          <span style={{ color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>{s.scan_id.slice(0, 8)}</span>
+          <span style={{ color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}>
+            {s.scan_id.slice(0, 8)}
+          </span>
         </Link>
       ))}
     </div>

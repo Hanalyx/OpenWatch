@@ -163,7 +163,8 @@ export function HostsListPage() {
   const setHostsViewDefault = usePreferencesStore((s) => s.setHostsViewDefault);
   const view: 'table' | 'cards' =
     search.view === 'table' || search.view === 'cards' ? search.view : hostsViewDefault;
-  const group: GroupKey = search.group === 'status' || search.group === 'os' ? search.group : 'none';
+  const group: GroupKey =
+    search.group === 'status' || search.group === 'os' ? search.group : 'none';
   const query = (search.q ?? '').trim().toLowerCase();
   const filters: HostFilters = useMemo(
     () => parseHostFilters({ status: search.status, os: search.os, tier: search.tier }),
@@ -488,11 +489,7 @@ export function HostsListPage() {
             {groups.map((g) => (
               <section key={g.key}>
                 <GroupHeader label={g.label} count={g.hosts.length} />
-                {view === 'cards' ? (
-                  <HostsCards hosts={g.hosts} />
-                ) : (
-                  <HostsTable hosts={g.hosts} />
-                )}
+                {view === 'cards' ? <HostsCards hosts={g.hosts} /> : <HostsTable hosts={g.hosts} />}
               </section>
             ))}
           </div>

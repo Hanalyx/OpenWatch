@@ -17,11 +17,13 @@
 openapi: 3.0.3
 
 info:
-  title: OpenWatch (Stage 0)
-  version: 0.1.0-alpha.1
+  title: OpenWatch
+  version: 0.2.0-rc.17
   description: |
-    Stage 0 walking-skeleton surface — three endpoints that exercise the
-    foundation stack (correlation, idempotency, audit, error envelope).
+    The OpenWatch REST API: authentication, hosts, scans, compliance posture,
+    remediation, reports, notifications, and administration. All responses carry
+    a correlation ID and a structured error envelope; mutating calls are
+    idempotency-keyed and audited.
 
 servers:
   - url: https://localhost:8443

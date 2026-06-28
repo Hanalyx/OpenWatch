@@ -58,7 +58,11 @@ function readCookie(name: string): string | null {
 // opposed to an authz (permission) denial, which is a 403 and must NOT log
 // the user out. Mirrors auth-error-redirect.ts so the interceptor and the
 // QueryCache onError handler agree on what counts as a session failure.
-const AUTH_FAILURE_CODES = new Set(['auth.session_invalid', 'auth.session_expired', 'auth.required']);
+const AUTH_FAILURE_CODES = new Set([
+  'auth.session_invalid',
+  'auth.session_expired',
+  'auth.required',
+]);
 
 // isAuthFailureResponse reports whether a response is a 401 carrying an
 // authentication-failure code. Reads a CLONE so the caller's body stays

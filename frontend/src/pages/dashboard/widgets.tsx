@@ -19,7 +19,6 @@ function scoreTone(pct: number): 'crit' | 'warn' | 'ok' {
   return 'ok';
 }
 
-
 // ── KPI: Hosts online ──────────────────────────────────────────────
 export function KpiHostsOnline() {
   const q = useQuery({

@@ -37,10 +37,14 @@ const TAG_TONE = {
   other: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-3)' },
 };
 
-function fwTag(frameworkId: string, control: string): { label: string; tone: keyof typeof TAG_TONE } {
+function fwTag(
+  frameworkId: string,
+  control: string,
+): { label: string; tone: keyof typeof TAG_TONE } {
   const f = frameworkId.toLowerCase();
   if (f.startsWith('cis')) return { label: `CIS-${control}`, tone: 'cis' };
-  if (f.startsWith('stig') || f.startsWith('srg') || f.startsWith('ubtu')) return { label: control, tone: 'stig' };
+  if (f.startsWith('stig') || f.startsWith('srg') || f.startsWith('ubtu'))
+    return { label: control, tone: 'stig' };
   if (f.startsWith('nist')) return { label: control, tone: 'nist' };
   if (f.startsWith('pci')) return { label: `PCI-${control}`, tone: 'pci' };
   return { label: control, tone: 'other' };
@@ -48,8 +52,11 @@ function fwTag(frameworkId: string, control: string): { label: string; tone: key
 
 // flattenRefs turns the framework_refs map into an ordered tag list
 // (CIS first, then STIG, then NIST, then the rest) for stable rendering.
-function flattenRefs(refs: Record<string, string[]>): { label: string; tone: keyof typeof TAG_TONE; key: string }[] {
-  const order = (id: string) => (id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3);
+function flattenRefs(
+  refs: Record<string, string[]>,
+): { label: string; tone: keyof typeof TAG_TONE; key: string }[] {
+  const order = (id: string) =>
+    id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3;
   return Object.keys(refs)
     .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
     .flatMap((fid) =>
@@ -72,7 +79,9 @@ export function ScanDetailPage() {
   const scanId = params.scanId ?? '';
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'fail' | 'pass' | 'skipped' | 'error'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'fail' | 'pass' | 'skipped' | 'error'>(
+    'all',
+  );
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -88,7 +97,9 @@ export function ScanDetailPage() {
     queryKey: ['scan', scanId, 'detail'],
     enabled: scanId !== '',
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/scans/{id}', { params: { path: { id: scanId } } });
+      const { data, error } = await api.GET('/api/v1/scans/{id}', {
+        params: { path: { id: scanId } },
+      });
       if (error || !data) throw new Error(apiErrorMessage(error, 'Failed to load scan'));
       return data as ScanDetail;
     },
@@ -97,32 +108,56 @@ export function ScanDetailPage() {
   const results = useMemo(() => q.data?.results ?? [], [q.data]);
   const counts = useMemo(() => {
     const c = { fail: 0, pass: 0, skipped: 0, error: 0 };
-    for (const r of results) c[r.status as keyof typeof c] = (c[r.status as keyof typeof c] ?? 0) + 1;
+    for (const r of results)
+      c[r.status as keyof typeof c] = (c[r.status as keyof typeof c] ?? 0) + 1;
     return c;
   }, [results]);
 
   const shown = useMemo(() => {
     const term = search.trim().toLowerCase();
     const rows = [...results].sort(
-      (a, b) => (SEVERITY_RANK[a.severity] ?? 4) - (SEVERITY_RANK[b.severity] ?? 4) || a.rule_id.localeCompare(b.rule_id),
+      (a, b) =>
+        (SEVERITY_RANK[a.severity] ?? 4) - (SEVERITY_RANK[b.severity] ?? 4) ||
+        a.rule_id.localeCompare(b.rule_id),
     );
     return rows.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
       if (!term) return true;
-      const hay = [r.rule_id, r.title, ...Object.values(r.framework_refs ?? {}).flat()].join(' ').toLowerCase();
+      const hay = [r.rule_id, r.title, ...Object.values(r.framework_refs ?? {}).flat()]
+        .join(' ')
+        .toLowerCase();
       return hay.includes(term);
     });
   }, [results, statusFilter, search]);
 
-  if (q.isPending) return <Wrap><State text="Loading scan." /></Wrap>;
-  if (q.isError) return <Wrap><State tone="crit" text={apiErrorMessage(q.error, 'Failed to load scan')} /></Wrap>;
+  if (q.isPending)
+    return (
+      <Wrap>
+        <State text="Loading scan." />
+      </Wrap>
+    );
+  if (q.isError)
+    return (
+      <Wrap>
+        <State tone="crit" text={apiErrorMessage(q.error, 'Failed to load scan')} />
+      </Wrap>
+    );
 
   const { scan } = q.data;
 
   return (
     <Wrap>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ow-fg-0)', margin: 0 }}>Scan detail</h1>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          marginBottom: 4,
+        }}
+      >
+        <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--ow-fg-0)', margin: 0 }}>
+          Scan detail
+        </h1>
         <OscalScanButton scanId={scanId} />
       </div>
       <p style={{ fontSize: 13, color: 'var(--ow-fg-2)', margin: '0 0 16px' }}>
@@ -142,23 +177,43 @@ export function ScanDetailPage() {
         }}
       >
         <Meta label="Host">
-          <Link to="/hosts/$hostId" params={{ hostId: scan.host_id }} style={{ color: 'var(--ow-link)', textDecoration: 'none' }}>
+          <Link
+            to="/hosts/$hostId"
+            params={{ hostId: scan.host_id }}
+            style={{ color: 'var(--ow-link)', textDecoration: 'none' }}
+          >
             {/* Human-friendly label: hostname if registered, else IP, else
                 a short UUID as a last resort (api-scans resolves these). */}
             {scan.hostname || scan.ip_address || scan.host_id.slice(0, 8)}
           </Link>
         </Meta>
         <Meta label="Status">{scan.status}</Meta>
-        <Meta label="Finished">{scan.finished_at ? new Date(scan.finished_at).toLocaleString() : 'n/a'}</Meta>
+        <Meta label="Finished">
+          {scan.finished_at ? new Date(scan.finished_at).toLocaleString() : 'n/a'}
+        </Meta>
         <Meta label="Policy">{scan.policy_version || 'n/a'}</Meta>
-        <Meta label="Pass" tone="var(--ow-ok)">{scan.rules_pass}</Meta>
-        <Meta label="Fail" tone="var(--ow-crit)">{scan.rules_fail}</Meta>
+        <Meta label="Pass" tone="var(--ow-ok)">
+          {scan.rules_pass}
+        </Meta>
+        <Meta label="Fail" tone="var(--ow-crit)">
+          {scan.rules_fail}
+        </Meta>
         <Meta label="Skipped">{scan.rules_skipped}</Meta>
-        <Meta label="Error" tone="var(--ow-warn)">{scan.rules_error}</Meta>
+        <Meta label="Error" tone="var(--ow-warn)">
+          {scan.rules_error}
+        </Meta>
       </div>
 
       {/* Search + status filter chips */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 10,
+          flexWrap: 'wrap',
+        }}
+      >
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -176,12 +231,41 @@ export function ScanDetailPage() {
           }}
         />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <Chip label="All" count={results.length} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-          <Chip label="Non-compliant" count={counts.fail} tone="var(--ow-crit)" active={statusFilter === 'fail'} onClick={() => setStatusFilter('fail')} />
-          <Chip label="Compliant" count={counts.pass} tone="var(--ow-ok)" active={statusFilter === 'pass'} onClick={() => setStatusFilter('pass')} />
-          <Chip label="N/A" count={counts.skipped} tone="var(--ow-fg-3)" active={statusFilter === 'skipped'} onClick={() => setStatusFilter('skipped')} />
+          <Chip
+            label="All"
+            count={results.length}
+            active={statusFilter === 'all'}
+            onClick={() => setStatusFilter('all')}
+          />
+          <Chip
+            label="Non-compliant"
+            count={counts.fail}
+            tone="var(--ow-crit)"
+            active={statusFilter === 'fail'}
+            onClick={() => setStatusFilter('fail')}
+          />
+          <Chip
+            label="Compliant"
+            count={counts.pass}
+            tone="var(--ow-ok)"
+            active={statusFilter === 'pass'}
+            onClick={() => setStatusFilter('pass')}
+          />
+          <Chip
+            label="N/A"
+            count={counts.skipped}
+            tone="var(--ow-fg-3)"
+            active={statusFilter === 'skipped'}
+            onClick={() => setStatusFilter('skipped')}
+          />
           {counts.error > 0 ? (
-            <Chip label="Error" count={counts.error} tone="var(--ow-warn)" active={statusFilter === 'error'} onClick={() => setStatusFilter('error')} />
+            <Chip
+              label="Error"
+              count={counts.error}
+              tone="var(--ow-warn)"
+              active={statusFilter === 'error'}
+              onClick={() => setStatusFilter('error')}
+            />
           ) : null}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ow-fg-3)' }}>
@@ -190,7 +274,13 @@ export function ScanDetailPage() {
       </div>
 
       {/* Rules table */}
-      <div style={{ border: '1px solid var(--ow-line)', borderRadius: 'var(--ow-radius)', overflow: 'hidden' }}>
+      <div
+        style={{
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+          overflow: 'hidden',
+        }}
+      >
         <div
           style={{
             display: 'grid',
@@ -267,14 +357,34 @@ function RuleRow({
         }}
       >
         {/* Status */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 500, color: st.tone }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: st.tone, flexShrink: 0 }} />
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            fontSize: 12,
+            fontWeight: 500,
+            color: st.tone,
+          }}
+        >
+          <span
+            style={{ width: 8, height: 8, borderRadius: '50%', background: st.tone, flexShrink: 0 }}
+          />
           {st.label}
         </span>
         {/* Severity */}
         <span>
           {sev ? (
-            <span style={{ fontSize: 11, fontWeight: 700, color: sev.fg, background: sev.bg, padding: '2px 8px', borderRadius: 4 }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: sev.fg,
+                background: sev.bg,
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}
+            >
               {sev.label}
             </span>
           ) : (
@@ -284,10 +394,16 @@ function RuleRow({
         {/* Rule + framework refs */}
         <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }} aria-hidden>{open ? '▾' : '▸'}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ow-fg-0)' }}>{rule.title}</span>
+            <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }} aria-hidden>
+              {open ? '▾' : '▸'}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ow-fg-0)' }}>
+              {rule.title}
+            </span>
           </span>
-          {why ? <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', paddingLeft: 19 }}>{why}</span> : null}
+          {why ? (
+            <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', paddingLeft: 19 }}>{why}</span>
+          ) : null}
           {tags.length > 0 ? (
             <span style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingLeft: 19 }}>
               {tags.map((t) => (
@@ -325,7 +441,9 @@ function OscalScanButton({ scanId }: { scanId: string }) {
   async function download() {
     setBusy(true);
     try {
-      const res = await fetch(`${window.location.origin}/api/v1/scans/${scanId}/oscal`, { credentials: 'include' });
+      const res = await fetch(`${window.location.origin}/api/v1/scans/${scanId}/oscal`, {
+        credentials: 'include',
+      });
       if (!res.ok) return;
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
@@ -365,11 +483,21 @@ function Wrap({ children }: { children: React.ReactNode }) {
   return <div style={{ padding: '24px 28px', width: '100%' }}>{children}</div>;
 }
 
-function Meta({ label, children, tone }: { label: string; children: React.ReactNode; tone?: string }) {
+function Meta({
+  label,
+  children,
+  tone,
+}: {
+  label: string;
+  children: React.ReactNode;
+  tone?: string;
+}) {
   return (
     <div style={{ background: 'var(--ow-bg-1)', padding: '10px 14px' }}>
       <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: tone ?? 'var(--ow-fg-0)' }}>{children}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: tone ?? 'var(--ow-fg-0)' }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -404,7 +532,9 @@ function Chip({
         cursor: 'pointer',
       }}
     >
-      {tone ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: tone }} /> : null}
+      {tone ? (
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: tone }} />
+      ) : null}
       {label}
       <span style={{ color: 'var(--ow-fg-3)' }}>{count}</span>
     </button>
@@ -413,7 +543,14 @@ function Chip({
 
 function State({ text, tone }: { text: string; tone?: 'crit' }) {
   return (
-    <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)' }}>
+    <div
+      style={{
+        padding: 28,
+        textAlign: 'center',
+        fontSize: 13,
+        color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+      }}
+    >
       {text}
     </div>
   );

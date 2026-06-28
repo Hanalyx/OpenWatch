@@ -51,7 +51,7 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.2.0-rc.14"
+  "version": "0.2.0-rc.17"
 }
 ```
 

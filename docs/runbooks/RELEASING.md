@@ -109,9 +109,12 @@ Then bump `packaging/version.env` to the next `-dev`/`-rc` and announce.
 
 ## Signing model
 
-When the signing keys are configured, `release.yml` signs at these layers (and
-skips each layer gracefully if its key is absent — releases still publish,
-unsigned):
+On a **tag-push release, GPG signing is required**: `release.yml` fails closed and
+refuses to publish if `GPG_PRIVATE_KEY` is absent, so operators never receive
+unverifiable packages. The cosign layer is optional and skips gracefully if its key
+is absent. An unsigned build is only possible via a manual `workflow_dispatch` trial
+run (never a tag push). When the keys are configured, `release.yml` signs at these
+layers:
 
 | Layer | How | Operator verifies |
 |---|---|---|

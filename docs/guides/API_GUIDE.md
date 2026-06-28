@@ -12,7 +12,7 @@ React UI over HTTPS on port `8443`. All API paths live under `/api/v1`. The
 running binary serves its own OpenAPI document as the contract source of truth,
 and `GET /api/v1/version` reports the build it came from.
 
-This guide reflects OpenWatch `v0.2.0-rc.14`, a pre-release. The compliance
+This guide reflects OpenWatch `v0.2.0-rc.17`, a pre-release. The compliance
 surface (scan execution + results, remediation, exceptions, posture/drift, audit
 export, the rule browser) IS exposed over `/api/v1`. See [the compliance API surface
 (now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
@@ -279,7 +279,7 @@ curl -s --cacert /etc/openwatch/tls/ca.crt https://localhost:8443/api/v1/health 
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.14"}
+{"status": "healthy", "db_connected": true, "version": "0.2.0-rc.17"}
 ```
 
 `status` is `healthy` or `degraded`; the endpoint returns `503` when the service
@@ -356,7 +356,7 @@ configuration steps, see
 
 ## Compliance API surface (now live)
 
-As of `v0.2.0-rc.14`, the compliance workflow IS exposed over `api/v1` (it is no
+As of `v0.2.0-rc.17`, the compliance workflow IS exposed over `api/v1` (it is no
 longer worker-internal only):
 
 - **Scans**: trigger with `POST /api/v1/hosts/{id}/scans`; browse durable

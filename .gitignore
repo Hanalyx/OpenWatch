@@ -341,9 +341,9 @@ frontend_test.log
 # Exception: committed test harness scripts under packaging/tests/ (e.g. the
 # container upgrade test) are real tracked files, not transient scratch.
 !packaging/tests/*test*.sh
-*test*.mjs
-*test*.ts
-*test*.tsx
+# NOTE: do NOT blanket-ignore *test*.ts / *test*.tsx / *test*.mjs — in the Go
+# rebuild those are first-class TypeScript source (frontend *.test.ts(x) suites),
+# not build artifacts. Ignoring them silently hides new tests from git.
 
 # Go-rebuild layout: the active frontend (promoted from app/frontend) keeps its
 # tests under frontend/tests/ and co-located *.test.ts(x). Re-include them — the
@@ -702,12 +702,15 @@ scripts/cleanup-documentation.sh
 *-migration-output
 
 # Working Documents and Analysis Reports (DO NOT COMMIT)
+# These guard against committing AI/working scratch notes. They match an
+# UPPER_SUFFIX.md convention legit docs mostly avoid. NOTE: *_MIGRATION*.md was
+# removed — it wrongly hid legitimate DB-migration documentation; name scratch
+# migration notes differently if needed.
 *_ASSESSMENT.md
 *_ANALYSIS.md
 *_COMPLETE.md
 *_FIX*.md
 *_IMPLEMENTATION*.md
-*_MIGRATION*.md
 *_PHASE*.md
 *_REPORT.md
 *_STATUS.md

@@ -399,7 +399,9 @@ function NotificationBell() {
                 />
                 <span style={{ fontSize: 12, color: 'var(--ow-fg-0)' }}>{n.title}</span>
                 {n.body ? (
-                  <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 2 }}>{n.body}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ow-fg-3)', marginTop: 2 }}>
+                    {n.body}
+                  </div>
                 ) : null}
               </button>
             ))

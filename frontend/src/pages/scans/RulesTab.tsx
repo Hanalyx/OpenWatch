@@ -39,13 +39,20 @@ function fwTag(frameworkId: string, control: string): { label: string; tone: Ton
   return { label: control, tone: fam };
 }
 function flattenRefs(refs: Record<string, string[]>): { label: string; tone: Tone; key: string }[] {
-  const order = (id: string) => (id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3);
+  const order = (id: string) =>
+    id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3;
   return Object.keys(refs)
     .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
     .flatMap((fid) => (refs[fid] ?? []).map((c) => ({ ...fwTag(fid, c), key: `${fid}:${c}` })));
 }
 
-const FAMILY_LABEL: Record<Tone, string> = { cis: 'CIS', stig: 'STIG', nist: 'NIST', pci: 'PCI-DSS', other: 'Other' };
+const FAMILY_LABEL: Record<Tone, string> = {
+  cis: 'CIS',
+  stig: 'STIG',
+  nist: 'NIST',
+  pci: 'PCI-DSS',
+  other: 'Other',
+};
 
 // RulesTab — the Kensa rule-library browser on /scans. Reference data
 // (GET /api/v1/rules), filtered entirely client-side: search, severity,
@@ -76,7 +83,8 @@ export function RulesTab() {
   );
   const families = useMemo(() => {
     const fams = new Set<Tone>();
-    for (const r of rules) for (const fid of Object.keys(r.framework_refs ?? {})) fams.add(fwFamily(fid));
+    for (const r of rules)
+      for (const fid of Object.keys(r.framework_refs ?? {})) fams.add(fwFamily(fid));
     return (['cis', 'stig', 'nist', 'pci', 'other'] as Tone[]).filter((f) => fams.has(f));
   }, [rules]);
   const sevsPresent = useMemo(() => {
@@ -89,7 +97,11 @@ export function RulesTab() {
     return rules.filter((r) => {
       if (sev !== 'all' && r.severity !== sev) return false;
       if (category !== 'all' && r.category !== category) return false;
-      if (family !== 'all' && !Object.keys(r.framework_refs ?? {}).some((fid) => fwFamily(fid) === family)) return false;
+      if (
+        family !== 'all' &&
+        !Object.keys(r.framework_refs ?? {}).some((fid) => fwFamily(fid) === family)
+      )
+        return false;
       if (!term) return true;
       const hay = [r.id, r.title, r.description, ...Object.values(r.framework_refs ?? {}).flat()]
         .join(' ')
@@ -98,13 +110,31 @@ export function RulesTab() {
     });
   }, [rules, search, sev, category, family]);
 
-  if (q.isPending) return <Panel><State text="Loading rules." /></Panel>;
-  if (q.isError) return <Panel><State tone="crit" text={apiErrorMessage(q.error, 'Failed to load rules')} /></Panel>;
+  if (q.isPending)
+    return (
+      <Panel>
+        <State text="Loading rules." />
+      </Panel>
+    );
+  if (q.isError)
+    return (
+      <Panel>
+        <State tone="crit" text={apiErrorMessage(q.error, 'Failed to load rules')} />
+      </Panel>
+    );
 
   return (
     <div>
       {/* Filter bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 12,
+          flexWrap: 'wrap',
+        }}
+      >
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -126,10 +156,23 @@ export function RulesTab() {
           {sevsPresent.map((s) => {
             const m = SEVERITY[s];
             if (!m) return null;
-            return <SevChip key={s} label={m.label} tone={m.fg} active={sev === s} onClick={() => setSev(s)} />;
+            return (
+              <SevChip
+                key={s}
+                label={m.label}
+                tone={m.fg}
+                active={sev === s}
+                onClick={() => setSev(s)}
+              />
+            );
           })}
         </div>
-        <Select value={category} onChange={setCategory} label="All categories" options={categories} />
+        <Select
+          value={category}
+          onChange={setCategory}
+          label="All categories"
+          options={categories}
+        />
         <Select
           value={family}
           onChange={(v) => setFamily(v as 'all' | Tone)}
@@ -140,9 +183,17 @@ export function RulesTab() {
       </div>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+        }}
+      >
         <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ow-fg-0)', margin: 0 }}>
-          Rule library <span style={{ color: 'var(--ow-fg-3)', fontWeight: 400 }}>{rules.length}</span>
+          Rule library{' '}
+          <span style={{ color: 'var(--ow-fg-3)', fontWeight: 400 }}>{rules.length}</span>
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>
@@ -153,7 +204,13 @@ export function RulesTab() {
       </div>
 
       {/* Table */}
-      <div style={{ border: '1px solid var(--ow-line)', borderRadius: 'var(--ow-radius)', overflow: 'hidden' }}>
+      <div
+        style={{
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+          overflow: 'hidden',
+        }}
+      >
         <div
           style={{
             display: 'grid',
@@ -203,9 +260,13 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
       <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ow-fg-0)' }}>{rule.title}</span>
         {rule.description ? (
-          <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', lineHeight: 1.4 }}>{rule.description}</span>
+          <span style={{ fontSize: 12, color: 'var(--ow-fg-2)', lineHeight: 1.4 }}>
+            {rule.description}
+          </span>
         ) : null}
-        <span style={{ fontSize: 11, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-3)' }}>{rule.id}</span>
+        <span style={{ fontSize: 11, fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-3)' }}>
+          {rule.id}
+        </span>
       </span>
       <span style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignContent: 'flex-start' }}>
         {tags.map((t) => (
@@ -227,7 +288,16 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
       </span>
       <span>
         {sev ? (
-          <span style={{ fontSize: 11, fontWeight: 700, color: sev.fg, background: sev.bg, padding: '2px 8px', borderRadius: 4 }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: sev.fg,
+              background: sev.bg,
+              padding: '2px 8px',
+              borderRadius: 4,
+            }}
+          >
             {sev.label}
           </span>
         ) : (
@@ -236,28 +306,58 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
       </span>
       <span style={{ fontSize: 12, color: 'var(--ow-fg-2)' }}>{rule.category}</span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 12, fontFamily: 'var(--ow-font-mono)', color: rem.available ? 'var(--ow-fg-1)' : 'var(--ow-fg-3)' }}>
+        <span
+          style={{
+            fontSize: 12,
+            fontFamily: 'var(--ow-font-mono)',
+            color: rem.available ? 'var(--ow-fg-1)' : 'var(--ow-fg-3)',
+          }}
+        >
           {rem.available ? rem.mechanisms.join(', ') || 'automated' : 'manual'}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ow-fg-3)' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 11,
+              color: 'var(--ow-fg-3)',
+            }}
+          >
             <span
               style={{
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: !rem.available ? 'var(--ow-fg-3)' : rule.transactional ? 'var(--ow-ok)' : 'var(--ow-warn)',
+                background: !rem.available
+                  ? 'var(--ow-fg-3)'
+                  : rule.transactional
+                    ? 'var(--ow-ok)'
+                    : 'var(--ow-warn)',
               }}
             />
             {!rem.available ? 'manual' : rule.transactional ? 'atomic' : 'staged'}
           </span>
           {rem.reboot_behavior === 'boot-param' ? (
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#e3b341', background: 'rgba(219,154,4,0.15)', padding: '1px 6px', borderRadius: 4 }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#e3b341',
+                background: 'rgba(219,154,4,0.15)',
+                padding: '1px 6px',
+                borderRadius: 4,
+              }}
+            >
               reboot
             </span>
           ) : null}
           {rem.restarts_services.length > 0 ? (
-            <span style={{ fontSize: 10, color: 'var(--ow-fg-3)' }} title={rem.restarts_services.join(', ')}>
+            <span
+              style={{ fontSize: 10, color: 'var(--ow-fg-3)' }}
+              title={rem.restarts_services.join(', ')}
+            >
               restarts {rem.restarts_services.length}
             </span>
           ) : null}
@@ -276,8 +376,14 @@ function ExportButton({ rules }: { rules: Rule[] }) {
       const fws = Object.entries(r.framework_refs ?? {})
         .flatMap(([fid, cs]) => cs.map((c) => fwTag(fid, c).label))
         .join(' ');
-      const rem = r.remediation.available ? r.remediation.mechanisms.join(' ') || 'automated' : 'manual';
-      lines.push([r.id, r.title, r.severity, r.category, fws, rem, r.remediation.reboot_behavior].map(esc).join(','));
+      const rem = r.remediation.available
+        ? r.remediation.mechanisms.join(' ') || 'automated'
+        : 'manual';
+      lines.push(
+        [r.id, r.title, r.severity, r.category, fws, rem, r.remediation.reboot_behavior]
+          .map(esc)
+          .join(','),
+      );
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -309,7 +415,17 @@ function ExportButton({ rules }: { rules: Rule[] }) {
   );
 }
 
-function SevChip({ label, active, onClick, tone }: { label: string; active: boolean; onClick: () => void; tone?: string }) {
+function SevChip({
+  label,
+  active,
+  onClick,
+  tone,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  tone?: string;
+}) {
   return (
     <button
       type="button"
@@ -327,7 +443,9 @@ function SevChip({ label, active, onClick, tone }: { label: string; active: bool
         cursor: 'pointer',
       }}
     >
-      {tone ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: tone }} /> : null}
+      {tone ? (
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: tone }} />
+      ) : null}
       {label}
     </button>
   );
@@ -373,7 +491,13 @@ function Select({
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ border: '1px solid var(--ow-line)', borderRadius: 'var(--ow-radius)', overflow: 'hidden' }}>
+    <div
+      style={{
+        border: '1px solid var(--ow-line)',
+        borderRadius: 'var(--ow-radius)',
+        overflow: 'hidden',
+      }}
+    >
       {children}
     </div>
   );
@@ -381,7 +505,14 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function State({ text, tone }: { text: string; tone?: 'crit' }) {
   return (
-    <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)' }}>
+    <div
+      style={{
+        padding: 28,
+        textAlign: 'center',
+        fontSize: 13,
+        color: tone === 'crit' ? 'var(--ow-crit)' : 'var(--ow-fg-3)',
+      }}
+    >
       {text}
     </div>
   );
