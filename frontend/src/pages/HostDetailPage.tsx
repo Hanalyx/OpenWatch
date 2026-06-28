@@ -1332,8 +1332,8 @@ function RemediationExplainer() {
       <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
         Each approved fix captures the current host state, applies the change, validates the result,
         then commits. A failed validation rolls back to the captured state, so a host is never left
-        half-fixed. Applying a single approved fix on the host (and rolling it back) is part of core.
-        Bulk and automated remediation are OpenWatch+ features.
+        half-fixed. Applying a single approved fix on the host (and rolling it back) is part of
+        core. Bulk and automated remediation are OpenWatch+ features.
       </div>
     </div>
   );
@@ -1420,9 +1420,7 @@ function RemediationRowAction({
       });
       if (error || !response.ok) {
         if (response.status === 409) {
-          throw new Error(
-            apiErrorMessage(error, 'This request is not in an approvable state.'),
-          );
+          throw new Error(apiErrorMessage(error, 'This request is not in an approvable state.'));
         }
         throw new Error(apiErrorMessage(error, `Action failed (${response.status})`));
       }
@@ -1525,7 +1523,13 @@ function RemediationRowAction({
     return (
       <span
         role="status"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ow-warn)' }}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 11,
+          color: 'var(--ow-warn)',
+        }}
       >
         <span
           aria-hidden
@@ -1545,8 +1549,20 @@ function RemediationRowAction({
   if (request.status === 'executed') {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--ow-ok)' }}>
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ow-ok)' }} />
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--ow-ok)',
+          }}
+        >
+          <span
+            aria-hidden
+            style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ow-ok)' }}
+          />
           Fixed
         </span>
         {canRollback && (
@@ -1581,7 +1597,15 @@ function RemediationRowAction({
 
   if (request.status === 'failed') {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ow-crit)' }}>
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 11,
+          color: 'var(--ow-crit)',
+        }}
+      >
         Failed
         {request.review_note ? (
           <span style={{ color: 'var(--ow-fg-3)' }}>({request.review_note})</span>
@@ -1619,9 +1643,9 @@ function RemediationUpsell() {
           Bulk and automated remediation (OpenWatch+)
         </div>
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
-          Applying a single approved fix (and rolling it back) is part of core. Applying many rules at
-          once across the fleet, and scheduling auto-remediation so approved fixes apply without a
-          per-rule click, are OpenWatch+ features.
+          Applying a single approved fix (and rolling it back) is part of core. Applying many rules
+          at once across the fleet, and scheduling auto-remediation so approved fixes apply without
+          a per-rule click, are OpenWatch+ features.
         </div>
       </div>
       <button
@@ -2854,7 +2878,6 @@ function activityIconFor(item: ActivityItem): { Icon: LucideIcon; color: string 
       return { Icon: ActivityIcon, color: c.fg };
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────
 // Reusable bits (cards, kv rows, empty states, etc.)

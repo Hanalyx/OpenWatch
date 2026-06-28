@@ -140,14 +140,17 @@ lint: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 	  have=$$(golangci-lint version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1); \
 	  if [ "$$have" != "$(GOLANGCI_VERSION)" ]; then \
-	    echo "WARNING: golangci-lint $$have installed, but CI pins $(GOLANGCI_VERSION)."; \
-	    echo "         Results may differ from CI. Install the pinned version:"; \
+	    echo "ERROR: golangci-lint $$have installed, but this repo pins $(GOLANGCI_VERSION)."; \
+	    echo "       Local lint must match CI (the config is v1 format; a v2 binary cannot"; \
+	    echo "       load it). Install the pinned version, then re-run:"; \
 	    echo "         go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(GOLANGCI_VERSION)"; \
+	    exit 1; \
 	  fi; \
 	  golangci-lint run; \
 	else \
-	  echo "golangci-lint not installed; skipping (CI pins v$(GOLANGCI_VERSION)):"; \
+	  echo "ERROR: golangci-lint not installed (this repo pins v$(GOLANGCI_VERSION)):"; \
 	  echo "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(GOLANGCI_VERSION)"; \
+	  exit 1; \
 	fi
 
 # vuln: known-CVE scan against deps + stdlib (call-graph aware).
@@ -267,7 +270,7 @@ spa:
 
 .PHONY: migrate
 migrate:
-	@echo "migrate: not yet implemented (lands in Day 3: goose)"
+	go run ./cmd/openwatch migrate
 
 # -----------------------------------------------------------------------------
 # Packaging (Day 11: RPM + DEB)
@@ -335,7 +338,7 @@ help:
 	@echo ""
 	@echo "Codegen + DB:"
 	@echo "  generate    Run codegen (oapi-codegen, sqlc, registries)              [Day 5]"
-	@echo "  migrate     Run goose database migrations                             [Day 3]"
+	@echo "  migrate     Run goose database migrations (openwatch migrate)"
 	@echo ""
 	@echo "Packaging:"
 	@echo "  rpm         Build RPM package                                         [Day 11]"

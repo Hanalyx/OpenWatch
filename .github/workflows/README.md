@@ -74,7 +74,7 @@ The workflow then:
 Distribution is via GitHub Releases. Operators install with
 `sudo dnf install ./openwatch-*.rpm` or `sudo apt install ./openwatch_*.deb`. A tag
 with a pre-release suffix (for example `-rc.5`) is marked as a pre-release; a bare
-`vX.Y.Z` is GA. The current version (`0.2.0-rc.5`) is a pre-release. See
+`vX.Y.Z` is GA. The current version (`0.2.0-rc.17`) is a pre-release. See
 `specs/system/supply-chain.spec.yaml`, `specs/release/package-build.spec.yaml`, and
 `docs/runbooks/RELEASING.md`.
 
@@ -117,8 +117,10 @@ remain a manual RC step (see `docs/runbooks/RELEASING.md`).
 | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | `release.yml` | Sign RPMs and the checksum manifest |
 | `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `release.yml` | Cosign signature over the checksum manifest |
 
-Signing steps in `release.yml` are gated on key presence; without them, packages and
-checksums publish unsigned.
+On a tag-push release, GPG signing is required: `release.yml` fails closed and refuses
+to publish unsigned if `GPG_PRIVATE_KEY` is absent. The cosign layer is optional and
+skips if its key is absent. An unsigned build is only possible via a `workflow_dispatch`
+trial run (never a tag push).
 
 ## Reproducing CI locally
 

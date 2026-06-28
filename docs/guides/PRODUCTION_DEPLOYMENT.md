@@ -14,7 +14,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current line is a pre-release
-> (`v0.2.0-rc.14`), not a GA build. Treat it
+> (`v0.2.0-rc.17`), not a GA build. Treat it
 > accordingly until a GA tag ships.
 
 ---
