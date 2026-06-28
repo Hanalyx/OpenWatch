@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Two-factor authentication enrollment now shows a scannable QR code, so most
+  authenticator apps (Authy, Google Authenticator, 1Password, and similar) can
+  be set up by scanning instead of pasting the setup URI by hand.
+
+### Fixed
+
+- A user who began two-factor enrollment but never confirmed it is no longer
+  asked for a one-time code at the next sign-in. Previously an unconfirmed
+  enrollment demanded a code the user could not produce, locking them out with
+  no recovery codes; now only a verified authenticator is required at login.
+
 ---
 
 ## [0.2.0-rc.17] Eyrie — 2026-06-27
