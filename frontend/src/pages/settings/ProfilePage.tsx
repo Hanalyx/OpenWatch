@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { LogOut } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import api from '@/api/client';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -376,11 +377,19 @@ function FormInput({
   );
 }
 
+// secretFromUri extracts the base32 TOTP secret from an otpauth:// provisioning
+// URI, for the manual-entry fallback. The enroll response returns only the full
+// URI (which the QR encodes); the secret is the `secret` query parameter.
+function secretFromUri(uri: string): string {
+  const s = uri.match(/[?&]secret=([^&]+)/i)?.[1];
+  return s ? decodeURIComponent(s) : '';
+}
+
 function MFASection() {
   const identity = useAuthStore((s) => s.identity);
   const setIdentity = useAuthStore((s) => s.setIdentity);
   const queryClient = useQueryClient();
-  const [enrollment, setEnrollment] = useState<{ secret: string; uri: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{ uri: string } | null>(null);
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -393,8 +402,8 @@ function MFASection() {
     try {
       const { data, error: apiErr } = await api.POST('/api/v1/auth/mfa:enroll', {});
       if (apiErr) throw apiErr;
-      const d = data as { provisioning_uri: string; secret: string };
-      setEnrollment({ uri: d.provisioning_uri, secret: d.secret });
+      const d = data as { provisioning_uri: string };
+      setEnrollment({ uri: d.provisioning_uri });
     } catch {
       setError('Failed to start enrollment.');
     } finally {
@@ -458,32 +467,42 @@ function MFASection() {
             }}
           >
             <p style={{ margin: 0, color: 'var(--ow-fg-1)', fontSize: 13 }}>
-              Scan this URI in your authenticator app, or enter the secret manually, then enter the
-              6-digit code to confirm enrollment.
+              Scan this QR code with your authenticator app (Authy, Google Authenticator, 1Password,
+              etc.), or enter the secret manually, then enter the 6-digit code to confirm
+              enrollment.
             </p>
-            <code
+            <div
               style={{
-                fontFamily: 'var(--ow-font-mono)',
-                fontSize: 12,
-                background: 'var(--ow-bg-2)',
-                padding: '10px 12px',
+                padding: 12,
+                borderRadius: 8,
+                width: 'fit-content',
                 border: '1px solid var(--ow-line)',
-                borderRadius: 6,
-                wordBreak: 'break-all',
               }}
             >
-              {enrollment.uri}
-            </code>
+              {/* qrcode.react renders a white background + black modules by
+                  default (scannable on the dark UI); marginSize adds the quiet
+                  zone. No hardcoded colors needed. */}
+              <QRCodeSVG
+                value={enrollment.uri}
+                size={176}
+                level="M"
+                marginSize={2}
+                aria-label="MFA enrollment QR code"
+              />
+            </div>
             <div>
-              <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 8 }}>Secret:</span>
+              <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginRight: 8 }}>
+                Secret (manual entry):
+              </span>
               <code
                 style={{
                   fontFamily: 'var(--ow-font-mono)',
                   fontSize: 13,
                   color: 'var(--ow-fg-0)',
+                  wordBreak: 'break-all',
                 }}
               >
-                {enrollment.secret}
+                {secretFromUri(enrollment.uri)}
               </code>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
