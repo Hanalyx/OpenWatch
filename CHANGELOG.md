@@ -15,6 +15,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Two-factor authentication enrollment now shows a scannable QR code, so most
   authenticator apps (Authy, Google Authenticator, 1Password, and similar) can
   be set up by scanning instead of pasting the setup URI by hand.
+- Ubuntu 22.04 and 24.04 are now scannable compliance targets. The Kensa v0.7.0
+  rule corpus adds Ubuntu coverage (FIPS ciphers and key exchange, password
+  hashing, host firewall, and more); previously the corpus was RHEL-only.
+
+### Changed
+
+- Upgraded the Kensa compliance engine to v0.7.0. The rule corpus grows from 538
+  to 630 rules, corrects roughly 70 wrong STIG and CIS framework citations (so
+  scan results and OSCAL export now report the right control IDs), and repairs a
+  class of checks that previously could never fail (about 41 checks, including a
+  high-severity blank-password check). The kensa-rules package tracks the engine
+  version automatically.
+
+### Security
+
+- The Kensa v0.7.0 upgrade fixes a root command injection in the file-permission
+  remediation handler: rule-supplied owner, group, and mode values were spliced
+  into chown and chmod unquoted on both the apply and rollback paths, so crafted
+  rule content could run arbitrary commands as root during remediation. The
+  values are now shell-quoted. Present in the previously bundled v0.6.0.
 
 ### Fixed
 
