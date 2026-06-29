@@ -677,7 +677,7 @@ export function LoginPage() {
           letterSpacing: '0.08em',
         }}
       >
-        EYRIE // ENCRYPTED SESSION // TLS 1.3
+        {`OPENWATCH // ${version ? `v${version} // ` : ''}EYRIE`}
       </div>
     </div>
   );
