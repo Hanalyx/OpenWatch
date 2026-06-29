@@ -18,7 +18,7 @@ openapi: 3.0.3
 
 info:
   title: OpenWatch
-  version: 0.2.0-rc.17
+  version: 0.2.0
   description: |
     The OpenWatch REST API: authentication, hosts, scans, compliance posture,
     remediation, reports, notifications, and administration. All responses carry

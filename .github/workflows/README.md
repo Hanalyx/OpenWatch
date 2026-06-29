@@ -74,7 +74,7 @@ The workflow then:
 Distribution is via GitHub Releases. Operators install with
 `sudo dnf install ./openwatch-*.rpm` or `sudo apt install ./openwatch_*.deb`. A tag
 with a pre-release suffix (for example `-rc.5`) is marked as a pre-release; a bare
-`vX.Y.Z` is GA. The current version (`0.2.0-rc.17`) is a pre-release. See
+`vX.Y.Z` is GA. The current version (`0.2.0`) is a GA release. See
 `specs/system/supply-chain.spec.yaml`, `specs/release/package-build.spec.yaml`, and
 `docs/runbooks/RELEASING.md`.
 

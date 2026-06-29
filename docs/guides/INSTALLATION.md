@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the

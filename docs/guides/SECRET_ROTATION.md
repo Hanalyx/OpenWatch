@@ -1,6 +1,6 @@
 # Secret rotation procedures
 
-**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 This guide describes how to rotate each secret used by OpenWatch on the current
 single-binary stack: one `/usr/bin/openwatch` process that serves the REST API
