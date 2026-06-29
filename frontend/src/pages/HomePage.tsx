@@ -264,7 +264,7 @@ export function HomePage() {
           letterSpacing: '0.08em',
         }}
       >
-        EYRIE // ORBITAL VANTAGE // 47.6N 122.3W
+        {`OPENWATCH // ${version ? `v${version} // ` : ''}EYRIE`}
       </div>
     </div>
   );
