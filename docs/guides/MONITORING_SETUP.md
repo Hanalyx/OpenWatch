@@ -112,9 +112,8 @@ Log level precedence follows the standard config layering documented in the
 
 ## 4. Audit events
 
-Every server action that mutates state, authenticates, or authorizes emits a
-row to the `audit_events` PostgreSQL table (migrations `0001_initial.sql` and
-`0002_audit_events_taxonomy.sql`). This is the durable record for security
+Every server action that mutates state, authenticates, or authorizes emits an
+audit record to PostgreSQL. This is the durable record for security
 review; the journal is the operational record.
 
 Query audit events through the API (requires a bearer token with the
@@ -362,7 +361,7 @@ operators do not look for them:
   `monitoring/` Compose stack and no container runtime in this architecture.
 - **Distributed tracing**—not implemented. Correlation IDs in the JSON logs
   are the current mechanism for following a request across log lines.
-- **Detailed authenticated health endpoints** (per-service, content, history) —
+- **Detailed authenticated health endpoints** (per-service, content, history)—
   not implemented. The current health contract is a single binary
   `healthy`/`degraded` status.
 

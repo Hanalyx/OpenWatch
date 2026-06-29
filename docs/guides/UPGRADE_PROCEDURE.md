@@ -26,7 +26,7 @@ migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md)
 ## Quick upgrade (automatic, recommended)
 
 On a single-instance install an upgrade is **one command**. The package
-post-install scriptlet applies any pending database migrations automatically —
+post-install scriptlet applies any pending database migrations automatically—
 taking a backup restore point first—and restarts the service.
 
 ```bash
@@ -197,7 +197,7 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 ```
 
 The command prints the current version, the count of migration files, and each
-filename, then `migrations applied`. If it fails, the service is still stopped —
+filename, then `migrations applied`. If it fails, the service is still stopped—
 fix the cause or restore the backup (see [Rollback](#rollback)) before starting.
 
 ### Step 6—Start the service

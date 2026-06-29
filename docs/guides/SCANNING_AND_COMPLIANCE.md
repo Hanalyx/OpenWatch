@@ -27,13 +27,13 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-538 YAML rules evaluated (check commands, config values, file permissions)
+630 YAML rules evaluated (check commands, config values, file permissions)
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
         |
         v
-Write-on-change: changed verdicts -> transactions; current state -> host_rule_state
+Only changed verdicts are recorded; current per-rule state is kept up to date
         |
         v
 Daily posture snapshot rolls up; drift alerts generated if thresholds met
@@ -56,14 +56,20 @@ Key points:
 |-----------|------------|-------|
 | CIS RHEL 9 v2.0.0 | cis-rhel9-v2.0.0 | 271 |
 | STIG RHEL 9 V2R7 | stig-rhel9-v2r7 | 338 |
+| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (Ubuntu rules: ~117 on 24.04, ~115 on 22.04) |
+| STIG Ubuntu 22.04 | stig-ubuntu22 | (see Ubuntu rule applicability above) |
 | NIST 800-53 Rev 5 | nist-800-53-r5 | 87 |
 | PCI-DSS v4.0 | pci-dss-v4.0 | 45 |
 | FedRAMP Moderate | fedramp-moderate | 87 |
 
+RHEL and Ubuntu are both supported scan targets. See
+[Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md) for the full
+per-OS rule applicability matrix.
+
 Framework mappings are carried per-rule as Kensa's normalized `framework_refs`
 (a multi-valued framework_id -> control-ids map, since one rule can satisfy
-several controls within a framework). They are stored on each `host_rule_state`
-row as `framework_refs` JSONB and projected into the lens views at query time—
+several controls within a framework). They are stored per host-rule as
+`framework_refs` JSONB and projected into the lens views at query time—
 there is no separate sync service in the Go rebuild.
 
 ---
@@ -215,7 +221,7 @@ compliance state. You do not need to trigger manual scans for routine monitoring
 A host is classified into one of five score bands (plus Unknown for
 never-scanned hosts) after every scan, and the next scan is scheduled from the
 band's interval. The intervals below are the **defaults**—they are
-operator-editable per band under **Settings -> Scanning & monitoring ->
+operator-editable per band under **Settings -> Scanning and monitoring ->
 Compliance scanner**, clamped to a 5-minute floor and a 48-hour ceiling.
 
 | Compliance State | Score Range | Default Interval |

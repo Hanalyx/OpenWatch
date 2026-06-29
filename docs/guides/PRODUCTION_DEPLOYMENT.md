@@ -268,9 +268,8 @@ you have never restored is a hypothesis, not a backup.
 ## Operational runbooks
 
 Concise, single-binary runbooks follow. Diagnose with `systemctl`, `journalctl`,
-`psql`, `df`, and `top`—not `docker`. The standalone files under
-[`docs/runbooks/`](../runbooks/) still describe the archived Python/Docker stack
-and are pending a Go-era rewrite; prefer the steps below until they are updated.
+`psql`, `df`, and `top`—not `docker`. For the full incident runbooks, see
+[the runbooks directory](runbooks/).
 
 ### SERVICE_DOWN—service unavailable
 
@@ -414,7 +413,6 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 ## See also
 
 - [Install guide](INSTALLATION.md)—canonical install and provisioning.
-- Kensa ↔ OpenWatch boundary—compliance engine integration.
-- RBAC registry—roles and permissions.
-- API contract—every endpoint, its permission, and audit events.
-- Releasing runbook—building and signing releases.
+- [User roles](USER_ROLES.md)—roles and permissions.
+- [API guide](API_GUIDE.md)—every endpoint, its permission, and audit events.
+- [Operational runbooks](runbooks/)—incident response procedures.

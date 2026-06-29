@@ -108,7 +108,7 @@ Install **both** files in one transaction. `openwatch` declares a hard
 dependency on `kensa-rules`—the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (for example `0.6.0`), independent of the
+and versioned on the Kensa content line (for example `0.7.0`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
@@ -290,8 +290,8 @@ Once you are signed in:
    exceptions over time.
 4. **Add more administrators or scoped roles** from Settings as needed.
 
-For the day-to-day workflows, see [the operator guides](../guides/) (hosts and
-remediation, scanning and compliance, user roles).
+For the day-to-day workflows, see [Hosts and remediation](HOSTS_AND_REMEDIATION.md),
+[Scanning and compliance](SCANNING_AND_COMPLIANCE.md), and [User roles](USER_ROLES.md).
 
 ---
 
@@ -507,11 +507,10 @@ SQL
 
 ## Where to go next
 
-- **Operator guides:** [the operator guides](../guides/)—hosts and remediation,
-  scanning and compliance, user roles.
-- **API contract:** every endpoint with its required permission, license gate,
-  and audit events.
-- **Release process:** `docs/runbooks/RELEASING.md`.
+- **Operator guides:** [Hosts and remediation](HOSTS_AND_REMEDIATION.md),
+  [Scanning and compliance](SCANNING_AND_COMPLIANCE.md), [User roles](USER_ROLES.md).
+- **API contract:** [API guide](API_GUIDE.md)—every endpoint with its required
+  permission, license gate, and audit events.
 
 ---
 

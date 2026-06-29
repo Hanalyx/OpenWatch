@@ -448,7 +448,7 @@ sudo journalctl -u openwatch --since '10 min ago' | jq -r 'select(.level=="ERROR
    sudo -u postgres pg_dump -Fc openwatch > /tmp/openwatch-evidence.dump
    ```
 
-3. **Review authentication and authorization events** in the audit trail —
+3. **Review authentication and authorization events** in the audit trail—
    `auth.login.success`, `auth.login.failure`, role and user changes—for the
    incident window. Query the audit tables directly with `psql` or via the audit
    API.
@@ -514,7 +514,7 @@ Source for every checklist item is cited in the section above that introduces it
   [User roles](USER_ROLES.md)
 - Audit event taxonomy:
   the audit-event reference
-- Kensa ↔ OpenWatch boundary:
+- Kensa and OpenWatch boundary:
   the Kensa scanning engine
 - API contract (per-operation required permission, license gate, audit events):
   served at `/api/v1`; `GET /api/v1/version` reports the running build

@@ -189,7 +189,7 @@ needing to SSH in manually.
 
 ## Remediation overview
 
-OpenWatch can automatically fix compliance findings through Kensa's 23
+OpenWatch can automatically fix compliance findings through Kensa's 27
 remediation mechanisms. All changes are made over SSH—nothing is installed
 on target hosts.
 
@@ -232,9 +232,8 @@ For organizations that require an approval step:
 3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
-See Remediation and Exception Governance
-for the full role matrix. Single-operator workspaces cannot self-approve today;
-see the governance ADR.
+See [User roles](USER_ROLES.md) for the full role matrix. Single-operator
+workspaces cannot self-approve a bulk/automated remediation request today.
 
 ---
 
@@ -282,10 +281,9 @@ returned to its previous state.
 ## Required permissions
 
 Built-in roles, least to most privilege: `viewer` → `auditor` → `ops_lead` →
-`security_admin` → `admin` (`admin` holds every permission). The permission
-source of truth is `auth/permissions.yaml`; see
-Remediation and Exception Governance
-for the complete matrix.
+`security_admin` → `admin` (`admin` holds every permission). The authoritative
+role-to-permission mapping is served by the roles API, `GET /api/v1/roles`; see
+[User roles](USER_ROLES.md) for the complete matrix.
 
 | Operation | Permission | Roles that hold it |
 |-----------|------------|--------------------|
