@@ -24,8 +24,8 @@ The live model is observable from the running service:
 - Each protected operation declares the permission it requires; a request
   missing that permission is denied.
 
-For the rationale, the custom-role design, and how wildcards expand, see
-[User roles](USER_ROLES.md).
+For the live, authoritative role-to-permission mapping, query the roles API,
+`GET /api/v1/roles`.
 
 ## Built-in roles
 
@@ -264,12 +264,11 @@ registry permission and category wildcards such as `host:*`, but not the bare
 custom role lists is validated against the registry; unknown permissions are
 rejected with `400`.
 
-For the custom-role design, validation rules, and the relationship between
-wildcards and newly added permissions, see [User roles](USER_ROLES.md).
+For the live permission registry, including category wildcards and newly added
+permissions, query the permissions-registry API endpoint.
 
 ## Related documentation
 
-- [User roles](USER_ROLES.md)—RBAC design and custom roles
-- `docs/guides/INSTALLATION.md`—install, `migrate`, `create-admin`, service start
+- [Installation guide](INSTALLATION.md)—install, `migrate`, `create-admin`, service start
 - The running binary serves its API contract under `/api/v1`; the permission and
   role registry is available from the permissions-registry API endpoint

@@ -83,8 +83,16 @@ sudo systemctl start openwatch
 
 ## Checking the current schema version
 
-The `migrate` subcommand prints the current version after applying. To inspect
-the version table directly with `psql`:
+The `migrate` subcommand prints the current version after applying. To check the
+schema state **without applying anything**, pass `--status`. It reports the
+current version and whether any migrations are pending, and makes no changes:
+
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch migrate --status
+```
+
+To inspect the version table directly with `psql`:
 
 ```bash
 psql "$OPENWATCH_DATABASE_DSN" -c \
@@ -163,8 +171,18 @@ Plan accordingly:
 
 ## Backup before migrating
 
-Take a logical backup with `pg_dump` before applying migrations to any
-environment you cannot afford to lose:
+The `migrate` subcommand can take the pre-migration backup for you: pass
+`--backup-dir <dir>` and it writes a logical dump into that directory before
+applying any pending migration. This is the recommended path on production
+upgrades:
+
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch migrate --backup-dir /var/backups/openwatch
+```
+
+To take the backup yourself instead, use `pg_dump` before applying migrations to
+any environment you cannot afford to lose:
 
 ```bash
 pg_dump "$OPENWATCH_DATABASE_DSN" \
@@ -250,6 +268,8 @@ journalctl -u openwatch -n 50 --no-pager
 |------|-----------|
 | Migration files | Embedded in the `openwatch` binary |
 | `migrate` subcommand | `openwatch migrate` |
+| Check status, apply nothing | `openwatch migrate --status` |
+| Auto-backup before applying | `openwatch migrate --backup-dir <dir>` |
 | Config layering and DSN | [Install guide](INSTALLATION.md) |
 | systemd unit | `openwatch.service` |
 | Install and upgrade flow | [Install guide](INSTALLATION.md) |

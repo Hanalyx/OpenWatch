@@ -36,14 +36,14 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | AU-2 | Event Logging | Structured audit events for auth/scan/admin actions | Audit events from `/api/v1/audit/events` |
 | AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome | Fields in each record from `/api/v1/audit/events` |
 | AU-6 | Audit Record Review | Audit query API (`/api/v1/audit/events`) | Query results from `/api/v1/audit/events` |
-| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | Append-only `audit_events` table in the database |
+| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | Append-only audit records in the database |
 | AU-12 | Audit Record Generation | API routes generate audit events | Events emitted per action in the audit log |
 
 ### Configuration management (CM)
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (538 native YAML rules); scan results |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (630 native YAML rules); scan results |
 | CM-3 | Configuration Change Control | Database migration tracking, version control | Migration version reported by `openwatch migrate` |
 | CM-6 | Configuration Settings | Configuration validation at startup | Output of `openwatch check-config` |
 | CM-8 | System Component Inventory | Host management with discovery and metadata | Host list and collected system info from the API |
@@ -91,7 +91,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Kensa compliance scanning (538-rule corpus) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (630-rule corpus) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
 | 5.2 | Unique Passwords | Argon2id hashing, 8-char minimum (15 for admin), breached-password screening |
 | 5.4 | MFA | TOTP-based MFA with backup codes |

@@ -286,7 +286,7 @@ SHOW effective_cache_size;
 "
 ```
 
-Consider reducing `work_mem` if it is set high, or adding a memory limit to the container to prevent it from being targeted by the host OOM killer.
+Consider reducing `work_mem` if it is set high, or constraining the PostgreSQL service's memory (for example a systemd `MemoryMax=` on the postgresql unit) to keep it from being targeted by the host OOM killer.
 
 ---
 
@@ -303,7 +303,7 @@ Expected: `accepting connections`.
 ### 2. Health endpoint reports database healthy
 
 ```bash
-curl -sk https://localhost:8443/api/v1/health | python3 -m json.tool
+curl -sk https://localhost:8443/api/v1/health | jq
 ```
 
 Confirm `"status": "healthy"` and `"db_connected": true`.
@@ -349,7 +349,7 @@ Escalate if any of the following conditions are met:
 - WAL corruption or replication errors are present in logs.
 
 **Information to include when escalating**:
-- PostgreSQL container logs (last 200 lines).
+- PostgreSQL logs (last 200 lines), for example `journalctl -u postgresql -n 200`.
 - Output of `pg_isready`.
 - Connection count and max_connections values.
 - Database size and disk usage.

@@ -264,15 +264,15 @@ WHERE username = 'USERNAME' AND deleted_at IS NULL;
 
 ### Revoke every session (full re-authentication)
 
-To force all users to re-authenticate, rotate the JWT signing key. The signing key is a file referenced by `[identity].jwt_private_key` (or `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY`). Replacing it invalidates every issued access token because existing tokens no longer verify:
+To force all users to re-authenticate, rotate the JWT signing key. The signing key is the file at `/etc/openwatch/keys/jwt_private.pem`. Replacing it invalidates every issued access token because existing tokens no longer verify:
 
 ```bash
 # Back up the current key, generate a replacement (RSA, matching the existing key type)
-sudo cp /etc/openwatch/identity/jwt_private_key.pem /etc/openwatch/identity/jwt_private_key.pem.bak
+sudo cp /etc/openwatch/keys/jwt_private.pem /etc/openwatch/keys/jwt_private.pem.bak
 sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
-  -out /etc/openwatch/identity/jwt_private_key.pem
-sudo chown root:openwatch /etc/openwatch/identity/jwt_private_key.pem
-sudo chmod 0640 /etc/openwatch/identity/jwt_private_key.pem
+  -out /etc/openwatch/keys/jwt_private.pem
+sudo chown root:openwatch /etc/openwatch/keys/jwt_private.pem
+sudo chmod 0640 /etc/openwatch/keys/jwt_private.pem
 
 # The key is loaded at startup; restart to pick up the new key
 sudo systemctl restart openwatch
@@ -346,7 +346,7 @@ Expect `active (running)`.
 ### 2. Health endpoint reports healthy
 
 ```bash
-curl -sk https://localhost:8443/api/v1/health | python3 -m json.tool
+curl -sk https://localhost:8443/api/v1/health | jq
 ```
 
 Expect `"status": "healthy"`.
