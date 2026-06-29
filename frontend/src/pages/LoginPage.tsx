@@ -6,6 +6,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import api from '@/api/client';
 import { useAuthStore, type Identity } from '@/store/useAuthStore';
 import { RadarField } from '@/components/RadarField';
+import { useVersion } from '@/hooks/useVersion';
 import owIcon from '@/assets/openwatch-icon.png';
 
 // Login page — frontend-auth-login spec.
@@ -76,6 +77,7 @@ export function LoginPage() {
   const setIdentity = useAuthStore((s) => s.setIdentity);
   const identity = useAuthStore((s) => s.identity);
   const authLoading = useAuthStore((s) => s.loading);
+  const version = useVersion();
 
   const [mfaRequired, setMfaRequired] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
@@ -347,7 +349,7 @@ export function LoginPage() {
             }}
           />
           <span style={{ color: 'var(--ow-fg-1)', fontWeight: 600 }}>Eyrie</span>
-          <span>· pre-release</span>
+          {version && <span>· v{version}</span>}
         </span>
       </div>
 
