@@ -10,6 +10,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] Eyrie — 2026-06-29
+
+First general-availability release of OpenWatch. Consolidates the `0.2.0-rc`
+series into a stable line; see the rc sections below for the incremental
+development history.
+
 ### Added
 
 - Two-factor authentication enrollment now shows a scannable QR code, so most

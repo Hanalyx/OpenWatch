@@ -1,6 +1,6 @@
 # Scaling guide
 
-**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 This guide covers how OpenWatch behaves as you add hosts, run more scans, and
 push more concurrent API traffic, and what you can tune today. It describes the

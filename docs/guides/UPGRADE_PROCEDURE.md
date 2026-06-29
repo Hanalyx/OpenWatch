@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
@@ -19,9 +19,8 @@ For first-time install and configuration, see the
 commands referenced below, see the [backup and recovery guide](BACKUP_RECOVERY.md). For
 migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md).
 
-> Version note: the current release line is a pre-release (the `0.2.0-rc`
-> series). Treat upgrades between pre-release builds as potentially breaking and
-> always back up first.
+> Version note: `0.2.0` is the current general-availability release. Always back
+> up before upgrading; the upgrade path runs database migrations automatically.
 
 ## Quick upgrade (automatic, recommended)
 

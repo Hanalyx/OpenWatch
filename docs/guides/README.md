@@ -1,8 +1,8 @@
 # OpenWatch operator guides
 
-Operator and administrator documentation for OpenWatch. For the version you are
-running, check `GET /api/v1/health` or `openwatch --version`; the current line is
-a pre-release on the `0.2.0` series until a bare `v0.2.0` tag is published.
+Operator and administrator documentation for OpenWatch. The current
+general-availability release is `0.2.0`; confirm the version you are running with
+`GET /api/v1/health` or `openwatch --version`.
 
 ## Getting started
 

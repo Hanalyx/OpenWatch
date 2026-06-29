@@ -1,6 +1,6 @@
 # Compliance control mapping
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 

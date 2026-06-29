@@ -7,7 +7,7 @@
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.2.0-rc series (Go single-binary)
+**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
 
 **Last verified:** 2026-06-29 against Kensa rule corpus **v0.7.0** (630 rules).
 Per-OS counts below are read from each rule's `platforms:` declarations in the
