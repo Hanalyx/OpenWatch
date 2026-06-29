@@ -2,7 +2,7 @@
 
 **The Compliance Operating System — See Everything, Continuously.**
 
-[![License: AGPLv3 + MSE](https://img.shields.io/badge/License-AGPLv3%20%2B%20MSE-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://hanalyx.github.io/OpenWatch/)
 [![GitHub Discussions](https://img.shields.io/github/discussions/Hanalyx/OpenWatch)](https://github.com/Hanalyx/OpenWatch/discussions)
@@ -277,9 +277,13 @@ built or tested here. See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a
 
 ## License
 
-**OpenWatch Community License (AGPLv3 + Managed Service Exception)**
+OpenWatch is licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)
+and [NOTICE](NOTICE)).
 
-- Free to use, modify, and self-host
-- Cannot offer as a managed/hosted service without a commercial license
+- Free to use, modify, self-host, and redistribute under Apache 2.0.
+- The compiled binary statically links the Kensa compliance engine, which is
+  BSL-1.1, so a binary distribution is a combined Apache/BSL work (see
+  [NOTICE](NOTICE)).
 
-See [LICENSE](LICENSE) for details. Commercial licensing: [legal@hanalyx.com](mailto:legal@hanalyx.com)
+Third-party dependency licenses: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Commercial inquiries: [legal@hanalyx.com](mailto:legal@hanalyx.com)

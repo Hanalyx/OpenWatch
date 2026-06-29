@@ -1,0 +1,18 @@
+OpenWatch
+Copyright 2025 Hanalyx LLC
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE),
+with the following attributions.
+
+================================================================================
+Bundled third-party components
+================================================================================
+
+The compiled openwatch binary statically links the Kensa compliance engine
+(github.com/Hanalyx/kensa), which is licensed under the Business Source License
+1.1 (BSL-1.1), not Apache 2.0. A binary distribution of OpenWatch is therefore a
+combined work that includes a BSL-1.1 component, and redistribution of the
+binary is subject to the BSL-1.1 terms with respect to the Kensa portion.
+
+A full inventory of bundled open-source dependencies and their licenses is
+maintained in THIRD-PARTY-NOTICES.md.

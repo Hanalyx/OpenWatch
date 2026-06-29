@@ -10,6 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Relicensed the OpenWatch core from the AGPLv3-based Community License to the
+  **Apache License 2.0** (see LICENSE and NOTICE). OpenWatch is now permissively
+  open source: free to use, modify, self-host, and redistribute, including
+  commercially, with attribution and no copyleft obligation. The compiled binary
+  still statically links the Kensa engine (BSL-1.1), so a binary distribution is
+  a combined Apache/BSL work (see NOTICE).
+
 ---
 
 ## [0.2.0] Eyrie — 2026-06-29

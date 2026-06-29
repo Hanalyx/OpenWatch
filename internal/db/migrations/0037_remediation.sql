@@ -1,7 +1,7 @@
 -- 0037_remediation.sql
 --
 -- Remediation governance (scan plan Phase 7, remediation half). The free
--- (AGPLv3 core) see-and-govern loop: an operator's intent to fix a failing
+-- (Apache 2.0 core) see-and-govern loop: an operator's intent to fix a failing
 -- rule on a host, with a request -> approve | reject lifecycle, mirroring the
 -- exception governance overlay (0026_compliance_exceptions).
 --
