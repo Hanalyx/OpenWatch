@@ -175,6 +175,23 @@ backend_start() {
   # shellcheck disable=SC1090
   set -a; source "$ENV_FILE"; set +a
 
+  # Keep the embedded SPA fresh. The Go binary serves the React app at :8443 via
+  # go:embed (internal/server/spa), baked in at compile time. The launcher also
+  # runs Vite on :5173 for live HMR, but a dev hitting :8443 directly should
+  # still see frontend changes. Rebuild + restage the embed only when frontend
+  # source is newer than it (or it is missing / the lint placeholder), so a
+  # backend-only restart stays fast. Without this, :8443 silently serves a stale
+  # UI after a frontend change.
+  local spa_embed="$ROOT/internal/server/spa"
+  if [[ ! -f "$spa_embed/index.html" ]] \
+    || grep -q 'SPA placeholder' "$spa_embed/index.html" 2>/dev/null \
+    || [[ -n "$(find "$FE_DIR/src" "$FE_DIR/index.html" "$FE_DIR/package.json" "$FE_DIR/vite.config.ts" -newer "$spa_embed/index.html" -print -quit 2>/dev/null)" ]]; then
+    log "rebuilding embedded SPA (frontend changed) ..."
+    ( cd "$FE_DIR" && { [[ -d node_modules ]] || npm ci --no-audit --no-fund; } && npx vite build ) \
+      || die "frontend (vite) build failed"
+    rm -rf "$spa_embed" && mkdir -p "$spa_embed" && cp -r "$FE_DIR/dist/." "$spa_embed/"
+  fi
+
   log "building dist/openwatch ..."
   # Inject version metadata (same -X flags as the Makefile) so the dev app
   # reports the real version (e.g. on /settings/about and `--version`) instead
