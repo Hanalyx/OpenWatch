@@ -12,6 +12,13 @@ generate:
   models: true
   chi-server: true
   strict-server: false
-  embedded-spec: true
+  # embedded-spec is intentionally OFF. It bakes a gzip+base64 copy of the spec
+  # (GetSwagger/swaggerSpec) into server.gen.go, but nothing consumes it — the
+  # spec is served from internal/server/openapi_docs.go via `go:embed
+  # openapi_embed.yaml`. Worse, the gzip bytes depend on the Go toolchain that
+  # built oapi-codegen, so the blob was non-deterministic across machines and
+  # made the generated-drift CI gate unreliable. With it off, server.gen.go is
+  # pure, deterministic type/handler codegen.
+  embedded-spec: false
 output-options:
   skip-prune: true

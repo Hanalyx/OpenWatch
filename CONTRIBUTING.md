@@ -66,7 +66,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 ### Suggesting Features
 
-1. **Check the roadmap** in [docs/engineering/openwatch_roadmap.md](docs/engineering/openwatch_roadmap.md)
+1. **Check the recent direction** in [CHANGELOG.md](CHANGELOG.md) and open [GitHub Discussions](https://github.com/hanalyx/openwatch/discussions)
 2. **Open a discussion** for major features before implementing
 3. **Use the feature request template** for new issues
 4. **Provide detailed use cases** and benefits
@@ -194,8 +194,9 @@ npx vitest run
 
 OpenWatch is organized as one Go package per concern under `internal/<concern>/`, wired
 together in `cmd/openwatch/main.go`. New behavior is added as a focused service package, not
-as a runtime plugin. Before adding a service, review the authoritative engineering docs in
-[docs/engineering/](docs/engineering/) and the behavioral specs in [specs/](specs/), then:
+as a runtime plugin. Before adding a service, review the behavioral specs in
+[specs/](specs/) (registered in [specter.yaml](specter.yaml)) and the existing packages under
+[internal/](internal/), then:
 
 - **Keep one responsibility per package** and import from the package, not its internal files
 - **Wire the service** into the `.With` chain in `cmd/openwatch/main.go`
@@ -251,7 +252,7 @@ as a runtime plugin. Before adding a service, review the authoritative engineeri
 
 ### Adding New Features
 
-1. **Review existing architecture** in [docs/engineering/BACKEND_FUNCTIONALITY.md](docs/engineering/BACKEND_FUNCTIONALITY.md)
+1. **Review existing architecture** in the behavioral specs ([specs/](specs/)) and the package layout under [internal/](internal/)
 2. **Add a focused service package** under `internal/` rather than overloading an existing one
 3. **Maintain API compatibility** when possible
 4. **Follow established patterns** in the codebase

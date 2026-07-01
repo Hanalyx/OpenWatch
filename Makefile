@@ -176,6 +176,45 @@ test-race: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 check: vet lint vuln test-race
 	@echo "make check: all gates passed"
 
+# generate-api-types: regenerate the frontend OpenAPI client types
+# (frontend/src/api/schema.d.ts) from api/openapi.yaml. Kept separate from
+# generate-api (which emits the Go server stubs) so the drift check can
+# regenerate both halves of the contract.
+.PHONY: generate-api-types
+generate-api-types:
+	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run api:types
+
+# check-generated: fail if committed generated code has drifted from the
+# api/openapi.yaml contract. Regenerates the Go server stubs and the frontend
+# client types, then asserts git sees no change. This is the guard that stops an
+# OpenAPI edit from landing without a matching `make generate-api` — CI verified
+# only go.mod/go.sum before, so an un-regenerated contract used to pass silently.
+.PHONY: check-generated
+check-generated: generate-api generate-api-types
+	@git diff --exit-code -- internal/server/api/server.gen.go frontend/src/api/schema.d.ts \
+	  || { echo "ERROR: generated code is out of sync with api/openapi.yaml."; \
+	       echo "Run 'make generate-api generate-api-types' and commit the result."; \
+	       exit 1; }
+	@echo "check-generated: server.gen.go and schema.d.ts are in sync"
+
+# spec-check: run the Specter gates CI enforces (annotation hygiene + structural
+# coverage) so spec drift is caught before pushing. Skips cleanly if specter is
+# not on PATH; CI runs the authoritative gate regardless.
+.PHONY: spec-check
+spec-check:
+	@command -v specter >/dev/null 2>&1 || { echo "spec-check: specter not on PATH; skipping (CI enforces it)"; exit 0; }
+	specter check --test
+	specter coverage --strictness annotation
+
+# ci-local: run locally what CI's "Quality + security gates" job runs, so a
+# failure is caught before the ~9-minute push round-trip. `make check` alone
+# omits the generated-code, spec, and frontend gates — this target is the
+# full mirror.
+.PHONY: ci-local
+ci-local: check-generated vet lint vuln spec-check test-race
+	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
+	@echo "ci-local: all gates passed — safe to push"
+
 .PHONY: clean
 clean:
 	rm -rf $(DIST_DIR) $(SPA_DIR)
@@ -207,11 +246,15 @@ generate-rbac:
 generate-license:
 	go run scripts/gen-license-features.go
 
+# Pinned so `make generate-api` is byte-reproducible. An unpinned @latest let the
+# generated stubs drift by generator version, which made the generated-drift gate
+# fail on correct code. Bump deliberately (and regenerate) when upgrading.
+OAPI_CODEGEN_VERSION := v2.7.0
 .PHONY: generate-api
 generate-api: internal/server/openapi_embed.yaml
-	@if [ ! -x "$(HOME)/go/bin/oapi-codegen" ]; then \
-	  echo "installing oapi-codegen..."; \
-	  go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest; \
+	@if ! $(HOME)/go/bin/oapi-codegen --version 2>/dev/null | grep -q '$(OAPI_CODEGEN_VERSION)'; then \
+	  echo "installing oapi-codegen $(OAPI_CODEGEN_VERSION)..."; \
+	  go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION); \
 	fi
 	$(HOME)/go/bin/oapi-codegen --config api/oapi-codegen.yaml api/openapi.yaml
 	@echo "generated internal/server/api/server.gen.go"

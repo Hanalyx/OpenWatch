@@ -7,7 +7,7 @@
 
 OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by `systemd` (`openwatch.service`). It serves the REST API and the embedded UI over HTTPS on port `8443` and stores all data in PostgreSQL (there is no MongoDB, Redis, Celery, or container runtime). Audit events are written to the `audit_events` table; the service logs to the journal (`journalctl -u openwatch`). Adjust `psql` connection flags (`-h`, `-p`) for your deployment.
 
-This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see the [installation guide](../INSTALLATION.md) and [User roles](USER_ROLES.md).
+This runbook covers containment, investigation, and recovery for a suspected compromise. For install, config, and role definitions see the [installation guide](../INSTALLATION.md) and [User roles](../USER_ROLES.md).
 
 ---
 
@@ -172,7 +172,7 @@ ORDER BY ur.granted_at DESC;
 "
 ```
 
-The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [User roles](USER_ROLES.md) for the full permission sets.
+The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [User roles](../USER_ROLES.md) for the full permission sets.
 
 ### Active sessions and refresh tokens
 
