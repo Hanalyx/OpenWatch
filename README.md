@@ -235,7 +235,7 @@ Prometheus `/metrics` endpoint is on the roadmap, not in the current build.)
 | Quickstart | [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md) |
 | Production deployment | [docs/guides/PRODUCTION_DEPLOYMENT.md](docs/guides/PRODUCTION_DEPLOYMENT.md) |
 | Security hardening | [docs/guides/SECURITY_HARDENING.md](docs/guides/SECURITY_HARDENING.md) |
-| Engineering docs | [docs/engineering/](docs/engineering/) |
+| Behavioral specs (engineering SSOT) | [specs/](specs/), registered in [specter.yaml](specter.yaml) |
 
 ## Part of the Hanalyx Compliance Platform
 

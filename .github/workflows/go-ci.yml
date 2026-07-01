@@ -165,6 +165,20 @@ jobs:
             exit 1;
           }
 
+      # OpenAPI-first drift guard (Go half): the committed server stubs must
+      # match api/openapi.yaml. Without this, an OpenAPI edit that is not
+      # regenerated lands silently — the stubs compile but no longer reflect the
+      # contract. Cheap (no Node), so it runs early. The frontend schema.d.ts
+      # half is checked after Node is set up, below.
+      - name: Verify generated Go API stubs are in sync
+        if: steps.paths.outputs.go == 'true'
+        run: |
+          make generate-api
+          git diff --exit-code -- internal/server/api/server.gen.go || {
+            echo "::error::internal/server/api/server.gen.go drifted from api/openapi.yaml. Run 'make generate-api' locally and commit.";
+            exit 1;
+          }
+
       - name: make vet
         if: steps.paths.outputs.go == 'true'
         run: make vet
@@ -287,6 +301,19 @@ jobs:
           if [ "$EXIT" -ne 0 ]; then
             echo "::warning::Vitest reported test failures — specter coverage below shows affected ACs; the build fails at the enforcement step."
           fi
+
+      # OpenAPI-first drift guard (frontend half): the committed client types
+      # must match api/openapi.yaml. Runs here because the vitest step above has
+      # already installed frontend node_modules (openapi-typescript).
+      - name: Verify generated frontend API types are in sync
+        if: steps.paths.outputs.go == 'true'
+        working-directory: frontend
+        run: |
+          npm run api:types
+          cd .. && git diff --exit-code -- frontend/src/api/schema.d.ts || {
+            echo "::error::frontend/src/api/schema.d.ts drifted from api/openapi.yaml. Run 'npm run api:types' in frontend/ and commit.";
+            exit 1;
+          }
 
       - name: specter ingest
         if: steps.paths.outputs.go == 'true'
