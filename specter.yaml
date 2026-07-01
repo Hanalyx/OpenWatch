@@ -97,6 +97,33 @@ domains:
             - api-remediation
             - frontend-remediation-tab
             - frontend-session-idle
+            - system-event-bus
+            - system-alert-router
+            - system-drift-detector
+            - system-fleet-rollup
+            - system-liveness-loop
+            - system-scheduler
+            - system-discovery-scheduler
+            - system-daemon-orchestration
+            - system-kensa-executor
+            - system-transaction-log-writer
+            - system-supply-chain
+            - services-connectivity-config
+            - api-version
+            - api-fleet-observability
+            - api-system-discovery-config
+            - frontend-foundation
+            - frontend-homepage
+            - frontend-auth-login
+            - frontend-dashboard
+            - frontend-activity
+            - frontend-add-host
+            - frontend-hosts-list
+            - frontend-scans
+            - frontend-settings
+            - frontend-settings-scan-config
+            - frontend-settings-exception-queue
+            - frontend-settings-discovery-config
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes
