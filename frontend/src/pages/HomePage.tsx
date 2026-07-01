@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { RadarField } from '@/components/RadarField';
+import { useVersion } from '@/hooks/useVersion';
 import owIcon from '@/assets/openwatch-icon.png';
 
 // HomePage — the public, non-login landing surface at "/". Renders the
@@ -14,6 +15,7 @@ import owIcon from '@/assets/openwatch-icon.png';
 const SCAN = 'rgb(96,212,228)';
 
 export function HomePage() {
+  const version = useVersion();
   return (
     <div
       style={{
@@ -120,7 +122,7 @@ export function HomePage() {
               }}
             />
             <span style={{ color: 'var(--ow-fg-1)', fontWeight: 600 }}>Eyrie</span>
-            <span>· pre-release</span>
+            {version && <span>· v{version}</span>}
           </span>
         </header>
 
@@ -262,7 +264,7 @@ export function HomePage() {
           letterSpacing: '0.08em',
         }}
       >
-        EYRIE // ORBITAL VANTAGE // 47.6N 122.3W
+        {`OPENWATCH // ${version ? `v${version} // ` : ''}EYRIE`}
       </div>
     </div>
   );
