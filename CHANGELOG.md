@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.2.1] Eyrie — 2026-06-30
+
 ### Changed
 
 - Relicensed the OpenWatch core from the AGPLv3-based Community License to the
@@ -18,6 +22,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   commercially, with attribution and no copyleft obligation. The compiled binary
   still statically links the Kensa engine (BSL-1.1), so a binary distribution is
   a combined Apache/BSL work (see NOTICE).
+- The landing and login pages now show the running version live, read from the
+  server's version endpoint instead of a hardcoded string. The header badge
+  shows the codename and version (for example "Eyrie · v0.2.1") and the footer
+  reads "OPENWATCH // v0.2.1 // EYRIE". The stale "pre-release" label is gone.
 
 ---
 
