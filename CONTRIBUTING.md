@@ -352,12 +352,12 @@ wired into a GitHub Actions workflow; configure `SONAR_TOKEN` only if you re-ena
 
 ## License
 
-By contributing to OpenWatch, you agree that your contributions will be licensed under the [OpenWatch Community License (AGPLv3 + Managed Service Exception)](LICENSE).
+By contributing to OpenWatch, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE), the same license as the rest of the codebase (inbound = outbound, per Apache 2.0 Section 5).
 
-Your contributions will be subject to the same AGPLv3 + MSE terms as the rest of the codebase, ensuring:
-- Your code remains open source
-- Modifications must be shared under the same terms
-- Commercial SaaS offerings require separate licensing from Hanalyx LLC
+Apache 2.0 is permissive:
+- Anyone can use, modify, self-host, and redistribute OpenWatch, including commercially, with attribution.
+- There is no copyleft or share-alike obligation on modifications.
+- The compiled binary links the Kensa engine (BSL-1.1); see [NOTICE](NOTICE) for the combined-work terms.
 
 ---
 

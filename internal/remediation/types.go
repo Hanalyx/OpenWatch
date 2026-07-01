@@ -1,4 +1,4 @@
-// Package remediation implements the free (AGPLv3 core) half of Phase 7
+// Package remediation implements the free (Apache 2.0 core) half of Phase 7
 // remediation governance: an operator's intent to fix a failing rule on a
 // host, with a request -> approve | reject lifecycle and a read-only
 // projected-lift estimate.

@@ -8,7 +8,7 @@ spec:
   context:
     system: openwatch
     feature: >
-      The free (AGPLv3 core) Phase 7 remediation surface: a see-govern-and-act
+      The free (Apache 2.0 core) Phase 7 remediation surface: a see-govern-and-act
       loop over failing rules. Operators view what is remediable and the
       projected compliance-score lift, request a fix, route it through
       approval, then EXECUTE the approved single-rule fix (Tier A free core):
