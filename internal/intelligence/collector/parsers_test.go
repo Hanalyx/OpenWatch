@@ -3,6 +3,7 @@
 // AC traceability (this file):
 //
 //	AC-03  TestParsePasswdShadow_LockedOutUsersFlagged
+//	AC-16  TestParsePasswdShadow_PasswordAging
 //	AC-04  TestParseListeningPorts_SsOutput
 //	AC-05  TestParseInstalledPackages_RPMAndDPKG
 
@@ -41,6 +42,68 @@ nobody:*:19500:0:99999:7:::`
 		}
 		if facts.Users["bob"].UID != 1001 {
 			t.Errorf("bob uid=%d, want 1001", facts.Users["bob"].UID)
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16: ParsePasswdShadow captures GECOS + shell from passwd and the
+// password-aging fields (lstchg f3, max f5) from shadow; PasswordExpiresAt
+// is derived only when a real policy is in force (max not 99999/unset) and
+// the last-change date is known. A literal lstchg 0 is preserved (force
+// change) distinctly from an empty field (nil).
+func TestParsePasswdShadow_PasswordAging(t *testing.T) {
+	t.Run("system-os-intelligence/AC-16", func(t *testing.T) {
+		const passwd = `owadmin:x:1000:1000:OpenWatch Admin:/home/owadmin:/bin/bash
+policyuser:x:1001:1001:Policy User,,,:/home/policyuser:/bin/bash
+forced:x:1002:1002::/home/forced:/bin/sh`
+		// owadmin: no policy (max 99999). policyuser: 90-day policy, lstchg
+		// 19000. forced: lstchg 0 (must change), no max.
+		const shadow = `owadmin:$6$a$b:19000:0:99999:7:::
+policyuser:$6$c$d:19000:0:90:7:::
+forced:$6$e$f:0:0:99999:7:::`
+		facts, err := ParsePasswdShadow([]byte(passwd), []byte(shadow))
+		if err != nil {
+			t.Fatalf("ParsePasswdShadow: %v", err)
+		}
+
+		// GECOS + shell captured.
+		if got := facts.Users["owadmin"].Gecos; got != "OpenWatch Admin" {
+			t.Errorf("owadmin gecos=%q, want %q", got, "OpenWatch Admin")
+		}
+		if got := facts.Users["owadmin"].Shell; got != "/bin/bash" {
+			t.Errorf("owadmin shell=%q, want /bin/bash", got)
+		}
+
+		// No policy (99999): MaxDays present but PolicyActive false, no expiry.
+		ow := facts.Users["owadmin"]
+		if ow.MaxDays == nil || *ow.MaxDays != 99999 {
+			t.Errorf("owadmin max_days=%v, want 99999", ow.MaxDays)
+		}
+		if PasswordPolicyActive(ow.MaxDays) {
+			t.Error("owadmin: 99999 must not be an active policy")
+		}
+		if ow.PasswordExpiresAt != nil {
+			t.Errorf("owadmin PasswordExpiresAt=%v, want nil (no policy)", ow.PasswordExpiresAt)
+		}
+
+		// Active 90-day policy: expiry = epoch + (19000+90) days.
+		pu := facts.Users["policyuser"]
+		if !PasswordPolicyActive(pu.MaxDays) {
+			t.Fatalf("policyuser: max=90 must be an active policy")
+		}
+		if pu.PasswordExpiresAt == nil {
+			t.Fatal("policyuser PasswordExpiresAt=nil, want a date")
+		}
+		wantExp := shadowEpoch.AddDate(0, 0, 19000+90)
+		if !pu.PasswordExpiresAt.Equal(wantExp) {
+			t.Errorf("policyuser expiry=%v, want %v", pu.PasswordExpiresAt, wantExp)
+		}
+
+		// lstchg 0 preserved as non-nil zero (force change), not nil.
+		fu := facts.Users["forced"]
+		if fu.LastChangeDays == nil || *fu.LastChangeDays != 0 {
+			t.Errorf("forced last_change_days=%v, want 0", fu.LastChangeDays)
 		}
 	})
 }

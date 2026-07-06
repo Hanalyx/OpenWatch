@@ -27,7 +27,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: (...args: unknown[]) => logoutPostSpy(...args) },
 }));
 
-
 beforeEach(() => {
   clearAuth();
   navigateMock.mockReset();

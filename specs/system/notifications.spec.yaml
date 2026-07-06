@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -293,5 +293,16 @@ spec:
         approved exception is warned, an out-of-window approved one and an
         in-window still-requested one are not; the count returned matches the
         warned set.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-20
+      description: >-
+        v1.7.0 — GovernanceProjector.PasswordExpiring fans an
+        account_password_expiring notification to every host:read user
+        (RolesWithPermission(HostRead)), grouped per (host, user), with
+        severity medium when expiring and high when expired, carrying the
+        host_id and a /hosts/<id> link. It uses the QUIET fan-out
+        (RecordForRolesQuiet) so a daily re-sweep of the same account stays
+        read rather than re-surfacing unread each day.
       priority: high
       references_constraints: [C-09]

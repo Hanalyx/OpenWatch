@@ -23,7 +23,6 @@ vi.mock('@/api/client', () => ({
   default: { POST: vi.fn(async () => ({ response: { ok: true, status: 204 } })) },
 }));
 
-
 beforeEach(() => {
   clearAuth();
   navigateMock.mockReset();

@@ -120,20 +120,32 @@ var ErrInvalidConfig = errors.New("systemconfig: invalid config")
 // degrades to `sudo -n` only.
 type SecurityConfig struct {
 	AllowCredentialSudoPassword bool `json:"allow_credential_sudo_password"`
+	// WarnDaysBeforePasswordExpiry is how many days ahead of a host
+	// user's password expiry the daily sweep raises a notification.
+	// Default 14; must be in [1, 365]. Spec system-account-policy C-03.
+	WarnDaysBeforePasswordExpiry int `json:"warn_days_before_password_expiry"`
 }
 
 // DefaultSecurity returns the baked-in defaults. The sudo -S password
 // fallback is ON by default (kill-switch, not opt-in).
 func DefaultSecurity() SecurityConfig {
 	return SecurityConfig{
-		AllowCredentialSudoPassword: true,
+		AllowCredentialSudoPassword:  true,
+		WarnDaysBeforePasswordExpiry: 14,
 	}
 }
 
-// Validate is a no-op for the current SecurityConfig — the single field
-// is a boolean. Kept symmetric with the other configs so the resolver
-// can call Validate() uniformly.
-func (SecurityConfig) Validate() error { return nil }
+// Validate bounds the password-expiry warn window to [1, 365] days. A
+// zero value is treated as "unset" and coerced to the default by the
+// resolver, so it is not itself an error here.
+func (c SecurityConfig) Validate() error {
+	if c.WarnDaysBeforePasswordExpiry != 0 &&
+		(c.WarnDaysBeforePasswordExpiry < 1 || c.WarnDaysBeforePasswordExpiry > 365) {
+		return fmt.Errorf("warn_days_before_password_expiry must be between 1 and 365, got %d",
+			c.WarnDaysBeforePasswordExpiry)
+	}
+	return nil
+}
 
 // DiscoveryConfig is the typed shape stored under KeyDiscovery.
 //

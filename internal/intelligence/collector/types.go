@@ -111,9 +111,39 @@ type Route struct {
 }
 
 // UserSnapshot is the per-user fact set from passwd+shadow.
+//
+// Password-aging fields come from /etc/shadow (only populated when the
+// sudo-gated shadow read succeeded). Pointers distinguish "not collected"
+// / "unset" (nil) from a real zero:
+//   - LastChangeDays: shadow f3, days-since-epoch of the last password
+//     change. A literal 0 means "must change at next login"; nil means the
+//     field was absent or shadow was unreadable.
+//   - MaxDays: shadow f5, max password age in days. nil / 99999 / negative
+//     all mean "no expiry policy" (PasswordExpiresAt stays nil).
+//   - PasswordExpiresAt: derived (epoch + (LastChangeDays+MaxDays) days),
+//     set only when a policy is in force and the last-change date is known.
 type UserSnapshot struct {
-	UID    int  `json:"uid"`
-	Locked bool `json:"locked"`
+	UID               int        `json:"uid"`
+	Locked            bool       `json:"locked"`
+	Shell             string     `json:"shell,omitempty"`
+	Gecos             string     `json:"gecos,omitempty"`
+	LastChangeDays    *int       `json:"last_change_days,omitempty"`
+	MaxDays           *int       `json:"max_days,omitempty"`
+	PasswordExpiresAt *time.Time `json:"password_expires_at,omitempty"`
+}
+
+// PasswordPolicyActive reports whether MaxDays represents a real expiry
+// policy. 99999 is the shadow "no aging" sentinel; nil / negative are
+// unset. Shared by the parser, the diff engine, and the expiry sweep so
+// the "no policy" rule is defined once.
+func PasswordPolicyActive(maxDays *int) bool {
+	return maxDays != nil && *maxDays > 0 && *maxDays < 99999
+}
+
+// passwordExpired reports whether the user's password had expired as of
+// the snapshot's collection time. False when no policy / expiry unknown.
+func passwordExpired(u UserSnapshot, at time.Time) bool {
+	return u.PasswordExpiresAt != nil && !at.Before(*u.PasswordExpiresAt)
 }
 
 // AccountFacts is the typed return of ParsePasswdShadow.

@@ -138,7 +138,9 @@ test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score
   expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
   // The KPI value is overridden with the canonical fleet score, same rounding
   // as the dashboard widget (Math.round(passing_fraction * 100)).
-  expect(PAGE_SRC).toMatch(/kpis\.avgCompliance\.value\s*=\s*Math\.round\(\s*fleetScoreQuery\.data\.passing_fraction\s*\*\s*100\s*\)/);
+  expect(PAGE_SRC).toMatch(
+    /kpis\.avgCompliance\.value\s*=\s*Math\.round\(\s*fleetScoreQuery\.data\.passing_fraction\s*\*\s*100\s*\)/,
+  );
   // Guarded so an empty fleet (no pass/fail evaluations) keeps the fallback.
   expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.total_evaluations\s*>\s*0/);
 });
@@ -364,7 +366,7 @@ describe('frontend-hosts-list v1.7.0 — grouping + filters wiring', () => {
   // @ac AC-25
   test('frontend-hosts-list/AC-25 — view falls back to persisted hostsViewDefault; toggle persists it', () => {
     // No hardcoded 'cards' default — the fallback is the persisted store value.
-    expect(PAGE_SRC).toContain("usePreferencesStore((s) => s.hostsViewDefault)");
+    expect(PAGE_SRC).toContain('usePreferencesStore((s) => s.hostsViewDefault)');
     expect(PAGE_SRC).toMatch(
       /search\.view === 'table' \|\| search\.view === 'cards' \? search\.view : hostsViewDefault/,
     );

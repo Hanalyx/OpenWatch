@@ -68,6 +68,7 @@ domains:
             - release-admin-signoff
             - system-worker-subcommand
             - system-scan-runs
+            - system-account-policy
             - api-host-compliance
             - api-system-scan-config
             - api-compliance-trend

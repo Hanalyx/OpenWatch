@@ -5,7 +5,8 @@
 //   AC-01  test('frontend-host-detail-inventory-tabs/AC-01 — four tab components exported, none uses useQuery')
 //   AC-02  test('frontend-host-detail-inventory-tabs/AC-02 — PackagesTab renders rows + counts packages')
 //   AC-03  test('frontend-host-detail-inventory-tabs/AC-03 — ServicesTab renders rows + active/total badge')
-//   AC-04  test('frontend-host-detail-inventory-tabs/AC-04 — UsersTab renders rows + total badge')
+//   AC-04  test('frontend-host-detail-inventory-tabs/AC-04 — UsersTab total badge + human/system split')
+//   AC-10  test('frontend-host-detail-inventory-tabs/AC-10 — password-aging line + KPI tiles')
 //   AC-05  test('frontend-host-detail-inventory-tabs/AC-05 — NetworkTab renders rows + total badge')
 //   AC-06  test('frontend-host-detail-inventory-tabs/AC-06 — loading state hides rows and empty state')
 //   AC-07  test('frontend-host-detail-inventory-tabs/AC-07 — null/empty snapshot renders empty state naming the source')
@@ -81,17 +82,63 @@ describe('frontend-host-detail-inventory-tabs — behavioral', () => {
   });
 
   // @ac AC-04
-  test('frontend-host-detail-inventory-tabs/AC-04 — UsersTab renders rows + total badge', () => {
+  test('frontend-host-detail-inventory-tabs/AC-04 — UsersTab total badge + human/system split', () => {
     const snap = {
       users: {
-        root: { uid: 0, locked: false },
-        alice: { uid: 1000, locked: false },
+        root: { uid: 0, locked: false }, // system → collapsed
+        alice: { uid: 1000, locked: false }, // human → card
       },
     };
+    // Badge counts every account (unchanged contract).
     expect(usersCount(snap)).toBe(2);
     render(<UsersTab isLoading={false} snapshot={snap} />);
-    expect(screen.getByText('root')).toBeInTheDocument();
+    // The human account renders as a visible card.
     expect(screen.getByText('alice')).toBeInTheDocument();
+    // The system account is collapsed behind "Show all", not rendered yet.
+    expect(screen.queryByText('root')).not.toBeInTheDocument();
+    // Expanding the system-accounts section reveals it.
+    fireEvent.click(screen.getByText(/service accounts/));
+    expect(screen.getByText('root')).toBeInTheDocument();
+  });
+
+  // @ac AC-10
+  test('frontend-host-detail-inventory-tabs/AC-10 — password-aging line + KPI tiles', () => {
+    const day = 86_400_000;
+    const nowDays = Math.floor(Date.now() / day);
+    const snap = {
+      users: {
+        // active 90-day policy, changed ~85 days ago → expires in ~5 days (warn)
+        expiring: {
+          uid: 1000,
+          locked: false,
+          gecos: 'Ex Piring',
+          shell: '/bin/bash',
+          last_change_days: nowDays - 85,
+          max_days: 90,
+          password_expires_at: new Date((nowDays - 85 + 90) * day).toISOString(),
+        },
+        // no policy (99999) → "N days old · no expiry policy" (stale)
+        owadmin: {
+          uid: 1001,
+          locked: false,
+          last_change_days: nowDays - 234,
+          max_days: 99999,
+        },
+        sysd: { uid: 2, locked: true }, // system → collapsed, not a KPI human
+      },
+      groups: { sudo: ['owadmin'] },
+    };
+    render(<UsersTab isLoading={false} snapshot={snap} />);
+    // KPI tiles: 2 human accounts, 1 sudo, 1 stale (no-policy owadmin).
+    expect(screen.getByText('User accounts')).toBeInTheDocument();
+    expect(screen.getByText('Sudo privileges')).toBeInTheDocument();
+    expect(screen.getByText('Stale passwords')).toBeInTheDocument();
+    // Policy account shows time-to-expiry; no-policy shows age + no-policy
+    // (the "days old ·" prefix is unique to the card line, vs the tile sub).
+    expect(screen.getByText(/expires in \d+ days/i)).toBeInTheDocument();
+    expect(screen.getByText(/days old · no expiry policy/i)).toBeInTheDocument();
+    // owadmin carries the SUDO badge.
+    expect(screen.getByText('SUDO')).toBeInTheDocument();
   });
 
   // @ac AC-05

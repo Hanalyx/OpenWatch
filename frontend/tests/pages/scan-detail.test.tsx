@@ -19,7 +19,10 @@ vi.mock('@/api/client', () => ({ default: { GET: getMock } }));
 
 import { RuleDetailPanel } from '@/pages/scans/RuleDetailPanel';
 
-const PANEL_SRC = readFileSync(resolve(process.cwd(), 'src/pages/scans/RuleDetailPanel.tsx'), 'utf8');
+const PANEL_SRC = readFileSync(
+  resolve(process.cwd(), 'src/pages/scans/RuleDetailPanel.tsx'),
+  'utf8',
+);
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/scans/ScanDetailPage.tsx'), 'utf8');
 const SCANS_SRC = readFileSync(resolve(process.cwd(), 'src/pages/scans/ScansPage.tsx'), 'utf8');
 const ROUTER_SRC = readFileSync(resolve(process.cwd(), 'src/routes/router.tsx'), 'utf8');
@@ -42,12 +45,20 @@ const EVIDENCE = {
   status: 'pass',
   severity: 'medium',
   detail: 'host is compliant',
-  checks: [{ method: 'config_value', command: 'grep MaxAuthTries /etc/ssh/sshd_config', stdout: 'MaxAuthTries 4', exit_code: 0 }],
+  checks: [
+    {
+      method: 'config_value',
+      command: 'grep MaxAuthTries /etc/ssh/sshd_config',
+      stdout: 'MaxAuthTries 4',
+      exit_code: 0,
+    },
+  ],
   framework_refs: {},
 };
 const OSCAL_DOC = { 'assessment-results': { uuid: 'oscal-1', results: [] } };
 
-const evidenceCalls = () => getMock.mock.calls.filter((c) => String(c[0]).endsWith('/evidence')).length;
+const evidenceCalls = () =>
+  getMock.mock.calls.filter((c) => String(c[0]).endsWith('/evidence')).length;
 const oscalCalls = () => getMock.mock.calls.filter((c) => String(c[0]).endsWith('/oscal')).length;
 const inPre = (needle: string) => (content: string, el: Element | null) =>
   el?.tagName === 'PRE' && content.includes(needle);
@@ -56,7 +67,10 @@ describe('frontend-scan-detail', () => {
   beforeEach(() => {
     getMock.mockReset();
     getMock.mockImplementation((path: string) =>
-      Promise.resolve({ data: String(path).endsWith('/oscal') ? OSCAL_DOC : EVIDENCE, error: undefined }),
+      Promise.resolve({
+        data: String(path).endsWith('/oscal') ? OSCAL_DOC : EVIDENCE,
+        error: undefined,
+      }),
     );
   });
 
@@ -92,7 +106,9 @@ describe('frontend-scan-detail', () => {
     await waitFor(() => expect(screen.getByText('host is compliant')).toBeTruthy());
     // Evidence renders the full result as raw JSON (in a <pre>), not a formatted layout.
     fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }));
-    await waitFor(() => expect(screen.getByText(inPre('grep MaxAuthTries /etc/ssh/sshd_config'))).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(inPre('grep MaxAuthTries /etc/ssh/sshd_config'))).toBeTruthy(),
+    );
     expect(screen.getByText(inPre('"checks"'))).toBeTruthy();
     // OSCAL renders the OSCAL document as raw JSON.
     fireEvent.click(screen.getByRole('tab', { name: 'OSCAL' }));

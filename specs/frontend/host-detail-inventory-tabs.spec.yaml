@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail-inventory-tabs
   title: Host detail Packages / Services / Users / Network tabs — wired from IntelligenceState snapshot
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -100,7 +100,7 @@ spec:
       priority: critical
       references_constraints: [C-01, C-05]
     - id: AC-04
-      description: "Rendering: UsersTab mounted with snapshot={users: {root: {uid: 0, locked: false}, alice: {uid: 1000, locked: false}}} renders two rows containing 'root' and 'alice'. Count badge: 2"
+      description: "Rendering: UsersTab splits accounts into human (UID >= 1000, not 65534) and system. Mounted with users {root: uid 0, alice: uid 1000}, the count badge is 2 (all accounts); the human account 'alice' renders as a card while the system account 'root' is collapsed (not in the document) until the 'system accounts' section is expanded, after which 'root' appears."
       priority: critical
       references_constraints: [C-01, C-05]
     - id: AC-05
@@ -123,3 +123,7 @@ spec:
       description: "Source inspection: HostDetailPage.tsx imports the four tab components from @/pages/host-detail/InventoryTabs and renders the appropriate one based on the activeTab search param. The legacy 'Not yet available' stubs for these four tabs MUST be gone"
       priority: critical
       references_constraints: [C-01]
+    - id: AC-10
+      description: "v1.1.0 Rendering: the rebuilt UsersTab shows KPI tiles (User accounts / Sudo privileges / Locked / Stale passwords) and a per-human-account password-aging line. With a policy account (max_days 90, password_expires_at set) and a no-policy account (max_days 99999, last_change_days set 234 days back), the policy account renders 'expires in N days' and the no-policy account renders 'N days old · no expiry policy'; a sudo/wheel/admin member carries a SUDO badge. Aging states: policy+past-expiry => 'expired N days ago' (crit), policy+within-warn => 'expires in N days' (warn), no-policy => age + 'no expiry policy' (warn), last_change_days 0 => 'change required at next login'."
+      priority: high
+      references_constraints: [C-01, C-05]

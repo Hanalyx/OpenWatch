@@ -1,0 +1,77 @@
+spec:
+  id: system-account-policy
+  title: Host-user password-expiry sweep + warn-window notifications
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: Daily time-based sweep that warns operators before a host user's password expires
+    description: >
+      Host user password expiry is TIME-based: an account's password
+      becomes "expiring soon" or "expired" as days pass, with no change to
+      the host and no scan. The OS-intelligence collector captures each
+      account's derived PasswordExpiresAt (from /etc/shadow lstchg+max)
+      into host_intelligence_state.snapshot (system-os-intelligence). This
+      sweep reads those stored snapshots on a daily tick and raises a
+      re-nag-safe in-app notification for each HUMAN account (UID >= 1000,
+      excluding nobody 65534) that is expired or falls within a configurable
+      warn window. It mirrors the exception expiry sweep
+      (internal/exception/run.go): a boot pass plus a cron tick,
+      best-effort per user.
+
+      The notification is delivered via the notifyfeed GovernanceProjector
+      (system-notifications) using the QUIET fan-out so the daily re-sweep
+      does not re-nag; the warn threshold is a SecurityConfig field.
+    related_specs:
+      - system-os-intelligence
+      - system-notifications
+      - system-intelligence-scheduler
+
+  objective:
+    summary: >
+      Operators are warned in the app before a host user's password lapses,
+      on a daily cadence, without a scan and without repeated nagging.
+    scope:
+      includes:
+        - 'internal/accountpolicy sweep (SweepOnce + Run — boot pass + daily cron)'
+        - 'Per-user classification (pwExpiryDecision) — human/policy/window gating'
+        - 'WarnDaysBeforePasswordExpiry SecurityConfig field (default 14, bounded)'
+      excludes:
+        - 'Capturing the shadow aging fields (system-os-intelligence)'
+        - 'The notifyfeed projector + fan-out mechanics (system-notifications)'
+        - 'Outbound Slack/email + alert lifecycle (deferred follow-up)'
+        - 'Last-login collection (deferred follow-up)'
+
+  constraints:
+    - id: C-01
+      description: The sweep MUST read every host_intelligence_state snapshot and evaluate only HUMAN accounts — UID >= 1000 and not nobody (65534). System/service accounts (UID < 1000) are never evaluated.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: The sweep MUST notify only for accounts with an active expiry policy (PasswordExpiresAt non-null) that are expired OR within the warn window; healthy and no-policy accounts produce no notification. Delivery MUST use the re-nag-safe quiet fan-out grouped per (host, user) so a daily re-sweep collapses onto one feed row.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The warn window is SecurityConfig.WarnDaysBeforePasswordExpiry — default 14, bounded to [1, 365] by Validate; a stored 0 is treated as unset and coerced to the default by the sweep.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: The sweep MUST run one immediate pass at boot plus a daily cron tick, and be best-effort — a per-user notify error is logged and does not abort the sweep; a sweep error is logged and does not stop the tick.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: pwExpiryDecision returns notify=true only for a human account (UID >= 1000, not 65534) with an active policy (PasswordExpiresAt set) that is expired or within warnDays of now; a system account (UID < 1000), nobody, a no-policy account (nil expiry), and a healthy account beyond the window all return notify=false. When expired, daysLeft is <= 0 and expired=true; the warn-days boundary (exactly warnDays out) is inclusive.
+      priority: critical
+      references_constraints: [C-01, C-02, C-03]
+    - id: AC-02
+      description: SweepOnce over a host_intelligence_state snapshot containing an expiring (within window), an expired, a healthy (beyond window), a no-policy, and a system (UID < 1000) account emits exactly two notifications — the expiring and the expired (with expired=true) — and skips the other three. SweepOnce is the per-pass unit the boot pass and daily cron tick both invoke (Run), best-effort per user.
+      priority: critical
+      references_constraints: [C-01, C-02, C-04]
+    - id: AC-03
+      description: SecurityConfig defaults WarnDaysBeforePasswordExpiry to 14; Validate rejects a value outside [1, 365] and accepts 0 (treated as unset).
+      priority: high
+      references_constraints: [C-03]

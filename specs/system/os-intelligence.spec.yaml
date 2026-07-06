@@ -1,7 +1,7 @@
 spec:
   id: system-os-intelligence
   title: Host OS Intelligence — recurring snapshot + diff-driven event log
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -174,3 +174,11 @@ spec:
       description: 'host_intelligence_events.event_code is constrained by a CHECK clause that enumerates the taxonomy. Attempting to INSERT a code not in the enum fails the constraint. Verified by attempting an out-of-enum insert and expecting failure. Also covers the per-host RunCycle contract from C-08: source-inspect that the service does not introduce a global mutex around RunCycle (concurrency is the caller''s job)'
       priority: high
       references_constraints: [C-05, C-08]
+    - id: AC-16
+      description: 'v1.1.0 — ParsePasswdShadow captures GECOS (passwd f5) + login shell (passwd f7) and the shadow password-aging fields lastchange (f3) into LastChangeDays and max (f5) into MaxDays (full split, no longer discarding after the lock field). PasswordExpiresAt is derived (shadowEpoch + (lstchg+max) days) only when a real policy is in force (PasswordPolicyActive: max present, > 0, < 99999) AND the last-change date is known; a 99999/unset max yields nil expiry (no policy), and a literal lstchg 0 (force-change) is preserved distinctly from an empty field (nil). The parser stays pure (C-02).'
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-17
+      description: 'v1.1.0 — the diff engine emits the reserved account.password.expired code once when a user''s password crosses PasswordExpiresAt between two cycles (prior snapshot collected before expiry, current after), deduped by the append-only UNIQUE key. It does NOT fire when both cycles are pre-expiry, both post-expiry, or when there is no policy. Expiry is time-based (the shadow fields are unchanged; wall-clock crosses), and the warn-window "expiring" notification is owned by system-account-policy.'
+      priority: high
+      references_constraints: [C-05]

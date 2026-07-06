@@ -35,6 +35,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/knownhosts"
 	"github.com/google/uuid"
 
+	"github.com/Hanalyx/openwatch/internal/accountpolicy"
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/dbbackup"
@@ -596,6 +597,11 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// Spec api-compliance-exceptions.
 	exceptionSvc := exception.NewService(pool, audit.Emit).WithNotifier(govProjector)
 	exceptionSvc.Run(ctx, 0)
+
+	// Daily host-user password-expiry sweep: reads the collected user
+	// snapshots and raises a re-nag-safe in-app notification for accounts
+	// within the configured warn window (or expired). Boot pass + daily tick.
+	accountpolicy.New(pool, govProjector, cfgStore).Run(ctx, 0)
 
 	// Remediation governance: request/approve/reject + projected lift (free
 	// core), AND the queued single-rule execute/rollback (Tier A free core).
