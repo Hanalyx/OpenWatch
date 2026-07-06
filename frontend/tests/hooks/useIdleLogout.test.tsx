@@ -163,7 +163,10 @@ describe('frontend-session-idle — client idle logout', () => {
 
   // @ac AC-05
   test('frontend-session-idle/AC-05 — AppFrame mounts the hook; listeners are user-input only', () => {
-    const appFrame = readFileSync(resolve(__dirname, '../../src/components/shell/AppFrame.tsx'), 'utf8');
+    const appFrame = readFileSync(
+      resolve(__dirname, '../../src/components/shell/AppFrame.tsx'),
+      'utf8',
+    );
     expect(appFrame).toContain('useIdleLogout');
 
     const hook = readFileSync(resolve(__dirname, '../../src/hooks/useIdleLogout.ts'), 'utf8');

@@ -471,8 +471,7 @@ describe('frontend-settings — structural', () => {
     expect('Enable account').not.toContain('—');
     expect('Reset password').not.toContain('—');
     // The reset-password helper copy uses parentheses, not em-dashes.
-    const resetCopy =
-      USERMUT_SRC.match(/Set a new password on admin authority[^<]*/)?.[0] ?? '';
+    const resetCopy = USERMUT_SRC.match(/Set a new password on admin authority[^<]*/)?.[0] ?? '';
     expect(resetCopy.length).toBeGreaterThan(0);
     expect(resetCopy).not.toContain('—');
   });
