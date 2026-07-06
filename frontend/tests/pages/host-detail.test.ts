@@ -161,4 +161,20 @@ describe('frontend-host-detail — structural', () => {
     // Navigates to /hosts on the detail variant after delete.
     expect(MENU_SRC).toMatch(/navigate\(\{\s*to:\s*'\/hosts'\s*\}\)/);
   });
+
+  // @ac AC-45
+  test('frontend-host-detail/AC-45 — hero + Run scan reflect in-flight scan_state', () => {
+    // The detail query threads last_scan_at + scan_state through, and the
+    // hero is no longer hardcoded lastScan={null}.
+    expect(PAGE_SRC).toMatch(/last_scan_at:\s*raw\.last_scan_at/);
+    expect(PAGE_SRC).toMatch(/scan_state:\s*raw\.scan_state/);
+    expect(PAGE_SRC).not.toMatch(/<HeroCompliance[\s\S]*?lastScan=\{null\}/);
+    expect(PAGE_SRC).toMatch(/scanState=\{detailQuery\.data\.scan_state/);
+    // Hero shows a Running/Queued badge instead of LAST SCAN when active.
+    expect(PAGE_SRC).toMatch(/scanState === 'running' \? 'Running' : 'Queued'/);
+    // Run scan button stays disabled + labelled while active.
+    expect(PAGE_SRC).toMatch(/const active = scanState === 'running' \|\| scanState === 'queued'/);
+    expect(PAGE_SRC).toMatch(/disabled=\{busy \|\| active\}/);
+    expect(PAGE_SRC).toMatch(/scanState === 'running'\s*\?\s*'Running…'/);
+  });
 });

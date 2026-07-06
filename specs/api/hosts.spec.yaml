@@ -1,7 +1,7 @@
 spec:
   id: api-hosts
   title: Host inventory CRUD HTTP surface + Slice B enrichments
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -92,6 +92,10 @@ spec:
       enforcement: error
     - id: C-13
       description: 'v1.6.0 — GET /hosts response items MUST include a nullable latest_scan_id (uuid) holding the id of the newest COMPLETED scan_runs row for that host (status=completed, newest by queued_at). A host with no completed scan_run MUST receive null (never an error). It MUST be loaded with ONE query keyed by host_id for the whole page (DISTINCT ON / grouped — no per-host N+1). This id is the target of the host card "view report" link to GET /scans/{id}; a queued/running-only host yields null so the UI hides the affordance. Existing list semantics (filters, soft-delete exclusion) are untouched'
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: 'v1.7.0 — GET /hosts response items MUST include a nullable scan_state enum (queued|running) holding the host''s in-flight scan state, independent of last_scan_at/latest_scan_id (which track the latest COMPLETED run). A host with a queued run yields "queued", a running run "running", a host with only completed/failed runs or none yields null (never an error; the completed-run fields are unaffected — a running scan does not disturb last_scan_at). It MUST be loaded with ONE grouped query keyed by host_id for the whole page over the scan_runs_active partial index (scanruns.ActiveByHostIDs — no per-host N+1); a host with both a queued and a running row resolves to "running". Drives the per-host live "Running"/"Queued" indicator on the hosts-list and scans-coverage surfaces'
       type: technical
       enforcement: error
 
@@ -188,3 +192,7 @@ spec:
       description: 'v1.6.0 — GET /hosts over a fleet where one host has a completed scan_run (plus an older completed one and a newer queued one), another host has only a queued/running scan_run, and a third has no scan_runs returns: the first item latest_scan_id = the newest COMPLETED run id (not the queued one, not the older completed one); the second item latest_scan_id null (queued/running is not a viewable report); the third item latest_scan_id null. The ids come from a single per-page query (no N+1).'
       priority: critical
       references_constraints: [C-13]
+    - id: AC-25
+      description: 'v1.7.0 — GET /hosts over a fleet where one host has a queued scan_run, another has a running scan_run, and a third has only a completed run (or none) returns: the first item scan_state="queued"; the second scan_state="running"; the third scan_state null with its last_scan_at/latest_scan_id still reflecting the completed run (a running scan does not disturb the completed-run fields). The states come from a single per-page grouped query over the scan_runs_active index (no N+1). The single-host GET /hosts/{id} response likewise carries scan_state (queued/running/null) plus last_scan_at (MAX host_rule_state.last_checked_at) for the detail hero: a host with a queued run returns scan_state="queued", and a host with only a completed run returns scan_state null.'
+      priority: high
+      references_constraints: [C-14]

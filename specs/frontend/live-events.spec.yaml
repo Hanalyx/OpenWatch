@@ -1,7 +1,7 @@
 spec:
   id: frontend-live-events
   title: useLiveEvents SSE hook — topic ↔ query-key invalidation contract
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -66,7 +66,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the seven kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.completed, remediation.completed (v1.2.0), report.ready (v1.3.0). Adding another requires bumping this spec''s version and updating the test'
+      description: 'ALL_TOPICS MUST be a closed const-tuple containing exactly the eight kinds: host.changed, monitoring.band.changed, host.discovered, intelligence.event, scan.started (v1.5.0), scan.completed, remediation.completed (v1.2.0), report.ready (v1.3.0). Adding another requires bumping this spec''s version and updating the test'
       type: technical
       enforcement: error
     - id: C-02
@@ -100,7 +100,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.completed", "remediation.completed", "report.ready"]. Verified by importing the const and asserting the array contents + length'
+      description: 'ALL_TOPICS as exported from useLiveEvents.ts equals exactly the closed set ["host.changed", "monitoring.band.changed", "host.discovered", "intelligence.event", "scan.started", "scan.completed", "remediation.completed", "report.ready"]. Verified by importing the const and asserting the array contents + length'
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
@@ -139,3 +139,7 @@ spec:
       description: 'v1.4.0 — Firing report.ready invalidates ["reports"] AND ["notifications","feed"] (the durable bell refreshes). Spies observe ZERO ["host", ...] invalidation (a report is fleet-scoped, not per-host)'
       priority: high
       references_constraints: [C-08]
+    - id: AC-11
+      description: 'v1.5.0 — scan.started is in ALL_TOPICS and its handler invalidates ["hosts"] AND (when the payload carries HostID=H) ["host", H], mirroring scan.completed. This is the live push that flips the per-host indicator to "Running" the moment the worker begins the scan; the paired scan.completed clears it back to freshness.'
+      priority: high
+      references_constraints: [C-01, C-07]

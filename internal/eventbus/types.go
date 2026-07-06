@@ -43,6 +43,13 @@ const (
 	// system-os-intelligence AC-11.
 	EventKindIntelligenceEvent EventKind = "intelligence.event"
 
+	// EventKindScanStarted is emitted by the scan worker the moment a
+	// queued run enters execution (scan_runs marked running), BEFORE the
+	// scan itself runs. SSE subscribers flip the host's per-host
+	// indicator to "Running" without polling; the paired
+	// scan.completed clears it. Spec system-scan-runs / frontend-live-events.
+	EventKindScanStarted EventKind = "scan.started"
+
 	// EventKindScanCompleted is emitted by the scan worker after a
 	// compliance scan's outcomes are persisted (transactionlog applied
 	// + scan_runs marked completed). SSE subscribers refresh host
@@ -76,6 +83,7 @@ var AllEventKinds = []EventKind{
 	EventKindMonitoringBandChanged,
 	EventKindHostDiscovered,
 	EventKindIntelligenceEvent,
+	EventKindScanStarted,
 	EventKindScanCompleted,
 	EventKindRemediationCompleted,
 	EventKindReportReady,
@@ -224,6 +232,23 @@ func (i IntelligenceEvent) Kind() EventKind { return EventKindIntelligenceEvent 
 
 // Timestamp satisfies Event.
 func (i IntelligenceEvent) Timestamp() time.Time { return i.OccurredAt }
+
+// ScanStarted is fired by the scan worker the moment a queued run enters
+// execution (scan_runs flipped to running), before the scan runs. It
+// carries no counts — the outcome isn't known yet; it exists so SSE
+// consumers can flip the per-host indicator to "Running" live. The paired
+// ScanCompleted clears it.
+type ScanStarted struct {
+	ScanID    uuid.UUID
+	HostID    uuid.UUID
+	StartedAt time.Time
+}
+
+// Kind satisfies Event.
+func (s ScanStarted) Kind() EventKind { return EventKindScanStarted }
+
+// Timestamp satisfies Event.
+func (s ScanStarted) Timestamp() time.Time { return s.StartedAt }
 
 // ScanCompleted is fired by the scan worker once a compliance scan's
 // outcomes are persisted. Counts mirror the scan_runs row so SSE

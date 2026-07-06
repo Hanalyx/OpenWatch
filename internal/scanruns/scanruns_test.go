@@ -9,6 +9,7 @@
 //	AC-05  TestTerminalStates_NeverOverwritten
 //	AC-06  TestLatestForHost_And_ActiveCount
 //	AC-07  TestHostDelete_RestrictedByRuns
+//	AC-08  TestActiveByHostIDs
 package scanruns
 
 import (
@@ -279,6 +280,73 @@ func TestLatestForHost_And_ActiveCount(t *testing.T) {
 		}
 		if n != 2 {
 			t.Errorf("ActiveCount = %d, want 2", n)
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08: ActiveByHostIDs returns the queued-or-running status per host in
+// one grouped query; completed/never-scanned hosts are absent from the map;
+// when a host has both a queued and a running row, 'running' wins.
+func TestActiveByHostIDs(t *testing.T) {
+	t.Run("system-scan-runs/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		queuedHost := seedHost(t, pool, user)
+		runningHost := seedHost(t, pool, user)
+		completedHost := seedHost(t, pool, user)
+		bothHost := seedHost(t, pool, user)
+		neverHost := seedHost(t, pool, user)
+		ctx := context.Background()
+
+		// queuedHost: a single queued run.
+		qID, _ := uuid.NewV7()
+		_ = Insert(ctx, pool, Run{ID: qID, HostID: queuedHost, TriggerSource: TriggerScheduled})
+
+		// runningHost: a single running run.
+		rID, _ := uuid.NewV7()
+		_ = MarkRunning(ctx, pool, rID, runningHost, "")
+
+		// completedHost: only a completed run — must be absent.
+		cID, _ := uuid.NewV7()
+		_ = Insert(ctx, pool, Run{ID: cID, HostID: completedHost, TriggerSource: TriggerScheduled})
+		_ = MarkCompleted(ctx, pool, cID, Counts{})
+
+		// bothHost: a queued AND a running run — running must win.
+		bQ, _ := uuid.NewV7()
+		_ = Insert(ctx, pool, Run{ID: bQ, HostID: bothHost, TriggerSource: TriggerScheduled})
+		bR, _ := uuid.NewV7()
+		_ = MarkRunning(ctx, pool, bR, bothHost, "")
+
+		ids := []uuid.UUID{queuedHost, runningHost, completedHost, bothHost, neverHost}
+		got, err := ActiveByHostIDs(ctx, pool, ids)
+		if err != nil {
+			t.Fatalf("ActiveByHostIDs: %v", err)
+		}
+
+		if got[queuedHost] != StatusQueued {
+			t.Errorf("queuedHost = %q, want %q", got[queuedHost], StatusQueued)
+		}
+		if got[runningHost] != StatusRunning {
+			t.Errorf("runningHost = %q, want %q", got[runningHost], StatusRunning)
+		}
+		if _, ok := got[completedHost]; ok {
+			t.Errorf("completedHost present (%q), want absent", got[completedHost])
+		}
+		if _, ok := got[neverHost]; ok {
+			t.Errorf("neverHost present (%q), want absent", got[neverHost])
+		}
+		if got[bothHost] != StatusRunning {
+			t.Errorf("bothHost = %q, want %q (running wins over queued)", got[bothHost], StatusRunning)
+		}
+
+		// Empty ids → empty map, no query.
+		empty, err := ActiveByHostIDs(ctx, pool, nil)
+		if err != nil {
+			t.Fatalf("ActiveByHostIDs(nil): %v", err)
+		}
+		if len(empty) != 0 {
+			t.Errorf("ActiveByHostIDs(nil) = %v, want empty", empty)
 		}
 	})
 }

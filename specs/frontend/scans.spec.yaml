@@ -1,7 +1,7 @@
 spec:
   id: frontend-scans
   title: Scans overview (coverage + change history)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -78,3 +78,7 @@ spec:
       description: 'Source-inspection — the Scans page issues no api.POST/PUT/DELETE (read-only), and its UI copy contains no em-dash.'
       priority: high
       references_constraints: [C-02]
+    - id: AC-04
+      description: 'v1.1.0 source-inspection — the Coverage tab FRESHNESS pill reflects an in-flight scan: a freshnessPill helper maps scan_state "running" to a "Running" label and "queued" to a "Queued" label (an accent tone distinct from the current/stale/never freshness tones), taking precedence over the last_scan_at age, so an operator sees which host is actively being scanned. The pill falls back to the age-derived current/stale/never label when scan_state is null.'
+      priority: high
+      references_constraints: [C-01]

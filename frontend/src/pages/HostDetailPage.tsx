@@ -130,6 +130,10 @@ interface HostDetail {
   host: HostResponse;
   liveness: HostLiveness | null;
   compliance_summary: ComplianceSummary;
+  // v1.7.0 — MAX(host_rule_state.last_checked_at) and the in-flight scan
+  // state (queued/running); both nullable/absent when never scanned / idle.
+  last_scan_at?: string | null;
+  scan_state?: 'queued' | 'running' | null;
 }
 
 // ActivityItem mirrors the api.Activity envelope returned by
@@ -239,6 +243,8 @@ export function HostDetailPage() {
           host: raw.host,
           liveness: raw.liveness ?? null,
           compliance_summary: raw.compliance_summary ?? DEFAULT_SUMMARY,
+          last_scan_at: raw.last_scan_at ?? null,
+          scan_state: raw.scan_state ?? null,
         } satisfies HostDetail;
       }
       if (raw && typeof raw === 'object' && 'hostname' in raw && raw.hostname) {
@@ -376,6 +382,7 @@ export function HostDetailPage() {
             host={detailQuery.data.host}
             liveness={detailQuery.data.liveness}
             intelligenceSnapshot={intelligenceStateQuery.data ?? null}
+            scanState={detailQuery.data.scan_state ?? null}
           />
 
           {/* OFFLINE_BANNER */}
@@ -401,7 +408,15 @@ export function HostDetailPage() {
                 }}
                 aria-label="Host hero stats"
               >
-                <HeroCompliance summary={detailQuery.data.compliance_summary} lastScan={null} />
+                <HeroCompliance
+                  summary={detailQuery.data.compliance_summary}
+                  lastScan={
+                    detailQuery.data.last_scan_at
+                      ? relativeTime(detailQuery.data.last_scan_at)
+                      : null
+                  }
+                  scanState={detailQuery.data.scan_state ?? null}
+                />
                 <HeroAutoScan hostId={hostId} />
                 <HeroConnectivity
                   host={detailQuery.data.host}
@@ -505,11 +520,14 @@ function PageHead({
   host,
   liveness,
   intelligenceSnapshot,
+  scanState,
 }: {
   host: HostResponse;
   liveness: HostLiveness | null;
   /** Same intelligence_state.snapshot the System card reads. */
   intelligenceSnapshot: Record<string, unknown> | null;
+  /** In-flight scan state (queued/running) for the Run scan button. */
+  scanState: 'queued' | 'running' | null;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [credOpen, setCredOpen] = useState(false);
@@ -658,7 +676,7 @@ function PageHead({
           <button type="button" style={ghostBtn} title="Open terminal (deferred)" disabled>
             <TerminalIcon size={14} /> Terminal
           </button>
-          <RunScanButton host={host} />
+          <RunScanButton host={host} scanState={scanState} />
           {canWrite && (
             <button
               type="button"
@@ -707,13 +725,25 @@ function PageHead({
 // polling here. 409 means a scan is already queued/running for this
 // host — surfaced as a transient inline note, not an error.
 //
+// v1.7.0: while a scan is actually in flight (scanState queued/running from
+// the detail query, kept live by the scan.started/scan.completed SSE topics)
+// the button stays disabled showing "Running…"/"Queued…" for the whole scan,
+// not just the request round-trip. Spec frontend-host-detail AC-45.
+//
 // Spec: frontend-host-detail (Run scan action) + api-host-scan.
-function RunScanButton({ host }: { host: HostResponse }) {
+function RunScanButton({
+  host,
+  scanState,
+}: {
+  host: HostResponse;
+  scanState: 'queued' | 'running' | null;
+}) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const active = scanState === 'running' || scanState === 'queued';
 
   const runScan = async () => {
-    if (busy) return;
+    if (busy || active) return;
     setBusy(true);
     setNote(null);
     try {
@@ -753,11 +783,18 @@ function RunScanButton({ host }: { host: HostResponse }) {
         type="button"
         style={primaryBtn}
         onClick={runScan}
-        disabled={busy}
+        disabled={busy || active}
         aria-label={`Run compliance scan on ${host.hostname}`}
         title="Run an on-demand compliance scan"
       >
-        <Play size={14} /> {busy ? 'Queueing…' : 'Run scan'}
+        <Play size={14} />{' '}
+        {scanState === 'running'
+          ? 'Running…'
+          : scanState === 'queued'
+            ? 'Queued…'
+            : busy
+              ? 'Queueing…'
+              : 'Run scan'}
       </button>
     </span>
   );
@@ -1703,29 +1740,59 @@ const remTd: CSSProperties = {
 function HeroCompliance({
   summary,
   lastScan,
+  scanState,
 }: {
   summary: ComplianceSummary;
   lastScan: string | null;
+  scanState: 'queued' | 'running' | null;
 }) {
   // AC-04 / AC-05: keep the canonical math expression + label strings.
   // AC-35: subhead is "LAST SCAN <date>", NOT a Framework selector
   // (the Framework filter belongs on the Compliance tab when it ships).
+  // v1.7.0: an in-flight scan replaces the LAST SCAN subhead with a live
+  // "Running"/"Queued" badge until scan.completed clears it. Spec
+  // frontend-host-detail AC-45.
   const isEmpty = summary.total === 0;
   const pct = isEmpty ? 0 : Math.round((summary.passing / summary.total) * 100);
   return (
     <article style={heroCard} aria-labelledby="hero-compliance-title">
       <header style={heroHead}>
         <span id="hero-compliance-title">Compliance</span>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--ow-fg-3)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
-        >
-          LAST SCAN {lastScan ?? '—'}
-        </span>
+        {scanState ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--ow-link)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: 'var(--ow-link)',
+              }}
+            />
+            {scanState === 'running' ? 'Running' : 'Queued'}
+          </span>
+        ) : (
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--ow-fg-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            LAST SCAN {lastScan ?? '—'}
+          </span>
+        )}
       </header>
       {isEmpty ? (
         <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>

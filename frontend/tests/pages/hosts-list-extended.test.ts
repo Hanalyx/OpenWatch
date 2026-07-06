@@ -101,4 +101,17 @@ describe('frontend-hosts-list — v1.1.0 ACs', () => {
     const ariaLabels = [...PAGE_SRC.matchAll(/aria-label=/g)];
     expect(ariaLabels.length).toBeGreaterThanOrEqual(1);
   });
+
+  // @ac AC-27
+  test('frontend-hosts-list/AC-27 — card + row show Running/Queued from scan_state', () => {
+    // apiHostToDev maps the list item's scan_state onto DevHost.scanState.
+    expect(PAGE_SRC).toMatch(/scanState:\s*h\.scan_state\s*\?\?\s*null/);
+    // a scanStateLabel helper renders the in-flight label.
+    expect(PAGE_SRC).toContain('function scanStateLabel');
+    expect(PAGE_SRC).toMatch(/'running'.*'Running…'|return 'Running…'/s);
+    expect(PAGE_SRC).toMatch(/'queued'.*'Queued…'|return 'Queued…'/s);
+    // both the card footer and the row cell fall back to the last-scan text.
+    const uses = [...PAGE_SRC.matchAll(/scanStateLabel\(host\.scanState\)\s*\?\?/g)];
+    expect(uses.length).toBeGreaterThanOrEqual(2);
+  });
 });

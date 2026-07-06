@@ -3079,6 +3079,11 @@ export interface components {
             policy_version: string;
             /** @description Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent. */
             duration_seconds?: number | null;
+            /**
+             * @description In-flight scan state for this host, independent of the latest COMPLETED run above. 'queued' = enqueued, awaiting a worker; 'running' = actively executing; null = no scan in flight. Drives the host-detail hero "Running"/"Queued" badge. Spec api-host-compliance AC-17.
+             * @enum {string|null}
+             */
+            scan_state?: "queued" | "running" | null;
         };
         HostComplianceLensSummary: {
             /** Format: int64 */
@@ -3180,6 +3185,10 @@ export interface components {
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
             compliance_summary: components["schemas"]["HostComplianceSummary"];
+            /** Format: date-time */
+            last_scan_at?: string | null;
+            /** @enum {string|null} */
+            scan_state?: "queued" | "running" | null;
         };
         HostListItem: {
             /** Format: uuid */
@@ -3206,6 +3215,8 @@ export interface components {
             last_scan_at?: string | null;
             /** Format: uuid */
             latest_scan_id?: string | null;
+            /** @enum {string|null} */
+            scan_state?: "queued" | "running" | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
             /** @description Null when the host has no host_rule_state rows (never scanned). */
