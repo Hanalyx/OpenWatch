@@ -125,6 +125,42 @@ func (g *GovernanceProjector) ExceptionExpired(ctx context.Context, exceptionID,
 	return nil
 }
 
+// PasswordExpiring warns host operators that a host user account's password is
+// about to expire (or has expired). Reaches everyone who can view the host
+// (host:read). Uses the QUIET fan-out: the daily sweep re-evaluates every 24h,
+// so a non-quiet record would re-surface the same warning unread each day.
+// Grouped per (host, user) so the daily re-sweep collapses onto one row and a
+// later "expired" simply updates the same item. Best-effort.
+func (g *GovernanceProjector) PasswordExpiring(ctx context.Context, hostID uuid.UUID, username string, daysLeft int, expired bool) error {
+	host := g.store.hostName(ctx, hostID)
+	h := hostID
+	n := Notification{
+		Kind:   "account_password_expiring",
+		HostID: &h,
+		Link:   "/hosts/" + hostID.String(),
+	}
+	// Distinct group keys for the two states: crossing from "expiring soon"
+	// into "expired" is a more urgent, distinct event that MUST surface as a
+	// fresh unread item even if the operator already read the expiring
+	// warning (the quiet upsert would otherwise DO NOTHING on the same key).
+	// Within each state the daily re-sweep stays quiet.
+	if expired {
+		n.Severity = "high"
+		n.Title = fmt.Sprintf("Password expired: %s on %s", username, host)
+		n.Body = "A host user account's password has expired. Rotate it on the host before it blocks login."
+		n.GroupKey = fmt.Sprintf("password_expired:%s:%s", hostID, username)
+	} else {
+		n.Severity = "medium"
+		n.Title = fmt.Sprintf("Password expiring soon: %s on %s (in %d days)", username, host, daysLeft)
+		n.Body = "A host user account's password is about to expire. Rotate it on the host before it lapses."
+		n.GroupKey = fmt.Sprintf("password_expiring:%s:%s", hostID, username)
+	}
+	if err := g.store.RecordForRolesQuiet(ctx, roleStrings(auth.RolesWithPermission(auth.HostRead)), n); err != nil {
+		return fmt.Errorf("notifyfeed: password expiring: %w", err)
+	}
+	return nil
+}
+
 // RemediationFailed records a "remediation failed / rolled back" notification
 // for the operators who can act on it (remediation:execute → ops_lead,
 // security_admin, admin). Grouped per (host, rule). finalStatus is the

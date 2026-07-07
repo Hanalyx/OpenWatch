@@ -9,10 +9,25 @@ import React, { useMemo, useState } from 'react';
 
 // Shape of the snapshot fields these tabs render. Each is optional
 // because pre-cycle hosts have an empty snapshot OR no snapshot row.
+export interface UserFact {
+  uid?: number;
+  locked?: boolean;
+  shell?: string;
+  gecos?: string;
+  // Password-aging fields from /etc/shadow (v1.1.0 collector). Pointers on
+  // the Go side → optional here. max_days 99999 / absent means "no policy";
+  // password_expires_at is set only when a real policy is in force.
+  last_change_days?: number;
+  max_days?: number;
+  password_expires_at?: string; // ISO 8601
+}
+
 export interface InventorySnapshot {
   packages?: Record<string, string>; // name -> version
   services?: Record<string, string>; // unit -> active|inactive|failed
-  users?: Record<string, { uid?: number; locked?: boolean } | undefined>;
+  users?: Record<string, UserFact | undefined>;
+  // group -> [usernames]; drives sudo/wheel/admin membership on the cards.
+  groups?: Record<string, string[]>;
   listening_ports?: Array<{ protocol?: string; address?: string; port?: number }>;
   // Populated by the Intelligence cycle on/after the network-collection
   // commit. Pre-cycle hosts get an empty array; the tab renders honest
@@ -144,29 +159,403 @@ export function ServicesTab({ isLoading, snapshot }: CommonProps) {
   );
 }
 
+// Account classification. A "human" login account is UID >= 1000 and not
+// nobody (65534); everything below (root, daemon, bin, …) and nobody is a
+// system/service account, collapsed by default. Matches the backend sweep's
+// minHumanUID / nobodyUID gating (system-account-policy C-01).
+const HUMAN_UID_MIN = 1000;
+const NOBODY_UID = 65534;
+// PASSWORD_WARN_DAYS is the amber cutoff for the aging line only (the real
+// alert threshold is server-side config). Fixed here for a stable visual.
+const PASSWORD_WARN_DAYS = 14;
+
+function isHumanUID(uid?: number): boolean {
+  return uid != null && uid >= HUMAN_UID_MIN && uid !== NOBODY_UID;
+}
+
+// sudoerSet — usernames in sudo/wheel/admin, intersected with known users so
+// a stale group entry for a removed user is not reported. Mirrors
+// countSudoUsers (CardServerIntel) but returns the set for per-card badges.
+function sudoerSet(
+  users: Record<string, UserFact | undefined>,
+  groups: Record<string, string[]> | undefined,
+): Set<string> {
+  const out = new Set<string>();
+  if (!groups) return out;
+  const known = new Set(Object.keys(users));
+  for (const g of ['sudo', 'wheel', 'admin']) {
+    for (const m of groups[g] ?? []) {
+      if (known.has(m)) out.add(m);
+    }
+  }
+  return out;
+}
+
+function hasPasswordPolicy(u: UserFact): boolean {
+  return u.max_days != null && u.max_days > 0 && u.max_days < 99999;
+}
+
+// passwordAging resolves the one-line aging status for a card. Six states:
+// expired / expiring-soon / expiring / no-policy (age) / change-required /
+// unknown. Returns null when there is nothing meaningful to show.
+// Spec frontend-host-detail-inventory-tabs AC-10.
+function passwordAging(
+  u: UserFact,
+  nowMs: number,
+): { text: string; tone: 'neutral' | 'warn' | 'crit' } | null {
+  const dayMs = 86_400_000;
+  if (u.password_expires_at) {
+    const exp = new Date(u.password_expires_at).getTime();
+    if (Number.isNaN(exp)) return null;
+    const days = Math.round((exp - nowMs) / dayMs);
+    if (days < 0) return { text: `Password expired ${-days} days ago`, tone: 'crit' };
+    if (days <= PASSWORD_WARN_DAYS)
+      return { text: `Password expires in ${days} days`, tone: 'warn' };
+    return { text: `Password expires in ${days} days`, tone: 'neutral' };
+  }
+  if (u.last_change_days === 0) {
+    return { text: 'Password change required at next login', tone: 'warn' };
+  }
+  if (u.last_change_days == null) return null; // age unknown — omit the line
+  const ageDays = Math.max(0, Math.round(nowMs / dayMs - u.last_change_days));
+  if (!hasPasswordPolicy(u)) {
+    return { text: `Password ${ageDays} days old · no expiry policy`, tone: 'warn' };
+  }
+  return { text: `Password ${ageDays} days old`, tone: 'neutral' };
+}
+
+function userInitials(name: string, gecos?: string): string {
+  const src = (gecos && gecos.trim()) || name;
+  const parts = src.split(/[\s._-]+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map((p) => p[0]!.toUpperCase());
+  return letters.join('') || name.slice(0, 2).toUpperCase();
+}
+
 export function UsersTab({ isLoading, snapshot }: CommonProps) {
-  const entries = useMemo(
-    () => Object.entries(snapshot?.users ?? {}).sort(([a], [b]) => a.localeCompare(b)),
-    [snapshot],
-  );
+  const [showSystem, setShowSystem] = useState(false);
+  const [query, setQuery] = useState('');
+  // Memoize the `?? {}` so the derived useMemo below has a stable input
+  // (a fresh literal each render would defeat it — react-hooks/exhaustive-deps).
+  const users = useMemo(() => snapshot?.users ?? {}, [snapshot]);
+  const groups = snapshot?.groups;
+  const nowMs = Date.now();
+
+  const { humans, system, sudoers, kpis } = useMemo(() => {
+    const sudo = sudoerSet(users, groups);
+    const entries = Object.entries(users).sort(([a], [b]) => a.localeCompare(b));
+    const humanList = entries.filter(([, u]) => isHumanUID(u?.uid));
+    const systemList = entries.filter(([, u]) => !isHumanUID(u?.uid));
+    const locked = humanList.filter(([, u]) => u?.locked).length;
+    // "Stale" = a human account with no rotation policy (PASS_MAX_DAYS unset/
+    // 99999) or one whose password has already expired — the prototype's
+    // STALE PASSWORDS tile.
+    const stale = humanList.filter(([, u]) => {
+      if (!u) return false;
+      const expired = passwordAging(u, nowMs)?.tone === 'crit';
+      const noPolicy = !hasPasswordPolicy(u) && u.last_change_days != null;
+      return expired || noPolicy;
+    }).length;
+    return {
+      humans: humanList,
+      system: systemList,
+      sudoers: sudo,
+      kpis: {
+        human: humanList.length,
+        systemCount: systemList.length,
+        sudo: sudo.size,
+        locked,
+        stale,
+      },
+    };
+  }, [users, groups, nowMs]);
+
+  if (isLoading) {
+    return (
+      <div role="status" style={{ color: 'var(--ow-fg-3)', fontSize: 12, padding: '20px 0' }}>
+        Loading users…
+      </div>
+    );
+  }
+  if (Object.keys(users).length === 0) {
+    return (
+      <div style={{ padding: '28px 0', textAlign: 'center' }}>
+        <div style={{ color: 'var(--ow-fg-1)', fontSize: 13 }}>No user accounts collected yet</div>
+        <div style={{ color: 'var(--ow-fg-3)', fontSize: 12, marginTop: 4 }}>
+          OS Intelligence reads /etc/passwd + /etc/shadow on each cycle. First cycle hasn&apos;t
+          completed for this host yet.
+        </div>
+      </div>
+    );
+  }
+
+  const needle = query.trim().toLowerCase();
+  const shownHumans = needle ? humans.filter(([n]) => n.toLowerCase().includes(needle)) : humans;
+  const shownSystem = needle ? system.filter(([n]) => n.toLowerCase().includes(needle)) : system;
+
   return (
-    <Shell
-      isLoading={isLoading}
-      entries={entries}
-      emptyPrimary="No user accounts collected yet"
-      emptySecondary="OS Intelligence reads /etc/passwd + /etc/shadow on each cycle. First cycle hasn't completed for this host yet."
-      searchPlaceholder="Search users…"
-      rows={(filtered) =>
-        filtered.map(([name, meta]) => {
-          const m = meta ?? {};
-          const tail = [m.uid != null ? `uid ${m.uid}` : '', m.locked ? 'locked' : '']
-            .filter(Boolean)
-            .join(' · ');
-          return <Row key={name} label={name} value={tail || '—'} />;
-        })
-      }
-      filterPredicate={(needle, [name]) => name.toLowerCase().includes(needle)}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search users…"
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          background: 'var(--ow-bg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+          color: 'var(--ow-fg-0)',
+          fontSize: 13,
+        }}
+      />
+      {/* KPI tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+        <StatCard
+          label="User accounts"
+          value={String(kpis.human)}
+          sub={`Plus ${kpis.systemCount} system accounts`}
+        />
+        <StatCard
+          label="Sudo privileges"
+          value={String(kpis.sudo)}
+          sub={
+            kpis.sudo === 0
+              ? 'None'
+              : [...sudoers].slice(0, 2).join(', ') + (kpis.sudo > 2 ? '…' : '')
+          }
+          valueColor={kpis.sudo > 0 ? 'crit' : undefined}
+        />
+        <StatCard
+          label="Locked / disabled"
+          value={String(kpis.locked)}
+          sub={kpis.locked === 0 ? 'None' : 'Login disabled'}
+        />
+        <StatCard
+          label="Stale passwords"
+          value={String(kpis.stale)}
+          sub={kpis.stale === 0 ? 'All within policy' : 'No expiry policy or expired'}
+          valueColor={kpis.stale > 0 ? 'crit' : undefined}
+        />
+      </div>
+
+      {/* Human account cards */}
+      {shownHumans.length === 0 ? (
+        <div style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>
+          {needle
+            ? 'No human accounts match your search.'
+            : 'No human login accounts on this host.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {shownHumans.map(([name, u]) => (
+            <UserAccountCard
+              key={name}
+              name={name}
+              user={u ?? {}}
+              sudo={sudoers.has(name)}
+              groups={groups}
+              nowMs={nowMs}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* System accounts — collapsed by default */}
+      <div
+        style={{
+          background: 'var(--ow-bg-1)',
+          border: '1px solid var(--ow-line)',
+          borderRadius: 'var(--ow-radius)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowSystem((s) => !s)}
+          aria-expanded={showSystem || needle !== ''}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 16px',
+            background: 'transparent',
+            border: 0,
+            cursor: 'pointer',
+            color: 'var(--ow-fg-1)',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          <span>System accounts</span>
+          <span style={{ color: 'var(--ow-fg-3)', fontSize: 12, fontWeight: 400 }}>
+            {system.length} service accounts · {showSystem || needle ? 'hide' : 'show all'}
+          </span>
+        </button>
+        {(showSystem || needle !== '') && (
+          <div style={{ borderTop: '1px solid var(--ow-line)', maxHeight: 420, overflowY: 'auto' }}>
+            {shownSystem.map(([name, u]) => {
+              const m = u ?? {};
+              const tail = [m.uid != null ? `uid ${m.uid}` : '', m.locked ? 'locked' : '']
+                .filter(Boolean)
+                .join(' · ');
+              return <Row key={name} label={name} value={tail || '—'} />;
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// UserAccountCard renders one human login account: avatar + name + uid + sudo
+// badge, the GECOS full name + shell, group chips, an Active/Locked status,
+// and the password-aging line. Spec frontend-host-detail-inventory-tabs AC-10.
+function UserAccountCard({
+  name,
+  user,
+  sudo,
+  groups,
+  nowMs,
+}: {
+  name: string;
+  user: UserFact;
+  sudo: boolean;
+  groups?: Record<string, string[]>;
+  nowMs: number;
+}) {
+  const aging = passwordAging(user, nowMs);
+  const agingColor =
+    aging?.tone === 'crit'
+      ? 'var(--ow-crit)'
+      : aging?.tone === 'warn'
+        ? 'var(--ow-warn)'
+        : 'var(--ow-fg-3)';
+  const memberOf = groups
+    ? Object.entries(groups)
+        .filter(([, members]) => members?.includes(name))
+        .map(([g]) => g)
+        .sort()
+        .slice(0, 6)
+    : [];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        padding: '14px 16px',
+        background: 'var(--ow-bg-1)',
+        border: '1px solid var(--ow-line)',
+        borderRadius: 'var(--ow-radius)',
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          width: 36,
+          height: 36,
+          flexShrink: 0,
+          borderRadius: '50%',
+          background: 'var(--ow-bg-3)',
+          color: 'var(--ow-fg-1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        {userInitials(name, user.gecos)}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)' }}>{name}</span>
+          {user.uid != null && (
+            <span
+              style={{ fontSize: 11, color: 'var(--ow-fg-3)', fontFamily: 'var(--ow-font-mono)' }}
+            >
+              UID {user.uid}
+            </span>
+          )}
+          {sudo && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                color: 'var(--ow-crit)',
+                border: '1px solid color-mix(in oklab, var(--ow-crit) 40%, transparent)',
+                borderRadius: 'var(--ow-radius-full)',
+                padding: '1px 6px',
+              }}
+            >
+              SUDO
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ow-fg-2)', marginTop: 3 }}>
+          {user.gecos ? (
+            <>
+              Full name <span style={{ color: 'var(--ow-fg-1)' }}>{user.gecos}</span>
+              {' · '}
+            </>
+          ) : null}
+          Shell{' '}
+          <span style={{ color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}>
+            {user.shell || '—'}
+          </span>
+        </div>
+        {memberOf.length > 0 && (
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+            {memberOf.map((g) => (
+              <span
+                key={g}
+                style={{
+                  fontSize: 11,
+                  fontFamily: 'var(--ow-font-mono)',
+                  color: 'var(--ow-fg-2)',
+                  background: 'var(--ow-bg-2)',
+                  borderRadius: 4,
+                  padding: '1px 6px',
+                }}
+              >
+                {g}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 6,
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11,
+            color: user.locked ? 'var(--ow-fg-3)' : 'var(--ow-ok)',
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: user.locked ? 'var(--ow-fg-3)' : 'var(--ow-ok)',
+            }}
+          />
+          {user.locked ? 'Locked' : 'Active'}
+        </span>
+        {aging && <span style={{ fontSize: 11, color: agingColor }}>{aging.text}</span>}
+      </div>
+    </div>
   );
 }
 

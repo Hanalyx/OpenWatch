@@ -110,6 +110,21 @@ func Diff(prior, current Snapshot) []Event {
 				Detail:   map[string]any{"user": name},
 			})
 		}
+
+		// Password expiry is TIME-based: the shadow fields don't change
+		// between cycles, wall-clock time crosses PasswordExpiresAt. Fire
+		// account.password.expired once, on the flip (prior not-expired ->
+		// current expired), deduped by the append-only log's UNIQUE key.
+		// "Expiring soon" (a warn window) is owned by the daily sweep, which
+		// carries the configurable threshold; the diff only records the hard
+		// expiry crossing. Spec AC-03.
+		if passwordExpired(u, current.CollectedAt) && !passwordExpired(prev, prior.CollectedAt) {
+			events = append(events, Event{
+				Code:     CodeAccountPasswordExpired,
+				Severity: "high",
+				Detail:   map[string]any{"user": name, "expires_at": u.PasswordExpiresAt},
+			})
+		}
 	}
 	for name := range prior.Users {
 		if _, still := current.Users[name]; !still {

@@ -6,6 +6,7 @@
 //	AC-16  TestGovernance_ExceptionDecidedNotifiesRequester — decision → requester only
 //	AC-17  TestGovernance_RemediationFailedFansToOperators — failure → remediation operators only
 //	AC-18  TestGovernance_ExceptionExpiry — expiring-soon (quiet/sticky) + expired → approvers
+//	AC-20  TestGovernance_PasswordExpiring — password expiry → host:read (quiet/sticky)
 //
 // Skipped without OPENWATCH_TEST_DSN. Assertions filter by the per-test-unique
 // group_key so the role-scoped fan-out from other tests on the shared DB does
@@ -212,6 +213,59 @@ func TestGovernance_ExceptionExpiry(t *testing.T) {
 		e := notifByGroupKey(t, s, approver, "exception_expired:"+expID.String())
 		if e == nil || e.Kind != "exception_expired" || e.Severity != "medium" {
 			t.Errorf("approver should get a medium exception_expired notification, got %+v", e)
+		}
+	})
+}
+
+// @ac AC-20
+// AC-20: PasswordExpiring fans a host:read-scoped account_password_expiring
+// notification (medium when expiring, high when expired), grouped per
+// (host, user), delivered quiet/sticky so a daily re-sweep stays read.
+func TestGovernance_PasswordExpiring(t *testing.T) {
+	t.Run("system-notifications/AC-20", func(t *testing.T) {
+		pool := dbtest.Pool(t)
+		ctx := context.Background()
+		s := NewStore(pool)
+		g := NewGovernanceProjector(s)
+
+		viewer := seedUserWithRole(t, pool, "viewer-"+uniq(), "viewer") // has host:read
+		creator := seedUser(t, pool, "creator-"+uniq())
+		host := seedHost(t, pool, creator, "web-"+uniq(), "Web One")
+
+		// Expiring soon → host:read users get a medium notification.
+		if err := g.PasswordExpiring(ctx, host, "owadmin", 9, false); err != nil {
+			t.Fatalf("PasswordExpiring: %v", err)
+		}
+		gk := "password_expiring:" + host.String() + ":owadmin"
+		n := notifByGroupKey(t, s, viewer, gk)
+		if n == nil || n.Kind != "account_password_expiring" || n.Severity != "medium" {
+			t.Fatalf("viewer should get a medium account_password_expiring notification, got %+v", n)
+		}
+		if n.HostID == nil || *n.HostID != host {
+			t.Errorf("notification host_id = %v, want %s", n.HostID, host)
+		}
+
+		// Quiet/sticky: read it, re-sweep, it stays read.
+		if err := s.MarkRead(ctx, viewer, n.ID); err != nil {
+			t.Fatalf("mark read: %v", err)
+		}
+		if err := g.PasswordExpiring(ctx, host, "owadmin", 8, false); err != nil {
+			t.Fatalf("PasswordExpiring repeat: %v", err)
+		}
+		if again := notifByGroupKey(t, s, viewer, gk); again == nil || again.ReadAt == nil {
+			t.Errorf("repeated expiring warning must stay read (quiet), got %+v", again)
+		}
+
+		// Crossing into expired → a FRESH high notification under a distinct
+		// group key, so it surfaces unread even though the expiring one was
+		// read. The expiring row is untouched.
+		if err := g.PasswordExpiring(ctx, host, "owadmin", -2, true); err != nil {
+			t.Fatalf("PasswordExpiring expired: %v", err)
+		}
+		expiredGK := "password_expired:" + host.String() + ":owadmin"
+		hi := notifByGroupKey(t, s, viewer, expiredGK)
+		if hi == nil || hi.Severity != "high" || hi.ReadAt != nil {
+			t.Errorf("expired should be a fresh unread high notification, got %+v", hi)
 		}
 	})
 }
