@@ -48,4 +48,18 @@ describe('frontend-scans — scan overview', () => {
     expect(PAGE_SRC).not.toMatch(/api\.(POST|PUT|DELETE)/);
     expect(stripComments(PAGE_SRC)).not.toContain('—');
   });
+
+  // @ac AC-04
+  test('frontend-scans/AC-04 — FRESHNESS pill reflects in-flight scan_state', () => {
+    // a freshnessPill helper maps scan_state to Running/Queued, taking
+    // precedence over the age-derived freshness, in an accent tone.
+    expect(PAGE_SRC).toContain('function freshnessPill');
+    expect(PAGE_SRC).toMatch(/scan_state/);
+    expect(PAGE_SRC).toMatch(/scanState === 'running'.*'Running'|label: 'Running'/s);
+    expect(PAGE_SRC).toMatch(/scanState === 'queued'.*'Queued'|label: 'Queued'/s);
+    // accent tone distinct from the freshness tones (ok/warn/crit)
+    expect(PAGE_SRC).toMatch(/run:\s*'var\(--ow-link\)'/);
+    // the pill is computed from scan_state before render
+    expect(PAGE_SRC).toContain('freshnessPill(h.scan_state');
+  });
 });

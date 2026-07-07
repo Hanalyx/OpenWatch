@@ -4731,6 +4731,16 @@ components:
           type: integer
           nullable: true
           description: Wall-clock duration of the latest completed run (finished_at - started_at); null when never scanned or timestamps absent.
+        scan_state:
+          type: string
+          enum: [queued, running]
+          nullable: true
+          description: >
+            In-flight scan state for this host, independent of the latest
+            COMPLETED run above. 'queued' = enqueued, awaiting a worker;
+            'running' = actively executing; null = no scan in flight. Drives
+            the host-detail hero "Running"/"Queued" badge. Spec
+            api-host-compliance AC-17.
 
     HostComplianceLensSummary:
       type: object
@@ -4865,6 +4875,18 @@ components:
           nullable: true
           description: Null when no liveness probe has ever run against this host.
         compliance_summary: {$ref: '#/components/schemas/HostComplianceSummary'}
+        # v1.7.0 — MAX(host_rule_state.last_checked_at); null when the host
+        # has never been checked. Drives the detail hero "LAST SCAN" tile.
+        # Spec api-hosts C-14.
+        last_scan_at: {type: string, format: date-time, nullable: true}
+        # v1.7.0 — in-flight scan state (queued|running); null when idle.
+        # Independent of last_scan_at. Drives the detail hero "Running"/
+        # "Queued" badge, updated live via scan.started/scan.completed SSE.
+        # Spec api-hosts C-14.
+        scan_state:
+          type: string
+          enum: [queued, running]
+          nullable: true
 
     # List-view item: HostResponse plus optional liveness sub-object.
     # Liveness comes from a single LEFT JOIN — bounded overhead even on
@@ -4901,6 +4923,17 @@ components:
         # when the host has no completed scan yet (icon hidden). Spec
         # api-hosts C-13.
         latest_scan_id: {type: string, format: uuid, nullable: true}
+        # v1.7.0 — in-flight scan state for this host, independent of
+        # last_scan_at/latest_scan_id (which track the latest COMPLETED
+        # run). 'queued' = enqueued awaiting a worker; 'running' = actively
+        # executing; null = idle. Loaded with one grouped query over the
+        # scan_runs_active partial index for the whole page (no N+1). Drives
+        # the hosts-list card/row + scans-coverage "Running"/"Queued"
+        # indicator. Spec api-hosts C-14.
+        scan_state:
+          type: string
+          enum: [queued, running]
+          nullable: true
         liveness:
           allOf: [{$ref: '#/components/schemas/HostLiveness'}]
           nullable: true

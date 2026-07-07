@@ -2,7 +2,7 @@
 //
 // AC traceability (this file):
 //
-//   AC-01  test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set')
+//   AC-01  test('frontend-live-events/AC-01 — ALL_TOPICS is the closed set')
 //   AC-02  test('frontend-live-events/AC-02 — host.changed invalidates [hosts] + [host, id]')
 //   AC-03  test('frontend-live-events/AC-03 — monitoring.band.changed invalidates [hosts] + [host, id]')
 //   AC-04  test('frontend-live-events/AC-04 — host.discovered invalidates [hosts] + [host, id]')
@@ -11,6 +11,7 @@
 //   AC-07  test('frontend-live-events/AC-07 — source-inspect: exactly one new EventSource(...) call')
 //   AC-08  test('frontend-live-events/AC-08 — scan.completed invalidates [hosts] + [host, id]')
 //   AC-10  test('frontend-live-events/AC-10 — report.ready invalidates [reports] + notification feed')
+//   AC-11  test('frontend-live-events/AC-11 — scan.started invalidates [hosts] + [host, id]')
 
 import { expect, test, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -85,19 +86,21 @@ beforeEach(() => {
 
 // @ac AC-01
 // AC-01: ALL_TOPICS exported as the closed set (v1.1.0 adds scan.completed;
-// v1.2.0 adds remediation.completed; v1.3.0 adds report.ready).
-test('frontend-live-events/AC-01 — ALL_TOPICS is the closed v1.0 set', () => {
+// v1.2.0 adds remediation.completed; v1.3.0 adds report.ready; v1.5.0 adds
+// scan.started).
+test('frontend-live-events/AC-01 — ALL_TOPICS is the closed set', () => {
   const want = [
     'host.changed',
     'monitoring.band.changed',
     'host.discovered',
     'intelligence.event',
+    'scan.started',
     'scan.completed',
     'remediation.completed',
     'report.ready',
   ];
   expect([...ALL_TOPICS]).toEqual(want);
-  expect(ALL_TOPICS.length).toBe(7);
+  expect(ALL_TOPICS.length).toBe(8);
 });
 
 // Helper to mount the hook and return the stub + spies.
@@ -165,6 +168,19 @@ test('frontend-live-events/AC-08 — scan.completed invalidates [hosts] + [host,
   const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
   expect(calls).toContainEqual(['hosts']);
   expect(calls).toContainEqual(['host', 'h-scan']);
+});
+
+// @ac AC-11
+// AC-11: scan.started flips the per-host indicator to "Running" live — it
+// invalidates [hosts] and [host, id] just like scan.completed, so the pill /
+// card / hero re-fetch and show the in-flight state the moment the worker
+// begins the scan.
+test('frontend-live-events/AC-11 — scan.started invalidates [hosts] + [host, id]', () => {
+  const { es, spy } = mountHook();
+  es.fire('scan.started', { HostID: 'h-start' });
+  const calls = spy.mock.calls.map((c) => c[0]?.queryKey);
+  expect(calls).toContainEqual(['hosts']);
+  expect(calls).toContainEqual(['host', 'h-start']);
 });
 
 // @ac AC-05

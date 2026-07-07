@@ -31,6 +31,7 @@ function host(overrides: Partial<DevHost> = {}): DevHost {
     lastCheckMinutes: 0,
     lastScan: 'just now',
     latestScanId: null,
+    scanState: null,
     ...overrides,
   };
 }

@@ -88,6 +88,19 @@ func (h *handlers) GetHostCompliance(
 		return
 	}
 
+	// scan_state: the in-flight (queued/running) run, independent of the
+	// latest COMPLETED run above — null when no scan is in flight. Drives
+	// the host-detail hero "Running"/"Queued" badge. Spec
+	// api-host-compliance AC-17.
+	if active, err := scanruns.ActiveForHost(ctx, h.pool, hostID); err == nil {
+		s := api.HostScanContextScanState(active.Status)
+		scanCtx.ScanState = &s
+	} else if !errors.Is(err, scanruns.ErrNotFound) {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"scan state lookup failed", true)
+		return
+	}
+
 	// nil framework disables both the filter and the control-id
 	// projection ($2::text IS NULL short-circuits — same idiom as the
 	// failed-rules handler). One query, no pagination: the per-host

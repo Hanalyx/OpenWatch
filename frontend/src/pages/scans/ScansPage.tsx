@@ -32,7 +32,24 @@ const TONE = {
   ok: 'var(--ow-ok)',
   warn: 'var(--ow-warn)',
   crit: 'var(--ow-crit)',
+  run: 'var(--ow-link)', // in-flight scan (queued/running): accent, not a freshness tone
 };
+
+// freshnessPill resolves the FRESHNESS cell. An in-flight scan (scan_state
+// queued/running) takes precedence over the age-derived freshness so the
+// operator sees which host is actively being scanned; otherwise the pill
+// reflects last_scan_at age. Spec frontend-scans AC-04.
+function freshnessPill(
+  scanState: 'queued' | 'running' | null | undefined,
+  age: { text: string; tone: 'ok' | 'warn' | 'crit' },
+): { label: string; tone: keyof typeof TONE } {
+  if (scanState === 'running') return { label: 'Running', tone: 'run' };
+  if (scanState === 'queued') return { label: 'Queued', tone: 'run' };
+  return {
+    label: age.tone === 'ok' ? 'current' : age.tone === 'warn' ? 'stale' : 'never',
+    tone: age.tone,
+  };
+}
 
 export function ScansPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
@@ -159,6 +176,7 @@ function CoverageTab({
     id: string;
     hostname: string;
     last_scan_at?: string | null;
+    scan_state?: 'queued' | 'running' | null;
     compliance_summary?: { passing: number; total: number } | null;
   }[];
   isPending: boolean;
@@ -198,6 +216,7 @@ function CoverageTab({
       </Row>
       {hosts.map((h, i) => {
         const age = ageLabel(h.last_scan_at);
+        const pill = freshnessPill(h.scan_state, age);
         const cs = h.compliance_summary;
         const pct = cs && cs.total > 0 ? Math.round((cs.passing / cs.total) * 100) : null;
         const open = openHost === h.id;
@@ -236,7 +255,7 @@ function CoverageTab({
                   gap: 7,
                   fontSize: 12,
                   fontWeight: 500,
-                  color: TONE[age.tone],
+                  color: TONE[pill.tone],
                 }}
               >
                 <span
@@ -244,13 +263,15 @@ function CoverageTab({
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: TONE[age.tone],
+                    background: TONE[pill.tone],
                     flexShrink: 0,
                   }}
                 />
-                {age.tone === 'ok' ? 'current' : age.tone === 'warn' ? 'stale' : 'never'}
+                {pill.label}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>{age.text}</span>
+              <span style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>
+                {h.scan_state ? 'in progress' : age.text}
+              </span>
             </Row>
             {open ? <HostScanHistory hostId={h.id} /> : null}
           </div>

@@ -129,7 +129,7 @@ func (h *handlers) PostHostScan(
 
 	writeJSON(w, http.StatusAccepted, api.ScanRunQueued{
 		ScanId:   jobID,
-		Status:   api.Queued,
+		Status:   api.ScanRunQueuedStatusQueued,
 		QueuedAt: now,
 	})
 }

@@ -22,6 +22,7 @@
 //	AC-16  TestHostComplianceFrameworks_OSAwareFiltering
 //	       TestFrameworkCompatibleWithOS_Table (non-DSN)
 //	       TestFirstSentence_TrimsCatalogProse (non-DSN)
+//	AC-17  TestHostComplianceLens_ScanStateReflectsInFlightRun
 package server
 
 import (
@@ -363,6 +364,7 @@ type lensResp struct {
 		ScanID          *string    `json:"scan_id"`
 		PolicyVersion   string     `json:"policy_version"`
 		DurationSeconds *int       `json:"duration_seconds"`
+		ScanState       *string    `json:"scan_state"`
 	} `json:"scan_context"`
 	Summary struct {
 		Passing  int64   `json:"passing"`
@@ -637,6 +639,59 @@ func TestHostComplianceLens_ScanContextLatestCompletedRun(t *testing.T) {
 		}
 		if body.ScanContext.PolicyVersion != "v2" {
 			t.Errorf("policy_version = %q, want v2", body.ScanContext.PolicyVersion)
+		}
+	})
+}
+
+// @ac AC-17
+// AC-17: scan_context.scan_state reflects the in-flight run (queued|running)
+// independent of the latest COMPLETED run; null when no scan is in flight and
+// the completed-run fields are undisturbed by a running scan.
+func TestHostComplianceLens_ScanStateReflectsInFlightRun(t *testing.T) {
+	t.Run("api-host-compliance/AC-17", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		hostID := seedHostForIntel(t, pool)
+		base := time.Now().UTC().Truncate(time.Second)
+		seedRun := func(runStatus, policy string, finishedAt any) uuid.UUID {
+			t.Helper()
+			id := uuid.Must(uuid.NewV7())
+			_, err := pool.Exec(context.Background(), `
+				INSERT INTO scan_runs (id, host_id, trigger_source, status, finished_at, policy_version)
+				VALUES ($1, $2, 'scheduled', $3, $4, NULLIF($5, ''))`,
+				id, hostID, runStatus, finishedAt, policy)
+			if err != nil {
+				t.Fatalf("seed scan_run %s: %v", runStatus, err)
+			}
+			return id
+		}
+
+		// Never scanned, none active → scan_state null.
+		_, body := getLens(t, url, auth.RoleViewer, hostID.String(), "")
+		if body.ScanContext.ScanState != nil {
+			t.Errorf("no-run scan_state = %v, want null", body.ScanContext.ScanState)
+		}
+
+		// A completed run is present (fills last_scan_at) plus a queued run
+		// in flight → scan_state 'queued', completed fields undisturbed.
+		completed := seedRun("completed", "v1", base.Add(-time.Hour))
+		seedRun("queued", "v2", nil)
+		_, body = getLens(t, url, auth.RoleViewer, hostID.String(), "")
+		if body.ScanContext.ScanState == nil || *body.ScanContext.ScanState != "queued" {
+			t.Errorf("scan_state = %v, want queued", body.ScanContext.ScanState)
+		}
+		if body.ScanContext.ScanID == nil || *body.ScanContext.ScanID != completed.String() {
+			t.Errorf("scan_id = %v, want %s (running scan must not disturb completed fields)",
+				body.ScanContext.ScanID, completed)
+		}
+
+		// Flip the queued run to running → scan_state 'running'.
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE scan_runs SET status='running' WHERE host_id=$1 AND status='queued'`, hostID); err != nil {
+			t.Fatalf("flip to running: %v", err)
+		}
+		_, body = getLens(t, url, auth.RoleViewer, hostID.String(), "")
+		if body.ScanContext.ScanState == nil || *body.ScanContext.ScanState != "running" {
+			t.Errorf("scan_state = %v, want running", body.ScanContext.ScanState)
 		}
 	})
 }

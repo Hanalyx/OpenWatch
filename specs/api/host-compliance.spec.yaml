@@ -1,7 +1,7 @@
 spec:
   id: api-host-compliance
   title: Per-host compliance lens + failed-rules API + fleet scan-queue KPI
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -187,3 +187,7 @@ spec:
       description: 'v1.3.0 - on a host with os_family=rhel, os_version=8.10 whose rows carry refs for cis_rhel8, cis_rhel9, stig_rhel10, nist_800_53, pci_dss_4 and srg, GET /compliance/frameworks lists exactly cis_rhel8 + the three OS-neutral ids; the same rows on a host with no os_family list all six; GET /compliance?framework=cis_rhel9 still projects normally on the RHEL 8 host (deep links unfiltered). The unit table for frameworkCompatibleWithOS covers neutral ids, family mismatch, major match, major+minor concatenation (ubuntu2404 vs 24.04), and the unknown-OS passthrough'
       priority: critical
       references_constraints: [C-06]
+    - id: AC-17
+      description: 'v1.4.0 - scan_context.scan_state reflects the host''s in-flight run independent of the latest COMPLETED run: a host with a queued run returns scan_state="queued"; a running run returns "running"; a host with only completed/failed runs (or never scanned) returns scan_state null while last_scan_at/scan_id keep tracking the latest COMPLETED run. It is sourced from scanruns.ActiveForHost so a running scan does not disturb last_scan_at.'
+      priority: high
+      references_constraints: [C-02]

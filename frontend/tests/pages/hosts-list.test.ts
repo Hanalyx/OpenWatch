@@ -66,6 +66,7 @@ function makeDevHost(overrides: Partial<DevHost> = {}): DevHost {
     lastCheckMinutes: null,
     lastScan: '—',
     latestScanId: null,
+    scanState: null,
     ...overrides,
   };
 }

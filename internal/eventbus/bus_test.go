@@ -253,6 +253,7 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 		// HostChanged + MonitoringBandChanged (v1.1 SSE layer),
 		// HostDiscovered (system-host-discovery PR 1.1),
 		// IntelligenceEvent (system-os-intelligence PR 1.2),
+		// ScanStarted (per-host live "Running" indicator),
 		// ScanCompleted (api-host-scan / scan foundation),
 		// RemediationCompleted (api-remediation execute/rollback),
 		// ReportReady (api-reports async render, B3a).
@@ -263,6 +264,7 @@ func TestEventKindEnum_HasExactlyTwoValues(t *testing.T) {
 			EventKindMonitoringBandChanged: false,
 			EventKindHostDiscovered:        false,
 			EventKindIntelligenceEvent:     false,
+			EventKindScanStarted:           false,
 			EventKindScanCompleted:         false,
 			EventKindRemediationCompleted:  false,
 			EventKindReportReady:           false,

@@ -239,6 +239,7 @@ export function ComplianceTab({
         isPending={lensQuery.isPending}
         lastScanAt={lensQuery.data?.scan_context.last_scan_at ?? null}
         policyVersion={lensQuery.data?.scan_context.policy_version ?? ''}
+        scanState={lensQuery.data?.scan_context.scan_state ?? null}
       />
       <LensBar
         framework={framework}
@@ -282,11 +283,13 @@ function ScanContextStrip({
   isPending,
   lastScanAt,
   policyVersion,
+  scanState,
 }: {
   hostId: string;
   isPending: boolean;
   lastScanAt: string | null;
   policyVersion: string;
+  scanState: 'queued' | 'running' | null;
 }) {
   let sub: ReactNode;
   if (isPending) {
@@ -333,7 +336,7 @@ function ScanContextStrip({
           {sub}
         </div>
       </div>
-      <RescanButton hostId={hostId} />
+      <RescanButton hostId={hostId} scanState={scanState} />
     </div>
   );
 }
@@ -341,12 +344,22 @@ function ScanContextStrip({
 // RescanButton — same enqueue endpoint and semantics as the page-head
 // Run scan button (POST /hosts/{id}/scans, idempotency-keyed, 409 as a
 // transient note). The result refresh arrives via scan.completed SSE.
-function RescanButton({ hostId }: { hostId: string }) {
+function RescanButton({
+  hostId,
+  scanState,
+}: {
+  hostId: string;
+  scanState: 'queued' | 'running' | null;
+}) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // While a scan is in flight (scan_context.scan_state, kept live by the
+  // scan.started/scan.completed SSE topics) the button stays disabled
+  // showing the live state. Spec frontend-host-compliance-tab AC-10.
+  const active = scanState === 'running' || scanState === 'queued';
 
   const rescan = async () => {
-    if (busy) return;
+    if (busy || active) return;
     setBusy(true);
     setNote(null);
     try {
@@ -381,7 +394,7 @@ function RescanButton({ hostId }: { hostId: string }) {
       <button
         type="button"
         onClick={rescan}
-        disabled={busy}
+        disabled={busy || active}
         aria-label="Re-scan this host"
         style={{
           height: 30,
@@ -392,11 +405,17 @@ function RescanButton({ hostId }: { hostId: string }) {
           borderRadius: 7,
           fontSize: 12,
           fontWeight: 600,
-          cursor: busy ? 'default' : 'pointer',
-          opacity: busy ? 0.6 : 1,
+          cursor: busy || active ? 'default' : 'pointer',
+          opacity: busy || active ? 0.6 : 1,
         }}
       >
-        {busy ? 'Queueing' : 'Re-scan'}
+        {scanState === 'running'
+          ? 'Running…'
+          : scanState === 'queued'
+            ? 'Queued…'
+            : busy
+              ? 'Queueing'
+              : 'Re-scan'}
       </button>
     </span>
   );

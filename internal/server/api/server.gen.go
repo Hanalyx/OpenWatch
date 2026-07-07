@@ -611,6 +611,42 @@ func (e HostComplianceScheduleComplianceState) Valid() bool {
 	}
 }
 
+// Defines values for HostDetailResponseScanState.
+const (
+	HostDetailResponseScanStateQueued  HostDetailResponseScanState = "queued"
+	HostDetailResponseScanStateRunning HostDetailResponseScanState = "running"
+)
+
+// Valid indicates whether the value is a known member of the HostDetailResponseScanState enum.
+func (e HostDetailResponseScanState) Valid() bool {
+	switch e {
+	case HostDetailResponseScanStateQueued:
+		return true
+	case HostDetailResponseScanStateRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostListItemScanState.
+const (
+	HostListItemScanStateQueued  HostListItemScanState = "queued"
+	HostListItemScanStateRunning HostListItemScanState = "running"
+)
+
+// Valid indicates whether the value is a known member of the HostListItemScanState enum.
+func (e HostListItemScanState) Valid() bool {
+	switch e {
+	case HostListItemScanStateQueued:
+		return true
+	case HostListItemScanStateRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HostLivenessMonitoringState.
 const (
 	HostLivenessMonitoringStateCritical    HostLivenessMonitoringState = "critical"
@@ -737,6 +773,24 @@ func (e HostMonitoringHistoryEntryPreviousState) Valid() bool {
 	case HostMonitoringHistoryEntryPreviousStateOnline:
 		return true
 	case HostMonitoringHistoryEntryPreviousStateUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostScanContextScanState.
+const (
+	HostScanContextScanStateQueued  HostScanContextScanState = "queued"
+	HostScanContextScanStateRunning HostScanContextScanState = "running"
+)
+
+// Valid indicates whether the value is a known member of the HostScanContextScanState enum.
+func (e HostScanContextScanState) Valid() bool {
+	switch e {
+	case HostScanContextScanStateQueued:
+		return true
+	case HostScanContextScanStateRunning:
 		return true
 	default:
 		return false
@@ -1030,13 +1084,13 @@ func (e ReportSigningKeyAlgorithm) Valid() bool {
 
 // Defines values for ScanRunQueuedStatus.
 const (
-	Queued ScanRunQueuedStatus = "queued"
+	ScanRunQueuedStatusQueued ScanRunQueuedStatus = "queued"
 )
 
 // Valid indicates whether the value is a known member of the ScanRunQueuedStatus enum.
 func (e ScanRunQueuedStatus) Valid() bool {
 	switch e {
-	case Queued:
+	case ScanRunQueuedStatusQueued:
 		return true
 	default:
 		return false
@@ -2311,10 +2365,15 @@ type HostCreateRequest struct {
 type HostDetailResponse struct {
 	ComplianceSummary HostComplianceSummary `json:"compliance_summary"`
 	Host              HostResponse          `json:"host"`
+	LastScanAt        *time.Time            `json:"last_scan_at,omitempty"`
 
 	// Liveness Null when no liveness probe has ever run against this host.
-	Liveness *HostLiveness `json:"liveness,omitempty"`
+	Liveness  *HostLiveness                `json:"liveness,omitempty"`
+	ScanState *HostDetailResponseScanState `json:"scan_state,omitempty"`
 }
+
+// HostDetailResponseScanState defines model for HostDetailResponse.ScanState.
+type HostDetailResponseScanState string
 
 // HostFailedRule defines model for HostFailedRule.
 type HostFailedRule struct {
@@ -2373,17 +2432,21 @@ type HostListItem struct {
 	LatestScanId      *openapi_types.UUID        `json:"latest_scan_id,omitempty"`
 
 	// Liveness Null when no liveness probe has ever run against this host.
-	Liveness           *HostLiveness `json:"liveness,omitempty"`
-	MaintenanceMode    *bool         `json:"maintenance_mode,omitempty"`
-	OsDiscoveredAt     *time.Time    `json:"os_discovered_at,omitempty"`
-	OsFamily           *string       `json:"os_family,omitempty"`
-	OsVersion          *string       `json:"os_version,omitempty"`
-	PlatformIdentifier *string       `json:"platform_identifier,omitempty"`
-	Port               int           `json:"port"`
-	Tags               *[]string     `json:"tags,omitempty"`
-	UpdatedAt          *time.Time    `json:"updated_at,omitempty"`
-	Username           *string       `json:"username,omitempty"`
+	Liveness           *HostLiveness          `json:"liveness,omitempty"`
+	MaintenanceMode    *bool                  `json:"maintenance_mode,omitempty"`
+	OsDiscoveredAt     *time.Time             `json:"os_discovered_at,omitempty"`
+	OsFamily           *string                `json:"os_family,omitempty"`
+	OsVersion          *string                `json:"os_version,omitempty"`
+	PlatformIdentifier *string                `json:"platform_identifier,omitempty"`
+	Port               int                    `json:"port"`
+	ScanState          *HostListItemScanState `json:"scan_state,omitempty"`
+	Tags               *[]string              `json:"tags,omitempty"`
+	UpdatedAt          *time.Time             `json:"updated_at,omitempty"`
+	Username           *string                `json:"username,omitempty"`
 }
+
+// HostListItemScanState defines model for HostListItem.ScanState.
+type HostListItemScanState string
 
 // HostListResponse defines model for HostListResponse.
 type HostListResponse struct {
@@ -2492,7 +2555,13 @@ type HostScanContext struct {
 
 	// ScanId id of the latest completed scan run; null when never scanned.
 	ScanId *openapi_types.UUID `json:"scan_id"`
+
+	// ScanState In-flight scan state for this host, independent of the latest COMPLETED run above. 'queued' = enqueued, awaiting a worker; 'running' = actively executing; null = no scan in flight. Drives the host-detail hero "Running"/"Queued" badge. Spec api-host-compliance AC-17.
+	ScanState *HostScanContextScanState `json:"scan_state,omitempty"`
 }
+
+// HostScanContextScanState In-flight scan state for this host, independent of the latest COMPLETED run above. 'queued' = enqueued, awaiting a worker; 'running' = actively executing; null = no scan in flight. Drives the host-detail hero "Running"/"Queued" badge. Spec api-host-compliance AC-17.
+type HostScanContextScanState string
 
 // HostSystemInfo Result of a Discovery run. Mirrors the host_system_info table
 // column-for-column. Spec system-host-discovery.

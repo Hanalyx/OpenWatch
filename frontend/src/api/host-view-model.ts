@@ -48,6 +48,13 @@ export interface DevHost {
    * frontend-hosts-list AC-24, links to /scans/{latestScanId}.
    */
   latestScanId: string | null;
+  /**
+   * in-flight scan state from the list endpoint's scan_state
+   * (queued|running), null when no scan is in flight. Drives the card/row
+   * "Running"/"Queued" indicator in place of "Last scan …". Spec
+   * frontend-hosts-list AC-27.
+   */
+  scanState: 'queued' | 'running' | null;
 }
 
 export type DeltaTier = 'crit' | 'warn' | 'ok' | 'neutral';
