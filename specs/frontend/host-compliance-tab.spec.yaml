@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -165,3 +165,7 @@ spec:
       description: 'v1.2.0 - exception overlay (api-compliance-exceptions): the tab reads the host exceptions via useHostExceptions and annotates the rules table with an Exception column - a Waived pill for rules with an active (approved) exception, a Pending pill for rules with a requested one, and for a FAILING rule with no exception and a caller holding exception:request a Request button that opens a modal (reason required, optional expiry) posting POST /hosts/{id}/exceptions and invalidating ["host", hostId, "exceptions"] on success. The overlay NEVER changes a rule status chip - the failing rule still shows Non-compliant (overlay model, never mutates the lens).'
       priority: high
       references_constraints: [C-03]
+    - id: AC-10
+      description: 'v1.4.0 source-inspection - the scan-context strip Re-scan button reflects an in-flight scan: ScanContextStrip is passed scan_context.scan_state (queued|running) and forwards it to RescanButton, which stays disabled and shows "Running…"/"Queued…" for the whole scan (not just the request round-trip) and reverts to "Re-scan" when scanState is null. The state is kept live by the scan.started/scan.completed SSE invalidation of the ["host", hostId] lens query.'
+      priority: high
+      references_constraints: [C-01]

@@ -1,7 +1,7 @@
 spec:
   id: system-scan-runs
   title: Scan-run logbook — operational record of compliance-scan attempts
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -102,3 +102,7 @@ spec:
       description: Deleting a host with extant scan_runs rows fails with an FK violation (ON DELETE RESTRICT).
       priority: high
       references_constraints: [C-04]
+    - id: AC-08
+      description: ActiveByHostIDs returns the active (queued|running) status per host for the given host ids in ONE grouped query — a queued-only host maps to 'queued', a running host to 'running', a host with only completed/failed runs or no runs is absent from the map, and a host with BOTH a queued and a running row maps to 'running' ('running' wins over 'queued'). An empty id slice returns an empty map with no query. Backs the per-host live "Running"/"Queued" indicator on the hosts-list and scans-coverage surfaces.
+      priority: high
+      references_constraints: [C-01, C-02]

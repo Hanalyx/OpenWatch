@@ -308,6 +308,18 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 		// Non-fatal: the logbook is observability, not the scan itself.
 	}
 
+	// Announce scan start so SSE clients flip the host's per-host
+	// indicator to "Running" without polling (the paired scan.completed
+	// below clears it). Best-effort: the scan proceeds regardless.
+	// Spec system-scan-runs / frontend-live-events.
+	if w.bus != nil {
+		w.bus.Publish(ctx, eventbus.ScanStarted{
+			ScanID:    j.ID,
+			HostID:    payload.HostID,
+			StartedAt: w.clock().UTC(),
+		})
+	}
+
 	// Per-host concurrency guard via pg_advisory_xact_lock (C-09).
 	tx, err := acquireHostLock(ctx, w.pool, payload.HostID)
 	if err != nil {

@@ -99,7 +99,9 @@ describe('frontend-remediation-tab — source inspection', () => {
   test('frontend-remediation-tab/AC-04 — approved row Fix button posts :execute, gated, 409 inline', () => {
     // isAdmin computed from the admin permission, mirrored across the act gates.
     expect(PAGE).toContain("useAuthStore((s) => s.hasPermission('admin'))");
-    expect(PAGE).toContain("useAuthStore((s) => s.hasPermission('remediation:execute')) || isAdmin");
+    expect(PAGE).toContain(
+      "useAuthStore((s) => s.hasPermission('remediation:execute')) || isAdmin",
+    );
     // The Fix button posts :execute.
     expect(PAGE).toContain('/api/v1/remediation/requests/{rid}:execute');
     expect(TAB_REGION).toContain('Fix');
@@ -113,7 +115,9 @@ describe('frontend-remediation-tab — source inspection', () => {
 
   // @ac AC-05
   test('frontend-remediation-tab/AC-05 — executed row Fixed status + Roll back posts :rollback', () => {
-    expect(PAGE).toContain("useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin");
+    expect(PAGE).toContain(
+      "useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin",
+    );
     expect(PAGE).toContain("request.status === 'executed'");
     expect(TAB_REGION).toContain('Fixed');
     expect(TAB_REGION).toContain('Roll back');

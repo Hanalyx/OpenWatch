@@ -36,7 +36,12 @@ const RULES = {
       tags: ['ssh'],
       framework_refs: { cis_rhel9: ['5.2.8'], nist_800_53: ['AC-6'] },
       transactional: true,
-      remediation: { available: true, mechanisms: ['config_set_dropin'], restarts_services: [], reboot_behavior: 'boot-param' },
+      remediation: {
+        available: true,
+        mechanisms: ['config_set_dropin'],
+        restarts_services: [],
+        reboot_behavior: 'boot-param',
+      },
     },
     {
       id: 'auditd-enabled',
@@ -47,7 +52,12 @@ const RULES = {
       tags: [],
       framework_refs: { cis_rhel9: ['6.3.1.4'], stig_rhel9: ['V-258151'] },
       transactional: true,
-      remediation: { available: true, mechanisms: ['service_enabled'], restarts_services: ['auditd'], reboot_behavior: 'none' },
+      remediation: {
+        available: true,
+        mechanisms: ['service_enabled'],
+        restarts_services: ['auditd'],
+        reboot_behavior: 'none',
+      },
     },
     {
       id: 'manual-rule',
@@ -58,7 +68,12 @@ const RULES = {
       tags: [],
       framework_refs: { nist_800_53: ['CM-6'] },
       transactional: false,
-      remediation: { available: false, mechanisms: [], restarts_services: [], reboot_behavior: 'none' },
+      remediation: {
+        available: false,
+        mechanisms: [],
+        restarts_services: [],
+        reboot_behavior: 'none',
+      },
     },
   ],
 };
@@ -104,7 +119,9 @@ describe('frontend-rules-library', () => {
     await waitFor(() => expect(screen.getByText('Disable SSH root login')).toBeTruthy());
     expect(getMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText('Search rules, IDs, frameworks'), { target: { value: 'auditd' } });
+    fireEvent.change(screen.getByLabelText('Search rules, IDs, frameworks'), {
+      target: { value: 'auditd' },
+    });
     await waitFor(() => expect(screen.getByText('showing 1 of 3')).toBeTruthy());
     expect(screen.getByText('Install and enable auditd')).toBeTruthy();
     expect(screen.queryByText('Disable SSH root login')).toBeNull();

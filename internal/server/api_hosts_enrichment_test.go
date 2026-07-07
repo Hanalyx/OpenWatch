@@ -10,6 +10,7 @@
 //   AC-19  TestHosts_GetHosts_ListLivenessJoined
 //   AC-23  TestHosts_GetHosts_ListComplianceSummaryJoined
 //   AC-24  TestHosts_GetHosts_ListLatestScanIDJoined
+//   AC-25  TestHosts_GetHosts_ListScanStateJoined
 
 package server
 
@@ -495,6 +496,97 @@ func TestHosts_GetHosts_ListLatestScanIDJoined(t *testing.T) {
 			t.Error("no-scan host absent from /hosts response")
 		} else if got != nil {
 			t.Errorf("no-scan host latest_scan_id = %v, want null", *got)
+		}
+	})
+}
+
+// @ac AC-25
+// AC-25 (v1.7.0): GET /hosts items carry a nullable scan_state enum
+// (queued|running) for the in-flight run, independent of the completed-run
+// fields. A queued host resolves to "queued", a running host to "running",
+// and a host with only a completed run resolves to null with its
+// latest_scan_id still pointing at the completed run.
+func TestHosts_GetHosts_ListScanStateJoined(t *testing.T) {
+	t.Run("api-hosts/AC-25", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		queuedHost := createHostAPI(t, url, "queued-host", "production")
+		queuedID := queuedHost["id"].(string)
+		queuedUUID, _ := uuid.Parse(queuedID)
+		runningHost := createHostAPI(t, url, "running-host", "production")
+		runningID := runningHost["id"].(string)
+		runningUUID, _ := uuid.Parse(runningID)
+		completedHost := createHostAPI(t, url, "completed-host", "production")
+		completedID := completedHost["id"].(string)
+		completedUUID, _ := uuid.Parse(completedID)
+
+		base := time.Now().UTC().Truncate(time.Second)
+		seedScanRun(t, pool, queuedUUID, "queued", base)
+		seedScanRun(t, pool, runningUUID, "running", base)
+		completedRunID := seedScanRun(t, pool, completedUUID, "completed", base.Add(-time.Hour))
+
+		req := asRole(t, "GET", url+"/api/v1/hosts", auth.RoleAdmin, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		var body struct {
+			Hosts []struct {
+				ID           string  `json:"id"`
+				ScanState    *string `json:"scan_state"`
+				LatestScanID *string `json:"latest_scan_id"`
+			} `json:"hosts"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		seen := map[string]struct {
+			state  *string
+			latest *string
+		}{}
+		for _, h := range body.Hosts {
+			seen[h.ID] = struct {
+				state  *string
+				latest *string
+			}{h.ScanState, h.LatestScanID}
+		}
+
+		if got := seen[queuedID].state; got == nil || *got != "queued" {
+			t.Errorf("queued host scan_state = %v, want queued", got)
+		}
+		if got := seen[runningID].state; got == nil || *got != "running" {
+			t.Errorf("running host scan_state = %v, want running", got)
+		}
+		if got := seen[completedID].state; got != nil {
+			t.Errorf("completed-only host scan_state = %v, want null", *got)
+		}
+		// The completed run's latest_scan_id is undisturbed by scan_state.
+		if got := seen[completedID].latest; got == nil || *got != completedRunID.String() {
+			t.Errorf("completed host latest_scan_id = %v, want %s", got, completedRunID)
+		}
+
+		// GET /hosts/{id} (detail) carries scan_state + last_scan_at too.
+		detail := func(id string) (scanState *string, lastScanAt *string) {
+			dreq := asRole(t, "GET", url+"/api/v1/hosts/"+id, auth.RoleAdmin, nil)
+			dresp := doReq(t, dreq)
+			defer dresp.Body.Close()
+			if dresp.StatusCode != http.StatusOK {
+				t.Fatalf("GET /hosts/%s = %d, want 200", id, dresp.StatusCode)
+			}
+			var db struct {
+				ScanState  *string `json:"scan_state"`
+				LastScanAt *string `json:"last_scan_at"`
+			}
+			if err := json.NewDecoder(dresp.Body).Decode(&db); err != nil {
+				t.Fatalf("decode detail: %v", err)
+			}
+			return db.ScanState, db.LastScanAt
+		}
+		if st, _ := detail(queuedID); st == nil || *st != "queued" {
+			t.Errorf("detail queued host scan_state = %v, want queued", st)
+		}
+		if st, _ := detail(completedID); st != nil {
+			t.Errorf("detail completed-only host scan_state = %v, want null", *st)
 		}
 	})
 }

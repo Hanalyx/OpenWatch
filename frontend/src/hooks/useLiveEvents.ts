@@ -23,14 +23,15 @@ import { useAuthStore } from '@/store/useAuthStore';
 // to a manual fetch + ReadableStream loop.
 
 // Closed set of topics this hook subscribes to (v1.1.0: + scan.completed;
-// v1.2.0: + remediation.completed; v1.3.0: + report.ready). Each MUST
-// exist in backend eventbus.AllEventKinds (Go-side closed enum). Spec
-// frontend-live-events C-01 + AC-01 enforce.
+// v1.2.0: + remediation.completed; v1.3.0: + report.ready; v1.4.0:
+// + scan.started). Each MUST exist in backend eventbus.AllEventKinds
+// (Go-side closed enum). Spec frontend-live-events C-01 + AC-01 enforce.
 export const ALL_TOPICS = [
   'host.changed',
   'monitoring.band.changed',
   'host.discovered',
   'intelligence.event',
+  'scan.started',
   'scan.completed',
   'remediation.completed',
   'report.ready',
@@ -128,6 +129,20 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
           queryClient.invalidateQueries({
             queryKey: ['intelligence_state', hostId],
           });
+        }
+      },
+      // Spec frontend-live-events v1.4.0 C-08 + AC-11 — a scan entering
+      // execution flips the per-host indicator to "Running" on BOTH the
+      // list and the detail hero without polling. The worker publishes
+      // this the moment it marks the run running (before the scan runs);
+      // the paired scan.completed below clears it back to freshness.
+      'scan.started': (e) => {
+        const env = parseEnvelope(e);
+        if (!env) return;
+        const hostId = (env.payload?.HostID ?? env.payload?.host_id) as string | undefined;
+        queryClient.invalidateQueries({ queryKey: ['hosts'] });
+        if (hostId) {
+          queryClient.invalidateQueries({ queryKey: ['host', hostId] });
         }
       },
       // Spec frontend-live-events v1.1.0 C-07 + AC-08 — a completed

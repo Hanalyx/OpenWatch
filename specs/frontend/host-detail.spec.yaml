@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 2
 
@@ -260,5 +260,9 @@ spec:
       references_constraints: [C-04]
     - id: AC-44
       description: 'v1.8.0 source-inspection - the Audit log tab mounts HostAuditLogTab (not TabStub): audit_log is removed from the TAB_BACKEND_SUBSYSTEM stub registry, and the render switch routes activeTab === "audit_log" to <HostAuditLogTab>. HostAuditLogTab pages GET /api/v1/audit/events with resource_type="host" + resource_id=hostId via useInfiniteQuery, renders each row with the server-rendered readable message (it.message, never the raw it.action alone), is gated on useAuthStore hasPermission("audit:read") (rendering an "Audit log not available" empty state otherwise), and shows loading / error+Retry / "No audit events yet" / Load more states.'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-45
+      description: 'v1.9.0 source-inspection — the overview Compliance hero reflects an in-flight scan: it is passed the detail response scan_state (queued|running) and last_scan_at (no longer hardcoded lastScan={null}); when scanState is set the LAST SCAN subhead is replaced by an accent "Running"/"Queued" badge, otherwise it shows the real formatted last-scan time. The page-head Run scan button stays disabled and shows "Running…"/"Queued…" while scanState is active (not just during the request round-trip), reverting to "Run scan" when idle. The detail query threads last_scan_at + scan_state through to the hero and button, kept live by the scan.started/scan.completed SSE invalidation of ["host", id].'
       priority: high
       references_constraints: [C-04]

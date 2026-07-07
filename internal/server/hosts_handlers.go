@@ -16,6 +16,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/queue"
+	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/google/uuid"
 	openapitypes "github.com/oapi-codegen/runtime/types"
@@ -73,11 +74,19 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"latest_scan_id join failed", true)
 		return
 	}
+	// v1.7.0 — in-flight scan state per host (queued/running), one grouped
+	// query over the scan_runs_active partial index. Spec api-hosts C-14.
+	activeScanByID, err := scanruns.ActiveByHostIDs(r.Context(), h.pool, ids)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"scan_state join failed", true)
+		return
+	}
 
 	out := make([]api.HostListItem, len(list))
 	for i, item := range list {
 		out[i] = hostListItem(item, liveByID[item.ID], lastScanByID[item.ID],
-			complianceByID[item.ID], latestScanByID[item.ID])
+			complianceByID[item.ID], latestScanByID[item.ID], activeScanByID[item.ID])
 	}
 	writeJSON(w, http.StatusOK, api.HostListResponse{Hosts: out})
 }
@@ -222,6 +231,24 @@ func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openap
 		Liveness:          liveness,
 		ComplianceSummary: summary,
 	}
+	// v1.7.0 — last_scan_at (MAX host_rule_state.last_checked_at) + in-flight
+	// scan_state (queued/running) so the detail hero shows a real "LAST SCAN"
+	// timestamp and a live "Running"/"Queued" badge. Spec api-hosts C-14.
+	if lastScanByID, err := loadHostLastScanByIDs(ctx, h.pool, []uuid.UUID{hostID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"last_scan_at lookup failed", true)
+		return
+	} else if ls, ok := lastScanByID[hostID]; ok {
+		resp.LastScanAt = &ls
+	}
+	if active, err := scanruns.ActiveForHost(ctx, h.pool, hostID); err == nil {
+		s := api.HostDetailResponseScanState(active.Status)
+		resp.ScanState = &s
+	} else if !errors.Is(err, scanruns.ErrNotFound) {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"scan state lookup failed", true)
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -342,7 +369,8 @@ func hostResponse(h host.Host) api.HostResponse {
 // and an optional compliance roll-up (api-hosts v1.5.0 C-12). All
 // three may be nil — never probed and never scanned, respectively.
 func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time,
-	compliance *api.HostListComplianceSummary, latestScanID uuid.UUID) api.HostListItem {
+	compliance *api.HostListComplianceSummary, latestScanID uuid.UUID,
+	scanState scanruns.Status) api.HostListItem {
 	desc := h.Description
 	displayName := h.DisplayName
 	env := h.Environment
@@ -391,6 +419,12 @@ func hostListItem(h host.Host, liveness *api.HostLiveness, lastScan time.Time,
 	if latestScanID != uuid.Nil {
 		u := openapitypes.UUID(latestScanID)
 		item.LatestScanId = &u
+	}
+	// v1.7.0 — nil (null on the wire) when the host has no queued/running
+	// run. Spec api-hosts C-14.
+	if scanState != "" {
+		s := api.HostListItemScanState(scanState)
+		item.ScanState = &s
 	}
 	return item
 }

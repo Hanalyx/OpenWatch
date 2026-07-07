@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 2
 
@@ -225,3 +225,14 @@ spec:
         widget uses.
       priority: high
       references_constraints: [C-13]
+    - id: AC-27
+      description: >-
+        v1.9.0 source-inspection — an in-flight scan surfaces on the host
+        card and table row: apiHostToDev maps the list item's scan_state
+        (queued|running) onto DevHost.scanState (null when idle), and a
+        scanStateLabel helper renders "Running…" for running and "Queued…"
+        for queued in place of the "Last scan …" text (in an accent color),
+        on BOTH the card footer and the table-row Last scan cell. The label
+        falls back to the last-scan text when scanState is null.
+      priority: high
+      references_constraints: [C-02]

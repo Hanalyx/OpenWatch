@@ -7,12 +7,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
-import {
-  relativeTime,
-  severityLabel,
-  severityTone,
-  sourceLabel,
-} from '@/api/eventDisplay';
+import { relativeTime, severityLabel, severityTone, sourceLabel } from '@/api/eventDisplay';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
@@ -71,6 +66,6 @@ describe('frontend-activity — shared event-display helpers', () => {
     expect(drawer).toContain("from '@/api/eventDisplay'");
     const host = read('src/pages/HostDetailPage.tsx');
     expect(host).not.toMatch(/function activityRelativeTime/);
-    expect(host).toContain("relativeTime(item.occurred_at)");
+    expect(host).toContain('relativeTime(item.occurred_at)');
   });
 });

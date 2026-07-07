@@ -205,6 +205,39 @@ func ActiveForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 	return scanRun(row)
 }
 
+// ActiveByHostIDs returns the active (queued-or-running) scan status per
+// host, keyed by host id, for the given host ids — ONE grouped query for
+// the whole page (no per-host N+1), served by the scan_runs_active
+// partial index. Hosts with no active run don't appear in the map (the
+// list/lens handlers render that as scan_state: null). When a host has
+// both a queued and a running row, 'running' wins (the more informative
+// state to surface). Backs the per-host "Running"/"Queued" indicator on
+// the hosts list + scans coverage surfaces. Spec system-scan-runs AC-08.
+func ActiveByHostIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]Status, error) {
+	out := map[uuid.UUID]Status{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := pool.Query(ctx, `
+		SELECT DISTINCT ON (host_id) host_id, status
+		  FROM scan_runs
+		 WHERE host_id = ANY($1) AND status IN ('queued', 'running')
+		 ORDER BY host_id, (status = 'running') DESC, queued_at DESC`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("scanruns: active by host ids: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hid uuid.UUID
+		var status string
+		if err := rows.Scan(&hid, &status); err != nil {
+			return nil, fmt.Errorf("scanruns: active by host ids scan: %w", err)
+		}
+		out[hid] = Status(status)
+	}
+	return out, rows.Err()
+}
+
 // ActiveCount returns the number of queued + running runs (the "scan
 // queue" depth on the fleet page and settings readout).
 func ActiveCount(ctx context.Context, pool *pgxpool.Pool) (int, error) {

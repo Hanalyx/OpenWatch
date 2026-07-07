@@ -96,6 +96,8 @@ export interface ApiHost {
   last_scan_at?: string | null;
   /** v1.6.0 — id of the newest completed scan_run; null when none. Spec api-hosts C-13. */
   latest_scan_id?: string | null;
+  /** v1.7.0 — in-flight scan state (queued|running); null when idle. Spec api-hosts C-14. */
+  scan_state?: 'queued' | 'running' | null;
   liveness?: ApiHostLiveness | null;
   /**
    * v1.4.0 (api-hosts) — denormalized OS columns populated by
@@ -1110,6 +1112,15 @@ function HostsCards({ hosts }: { hosts: DevHost[] }) {
 // transient note, not an error. No polling — the scan.completed SSE
 // topic invalidates ['hosts'] when results land. Hidden for callers
 // without host:write.
+// scanStateLabel returns the in-flight indicator text for a host, or null
+// when no scan is in flight (callers fall back to the last-scan text). Drives
+// the card/row "Running…"/"Queued…" label. Spec frontend-hosts-list AC-27.
+function scanStateLabel(state: 'queued' | 'running' | null): string | null {
+  if (state === 'running') return 'Running…';
+  if (state === 'queued') return 'Queued…';
+  return null;
+}
+
 function ScanHostButton({ hostId, variant }: { hostId: string; variant: 'card' | 'row' }) {
   const canWrite = useAuthStore((s) => s.hasPermission('host:write'));
   const [busy, setBusy] = useState(false);
@@ -1435,11 +1446,12 @@ function HostCard({ host }: { host: DevHost }) {
             alignItems: 'center',
             gap: 6,
             fontSize: 12,
-            color: 'var(--ow-fg-2)',
+            color: host.scanState ? 'var(--ow-link)' : 'var(--ow-fg-2)',
+            fontWeight: host.scanState ? 600 : undefined,
           }}
         >
           <RefreshCw size={12} />
-          Last scan {host.lastScan}
+          {scanStateLabel(host.scanState) ?? `Last scan ${host.lastScan}`}
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <ViewReportButton latestScanId={host.latestScanId} />
@@ -1631,8 +1643,15 @@ function HostRow({ host }: { host: DevHost }) {
         )}
       </td>
       <td style={td}>
-        <div style={{ fontFamily: 'var(--ow-font-mono)', fontSize: 12, color: 'var(--ow-fg-1)' }}>
-          {host.lastScan}
+        <div
+          style={{
+            fontFamily: host.scanState ? undefined : 'var(--ow-font-mono)',
+            fontSize: 12,
+            color: host.scanState ? 'var(--ow-link)' : 'var(--ow-fg-1)',
+            fontWeight: host.scanState ? 600 : undefined,
+          }}
+        >
+          {scanStateLabel(host.scanState) ?? host.lastScan}
         </div>
       </td>
       <td style={{ ...td, textAlign: 'right' }}>
@@ -1879,6 +1898,9 @@ export function apiHostToDev(h: ApiHost): DevHost {
     // v1.6.0: newest completed scan id for the "view report" link; null
     // (icon hidden) when the host has no completed scan. Spec api-hosts C-13.
     latestScanId: h.latest_scan_id ?? null,
+    // v1.7.0: in-flight scan state (queued/running) for the live
+    // "Running"/"Queued" indicator; null when idle. Spec api-hosts C-14.
+    scanState: h.scan_state ?? null,
   };
 }
 
