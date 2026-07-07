@@ -12,6 +12,39 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.0] Eyrie — 2026-07-06
+
+### Added
+
+- **Live per-host scan indicator.** While a scan is running, the host now shows
+  a live **Running / Queued** state instead of only its last-scan time — on the
+  Scans coverage list, the Hosts card/table, and the host-detail hero and
+  re-scan buttons. Backed by a new `scan.started` server-sent event and a
+  `scan_state` field on the host read models (no polling); the paired
+  `scan.completed` clears it. Also fixes the host-detail hero "LAST SCAN" tile,
+  which previously always showed a placeholder.
+- **Host user password-aging + expiry alerts.** The host **Users** tab is
+  redesigned into KPI tiles (accounts / sudo / locked / stale passwords) and
+  per-account cards (full name, shell, groups, sudo, status) with a
+  password-aging line: when a max-age policy is set it shows time to expiry
+  (amber inside the warn window, red once expired); with no policy it shows the
+  password's age and flags the missing rotation policy. System/service accounts
+  collapse behind "Show all". The OS-intelligence collector now captures the
+  GECOS, shell, and `/etc/shadow` aging fields it previously discarded.
+- **Password-expiry notifications.** A daily sweep raises a re-nag-safe in-app
+  notification for each host user whose password is expired or within a
+  configurable warn window (`security.warn_days_before_password_expiry`,
+  default 14). Delivery is the in-app bell, scoped to host-readers.
+
+### Changed
+
+- Bumped the Kensa compliance engine to **v0.7.4** (byte-perfect rollback of
+  newline-terminated files, `service_state`/`service_enabled` verdict fix, and
+  the v0.7.2 atomicity + input-hardening fixes). The rule corpus is 647; ship
+  the matching `kensa-rules` 0.7.4 package alongside the binary.
+
+---
+
 ## [0.2.1] Eyrie — 2026-06-30
 
 ### Changed
