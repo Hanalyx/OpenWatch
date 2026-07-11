@@ -1,10 +1,10 @@
 module github.com/Hanalyx/openwatch
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/Hanalyx/kensa v0.7.4
+	github.com/Hanalyx/kensa v0.7.6
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-pdf/fpdf v0.9.0

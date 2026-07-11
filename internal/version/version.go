@@ -32,7 +32,7 @@ var (
 const kensaModulePath = "github.com/Hanalyx/kensa"
 
 // Go returns the Go toolchain version the binary was built with, e.g.
-// "go1.26.4". Sourced from the runtime, never hardcoded.
+// "go1.26.5". Sourced from the runtime, never hardcoded.
 func Go() string {
 	return runtime.Version()
 }
