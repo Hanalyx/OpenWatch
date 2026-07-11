@@ -10,6 +10,7 @@
 //   AC-06  test('frontend-settings-discovery-config/AC-06 — ScanningPage mounts OSDiscoverySection BEFORE OSIntelligenceSection')
 //   AC-07  test('frontend-settings-discovery-config/AC-07 — visual states: loading, error, success-clean')
 //   AC-08  test('frontend-settings-discovery-config/AC-08 — Run now button: label flips, callback invoked, queued count rendered')
+//   AC-09  test('frontend-settings-discovery-config/AC-09 — section badge reflects maintenance state (Running vs Paused), not the static "Wired"')
 
 import { describe, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -158,5 +159,24 @@ describe('frontend-settings-discovery-config — behavioral (pure view)', () => 
     // Sweep result shown.
     rerender(<OSDiscoverySectionView {...viewProps({ sweepResult: { enqueued: 7 } })} />);
     expect(screen.getByText(/queued\s+7\s+discoveries/i)).toBeInTheDocument();
+  });
+
+  // @ac AC-09
+  test('frontend-settings-discovery-config/AC-09 — section badge reflects maintenance state (Running vs Paused), not the static "Wired"', () => {
+    const { unmount } = render(
+      <OSDiscoverySectionView
+        {...viewProps({ draft: { ...liveConfig, maintenance_global: false } })}
+      />,
+    );
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.queryByText('Wired')).toBeNull();
+    unmount();
+
+    render(
+      <OSDiscoverySectionView
+        {...viewProps({ draft: { ...liveConfig, maintenance_global: true } })}
+      />,
+    );
+    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 });

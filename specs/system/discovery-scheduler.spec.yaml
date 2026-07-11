@@ -1,7 +1,7 @@
 spec:
   id: system-discovery-scheduler
   title: OS discovery recurring sweep scheduler
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -34,8 +34,10 @@ spec:
       Re-run discovery on the host detail page). See
       system-host-discovery v1.1.0 AC-15.
 
-      Maintenance: respects hosts.maintenance_mode = true the same way the
-      liveness + intelligence loops do — maintenance hosts are excluded
+      Maintenance: respects effective maintenance the same way the
+      liveness + intelligence loops do — a host paused per-host
+      (hosts.maintenance_mode) OR per-group (a maintenance group it belongs
+      to), resolved via the host_effective_maintenance view, is excluded
       from listDiscoveryTargets. MaintenanceGlobal pauses the whole loop.
 
       No per-host backoff state. Discovery failures (SSH dial timeout,
@@ -77,7 +79,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: 'listDiscoveryTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts.maintenance_mode = true, AND (c) hosts whose hosts.os_discovered_at is within DiscoveryConfig.IntervalSec of now(). NULL os_discovered_at MUST be treated as due (never-discovered hosts)'
+      description: 'listDiscoveryTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts in effective maintenance (per-host OR per-group, via the host_effective_maintenance view — migration 0049), AND (c) hosts whose hosts.os_discovered_at is within DiscoveryConfig.IntervalSec of now(). NULL os_discovered_at MUST be treated as due (never-discovered hosts)'
       type: technical
       enforcement: error
     - id: C-03

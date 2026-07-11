@@ -1,7 +1,7 @@
 spec:
   id: system-liveness-loop
   title: Host liveness probe loop
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 1
 
@@ -128,7 +128,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-20
-      description: Tick ordering (v1.3.0) — listProbeTargets MUST ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST. Critical hosts get drained before stable ones when a tick can't probe every due host. Per-host maintenance_mode=true MUST exclude the host from the tick entirely (no probe, no audit, no history row)
+      description: Tick ordering (v1.3.0) — listProbeTargets MUST ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST. Critical hosts get drained before stable ones when a tick can't probe every due host. A host in effective maintenance (per-host or per-group, via host_effective_maintenance) MUST be excluded from the tick entirely (no probe, no audit, no history row)
       type: technical
       enforcement: error
     - id: C-21
@@ -269,7 +269,7 @@ spec:
       priority: critical
       references_constraints: [C-18]
     - id: AC-33
-      description: hosts.maintenance_mode=true causes the row to be excluded from listProbeTargets. No probe runs, no history row appends, no audit fires. Setting maintenance_mode=false on the next tick puts the host back in rotation at its prior monitoring_state.
+      description: 'v1.4.0 - a host in effective maintenance is excluded from listProbeTargets, resolved via the host_effective_maintenance view (migration 0049): per-host (hosts.maintenance_mode) OR per-group (a group with maintenance=true it belongs to). No probe runs, no history row appends, no audit fires. Clearing maintenance puts the host back in rotation at its prior monitoring_state on the next tick.'
       priority: critical
       references_constraints: [C-20]
     - id: AC-34

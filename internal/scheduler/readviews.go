@@ -83,7 +83,8 @@ func PreviewSchedule(ctx context.Context, pool *pgxpool.Pool, now time.Time) (Sc
 		       COUNT(*) FILTER (WHERE s.next_scheduled_scan <= $1)
 		  FROM host_compliance_schedule s
 		  JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
-		 WHERE s.maintenance_mode = false`, now,
+		  JOIN host_effective_maintenance hem ON hem.host_id = s.host_id
+		 WHERE NOT hem.in_maintenance`, now,
 	).Scan(&p.NextScanAt, &p.DueNow); err != nil {
 		return p, fmt.Errorf("scheduler: preview aggregates: %w", err)
 	}
@@ -93,7 +94,8 @@ func PreviewSchedule(ctx context.Context, pool *pgxpool.Pool, now time.Time) (Sc
 		       COUNT(*)::bigint
 		  FROM host_compliance_schedule s
 		  JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
-		 WHERE s.maintenance_mode = false
+		  JOIN host_effective_maintenance hem ON hem.host_id = s.host_id
+		 WHERE NOT hem.in_maintenance
 		   AND s.next_scheduled_scan > $1
 		   AND s.next_scheduled_scan <= $1 + interval '24 hours'
 		 GROUP BY 1`, now)

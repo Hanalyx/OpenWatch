@@ -201,14 +201,19 @@ func (s *Service) tickOnce(ctx context.Context) {
 // SQL query (AC-06). Excludes deleted, maintenance, and hosts whose
 // os_discovered_at is more recent than now() - intervalSec.
 //
+// Maintenance (per-host OR per-group) resolves via the
+// host_effective_maintenance view (migration 0049), matching the scan
+// scheduler and the other loops.
+//
 // NULL os_discovered_at is treated as due (never-discovered hosts go
 // first via NULLS FIRST ordering). Spec C-02 / AC-05.
 func (s *Service) listDiscoveryTargets(ctx context.Context, intervalSec int) ([]uuid.UUID, error) {
 	const q = `
 		SELECT h.id
 		  FROM hosts h
+		  JOIN host_effective_maintenance hem ON hem.host_id = h.id
 		 WHERE h.deleted_at IS NULL
-		   AND h.maintenance_mode = false
+		   AND NOT hem.in_maintenance
 		   AND (h.os_discovered_at IS NULL
 		        OR h.os_discovered_at + make_interval(secs => $1) <= now())
 		 ORDER BY h.os_discovered_at ASC NULLS FIRST`

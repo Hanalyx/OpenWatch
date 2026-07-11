@@ -1,7 +1,7 @@
 spec:
   id: api-groups
   title: Host groups - operator SITES (manual) and OS CATEGORIES (auto/manual) with per-group rollups
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -42,10 +42,12 @@ spec:
       group, ungrouped active hosts (no manual group and no auto match),
       and fleet avg_compliance_pct.
 
-      The maintenance flag pauses scanning and alerting for a group's
-      hosts (surfaced in the UI; enforcement is a follow-up). Kind and
-      membership are immutable after create; only name, subtype, and
-      color are editable.
+      The maintenance flag pauses compliance scans, connectivity probes,
+      intelligence, and discovery for a group's hosts: every scheduler/probe
+      loop resolves it through the host_effective_maintenance view
+      (migration 0049), which unions this flag with per-host
+      hosts.maintenance_mode. Kind and membership are immutable after
+      create; only name, subtype, and color are editable.
 
       Endpoints (the fleet KPI row ships inside the list response, so a
       single GET serves both the summary and the groups):
@@ -209,7 +211,9 @@ spec:
         SetMaintenance(on) and SetMaintenance(off) flip the maintenance
         flag, bump updated_at, and return the updated group; SetMaintenance
         on an unknown id returns ErrNotFound. The flag does not alter
-        membership or rollup member resolution.
+        membership or rollup member resolution. Enforcement (pausing the
+        member hosts' scans/probes) is carried by the scheduler/probe loops
+        via the host_effective_maintenance view, not by this endpoint.
       priority: high
       references_constraints: [C-03]
     - id: AC-07

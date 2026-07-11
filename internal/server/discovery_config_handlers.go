@@ -127,13 +127,15 @@ func (h *handlers) PostSystemDiscoverySweep(w http.ResponseWriter, r *http.Reque
 }
 
 // listUndiscoveredHosts returns the host ids the sweep should enqueue:
-// non-deleted, non-maintenance, hosts.os_discovered_at IS NULL.
+// non-deleted, non-maintenance (per-host OR per-group, via the
+// host_effective_maintenance view), hosts.os_discovered_at IS NULL.
 func (h *handlers) listUndiscoveredHosts(ctx context.Context) ([]uuid.UUID, error) {
 	const q = `
-		SELECT id FROM hosts
-		 WHERE deleted_at IS NULL
-		   AND maintenance_mode = false
-		   AND os_discovered_at IS NULL`
+		SELECT hst.id FROM hosts hst
+		  JOIN host_effective_maintenance hem ON hem.host_id = hst.id
+		 WHERE hst.deleted_at IS NULL
+		   AND NOT hem.in_maintenance
+		   AND hst.os_discovered_at IS NULL`
 	rows, err := h.pool.Query(ctx, q)
 	if err != nil {
 		return nil, err

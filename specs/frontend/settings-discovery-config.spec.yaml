@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings-discovery-config
   title: Settings Scanning page — OS discovery scheduler config section
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -79,6 +79,10 @@ spec:
       description: 'Error alert surfaces apiErrorMessage(error) (the canonical ErrorEnvelope.error.human_message). Falls back to "HTTP <status>" via formatApiError if the envelope is malformed. Mirrors frontend-settings-intelligence-config C-07'
       type: technical
       enforcement: error
+    - id: C-08
+      description: 'v1.1.0 — The section header badge MUST reflect the scheduler''s live state derived from maintenance_global (Running when active, Paused when in maintenance), never a static build-status label such as "Wired". Mirrors frontend-settings-intelligence-config C-10.'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -113,3 +117,7 @@ spec:
       description: 'Rendering: clicking the Run now button invokes onRunNow exactly once. While isSweeping is true the button label reads "Sweeping…". When sweepResult is non-null and sweepError is null the inline "Queued N discoveries" text is visible'
       priority: critical
       references_constraints: [C-05]
+    - id: AC-09
+      description: 'v1.1.0 — The section header badge reflects the scheduler''s live state, not a static build-status label: "Running" (ok tier) when maintenance_global is false, "Paused" (warn tier) when true. The badge MUST NOT read the static "Wired". Rendering: the View with draft.maintenance_global=false shows "Running" and no "Wired"; with true shows "Paused"'
+      priority: medium
+      references_constraints: [C-08]
