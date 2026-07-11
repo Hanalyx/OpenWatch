@@ -10,6 +10,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **Kensa bumped to v0.7.6, patching a root command injection in the
+  remediation handlers.** The `file_content`, `file_absent`, and
+  `config_append` handlers interpolated `owner`/`group`/`mode` values into
+  `chown`/`chmod` unquoted, so a rule or scan-variable value such as
+  `owner: "root; touch /tmp/x"` could execute as root on the target host.
+  OpenWatch runs single-rule remediation (apply + rollback) in-process
+  through these handlers, so this reaches the host-mutating path shipped in
+  0.3.0. All sites now shell-quote the value. The public Kensa surface
+  OpenWatch links (`api/`, `pkg/kensa/`) is unchanged.
+
+### Changed
+
+- **Go toolchain 1.26.4 to 1.26.5** (required by Kensa v0.7.6).
+- **Kensa rule corpus 647 to 748 rules** (RHEL 10 STIG V1R1 coverage
+  campaign; additive, no rules removed). Ships via the `kensa-rules`
+  package, now 0.7.6.
+- **Three built-in scan-variable defaults now use the STIG baseline:**
+  `shadow_crypt_min_rounds` 5000 to 100000, `ssh_client_alive_interval`
+  900 to 600, and a new `account_inactive_days` (35). Operators who rely
+  on the shipped defaults (no override set under Settings, Scan Variables)
+  will see the affected rules evaluated against the stricter thresholds on
+  the next scan. A host that passed under the old defaults may flip to fail
+  (recorded as a pass-to-fail transition). Set a scan-variable override to
+  retain the previous values.
+- **`kernel_module_state` check widened (leniency only):** a module
+  disabled via an `install /bin/false` override, or absent from the kernel
+  tree entirely, now counts as disabled. This only turns former false
+  failures into passes.
+
 ---
 
 ## [0.3.0] Eyrie — 2026-07-06
