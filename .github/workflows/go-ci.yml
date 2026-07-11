@@ -94,7 +94,7 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.4'
+          go-version: '1.26.5'
           cache: true
           cache-dependency-path: go.sum
 
@@ -109,7 +109,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin/golangci-lint
-          key: golangci-bin-v1.64.8-go1.26.4-${{ runner.os }}
+          key: golangci-bin-v1.64.8-go1.26.5-${{ runner.os }}
 
       - name: Set up golangci-lint
         if: steps.paths.outputs.go == 'true' && steps.cache-golangci-bin.outputs.cache-hit != 'true'

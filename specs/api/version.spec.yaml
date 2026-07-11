@@ -64,7 +64,7 @@ spec:
     - id: AC-02
       description: >
         Response body includes non-empty openwatch, kensa, and go version
-        strings. The go value is the live runtime toolchain (e.g. "go1.26.4"),
+        strings. The go value is the live runtime toolchain (e.g. "go1.26.5"),
         evidencing the values are build/runtime-sourced rather than literals.
       priority: critical
       references_constraints: [C-04]
