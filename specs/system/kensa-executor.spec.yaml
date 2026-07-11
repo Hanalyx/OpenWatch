@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.6.0"
+  version: "2.7.0"
   status: approved
   tier: 1
 
@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.7.4) to run a scan against a single host using the
+      pinned to v0.7.6) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
@@ -107,7 +107,7 @@ spec:
       type: security
       enforcement: error
     - id: C-07
-      description: Kensa Go module version MUST be pinned in app/go.mod; bumps require this spec's version bump
+      description: Kensa Go module version MUST be pinned in go.mod; bumps require this spec's version bump
       type: technical
       enforcement: warning
     - id: C-08
@@ -131,7 +131,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-13
-      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.7.4 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
+      description: The production scanFunc MUST compose the scan-only Kensa via api.New with pkg/kensa.NewScanner (kensa v0.7.6 — stateless, concurrency-safe shared) and this package's TransportFactory; no engine, store, or signer is constructed for the scan path. The worker subcommand binds it via WithScanFunc(NewProductionScanFunc(...)). unwiredScanFunc may remain ONLY as the test fallback NewExecutor defaults to before binding, annotated as such
       type: technical
       enforcement: error
     - id: C-14
