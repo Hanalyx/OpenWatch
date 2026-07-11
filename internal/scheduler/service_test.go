@@ -110,8 +110,7 @@ type scheduleSeed struct {
 	maintenance bool
 }
 
-func withNext(t time.Time) func(*scheduleSeed)   { return func(c *scheduleSeed) { c.next = t } }
-func withMaintenance(b bool) func(*scheduleSeed) { return func(c *scheduleSeed) { c.maintenance = b } }
+func withNext(t time.Time) func(*scheduleSeed) { return func(c *scheduleSeed) { c.next = t } }
 
 // setHostMaintenance flips hosts.maintenance_mode — the per-host flag the
 // host-detail toggle writes and the dispatcher (via host_effective_maintenance)
