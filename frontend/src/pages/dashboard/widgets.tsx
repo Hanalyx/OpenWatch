@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
+import { useDefaultLens } from '@/api/useDefaultLens';
 import { KpiValue, KpiSub, Sparkline, WidgetCard, WidgetState, toneVar } from './primitives';
 import { relativeTime, severityLabel, severityTone, sourceLabel } from '@/api/eventDisplay';
 
@@ -57,10 +58,15 @@ export function KpiHostsOnline() {
 
 // ── KPI: Avg compliance ────────────────────────────────────────────
 export function KpiAvgCompliance() {
+  // Score through the org default lens (family/key) so a single-framework
+  // shop sees e.g. its STIG score here; empty = All rules (Kensa baseline).
+  const lens = useDefaultLens();
   const q = useQuery({
-    queryKey: ['fleet', 'score'],
+    queryKey: ['fleet', 'score', lens],
     queryFn: async () => {
-      const { data, error, response } = await api.GET('/api/v1/fleet/score', {});
+      const { data, error, response } = await api.GET('/api/v1/fleet/score', {
+        params: lens ? { query: { framework: lens } } : {},
+      });
       if (error || !response.ok)
         throw new Error(apiErrorMessage(error, `Failed (${response.status})`));
       return data!;

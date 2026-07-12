@@ -997,6 +997,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/compliance/frameworks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the framework families present in the scanned corpus
+         * @description Framework families derived at runtime from host_rule_state.framework_refs (STIG, CIS, NIST 800-53, …), each with a display label and the concrete corpus keys it spans. Feeds the default-lens picker. Empty until at least one host is scanned.
+         */
+        get: operations["getComplianceFrameworks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/compliance/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the org-wide compliance-display config (default lens) */
+        get: operations["getSystemComplianceConfig"];
+        /** Set the default compliance lens (framework family, or empty for All rules) */
+        put: operations["putSystemComplianceConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/scan/config": {
         parameters: {
             query?: never;
@@ -3515,6 +3553,22 @@ export interface components {
             /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
             enqueued: number;
         };
+        /** @description Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. */
+        ComplianceConfig: {
+            /** @description Framework family id */
+            default_framework: string;
+        };
+        ComplianceFramework: {
+            /** @description Family id (e.g. "stig") */
+            id: string;
+            /** @description Display label (e.g. "STIG") */
+            label: string;
+            /** @description Concrete corpus keys in this family (e.g. stig_rhel9, stig_rhel10) */
+            keys: string[];
+        };
+        ComplianceFrameworksResponse: {
+            frameworks: components["schemas"]["ComplianceFramework"][];
+        };
         ScanConfig: {
             /** @description Master switch for the adaptive scheduler. When false the loop ticks but dispatches nothing. On-demand scans are unaffected */
             enabled: boolean;
@@ -5833,6 +5887,8 @@ export interface operations {
             query?: {
                 environment?: string;
                 tag?: string;
+                /** @description Lens each host card's compliance_summary through a framework family (e.g. "stig") or a specific corpus key; omit for All rules. */
+                framework?: string;
             };
             header?: never;
             path?: never;
@@ -6636,6 +6692,106 @@ export interface operations {
                 };
             };
             /** @description Caller lacks system:config:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getComplianceFrameworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Families */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceFrameworksResponse"];
+                };
+            };
+            /** @description No valid session or bearer */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getSystemComplianceConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current compliance config */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceConfig"];
+                };
+            };
+            /** @description Caller lacks system:read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putSystemComplianceConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplianceConfig"];
+            };
+        };
+        responses: {
+            /** @description Updated compliance config */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceConfig"];
+                };
+            };
+            /** @description Invalid default_framework */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks system:config:write */
             403: {
                 headers: {
                     [name: string]: unknown;

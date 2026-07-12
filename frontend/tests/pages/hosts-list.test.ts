@@ -135,7 +135,7 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
 // divides by the all-status rule total) is only a fallback.
 test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
   // Shares the dashboard's query key + endpoint.
-  expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score']");
+  expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score', lens]");
   expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
   // The KPI value is overridden with the canonical fleet score, same rounding
   // as the dashboard widget (Math.round(passing_fraction * 100)).

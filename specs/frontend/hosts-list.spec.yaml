@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 2
 
@@ -127,7 +127,7 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-05
-      description: Reloading /hosts?env=production&tag=tag-x&q=foo restores all three URL params into the search box + environment filter + tag filter AND re-fetches with the env/tag parameters via the openapi-fetch client. v1.1.0 — sort URL params are out of scope per the revised AC-04.
+      description: 'Reloading /hosts?env=production&tag=tag-x&q=foo restores all three URL params into the search box + environment filter + tag filter AND re-fetches with the env/tag parameters via the openapi-fetch client. v1.1.0 — sort URL params are out of scope per the revised AC-04. v1.10.0 — the hosts query key also carries the org default lens (queryKey [''hosts'', search.env, search.tag, lens]) so the per-host card scores rotate when the default framework changes; the resolved lens is forwarded as params.framework.'
       priority: critical
       references_constraints: [C-04]
     - id: AC-06
@@ -218,8 +218,11 @@ spec:
         > 0, kpis.avgCompliance.value is round(passing_fraction * 100) — the
         same number and rounding the dashboard shows — overriding the
         client-side kpisFromHosts aggregate so /hosts and /dashboard agree.
+        v1.10.0 — the key carries the org default lens (['fleet','score',lens])
+        and forwards it as ?framework= so the KPI reflects the default lens,
+        matching the dashboard.
         Source-inspection of HostsListPage: a useQuery with queryKey
-        ['fleet','score'] hits GET /api/v1/fleet/score, and the avg-compliance
+        ['fleet','score',lens] hits GET /api/v1/fleet/score, and the avg-compliance
         KPI value is set to round(passing_fraction * 100) from that query
         (guarded on total_evaluations > 0), the same expression the dashboard
         widget uses.

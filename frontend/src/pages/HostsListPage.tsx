@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
+import { useDefaultLens } from '@/api/useDefaultLens';
 import { HostActionsMenu } from '@/components/hosts/HostActionsMenu';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
@@ -173,12 +174,17 @@ export function HostsListPage() {
     [search.status, search.os, search.tier],
   );
 
+  // Org default compliance lens — applied to the per-host card scores and the
+  // fleet Avg-compliance KPI so /hosts matches the dashboard. Empty = All rules.
+  const lens = useDefaultLens();
+
   const hostsQuery = useQuery({
-    queryKey: ['hosts', search.env, search.tag],
+    queryKey: ['hosts', search.env, search.tag, lens],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (search.env) params.environment = search.env;
       if (search.tag) params.tag = search.tag;
+      if (lens) params.framework = lens;
       const { data, error } = await api.GET('/api/v1/hosts', {
         params: { query: params },
       });
@@ -253,9 +259,11 @@ export function HostsListPage() {
   // resolves. Shared queryKey with the dashboard widget, so it dedupes/caches.
   // Spec frontend-hosts-list AC-26.
   const fleetScoreQuery = useQuery({
-    queryKey: ['fleet', 'score'],
+    queryKey: ['fleet', 'score', lens],
     queryFn: async () => {
-      const { data, error, response } = await api.GET('/api/v1/fleet/score', {});
+      const { data, error, response } = await api.GET('/api/v1/fleet/score', {
+        params: lens ? { query: { framework: lens } } : {},
+      });
       if (error || !response.ok) throw new Error(`HTTP ${response.status}`);
       return data!;
     },

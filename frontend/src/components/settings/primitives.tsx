@@ -408,17 +408,20 @@ export function Select({
   options,
   ariaLabel,
   width,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   ariaLabel?: string;
   width?: number | string;
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
       aria-label={ariaLabel}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       style={{
         height: 32,
@@ -429,7 +432,8 @@ export function Select({
         fontFamily: 'inherit',
         fontSize: 13,
         padding: '0 28px 0 10px',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
         appearance: 'none',
         width: width ?? 'auto',
         minWidth: 160,

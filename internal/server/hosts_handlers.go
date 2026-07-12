@@ -62,7 +62,11 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"last_scan_at join failed", true)
 		return
 	}
-	complianceByID, err := loadHostListComplianceByIDs(r.Context(), h.pool, ids)
+	listLens := ""
+	if params.Framework != nil {
+		listLens = *params.Framework
+	}
+	complianceByID, err := loadHostListComplianceByIDs(r.Context(), h.pool, ids, listLens)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"compliance summary join failed", true)

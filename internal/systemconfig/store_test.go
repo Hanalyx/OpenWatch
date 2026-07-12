@@ -248,3 +248,49 @@ func TestConcurrentSet_LastWriterWins_NoDeadlock(t *testing.T) {
 		}
 	})
 }
+
+// @spec system-compliance-lens
+// @ac AC-01
+// AC-01: ComplianceConfig defaults to All rules (empty), Validate bounds the
+// family token, and Set/Load round-trips the value; a fresh store returns the
+// empty default.
+func TestComplianceConfig_DefaultValidateRoundTrip(t *testing.T) {
+	t.Run("system-compliance-lens/AC-01", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
+		ctx := context.Background()
+
+		// Fresh store (no row) → All rules (empty).
+		got, err := s.LoadCompliance(ctx)
+		if err != nil {
+			t.Fatalf("LoadCompliance (no row): %v", err)
+		}
+		if got.DefaultFramework != "" {
+			t.Errorf("default = %q, want empty (All rules)", got.DefaultFramework)
+		}
+
+		// Validate: empty + valid token OK; garbage + over-long rejected.
+		for _, ok := range []string{"", "stig", "nist_800_53", "cis"} {
+			if err := (ComplianceConfig{DefaultFramework: ok}).Validate(); err != nil {
+				t.Errorf("Validate(%q) = %v, want nil", ok, err)
+			}
+		}
+		for _, bad := range []string{"STIG!", "has space", string(make([]byte, 65))} {
+			if err := (ComplianceConfig{DefaultFramework: bad}).Validate(); err == nil {
+				t.Errorf("Validate(%q) = nil, want error", bad)
+			}
+		}
+
+		// Set then Load round-trips.
+		if _, err := s.SetCompliance(ctx, ComplianceConfig{DefaultFramework: "stig"}, "admin"); err != nil {
+			t.Fatalf("SetCompliance: %v", err)
+		}
+		got, err = s.LoadCompliance(ctx)
+		if err != nil {
+			t.Fatalf("LoadCompliance: %v", err)
+		}
+		if got.DefaultFramework != "stig" {
+			t.Errorf("round-trip default = %q, want stig", got.DefaultFramework)
+		}
+	})
+}

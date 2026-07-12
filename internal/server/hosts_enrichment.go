@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
 
@@ -215,12 +216,15 @@ func loadHostLatestScanIDByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uu
 // compliance_summary: null ("never scanned"). critical_failing counts
 // rows with current_status='fail' AND critical severity
 // (case-insensitive). Spec api-hosts v1.5.0 C-12 / AC-23.
-func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
+func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID, lens string) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
 	out := map[uuid.UUID]*api.HostListComplianceSummary{}
 	if len(ids) == 0 {
 		return out, nil
 	}
-	const q = `
+	// $2 is the default-lens family / specific key (or NULL for all rules);
+	// framework.MatchSQL resolves a family per host in-query so each card
+	// reflects the same lens as the fleet KPI.
+	q := `
 		SELECT host_id,
 		       COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
 		       COUNT(*) FILTER (WHERE current_status = 'fail')::BIGINT    AS failing,
@@ -231,8 +235,13 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 		                          AND lower(COALESCE(severity, '')) = 'critical')::BIGINT AS critical_failing
 		  FROM host_rule_state
 		 WHERE host_id = ANY($1)
+		   AND ` + framework.MatchSQL("$2") + `
 		 GROUP BY host_id`
-	rows, err := pool.Query(ctx, q, ids)
+	var frameworkParam any
+	if lens != "" {
+		frameworkParam = lens
+	}
+	rows, err := pool.Query(ctx, q, ids, frameworkParam)
 	if err != nil {
 		return nil, fmt.Errorf("loadHostListComplianceByIDs: %w", err)
 	}
@@ -257,8 +266,12 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 // JSONB contains the given key (api-hosts v1.2.0 AC-17 / AC-18). A host
 // whose rule_state has no rows mapped to the requested framework
 // returns all-zero counts (AC-18).
-func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, framework string) (api.HostComplianceSummary, error) {
-	const q = `
+func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, lens string) (api.HostComplianceSummary, error) {
+	// $2 is a family id or a specific corpus key (or NULL for all rules);
+	// framework.MatchSQL resolves a family (e.g. "stig") to the host's own
+	// OS key (stig_rhel9 for a RHEL 9 host) in-query, so the list can carry
+	// a single family filter uniformly across a mixed-OS fleet.
+	q := `
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
 			COUNT(*) FILTER (WHERE current_status = 'fail')::BIGINT    AS failing,
@@ -267,11 +280,11 @@ func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID u
 			COUNT(*)::BIGINT                                           AS total
 		  FROM host_rule_state
 		 WHERE host_id = $1
-		   AND ($2::text IS NULL OR framework_refs ? $2)`
+		   AND ` + framework.MatchSQL("$2")
 	var s api.HostComplianceSummary
 	var frameworkParam any
-	if framework != "" {
-		frameworkParam = framework
+	if lens != "" {
+		frameworkParam = lens
 	}
 	if err := pool.QueryRow(ctx, q, hostID, frameworkParam).Scan(
 		&s.Passing, &s.Failing, &s.Skipped, &s.Error, &s.Total,
