@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -181,7 +181,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-05
-      description: DispatchChannel.Send delivers to an enabled wildcard channel and to a channel whose tag filter matches the alert tags, and skips a disabled channel and a non-matching tag filter; matchesTags treats an empty filter as a wildcard.
+      description: 'v1.8.0 - DispatchChannel.Send delivers to an enabled wildcard channel and to a channel whose tag filter matches the alert tags, and skips a disabled channel and a non-matching tag filter; matchesTags treats an empty filter as a wildcard. The reserved "severity" key uses THRESHOLD semantics (via alertrouter.SeverityOrder): a filter value delivers that severity and every more-severe one (e.g. "high" delivers high and critical), so a channel can be scoped to a minimum level. Every other tag key stays exact-match.'
       priority: high
       references_constraints: [C-03]
     - id: AC-06
@@ -306,3 +306,16 @@ spec:
         read rather than re-surfacing unread each day.
       priority: high
       references_constraints: [C-09]
+    - id: AC-21
+      description: >-
+        v1.8.0 — Email SMTP encryption is operator-selectable via
+        Config.SMTPEncryption. NormalizeSMTPEncryption maps an empty or
+        unknown value to the secure default "starttls" and passes through
+        "none"/"tls". sendSMTP (shared by alert + report email) implements
+        implicit TLS from connect for "tls" (SMTPS, e.g. port 465, via
+        tls.DialWithDialer), a REQUIRED STARTTLS upgrade for "starttls"
+        (the send fails rather than silently downgrading to plaintext), and
+        plaintext for "none". net/smtp.SendMail is not used (it cannot do
+        implicit TLS and only opportunistic STARTTLS).
+      priority: high
+      references_constraints: [C-03]

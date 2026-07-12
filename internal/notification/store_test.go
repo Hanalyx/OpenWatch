@@ -165,8 +165,8 @@ func TestDispatch_SelectsEnabledMatching(t *testing.T) {
 			}
 		}
 		mk("wild", true, nil)
-		mk("match", true, map[string]string{"severity": "critical"})
-		mk("nomatch", true, map[string]string{"severity": "info"})
+		mk("min-high", true, map[string]string{"severity": "high"})         // "high and above"
+		mk("min-critical", true, map[string]string{"severity": "critical"}) // "critical only"
 		mk("disabled", false, nil)
 
 		enabled, err := svc.listEnabledDecrypted(ctx)
@@ -177,16 +177,18 @@ func TestDispatch_SelectsEnabledMatching(t *testing.T) {
 		if len(enabled) != 3 {
 			t.Fatalf("enabled count = %d, want 3 (disabled excluded)", len(enabled))
 		}
-		alert := alertrouter.Alert{Severity: "critical", Tags: map[string]string{"severity": "critical"}}
+		// A HIGH alert: the wildcard and the "high and above" channel match;
+		// the "critical only" channel does NOT (its threshold is more severe
+		// than the alert). This exercises the threshold semantics of AC-05.
+		alert := alertrouter.Alert{Severity: "high", Tags: map[string]string{"severity": "high"}}
 		selected := 0
 		for _, ch := range enabled {
 			if matchesTags(ch.TagFilter, alert.Tags) {
 				selected++
 			}
 		}
-		// wild + match select; nomatch does not.
 		if selected != 2 {
-			t.Errorf("selected = %d, want 2 (wild + match)", selected)
+			t.Errorf("selected = %d, want 2 (wild + min-high; min-critical excluded)", selected)
 		}
 	})
 }

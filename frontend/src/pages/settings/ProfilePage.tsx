@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '@/api/client';
+import { apiErrorMessage } from '@/api/errors';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
@@ -24,15 +25,13 @@ import {
 // Settings → Profile (wired to backend).
 //
 // Backend wires:
-//   • GET /api/v1/auth/me              — profile read
+//   • GET   /api/v1/auth/me             — profile read (prefills the form)
+//   • PATCH /api/v1/auth/me             — profile edit (full name, display
+//                                         name, email, job title, timezone,
+//                                         phone). Email must be unique (409).
 //   • POST /api/v1/auth/password:change — password update
-//   • POST /api/v1/auth/mfa:enroll     — MFA enrollment start
-//   • POST /api/v1/auth/mfa:verify     — MFA enrollment confirmation
-//
-// Profile-edit fields (full name, display name, job title, timezone,
-// phone) are RENDERED but not POSTed — backend has no
-// PATCH /auth/me endpoint yet. Edits stay in local form state; a
-// follow-up wires PATCH when the endpoint lands.
+//   • POST /api/v1/auth/mfa:enroll      — MFA enrollment start
+//   • POST /api/v1/auth/mfa:verify      — MFA enrollment confirmation
 
 const passwordSchema = z
   .object({
@@ -82,15 +81,71 @@ export function ProfilePage() {
 }
 
 function ProfileSection() {
+  const queryClient = useQueryClient();
   const identity = useAuthStore((s) => s.identity);
-  const [fullName, setFullName] = useState(identity?.username ?? '');
-  const [displayName, setDisplayName] = useState(identity?.username ?? '');
-  const [email, setEmail] = useState(identity?.email ?? '');
+  const setIdentity = useAuthStore((s) => s.setIdentity);
+  const [banner, setBanner] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  const meQuery = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/auth/me');
+      if (!response.ok) throw new Error(apiErrorMessage(error, 'Failed to load profile'));
+      return data!;
+    },
+  });
+  const me = meQuery.data;
+
+  const [fullName, setFullName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [tz, setTz] = useState('UTC');
   const [phone, setPhone] = useState('');
 
-  const initials = (identity?.username ?? identity?.email ?? '?')
+  // Sync the form from server truth on load and after a save.
+  useEffect(() => {
+    if (!me) return;
+    setFullName(me.full_name ?? '');
+    setDisplayName(me.display_name ?? '');
+    setEmail(me.email ?? '');
+    setJobTitle(me.job_title ?? '');
+    setTz(me.timezone || 'UTC');
+    setPhone(me.phone ?? '');
+  }, [me]);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { data, error, response } = await api.PATCH('/api/v1/auth/me', {
+        body: {
+          email,
+          full_name: fullName,
+          display_name: displayName,
+          job_title: jobTitle,
+          timezone: tz,
+          phone,
+        },
+      });
+      if (!response.ok) {
+        const code = (error as { error?: { code?: string } } | undefined)?.error?.code;
+        if (code === 'users.email_taken') {
+          throw new Error('That email is already in use by another account.');
+        }
+        throw new Error(apiErrorMessage(error, 'Failed to save profile'));
+      }
+      return data!;
+    },
+    onSuccess: (data) => {
+      setBanner({ kind: 'success', text: 'Profile saved.' });
+      queryClient.setQueryData(['auth-me'], data);
+      // Keep the app shell's identity (avatar/email) in step.
+      if (identity) setIdentity({ ...identity, email: data.email });
+    },
+    onError: (e: Error) => setBanner({ kind: 'error', text: e.message }),
+  });
+
+  const displayNameForHeader = me?.username ?? identity?.username ?? '—';
+  const initials = (me?.username ?? me?.email ?? '?')
     .split(/[\s._-]/)
     .map((s) => s[0]?.toUpperCase() ?? '')
     .slice(0, 2)
@@ -124,13 +179,13 @@ function ProfileSection() {
             {initials}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>{identity?.username ?? '—'}</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>{displayNameForHeader}</div>
             <div style={{ color: 'var(--ow-fg-2)', fontSize: 13, marginTop: 2 }}>
-              {identity?.email ?? ''}
-              {identity?.role && (
+              {me?.email ?? identity?.email ?? ''}
+              {me?.role && (
                 <>
                   <span style={{ color: 'var(--ow-fg-3)', margin: '0 6px' }}>·</span>
-                  <span style={{ textTransform: 'capitalize' }}>{identity.role}</span>
+                  <span style={{ textTransform: 'capitalize' }}>{me.role}</span>
                 </>
               )}
             </div>
@@ -181,16 +236,31 @@ function ProfileSection() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            color: 'var(--ow-fg-3)',
             fontSize: 12,
           }}
         >
-          <span>
-            Profile edits aren't saved yet — backend{' '}
-            <code style={{ fontFamily: 'var(--ow-font-mono)' }}>PATCH /auth/me</code> pending.
+          <span
+            role={banner ? 'status' : undefined}
+            style={{
+              color:
+                banner?.kind === 'success'
+                  ? 'var(--ow-ok)'
+                  : banner?.kind === 'error'
+                    ? 'var(--ow-crit)'
+                    : 'var(--ow-fg-3)',
+            }}
+          >
+            {banner?.text ?? 'Changes apply to your account and are visible to other members.'}
           </span>
-          <Btn variant="primary" disabled>
-            Save changes
+          <Btn
+            variant="primary"
+            disabled={!me || meQuery.isLoading || mutation.isPending}
+            onClick={() => {
+              setBanner(null);
+              mutation.mutate();
+            }}
+          >
+            {mutation.isPending ? 'Saving…' : 'Save changes'}
           </Btn>
         </div>
       </SettingCard>

@@ -14,10 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
-	"net"
-	"net/smtp"
 	"net/textproto"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -42,12 +39,9 @@ func (s *Service) SendReportEmail(ctx context.Context, channelID uuid.UUID, subj
 		return fmt.Errorf("notification: email channel %q has no recipients", ch.Name)
 	}
 	msg := buildReportEmail(cfg.From, cfg.To, subject, body, filename, attachment)
-	addr := net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort))
-	var auth smtp.Auth
-	if cfg.Username != "" {
-		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)
-	}
-	if err := smtp.SendMail(addr, auth, cfg.From, cfg.To, msg); err != nil {
+	// Shares delivery.go's sendSMTP, so report emails honor the channel's
+	// encryption mode (none/starttls/tls) the same as alert emails.
+	if err := sendSMTP(cfg, cfg.From, cfg.To, msg); err != nil {
 		return fmt.Errorf("notification: report email via %q: %w", ch.Name, err)
 	}
 	return nil

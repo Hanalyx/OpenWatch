@@ -314,6 +314,62 @@ func TestAuthLogout_RevokesSession(t *testing.T) {
 	})
 }
 
+// @ac AC-14
+// AC-14: PATCH /auth/me applies a partial self-profile update and returns
+// the updated identity; changing email to one another active user already
+// holds returns 409. /auth/* is CSRF-exempt, so the cookie alone authorizes.
+func TestAuthPatchMe_UpdatesProfileAndEmailConflict(t *testing.T) {
+	t.Run("api-auth/AC-14", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		usrSvc := users.NewService(pool, nil)
+		u := seedAuthUser(t, usrSvc, "ac14", false)
+		_ = usrSvc.AssignRole(context.Background(), u.ID, "viewer", nil)
+		other := seedAuthUser(t, usrSvc, "ac14other", false)
+
+		resp := login(t, url, map[string]string{"username": u.Username, "password": u.Password})
+		cookie := pickSessionCookie(resp)
+		resp.Body.Close()
+		if cookie == nil {
+			t.Fatal("no session cookie")
+		}
+
+		// Partial profile update → 200 with the new fields echoed, email intact.
+		body, _ := json.Marshal(map[string]any{"full_name": "AC Fourteen", "job_title": "SecOps", "timezone": "UTC"})
+		req, _ := http.NewRequest("PATCH", url+"/api/v1/auth/me", bytes.NewReader(body))
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/json")
+		resp = doReq(t, req)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("patch status = %d, want 200", resp.StatusCode)
+		}
+		var me struct {
+			FullName string `json:"full_name"`
+			JobTitle string `json:"job_title"`
+			Email    string `json:"email"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&me)
+		resp.Body.Close()
+		if me.FullName != "AC Fourteen" || me.JobTitle != "SecOps" {
+			t.Errorf("profile not updated: %+v", me)
+		}
+		if me.Email != u.Email {
+			t.Errorf("email changed unexpectedly to %q", me.Email)
+		}
+
+		// Email collision with the other active user → 409.
+		body, _ = json.Marshal(map[string]any{"email": other.Email})
+		req, _ = http.NewRequest("PATCH", url+"/api/v1/auth/me", bytes.NewReader(body))
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/json")
+		resp = doReq(t, req)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusConflict {
+			t.Errorf("email-conflict status = %d, want 409", resp.StatusCode)
+		}
+	})
+}
+
 // @ac AC-08
 // AC-08: Refresh rotates; old refresh token is invalid for subsequent calls.
 func TestAuthRefresh_Rotates(t *testing.T) {

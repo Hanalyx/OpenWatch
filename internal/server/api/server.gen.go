@@ -893,6 +893,27 @@ func (e NotificationChannelType) Valid() bool {
 	}
 }
 
+// Defines values for NotificationChannelCreateSmtpEncryption.
+const (
+	NotificationChannelCreateSmtpEncryptionNone     NotificationChannelCreateSmtpEncryption = "none"
+	NotificationChannelCreateSmtpEncryptionStarttls NotificationChannelCreateSmtpEncryption = "starttls"
+	NotificationChannelCreateSmtpEncryptionTls      NotificationChannelCreateSmtpEncryption = "tls"
+)
+
+// Valid indicates whether the value is a known member of the NotificationChannelCreateSmtpEncryption enum.
+func (e NotificationChannelCreateSmtpEncryption) Valid() bool {
+	switch e {
+	case NotificationChannelCreateSmtpEncryptionNone:
+		return true
+	case NotificationChannelCreateSmtpEncryptionStarttls:
+		return true
+	case NotificationChannelCreateSmtpEncryptionTls:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NotificationChannelCreateType.
 const (
 	NotificationChannelCreateTypeEmail   NotificationChannelCreateType = "email"
@@ -908,6 +929,27 @@ func (e NotificationChannelCreateType) Valid() bool {
 	case NotificationChannelCreateTypeSlack:
 		return true
 	case NotificationChannelCreateTypeWebhook:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationChannelUpdateSmtpEncryption.
+const (
+	NotificationChannelUpdateSmtpEncryptionNone     NotificationChannelUpdateSmtpEncryption = "none"
+	NotificationChannelUpdateSmtpEncryptionStarttls NotificationChannelUpdateSmtpEncryption = "starttls"
+	NotificationChannelUpdateSmtpEncryptionTls      NotificationChannelUpdateSmtpEncryption = "tls"
+)
+
+// Valid indicates whether the value is a known member of the NotificationChannelUpdateSmtpEncryption enum.
+func (e NotificationChannelUpdateSmtpEncryption) Valid() bool {
+	switch e {
+	case NotificationChannelUpdateSmtpEncryptionNone:
+		return true
+	case NotificationChannelUpdateSmtpEncryptionStarttls:
+		return true
+	case NotificationChannelUpdateSmtpEncryptionTls:
 		return true
 	default:
 		return false
@@ -1612,10 +1654,36 @@ type AuthMePermissionsResponse struct {
 
 // AuthMeResponse defines model for AuthMeResponse.
 type AuthMeResponse struct {
-	Email    string             `json:"email"`
+	// DisplayName Editable profile field (may be empty)
+	DisplayName *string `json:"display_name,omitempty"`
+	Email       string  `json:"email"`
+
+	// FullName Editable profile field (may be empty)
+	FullName *string            `json:"full_name,omitempty"`
 	Id       openapi_types.UUID `json:"id"`
-	Role     string             `json:"role"`
-	Username string             `json:"username"`
+
+	// JobTitle Editable profile field (may be empty)
+	JobTitle *string `json:"job_title,omitempty"`
+
+	// Phone Editable profile field (may be empty)
+	Phone *string `json:"phone,omitempty"`
+	Role  string  `json:"role"`
+
+	// Timezone IANA timezone
+	Timezone *string `json:"timezone,omitempty"`
+	Username string  `json:"username"`
+}
+
+// AuthMeUpdateRequest Partial self-profile update. Every field is optional; a present field replaces the stored value (empty string clears it). Omitted fields are left unchanged.
+type AuthMeUpdateRequest struct {
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// Email Sign-in identity; must be unique among active users
+	Email    *string `json:"email,omitempty"`
+	FullName *string `json:"full_name,omitempty"`
+	JobTitle *string `json:"job_title,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
+	Timezone *string `json:"timezone,omitempty"`
 }
 
 // AuthPasswordChangeRequest defines model for AuthPasswordChangeRequest.
@@ -2704,6 +2772,9 @@ type NotificationChannel struct {
 	Id   openapi_types.UUID `json:"id"`
 	Name string             `json:"name"`
 
+	// SmtpEncryption SMTP transport security (email channels) - none|starttls|tls
+	SmtpEncryption *string `json:"smtp_encryption,omitempty"`
+
 	// SmtpPort SMTP port (email channels)
 	SmtpPort *int `json:"smtp_port,omitempty"`
 
@@ -2736,6 +2807,9 @@ type NotificationChannelCreate struct {
 	// Password SMTP auth password (email). Stored encrypted.
 	Password *string `json:"password,omitempty"`
 
+	// SmtpEncryption Transport security for the SMTP connection (email). 'starttls' (default) connects plaintext then requires a STARTTLS upgrade; 'tls' uses implicit TLS from connect (SMTPS, e.g. port 465); 'none' is plaintext for a trusted local relay. Omitted defaults to starttls.
+	SmtpEncryption *NotificationChannelCreateSmtpEncryption `json:"smtp_encryption,omitempty"`
+
 	// SmtpHost SMTP relay host (email). Stored encrypted.
 	SmtpHost *string `json:"smtp_host,omitempty"`
 
@@ -2757,6 +2831,9 @@ type NotificationChannelCreate struct {
 	Username *string `json:"username,omitempty"`
 }
 
+// NotificationChannelCreateSmtpEncryption Transport security for the SMTP connection (email). 'starttls' (default) connects plaintext then requires a STARTTLS upgrade; 'tls' uses implicit TLS from connect (SMTPS, e.g. port 465); 'none' is plaintext for a trusted local relay. Omitted defaults to starttls.
+type NotificationChannelCreateSmtpEncryption string
+
 // NotificationChannelCreateType defines model for NotificationChannelCreate.Type.
 type NotificationChannelCreateType string
 
@@ -2767,18 +2844,22 @@ type NotificationChannelList struct {
 
 // NotificationChannelUpdate Updates name/enabled/tag_filter. Supplying the secret config (url for slack/webhook, or smtp_host for email) replaces it; omitting it leaves the stored secret unchanged.
 type NotificationChannelUpdate struct {
-	Enabled   bool               `json:"enabled"`
-	From      *string            `json:"from,omitempty"`
-	Name      string             `json:"name"`
-	Password  *string            `json:"password,omitempty"`
-	SmtpHost  *string            `json:"smtp_host,omitempty"`
-	SmtpPort  *int               `json:"smtp_port,omitempty"`
-	TagFilter *map[string]string `json:"tag_filter,omitempty"`
-	To        *[]string          `json:"to,omitempty"`
-	Token     *string            `json:"token,omitempty"`
-	Url       *string            `json:"url,omitempty"`
-	Username  *string            `json:"username,omitempty"`
+	Enabled        bool                                     `json:"enabled"`
+	From           *string                                  `json:"from,omitempty"`
+	Name           string                                   `json:"name"`
+	Password       *string                                  `json:"password,omitempty"`
+	SmtpEncryption *NotificationChannelUpdateSmtpEncryption `json:"smtp_encryption,omitempty"`
+	SmtpHost       *string                                  `json:"smtp_host,omitempty"`
+	SmtpPort       *int                                     `json:"smtp_port,omitempty"`
+	TagFilter      *map[string]string                       `json:"tag_filter,omitempty"`
+	To             *[]string                                `json:"to,omitempty"`
+	Token          *string                                  `json:"token,omitempty"`
+	Url            *string                                  `json:"url,omitempty"`
+	Username       *string                                  `json:"username,omitempty"`
 }
+
+// NotificationChannelUpdateSmtpEncryption defines model for NotificationChannelUpdate.SmtpEncryption.
+type NotificationChannelUpdateSmtpEncryption string
 
 // NotificationFeed defines model for NotificationFeed.
 type NotificationFeed struct {
@@ -3754,6 +3835,9 @@ type PutAuthPolicyJSONRequestBody = AuthPolicyUpdateRequest
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = AuthLoginRequest
 
+// PatchAuthMeJSONRequestBody defines body for PatchAuthMe for application/json ContentType.
+type PatchAuthMeJSONRequestBody = AuthMeUpdateRequest
+
 // PostAuthMFAVerifyJSONRequestBody defines body for PostAuthMFAVerify for application/json ContentType.
 type PostAuthMFAVerifyJSONRequestBody = AuthMFAVerifyRequest
 
@@ -3939,6 +4023,9 @@ type ServerInterface interface {
 	// Return the calling identity
 	// (GET /api/v1/auth/me)
 	GetAuthMe(w http.ResponseWriter, r *http.Request)
+	// Update the calling user's own profile
+	// (PATCH /api/v1/auth/me)
+	PatchAuthMe(w http.ResponseWriter, r *http.Request)
 	// Effective permissions for the calling identity
 	// (GET /api/v1/auth/me/permissions)
 	GetAuthMePermissions(w http.ResponseWriter, r *http.Request)
@@ -4443,6 +4530,12 @@ func (_ Unimplemented) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 // Return the calling identity
 // (GET /api/v1/auth/me)
 func (_ Unimplemented) GetAuthMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update the calling user's own profile
+// (PATCH /api/v1/auth/me)
+func (_ Unimplemented) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5954,6 +6047,20 @@ func (siw *ServerInterfaceWrapper) GetAuthMe(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchAuthMe operation middleware
+func (siw *ServerInterfaceWrapper) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchAuthMe(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9680,6 +9787,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/auth/me", wrapper.GetAuthMe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/auth/me", wrapper.PatchAuthMe)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/auth/me/permissions", wrapper.GetAuthMePermissions)

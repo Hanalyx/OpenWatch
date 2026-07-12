@@ -60,6 +60,12 @@ func validateEmail(cfg Config) (string, error) {
 	if cfg.SMTPPort <= 0 || cfg.SMTPPort > 65535 {
 		return "", fmt.Errorf("%w: smtp port out of range", ErrInvalidConfig)
 	}
+	switch cfg.SMTPEncryption {
+	case "", SMTPEncNone, SMTPEncSTARTTLS, SMTPEncTLS:
+		// empty is accepted and treated as starttls at send time
+	default:
+		return "", fmt.Errorf("%w: invalid smtp encryption %q", ErrInvalidConfig, cfg.SMTPEncryption)
+	}
 	if strings.TrimSpace(cfg.From) == "" {
 		return "", fmt.Errorf("%w: from address required", ErrInvalidConfig)
 	}
