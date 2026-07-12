@@ -1,7 +1,7 @@
 spec:
   id: api-auth
   title: Auth HTTP surface (login, MFA, refresh, me, password change)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -115,3 +115,7 @@ spec:
     - id: AC-13
       description: POST /auth/login for a user with an UNVERIFIED MFA enrollment (a secret row exists but last_verified_at IS NULL — enrollment was begun via mfa:enroll but never confirmed via mfa:verify) does NOT require an OTP; it returns 200 and signs the user in. Only a verified secret gates login, so an abandoned enrollment cannot lock a user out.
       priority: high
+    - id: AC-14
+      description: 'v1.2.0 - PATCH /api/v1/auth/me applies a PARTIAL self-profile update for the authenticated caller (full_name, display_name, email, job_title, timezone, phone) and returns the updated AuthMeResponse; omitted fields are unchanged. Changing email to one another active user already holds returns 409 (users.email_taken). The path is under /api/v1/auth/* so it is CSRF-exempt (the session cookie or bearer authorizes). Username, role, and password are not editable here.'
+      priority: high
+      references_constraints: [C-03]

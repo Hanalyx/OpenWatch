@@ -61,6 +61,32 @@ type Config struct {
 	Password string   `json:"password,omitempty"`
 	From     string   `json:"from,omitempty"`
 	To       []string `json:"to,omitempty"`
+	// SMTPEncryption selects the transport security for the SMTP
+	// connection: "none" (plaintext, for a trusted local relay),
+	// "starttls" (connect plaintext then require a STARTTLS upgrade), or
+	// "tls" (implicit TLS from connect — SMTPS, typically port 465). An
+	// empty value is treated as "starttls" (the secure default). Not a
+	// secret; returned to the edit form.
+	SMTPEncryption string `json:"smtp_encryption,omitempty"`
+}
+
+// SMTP encryption modes for Config.SMTPEncryption.
+const (
+	SMTPEncNone     = "none"
+	SMTPEncSTARTTLS = "starttls"
+	SMTPEncTLS      = "tls"
+)
+
+// NormalizeSMTPEncryption maps an empty/unknown mode to the secure
+// default (STARTTLS, required). Callers persist and act on the result so
+// legacy rows (no mode) behave predictably.
+func NormalizeSMTPEncryption(mode string) string {
+	switch mode {
+	case SMTPEncNone, SMTPEncTLS:
+		return mode
+	default:
+		return SMTPEncSTARTTLS
+	}
 }
 
 // Channel is a stored delivery channel. Config is populated only on the

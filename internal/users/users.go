@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
@@ -33,6 +34,13 @@ var (
 	// ErrCannotDisableSelf guards an admin from disabling their own account
 	// (lockout prevention).
 	ErrCannotDisableSelf = errors.New("users: cannot disable your own account")
+	// ErrEmailTaken is returned by UpdateProfile when the requested email is
+	// already used by another active user (the sign-in identity must be
+	// unique). Maps to HTTP 409.
+	ErrEmailTaken = errors.New("users: email already in use")
+	// ErrInvalidProfile is returned for a malformed profile update (e.g. an
+	// empty email). Maps to HTTP 400.
+	ErrInvalidProfile = errors.New("users: invalid profile update")
 )
 
 // User is the safe shape returned by every read API. PasswordHash is
@@ -59,6 +67,15 @@ type User struct {
 	// Populated by ListUsers via an aggregate; other lookups (login path,
 	// GetUserByID) leave it nil since they do not need the membership join.
 	Roles []string
+
+	// Self-service profile fields (migration 0050). Free text, may be
+	// empty. Populated by the queryOne lookups (GetUserByID / by-username);
+	// the login-path scan leaves them empty since login does not need them.
+	FullName    string
+	DisplayName string
+	JobTitle    string
+	Timezone    string
+	Phone       string
 }
 
 // CreateParams is the input to CreateUser. Plaintext password is hashed
@@ -195,7 +212,8 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 // Spec AC-04.
 func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at,
+		       full_name, display_name, job_title, timezone, phone
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, id)
@@ -207,10 +225,73 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 // Spec AC-05.
 func (s *Service) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at
+		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at,
+		       full_name, display_name, job_title, timezone, phone
 		FROM users
 		WHERE username = $1 AND deleted_at IS NULL`
 	return s.queryOne(ctx, stmt, username)
+}
+
+// ProfileUpdate is a partial self-profile edit: a nil field is left
+// unchanged, a non-nil field replaces the stored value (an empty string
+// clears it, except Email which may not be empty).
+type ProfileUpdate struct {
+	Email       *string
+	FullName    *string
+	DisplayName *string
+	JobTitle    *string
+	Timezone    *string
+	Phone       *string
+}
+
+// UpdateProfile applies a partial profile edit for the user's own account
+// (PATCH /auth/me). Email is the sign-in identity: it is trimmed, must be
+// non-empty, and must be unique among active users — ErrEmailTaken (409)
+// otherwise. Username, role, and password are not editable here. Returns
+// the updated user.
+func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, p ProfileUpdate) (User, error) {
+	var emailArg *string
+	if p.Email != nil {
+		email := strings.TrimSpace(*p.Email)
+		if email == "" || !strings.Contains(email, "@") {
+			return User{}, fmt.Errorf("%w: email must be a non-empty address", ErrInvalidProfile)
+		}
+		var taken bool
+		if err := s.pool.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL AND id <> $2)`,
+			email, id).Scan(&taken); err != nil {
+			return User{}, fmt.Errorf("users: email uniqueness check: %w", err)
+		}
+		if taken {
+			return User{}, ErrEmailTaken
+		}
+		emailArg = &email
+	}
+
+	const stmt = `
+		UPDATE users SET
+			email        = COALESCE($2, email),
+			full_name    = COALESCE($3, full_name),
+			display_name = COALESCE($4, display_name),
+			job_title    = COALESCE($5, job_title),
+			timezone     = COALESCE($6, timezone),
+			phone        = COALESCE($7, phone),
+			updated_at   = now()
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING id, username, email, last_password_change_at, created_at, updated_at, disabled_at,
+		          full_name, display_name, job_title, timezone, phone`
+	var u User
+	err := s.pool.QueryRow(ctx, stmt, id, emailArg, p.FullName, p.DisplayName, p.JobTitle, p.Timezone, p.Phone).Scan(
+		&u.ID, &u.Username, &u.Email, &u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt,
+		&u.FullName, &u.DisplayName, &u.JobTitle, &u.Timezone, &u.Phone,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, ErrUserNotFound
+		}
+		return User{}, fmt.Errorf("users: update profile: %w", err)
+	}
+	return u, nil
 }
 
 // VerifyUserPassword is the login-path helper. Looks up the hash and
@@ -456,6 +537,7 @@ func (s *Service) queryOne(ctx context.Context, stmt string, arg any) (User, err
 	err := s.pool.QueryRow(ctx, stmt, arg).Scan(
 		&u.ID, &u.Username, &u.Email,
 		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt,
+		&u.FullName, &u.DisplayName, &u.JobTitle, &u.Timezone, &u.Phone,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

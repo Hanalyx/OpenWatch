@@ -498,11 +498,68 @@ func (h *handlers) PostAuthPasswordChange(w http.ResponseWriter, r *http.Request
 // surfaced.
 func userToMe(u users.User, role string) api.AuthMeResponse {
 	return api.AuthMeResponse{
-		Id:       openapitypes.UUID(u.ID),
-		Username: u.Username,
-		Email:    u.Email,
-		Role:     role,
+		Id:          openapitypes.UUID(u.ID),
+		Username:    u.Username,
+		Email:       u.Email,
+		Role:        role,
+		FullName:    &u.FullName,
+		DisplayName: &u.DisplayName,
+		JobTitle:    &u.JobTitle,
+		Timezone:    &u.Timezone,
+		Phone:       &u.Phone,
 	}
+}
+
+// PatchAuthMe applies a partial self-profile update for the calling user.
+// Spec api-auth AC (patchAuthMe): present fields update, omitted stay;
+// email must be unique among active users (409). Username/role/password
+// are not editable here.
+func (h *handlers) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
+	id := auth.FromContext(r.Context())
+	if id.IsAnonymous {
+		writeError(w, http.StatusUnauthorized, "auth.required", "client",
+			"authentication required", false)
+		return
+	}
+	userID, err := uuid.Parse(id.ID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "auth.required", "client",
+			"identity id is not a UUID", false)
+		return
+	}
+	var req api.AuthMeUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.malformed", "client",
+			"malformed request body", false)
+		return
+	}
+	u, err := h.users.UpdateProfile(r.Context(), userID, users.ProfileUpdate{
+		Email:       req.Email,
+		FullName:    req.FullName,
+		DisplayName: req.DisplayName,
+		JobTitle:    req.JobTitle,
+		Timezone:    req.Timezone,
+		Phone:       req.Phone,
+	})
+	switch {
+	case errors.Is(err, users.ErrEmailTaken):
+		writeError(w, http.StatusConflict, "users.email_taken", "client",
+			"that email is already in use by another account", false)
+		return
+	case errors.Is(err, users.ErrInvalidProfile):
+		writeError(w, http.StatusBadRequest, "validation.field_invalid", "client",
+			"invalid profile field", false)
+		return
+	case errors.Is(err, users.ErrUserNotFound):
+		writeError(w, http.StatusUnauthorized, "auth.required", "client",
+			"identity user not found", false)
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "internal.error", "server",
+			"failed to update profile", false)
+		return
+	}
+	writeJSON(w, http.StatusOK, userToMe(u, string(id.RoleID)))
 }
 
 // mfaEnrolled returns whether the user has a VERIFIED MFA secret. A secret

@@ -121,6 +121,41 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    patch:
+      operationId: patchAuthMe
+      summary: Update the calling user's own profile
+      description: >-
+        Self-service profile edit for the authenticated user. The body is a
+        partial: present fields are updated, omitted fields are unchanged.
+        Changing email (the sign-in identity) is allowed but must be unique
+        among active users (409 on conflict). Username, role, and password
+        are NOT editable here (password uses /auth/password:change).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuthMeUpdateRequest'}
+      responses:
+        '200':
+          description: Updated identity
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthMeResponse'}
+        '400':
+          description: Malformed body or invalid field
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: No valid session or bearer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: Email already in use by another active user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
   /api/v1/users/me/preferences:
     get:
@@ -4189,6 +4224,25 @@ components:
         username: {type: string}
         email:    {type: string}
         role:     {type: string}
+        full_name:    {type: string, description: Editable profile field (may be empty)}
+        display_name: {type: string, description: Editable profile field (may be empty)}
+        job_title:    {type: string, description: Editable profile field (may be empty)}
+        timezone:     {type: string, description: IANA timezone, editable (may be empty)}
+        phone:        {type: string, description: Editable profile field (may be empty)}
+
+    AuthMeUpdateRequest:
+      type: object
+      description: >-
+        Partial self-profile update. Every field is optional; a present field
+        replaces the stored value (empty string clears it). Omitted fields are
+        left unchanged.
+      properties:
+        email:        {type: string, description: Sign-in identity; must be unique among active users}
+        full_name:    {type: string, maxLength: 256}
+        display_name: {type: string, maxLength: 256}
+        job_title:    {type: string, maxLength: 256}
+        timezone:     {type: string, maxLength: 64}
+        phone:        {type: string, maxLength: 64}
 
     # Per-user UI preferences (system-user-preferences). Every field is
     # optional: GET returns only the keys the user has set, and PATCH treats
@@ -4281,6 +4335,7 @@ components:
           additionalProperties: {type: string}
           description: Alert tags this channel matches; empty = every alert
         smtp_port: {type: integer, nullable: true, description: SMTP port (email channels)}
+        smtp_encryption: {type: string, nullable: true, description: SMTP transport security (email channels) - none|starttls|tls}
         from:      {type: string, nullable: true, description: Sender address (email channels)}
         to:
           type: array
@@ -4343,6 +4398,15 @@ components:
           description: Optional bearer token for webhook auth. Stored encrypted.
         smtp_host: {type: string, description: SMTP relay host (email). Stored encrypted.}
         smtp_port: {type: integer, description: SMTP relay port (email), e.g. 587.}
+        smtp_encryption:
+          type: string
+          enum: [none, starttls, tls]
+          description: >-
+            Transport security for the SMTP connection (email). 'starttls'
+            (default) connects plaintext then requires a STARTTLS upgrade;
+            'tls' uses implicit TLS from connect (SMTPS, e.g. port 465);
+            'none' is plaintext for a trusted local relay. Omitted defaults
+            to starttls.
         username:  {type: string, description: SMTP auth username (email). Stored encrypted.}
         password:  {type: string, description: SMTP auth password (email). Stored encrypted.}
         from:      {type: string, description: Envelope From address (email).}
@@ -4367,6 +4431,7 @@ components:
         token:     {type: string}
         smtp_host: {type: string}
         smtp_port: {type: integer}
+        smtp_encryption: {type: string, enum: [none, starttls, tls]}
         username:  {type: string}
         password:  {type: string}
         from:      {type: string}

@@ -89,7 +89,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update the calling user's own profile
+         * @description Self-service profile edit for the authenticated user. The body is a partial: present fields are updated, omitted fields are unchanged. Changing email (the sign-in identity) is allowed but must be unique among active users (409 on conflict). Username, role, and password are NOT editable here (password uses /auth/password:change).
+         */
+        patch: operations["patchAuthMe"];
         trace?: never;
     };
     "/api/v1/users/me/preferences": {
@@ -2642,6 +2646,26 @@ export interface components {
             username: string;
             email: string;
             role: string;
+            /** @description Editable profile field (may be empty) */
+            full_name?: string;
+            /** @description Editable profile field (may be empty) */
+            display_name?: string;
+            /** @description Editable profile field (may be empty) */
+            job_title?: string;
+            /** @description IANA timezone */
+            timezone?: string;
+            /** @description Editable profile field (may be empty) */
+            phone?: string;
+        };
+        /** @description Partial self-profile update. Every field is optional; a present field replaces the stored value (empty string clears it). Omitted fields are left unchanged. */
+        AuthMeUpdateRequest: {
+            /** @description Sign-in identity; must be unique among active users */
+            email?: string;
+            full_name?: string;
+            display_name?: string;
+            job_title?: string;
+            timezone?: string;
+            phone?: string;
         };
         UserPreferences: {
             /** @enum {string} */
@@ -2707,6 +2731,8 @@ export interface components {
             };
             /** @description SMTP port (email channels) */
             smtp_port?: number | null;
+            /** @description SMTP transport security (email channels) - none|starttls|tls */
+            smtp_encryption?: string | null;
             /** @description Sender address (email channels) */
             from?: string | null;
             /** @description Recipient addresses (email channels) */
@@ -2767,6 +2793,11 @@ export interface components {
             smtp_host?: string;
             /** @description SMTP relay port (email) */
             smtp_port?: number;
+            /**
+             * @description Transport security for the SMTP connection (email). 'starttls' (default) connects plaintext then requires a STARTTLS upgrade; 'tls' uses implicit TLS from connect (SMTPS, e.g. port 465); 'none' is plaintext for a trusted local relay. Omitted defaults to starttls.
+             * @enum {string}
+             */
+            smtp_encryption?: "none" | "starttls" | "tls";
             /** @description SMTP auth username (email). Stored encrypted. */
             username?: string;
             /** @description SMTP auth password (email). Stored encrypted. */
@@ -2787,6 +2818,8 @@ export interface components {
             token?: string;
             smtp_host?: string;
             smtp_port?: number;
+            /** @enum {string} */
+            smtp_encryption?: "none" | "starttls" | "tls";
             username?: string;
             password?: string;
             from?: string;
@@ -4539,6 +4572,57 @@ export interface operations {
             };
             /** @description No valid session or bearer */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patchAuthMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthMeUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description Malformed body or invalid field */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No valid session or bearer */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Email already in use by another active user */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

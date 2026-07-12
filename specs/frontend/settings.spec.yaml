@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.13.0"
+  version: "1.14.0"
   status: draft
   tier: 2
 
@@ -256,7 +256,7 @@ spec:
       priority: high
       references_constraints: [C-11]
     - id: AC-04
-      description: Profile page renders the username and email returned by /auth/me. The big-avatar initials match the first 1-2 tokens of the username. The Save-changes button has aria-disabled=true.
+      description: 'v1.14.0 - The Profile page prefills its edit fields from GET /api/v1/auth/me (full_name, display_name, email, job_title, timezone, phone) and persists changes via PATCH /api/v1/auth/me. The big-avatar initials match the first 1-2 tokens of the username. The Save-changes button is wired (no longer a permanently-disabled stub) and is disabled only while loading/saving.'
       priority: critical
       references_constraints: [C-03]
     - id: AC-05
@@ -332,7 +332,7 @@ spec:
       priority: high
       references_constraints: [C-08]
     - id: AC-23
-      description: "v1.5.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. AC-15 stub set excludes Notifications."
+      description: "v1.14.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. Email channels expose an SMTP encryption selector (none/starttls/tls) sent as smtp_encryption, and the severity 'Deliver for' filter is threshold-based (a minimum level: 'Medium and above', 'High and above', etc.). AC-15 stub set excludes Notifications."
       priority: high
       references_constraints: [C-15]
     - id: AC-24

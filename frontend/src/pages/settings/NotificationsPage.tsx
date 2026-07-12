@@ -25,7 +25,7 @@ type Channel = components['schemas']['NotificationChannel'];
 // Settings -> Notifications.
 //
 // CRUD + test for operator-managed alert-delivery channels (Slack /
-// webhook) over /api/v1/notifications/channels. Secrets (url/token) are
+// webhook / email-SMTP) over /api/v1/notifications/channels. Secrets are
 // write-only: the API never returns them, so the list shows the
 // non-secret target_hint. Gated on notification:read; write/delete/test
 // controls gate on their own permissions.
@@ -45,10 +45,14 @@ const inputStyle = {
   width: '100%',
 } as const;
 
+// Threshold semantics: the value is the MINIMUM severity delivered — the
+// backend (matchesTags) delivers that level and everything more severe.
 const SEVERITY_OPTIONS = [
   { value: '', label: 'All alerts (no filter)' },
-  { value: 'critical', label: 'Critical only' },
+  { value: 'low', label: 'Low and above' },
+  { value: 'medium', label: 'Medium and above' },
   { value: 'high', label: 'High and above' },
+  { value: 'critical', label: 'Critical only' },
 ];
 
 export function NotificationsPage() {
@@ -83,7 +87,7 @@ export function NotificationsPage() {
     <SettingsLayout>
       <PageHead
         title="Notifications"
-        description="Deliver fired alerts to Slack or a webhook. Targets are stored encrypted and never shown again."
+        description="Deliver fired alerts to Slack, a webhook, or email (SMTP). Scope each channel by minimum severity. Targets are stored encrypted and never shown again."
         actions={
           <Btn variant="primary" disabled={!canWrite} onClick={() => setAddOpen(true)}>
             <Plus size={14} /> Add channel
@@ -101,7 +105,7 @@ export function NotificationsPage() {
             </div>
           ) : channels.length === 0 ? (
             <div style={{ ...pad, textAlign: 'center' }}>
-              No channels yet. Add a Slack or webhook channel to start receiving alerts.
+              No channels yet. Add a Slack, webhook, or email channel to start receiving alerts.
             </div>
           ) : (
             channels.map((c, i) => (
@@ -262,6 +266,10 @@ function ChannelModal({
   const isEmail = channel?.type === 'email';
   const [smtpHost, setSmtpHost] = useState(isEmail ? (channel?.target_hint ?? '') : '');
   const [smtpPort, setSmtpPort] = useState(channel?.smtp_port ? String(channel.smtp_port) : '587');
+  // Transport security. Empty/legacy channels default to STARTTLS.
+  const [smtpEncryption, setSmtpEncryption] = useState<'none' | 'starttls' | 'tls'>(
+    (channel?.smtp_encryption as 'none' | 'starttls' | 'tls') ?? 'starttls',
+  );
   const [username, setUsername] = useState(channel?.username ?? '');
   const [password, setPassword] = useState('');
   const [from, setFrom] = useState(channel?.from ?? '');
@@ -281,6 +289,7 @@ function ChannelModal({
       return {
         smtp_host: smtpHost,
         smtp_port: Number(smtpPort) || 0,
+        smtp_encryption: smtpEncryption,
         from,
         to: to
           .split(',')
@@ -396,6 +405,18 @@ function ChannelModal({
               </FormField>
             </div>
           </div>
+          <FormField label="Encryption">
+            <Select
+              value={smtpEncryption}
+              onChange={(v) => setSmtpEncryption(v as 'none' | 'starttls' | 'tls')}
+              ariaLabel="SMTP encryption"
+              options={[
+                { value: 'starttls', label: 'STARTTLS (upgrade on 25 / 587)' },
+                { value: 'tls', label: 'TLS (implicit, port 465)' },
+                { value: 'none', label: 'None (plaintext relay)' },
+              ]}
+            />
+          </FormField>
           <FormField label="Username (optional)">
             <input
               style={inputStyle}

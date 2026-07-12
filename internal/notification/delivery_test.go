@@ -6,6 +6,7 @@ package notification
 
 import (
 	"net"
+	"os"
 	"strings"
 	"testing"
 
@@ -70,25 +71,72 @@ func TestIsBlockedIPAndDialControl(t *testing.T) {
 // @ac AC-05
 func TestMatchesTags(t *testing.T) {
 	t.Run("system-notifications/AC-05", func(t *testing.T) {
-		alertTags := map[string]string{"severity": "critical", "alert_type": "drift"}
-		// Empty filter = wildcard.
-		if !matchesTags(map[string]string{}, alertTags) {
+		critical := map[string]string{"severity": "critical", "alert_type": "drift"}
+		medium := map[string]string{"severity": "medium", "alert_type": "drift"}
+		// Empty/nil filter = wildcard.
+		if !matchesTags(map[string]string{}, critical) {
 			t.Error("empty filter should match")
 		}
-		if !matchesTags(nil, alertTags) {
+		if !matchesTags(nil, critical) {
 			t.Error("nil filter should match")
 		}
-		// Matching subset.
-		if !matchesTags(map[string]string{"severity": "critical"}, alertTags) {
-			t.Error("matching subset should match")
+		// The reserved "severity" key is a THRESHOLD (this level and above),
+		// not exact-match: a lower/equal threshold delivers a more-severe alert.
+		if !matchesTags(map[string]string{"severity": "critical"}, critical) {
+			t.Error("critical threshold should match a critical alert")
 		}
-		// Non-matching value.
-		if matchesTags(map[string]string{"severity": "info"}, alertTags) {
-			t.Error("non-matching value should not match")
+		if !matchesTags(map[string]string{"severity": "info"}, critical) {
+			t.Error("info threshold ('info and above') should match a critical alert")
 		}
-		// Key absent in alert.
-		if matchesTags(map[string]string{"team": "secops"}, alertTags) {
-			t.Error("absent key should not match")
+		if !matchesTags(map[string]string{"severity": "high"}, critical) {
+			t.Error("high threshold should match the more-severe critical alert")
+		}
+		if matchesTags(map[string]string{"severity": "critical"}, medium) {
+			t.Error("critical threshold should NOT match the less-severe medium alert")
+		}
+		// Non-severity keys stay EXACT match.
+		if matchesTags(map[string]string{"team": "secops"}, critical) {
+			t.Error("absent exact-match key should not match")
+		}
+		if matchesTags(map[string]string{"alert_type": "scan"}, critical) {
+			t.Error("mismatched exact-match key should not match")
+		}
+	})
+}
+
+// @ac AC-21
+// AC-21: SMTP encryption modes. NormalizeSMTPEncryption maps empty/unknown
+// to the secure STARTTLS default and passes through none/tls; sendSMTP
+// implements implicit TLS (tls.DialWithDialer) for "tls", a REQUIRED
+// STARTTLS upgrade for "starttls" (no silent plaintext downgrade), and
+// plaintext for "none".
+func TestSMTPEncryptionModes(t *testing.T) {
+	t.Run("system-notifications/AC-21", func(t *testing.T) {
+		cases := map[string]string{
+			"":              SMTPEncSTARTTLS,
+			"bogus":         SMTPEncSTARTTLS,
+			SMTPEncNone:     SMTPEncNone,
+			SMTPEncTLS:      SMTPEncTLS,
+			SMTPEncSTARTTLS: SMTPEncSTARTTLS,
+		}
+		for in, want := range cases {
+			if got := NormalizeSMTPEncryption(in); got != want {
+				t.Errorf("NormalizeSMTPEncryption(%q) = %q, want %q", in, got, want)
+			}
+		}
+		src, err := os.ReadFile("delivery.go")
+		if err != nil {
+			t.Fatalf("read delivery.go: %v", err)
+		}
+		s := string(src)
+		for _, needle := range []string{
+			"tls.DialWithDialer",      // implicit TLS (port 465)
+			"client.StartTLS",         // STARTTLS upgrade
+			"does not offer STARTTLS", // required — fail rather than downgrade
+		} {
+			if !strings.Contains(s, needle) {
+				t.Errorf("sendSMTP must contain %q for encryption-mode handling", needle)
+			}
 		}
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: api-notifications
   title: Notification channels REST API
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -90,5 +90,9 @@ spec:
       references_constraints: [C-02, C-03]
     - id: AC-07
       description: "v1.2.0 — the list/read path returns an email channel's NON-secret config so the edit form can pre-fill: smtp_port, from, to, username appear in the GET /notifications/channels JSON, but the password NEVER does. A PATCH that re-sends the non-secret email fields WITHOUT a password keeps the stored password (the channel still validates and the updated recipients persist)."
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-08
+      description: "v1.3.0 — an email channel's smtp_encryption mode (none | starttls | tls) round-trips: POST with smtp_encryption creates the channel and the GET /notifications/channels JSON returns the same smtp_encryption for pre-fill (it is non-secret). An out-of-enum value is rejected with 400."
       priority: high
       references_constraints: [C-02]

@@ -194,6 +194,41 @@ func TestNotifications_EmailListExposesNonSecretConfig(t *testing.T) {
 	})
 }
 
+// @ac AC-08
+// AC-08: an email channel's smtp_encryption mode round-trips (create ->
+// read) and an invalid mode is rejected with 400.
+func TestNotifications_EmailEncryptionRoundTrip(t *testing.T) {
+	t.Run("api-notifications/AC-08", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+		body := map[string]any{
+			"type": "email", "name": "tls-mail",
+			"smtp_host": "smtp.corp.example", "smtp_port": 465,
+			"smtp_encryption": "tls",
+			"from":            "alerts@corp.example", "to": []string{"sec@corp.example"},
+		}
+		cr := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, body))
+		if cr.StatusCode != http.StatusCreated {
+			t.Fatalf("create = %d", cr.StatusCode)
+		}
+		lr := doReq(t, asRole(t, "GET", url+"/api/v1/notifications/channels", auth.RoleAdmin, nil))
+		raw := readBody(t, lr)
+		if !strings.Contains(raw, `"smtp_encryption":"tls"`) &&
+			!strings.Contains(raw, `"smtp_encryption": "tls"`) {
+			t.Errorf("read did not return smtp_encryption=tls for pre-fill: %s", raw)
+		}
+		// An out-of-enum mode is rejected by validation.
+		bad := map[string]any{
+			"type": "email", "name": "bad-enc",
+			"smtp_host": "smtp.corp.example", "smtp_port": 587,
+			"smtp_encryption": "bogus",
+			"from":            "a@x.com", "to": []string{"b@x.com"},
+		}
+		if br := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, bad)); br.StatusCode != http.StatusBadRequest {
+			t.Errorf("invalid encryption = %d, want 400", br.StatusCode)
+		}
+	})
+}
+
 // @ac AC-03
 func TestNotifications_UpdateDeleteRBAC(t *testing.T) {
 	t.Run("api-notifications/AC-03", func(t *testing.T) {

@@ -1,7 +1,7 @@
 spec:
   id: system-user-management
   title: User accounts and role assignment
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -113,3 +113,7 @@ spec:
       description: ListUsers returns each non-deleted user with its assigned role ids aggregated into User.Roles (a non-nil empty slice when the user has no roles); a user with {viewer, ops_lead} lists both ids, and a soft-deleted user does not appear at all.
       priority: high
       references_constraints: [C-05]
+    - id: AC-14
+      description: 'v1.1.0 - UpdateProfile applies a PARTIAL self-profile edit (full_name, display_name, job_title, timezone, phone via migration 0050): a nil field is left unchanged, a present field replaces the stored value. Email is the sign-in identity — it must be non-empty (ErrInvalidProfile) and unique among active users, excluding self (ErrEmailTaken); username, role, and password are not editable through this path.'
+      priority: high
+      references_constraints: [C-01]

@@ -102,23 +102,91 @@ func deliver(ctx context.Context, client *http.Client, ch Channel, a alertrouter
 	return deliverHTTP(ctx, client, ch, a)
 }
 
-// deliverEmail sends the alert via SMTP. smtp.SendMail upgrades to
-// STARTTLS when the relay offers it, and PlainAuth refuses to send the
-// credential over an unencrypted connection to a non-localhost host — the
-// secure default. Auth is omitted when no username is configured.
+// deliverEmail sends the alert via SMTP using the channel's configured
+// encryption mode (see sendSMTP). Auth is omitted when no username is set.
 func deliverEmail(ch Channel, a alertrouter.Alert) error {
-	cfg := ch.Config
-	addr := net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort))
-	var auth smtp.Auth
-	if cfg.Username != "" {
-		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)
-	}
 	subject := fmt.Sprintf("[OpenWatch] [%s] %s", a.Severity, a.Title)
-	msg := buildEmailMessage(cfg.From, cfg.To, subject, a.Body)
-	if err := smtp.SendMail(addr, auth, cfg.From, cfg.To, msg); err != nil {
+	msg := buildEmailMessage(ch.Config.From, ch.Config.To, subject, a.Body)
+	if err := sendSMTP(ch.Config, ch.Config.From, ch.Config.To, msg); err != nil {
 		return fmt.Errorf("notification: email send via %q: %w", ch.Name, err)
 	}
 	return nil
+}
+
+// smtpDialTimeout bounds the TCP connect + TLS handshake for a relay.
+const smtpDialTimeout = 10 * time.Second
+
+// sendSMTP delivers a pre-rendered RFC 5322 message to the relay in cfg,
+// honoring cfg.SMTPEncryption:
+//
+//   - "tls":      implicit TLS from connect (SMTPS, typically port 465).
+//   - "starttls": connect plaintext, then REQUIRE a STARTTLS upgrade — the
+//     send fails rather than silently downgrading to plaintext.
+//     This is the default when the mode is empty.
+//   - "none":     plaintext, no encryption (a trusted local relay).
+//
+// PlainAuth is used only when a username is set. The relay host is NOT
+// SSRF-restricted (internal relays are legitimate); TLS + auth protect the
+// credential. net/smtp.SendMail is deliberately not used: it cannot do
+// implicit TLS (465) and only does opportunistic (downgradeable) STARTTLS.
+func sendSMTP(cfg Config, from string, to []string, msg []byte) error {
+	if len(to) == 0 {
+		return fmt.Errorf("smtp: no recipients")
+	}
+	addr := net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort))
+	mode := NormalizeSMTPEncryption(cfg.SMTPEncryption)
+	tlsCfg := &tls.Config{ServerName: cfg.SMTPHost, MinVersion: tls.VersionTLS12}
+	dialer := &net.Dialer{Timeout: smtpDialTimeout}
+
+	var conn net.Conn
+	var err error
+	if mode == SMTPEncTLS {
+		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
+	} else {
+		conn, err = dialer.Dial("tcp", addr)
+	}
+	if err != nil {
+		return fmt.Errorf("smtp: dial %s: %w", addr, err)
+	}
+	client, err := smtp.NewClient(conn, cfg.SMTPHost)
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("smtp: client: %w", err)
+	}
+	defer client.Close()
+
+	if mode == SMTPEncSTARTTLS {
+		if ok, _ := client.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("smtp: relay %s does not offer STARTTLS (set encryption to 'none' to allow plaintext)", cfg.SMTPHost)
+		}
+		if err := client.StartTLS(tlsCfg); err != nil {
+			return fmt.Errorf("smtp: starttls: %w", err)
+		}
+	}
+	if cfg.Username != "" {
+		if err := client.Auth(smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)); err != nil {
+			return fmt.Errorf("smtp: auth: %w", err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("smtp: mail from: %w", err)
+	}
+	for _, rcpt := range to {
+		if err := client.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("smtp: rcpt %s: %w", rcpt, err)
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp: data: %w", err)
+	}
+	if _, err := w.Write(msg); err != nil {
+		return fmt.Errorf("smtp: write: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("smtp: close data: %w", err)
+	}
+	return client.Quit()
 }
 
 // buildEmailMessage assembles a minimal RFC 5322 message.
@@ -163,13 +231,28 @@ func deliverHTTP(ctx context.Context, client *http.Client, ch Channel, a alertro
 	return nil
 }
 
-// matchesTags mirrors alertrouter.ChannelRegistration.matches: an empty
-// filter is a wildcard; otherwise every key/value must be present.
+// matchesTags decides whether a channel receives an alert. An empty
+// filter is a wildcard. The reserved "severity" key uses THRESHOLD
+// semantics — the channel receives the alert when its severity is at
+// least as high as the filter value (e.g. filter "high" delivers both
+// high and critical) — via alertrouter.SeverityOrder (critical=0 is most
+// severe). Every other key is an exact match. This is what lets an email
+// channel be scoped to "this level and above" rather than one exact level.
 func matchesTags(filter, alertTags map[string]string) bool {
 	if len(filter) == 0 {
 		return true
 	}
 	for k, v := range filter {
+		if k == "severity" {
+			ar, aok := alertrouter.SeverityOrder[alertrouter.Severity(alertTags[k])]
+			fr, fok := alertrouter.SeverityOrder[alertrouter.Severity(v)]
+			if aok && fok {
+				if ar > fr { // alert is LESS severe than the threshold
+					return false
+				}
+				continue
+			}
+		}
 		if alertTags[k] != v {
 			return false
 		}

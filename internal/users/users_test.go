@@ -32,6 +32,62 @@ func freshService(t *testing.T, corpus identity.BreachCorpus) (*Service, *pgxpoo
 // strongPW returns a long-enough, not-breached password for tests.
 func strongPW() string { return "test-passphrase-strong-zZ" }
 
+// @ac AC-14
+// AC-14: UpdateProfile applies a PARTIAL self-profile edit (nil field
+// unchanged, present field replaces), and treats email as the sign-in
+// identity — unique among active users (ErrEmailTaken) and non-empty
+// (ErrInvalidProfile).
+func TestUpdateProfile_PartialAndEmailUniqueness(t *testing.T) {
+	t.Run("system-user-management/AC-14", func(t *testing.T) {
+		svc, _ := freshService(t, nil)
+		ctx := context.Background()
+		a, err := svc.CreateUser(ctx, CreateParams{Username: "alice", Email: "alice@example.com", Password: strongPW()})
+		if err != nil {
+			t.Fatalf("create alice: %v", err)
+		}
+		if _, err := svc.CreateUser(ctx, CreateParams{Username: "bob", Email: "bob@example.com", Password: strongPW()}); err != nil {
+			t.Fatalf("create bob: %v", err)
+		}
+
+		// Partial: set full_name + timezone; email + others unchanged.
+		fn, tz := "Alice Ann", "America/New_York"
+		u, err := svc.UpdateProfile(ctx, a.ID, ProfileUpdate{FullName: &fn, Timezone: &tz})
+		if err != nil {
+			t.Fatalf("UpdateProfile: %v", err)
+		}
+		if u.FullName != fn || u.Timezone != tz {
+			t.Errorf("fields not applied: %+v", u)
+		}
+		if u.Email != "alice@example.com" {
+			t.Errorf("email changed unexpectedly to %q", u.Email)
+		}
+		if u.DisplayName != "" {
+			t.Errorf("display_name should stay empty, got %q", u.DisplayName)
+		}
+
+		// Email change to an unused address succeeds.
+		ne := "alice2@example.com"
+		u, err = svc.UpdateProfile(ctx, a.ID, ProfileUpdate{Email: &ne})
+		if err != nil {
+			t.Fatalf("email change: %v", err)
+		}
+		if u.Email != ne {
+			t.Errorf("email = %q, want %q", u.Email, ne)
+		}
+
+		// Collision with bob's email → ErrEmailTaken.
+		taken := "bob@example.com"
+		if _, err := svc.UpdateProfile(ctx, a.ID, ProfileUpdate{Email: &taken}); !errors.Is(err, ErrEmailTaken) {
+			t.Errorf("expected ErrEmailTaken, got %v", err)
+		}
+		// Empty email → ErrInvalidProfile.
+		empty := ""
+		if _, err := svc.UpdateProfile(ctx, a.ID, ProfileUpdate{Email: &empty}); !errors.Is(err, ErrInvalidProfile) {
+			t.Errorf("expected ErrInvalidProfile, got %v", err)
+		}
+	})
+}
+
 // @ac AC-01
 // AC-01: CreateUser persists a row with Argon2id hash; returned User
 // has NO PasswordHash field.

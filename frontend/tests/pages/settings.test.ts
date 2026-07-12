@@ -112,13 +112,13 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-04
-  test('frontend-settings/AC-04 — Profile reads identity from useAuthStore + Save aria-disabled', () => {
+  test('frontend-settings/AC-04 — Profile prefills from GET /auth/me and saves via PATCH /auth/me', () => {
     expect(PROFILE_SRC).toMatch(/useAuthStore/);
-    expect(PROFILE_SRC).toMatch(/identity/);
-    // The Save-changes button is disabled because PATCH /auth/me is
-    // not wired yet. The disabled prop and "Save changes" label sit on
-    // adjacent lines — match across whitespace.
-    expect(PROFILE_SRC).toMatch(/disabled\s*>\s*Save changes/);
+    // Prefill from GET /auth/me and persist edits via PATCH /auth/me.
+    expect(PROFILE_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/auth\/me['"]/);
+    expect(PROFILE_SRC).toMatch(/api\.PATCH\(\s*['"]\/api\/v1\/auth\/me['"]/);
+    // Save is no longer a permanently-disabled stub.
+    expect(PROFILE_SRC).not.toMatch(/disabled\s*>\s*Save changes/);
   });
 
   // @ac AC-05
@@ -373,6 +373,14 @@ describe('frontend-settings — structural', () => {
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:write'\)/);
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:delete'\)/);
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:test'\)/);
+    // Email channels expose an SMTP encryption selector (none/starttls/tls)
+    // and send smtp_encryption in the config.
+    expect(NOTIF_SRC).toMatch(/smtp_encryption/);
+    expect(NOTIF_SRC).toContain("'starttls'");
+    expect(NOTIF_SRC).toContain("'tls'");
+    // Severity delivery is threshold-based (minimum level), not two presets.
+    expect(NOTIF_SRC).toMatch(/Medium and above/);
+    expect(NOTIF_SRC).toMatch(/High and above/);
   });
 
   // @ac AC-24
