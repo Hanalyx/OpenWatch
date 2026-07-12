@@ -137,7 +137,14 @@ func sendSMTP(cfg Config, from string, to []string, msg []byte) error {
 	}
 	addr := net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort))
 	mode := NormalizeSMTPEncryption(cfg.SMTPEncryption)
-	tlsCfg := &tls.Config{ServerName: cfg.SMTPHost, MinVersion: tls.VersionTLS12}
+	// InsecureSkipVerify is opt-in per channel, for an internal relay with a
+	// self-signed / private-CA cert. It only affects the TLS handshake, so it
+	// is inert under the "none" (plaintext) mode.
+	tlsCfg := &tls.Config{
+		ServerName:         cfg.SMTPHost,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: cfg.SMTPInsecureSkipVerify, //nolint:gosec // opt-in, documented, internal-relay only
+	}
 	dialer := &net.Dialer{Timeout: smtpDialTimeout}
 
 	var conn net.Conn

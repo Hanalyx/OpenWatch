@@ -2775,6 +2775,9 @@ type NotificationChannel struct {
 	// SmtpEncryption SMTP transport security (email channels) - none|starttls|tls
 	SmtpEncryption *string `json:"smtp_encryption,omitempty"`
 
+	// SmtpInsecureSkipVerify Skip TLS cert verification for an internal relay with a self-signed/private-CA cert (email channels; STARTTLS/TLS only)
+	SmtpInsecureSkipVerify *bool `json:"smtp_insecure_skip_verify,omitempty"`
+
 	// SmtpPort SMTP port (email channels)
 	SmtpPort *int `json:"smtp_port,omitempty"`
 
@@ -2813,6 +2816,9 @@ type NotificationChannelCreate struct {
 	// SmtpHost SMTP relay host (email). Stored encrypted.
 	SmtpHost *string `json:"smtp_host,omitempty"`
 
+	// SmtpInsecureSkipVerify Skip TLS certificate verification for the SMTP handshake (email). For an internal relay with a self-signed or private-CA cert only; a MITM-exposing downgrade, inert under 'none'. Defaults false.
+	SmtpInsecureSkipVerify *bool `json:"smtp_insecure_skip_verify,omitempty"`
+
 	// SmtpPort SMTP relay port (email)
 	SmtpPort  *int               `json:"smtp_port,omitempty"`
 	TagFilter *map[string]string `json:"tag_filter,omitempty"`
@@ -2844,18 +2850,19 @@ type NotificationChannelList struct {
 
 // NotificationChannelUpdate Updates name/enabled/tag_filter. Supplying the secret config (url for slack/webhook, or smtp_host for email) replaces it; omitting it leaves the stored secret unchanged.
 type NotificationChannelUpdate struct {
-	Enabled        bool                                     `json:"enabled"`
-	From           *string                                  `json:"from,omitempty"`
-	Name           string                                   `json:"name"`
-	Password       *string                                  `json:"password,omitempty"`
-	SmtpEncryption *NotificationChannelUpdateSmtpEncryption `json:"smtp_encryption,omitempty"`
-	SmtpHost       *string                                  `json:"smtp_host,omitempty"`
-	SmtpPort       *int                                     `json:"smtp_port,omitempty"`
-	TagFilter      *map[string]string                       `json:"tag_filter,omitempty"`
-	To             *[]string                                `json:"to,omitempty"`
-	Token          *string                                  `json:"token,omitempty"`
-	Url            *string                                  `json:"url,omitempty"`
-	Username       *string                                  `json:"username,omitempty"`
+	Enabled                bool                                     `json:"enabled"`
+	From                   *string                                  `json:"from,omitempty"`
+	Name                   string                                   `json:"name"`
+	Password               *string                                  `json:"password,omitempty"`
+	SmtpEncryption         *NotificationChannelUpdateSmtpEncryption `json:"smtp_encryption,omitempty"`
+	SmtpHost               *string                                  `json:"smtp_host,omitempty"`
+	SmtpInsecureSkipVerify *bool                                    `json:"smtp_insecure_skip_verify,omitempty"`
+	SmtpPort               *int                                     `json:"smtp_port,omitempty"`
+	TagFilter              *map[string]string                       `json:"tag_filter,omitempty"`
+	To                     *[]string                                `json:"to,omitempty"`
+	Token                  *string                                  `json:"token,omitempty"`
+	Url                    *string                                  `json:"url,omitempty"`
+	Username               *string                                  `json:"username,omitempty"`
 }
 
 // NotificationChannelUpdateSmtpEncryption defines model for NotificationChannelUpdate.SmtpEncryption.

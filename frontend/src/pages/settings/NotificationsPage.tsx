@@ -270,6 +270,11 @@ function ChannelModal({
   const [smtpEncryption, setSmtpEncryption] = useState<'none' | 'starttls' | 'tls'>(
     (channel?.smtp_encryption as 'none' | 'starttls' | 'tls') ?? 'starttls',
   );
+  // Trust a self-signed / private-CA relay cert (internal postfix). Only
+  // meaningful when TLS is in play.
+  const [smtpInsecureSkipVerify, setSmtpInsecureSkipVerify] = useState<boolean>(
+    channel?.smtp_insecure_skip_verify ?? false,
+  );
   const [username, setUsername] = useState(channel?.username ?? '');
   const [password, setPassword] = useState('');
   const [from, setFrom] = useState(channel?.from ?? '');
@@ -290,6 +295,7 @@ function ChannelModal({
         smtp_host: smtpHost,
         smtp_port: Number(smtpPort) || 0,
         smtp_encryption: smtpEncryption,
+        smtp_insecure_skip_verify: smtpEncryption !== 'none' ? smtpInsecureSkipVerify : false,
         from,
         to: to
           .split(',')
@@ -417,6 +423,18 @@ function ChannelModal({
               ]}
             />
           </FormField>
+          {smtpEncryption !== 'none' && (
+            <label
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginTop: 2 }}
+            >
+              <input
+                type="checkbox"
+                checked={smtpInsecureSkipVerify}
+                onChange={(e) => setSmtpInsecureSkipVerify(e.target.checked)}
+              />
+              Trust self-signed / internal certificate (skips TLS verification)
+            </label>
+          )}
           <FormField label="Username (optional)">
             <input
               style={inputStyle}

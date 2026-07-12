@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 2
 
@@ -328,5 +328,16 @@ spec:
         endpoint show WHY a delivery failed (unreachable relay, auth
         rejected, STARTTLS not offered, non-2xx) without leaking the
         webhook/slack secret.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-23
+      description: >-
+        v1.10.0 — Config.SMTPInsecureSkipVerify governs TLS certificate
+        verification for the STARTTLS/implicit-TLS handshake, for an internal
+        relay (e.g. a local postfix) with a self-signed or private-CA cert.
+        Off (default), sendSMTP over "tls"/"starttls" rejects an untrusted
+        cert; on, it accepts it and delivers. It is inert under "none". This
+        is the toggle that makes a TLS-enabled internal relay usable without
+        weakening system-wide trust.
       priority: high
       references_constraints: [C-03]

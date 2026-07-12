@@ -72,7 +72,8 @@ func (h *handlers) PostNotificationChannel(w http.ResponseWriter, r *http.Reques
 		Name:    req.Name,
 		Enabled: enabled,
 		Config: notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
-			createEnc(req.SmtpEncryption), req.Username, req.Password, req.From, req.To),
+			createEnc(req.SmtpEncryption), derefBool(req.SmtpInsecureSkipVerify),
+			req.Username, req.Password, req.From, req.To),
 		TagFilter: derefTagFilter(req.TagFilter),
 	}
 	c, err := h.notificationSvc.Create(r.Context(), p)
@@ -125,7 +126,8 @@ func (h *handlers) PatchNotificationChannel(w http.ResponseWriter, r *http.Reque
 	if req.Url != nil || req.SmtpHost != nil {
 		p.ReplaceConfig = true
 		p.Config = notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
-			updateEnc(req.SmtpEncryption), req.Username, req.Password, req.From, req.To)
+			updateEnc(req.SmtpEncryption), derefBool(req.SmtpInsecureSkipVerify),
+			req.Username, req.Password, req.From, req.To)
 	}
 	c, err := h.notificationSvc.Update(r.Context(), uuid.UUID(id), p)
 	if err != nil {
@@ -208,6 +210,10 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 			e := c.Config.SMTPEncryption
 			out.SmtpEncryption = &e
 		}
+		if c.Config.SMTPInsecureSkipVerify {
+			v := true
+			out.SmtpInsecureSkipVerify = &v
+		}
 		if c.Config.From != "" {
 			f := c.Config.From
 			out.From = &f
@@ -264,7 +270,7 @@ func updateEnc(e *api.NotificationChannelUpdateSmtpEncryption) string {
 // notificationConfig assembles the decrypted Config from the optional
 // request fields. HTTP channels use url/token; email uses the smtp* +
 // from/to fields. Unset pointers stay zero (validated per-type downstream).
-func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncryption string, username, password, from *string, to *[]string) notification.Config {
+func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncryption string, smtpInsecureSkipVerify bool, username, password, from *string, to *[]string) notification.Config {
 	cfg := notification.Config{}
 	if url != nil {
 		cfg.URL = *url
@@ -279,6 +285,7 @@ func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncrypt
 		cfg.SMTPPort = *smtpPort
 	}
 	cfg.SMTPEncryption = smtpEncryption
+	cfg.SMTPInsecureSkipVerify = smtpInsecureSkipVerify
 	if username != nil {
 		cfg.Username = *username
 	}

@@ -374,10 +374,12 @@ describe('frontend-settings — structural', () => {
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:delete'\)/);
     expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:test'\)/);
     // Email channels expose an SMTP encryption selector (none/starttls/tls)
-    // and send smtp_encryption in the config.
+    // and send smtp_encryption in the config, plus a self-signed-cert
+    // (skip-verify) toggle for an internal relay.
     expect(NOTIF_SRC).toMatch(/smtp_encryption/);
     expect(NOTIF_SRC).toContain("'starttls'");
     expect(NOTIF_SRC).toContain("'tls'");
+    expect(NOTIF_SRC).toMatch(/smtp_insecure_skip_verify/);
     // Severity delivery is threshold-based (minimum level), not two presets.
     expect(NOTIF_SRC).toMatch(/Medium and above/);
     expect(NOTIF_SRC).toMatch(/High and above/);

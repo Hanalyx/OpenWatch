@@ -203,8 +203,8 @@ func TestNotifications_EmailEncryptionRoundTrip(t *testing.T) {
 		body := map[string]any{
 			"type": "email", "name": "tls-mail",
 			"smtp_host": "smtp.corp.example", "smtp_port": 465,
-			"smtp_encryption": "tls",
-			"from":            "alerts@corp.example", "to": []string{"sec@corp.example"},
+			"smtp_encryption": "tls", "smtp_insecure_skip_verify": true,
+			"from": "alerts@corp.example", "to": []string{"sec@corp.example"},
 		}
 		cr := doReq(t, asRole(t, "POST", url+"/api/v1/notifications/channels", auth.RoleAdmin, body))
 		if cr.StatusCode != http.StatusCreated {
@@ -215,6 +215,10 @@ func TestNotifications_EmailEncryptionRoundTrip(t *testing.T) {
 		if !strings.Contains(raw, `"smtp_encryption":"tls"`) &&
 			!strings.Contains(raw, `"smtp_encryption": "tls"`) {
 			t.Errorf("read did not return smtp_encryption=tls for pre-fill: %s", raw)
+		}
+		if !strings.Contains(raw, `"smtp_insecure_skip_verify":true`) &&
+			!strings.Contains(raw, `"smtp_insecure_skip_verify": true`) {
+			t.Errorf("read did not return smtp_insecure_skip_verify=true for pre-fill: %s", raw)
 		}
 		// An out-of-enum mode is rejected by validation.
 		bad := map[string]any{
