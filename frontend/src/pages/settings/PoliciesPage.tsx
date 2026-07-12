@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { PageHead, Section, BackendPendingBanner } from '@/components/settings/primitives';
 import { ScanVariablesCard } from '@/components/settings/ScanVariablesCard';
@@ -24,7 +23,6 @@ import { ExceptionQueue } from '@/components/settings/ExceptionQueue';
 // frontend-settings (stub sections).
 export function PoliciesPage() {
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
-  const canWrite = useAuthStore((s) => s.hasPermission)('system:config_write');
   useEffect(() => {
     setCrumbs([{ label: 'Settings' }, { label: 'Compliance policies' }]);
     return () => setCrumbs([]);
@@ -50,7 +48,7 @@ export function PoliciesPage() {
           use out of the box. "All rules" keeps the framework-agnostic Kensa score. Individual host
           views can still switch lens.
         </p>
-        <DefaultLensCard canWrite={canWrite} />
+        <DefaultLensCard />
         <div style={{ marginTop: 12 }}>
           <BackendPendingBanner
             slice="Enabled frameworks"

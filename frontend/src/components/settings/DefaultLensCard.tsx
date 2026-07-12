@@ -7,8 +7,10 @@ import { SettingCard, FirstSettingRow, Select } from './primitives';
 // DefaultLensCard — the org-wide default compliance lens. An admin picks a
 // framework FAMILY (or All rules); the score surfaces default to it. Wired to
 // GET/PUT /api/v1/system/compliance/config and GET /api/v1/compliance/frameworks
-// (the corpus-derived family list). Read-only for non-writers.
-export function DefaultLensCard({ canWrite }: { canWrite: boolean }) {
+// (the corpus-derived family list). The write is enforced server-side
+// (system:config_write) — matching the other config cards, the control is not
+// client-gated; a caller without the permission gets a 403 error banner.
+export function DefaultLensCard() {
   const queryClient = useQueryClient();
   const [banner, setBanner] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -72,12 +74,12 @@ export function DefaultLensCard({ canWrite }: { canWrite: boolean }) {
             onChange={(v) => {
               setValue(v);
               setBanner(null);
-              if (canWrite) mutation.mutate(v);
+              mutation.mutate(v);
             }}
             ariaLabel="Default compliance lens"
             options={options}
             width="260px"
-            disabled={!canWrite || configQuery.isLoading || mutation.isPending}
+            disabled={configQuery.isLoading || mutation.isPending}
           />
         }
       />
