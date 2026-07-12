@@ -187,15 +187,19 @@ func (s *Service) tickOnce(ctx context.Context) {
 // Excludes: deleted hosts, maintenance hosts, hosts with future
 // intel-backoff suppress_until, hosts with future next_intelligence_at.
 func (s *Service) listIntelTargets(ctx context.Context) ([]uuid.UUID, error) {
+	// Maintenance (per-host OR per-group) resolves via the
+	// host_effective_maintenance view (migration 0049), matching the scan
+	// scheduler and the other loops.
 	const q = `
 		SELECT h.id
 		  FROM hosts h
+		  JOIN host_effective_maintenance hem ON hem.host_id = h.id
 		  LEFT JOIN host_intelligence_state hi
 		    ON hi.host_id = h.id
 		  LEFT JOIN host_backoff_state b
 		    ON b.host_id = h.id AND b.probe_type = 'intel'
 		 WHERE h.deleted_at IS NULL
-		   AND h.maintenance_mode = false
+		   AND NOT hem.in_maintenance
 		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)
 		   AND (hi.next_intelligence_at IS NULL OR hi.next_intelligence_at <= $1)
 		 ORDER BY hi.next_intelligence_at ASC NULLS FIRST`

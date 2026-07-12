@@ -366,7 +366,15 @@ func TestAPI_ScanSchedulePreview_ProjectionFigures(t *testing.T) {
 		later := seedHostForIntel(t, pool)
 		seedScheduleRow(t, pool, later, "compliant", now.Add(5*time.Hour+30*time.Minute), false)
 		maint := seedHostForIntel(t, pool)
-		seedScheduleRow(t, pool, maint, "critical", now.Add(10*time.Minute), true) // excluded
+		seedScheduleRow(t, pool, maint, "critical", now.Add(10*time.Minute), false)
+		// Put the HOST in maintenance — the real per-host flag the preview
+		// honors via the host_effective_maintenance view — not the dead
+		// host_compliance_schedule.maintenance_mode column. Due at +10m, so if
+		// it were NOT excluded it would win next_scan_at and fill bucket[0].
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE hosts SET maintenance_mode = true WHERE id = $1`, maint); err != nil {
+			t.Fatalf("set host maintenance: %v", err)
+		}
 
 		// Queue depth: one queued scan_runs row.
 		jobID := uuid.Must(uuid.NewV7())

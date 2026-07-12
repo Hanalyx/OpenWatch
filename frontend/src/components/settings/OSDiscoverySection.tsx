@@ -191,7 +191,11 @@ export function OSDiscoverySectionView(props: {
   } = props;
 
   return (
-    <Section title="OS discovery" badge="Wired" badgeTier="ok">
+    <Section
+      title="OS discovery"
+      badge={draft ? (draft.maintenance_global ? 'Paused' : 'Running') : undefined}
+      badgeTier={draft?.maintenance_global ? 'warn' : 'ok'}
+    >
       {isLoading ? (
         <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12, padding: '8px 0' }}>
           Loading…

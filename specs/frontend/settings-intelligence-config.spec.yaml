@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings-intelligence-config
   title: Settings Scanning page — OS Intelligence scheduler config section
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -94,6 +94,10 @@ spec:
       description: 'v1.1.0 — On the post-save edge (mutation.isSuccess && configQuery.data), the draft MUST be re-synced from configQuery.data.config so a server-side clamp (or any future drift between client and server validation) cannot leave the operator with a stale draft that looks "saved" but does not match server truth. The re-sync MUST be gated on mutation.isSuccess specifically — never clobber an in-flight edit during an unrelated refetch'
       type: technical
       enforcement: error
+    - id: C-10
+      description: 'v1.2.0 — The section header badge MUST reflect the scheduler''s live state derived from maintenance_global (Running when active, Paused when in maintenance), never a static build-status label such as "Wired". A badge that does not track state is noise to an operator.'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -136,3 +140,7 @@ spec:
       description: 'v1.1.0 — Source inspection: OSIntelligenceSection.tsx contains a useEffect that depends on mutation.isSuccess AND calls setDraft from configQuery.data.config inside the effect body. This is the post-save re-sync (C-09) — without it, server-side clamps would leave the operator with a stale "saved" draft'
       priority: critical
       references_constraints: [C-09]
+    - id: AC-11
+      description: 'v1.2.0 — The section header badge reflects the scheduler''s live state, not a static build-status label: "Running" (ok tier) when maintenance_global is false, "Paused" (warn tier) when true. The badge MUST NOT read the static "Wired". Rendering: the View with draft.maintenance_global=false shows "Running" and no "Wired"; with true shows "Paused"'
+      priority: medium
+      references_constraints: [C-10]

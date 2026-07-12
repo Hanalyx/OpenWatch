@@ -76,13 +76,15 @@ func TestTickRoutesMultiLayerWhenEnabled(t *testing.T) {
 }
 
 // @ac AC-33
-// AC-33: listProbeTargets MUST WHERE-out hosts.maintenance_mode = true.
-// A host flipped to maintenance gets no probe, no history row, no audit.
+// AC-33: listProbeTargets MUST exclude hosts in effective maintenance
+// (per-host OR per-group) via the host_effective_maintenance view. A host
+// in maintenance gets no probe, no history row, no audit.
 func TestListProbeTargetsExcludesMaintenance(t *testing.T) {
 	t.Run("system-liveness-loop/AC-33", func(t *testing.T) {
 		src := readSourceFile(t, "service.go")
-		if !strings.Contains(src, "h.maintenance_mode = false") {
-			t.Errorf("listProbeTargets must filter `h.maintenance_mode = false`")
+		if !strings.Contains(src, "host_effective_maintenance") ||
+			!strings.Contains(src, "NOT hem.in_maintenance") {
+			t.Errorf("listProbeTargets must exclude hosts via the host_effective_maintenance view (JOIN + NOT hem.in_maintenance)")
 		}
 	})
 }

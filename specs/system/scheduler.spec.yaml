@@ -1,7 +1,7 @@
 spec:
   id: system-scheduler
   title: Adaptive compliance scheduler
-  version: "3.0.0"
+  version: "3.1.0"
   status: approved
   tier: 1
 
@@ -91,7 +91,7 @@ spec:
       type: business
       enforcement: error
     - id: C-05
-      description: Maintenance mode MUST block dispatch; row's next_scheduled_scan still advances on the next tick after maintenance_until
+      description: 'v3.1.0 - A host in EFFECTIVE maintenance MUST be excluded from dispatch, resolved via the host_effective_maintenance view (migration 0049): per-host (hosts.maintenance_mode, the host-detail toggle) OR per-group (a group with maintenance=true the host belongs to, manual member or auto os_family match). Maintenance is an explicit operator toggle with no auto-expiry; the host resumes on the next tick once maintenance clears. The dispatcher MUST NOT read host_compliance_schedule.maintenance_mode (a legacy column the API never wrote, so it enforced nothing).'
       type: technical
       enforcement: error
     - id: C-06
@@ -137,11 +137,11 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
-      description: Dispatcher's SELECT uses FOR UPDATE SKIP LOCKED; two concurrent tick processes dispatch disjoint hosts.
+      description: Dispatcher's SELECT uses FOR UPDATE ... SKIP LOCKED (locking only the schedule rows, FOR UPDATE OF s); two concurrent tick processes dispatch disjoint hosts.
       priority: critical
       references_constraints: [C-03]
     - id: AC-05
-      description: A row with maintenance_mode=true is skipped by the dispatcher; next_scheduled_scan still updates on the next tick after maintenance_until passes.
+      description: 'v3.1.0 - A host in effective maintenance is skipped by the dispatcher even when due, whether the maintenance is per-host (hosts.maintenance_mode=true) or per-group (member of a group with maintenance=true); enforcement resolves through the host_effective_maintenance view. The skipped host''s schedule row is not advanced, so it resumes once maintenance clears.'
       priority: high
       references_constraints: [C-05]
     - id: AC-06

@@ -1,7 +1,7 @@
 spec:
   id: system-intelligence-scheduler
   title: OS Intelligence recurring scheduler loop
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -39,9 +39,10 @@ spec:
       successful cycle. NULL means "due immediately" (first contact),
       matching the host_liveness.next_probe_at convention.
 
-      Maintenance: respects the existing hosts.maintenance_mode flag
-      from system-liveness-loop v1.3.0 the same way the liveness loop
-      does — maintenance hosts are excluded from listProbeTargets.
+      Maintenance: respects effective maintenance the same way the
+      liveness loop does — a host paused per-host (hosts.maintenance_mode)
+      OR per-group (a maintenance group it belongs to), resolved via the
+      host_effective_maintenance view, is excluded from listIntelTargets.
 
     related_specs:
       - system-os-intelligence
@@ -80,7 +81,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: 'listIntelTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts.maintenance_mode = true, (c) host_backoff_state.suppress_until > now() rows (for probe_type=''intel''), AND (d) hosts whose host_intelligence_state.next_intelligence_at is in the future. NULL next_intelligence_at MUST be treated as due (first-cycle hosts)'
+      description: 'listIntelTargets MUST WHERE-out (a) deleted_at IS NOT NULL hosts, (b) hosts in effective maintenance (per-host OR per-group, via the host_effective_maintenance view — migration 0049), (c) host_backoff_state.suppress_until > now() rows (for probe_type=''intel''), AND (d) hosts whose host_intelligence_state.next_intelligence_at is in the future. NULL next_intelligence_at MUST be treated as due (first-cycle hosts)'
       type: technical
       enforcement: error
     - id: C-03

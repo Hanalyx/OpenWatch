@@ -60,8 +60,9 @@ func insertSchedHost(t *testing.T, pool *pgxpool.Pool, name string) uuid.UUID {
 
 // @ac AC-06
 // AC-06: listIntelTargets returns only H1 (next NULL) and H2 (next in
-// past); skips H3 (next in future), H4 (maintenance), H5 (intel
-// backoff active).
+// past); skips H3 (next in future), H4 (per-host maintenance), H5 (intel
+// backoff active), H6 (per-group maintenance). H4 and H6 together prove
+// both maintenance scopes resolve through host_effective_maintenance.
 func TestListIntelTargets_FilterSemantics(t *testing.T) {
 	t.Run("system-intelligence-scheduler/AC-06", func(t *testing.T) {
 		pool := freshDBScheduler(t)
@@ -72,6 +73,7 @@ func TestListIntelTargets_FilterSemantics(t *testing.T) {
 		h3 := insertSchedHost(t, pool, "h3-future-next")
 		h4 := insertSchedHost(t, pool, "h4-maintenance")
 		h5 := insertSchedHost(t, pool, "h5-backoff")
+		h6 := insertSchedHost(t, pool, "h6-group-maintenance")
 
 		// h1: row absent → NULL next → due.
 		// h2: row present with past next.
@@ -87,13 +89,24 @@ func TestListIntelTargets_FilterSemantics(t *testing.T) {
 			`INSERT INTO host_intelligence_state (host_id, snapshot, collected_at, next_intelligence_at)
 			 VALUES ($1, '{}'::jsonb, now() - interval '1 hour', now() + interval '30 minutes')`,
 			h3)
-		// h4: NULL next but maintenance_mode=true.
+		// h4: NULL next but per-host maintenance_mode=true.
 		_, _ = pool.Exec(ctx, `UPDATE hosts SET maintenance_mode = true WHERE id = $1`, h4)
 		// h5: backoff suppress_until in future.
 		_, _ = pool.Exec(ctx, `
 			INSERT INTO host_backoff_state (host_id, probe_type, consecutive_failures, suppress_until)
 			VALUES ($1, 'intel', 3, now() + interval '1 hour')`,
 			h5)
+		// h6: NULL next but a member of a maintenance group (per-group scope).
+		gid, _ := uuid.NewV7()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO groups (id, name, kind, membership, maintenance)
+			 VALUES ($1, $2, 'site', 'manual', true)`, gid, "maint-"+gid.String()); err != nil {
+			t.Fatalf("seed maintenance group: %v", err)
+		}
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO group_members (group_id, host_id) VALUES ($1, $2)`, gid, h6); err != nil {
+			t.Fatalf("seed group member: %v", err)
+		}
 
 		svc := NewService(pool, nil)
 		got, err := svc.listIntelTargets(ctx)
@@ -115,10 +128,13 @@ func TestListIntelTargets_FilterSemantics(t *testing.T) {
 			t.Errorf("h3 (future next) wrongly included")
 		}
 		if seen[h4] {
-			t.Errorf("h4 (maintenance) wrongly included")
+			t.Errorf("h4 (per-host maintenance) wrongly included")
 		}
 		if seen[h5] {
 			t.Errorf("h5 (intel backoff) wrongly included")
+		}
+		if seen[h6] {
+			t.Errorf("h6 (per-group maintenance) wrongly included")
 		}
 	})
 }

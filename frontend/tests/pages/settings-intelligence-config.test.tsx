@@ -12,6 +12,7 @@
 //   AC-08  test('frontend-settings-intelligence-config/AC-08 — error alert surfaces the HTTP status (no "Failed to load — Failed to load")')
 //   AC-09  test('frontend-settings-intelligence-config/AC-09 — error state renders a Retry button that invokes onRetry')
 //   AC-10  test('frontend-settings-intelligence-config/AC-10 — post-save useEffect re-syncs draft from configQuery.data.config')
+//   AC-11  test('frontend-settings-intelligence-config/AC-11 — section badge reflects maintenance state (Running vs Paused), not the static "Wired"')
 
 import { describe, expect, test, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -202,5 +203,24 @@ describe('frontend-settings-intelligence-config — behavioral (pure view)', () 
     const retry = screen.getByRole('button', { name: /retry/i });
     fireEvent.click(retry);
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  // @ac AC-11
+  test('frontend-settings-intelligence-config/AC-11 — section badge reflects maintenance state (Running vs Paused), not the static "Wired"', () => {
+    const { unmount } = render(
+      <OSIntelligenceSectionView
+        {...viewProps({ draft: { ...liveConfig, maintenance_global: false } })}
+      />,
+    );
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.queryByText('Wired')).toBeNull();
+    unmount();
+
+    render(
+      <OSIntelligenceSectionView
+        {...viewProps({ draft: { ...liveConfig, maintenance_global: true } })}
+      />,
+    );
+    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 });

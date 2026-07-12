@@ -340,18 +340,24 @@ func (s *Service) listProbeTargets(ctx context.Context) ([]probeTarget, error) {
 	// which net.Dial rejects, marking every host unreachable. v1.2.1 C-17.
 	//
 	// v1.3.0 additions (C-20):
-	//   - WHERE hosts.maintenance_mode = false (per-host pause)
+	//   - exclude hosts in maintenance (per-host pause)
 	//   - ORDER BY hosts.check_priority DESC, hl.next_probe_at ASC NULLS FIRST
 	//     so critical hosts get drained before stable ones.
+	//
+	// v1.4.0: maintenance is resolved via the host_effective_maintenance
+	// view (migration 0049), so a host is skipped whether it is paused
+	// per-host (hosts.maintenance_mode) OR per-group (a maintenance group
+	// it belongs to) — matching the scan scheduler and the other loops.
 	const q = `
 		SELECT h.id, host(h.ip_address), COALESCE(h.port, 22), h.check_priority
 		  FROM hosts h
+		  JOIN host_effective_maintenance hem ON hem.host_id = h.id
 		  LEFT JOIN host_backoff_state b
 		    ON b.host_id = h.id AND b.probe_type = 'scan'
 		  LEFT JOIN host_liveness hl
 		    ON hl.host_id = h.id
 		 WHERE h.deleted_at IS NULL
-		   AND h.maintenance_mode = false
+		   AND NOT hem.in_maintenance
 		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)
 		   AND (hl.next_probe_at IS NULL OR hl.next_probe_at <= $1)
 		 ORDER BY h.check_priority DESC, hl.next_probe_at ASC NULLS FIRST`

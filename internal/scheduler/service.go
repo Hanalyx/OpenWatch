@@ -79,9 +79,10 @@ const dispatchBatchSize = 100
 //
 // Steps:
 //  1. BEGIN transaction
-//  2. SELECT host_compliance_schedule ... FOR UPDATE SKIP LOCKED LIMIT N
-//     (filtered to rows where next_scheduled_scan <= now() and
-//     maintenance_mode = false)
+//  2. SELECT host_compliance_schedule ... FOR UPDATE OF s SKIP LOCKED LIMIT N
+//     (filtered to rows where next_scheduled_scan <= now() and the host is
+//     not in effective maintenance — per-host or per-group, via the
+//     host_effective_maintenance view)
 //  3. For each claimed row: build JobPayload, HMAC-sign, queue.Enqueue
 //     under job_type "scan", UPDATE next_scheduled_scan forward, emit
 //     scheduler.schedule.updated.
@@ -94,8 +95,9 @@ const dispatchBatchSize = 100
 //
 //   - AC-04 (C-03): FOR UPDATE SKIP LOCKED. Two concurrent Dispatch
 //     calls (from two workers or two ticks) claim disjoint rows.
-//   - AC-05 (C-05): maintenance_mode = true rows are excluded from the
-//     SELECT and so never dispatched.
+//   - AC-05 (C-05): hosts in effective maintenance (per-host or per-group,
+//     via host_effective_maintenance) are excluded from the SELECT and so
+//     never dispatched.
 //   - AC-06 (C-06, C-12): each job payload carries host_id,
 //     policy_version, enqueued_at; all HMAC-signed.
 //   - AC-13 (C-09): every UPDATE to host_compliance_schedule emits
@@ -118,13 +120,20 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// Maintenance is resolved via the host_effective_maintenance view
+	// (migration 0049), which unifies per-host (hosts.maintenance_mode)
+	// and per-group (groups.maintenance) scopes. Historically this filtered
+	// host_compliance_schedule.maintenance_mode — a column the API never
+	// wrote, so a host toggled into maintenance kept getting scanned. Lock
+	// only the schedule rows (FOR UPDATE OF s); the view is read-only.
 	const selectStmt = `
-		SELECT host_id, compliance_state, next_scheduled_scan
-		  FROM host_compliance_schedule
-		 WHERE next_scheduled_scan <= $1
-		   AND maintenance_mode = false
-		 ORDER BY next_scheduled_scan
-		 FOR UPDATE SKIP LOCKED
+		SELECT s.host_id, s.compliance_state, s.next_scheduled_scan
+		  FROM host_compliance_schedule s
+		  JOIN host_effective_maintenance hem ON hem.host_id = s.host_id
+		 WHERE s.next_scheduled_scan <= $1
+		   AND NOT hem.in_maintenance
+		 ORDER BY s.next_scheduled_scan
+		 FOR UPDATE OF s SKIP LOCKED
 		 LIMIT $2`
 
 	rows, err := tx.Query(ctx, selectStmt, now, limit)

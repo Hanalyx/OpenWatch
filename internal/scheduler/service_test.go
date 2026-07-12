@@ -36,6 +36,7 @@ func freshPool(t *testing.T) *pgxpool.Pool {
 		"TRUNCATE TABLE host_backoff_state CASCADE",
 		"TRUNCATE TABLE host_compliance_schedule CASCADE",
 		"TRUNCATE TABLE job_queue CASCADE",
+		"TRUNCATE TABLE groups CASCADE",
 		"TRUNCATE TABLE hosts CASCADE",
 		"TRUNCATE TABLE users CASCADE",
 		"TRUNCATE TABLE audit_events CASCADE",
@@ -109,8 +110,36 @@ type scheduleSeed struct {
 	maintenance bool
 }
 
-func withNext(t time.Time) func(*scheduleSeed)   { return func(c *scheduleSeed) { c.next = t } }
-func withMaintenance(b bool) func(*scheduleSeed) { return func(c *scheduleSeed) { c.maintenance = b } }
+func withNext(t time.Time) func(*scheduleSeed) { return func(c *scheduleSeed) { c.next = t } }
+
+// setHostMaintenance flips hosts.maintenance_mode — the per-host flag the
+// host-detail toggle writes and the dispatcher (via host_effective_maintenance)
+// now honors.
+func setHostMaintenance(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, on bool) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`UPDATE hosts SET maintenance_mode = $2 WHERE id = $1`, hostID, on)
+	if err != nil {
+		t.Fatalf("set host maintenance: %v", err)
+	}
+}
+
+// seedManualMaintenanceGroup creates a manual group with maintenance=true and
+// adds hostID as a member — the per-group maintenance path.
+func seedManualMaintenanceGroup(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) {
+	t.Helper()
+	gid, _ := uuid.NewV7()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO groups (id, name, kind, membership, maintenance)
+		 VALUES ($1, $2, 'site', 'manual', true)`, gid, "maint-"+gid.String())
+	if err != nil {
+		t.Fatalf("seed maintenance group: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO group_members (group_id, host_id) VALUES ($1, $2)`, gid, hostID); err != nil {
+		t.Fatalf("seed group member: %v", err)
+	}
+}
 
 // newTestService builds a Service ready for Dispatch with a deterministic
 // clock pinned to a passed-in time. Uses an in-memory audit recorder so
@@ -256,19 +285,26 @@ func TestDispatch_FuturesNotClaimed(t *testing.T) {
 }
 
 // @ac AC-05
-// AC-05: rows with maintenance_mode = true are skipped by Dispatch even
-// when their next_scheduled_scan is in the past.
+// AC-05: a host in effective maintenance is skipped by Dispatch even when
+// due — whether the maintenance is per-host (hosts.maintenance_mode, set by
+// the host-detail toggle) or per-group (a maintenance group it belongs to).
+// Enforcement resolves through the host_effective_maintenance view; the
+// skipped host's schedule row is left unadvanced so it resumes on the next
+// tick after maintenance clears.
 func TestDispatch_MaintenanceMode_RowSkipped(t *testing.T) {
 	t.Run("system-scheduler/AC-05", func(t *testing.T) {
 		pool := freshPool(t)
 		user := seedUser(t, pool)
-		hMaint := seedHost(t, pool, user)
-		hNormal := seedHost(t, pool, user)
+		hPerHost := seedHost(t, pool, user)  // per-host maintenance
+		hPerGroup := seedHost(t, pool, user) // per-group maintenance
+		hNormal := seedHost(t, pool, user)   // not in maintenance
 
-		// hMaint is due-now AND in maintenance — should be skipped.
-		seedSchedule(t, pool, hMaint, withMaintenance(true))
-		// hNormal is due-now and not in maintenance — should be dispatched.
+		// All three due-now; two are placed in maintenance by different scopes.
+		seedSchedule(t, pool, hPerHost)
+		seedSchedule(t, pool, hPerGroup)
 		seedSchedule(t, pool, hNormal)
+		setHostMaintenance(t, pool, hPerHost, true)
+		seedManualMaintenanceGroup(t, pool, hPerGroup)
 
 		var calls []emitCall
 		svc := newTestService(t, pool, time.Now(), &calls)
@@ -282,23 +318,22 @@ func TestDispatch_MaintenanceMode_RowSkipped(t *testing.T) {
 			t.Errorf("dispatched = %d, want 1 (only hNormal should be claimed)", dispatched)
 		}
 
-		// Verify hMaint's row was not mutated.
+		// Neither maintenance host's schedule was advanced (still in the past).
 		ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		var maintNext time.Time
-		var maintMaint bool
-		err = pool.QueryRow(ctx2,
-			`SELECT next_scheduled_scan, maintenance_mode
-			   FROM host_compliance_schedule WHERE host_id = $1`,
-			hMaint).Scan(&maintNext, &maintMaint)
-		if err != nil {
-			t.Fatalf("read hMaint: %v", err)
-		}
-		if !maintMaint {
-			t.Error("hMaint.maintenance_mode = false; the dispatcher mutated a maintenance row")
-		}
-		if !maintNext.Before(time.Now()) {
-			t.Errorf("hMaint.next_scheduled_scan = %v; should be unchanged (in the past from seed)", maintNext)
+		for _, tc := range []struct {
+			name   string
+			hostID uuid.UUID
+		}{{"per-host", hPerHost}, {"per-group", hPerGroup}} {
+			var next time.Time
+			if err := pool.QueryRow(ctx2,
+				`SELECT next_scheduled_scan FROM host_compliance_schedule WHERE host_id = $1`,
+				tc.hostID).Scan(&next); err != nil {
+				t.Fatalf("read %s schedule: %v", tc.name, err)
+			}
+			if !next.Before(time.Now()) {
+				t.Errorf("%s host next_scheduled_scan = %v; should be unchanged (dispatcher must skip it)", tc.name, next)
+			}
 		}
 	})
 }
