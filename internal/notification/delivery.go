@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/smtp"
+	"net/url"
 	"strconv"
 	"strings"
 	"syscall"
@@ -203,6 +205,18 @@ func buildEmailMessage(from string, to []string, subject, body string) []byte {
 	return b.Bytes()
 }
 
+// scrubHTTPErr returns a delivery error safe to surface to the operator:
+// it unwraps the *url.Error that http.Client.Do returns so the embedded
+// request URL (the secret webhook/slack endpoint) is dropped, leaving just
+// the underlying cause (e.g. "dial tcp: connection refused").
+func scrubHTTPErr(err error) string {
+	var ue *url.Error
+	if errors.As(err, &ue) && ue.Err != nil {
+		return ue.Err.Error()
+	}
+	return err.Error()
+}
+
 // deliverHTTP POSTs the rendered alert to a single channel. A non-2xx
 // response is an error. The body is drained + closed so the connection
 // can be reused.
@@ -221,7 +235,11 @@ func deliverHTTP(ctx context.Context, client *http.Client, ch Channel, a alertro
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("notification: deliver to %q: %w", ch.Name, err)
+		// Scrub the URL: http.Client.Do wraps the failure in a *url.Error
+		// that embeds the full request URL — which for a slack/webhook channel
+		// IS the secret. Surface only the underlying cause so the operator can
+		// see the error (via the test endpoint) without leaking the target.
+		return fmt.Errorf("notification: deliver to %q: %s", ch.Name, scrubHTTPErr(err))
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))

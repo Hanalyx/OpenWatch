@@ -5,7 +5,9 @@
 package notification
 
 import (
+	"errors"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -100,6 +102,32 @@ func TestMatchesTags(t *testing.T) {
 		}
 		if matchesTags(map[string]string{"alert_type": "scan"}, critical) {
 			t.Error("mismatched exact-match key should not match")
+		}
+	})
+}
+
+// @ac AC-22
+// AC-22: scrubHTTPErr strips the secret webhook/slack URL that
+// http.Client.Do embeds in a *url.Error, so a failed test delivery can be
+// surfaced to the operator without leaking the channel's secret target.
+func TestScrubHTTPErr(t *testing.T) {
+	t.Run("system-notifications/AC-22", func(t *testing.T) {
+		secret := "https://hooks.slack.com/services/T00/B00/SECRETTOKEN"
+		ue := &url.Error{
+			Op:  "Post",
+			URL: secret,
+			Err: errors.New("dial tcp 1.2.3.4:443: connect: connection refused"),
+		}
+		got := scrubHTTPErr(ue)
+		if strings.Contains(got, "SECRETTOKEN") || strings.Contains(got, secret) {
+			t.Errorf("scrubHTTPErr leaked the secret URL: %q", got)
+		}
+		if !strings.Contains(got, "connection refused") {
+			t.Errorf("scrubHTTPErr dropped the useful cause: %q", got)
+		}
+		// A non-url error passes through unchanged.
+		if scrubHTTPErr(errors.New("plain")) != "plain" {
+			t.Error("non-url error should pass through unchanged")
 		}
 	})
 }

@@ -3,7 +3,9 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/notification"
@@ -164,10 +166,16 @@ func (h *handlers) TestNotificationChannel(w http.ResponseWriter, r *http.Reques
 				"channel not found", false)
 			return
 		}
-		// Delivery failed (unreachable, non-2xx, blocked host). Client-fault
-		// 400 so the operator fixes the channel config, not a server bug.
+		// Delivery failed (unreachable relay, auth rejected, STARTTLS not
+		// offered, non-2xx webhook, blocked host). Client-fault 400 so the
+		// operator fixes the channel config. Surface the reason (the delivery
+		// layer already scrubs the secret webhook URL from HTTP errors) and log
+		// it server-side — previously it was swallowed, leaving no way to
+		// diagnose why a test failed.
+		slog.WarnContext(r.Context(), "notification test delivery failed",
+			"channel_id", uuid.UUID(id).String(), "error", err.Error())
 		writeError(w, http.StatusBadRequest, "notifications.delivery_failed", "client",
-			"test delivery failed", false)
+			"test delivery failed: "+testErrDetail(err), false)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -214,6 +222,19 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 		}
 	}
 	return out
+}
+
+// testErrDetail bounds a delivery error for the human-facing test response.
+// The delivery layer already scrubs the secret webhook URL from HTTP errors,
+// so what remains (SMTP/dial/auth causes) is safe to show the operator; this
+// only trims the internal wrapper prefix and caps the length.
+func testErrDetail(err error) string {
+	s := strings.TrimPrefix(err.Error(), "notification: ")
+	const max = 300
+	if len(s) > max {
+		s = s[:max] + "..."
+	}
+	return s
 }
 
 func derefTagFilter(m *map[string]string) map[string]string {
