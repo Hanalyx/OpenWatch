@@ -1,17 +1,19 @@
 # Linux distribution support matrix
 
 > **Scope.** OpenWatch targets Linux, but **not every Linux distribution is
-> supported to the same degree**. As of Kensa v0.7.0, compliance *scanning* is
+> supported to the same degree**. As of Kensa v0.7.6, compliance *scanning* is
 > supported on the **RHEL family and on Ubuntu**, because those are the
 > platforms the bundled Kensa rule corpus covers. This page states, with
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
-**Last verified:** 2026-06-29 against Kensa rule corpus **v0.7.0** (630 rules).
-Per-OS counts below are read from each rule's `platforms:` declarations in the
-corpus, not from a live scan.
+**Last verified:** 2026-06-29 against Kensa rule corpus **v0.7.0** (630 rules);
+the currently bundled corpus is **Kensa v0.7.6 (748 rules)**. Per-OS counts
+below are read from each rule's `platforms:` declarations in the v0.7.0
+corpus, not from a live scan, and may lag the current 748-rule total—they have
+not been recomputed against v0.7.6.
 
 ---
 
@@ -19,7 +21,7 @@ corpus, not from a live scan.
 
 - **Compliance scanning works on RHEL 8 / 9 / 10** and its binary-compatible
   rebuilds (Rocky, AlmaLinux, CentOS Stream, Oracle Linux), **and on Ubuntu
-  22.04 / 24.04 LTS.** Kensa v0.7.0 ships 630 rules across these platforms.
+  22.04 / 24.04 LTS.** Kensa v0.7.6 ships 748 rules across these platforms.
 - **Each rule declares the platforms it applies to**, so a host is only
   evaluated against rules that match its detected OS. Ubuntu hosts are scanned
   against the Ubuntu rule set; RHEL hosts against the RHEL rule set.
@@ -64,7 +66,9 @@ sensitivity:
 ### Per-OS rule applicability
 
 Rule applicability is read from the v0.7.0 corpus (each rule's `platforms:`
-block). These are the approximate counts of rules that apply per OS:
+block). These are the approximate counts of rules that apply per OS. **Note:**
+these per-OS counts are as of Kensa v0.7.0 and may lag the currently bundled
+Kensa v0.7.6 (748-rule) corpus; they have not been recomputed since:
 
 | OS | Rules applicable (approx.) |
 |----|----------------------------|
@@ -74,8 +78,8 @@ block). These are the approximate counts of rules that apply per OS:
 | Ubuntu 22.04 | ~115 |
 | Ubuntu 24.04 | ~117 |
 
-A rule can apply to several platforms, so these counts overlap; the corpus total
-is 630 distinct rules.
+A rule can apply to several platforms, so these counts overlap; the v0.7.0
+corpus total was 630 distinct rules.
 
 ### Support matrix
 
@@ -104,7 +108,7 @@ unverified support; **Not supported** means no coverage for that phase.
 
 ## 3. Why a Fedora or Debian host scans nothing
 
-This is the behaviour you will see and it is **working as designed**, not a
+This is the behaviour you see and it is **working as designed**, not a
 crash:
 
 1. **Discovery succeeds.** OpenWatch reads `/etc/os-release` and stores the
@@ -120,9 +124,9 @@ crash:
    cycle).
 3. **The compliance scan skips everything.** Kensa SSHes to the host, reads
    `/etc/os-release`, and filters its corpus to rules whose `platforms` match
-   the detected distro. The v0.7.0 corpus carries rules for the RHEL family and
-   Ubuntu only, so a Fedora, Debian, or SUSE host matches none and **all rules
-   are skipped**.
+   the detected distro. The Kensa rule corpus carries rules for the RHEL family
+   and Ubuntu only, so a Fedora, Debian, or SUSE host matches none and **all
+   rules are skipped**.
 
 Skipping is the correct outcome: applying rules written for one distro to
 another would evaluate the wrong files, services, and defaults and report
@@ -183,7 +187,9 @@ a compliance score.
   partial-success semantics.
 - Kensa filters its corpus by the host's detected platform at scan time.
 - Rule corpus applicability (read from the corpus platform declarations):
-  Kensa v0.7.0, **630 rules** spanning RHEL 8/9/10 and Ubuntu 22.04/24.04.
-  Approximate per-OS applicability: rhel8 ~460, rhel9 ~466, rhel10 ~310,
+  Kensa v0.7.0, **630 rules** spanning RHEL 8/9/10 and Ubuntu 22.04/24.04. The
+  currently bundled corpus is Kensa v0.7.6 (748 rules); the per-OS breakdown
+  below has not been recomputed since v0.7.0 and may lag. Approximate per-OS
+  applicability (as of v0.7.0): rhel8 ~460, rhel9 ~466, rhel10 ~310,
   ubuntu22 ~115, ubuntu24 ~117.
 - Framework mappings: CIS RHEL 9 v2.0.0, STIG RHEL 9 V2R7, plus CIS/STIG Ubuntu.

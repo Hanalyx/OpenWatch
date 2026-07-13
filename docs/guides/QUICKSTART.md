@@ -1,6 +1,6 @@
 # Quickstart guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
@@ -51,7 +51,7 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
 ```
 

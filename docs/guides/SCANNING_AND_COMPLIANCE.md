@@ -1,6 +1,6 @@
 # Scanning and compliance
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
@@ -15,7 +15,7 @@ target host over SSH, execute each rule's check command, and return a pass/fail
 result with machine-verifiable evidence.
 
 ```
-Operator clicks "Run Scan" (or adaptive scheduler triggers)
+Operator selects "Run Scan" (or adaptive scheduler triggers)
         |
         v
 Scan job enqueued on the PostgreSQL job queue (SKIP LOCKED)
@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-630 YAML rules evaluated (check commands, config values, file permissions)
+748 rules evaluated (Kensa v0.7.6; check commands, config values, file permissions)
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
@@ -79,7 +79,7 @@ there is no separate sync service in the Go rebuild.
 ### From the UI
 
 1. Navigate to **Hosts** and select the host you want to scan.
-2. On the host detail page, click **Run Scan**.
+2. On the host detail page, select **Run Scan**.
 
 A scan always runs the **full applicable rule corpus**—you do not pick a
 framework to scan. Frameworks (CIS, STIG, NIST, PCI) are **reporting lenses**
@@ -87,8 +87,6 @@ applied at view time on the Compliance tab: one scan, viewed through any
 framework. The lens bar only offers frameworks compatible with the host's
 detected OS (a RHEL 8 host does not show CIS/STIG RHEL 9 or 10 lenses);
 OS-neutral frameworks (NIST, PCI, SRG) always appear.
-
-![Running a scan from the host detail page](../images/scanning/run-scan.png)
 
 The scan runs in the background. A progress indicator shows the scan status.
 Results appear on the host's compliance tab once the scan completes
@@ -107,8 +105,6 @@ to trigger scans manually unless you want immediate results. See the
 After a scan completes, the results are displayed on the host detail page under
 the **Compliance** tab.
 
-![Scan results page with findings table](../images/scanning/scan-results.png)
-
 ### What you see
 
 - **Compliance score**—percentage of rules passing (for example, 85.0%)
@@ -118,7 +114,7 @@ the **Compliance** tab.
 
 ### Finding details
 
-Click any finding row to expand it. Each finding shows:
+Select any finding row to expand it. Each finding shows:
 
 | Field | Description |
 |-------|-------------|
@@ -161,8 +157,6 @@ Navigate to the **Dashboard** from the sidebar. The posture overview shows:
 - **Trend chart** showing score changes over time
 - **Framework breakdown** with per-framework compliance percentages
 
-![Compliance posture dashboard](../images/scanning/posture-dashboard.png)
-
 ### Historical posture
 
 OpenWatch captures daily posture snapshots at 00:30 UTC. To view historical
@@ -171,8 +165,6 @@ posture:
 1. Navigate to the host detail page.
 2. Select the **Posture History** tab.
 3. Choose a date range to view the compliance trend.
-
-Historical posture queries with specific `as_of` dates require OpenWatch+.
 
 ---
 
@@ -187,8 +179,6 @@ and now passes is an **improvement**.
 1. Navigate to the host detail page.
 2. Select the **Drift** tab.
 3. Choose a date range (start date and end date).
-
-![Drift detection showing regressions and improvements](../images/scanning/drift-view.png)
 
 The drift view shows:
 
@@ -251,15 +241,15 @@ On the host detail page, the **Scheduling** section shows:
 To pause scanning for a host (during planned maintenance):
 
 1. Go to the host detail page.
-2. Click **Maintenance Mode**.
+2. Select **Maintenance Mode**.
 3. Set the duration (1–168 hours).
-4. Click **Enable**.
+4. Select **Enable**.
 
 Maintenance mode expires automatically. You can disable it early from the same page.
 
 ### Force scan
 
-To trigger an immediate scan outside the normal schedule, click **Force Scan**
+To trigger an immediate scan outside the normal schedule, select **Force Scan**
 on the host detail page. This bypasses the schedule and runs at highest priority.
 
 ---
@@ -299,7 +289,7 @@ The requester **cannot** approve their own request.
 ### Requesting an exception
 
 1. On the host's **Compliance** tab, find a failing rule.
-2. Click **Request exception** in its row.
+2. Select **Request exception** in its row.
 3. Enter the reason (required) and an optional expiry date.
 4. Submit. The rule now shows a **Pending** badge.
 
@@ -333,8 +323,6 @@ Alerts are generated automatically when scan results meet configured thresholds.
 Navigate to **Alerts** in the sidebar. The alert list shows all active,
 acknowledged, and recently resolved alerts.
 
-![Alert management page](../images/scanning/alerts.png)
-
 Use filters to narrow by:
 
 - **Status**—active, acknowledged, resolved
@@ -348,8 +336,8 @@ Active --> Acknowledged --> Resolved
 ```
 
 - **Active**: Alert generated, requires attention.
-- **Acknowledged**: Click **Acknowledge** to indicate you are investigating.
-- **Resolved**: Click **Resolve** after the issue is fixed or accepted.
+- **Acknowledged**: Select **Acknowledge** to indicate you are investigating.
+- **Resolved**: Select **Resolve** after the issue is fixed or accepted.
 
 ### Configuring thresholds
 
@@ -374,23 +362,21 @@ evidence.
 ### Creating a saved query
 
 1. Navigate to **Compliance > Audit Queries**.
-2. Click **New Query**.
+2. Select **New Query**.
 3. Define filter criteria (severities, statuses, date range, hosts).
 4. Name the query and set visibility (private or shared).
-5. Click **Save**.
+5. Select **Save**.
 
 ### Previewing results
 
-Before generating a full export, click **Preview** to see a sample of matching
+Before generating a full export, select **Preview** to see a sample of matching
 findings and the total count.
 
 ### Generating an export
 
-1. From a saved query, click **Export**.
-2. Choose a format: **CSV**, **JSON**, or **PDF**.
+1. From a saved query, select **Export**.
+2. Choose a format: **CSV** or **JSON**.
 3. The export generates in the background. A download link appears when ready.
-
-![Audit export download](../images/scanning/audit-export.png)
 
 Exports include a SHA-256 checksum for integrity verification. Exports expire
 after 7 days by default.

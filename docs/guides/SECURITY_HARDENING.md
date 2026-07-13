@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary build)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary build)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch
@@ -28,12 +28,9 @@ PostgreSQL-native job queue with `SELECT ... FOR UPDATE SKIP LOCKED`.
 | PostgreSQL | All persistent state | You provision and bind it (loopback by default) |
 | Kensa (in-process, Go) | SSH-based compliance engine | TCP/22 outbound to managed hosts |
 
-
-
 The compliance engine is Kensa, which connects to managed hosts over SSH and
-runs native YAML checks.
-See
-the Kensa scanning engine.
+runs native YAML checks. See [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)
+for how scanning works end to end.
 
 ---
 
@@ -247,9 +244,10 @@ Hardening steps:
   sudo journalctl -u openwatch -o cat | jq .   # pretty-print the JSON
   ```
 
-> The audit-event taxonomy is the authoritative list. Treat the table above as a
-> sample, not a complete enumeration—see
-> the audit-event reference for the full set.
+> Treat the table above as a sample, not a complete enumeration. The running
+> service emits a structured audit event for every meaningful state change;
+> query `GET /api/v1/audit/events` to see the full set your deployment has
+> generated.
 
 ---
 
@@ -512,9 +510,9 @@ Source for every checklist item is cited in the section above that introduces it
   [Installation guide](INSTALLATION.md)
 - RBAC registry and permission model:
   [User roles](USER_ROLES.md)
-- Audit event taxonomy:
-  the audit-event reference
-- Kensa and OpenWatch boundary:
-  the Kensa scanning engine
+- Audit events and querying the audit trail:
+  [API guide](API_GUIDE.md)
+- How Kensa scanning works:
+  [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)
 - API contract (per-operation required permission, license gate, audit events):
   served at `/api/v1`; `GET /api/v1/version` reports the running build

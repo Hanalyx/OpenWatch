@@ -1,6 +1,6 @@
 # Production deployment guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers running OpenWatch in production: a single Go binary that serves
 the REST API and the embedded React UI over HTTPS, backed by PostgreSQL, managed
@@ -14,7 +14,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current general-availability release is
-> `v0.2.0`. Confirm with `openwatch --version` before and after an upgrade.
+> `v0.3.0`. Confirm with `openwatch --version` before and after an upgrade.
 
 ---
 
@@ -95,7 +95,7 @@ Config layers, highest precedence first:
 3. The TOML file (`/etc/openwatch/openwatch.toml`)
 4. Built-in defaults
 
-The TOML file has four sections:
+The TOML file has five sections:
 
 | Section | Key | Default | Purpose |
 |---------|-----|---------|---------|
@@ -106,6 +106,7 @@ The TOML file has four sections:
 | `[database]` | `max_connections` | `25` | Connection-pool ceiling |
 | `[logging]` | `level` | `info` | `debug` / `info` / `warn` / `error` |
 | `[logging]` | `format` | `json` | `json` / `text` |
+| `[reports]` | `signing_key_file` | unset (ephemeral per-boot key, dev only) | Ed25519 seed that signs report snapshots; production should set a durable key |
 
 Two more values come from `[identity]` and must be set for `serve`/`worker` to
 boot—the JWT signing key (`jwt_private_key`) and the credential DEK file
@@ -174,7 +175,7 @@ OpenWatch exposes two anonymous endpoints for probes:
 ```bash
 curl -k https://localhost:8443/api/v1/health
 # 200 {"status":"healthy","db_connected":true,"version":"..."}
-# 503 when the database ping fails (status "degraded"/unavailable)
+# 503 when the database ping fails (status "degraded")
 
 curl -k https://localhost:8443/api/v1/version
 # {"openwatch":"...","kensa":"...","go":"...","commit":"...","build_time":"..."}

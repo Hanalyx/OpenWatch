@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -27,7 +27,6 @@ compliance findings. Most of these tasks are performed in the web UI.
 
 4. Click **Save**.
 
-![Add Host dialog](../images/hosts/add-host.png)
 
 The host appears in the host list immediately after creation.
 
@@ -42,7 +41,6 @@ For adding many hosts at once:
 5. Review the auto-detected field mappings.
 6. Confirm the import.
 
-![Bulk import CSV mapping review](../images/hosts/bulk-import.png)
 
 Set **Dry Run** to validate the file without creating hosts. Set **Update
 Existing** to overwrite hosts that match by hostname or IP address.
@@ -69,7 +67,6 @@ installed on target hosts.
 4. Enter the SSH username.
 5. Click **Save**.
 
-![Credential configuration form](../images/hosts/credentials.png)
 
 ### Testing connectivity
 
@@ -111,7 +108,6 @@ compliance reporting and batch scanning.
 3. Enter a name, description, OS family, and compliance framework.
 4. Click **Save**.
 
-![Create host group dialog](../images/hosts/create-group.png)
 
 ### Assigning hosts
 
@@ -161,7 +157,6 @@ unreachable) updates in the host list.
 During compliance scans, OpenWatch collects detailed information about each host.
 This data is available on the host detail page under the **Intelligence** tab.
 
-![Server intelligence overview](../images/hosts/server-intelligence.png)
 
 ### Data collected
 
@@ -215,12 +210,10 @@ on target hosts.
 2. Select the failing findings you want to remediate (use checkboxes).
 3. Click **Remediate Selected**.
 
-![Selecting findings for remediation](../images/hosts/select-remediation.png)
 
-4. Review the proposed changes. Each finding shows what will be modified.
+4. Review the proposed changes. Each finding shows what changes.
 5. Click **Start Remediation** to confirm.
 
-![Remediation confirmation dialog](../images/hosts/confirm-remediation.png)
 
 For organizations that require an approval step:
 
@@ -242,7 +235,6 @@ workspaces cannot self-approve a bulk/automated remediation request today.
 After starting a remediation, track its progress on the host detail page
 under the **Remediation** tab.
 
-![Remediation progress view](../images/hosts/remediation-progress.png)
 
 The progress view shows:
 
@@ -266,7 +258,6 @@ If a remediation causes problems, you can roll back to the pre-change state.
 4. Enter a reason for the rollback (logged for audit purposes).
 5. Click **Confirm Rollback**.
 
-![Rollback confirmation](../images/hosts/rollback.png)
 
 Rollback requires the `remediation:rollback` permission (`ops_lead`,
 `security_admin`, or `admin`).
@@ -308,8 +299,8 @@ role-to-permission mapping is served by the roles API, `GET /api/v1/roles`; see
    applying to a group.
 4. **Review findings before remediating.** Understand what each rule checks
    and what the fix changes.
-5. **Monitor compliance score after remediation.** The adaptive scheduler will
-   automatically scan again, but you can force a scan for immediate results.
+5. **Monitor compliance score after remediation.** The adaptive scheduler
+   automatically scans again, but you can force a scan for immediate results.
 6. **Use groups for consistent scanning.** Hosts in the same group share OS
    family, framework, and scan schedule settings.
 

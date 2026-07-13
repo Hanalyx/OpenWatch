@@ -1,6 +1,6 @@
 # Compliance control mapping
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
@@ -43,7 +43,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (630 native YAML rules); scan results |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (748 rules, Kensa v0.7.6); scan results |
 | CM-3 | Configuration Change Control | Database migration tracking, version control | Migration version reported by `openwatch migrate` |
 | CM-6 | Configuration Settings | Configuration validation at startup | Output of `openwatch check-config` |
 | CM-8 | System Component Inventory | Host management with discovery and metadata | Host list and collected system info from the API |
@@ -91,7 +91,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Kensa compliance scanning (630-rule corpus) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (748 rules, Kensa v0.7.6) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
 | 5.2 | Unique Passwords | Argon2id hashing, 8-char minimum (15 for admin), breached-password screening |
 | 5.4 | MFA | TOTP-based MFA with backup codes |
@@ -99,7 +99,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 6.3 | Centralized Log Collection | JSON logging, configurable log aggregation |
 | 8.2 | Audit Logging | All authentication and authorization events logged |
 | 8.5 | Access Control Logs | JWT validation events, RBAC enforcement logged |
-| 8.11 | Audit Log Retention | Configurable retention, export to CSV/JSON/PDF |
+| 8.11 | Audit Log Retention | Configurable retention, export to CSV/JSON |
 | 9.1 | Email Security | SMTP TLS for notifications |
 | 10.1 | Anti-Malware | File upload validation, no executable uploads |
 | 13.1 | Network Monitoring | Health check endpoints, audit-event queries (no Prometheus endpoint) |
@@ -155,7 +155,7 @@ cookie obtained from `/api/v1/auth/login`, or with a Bearer token.
 
 ```bash
 # Query audit events for a date range
-curl "https://localhost:8443/api/v1/audit/events?date_from=2026-01-01&date_to=2026-02-17" \
+curl "https://localhost:8443/api/v1/audit/events?since=2026-01-01T00:00:00Z&until=2026-02-17T23:59:59Z" \
   -H "Authorization: Bearer $TOKEN" > audit_evidence.json
 
 # Export fleet compliance score

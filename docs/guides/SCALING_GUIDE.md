@@ -1,6 +1,6 @@
 # Scaling guide
 
-**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-22 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers how OpenWatch behaves as you add hosts, run more scans, and
 push more concurrent API traffic, and what you can tune today. It describes the
@@ -237,7 +237,7 @@ around features that are absent:
 
 | Topic | Document |
 |-------|----------|
-| Install and configuration | `docs/guides/INSTALLATION.md` |
+| Install and configuration | [Installation guide](INSTALLATION.md) |
 | Roles and permissions | [User roles](USER_ROLES.md) |
-| Kensa scanning boundary | the Kensa scanning engine |
+| How Kensa scanning works | [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) |
 | API contract | Served by the running binary under `/api/v1` |

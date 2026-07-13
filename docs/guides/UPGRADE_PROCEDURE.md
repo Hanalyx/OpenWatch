@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
@@ -19,7 +19,7 @@ For first-time install and configuration, see the
 commands referenced below, see the [backup and recovery guide](BACKUP_RECOVERY.md). For
 migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md).
 
-> Version note: `0.2.0` is the current general-availability release. Always back
+> Version note: `v0.3.0` is the current general-availability release. Always back
 > up before upgrading; the upgrade path runs database migrations automatically.
 
 ## Quick upgrade (automatic, recommended)
@@ -272,9 +272,9 @@ Keep the pre-upgrade dump until you have validated the upgrade in production
 Kensa is the SSH-based compliance engine, integrated as a Go dependency; its native YAML rules are compiled into the `openwatch`
 binary. Rules therefore travel with
 the binary—installing a new OpenWatch package is what updates the bundled
-rule set. There is no separate rule-pull or out-of-band rule-sync step. For the
-Kensa/OpenWatch responsibility boundary, see
-the Kensa scanning engine.
+rule set. There is no separate rule-pull or out-of-band rule-sync step. See
+[Scanning and compliance](SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
+Kensa during a scan.
 
 ## Upgrading PostgreSQL
 

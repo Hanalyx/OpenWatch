@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
@@ -56,7 +56,8 @@ Cannot write, execute, export, approve, or administer anything.
 
 ### `auditor`
 
-Everything `viewer` has, plus the exception workflow authority an auditor needs:
+Most of what `viewer` has (one exception: `auditor` does not hold
+`role:read`), plus the exception workflow authority an auditor needs:
 `exception:request`, `exception:comment`, and `exception:approve`. Adds
 `audit:export` (license-gated by the `audit_export` feature) and `auth:write` so
 the auditor can manage their own password, MFA, and sessions.
@@ -214,8 +215,8 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 
 The command connects to PostgreSQL using `OPENWATCH_DATABASE_DSN` from
 `/etc/openwatch/secrets.env` and exits non-zero if the user is created but the
-role assignment fails, so you can detect a partial state. See
-`docs/guides/INSTALLATION.md` for the full install sequence
+role assignment fails, so you can detect a partial state. See the
+[installation guide](INSTALLATION.md) for the full install sequence
 (`openwatch migrate`, `create-admin`, `systemctl enable --now openwatch`).
 
 ## Managing users and roles through the API
@@ -258,11 +259,12 @@ was present.
 ## Custom roles
 
 The registry supports custom, DB-stored roles created at runtime via
-`POST /api/v1/roles:create` (requires `role:write`). A custom role may grant any
-registry permission and category wildcards such as `host:*`, but not the bare
-`*` wildcard, which is reserved for the built-in `admin` role. Every permission a
-custom role lists is validated against the registry; unknown permissions are
-rejected with `400`.
+`POST /api/v1/roles:create` (requires `role:write`). A custom role may grant
+any concrete `resource:action` permission from the registry (for example
+`host:read`, `scan:execute`), but not category wildcards such as `host:*` or
+the bare `*` wildcard—those exist only for the built-in roles. Every
+permission a custom role lists is validated against the registry; a wildcard
+or any permission not in the registry is rejected with `400`.
 
 For the live permission registry, including category wildcards and newly added
 permissions, query the permissions-registry API endpoint.

@@ -1,6 +1,6 @@
 # API guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 Most operators use the web UI for daily work—managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
@@ -12,7 +12,7 @@ React UI over HTTPS on port `8443`. All API paths live under `/api/v1`. The
 running binary serves its own OpenAPI document as the contract source of truth,
 and `GET /api/v1/version` reports the build it came from.
 
-This guide reflects OpenWatch `v0.2.0`, a pre-release. The compliance
+This guide reflects OpenWatch `v0.3.0`. The compliance
 surface (scan execution + results, remediation, exceptions, posture/drift, audit
 export, the rule browser) IS exposed over `/api/v1`. See [the compliance API surface
 (now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
@@ -26,8 +26,10 @@ When the OpenAPI document and this guide disagree, the OpenAPI document wins.
 ## Conventions
 
 - Base URL is `https://<host>:8443`. The server is HTTPS-only. In a default
-  install the certificate at `/etc/openwatch/tls/` is self-signed, so add
-  `--cacert` (or, for a throwaway lab box only, `-k`) to your `curl` calls.
+  install the certificate at `/etc/openwatch/tls/cert.pem` is self-signed, so
+  add `--cacert /etc/openwatch/tls/cert.pem` (or, for a throwaway lab box
+  only, `-k`) to your `curl` calls. In production, point `--cacert` at your
+  own CA bundle instead.
 - Resource identifiers are UUIDs.
 - Timestamps are ISO 8601 / RFC 3339 (for example `2026-06-10T14:30:00Z`).
 - Mutating endpoints that exist to be retried safely take a required
@@ -57,7 +59,7 @@ Everything else requires a valid identity.
 ### Log in
 
 ```bash
-TOKEN=$(curl -s --cacert /etc/openwatch/tls/ca.crt \
+TOKEN=$(curl -s --cacert /etc/openwatch/tls/cert.pem \
   -X POST https://localhost:8443/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"yourpassword"}' | jq -r '.access_token')
@@ -131,7 +133,7 @@ permissions-registry endpoint under `/api/v1/auth`.
 ### Create a host
 
 ```bash
-curl -s --cacert /etc/openwatch/tls/ca.crt \
+curl -s --cacert /etc/openwatch/tls/cert.pem \
   -X POST https://localhost:8443/api/v1/hosts \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -275,11 +277,11 @@ field in each page to paginate.
 These two endpoints are anonymous and are what monitoring should poll.
 
 ```bash
-curl -s --cacert /etc/openwatch/tls/ca.crt https://localhost:8443/api/v1/health | jq
+curl -s --cacert /etc/openwatch/tls/cert.pem https://localhost:8443/api/v1/health | jq
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0"}
+{"status": "healthy", "db_connected": true, "version": "0.3.0"}
 ```
 
 `status` is `healthy` or `degraded`; the endpoint returns `503` when the service
@@ -363,13 +365,15 @@ longer worker-internal only):
   per-scan history + per-rule evidence + OSCAL export under `/api/v1/scans` and
   `/api/v1/scans/{id}` (scan:read).
 - **Remediation**: request/approve/reject + execute/rollback under
-  `/api/v1/remediation/requests` (and `/api/v1/hosts/{id}/scans/{rule}:remediate`).
-- **Compliance exceptions**: `/api/v1/compliance/exceptions` (request/approve/
-  revoke/expire).
+  `/api/v1/remediation/requests` (sub-actions `:approve`, `:dry-run`,
+  `:execute`, `:reject`, `:rollback`).
+- **Compliance exceptions**: request via `/api/v1/hosts/{id}/exceptions`,
+  browse the fleet queue via `/api/v1/compliance/exceptions`, then mutate with
+  `/api/v1/exceptions/{xid}:approve`, `:reject`, or `:revoke`.
 - **Posture + drift**: per-host `/api/v1/hosts/{id}/compliance` and
   `/api/v1/hosts/{id}/compliance/trend`; fleet `/api/v1/fleet/score`.
-- **Audit export**: `POST /api/v1/audit/events:query` and
-  `/api/v1/audit/events/export` (CSV/JSON, signed bundle).
+- **Audit export**: `GET /api/v1/audit/events` (filterable via query
+  parameters) and `GET /api/v1/audit/events/export` (CSV/JSON, signed bundle).
 - **Rule browser**: `/api/v1/rules` (the Kensa rule-library read model).
 
 ## What is genuinely not in the API yet
@@ -378,14 +382,15 @@ longer worker-internal only):
   roadmap items (use `GET /api/v1/health` for liveness today). Do not script
   against them until they appear in the served OpenAPI document.
 
-For how OpenWatch invokes Kensa, see
-the Kensa scanning engine.
+Kensa is the SSH-based compliance scanning engine OpenWatch invokes to run
+scans; see [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) for how it
+integrates.
 
 ---
 
 ## What's next
 
 - [Install guide](INSTALLATION.md)—install, configure, and run the service.
-- RBAC registry—permission and role reference.
-- Kensa and OpenWatch boundary—how scanning works.
+- [User roles](USER_ROLES.md)—permission and role reference.
+- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)—how scanning works.
 - The served OpenAPI document—the authoritative, always-current API contract.

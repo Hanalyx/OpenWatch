@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
@@ -108,7 +108,7 @@ Install **both** files in one transaction. `openwatch` declares a hard
 dependency on `kensa-rules`—the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (for example `0.7.0`), independent of the
+and versioned on the Kensa content line (for example `0.7.6`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
