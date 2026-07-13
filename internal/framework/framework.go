@@ -15,10 +15,13 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -84,6 +87,27 @@ type Service struct{ pool *pgxpool.Pool }
 
 // NewService builds the resolver.
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+
+// EffectiveTarget returns the host's effective compliance-target family: its
+// host_effective_target value (the host override, else the oldest site-group
+// target — migration 0051), falling back to orgDefault when neither is set.
+// An empty result means All rules. This is the per-host default lens: a host's
+// score defaults to its target instead of the org default.
+func (s *Service) EffectiveTarget(ctx context.Context, hostID uuid.UUID, orgDefault string) (string, error) {
+	var target *string
+	err := s.pool.QueryRow(ctx,
+		`SELECT target_framework FROM host_effective_target WHERE host_id = $1`, hostID).Scan(&target)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return orgDefault, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if target != nil && *target != "" {
+		return *target, nil
+	}
+	return orgDefault, nil
+}
 
 // Families groups every framework key present in the corpus into families,
 // sorted by id. Empty when no host has been scanned yet.

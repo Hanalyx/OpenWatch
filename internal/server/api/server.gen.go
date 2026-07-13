@@ -2206,8 +2206,11 @@ type Group struct {
 	Name        string          `json:"name"`
 
 	// Subtype Free-form sub-classifier (may be empty)
-	Subtype   string    `json:"subtype"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Subtype string `json:"subtype"`
+
+	// TargetFramework Compliance target framework family a member host is held to (empty for none). Only a site group may carry one.
+	TargetFramework *string   `json:"target_framework,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // GroupKind defines model for Group.Kind.
@@ -2281,6 +2284,12 @@ type GroupSummary struct {
 	Ungrouped        int  `json:"ungrouped"`
 }
 
+// GroupTargetRequest defines model for GroupTargetRequest.
+type GroupTargetRequest struct {
+	// TargetFramework Compliance target family id, or empty to clear the target.
+	TargetFramework string `json:"target_framework"`
+}
+
 // GroupUpdate defines model for GroupUpdate.
 type GroupUpdate struct {
 	Color   *string `json:"color,omitempty"`
@@ -2304,8 +2313,11 @@ type GroupWithRollup struct {
 	Rollup      GroupRollup               `json:"rollup"`
 
 	// Subtype Free-form sub-classifier (may be empty)
-	Subtype   string    `json:"subtype"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Subtype string `json:"subtype"`
+
+	// TargetFramework Compliance target framework family a member host is held to (empty for none). Only a site group may carry one.
+	TargetFramework *string   `json:"target_framework,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // GroupWithRollupKind defines model for GroupWithRollup.Kind.
@@ -3937,6 +3949,9 @@ type PostGroupMemberJSONRequestBody = GroupMemberRequest
 // PostGroupMaintenanceJSONRequestBody defines body for PostGroupMaintenance for application/json ContentType.
 type PostGroupMaintenanceJSONRequestBody = GroupMaintenanceRequest
 
+// PostGroupTargetJSONRequestBody defines body for PostGroupTarget for application/json ContentType.
+type PostGroupTargetJSONRequestBody = GroupTargetRequest
+
 // PostHostsJSONRequestBody defines body for PostHosts for application/json ContentType.
 type PostHostsJSONRequestBody = HostCreateRequest
 
@@ -4200,6 +4215,9 @@ type ServerInterface interface {
 	// Toggle a group's maintenance flag
 	// (POST /api/v1/groups/{id}:maintenance)
 	PostGroupMaintenance(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Set or clear a site group's compliance target framework
+	// (POST /api/v1/groups/{id}:target)
+	PostGroupTarget(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Liveness + readiness probe (anonymous)
 	// (GET /api/v1/health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -4848,6 +4866,12 @@ func (_ Unimplemented) DeleteGroupMember(w http.ResponseWriter, r *http.Request,
 // Toggle a group's maintenance flag
 // (POST /api/v1/groups/{id}:maintenance)
 func (_ Unimplemented) PostGroupMaintenance(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set or clear a site group's compliance target framework
+// (POST /api/v1/groups/{id}:target)
+func (_ Unimplemented) PostGroupTarget(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -7342,6 +7366,32 @@ func (siw *ServerInterfaceWrapper) PostGroupMaintenance(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostGroupMaintenance(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostGroupTarget operation middleware
+func (siw *ServerInterfaceWrapper) PostGroupTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostGroupTarget(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10065,6 +10115,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/groups/{id}:maintenance", wrapper.PostGroupMaintenance)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/groups/{id}:target", wrapper.PostGroupTarget)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/health", wrapper.GetHealth)

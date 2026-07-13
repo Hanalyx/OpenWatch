@@ -21,6 +21,8 @@ var (
 	ErrSiteMustBeManual  = errors.New("group: a site must use manual membership")
 	ErrDuplicateFamily   = errors.New("group: an auto group already exists for that OS family")
 	ErrEmptyName         = errors.New("group: name is required")
+	ErrTargetOnlyOnSite  = errors.New("group: only a site group may carry a compliance target")
+	ErrInvalidTarget     = errors.New("group: target_framework is too long or has invalid characters")
 )
 
 // Service owns group CRUD, membership, and the per-group rollups.
@@ -34,16 +36,19 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 func scanGroup(row pgx.Row) (Group, error) {
 	var g Group
-	var matchFamily *string
+	var matchFamily, targetFramework *string
 	err := row.Scan(&g.ID, &g.Name, &g.Kind, &g.Subtype, &g.Color, &g.Membership,
-		&matchFamily, &g.Maintenance, &g.CreatedAt, &g.UpdatedAt)
+		&matchFamily, &g.Maintenance, &targetFramework, &g.CreatedAt, &g.UpdatedAt)
 	if matchFamily != nil {
 		g.MatchFamily = *matchFamily
+	}
+	if targetFramework != nil {
+		g.TargetFramework = *targetFramework
 	}
 	return g, err
 }
 
-const groupCols = `id, name, kind, subtype, color, membership, match_family, maintenance, created_at, updated_at`
+const groupCols = `id, name, kind, subtype, color, membership, match_family, maintenance, target_framework, created_at, updated_at`
 
 // Create validates and inserts a group.
 func (s *Service) Create(ctx context.Context, in CreateInput) (Group, error) {
@@ -130,6 +135,50 @@ func (s *Service) SetMaintenance(ctx context.Context, id uuid.UUID, on bool) (Gr
 		return Group{}, ErrNotFound
 	}
 	return g, err
+}
+
+// SetTarget sets (or clears, when family is "") the group's compliance target
+// framework. Only a site group may carry a target (D1): an os_category group
+// is an automatic OS grouping, not a statement of compliance intent, so a
+// target on one is rejected with ErrTargetOnlyOnSite.
+func (s *Service) SetTarget(ctx context.Context, id uuid.UUID, family string) (Group, error) {
+	if !validTargetFramework(family) {
+		return Group{}, ErrInvalidTarget
+	}
+	g, err := s.Get(ctx, id)
+	if err != nil {
+		return Group{}, err // ErrNotFound
+	}
+	if g.Kind != KindSite {
+		return Group{}, ErrTargetOnlyOnSite
+	}
+	var arg *string
+	if family != "" {
+		arg = &family
+	}
+	row := s.pool.QueryRow(ctx, `
+		UPDATE groups SET target_framework = $2, updated_at = now()
+		WHERE id = $1 RETURNING `+groupCols, id, arg)
+	g, err = scanGroup(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Group{}, ErrNotFound
+	}
+	return g, err
+}
+
+// validTargetFramework bounds a compliance-target family token: empty (clear)
+// or <=64 lowercase alnum plus _-. It is resolved leniently against the live
+// corpus at query time, so this only blocks garbage / length.
+func validTargetFramework(f string) bool {
+	if len(f) > 64 {
+		return false
+	}
+	for _, r := range f {
+		if !(r == '_' || r == '-' || r == '.' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 // Delete removes a group (group_members cascade).

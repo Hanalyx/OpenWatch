@@ -43,8 +43,12 @@ type Group struct {
 	Membership  Membership
 	MatchFamily string // "" for manual groups
 	Maintenance bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// TargetFramework is the compliance TARGET family a member host is held to
+	// (Phase 3). "" means no group target. Only a site group may carry one
+	// (D1); the service rejects a target on an os_category group.
+	TargetFramework string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // MemberChip is a compact member-host descriptor for the card preview.
