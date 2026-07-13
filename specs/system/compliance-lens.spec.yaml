@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -35,10 +35,10 @@ spec:
         - 'ComplianceConfig.DefaultFramework (systemconfig) + config endpoints'
         - 'Framework family resolution (FamilyOf) + corpus-derived family list'
         - 'Family-aware score filter in the fleet score + hosts-list queries'
+        - 'Enabled-frameworks allowlist (Phase 2): restrict which families are offered as lenses'
       excludes:
         - 'Per-host/per-group compliance TARGET assignment (Phase 3)'
         - 'Framework-scoped posture history / trend (Phase 3)'
-        - 'Enabled-frameworks allowlist (Phase 2)'
 
   constraints:
     - id: C-01
@@ -52,6 +52,10 @@ spec:
     - id: C-03
       description: The compliance config read is system:read; the write is system:config:write and emits a system.config.changed audit event. The frameworks list is host:read.
       type: security
+      enforcement: error
+    - id: C-04
+      description: ComplianceConfig.EnabledFrameworks is the Phase 2 allowlist of framework FAMILY ids offered as lenses, persisted in the same systemconfig row. Empty means every corpus family is available (the factory default and backward-compatible for existing rows). When non-empty and DefaultFramework is non-empty, DefaultFramework MUST be one of EnabledFrameworks (an admin cannot default the org to a hidden family). GET /compliance/frameworks narrows its result to the allowlist by default; all=true returns the full corpus list (for the allowlist editor). The allowlist is a DISPLAY filter, not a security boundary — it never changes what a scan runs.
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -71,3 +75,11 @@ spec:
       description: GET /api/v1/compliance/frameworks returns the corpus-derived families (id, label, keys) and is host:read. GET /api/v1/system/compliance/config returns the current default lens (system:read); PUT sets it (system:config:write), rejects an invalid value with 400, and echoes the stored value.
       priority: high
       references_constraints: [C-01, C-03]
+    - id: AC-05
+      description: ComplianceConfig.EnabledFrameworks defaults to empty (all families). Validate accepts an empty allowlist and a list of valid family tokens, rejects an over-long list (>32) or an entry with invalid characters, and rejects a non-empty DefaultFramework that is not one of a non-empty EnabledFrameworks. SetCompliance persists the allowlist and LoadCompliance round-trips it (empty on a fresh store).
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-06
+      description: GET /api/v1/compliance/frameworks narrows the returned families to EnabledFrameworks when the allowlist is non-empty, returns all corpus families when the allowlist is empty, and returns all corpus families (ignoring the allowlist) when all=true is passed.
+      priority: high
+      references_constraints: [C-04]

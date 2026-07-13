@@ -70,3 +70,45 @@ func TestCompliance_FrameworksAndDefaultLens(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-06
+// AC-06: GET /compliance/frameworks narrows to the enabled-frameworks
+// allowlist by default; all=true returns the full corpus list.
+func TestCompliance_FrameworksAllowlistFilter(t *testing.T) {
+	t.Run("system-compliance-lens/AC-06", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		host := seedHostForIntel(t, pool)
+		seedRuleStateForHostWithFrameworks(t, pool, host, "r.stig", "pass",
+			map[string]string{"stig_rhel9": "V-1"})
+		seedRuleStateForHostWithFrameworks(t, pool, host, "r.cis", "pass",
+			map[string]string{"cis_rhel9": "1.1"})
+
+		hasFam := func(raw, id string) bool {
+			return strings.Contains(raw, `"id":"`+id+`"`) || strings.Contains(raw, `"id": "`+id+`"`)
+		}
+
+		// No allowlist → both families present.
+		raw := readBody(t, doReq(t, asRole(t, "GET", url+"/api/v1/compliance/frameworks", auth.RoleViewer, nil)))
+		if !hasFam(raw, "stig") || !hasFam(raw, "cis") {
+			t.Fatalf("unfiltered frameworks missing a family: %s", raw)
+		}
+
+		// Restrict the allowlist to stig.
+		if pr := doReq(t, asRole(t, "PUT", url+"/api/v1/system/compliance/config", auth.RoleAdmin,
+			map[string]any{"default_framework": "", "enabled_frameworks": []string{"stig"}})); pr.StatusCode != http.StatusOK {
+			t.Fatalf("put allowlist = %d, want 200", pr.StatusCode)
+		}
+
+		// Default list → stig only (cis filtered out).
+		raw = readBody(t, doReq(t, asRole(t, "GET", url+"/api/v1/compliance/frameworks", auth.RoleViewer, nil)))
+		if !hasFam(raw, "stig") || hasFam(raw, "cis") {
+			t.Errorf("filtered frameworks = %s, want stig only", raw)
+		}
+
+		// all=true → full corpus list again.
+		raw = readBody(t, doReq(t, asRole(t, "GET", url+"/api/v1/compliance/frameworks?all=true", auth.RoleViewer, nil)))
+		if !hasFam(raw, "stig") || !hasFam(raw, "cis") {
+			t.Errorf("all=true frameworks = %s, want both", raw)
+		}
+	})
+}

@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
-import { PageHead, Section, BackendPendingBanner } from '@/components/settings/primitives';
+import { PageHead, Section } from '@/components/settings/primitives';
 import { ScanVariablesCard } from '@/components/settings/ScanVariablesCard';
 import { DefaultLensCard } from '@/components/settings/DefaultLensCard';
+import { EnabledFrameworksCard } from '@/components/settings/EnabledFrameworksCard';
 import { ExceptionQueue } from '@/components/settings/ExceptionQueue';
 
 // Settings → Compliance policies.
@@ -50,10 +51,7 @@ export function PoliciesPage() {
         </p>
         <DefaultLensCard />
         <div style={{ marginTop: 12 }}>
-          <BackendPendingBanner
-            slice="Enabled frameworks"
-            text="Hiding frameworks you don't use (an allowlist) is a follow-up. Today every framework found in the corpus is available as a lens."
-          />
+          <EnabledFrameworksCard />
         </div>
       </Section>
 

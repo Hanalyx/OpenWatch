@@ -64,8 +64,12 @@ export function DefaultLensCard() {
           <>
             The framework the dashboard, hosts, and host-detail compliance scores default to.
             Individual host views can still switch lens.{' '}
-            {banner?.kind === 'success' && <span style={{ color: 'var(--ow-ok)' }}>{banner.text}</span>}
-            {banner?.kind === 'error' && <span style={{ color: 'var(--ow-crit)' }}>{banner.text}</span>}
+            {banner?.kind === 'success' && (
+              <span style={{ color: 'var(--ow-ok)' }}>{banner.text}</span>
+            )}
+            {banner?.kind === 'error' && (
+              <span style={{ color: 'var(--ow-crit)' }}>{banner.text}</span>
+            )}
           </>
         }
         control={
