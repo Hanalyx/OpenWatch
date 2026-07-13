@@ -1,7 +1,7 @@
 spec:
   id: api-notifications
   title: Notification channels REST API
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -93,6 +93,6 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-08
-      description: "v1.3.0 — an email channel's smtp_encryption mode (none | starttls | tls) round-trips: POST with smtp_encryption creates the channel and the GET /notifications/channels JSON returns the same smtp_encryption for pre-fill (it is non-secret). An out-of-enum value is rejected with 400."
+      description: "v1.4.0 — an email channel's smtp_encryption mode (none | starttls | tls) AND smtp_insecure_skip_verify flag round-trip: POST with both creates the channel and the GET /notifications/channels JSON returns the same smtp_encryption and smtp_insecure_skip_verify for pre-fill (both non-secret). An out-of-enum encryption value is rejected with 400."
       priority: high
       references_constraints: [C-02]

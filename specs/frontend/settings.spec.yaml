@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.14.0"
+  version: "1.15.0"
   status: draft
   tier: 2
 
@@ -332,7 +332,7 @@ spec:
       priority: high
       references_constraints: [C-08]
     - id: AC-23
-      description: "v1.14.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. Email channels expose an SMTP encryption selector (none/starttls/tls) sent as smtp_encryption, and the severity 'Deliver for' filter is threshold-based (a minimum level: 'Medium and above', 'High and above', etc.). AC-15 stub set excludes Notifications."
+      description: "v1.14.0 source-inspection: NotificationsPage gates on hasPermission('notification:read') returning ForbiddenPage when absent; it lists from GET /api/v1/notifications/channels keyed ['notification-channels']; Add/Edit call api.POST/PATCH '/api/v1/notifications/channels', Delete calls api.DELETE, Test calls POST '/api/v1/notifications/channels/{id}:test', and every mutation invalidates ['notification-channels']; the page renders channel.target_hint and references no response url/token field. Email channels expose an SMTP encryption selector (none/starttls/tls) sent as smtp_encryption plus a self-signed-cert 'skip verify' toggle (smtp_insecure_skip_verify) for an internal relay, and the severity 'Deliver for' filter is threshold-based (a minimum level: 'Medium and above', 'High and above', etc.). AC-15 stub set excludes Notifications."
       priority: high
       references_constraints: [C-15]
     - id: AC-24

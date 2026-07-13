@@ -68,6 +68,13 @@ type Config struct {
 	// empty value is treated as "starttls" (the secure default). Not a
 	// secret; returned to the edit form.
 	SMTPEncryption string `json:"smtp_encryption,omitempty"`
+	// SMTPInsecureSkipVerify, when true, disables TLS certificate
+	// verification for the STARTTLS/implicit-TLS handshake. It exists ONLY
+	// for an internal relay (e.g. a local postfix) that presents a
+	// self-signed or private-CA certificate; it is a MITM-exposing downgrade
+	// and has no effect when encryption is "none". Not a secret; returned to
+	// the edit form.
+	SMTPInsecureSkipVerify bool `json:"smtp_insecure_skip_verify,omitempty"`
 }
 
 // SMTP encryption modes for Config.SMTPEncryption.

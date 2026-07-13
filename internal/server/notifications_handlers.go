@@ -3,7 +3,9 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/notification"
@@ -70,7 +72,8 @@ func (h *handlers) PostNotificationChannel(w http.ResponseWriter, r *http.Reques
 		Name:    req.Name,
 		Enabled: enabled,
 		Config: notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
-			createEnc(req.SmtpEncryption), req.Username, req.Password, req.From, req.To),
+			createEnc(req.SmtpEncryption), derefBool(req.SmtpInsecureSkipVerify),
+			req.Username, req.Password, req.From, req.To),
 		TagFilter: derefTagFilter(req.TagFilter),
 	}
 	c, err := h.notificationSvc.Create(r.Context(), p)
@@ -123,7 +126,8 @@ func (h *handlers) PatchNotificationChannel(w http.ResponseWriter, r *http.Reque
 	if req.Url != nil || req.SmtpHost != nil {
 		p.ReplaceConfig = true
 		p.Config = notificationConfig(req.Url, req.Token, req.SmtpHost, req.SmtpPort,
-			updateEnc(req.SmtpEncryption), req.Username, req.Password, req.From, req.To)
+			updateEnc(req.SmtpEncryption), derefBool(req.SmtpInsecureSkipVerify),
+			req.Username, req.Password, req.From, req.To)
 	}
 	c, err := h.notificationSvc.Update(r.Context(), uuid.UUID(id), p)
 	if err != nil {
@@ -164,10 +168,16 @@ func (h *handlers) TestNotificationChannel(w http.ResponseWriter, r *http.Reques
 				"channel not found", false)
 			return
 		}
-		// Delivery failed (unreachable, non-2xx, blocked host). Client-fault
-		// 400 so the operator fixes the channel config, not a server bug.
+		// Delivery failed (unreachable relay, auth rejected, STARTTLS not
+		// offered, non-2xx webhook, blocked host). Client-fault 400 so the
+		// operator fixes the channel config. Surface the reason (the delivery
+		// layer already scrubs the secret webhook URL from HTTP errors) and log
+		// it server-side — previously it was swallowed, leaving no way to
+		// diagnose why a test failed.
+		slog.WarnContext(r.Context(), "notification test delivery failed",
+			"channel_id", uuid.UUID(id).String(), "error", err.Error())
 		writeError(w, http.StatusBadRequest, "notifications.delivery_failed", "client",
-			"test delivery failed", false)
+			"test delivery failed: "+testErrDetail(err), false)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -200,6 +210,10 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 			e := c.Config.SMTPEncryption
 			out.SmtpEncryption = &e
 		}
+		if c.Config.SMTPInsecureSkipVerify {
+			v := true
+			out.SmtpInsecureSkipVerify = &v
+		}
 		if c.Config.From != "" {
 			f := c.Config.From
 			out.From = &f
@@ -214,6 +228,19 @@ func toAPINotificationChannel(c notification.Channel) api.NotificationChannel {
 		}
 	}
 	return out
+}
+
+// testErrDetail bounds a delivery error for the human-facing test response.
+// The delivery layer already scrubs the secret webhook URL from HTTP errors,
+// so what remains (SMTP/dial/auth causes) is safe to show the operator; this
+// only trims the internal wrapper prefix and caps the length.
+func testErrDetail(err error) string {
+	s := strings.TrimPrefix(err.Error(), "notification: ")
+	const max = 300
+	if len(s) > max {
+		s = s[:max] + "..."
+	}
+	return s
 }
 
 func derefTagFilter(m *map[string]string) map[string]string {
@@ -243,7 +270,7 @@ func updateEnc(e *api.NotificationChannelUpdateSmtpEncryption) string {
 // notificationConfig assembles the decrypted Config from the optional
 // request fields. HTTP channels use url/token; email uses the smtp* +
 // from/to fields. Unset pointers stay zero (validated per-type downstream).
-func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncryption string, username, password, from *string, to *[]string) notification.Config {
+func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncryption string, smtpInsecureSkipVerify bool, username, password, from *string, to *[]string) notification.Config {
 	cfg := notification.Config{}
 	if url != nil {
 		cfg.URL = *url
@@ -258,6 +285,7 @@ func notificationConfig(url, token, smtpHost *string, smtpPort *int, smtpEncrypt
 		cfg.SMTPPort = *smtpPort
 	}
 	cfg.SMTPEncryption = smtpEncryption
+	cfg.SMTPInsecureSkipVerify = smtpInsecureSkipVerify
 	if username != nil {
 		cfg.Username = *username
 	}

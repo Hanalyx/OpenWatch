@@ -2733,6 +2733,8 @@ export interface components {
             smtp_port?: number | null;
             /** @description SMTP transport security (email channels) - none|starttls|tls */
             smtp_encryption?: string | null;
+            /** @description Skip TLS cert verification for an internal relay with a self-signed/private-CA cert (email channels; STARTTLS/TLS only) */
+            smtp_insecure_skip_verify?: boolean | null;
             /** @description Sender address (email channels) */
             from?: string | null;
             /** @description Recipient addresses (email channels) */
@@ -2798,6 +2800,8 @@ export interface components {
              * @enum {string}
              */
             smtp_encryption?: "none" | "starttls" | "tls";
+            /** @description Skip TLS certificate verification for the SMTP handshake (email). For an internal relay with a self-signed or private-CA cert only; a MITM-exposing downgrade, inert under 'none'. Defaults false. */
+            smtp_insecure_skip_verify?: boolean;
             /** @description SMTP auth username (email). Stored encrypted. */
             username?: string;
             /** @description SMTP auth password (email). Stored encrypted. */
@@ -2820,6 +2824,7 @@ export interface components {
             smtp_port?: number;
             /** @enum {string} */
             smtp_encryption?: "none" | "starttls" | "tls";
+            smtp_insecure_skip_verify?: boolean;
             username?: string;
             password?: string;
             from?: string;

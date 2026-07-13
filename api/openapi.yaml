@@ -4336,6 +4336,7 @@ components:
           description: Alert tags this channel matches; empty = every alert
         smtp_port: {type: integer, nullable: true, description: SMTP port (email channels)}
         smtp_encryption: {type: string, nullable: true, description: SMTP transport security (email channels) - none|starttls|tls}
+        smtp_insecure_skip_verify: {type: boolean, nullable: true, description: Skip TLS cert verification for an internal relay with a self-signed/private-CA cert (email channels; STARTTLS/TLS only)}
         from:      {type: string, nullable: true, description: Sender address (email channels)}
         to:
           type: array
@@ -4407,6 +4408,12 @@ components:
             'tls' uses implicit TLS from connect (SMTPS, e.g. port 465);
             'none' is plaintext for a trusted local relay. Omitted defaults
             to starttls.
+        smtp_insecure_skip_verify:
+          type: boolean
+          description: >-
+            Skip TLS certificate verification for the SMTP handshake (email).
+            For an internal relay with a self-signed or private-CA cert only;
+            a MITM-exposing downgrade, inert under 'none'. Defaults false.
         username:  {type: string, description: SMTP auth username (email). Stored encrypted.}
         password:  {type: string, description: SMTP auth password (email). Stored encrypted.}
         from:      {type: string, description: Envelope From address (email).}
@@ -4432,6 +4439,7 @@ components:
         smtp_host: {type: string}
         smtp_port: {type: integer}
         smtp_encryption: {type: string, enum: [none, starttls, tls]}
+        smtp_insecure_skip_verify: {type: boolean}
         username:  {type: string}
         password:  {type: string}
         from:      {type: string}
