@@ -1,8 +1,8 @@
 // @spec system-compliance-lens
 //
 // Group compliance-target (Phase 3 compliance-targets): SetTarget's D1 rule
-// (site groups only) and set/clear/validate. Kept in its own file so its
-// @spec does not re-attribute the api-groups tests in service_db_test.go.
+// (site groups only) and set/clear/validate. Kept in its own file so its spec
+// annotation does not re-attribute the api-groups tests in service_db_test.go.
 
 package group
 
