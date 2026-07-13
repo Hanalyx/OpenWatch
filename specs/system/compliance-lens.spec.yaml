@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -57,6 +57,21 @@ spec:
       description: ComplianceConfig.EnabledFrameworks is the Phase 2 allowlist of framework FAMILY ids offered as lenses, persisted in the same systemconfig row. Empty means every corpus family is available (the factory default and backward-compatible for existing rows). When non-empty and DefaultFramework is non-empty, DefaultFramework MUST be one of EnabledFrameworks (an admin cannot default the org to a hidden family). GET /compliance/frameworks narrows its result to the allowlist by default; all=true returns the full corpus list (for the allowlist editor). The allowlist is a DISPLAY filter, not a security boundary — it never changes what a scan runs.
       type: technical
       enforcement: error
+    - id: C-05
+      description: >
+        A compliance TARGET is durable operator intent about the framework
+        family a host is held to, at two scopes (migration 0051): hosts.target_framework
+        (the override) and groups.target_framework (a SITE group only — D1: an
+        os_category group may not carry a target). The host_effective_target view
+        resolves them per host by precedence: host target, else the OLDEST
+        site-group membership's target (D2: group_members.added_at ASC, then group
+        id), else NULL. framework.EffectiveTarget applies the org-default
+        (ComplianceConfig.DefaultFramework) as the final fallback and becomes the
+        host's default lens: a host's compliance summary defaults to its effective
+        target instead of All rules when no explicit lens is requested. A target
+        family with no matching corpus key for a host scores N/A, never 0% (D3).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -83,3 +98,16 @@ spec:
       description: GET /api/v1/compliance/frameworks narrows the returned families to EnabledFrameworks when the allowlist is non-empty, returns all corpus families when the allowlist is empty, and returns all corpus families (ignoring the allowlist) when all=true is passed.
       priority: high
       references_constraints: [C-04]
+    - id: AC-07
+      description: >
+        The host_effective_target view resolves a host's target by precedence:
+        a host with its own target_framework resolves to that; a host with no
+        own target but a site-group target resolves to the group's; with two
+        site groups carrying different targets, the OLDEST membership wins; a
+        host with neither resolves to NULL. framework.EffectiveTarget returns
+        the resolved target, falling back to the given org default when the view
+        yields NULL, and empty when neither is set. A group target set on an
+        os_category group is rejected (only a site group may carry one, D1); a
+        target on a site group sets and clears via SetTarget.
+      priority: high
+      references_constraints: [C-05]

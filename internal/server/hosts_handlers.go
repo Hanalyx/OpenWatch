@@ -13,6 +13,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
+	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/queue"
@@ -218,12 +219,19 @@ func (h *handlers) GetHostByID(w http.ResponseWriter, r *http.Request, id openap
 		return
 	}
 	// v1.2.0: optional ?framework= filters the compliance_summary;
-	// liveness is unaffected (spec C-07).
-	var framework string
+	// liveness is unaffected (spec C-07). Phase 3 (compliance-targets): when no
+	// explicit lens is requested, the summary defaults to the host's EFFECTIVE
+	// TARGET (per-host or site-group target, else the org default) instead of
+	// All rules, so a targeted host's score reflects its standard by default.
+	var lens string
 	if params.Framework != nil {
-		framework = *params.Framework
+		lens = *params.Framework
+	} else if cfg, cerr := h.sysCfg.LoadCompliance(ctx); cerr == nil {
+		if eff, eerr := framework.NewService(h.pool).EffectiveTarget(ctx, hostID, cfg.DefaultFramework); eerr == nil {
+			lens = eff
+		}
 	}
-	summary, err := loadHostComplianceSummary(ctx, h.pool, hostID, framework)
+	summary, err := loadHostComplianceSummary(ctx, h.pool, hostID, lens)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"compliance summary lookup failed", true)

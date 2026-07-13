@@ -1531,6 +1531,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/groups/{id}:target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or clear a site group's compliance target framework
+         * @description Sets (or clears, when target_framework is empty) the compliance
+         *     target family a member host is held to. Only a site group may carry a
+         *     target; an os_category group is rejected with 400. RBAC: host:write.
+         *     Spec api-groups.
+         */
+        post: operations["postGroupTarget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/groups/{id}/members": {
         parameters: {
             query?: never;
@@ -3758,6 +3781,8 @@ export interface components {
             /** @description OS family an auto group matches on (empty for manual groups) */
             match_family?: string;
             maintenance: boolean;
+            /** @description Compliance target framework family a member host is held to (empty for none). Only a site group may carry one. */
+            target_framework?: string;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -4110,6 +4135,10 @@ export interface components {
         };
         GroupMaintenanceRequest: {
             on: boolean;
+        };
+        GroupTargetRequest: {
+            /** @description Compliance target family id, or empty to clear the target. */
+            target_framework: string;
         };
         GroupMemberRequest: {
             /** Format: uuid */
@@ -7904,6 +7933,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Group not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postGroupTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupTargetRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated group */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Group"];
+                };
+            };
+            /** @description Target on a non-site group, or an invalid family value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Caller is not authenticated */

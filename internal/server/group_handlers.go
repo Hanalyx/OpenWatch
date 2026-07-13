@@ -39,7 +39,33 @@ func toAPIGroup(g group.Group) api.Group {
 		mf := g.MatchFamily
 		out.MatchFamily = &mf
 	}
+	if g.TargetFramework != "" {
+		tf := g.TargetFramework
+		out.TargetFramework = &tf
+	}
 	return out
+}
+
+// PostGroupTarget sets or clears a site group's compliance target framework.
+// Spec api-groups.
+func (h *handlers) PostGroupTarget(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.HostWrite); denied {
+		return
+	}
+	if !h.groupSvcReady(w) {
+		return
+	}
+	var req api.GroupTargetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
+			"malformed request body", false)
+		return
+	}
+	g, err := h.groupSvc.SetTarget(r.Context(), uuid.UUID(id), req.TargetFramework)
+	if mapGroupErr(w, err) {
+		return
+	}
+	writeJSON(w, http.StatusOK, toAPIGroup(g))
 }
 
 // toAPIRollup maps a service rollup to the wire shape.
@@ -127,6 +153,12 @@ func mapGroupErr(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, group.ErrSiteMustBeManual):
 		writeError(w, http.StatusBadRequest, "validation.invalid", "client",
 			"a site must use manual membership", false)
+	case errors.Is(err, group.ErrTargetOnlyOnSite):
+		writeError(w, http.StatusBadRequest, "validation.invalid", "client",
+			"only a site group may carry a compliance target", false)
+	case errors.Is(err, group.ErrInvalidTarget):
+		writeError(w, http.StatusBadRequest, "validation.invalid", "client",
+			"target_framework is too long or has invalid characters", false)
 	default:
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"group operation failed", true)

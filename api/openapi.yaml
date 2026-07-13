@@ -2490,6 +2490,52 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/groups/{id}:target:
+    post:
+      operationId: postGroupTarget
+      summary: Set or clear a site group's compliance target framework
+      description: |
+        Sets (or clears, when target_framework is empty) the compliance
+        target family a member host is held to. Only a site group may carry a
+        target; an os_category group is rejected with 400. RBAC: host:write.
+        Spec api-groups.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupTargetRequest'}
+      responses:
+        '200':
+          description: The updated group
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Group'}
+        '400':
+          description: Target on a non-site group, or an invalid family value
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/groups/{id}/members:
     post:
       operationId: postGroupMember
@@ -5729,6 +5775,11 @@ components:
           type: string
           description: OS family an auto group matches on (empty for manual groups)
         maintenance: {type: boolean}
+        target_framework:
+          type: string
+          description: >-
+            Compliance target framework family a member host is held to (empty
+            for none). Only a site group may carry one.
         created_at:  {type: string, format: date-time}
         updated_at:  {type: string, format: date-time}
 
@@ -6174,6 +6225,14 @@ components:
       required: [on]
       properties:
         on: {type: boolean}
+
+    GroupTargetRequest:
+      type: object
+      required: [target_framework]
+      properties:
+        target_framework:
+          type: string
+          description: Compliance target family id, or empty to clear the target.
 
     GroupMemberRequest:
       type: object
