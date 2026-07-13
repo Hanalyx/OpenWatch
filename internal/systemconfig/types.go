@@ -393,24 +393,68 @@ func (v ScanVariables) Validate() error {
 // unknown/absent family falls back to all-rules.
 type ComplianceConfig struct {
 	DefaultFramework string `json:"default_framework"`
+	// EnabledFrameworks is the Phase 2 allowlist: the framework FAMILY ids an
+	// admin has opted the org into. Empty means ALL families found in the
+	// corpus are available as lenses (the factory default and every existing
+	// stored row). A non-empty list restricts the lens picker + the frameworks
+	// endpoint to these families.
+	EnabledFrameworks []string `json:"enabled_frameworks,omitempty"`
 }
 
-// DefaultCompliance returns the baked-in default: All rules (empty lens).
+// DefaultCompliance returns the baked-in default: All rules (empty lens),
+// all families enabled.
 func DefaultCompliance() ComplianceConfig {
-	return ComplianceConfig{DefaultFramework: ""}
+	return ComplianceConfig{DefaultFramework: "", EnabledFrameworks: nil}
 }
 
-// Validate bounds the family id. It is resolved leniently against the live
-// corpus at query time, so this only rejects obvious garbage / length; an
-// empty value (All rules) is always valid.
-func (c ComplianceConfig) Validate() error {
-	f := c.DefaultFramework
+// ComplianceMaxEnabledFrameworks caps the allowlist. The corpus has a handful
+// of families (stig, cis, nist_800_53, pci_dss_4, srg); 32 is far above any
+// real use and just blocks an abuse shape.
+const ComplianceMaxEnabledFrameworks = 32
+
+// validFamilyToken bounds a framework family id: <=64 chars, lowercase
+// alnum plus _-. It is resolved leniently against the live corpus at query
+// time, so this only rejects obvious garbage / length.
+func validFamilyToken(f string) bool {
 	if len(f) > 64 {
-		return fmt.Errorf("%w: default_framework exceeds 64 chars", ErrInvalidConfig)
+		return false
 	}
 	for _, r := range f {
 		if !(r == '_' || r == '-' || r == '.' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
-			return fmt.Errorf("%w: default_framework has invalid characters", ErrInvalidConfig)
+			return false
+		}
+	}
+	return true
+}
+
+// Validate bounds the default family id and the enabled-frameworks allowlist.
+// An empty default (All rules) is always valid. When the allowlist is
+// non-empty, a non-empty default MUST be one of the enabled families, so an
+// admin cannot default the org to a hidden family.
+func (c ComplianceConfig) Validate() error {
+	if !validFamilyToken(c.DefaultFramework) {
+		return fmt.Errorf("%w: default_framework invalid (>64 chars or bad characters)", ErrInvalidConfig)
+	}
+	if len(c.EnabledFrameworks) > ComplianceMaxEnabledFrameworks {
+		return fmt.Errorf("%w: enabled_frameworks has %d entries, max %d",
+			ErrInvalidConfig, len(c.EnabledFrameworks), ComplianceMaxEnabledFrameworks)
+	}
+	for _, f := range c.EnabledFrameworks {
+		if f == "" || !validFamilyToken(f) {
+			return fmt.Errorf("%w: enabled_frameworks entry %q is empty or invalid", ErrInvalidConfig, f)
+		}
+	}
+	if c.DefaultFramework != "" && len(c.EnabledFrameworks) > 0 {
+		found := false
+		for _, f := range c.EnabledFrameworks {
+			if f == c.DefaultFramework {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("%w: default_framework %q must be one of enabled_frameworks",
+				ErrInvalidConfig, c.DefaultFramework)
 		}
 	}
 	return nil

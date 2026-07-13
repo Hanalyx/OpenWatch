@@ -1006,7 +1006,7 @@ export interface paths {
         };
         /**
          * List the framework families present in the scanned corpus
-         * @description Framework families derived at runtime from host_rule_state.framework_refs (STIG, CIS, NIST 800-53, …), each with a display label and the concrete corpus keys it spans. Feeds the default-lens picker. Empty until at least one host is scanned.
+         * @description Framework families derived at runtime from host_rule_state.framework_refs (STIG, CIS, NIST 800-53, …), each with a display label and the concrete corpus keys it spans. Feeds the default-lens picker. Empty until at least one host is scanned. By default the list is narrowed to the enabled-frameworks allowlist (if set); pass all=true to return every corpus family (for the allowlist editor).
          */
         get: operations["getComplianceFrameworks"];
         put?: never;
@@ -3553,10 +3553,12 @@ export interface components {
             /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
             enqueued: number;
         };
-        /** @description Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. */
+        /** @description Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. enabled_frameworks is the allowlist of families offered as lenses; empty means all corpus families are available. A non-empty default_framework must be in a non-empty enabled_frameworks. */
         ComplianceConfig: {
             /** @description Framework family id */
             default_framework: string;
+            /** @description Allowlist of framework family ids offered as lenses. Empty (or omitted) means every family found in the corpus is available. */
+            enabled_frameworks?: string[];
         };
         ComplianceFramework: {
             /** @description Family id (e.g. "stig") */
@@ -6704,7 +6706,10 @@ export interface operations {
     };
     getComplianceFrameworks: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description When true, return every corpus family, ignoring the enabled-frameworks allowlist. */
+                all?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

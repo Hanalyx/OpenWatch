@@ -223,15 +223,17 @@ describe('frontend-settings — structural', () => {
     // About graduated too: it renders live version + license, not a
     // BackendPendingBanner. It still lives in this file but is not a stub.
     expect(STUBBED_SRC).toContain('export function AboutPage');
-    // PoliciesPage left the stub file: it lives in its own page with the
-    // live scan-variables section and per-section banners on the
-    // remaining stubs (frontend-settings-scan-config AC-06).
+    // PoliciesPage left the stub file: it lives in its own page and has now
+    // fully graduated — scan variables, framework lenses (default lens +
+    // enabled-frameworks allowlist), and the exception workflow are all live,
+    // so it carries no BackendPendingBanner.
     expect(STUBBED_SRC).not.toContain('PoliciesPage');
     const policies = readFileSync(
       resolve(process.cwd(), 'src/pages/settings/PoliciesPage.tsx'),
       'utf8',
     );
-    expect(policies).toContain('BackendPendingBanner');
+    expect(policies).not.toContain('BackendPendingBanner');
+    expect(policies).toContain('EnabledFrameworksCard');
     expect(ROUTER_SRC).toContain("from '@/pages/settings/PoliciesPage'");
   });
 

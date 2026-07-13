@@ -1724,10 +1724,13 @@ type CategoryEntry struct {
 	Id          string `json:"id"`
 }
 
-// ComplianceConfig Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time.
+// ComplianceConfig Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. enabled_frameworks is the allowlist of families offered as lenses; empty means all corpus families are available. A non-empty default_framework must be in a non-empty enabled_frameworks.
 type ComplianceConfig struct {
 	// DefaultFramework Framework family id
 	DefaultFramework string `json:"default_framework"`
+
+	// EnabledFrameworks Allowlist of framework family ids offered as lenses. Empty (or omitted) means every family found in the corpus is available.
+	EnabledFrameworks *[]string `json:"enabled_frameworks,omitempty"`
 }
 
 // ComplianceFramework defines model for ComplianceFramework.
@@ -3672,6 +3675,12 @@ type GetComplianceExceptionsParams struct {
 // GetComplianceExceptionsParamsStatus defines parameters for GetComplianceExceptions.
 type GetComplianceExceptionsParamsStatus string
 
+// GetComplianceFrameworksParams defines parameters for GetComplianceFrameworks.
+type GetComplianceFrameworksParams struct {
+	// All When true, return every corpus family, ignoring the enabled-frameworks allowlist.
+	All *bool `form:"all,omitempty" json:"all,omitempty"`
+}
+
 // PostDiagnosticsEchoParams defines parameters for PostDiagnosticsEcho.
 type PostDiagnosticsEchoParams struct {
 	IdempotencyKey string  `json:"Idempotency-Key"`
@@ -4094,7 +4103,7 @@ type ServerInterface interface {
 	GetComplianceExceptions(w http.ResponseWriter, r *http.Request, params GetComplianceExceptionsParams)
 	// List the framework families present in the scanned corpus
 	// (GET /api/v1/compliance/frameworks)
-	GetComplianceFrameworks(w http.ResponseWriter, r *http.Request)
+	GetComplianceFrameworks(w http.ResponseWriter, r *http.Request, params GetComplianceFrameworksParams)
 	// List credentials (metadata only)
 	// (GET /api/v1/credentials)
 	GetCredentials(w http.ResponseWriter, r *http.Request)
@@ -4646,7 +4655,7 @@ func (_ Unimplemented) GetComplianceExceptions(w http.ResponseWriter, r *http.Re
 
 // List the framework families present in the scanned corpus
 // (GET /api/v1/compliance/frameworks)
-func (_ Unimplemented) GetComplianceFrameworks(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) GetComplianceFrameworks(w http.ResponseWriter, r *http.Request, params GetComplianceFrameworksParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6390,8 +6399,27 @@ func (siw *ServerInterfaceWrapper) GetComplianceExceptions(w http.ResponseWriter
 // GetComplianceFrameworks operation middleware
 func (siw *ServerInterfaceWrapper) GetComplianceFrameworks(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetComplianceFrameworksParams
+
+	// ------------- Optional query parameter "all" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "all", r.URL.Query(), &params.All, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "all"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "all", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetComplianceFrameworks(w, r)
+		siw.Handler.GetComplianceFrameworks(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {

@@ -158,11 +158,15 @@ func (s *Service) TopFailingRules(ctx context.Context, limit int, opts ...Option
 		return []RuleFailureRollup{}, nil
 	}
 	o := applyOpts(opts)
-	const q = `
+	// framework.MatchSQL($2) is family-aware (matches any corpus key in the
+	// family, e.g. "stig" spans stig_rhel9 + stig_rhel10) and handles the
+	// NULL/all-rules case; a bare framework_refs ? $2 would only match an
+	// exact key. Kept consistent with FleetComplianceScore.
+	q := `
 		SELECT rule_id, COUNT(*)::BIGINT AS failing_host_count
 		  FROM host_rule_state
 		 WHERE current_status = 'fail'
-		   AND ($2::text IS NULL OR framework_refs ? $2)
+		   AND ` + framework.MatchSQL("$2") + `
 		 GROUP BY rule_id
 		 ORDER BY failing_host_count DESC, rule_id ASC
 		 LIMIT $1`
@@ -197,11 +201,11 @@ func (s *Service) TopFailingHosts(ctx context.Context, limit int, opts ...Option
 		return []HostFailureRollup{}, nil
 	}
 	o := applyOpts(opts)
-	const q = `
+	q := `
 		SELECT host_id, COUNT(*)::BIGINT AS failing_rule_count
 		  FROM host_rule_state
 		 WHERE current_status = 'fail'
-		   AND ($2::text IS NULL OR framework_refs ? $2)
+		   AND ` + framework.MatchSQL("$2") + `
 		 GROUP BY host_id
 		 ORDER BY failing_rule_count DESC, host_id ASC
 		 LIMIT $1`
@@ -240,11 +244,11 @@ func (s *Service) RecentChanges(ctx context.Context, since time.Time, limit int,
 	o := applyOpts(opts)
 	// The "$2::timestamptz IS NULL" idiom lets us encode "no cursor"
 	// without branching the SQL. Same trick for framework via $3::text.
-	const q = `
+	q := `
 		SELECT id, host_id, rule_id, status, COALESCE(severity, ''), change_kind, occurred_at
 		  FROM transactions
 		 WHERE ($2::timestamptz IS NULL OR occurred_at > $2)
-		   AND ($3::text IS NULL OR framework_refs ? $3)
+		   AND ` + framework.MatchSQL("$3") + `
 		 ORDER BY occurred_at DESC
 		 LIMIT $1`
 	var sinceParam any

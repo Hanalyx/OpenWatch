@@ -294,3 +294,63 @@ func TestComplianceConfig_DefaultValidateRoundTrip(t *testing.T) {
 		}
 	})
 }
+
+// @spec system-compliance-lens
+// @ac AC-05
+// AC-05: EnabledFrameworks allowlist defaults empty, Validate bounds it and
+// enforces the default-must-be-enabled invariant, and Set/Load round-trips it.
+func TestComplianceConfig_EnabledFrameworksAllowlist(t *testing.T) {
+	t.Run("system-compliance-lens/AC-05", func(t *testing.T) {
+		pool := freshPool(t)
+		s := NewStore(pool, nil)
+		ctx := context.Background()
+
+		// Fresh store → empty allowlist (all families available).
+		got, err := s.LoadCompliance(ctx)
+		if err != nil {
+			t.Fatalf("LoadCompliance (no row): %v", err)
+		}
+		if len(got.EnabledFrameworks) != 0 {
+			t.Errorf("enabled = %v, want empty", got.EnabledFrameworks)
+		}
+
+		// Empty + valid lists accepted.
+		for _, okList := range [][]string{nil, {"stig"}, {"stig", "cis", "nist_800_53"}} {
+			if err := (ComplianceConfig{EnabledFrameworks: okList}).Validate(); err != nil {
+				t.Errorf("Validate(enabled=%v) = %v, want nil", okList, err)
+			}
+		}
+		// Over-long list rejected.
+		big := make([]string, ComplianceMaxEnabledFrameworks+1)
+		for i := range big {
+			big[i] = "stig"
+		}
+		if err := (ComplianceConfig{EnabledFrameworks: big}).Validate(); err == nil {
+			t.Error("Validate(over-long allowlist) = nil, want error")
+		}
+		// Invalid entry rejected.
+		if err := (ComplianceConfig{EnabledFrameworks: []string{"STIG!"}}).Validate(); err == nil {
+			t.Error("Validate(invalid entry) = nil, want error")
+		}
+		// Invariant: a non-empty default must be one of a non-empty allowlist.
+		if err := (ComplianceConfig{DefaultFramework: "stig", EnabledFrameworks: []string{"cis"}}).Validate(); err == nil {
+			t.Error("Validate(default not in allowlist) = nil, want error")
+		}
+		if err := (ComplianceConfig{DefaultFramework: "stig", EnabledFrameworks: []string{"stig", "cis"}}).Validate(); err != nil {
+			t.Errorf("Validate(default in allowlist) = %v, want nil", err)
+		}
+
+		// Set then Load round-trips the allowlist.
+		if _, err := s.SetCompliance(ctx,
+			ComplianceConfig{DefaultFramework: "stig", EnabledFrameworks: []string{"stig", "cis"}}, "admin"); err != nil {
+			t.Fatalf("SetCompliance: %v", err)
+		}
+		got, err = s.LoadCompliance(ctx)
+		if err != nil {
+			t.Fatalf("LoadCompliance: %v", err)
+		}
+		if len(got.EnabledFrameworks) != 2 || got.EnabledFrameworks[0] != "stig" || got.EnabledFrameworks[1] != "cis" {
+			t.Errorf("round-trip allowlist = %v, want [stig cis]", got.EnabledFrameworks)
+		}
+	})
+}
