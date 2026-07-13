@@ -237,7 +237,7 @@ through the API. These are admin-level controls.
 | `DELETE` | `/api/v1/users/{id}` | Delete a user. |
 | `POST` | `/api/v1/users/{id}/roles:assign` | Assign a role. Body: `{role_id}`. |
 | `POST` | `/api/v1/users/{id}/roles:unassign` | Remove a role. |
-| `GET` | `/api/v1/roles` | List roles (built-in and custom). |
+| `GET` | `/api/v1/roles` | List roles (built-in roles only). |
 | `POST` | `/api/v1/roles:create` | Create a custom role. |
 
 For first-admin bootstrap, prefer the CLI (`openwatch create-admin`) over the
@@ -266,9 +266,9 @@ cursor-paginated, newest first.
 |--------|------|---------|
 | `GET` | `/api/v1/audit/events` | List audit events. |
 
-Query parameters: `action`, `correlation_id`, `actor_type`, `since`, `until`
-(both RFC 3339), `cursor`, and `limit` (1–200, default 50). Follow the `cursor`
-field in each page to paginate.
+Query parameters: `action`, `correlation_id`, `actor_type`, `resource_type`,
+`resource_id`, `since`, `until` (both RFC 3339), `cursor`, and `limit` (1–200,
+default 50). Follow the `cursor` field in each page to paginate.
 
 ---
 
@@ -284,9 +284,11 @@ curl -s --cacert /etc/openwatch/tls/cert.pem https://localhost:8443/api/v1/healt
 {"status": "healthy", "db_connected": true, "version": "0.3.0"}
 ```
 
-`status` is `healthy` or `degraded`; the endpoint returns `503` when the service
-cannot serve. `GET /api/v1/version` returns build metadata (`openwatch`, `kensa`,
-`go`, `commit`, `build_time`).
+A healthy response is always `status: "healthy"`, `db_connected: true`. When
+the database is unreachable, the endpoint does not return a `degraded` status
+body—it returns `503` with the standard `ErrorEnvelope` (code
+`server.unavailable`) instead. `GET /api/v1/version` returns build metadata
+(`openwatch`, `kensa`, `go`, `commit`, `build_time`).
 
 ---
 
@@ -297,7 +299,7 @@ Errors use a single envelope shape, not field-level validation detail:
 ```json
 {
   "error": {
-    "code": "validation_failed",
+    "code": "hosts.invalid_input",
     "fault": "client",
     "retryable": false,
     "human_message": "ip_address is required",
@@ -318,12 +320,15 @@ will encounter:
 | `404` | Not found |
 | `405` | Method not allowed |
 | `409` | Conflict—duplicate resource, or a reused `Idempotency-Key` with a different body |
+| `429` | Too many requests—`/auth/login` or `/auth/mfa:verify` rate limit exceeded; retry after `Retry-After` seconds |
 | `502` | Bad gateway—an external dependency failed |
 | `503` | Service unavailable—the service is degraded |
 
-There is no API-layer request rate limiting in this release, and there is no
-`422` validation status—validation failures return `400` with the envelope
-above.
+There is no general per-route API rate limiting in this release. `POST
+/api/v1/auth/login` and `/api/v1/auth/mfa:verify` are the exceptions: they are
+rate-limited per client IP and return `429` with a `Retry-After` header over
+the limit. There is no `422` validation status—validation failures return
+`400` with the envelope above.
 
 ---
 
@@ -373,7 +378,9 @@ longer worker-internal only):
 - **Posture + drift**: per-host `/api/v1/hosts/{id}/compliance` and
   `/api/v1/hosts/{id}/compliance/trend`; fleet `/api/v1/fleet/score`.
 - **Audit export**: `GET /api/v1/audit/events` (filterable via query
-  parameters) and `GET /api/v1/audit/events/export` (CSV/JSON, signed bundle).
+  parameters, cursor-paginated) and `GET /api/v1/audit/events/export`, a
+  synchronous CSV/JSON download of the same filtered set (capped at 10,000
+  rows, newest-first).
 - **Rule browser**: `/api/v1/rules` (the Kensa rule-library read model).
 
 ## What is genuinely not in the API yet

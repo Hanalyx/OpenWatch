@@ -51,13 +51,18 @@ A healthy response looks like this:
 {
   "status": "healthy",
   "db_connected": true,
-  "version": "0.3.0"
+  "version": "<installed version>"
 }
 ```
 
-`status` is `healthy` or `degraded`; `db_connected` is `false` when the database
-is unreachable. If the request fails or `status` is `degraded`, inspect the logs
-before continuing:
+`version` reflects how the binary was built: a packaged release reports its
+semver (for example `0.3.0`); a bare `go build` without the Makefile's
+`-ldflags` reports `dev`.
+
+A healthy response is always `status: "healthy"`, `db_connected: true`. When
+the database is unreachable, the endpoint returns `503` with the standard
+error envelope instead of a `degraded` status body. If the request fails or
+returns `503`, inspect the logs before continuing:
 
 ```bash
 journalctl -u openwatch --no-pager -n 50
@@ -177,7 +182,8 @@ checks. In the UI this is the host's connectivity action; via the API:
 
 ```bash
 curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/connectivity:check" \
-  -H "Authorization: Bearer $TOKEN" | jq .
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" | jq .
 ```
 
 A failure here means SSH cannot connect—wrong credentials, an unreachable
@@ -204,7 +210,8 @@ worker):
 
 ```bash
 curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/scans" \
-  -H "Authorization: Bearer $TOKEN" | jq .
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" | jq .
 ```
 
 To watch progress:
@@ -282,13 +289,17 @@ A boot failure is usually a missing JWT signing key
 `OPENWATCH_DATABASE_DSN`. Run `openwatch check-config` to see the resolved
 configuration with secrets redacted.
 
-**Health reports `db_connected: false`.** The database is unreachable. Verify
-PostgreSQL is up and the DSN is correct:
+**Health returns `503`.** The database is unreachable. Verify PostgreSQL is up
+and the DSN is correct:
 
 ```bash
 systemctl status postgresql
-psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"
+psql "<dsn>" -c "SELECT 1;"
 ```
+
+`OPENWATCH_DATABASE_DSN` is set only inside the `systemd` unit's
+`EnvironmentFile`; in an interactive shell, read the DSN from
+`/etc/openwatch/secrets.env` and substitute it for `<dsn>`.
 
 If the schema is behind, run `openwatch migrate`.
 
@@ -306,9 +317,12 @@ hosts the schedulers) and, if you run a dedicated worker, that
 `openwatch worker` is up. Inspect the PostgreSQL job queue directly:
 
 ```bash
-psql "$OPENWATCH_DATABASE_DSN" -c \
+psql "<dsn>" -c \
   "SELECT status, count(*) FROM job_queue GROUP BY status;"
 ```
+
+Substitute `<dsn>` with the value of `OPENWATCH_DATABASE_DSN` from
+`/etc/openwatch/secrets.env`.
 
 ## Runbooks
 

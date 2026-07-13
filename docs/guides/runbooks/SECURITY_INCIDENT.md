@@ -281,7 +281,7 @@ sudo systemctl restart openwatch
 Confirm the configured path before generating a new key—`openwatch check-config` prints the resolved configuration with secrets redacted:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 > Do not rotate the credential DEK (`[identity].credential_key_file`) during an incident unless you have a re-encryption plan. Changing that key makes every stored SSH credential and MFA secret unreadable.
@@ -316,7 +316,7 @@ sudo iptables -I INPUT -s ATTACKER_IP -j DROP
 If the attacker modified data, restore PostgreSQL from a known-good backup. The procedure depends on how your database is backed up (`pg_dump`/`pg_restore` or physical/PITR); follow your backup tooling's restore steps, then re-run migrations to confirm the schema is current:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
 ```
 
 > A backup/restore tool is not part of the OpenWatch binary today; database backup is an operator responsibility. This is tracked as roadmap, not an implemented feature.
@@ -325,7 +325,7 @@ sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.t
 
 ```bash
 # Validate the resolved config (secrets redacted, listen address, TLS paths)
-sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
 
 # Confirm TLS material is in place and correctly owned
 ls -l /etc/openwatch/tls/cert.pem /etc/openwatch/tls/key.pem

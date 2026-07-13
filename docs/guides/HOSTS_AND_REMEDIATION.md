@@ -116,12 +116,8 @@ compliance reporting and batch scanning.
 3. Select hosts from the list.
 4. Click **Confirm**.
 
-Each host can belong to one group at a time.
-
-### Smart group creation
-
-Select multiple hosts and click **Smart Group**. OpenWatch analyzes their OS,
-architecture, and compliance profile to recommend group settings automatically.
+A host can belong to more than one group at a time; group membership is a
+many-to-many relationship.
 
 ### Group scanning
 
@@ -139,16 +135,21 @@ OpenWatch automatically detects the operating system for hosts during scans.
 You can also trigger manual OS discovery from the host detail page by clicking
 **Discover OS**.
 
-A scheduled task runs daily at 02:00 UTC to discover the OS for all active
-hosts that have not been identified yet.
+A background scheduler ticks every 60 seconds and enqueues discovery for any
+host whose OS has never been discovered or whose last discovery is older than
+the per-host interval (default 24 hours, operator-tunable between 1 hour and 7
+days). There is no fixed time-of-day anchor—discovery runs continuously as
+hosts become due.
 
 ### Connectivity monitoring
 
-Host connectivity is probed every 5 minutes by default (operator-tunable, with
-a 60-second floor). Each probe layers ICMP reachability, then SSH port + banner
-reachability, then a privilege check; a host is marked degraded when a higher
-layer fails after a lower one succeeds. Host status (online, degraded,
-unreachable) updates in the host list.
+Host connectivity is probed every 15 minutes by default (`online_sec`,
+operator-tunable with a 60-second floor); a host in the degraded state is
+probed more frequently, every 5 minutes by default (`degraded_sec`). Each
+probe layers ICMP reachability, then SSH port + banner reachability, then a
+privilege check; a host is marked degraded when a higher layer fails after a
+lower one succeeds. Host status (online, degraded, unreachable) updates in the
+host list.
 
 ---
 
@@ -184,9 +185,9 @@ needing to SSH in manually.
 
 ## Remediation overview
 
-OpenWatch can automatically fix compliance findings through Kensa's 27
-remediation mechanisms. All changes are made over SSH—nothing is installed
-on target hosts.
+OpenWatch can automatically fix compliance findings through Kensa's 29
+registered remediation handlers. All changes are made over SSH—nothing is
+installed on target hosts.
 
 ### What remediation can fix
 
@@ -215,18 +216,24 @@ on target hosts.
 5. Click **Start Remediation** to confirm.
 
 
-For organizations that require an approval step:
+In the free-core edition, a single-rule remediation request auto-approves on
+submission—there is no separate approval step, and no per-organization toggle
+to require one. The request is still recorded and audited (with a note that
+it was auto-approved), and a user with `remediation:execute` applies it.
+
+**Roadmap (licensed tier).** A request/approve/reject workflow with
+separation of duties is planned for the licensed bulk/automated remediation
+track, not yet available today:
 
 1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
    selects findings, clicks **Request Remediation**, and enters a justification.
 2. A **different** user with `remediation:approve` (`security_admin` or `admin`)
-   reviews and approves or rejects it. You cannot approve your own request
-   (separation of duties; self-approval returns `409 self_review`).
+   reviews and approves or rejects it. The reviewer cannot be the requester
+   (separation of duties; self-review returns `409 remediation.self_review`).
 3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
-See [User roles](USER_ROLES.md) for the full role matrix. Single-operator
-workspaces cannot self-approve a bulk/automated remediation request today.
+See [User roles](USER_ROLES.md) for the full role matrix.
 
 ---
 

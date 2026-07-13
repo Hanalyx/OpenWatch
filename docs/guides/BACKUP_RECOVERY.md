@@ -169,8 +169,8 @@ openssl enc -aes-256-cbc -d -pbkdf2 \
     -in /var/backups/openwatch/config_<timestamp>.tar.gz.enc \
   | sudo tar xzf - -C /
 
-sudo chown -R root:openwatch /etc/openwatch/keys
-sudo chmod 0640 /etc/openwatch/keys/credential.key
+sudo chown openwatch:openwatch /etc/openwatch/keys/credential.key
+sudo chmod 0600 /etc/openwatch/keys/credential.key
 sudo systemctl restart openwatch
 ```
 

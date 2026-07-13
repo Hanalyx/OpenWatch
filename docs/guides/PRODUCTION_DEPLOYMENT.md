@@ -175,13 +175,16 @@ OpenWatch exposes two anonymous endpoints for probes:
 ```bash
 curl -k https://localhost:8443/api/v1/health
 # 200 {"status":"healthy","db_connected":true,"version":"..."}
-# 503 when the database ping fails (status "degraded")
+# 503 {"error":{"code":"server.unavailable","fault":"server",
+#      "human_message":"database is not reachable","retryable":true}}
+#      when the database ping fails
 
 curl -k https://localhost:8443/api/v1/version
 # {"openwatch":"...","kensa":"...","go":"...","commit":"...","build_time":"..."}
 ```
 
-`/api/v1/health` returns `200` with `db_connected:true` when healthy and `503`
+`/api/v1/health` returns `200` with `db_connected:true` when healthy, and `503`
+with the `ErrorEnvelope` body shown above (not a `status:"degraded"` body)
 when the database ping inside the handler fails. Use it as your liveness and
 readiness probe.
 
@@ -285,8 +288,9 @@ curl -k https://localhost:8443/api/v1/health
 1. If the unit is `failed`/`inactive`, read the journal for the boot error.
    Common causes: malformed `OPENWATCH_DATABASE_DSN`, unreadable TLS cert, or a
    missing `jwt_private_key` / `credential_key_file`.
-2. If `/api/v1/health` returns `503` with `db_connected:false`, treat it as a
-   database problem (see DATABASE_ISSUES below).
+2. If `/api/v1/health` returns `503` (an `ErrorEnvelope` with code
+   `server.unavailable`), treat it as a database problem (see DATABASE_ISSUES
+   below).
 3. Confirm the config is valid, then restart:
    ```bash
    sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
@@ -296,8 +300,8 @@ curl -k https://localhost:8443/api/v1/health
 
 ### DATABASE_ISSUES—database connectivity
 
-Symptoms: `/api/v1/health` reports `db_connected:false`; journal shows
-`db: ping:` errors.
+Symptoms: `/api/v1/health` returns `503` (`ErrorEnvelope` code
+`server.unavailable`); journal shows `db: ping:` errors.
 
 ```bash
 sudo systemctl status postgresql

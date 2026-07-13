@@ -56,7 +56,8 @@ The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 Preview what would change before upgrading:
 
 ```bash
-sudo openwatch migrate --status
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch migrate --status
 # -> "up to date — no migrations pending"  OR  "PENDING: N migration(s) ..."
 ```
 
@@ -68,7 +69,8 @@ rolled back). Recover with:
 ```bash
 # 1. read the error in the dnf/apt output or:  journalctl -u openwatch
 # 2. fix the cause, then re-apply:
-sudo openwatch migrate
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+    openwatch migrate
 sudo systemctl start openwatch
 # on Debian, also clear the half-configured state:
 sudo dpkg --configure -a

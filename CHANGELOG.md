@@ -79,6 +79,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   test returned a bare 400 with no detail. It now reports the underlying error
   (for example, a TLS or connection failure) while scrubbing secrets: a webhook
   URL embedded in an error is stripped so it can't leak into the response.
+- **Host-detail "paused for maintenance" tile now reflects real state.** The
+  host-detail Auto-scan card read a schedule column the scheduler stopped
+  writing (it moved to the per-host/per-group maintenance view in an earlier
+  change), so a host in maintenance never showed as paused on its own page. It
+  now reads the effective-maintenance view.
 
 ---
 

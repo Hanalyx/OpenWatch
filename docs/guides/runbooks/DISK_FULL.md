@@ -43,7 +43,7 @@ configured through `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`.
 
 ## Symptoms
 
-- The health probe returns `503` or `db_connected: false`:
+- The health probe returns `503` (`ErrorEnvelope` code `server.unavailable`):
   `curl -sk https://localhost:8443/api/v1/health`.
 - `journalctl -u openwatch` shows PostgreSQL write errors such as
   `could not extend file` or `No space left on device`.
@@ -212,13 +212,14 @@ curl -sk https://localhost:8443/api/v1/health
 ```
 
 A healthy response is HTTP `200` with a body of
-`{"status":"healthy","db_connected":true,"version":"..."}`. A `503` or
-`db_connected: false` means PostgreSQL is still not writable.
+`{"status":"healthy","db_connected":true,"version":"..."}`. A `503` (an
+`ErrorEnvelope` with code `server.unavailable`) means PostgreSQL is still not
+writable.
 
 ### 4. Migrations are current (if you restarted after recovery)
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
 ```
 
 This is idempotent: it applies any pending migrations and prints the current

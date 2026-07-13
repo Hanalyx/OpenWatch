@@ -63,7 +63,7 @@ The scan queue is PostgreSQL-native and claims one job at a time per worker with
 processes pointed at the same database and config:
 
 ```bash
-openwatch worker --config /etc/openwatch/openwatch.toml
+openwatch --config /etc/openwatch/openwatch.toml worker
 ```
 
 Each worker claims one scan job at a time. Within a single worker, a per-host
@@ -87,7 +87,7 @@ Type=simple
 User=openwatch
 Group=openwatch
 EnvironmentFile=-/etc/openwatch/secrets.env
-ExecStart=/usr/bin/openwatch worker --config /etc/openwatch/openwatch.toml
+ExecStart=/usr/bin/openwatch --config /etc/openwatch/openwatch.toml worker
 Restart=on-failure
 RestartSec=5s
 
@@ -197,9 +197,11 @@ There is no Prometheus endpoint and no Grafana stack in the current build (see
   journalctl -u openwatch -f
   ```
 
-  The worker logs a periodic `worker.loop.tick` line (roughly every 60s) with
-  idle/claimed/in-flight/completed counters—a lightweight way to confirm a
-  worker is alive and draining.
+  The worker emits a periodic `worker.loop.tick` audit event (roughly every
+  60s) with idle/claimed/in-flight/completed counters—query it via `GET
+  /api/v1/audit/events?action=worker.loop.tick` (or PostgreSQL directly) as a
+  lightweight way to confirm a worker is alive and draining. It is an audit
+  event, not a `journald` log line.
 - **Audit and queue state**—query PostgreSQL directly:
 
   ```bash

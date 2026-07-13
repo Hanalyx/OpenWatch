@@ -159,8 +159,8 @@ Navigate to the **Dashboard** from the sidebar. The posture overview shows:
 
 ### Historical posture
 
-OpenWatch captures daily posture snapshots at 00:30 UTC. To view historical
-posture:
+OpenWatch captures a posture snapshot rollup on an hourly tick (plus once
+immediately at boot). To view historical posture:
 
 1. Navigate to the host detail page.
 2. Select the **Posture History** tab.
@@ -325,19 +325,27 @@ acknowledged, and recently resolved alerts.
 
 Use filters to narrow by:
 
-- **Status**—active, acknowledged, resolved
-- **Severity**—critical, high, medium, low
+- **Status**—active, acknowledged, silenced, resolved, dismissed
+- **Severity**—critical, high, medium, low, info
 - **Category**—compliance, operational, exception, drift
 
 ### Alert lifecycle
 
 ```
-Active --> Acknowledged --> Resolved
+Active --> Acknowledged --> Silenced --> Resolved --> Dismissed
 ```
+
+Transitions do not have to pass through every state in order; each of
+Acknowledged, Silenced, Resolved, and Dismissed can follow directly from
+Active (see the state list above).
 
 - **Active**: Alert generated, requires attention.
 - **Acknowledged**: Select **Acknowledge** to indicate you are investigating.
+- **Silenced**: Select **Silence** to suppress an alert until a chosen time,
+  without resolving it.
 - **Resolved**: Select **Resolve** after the issue is fixed or accepted.
+- **Dismissed**: Select **Dismiss** to close an alert that requires no further
+  action (for example, a false positive).
 
 ### Configuring thresholds
 
@@ -356,30 +364,24 @@ Navigate to **Settings > Alert Thresholds** to customize when alerts fire.
 
 ## Exporting for audits
 
-OpenWatch provides audit query and export tools for generating compliance
-evidence.
+For the audit trail itself, `GET /api/v1/audit/events/export` (`audit:read`)
+downloads the events matching the same filters as `GET /api/v1/audit/events`
+(`action`, `actor_type`, `resource_type`, `resource_id`, `since`, `until`) as a
+synchronous CSV or JSON attachment, capped at 10,000 rows newest-first. There
+is no saved-query library, no preview step, no background/async generation,
+and no checksum or expiry on this export—it downloads immediately with the
+filters you pass.
 
-### Creating a saved query
+```bash
+curl -k "https://localhost:8443/api/v1/audit/events/export?format=csv&since=2026-06-01T00:00:00Z" \
+  -H "Authorization: Bearer $TOKEN" -o audit-events.csv
+```
 
-1. Navigate to **Compliance > Audit Queries**.
-2. Select **New Query**.
-3. Define filter criteria (severities, statuses, date range, hosts).
-4. Name the query and set visibility (private or shared).
-5. Select **Save**.
-
-### Previewing results
-
-Before generating a full export, select **Preview** to see a sample of matching
-findings and the total count.
-
-### Generating an export
-
-1. From a saved query, select **Export**.
-2. Choose a format: **CSV** or **JSON**.
-3. The export generates in the background. A download link appears when ready.
-
-Exports include a SHA-256 checksum for integrity verification. Exports expire
-after 7 days by default.
+For a curated, point-in-time compliance artifact instead of raw events, use
+the **Reports** page (`/api/v1/reports`): it generates a Fleet Compliance
+Executive Summary that is Ed25519-signed and content-addressed
+(`content_sha256`), and can be exported as JSON, PDF, or (for the attestation
+report kind) CSV.
 
 ---
 
@@ -405,7 +407,8 @@ worker.
 
 ```bash
 curl -k -X POST https://localhost:8443/api/v1/hosts/HOST_UUID/scans \
-  -H "Authorization: Bearer $TOKEN"
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)"
 ```
 
 ### Query compliance (current lens)
