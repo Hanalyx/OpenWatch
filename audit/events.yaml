@@ -141,6 +141,14 @@ events:
     severity: info
     description: User's password was successfully updated
 
+  - code: auth.profile.updated
+    severity: info
+    description: User updated their own profile (self-service). email_changed is true when the update included the sign-in email.
+    detail_schema:
+      type: object
+      properties:
+        email_changed: {type: boolean}
+
   - code: auth.password.policy_failed
     severity: warning
     description: Password change rejected by the NIST 800-63B policy validator

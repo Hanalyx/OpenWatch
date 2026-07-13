@@ -74,8 +74,8 @@ func buildReportEmail(from string, to []string, subject, body, filename string, 
 	_ = w.Close()
 
 	var msg bytes.Buffer
-	fmt.Fprintf(&msg, "From: %s\r\n", from)
-	fmt.Fprintf(&msg, "To: %s\r\n", strings.Join(to, ", "))
+	fmt.Fprintf(&msg, "From: %s\r\n", stripCRLF(from))
+	fmt.Fprintf(&msg, "To: %s\r\n", stripCRLF(strings.Join(to, ", ")))
 	fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&msg, "Content-Type: multipart/mixed; boundary=%s\r\n", w.Boundary())

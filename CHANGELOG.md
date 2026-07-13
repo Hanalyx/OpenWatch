@@ -10,6 +10,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Org-wide default compliance lens.** A scan always runs the full Kensa
+  corpus; a framework lens is a read-time view over that one result. An admin
+  can now set an org-wide default lens (Settings, Compliance policies, Framework
+  lenses) so the compliance scores on the dashboard, hosts list, and host detail
+  default to a chosen framework family (for example STIG or CIS) instead of the
+  framework-agnostic All rules baseline. The default is a family, so it resolves
+  per host to the OS-appropriate corpus key (`stig_rhel9` on RHEL 9,
+  `stig_rhel10` on RHEL 10); a host with no key for the family scores N/A under
+  it. All rules stays the factory default. Individual host views can still
+  switch lens. Backed by `GET /api/v1/compliance/frameworks` (corpus-derived
+  family list, `host:read`) and `GET`/`PUT /api/v1/system/compliance/config`
+  (`system:read` / `system:config_write`). See spec `system-compliance-lens`.
+- **SMTP email notifications with per-severity routing.** A notification channel
+  can now deliver over SMTP to any mail service or a local relay such as Postfix,
+  with three transport modes: `starttls` (required, the default), implicit
+  `tls` on port 465, and `none` for a trusted local relay. A per-channel
+  severity threshold routes alerts by level (for example, high and above), and
+  a self-signed-certificate option covers internal relays without a public CA.
+  See spec `system-notifications`.
+- **Self-service profile editing.** A signed-in user can update their own
+  display name, full name, job title, timezone, and phone, and change their
+  email. An email change is checked for uniqueness against active accounts. See
+  spec `system-user-management`.
+
 ### Security
 
 - **Kensa bumped to v0.7.6, patching a root command injection in the
@@ -40,6 +66,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   disabled via an `install /bin/false` override, or absent from the kernel
   tree entirely, now counts as disabled. This only turns former false
   failures into passes.
+
+### Fixed
+
+- **Per-host and per-group maintenance now suppress scans everywhere.** Putting
+  a host into maintenance (or a group the host belongs to) previously did not
+  reliably stop scheduled scans: the scheduler read a per-host flag that the
+  maintenance controls no longer wrote. A new `host_effective_maintenance` view
+  unifies per-host and per-group maintenance, and the scheduler and worker honor
+  it, so a host in maintenance from either source is skipped.
+- **Notification channel test surfaces the real failure.** A failed channel
+  test returned a bare 400 with no detail. It now reports the underlying error
+  (for example, a TLS or connection failure) while scrubbing secrets: a webhook
+  URL embedded in an error is stripped so it can't leak into the response.
+- **Host-detail "paused for maintenance" tile now reflects real state.** The
+  host-detail Auto-scan card read a schedule column the scheduler stopped
+  writing (it moved to the per-host/per-group maintenance view in an earlier
+  change), so a host in maintenance never showed as paused on its own page. It
+  now reads the effective-maintenance view.
 
 ---
 

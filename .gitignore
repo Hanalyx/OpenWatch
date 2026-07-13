@@ -842,3 +842,6 @@ frontend/.specter-results.json
 
 # Local dev bootstrap state (scripts/openwatch.sh)
 .dev/
+
+# Kensa runtime state (SQLite remediation store, created at runtime)
+.kensa/

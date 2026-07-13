@@ -1,6 +1,6 @@
 # Database migration guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
@@ -105,8 +105,10 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
 ## Adding a new migration
 
 1. Create a new migration file named with the next ascending
-   integer, for example `0023_add_scan_findings.sql`. Migration order is driven
-   by the filename prefix, not by dates.
+   integer, for example `0051_add_scan_findings.sql` (the current highest
+   applied migration is `0050`; use the next free number, not this example
+   literally). Migration order is driven by the filename prefix, not by
+   dates.
 
 2. Write the `Up` and `Down` blocks using goose annotations:
 
@@ -172,17 +174,24 @@ Plan accordingly:
 ## Backup before migrating
 
 The `migrate` subcommand can take the pre-migration backup for you: pass
-`--backup-dir <dir>` and it writes a logical dump into that directory before
-applying any pending migration. This is the recommended path on production
-upgrades:
+`--backup-dir <dir>` and it writes a plain-SQL `pg_dump` (`--no-owner
+--no-privileges`) into that directory before applying any pending migration.
+This is the recommended path on production upgrades:
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
     openwatch migrate --backup-dir /var/backups/openwatch
 ```
 
+Because this dump is plain SQL, restore it with `psql`, not `pg_restore`:
+
+```bash
+psql "$OPENWATCH_DATABASE_DSN" < /var/backups/openwatch/openwatch_20260610T120000Z.sql
+```
+
 To take the backup yourself instead, use `pg_dump` before applying migrations to
-any environment you cannot afford to lose:
+any environment you cannot afford to lose. If you choose the custom archive
+format instead of plain SQL, use `pg_restore` to restore it:
 
 ```bash
 pg_dump "$OPENWATCH_DATABASE_DSN" \
@@ -190,16 +199,13 @@ pg_dump "$OPENWATCH_DATABASE_DSN" \
   --file="openwatch_$(date -u +%Y%m%dT%H%M%SZ).dump"
 ```
 
-Restore with `pg_restore` against a clean database if a migration must be
-reverted:
-
 ```bash
 pg_restore --clean --if-exists --dbname "$OPENWATCH_DATABASE_DSN" \
   openwatch_20260610T120000Z.dump
 ```
 
-Run `pg_dump`/`pg_restore` from the host (or a PostgreSQL client package)—there
-is no container to `exec` into.
+Run `pg_dump`/`pg_restore`/`psql` from the host (or a PostgreSQL client
+package)—there is no container to `exec` into.
 
 ## Troubleshooting
 

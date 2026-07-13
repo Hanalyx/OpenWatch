@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary build)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary build)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch
@@ -28,12 +28,9 @@ PostgreSQL-native job queue with `SELECT ... FOR UPDATE SKIP LOCKED`.
 | PostgreSQL | All persistent state | You provision and bind it (loopback by default) |
 | Kensa (in-process, Go) | SSH-based compliance engine | TCP/22 outbound to managed hosts |
 
-
-
 The compliance engine is Kensa, which connects to managed hosts over SSH and
-runs native YAML checks.
-See
-the Kensa scanning engine.
+runs native YAML checks. See [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)
+for how scanning works end to end.
 
 ---
 
@@ -134,16 +131,21 @@ openwatch --version
 `openwatch serve` refuses to start unless both identity keys are present. There
 is no silent fallback to ephemeral keys.
 
-| Config key | Default path | Contents | Required mode |
-|------------|--------------|----------|---------------|
-| `[identity].jwt_private_key` | `/etc/openwatch/keys/jwt_private.pem` | PEM RSA private key, ≥ 2048-bit | `0600` |
-| `[identity].credential_key_file` | `/etc/openwatch/keys/credential.key` | 32-byte raw AES-256 key | `0600` |
+| Config key | Default path | Contents | Shipped mode | Enforced at boot |
+|------------|--------------|----------|---------------|-------------------|
+| `[identity].jwt_private_key` | `/etc/openwatch/keys/jwt_private.pem` | PEM RSA private key, ≥ 2048-bit | `0640`, owner `root:openwatch` | No — the mode is not checked by code |
+| `[identity].credential_key_file` | `/etc/openwatch/keys/credential.key` | 32-byte raw AES-256 key | `0600`, owner `openwatch:openwatch` | Yes — boot refuses to start if the mode has any group/other bits set |
 
 
 
 Hardening steps:
 
-- Set both key files to mode `0600`, owned by the `openwatch` user.
+- `credential.key` mode `0600` owned by `openwatch:openwatch` is a hard boot
+  requirement; do not change it.
+- `jwt_private.pem` ships `0640` owned `root:openwatch` and is not
+  permission-checked at boot. Tightening it to `0600` owned by `openwatch`
+  is a valid stricter-than-shipped hardening step, not a shipped control —
+  do not represent it as enforced.
 - Keep the database password out of the world-readable config: put
   `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (mode `0640`, owner
   `root:openwatch`), which the `systemd` unit loads via `EnvironmentFile=`.
@@ -163,7 +165,7 @@ Hardening steps:
 | Session inactivity timeout | 15 minutes |
 | Session absolute timeout | 12 hours |
 | Password policy | Length only—8 chars (regular), 15 chars (admin), max 128; NIST SP 800-63B |
-| Breach check | Always-on in production: new passwords are screened against an embedded common/breached corpus (airgap-safe); point `OPENWATCH_BREACH_CORPUS_FILE` at a full HIBP list to extend it |
+| Breach check | Always-on in production: new passwords are screened against an embedded common/breached corpus (airgap-safe) |
 | MFA | TOTP enrollment and verification |
 
 The password policy is deliberately length-based with no character-class rules,
@@ -247,9 +249,10 @@ Hardening steps:
   sudo journalctl -u openwatch -o cat | jq .   # pretty-print the JSON
   ```
 
-> The audit-event taxonomy is the authoritative list. Treat the table above as a
-> sample, not a complete enumeration—see
-> the audit-event reference for the full set.
+> Treat the table above as a sample, not a complete enumeration. The running
+> service emits a structured audit event for every meaningful state change;
+> query `GET /api/v1/audit/events` to see the full set your deployment has
+> generated.
 
 ---
 
@@ -284,8 +287,9 @@ Hardening steps:
   ```
 
 - Keep the config and key files owned away from the service account where the
-  service only needs read access (cert/JWT/credential keys at `0600`, owned by
-  `openwatch`; `secrets.env` at `0640`, owner `root:openwatch`).
+  service only needs read access (TLS key and `credential.key` at `0600`,
+  owned by `openwatch`; `jwt_private.pem` ships `0640`, owner
+  `root:openwatch`; `secrets.env` at `0640`, owner `root:openwatch`).
 
 ---
 
@@ -478,8 +482,11 @@ Network and transport
 
 Cryptography and keys
 
-- [ ] `[identity].jwt_private_key` present, RSA ≥ 2048, mode `0600`.
-- [ ] `[identity].credential_key_file` present, 32 bytes, mode `0600`.
+- [ ] `[identity].jwt_private_key` present, RSA ≥ 2048; ships mode `0640`
+      (owner `root:openwatch`, not permission-checked at boot) — tightening to
+      `0600` owned by `openwatch` is an optional, stricter-than-shipped step.
+- [ ] `[identity].credential_key_file` present, 32 bytes, mode `0600` (boot
+      refuses to start otherwise).
 - [ ] `OPENWATCH_DATABASE_DSN` in `secrets.env` (mode `0640`, `root:openwatch`),
       not in the world-readable TOML.
 - [ ] For FIPS environments: the `-fips` build is deployed and
@@ -512,9 +519,9 @@ Source for every checklist item is cited in the section above that introduces it
   [Installation guide](INSTALLATION.md)
 - RBAC registry and permission model:
   [User roles](USER_ROLES.md)
-- Audit event taxonomy:
-  the audit-event reference
-- Kensa and OpenWatch boundary:
-  the Kensa scanning engine
+- Audit events and querying the audit trail:
+  [API guide](API_GUIDE.md)
+- How Kensa scanning works:
+  [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)
 - API contract (per-operation required permission, license gate, audit events):
   served at `/api/v1`; `GET /api/v1/version` reports the running build

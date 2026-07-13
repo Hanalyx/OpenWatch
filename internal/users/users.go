@@ -250,11 +250,27 @@ type ProfileUpdate struct {
 // otherwise. Username, role, and password are not editable here. Returns
 // the updated user.
 func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, p ProfileUpdate) (User, error) {
+	// Enforce the documented length bounds server-side (api/openapi.yaml
+	// AuthMeUpdateRequest). The request-body contract is not enforced by
+	// middleware, so a caller could otherwise store arbitrarily large values.
+	for _, f := range []struct {
+		name string
+		val  *string
+		max  int
+	}{
+		{"full_name", p.FullName, 256}, {"display_name", p.DisplayName, 256},
+		{"job_title", p.JobTitle, 256}, {"timezone", p.Timezone, 64}, {"phone", p.Phone, 64},
+	} {
+		if f.val != nil && len(*f.val) > f.max {
+			return User{}, fmt.Errorf("%w: %s exceeds %d characters", ErrInvalidProfile, f.name, f.max)
+		}
+	}
+
 	var emailArg *string
 	if p.Email != nil {
 		email := strings.TrimSpace(*p.Email)
-		if email == "" || !strings.Contains(email, "@") {
-			return User{}, fmt.Errorf("%w: email must be a non-empty address", ErrInvalidProfile)
+		if email == "" || !strings.Contains(email, "@") || len(email) > 256 {
+			return User{}, fmt.Errorf("%w: email must be a non-empty address of at most 256 characters", ErrInvalidProfile)
 		}
 		var taken bool
 		if err := s.pool.QueryRow(ctx,
@@ -288,6 +304,12 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, p ProfileUpda
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, ErrUserNotFound
+		}
+		// The pre-check above is not in the same transaction as the UPDATE, so a
+		// concurrent email change can still collide on idx_users_email_active.
+		// Map the unique violation to ErrEmailTaken (409) instead of a 500.
+		if isUniqueViolation(err) {
+			return User{}, ErrEmailTaken
 		}
 		return User{}, fmt.Errorf("users: update profile: %w", err)
 	}

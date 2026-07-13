@@ -1,17 +1,17 @@
 # Linux distribution support matrix
 
 > **Scope.** OpenWatch targets Linux, but **not every Linux distribution is
-> supported to the same degree**. As of Kensa v0.7.0, compliance *scanning* is
+> supported to the same degree**. As of Kensa v0.7.6, compliance *scanning* is
 > supported on the **RHEL family and on Ubuntu**, because those are the
 > platforms the bundled Kensa rule corpus covers. This page states, with
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
-**Last verified:** 2026-06-29 against Kensa rule corpus **v0.7.0** (630 rules).
+**Last verified:** 2026-07-13 against Kensa rule corpus **v0.7.6** (748 rules).
 Per-OS counts below are read from each rule's `platforms:` declarations in the
-corpus, not from a live scan.
+v0.7.6 corpus, not from a live scan.
 
 ---
 
@@ -19,7 +19,7 @@ corpus, not from a live scan.
 
 - **Compliance scanning works on RHEL 8 / 9 / 10** and its binary-compatible
   rebuilds (Rocky, AlmaLinux, CentOS Stream, Oracle Linux), **and on Ubuntu
-  22.04 / 24.04 LTS.** Kensa v0.7.0 ships 630 rules across these platforms.
+  22.04 / 24.04 LTS.** Kensa v0.7.6 ships 748 rules across these platforms.
 - **Each rule declares the platforms it applies to**, so a host is only
   evaluated against rules that match its detected OS. Ubuntu hosts are scanned
   against the Ubuntu rule set; RHEL hosts against the RHEL rule set.
@@ -39,7 +39,7 @@ OpenWatch ships as native packages built for:
 
 | Platform | Form | Notes |
 |----------|------|-------|
-| **RHEL 9 / CentOS Stream 9** | native **RPM** | Built/tested on CentOS Stream 9. RHEL 9, Rocky 9, AlmaLinux 9 are binary-compatible. |
+| **RHEL 9** | native **RPM** | Built on `ubuntu-latest` CI runners cross-packaging the RPM; smoke-tested in `rockylinux:9` and `almalinux:9` containers. RHEL 9, Rocky 9, AlmaLinux 9 are binary-compatible. |
 | **Ubuntu 24.04 LTS** | native **DEB** | Built/tested on Ubuntu 24.04. |
 
 Other distributions may run the server from source (Go 1.26 + PostgreSQL 14 or
@@ -63,19 +63,17 @@ sensitivity:
 
 ### Per-OS rule applicability
 
-Rule applicability is read from the v0.7.0 corpus (each rule's `platforms:`
-block). These are the approximate counts of rules that apply per OS:
+Rule applicability is read from the currently bundled Kensa v0.7.6 corpus
+(each rule's `platforms:` block). These are the counts of rules that apply per
+OS family:
 
-| OS | Rules applicable (approx.) |
-|----|----------------------------|
-| RHEL 8 | ~460 |
-| RHEL 9 | ~466 |
-| RHEL 10 | ~310 |
-| Ubuntu 22.04 | ~115 |
-| Ubuntu 24.04 | ~117 |
+| OS family | Rules applicable |
+|-----------|-------------------|
+| RHEL family (RHEL, Rocky, AlmaLinux, CentOS Stream, Oracle Linux) | 668 |
+| Ubuntu (22.04, 24.04) | 117 |
 
-A rule can apply to several platforms, so these counts overlap; the corpus total
-is 630 distinct rules.
+A rule can apply to several platforms, so these counts overlap; the Kensa
+v0.7.6 corpus total is 748 distinct rules.
 
 ### Support matrix
 
@@ -86,7 +84,7 @@ is 630 distinct rules.
 | **AlmaLinux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
 | **CentOS Stream 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
 | **Oracle Linux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
-| **Ubuntu 22.04 / 24.04 LTS** | Supported | Supported | Supported (~115–117 applicable rules) | **Supported** |
+| **Ubuntu 22.04 / 24.04 LTS** | Supported | Supported | Supported (117 applicable rules) | **Supported** |
 | **Fedora** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
 | **Debian 12** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
 | **SUSE / openSUSE / SLES** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
@@ -104,7 +102,7 @@ unverified support; **Not supported** means no coverage for that phase.
 
 ## 3. Why a Fedora or Debian host scans nothing
 
-This is the behaviour you will see and it is **working as designed**, not a
+This is the behaviour you see and it is **working as designed**, not a
 crash:
 
 1. **Discovery succeeds.** OpenWatch reads `/etc/os-release` and stores the
@@ -120,9 +118,9 @@ crash:
    cycle).
 3. **The compliance scan skips everything.** Kensa SSHes to the host, reads
    `/etc/os-release`, and filters its corpus to rules whose `platforms` match
-   the detected distro. The v0.7.0 corpus carries rules for the RHEL family and
-   Ubuntu only, so a Fedora, Debian, or SUSE host matches none and **all rules
-   are skipped**.
+   the detected distro. The Kensa rule corpus carries rules for the RHEL family
+   and Ubuntu only, so a Fedora, Debian, or SUSE host matches none and **all
+   rules are skipped**.
 
 Skipping is the correct outcome: applying rules written for one distro to
 another would evaluate the wrong files, services, and defaults and report
@@ -182,8 +180,8 @@ a compliance score.
 - Server Intelligence is OS-agnostic: it runs `rpm -qa` or `dpkg -l` with
   partial-success semantics.
 - Kensa filters its corpus by the host's detected platform at scan time.
-- Rule corpus applicability (read from the corpus platform declarations):
-  Kensa v0.7.0, **630 rules** spanning RHEL 8/9/10 and Ubuntu 22.04/24.04.
-  Approximate per-OS applicability: rhel8 ~460, rhel9 ~466, rhel10 ~310,
-  ubuntu22 ~115, ubuntu24 ~117.
+- Rule corpus applicability (read from the corpus platform declarations): the
+  currently bundled corpus is Kensa v0.7.6, **748 rules** spanning RHEL
+  8/9/10 and Ubuntu 22.04/24.04—668 applicable to the RHEL family, 117 to
+  Ubuntu (rules can apply to more than one platform, so these overlap).
 - Framework mappings: CIS RHEL 9 v2.0.0, STIG RHEL 9 V2R7, plus CIS/STIG Ubuntu.

@@ -338,6 +338,46 @@ func TestDispatch_MaintenanceMode_RowSkipped(t *testing.T) {
 	})
 }
 
+// TestHostSchedule_MaintenanceFromEffectiveView is a regression test for the
+// host-detail schedule projection: HostSchedule must read maintenance from
+// host_effective_maintenance (per-host OR per-group, migration 0049), NOT the
+// never-written host_compliance_schedule.maintenance_mode column. Before the
+// fix that column always read false, so the "paused for maintenance" tile on
+// the host-detail Auto-scan card was permanently unreachable.
+func TestHostSchedule_MaintenanceFromEffectiveView(t *testing.T) {
+	pool := freshPool(t)
+	user := seedUser(t, pool)
+	hNormal := seedHost(t, pool, user)
+	hPerHost := seedHost(t, pool, user)
+	hPerGroup := seedHost(t, pool, user)
+	seedSchedule(t, pool, hNormal)
+	seedSchedule(t, pool, hPerHost)
+	seedSchedule(t, pool, hPerGroup)
+	setHostMaintenance(t, pool, hPerHost, true)
+	seedManualMaintenanceGroup(t, pool, hPerGroup)
+
+	for _, tc := range []struct {
+		name   string
+		hostID uuid.UUID
+		want   bool
+	}{
+		{"normal host not in maintenance", hNormal, false},
+		{"per-host maintenance", hPerHost, true},
+		{"per-group maintenance", hPerGroup, true},
+	} {
+		info, err := HostSchedule(context.Background(), pool, tc.hostID)
+		if err != nil {
+			t.Fatalf("%s: HostSchedule: %v", tc.name, err)
+		}
+		if !info.Found {
+			t.Fatalf("%s: schedule row not found", tc.name)
+		}
+		if info.Maintenance != tc.want {
+			t.Errorf("%s: Maintenance = %v, want %v", tc.name, info.Maintenance, tc.want)
+		}
+	}
+}
+
 // @ac AC-13
 // AC-13: every UPDATE to host_compliance_schedule emits one
 // scheduler.schedule.updated audit event with the expected detail keys.

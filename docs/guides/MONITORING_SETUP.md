@@ -52,7 +52,7 @@ curl -k https://localhost:8443/api/v1/health
 A healthy response returns `200 OK`:
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.2.0"}
+{"status": "healthy", "db_connected": true, "version": "0.3.0"}
 ```
 
 When the database ping fails, the endpoint returns `503 Service Unavailable`
@@ -74,7 +74,7 @@ curl -k https://localhost:8443/api/v1/version
 
 ```json
 {
-  "openwatch": "0.2.0",
+  "openwatch": "0.3.0",
   "kensa": "<embedded engine version>",
   "go": "<go toolchain>",
   "commit": "<abbrev commit>",
@@ -161,7 +161,7 @@ follow the `FleetLiveness` and `ConnectivityBreakdown` schemas.
 ## 6. Service lifecycle
 
 OpenWatch runs as the `openwatch.service` systemd unit, which executes
-`openwatch --config /etc/openwatch/openwatch.toml serve`.
+`openwatch serve --config /etc/openwatch/openwatch.toml`.
 
 ```bash
 sudo systemctl status openwatch     # current state
@@ -365,5 +365,5 @@ operators do not look for them:
   not implemented. The current health contract is a single binary
   `healthy`/`degraded` status.
 
-If and when metrics or tracing land, this section and the API contract will be
-updated together.
+This section and the API contract are updated together whenever metrics or
+tracing land.

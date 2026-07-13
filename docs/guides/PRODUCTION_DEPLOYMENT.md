@@ -1,6 +1,6 @@
 # Production deployment guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers running OpenWatch in production: a single Go binary that serves
 the REST API and the embedded React UI over HTTPS, backed by PostgreSQL, managed
@@ -14,7 +14,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current general-availability release is
-> `v0.2.0`. Confirm with `openwatch --version` before and after an upgrade.
+> `v0.3.0`. Confirm with `openwatch --version` before and after an upgrade.
 
 ---
 
@@ -95,7 +95,7 @@ Config layers, highest precedence first:
 3. The TOML file (`/etc/openwatch/openwatch.toml`)
 4. Built-in defaults
 
-The TOML file has four sections:
+The TOML file has five sections:
 
 | Section | Key | Default | Purpose |
 |---------|-----|---------|---------|
@@ -106,6 +106,7 @@ The TOML file has four sections:
 | `[database]` | `max_connections` | `25` | Connection-pool ceiling |
 | `[logging]` | `level` | `info` | `debug` / `info` / `warn` / `error` |
 | `[logging]` | `format` | `json` | `json` / `text` |
+| `[reports]` | `signing_key_file` | unset (ephemeral per-boot key, dev only) | Ed25519 seed that signs report snapshots; production should set a durable key |
 
 Two more values come from `[identity]` and must be set for `serve`/`worker` to
 boot—the JWT signing key (`jwt_private_key`) and the credential DEK file
@@ -174,13 +175,16 @@ OpenWatch exposes two anonymous endpoints for probes:
 ```bash
 curl -k https://localhost:8443/api/v1/health
 # 200 {"status":"healthy","db_connected":true,"version":"..."}
-# 503 when the database ping fails (status "degraded"/unavailable)
+# 503 {"error":{"code":"server.unavailable","fault":"server",
+#      "human_message":"database is not reachable","retryable":true}}
+#      when the database ping fails
 
 curl -k https://localhost:8443/api/v1/version
 # {"openwatch":"...","kensa":"...","go":"...","commit":"...","build_time":"..."}
 ```
 
-`/api/v1/health` returns `200` with `db_connected:true` when healthy and `503`
+`/api/v1/health` returns `200` with `db_connected:true` when healthy, and `503`
+with the `ErrorEnvelope` body shown above (not a `status:"degraded"` body)
 when the database ping inside the handler fails. Use it as your liveness and
 readiness probe.
 
@@ -284,8 +288,9 @@ curl -k https://localhost:8443/api/v1/health
 1. If the unit is `failed`/`inactive`, read the journal for the boot error.
    Common causes: malformed `OPENWATCH_DATABASE_DSN`, unreadable TLS cert, or a
    missing `jwt_private_key` / `credential_key_file`.
-2. If `/api/v1/health` returns `503` with `db_connected:false`, treat it as a
-   database problem (see DATABASE_ISSUES below).
+2. If `/api/v1/health` returns `503` (an `ErrorEnvelope` with code
+   `server.unavailable`), treat it as a database problem (see DATABASE_ISSUES
+   below).
 3. Confirm the config is valid, then restart:
    ```bash
    sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
@@ -295,8 +300,8 @@ curl -k https://localhost:8443/api/v1/health
 
 ### DATABASE_ISSUES—database connectivity
 
-Symptoms: `/api/v1/health` reports `db_connected:false`; journal shows
-`db: ping:` errors.
+Symptoms: `/api/v1/health` returns `503` (`ErrorEnvelope` code
+`server.unavailable`); journal shows `db: ping:` errors.
 
 ```bash
 sudo systemctl status postgresql

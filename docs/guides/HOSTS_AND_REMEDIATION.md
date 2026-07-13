@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -27,7 +27,6 @@ compliance findings. Most of these tasks are performed in the web UI.
 
 4. Click **Save**.
 
-![Add Host dialog](../images/hosts/add-host.png)
 
 The host appears in the host list immediately after creation.
 
@@ -42,7 +41,6 @@ For adding many hosts at once:
 5. Review the auto-detected field mappings.
 6. Confirm the import.
 
-![Bulk import CSV mapping review](../images/hosts/bulk-import.png)
 
 Set **Dry Run** to validate the file without creating hosts. Set **Update
 Existing** to overwrite hosts that match by hostname or IP address.
@@ -69,7 +67,6 @@ installed on target hosts.
 4. Enter the SSH username.
 5. Click **Save**.
 
-![Credential configuration form](../images/hosts/credentials.png)
 
 ### Testing connectivity
 
@@ -111,7 +108,6 @@ compliance reporting and batch scanning.
 3. Enter a name, description, OS family, and compliance framework.
 4. Click **Save**.
 
-![Create host group dialog](../images/hosts/create-group.png)
 
 ### Assigning hosts
 
@@ -120,12 +116,8 @@ compliance reporting and batch scanning.
 3. Select hosts from the list.
 4. Click **Confirm**.
 
-Each host can belong to one group at a time.
-
-### Smart group creation
-
-Select multiple hosts and click **Smart Group**. OpenWatch analyzes their OS,
-architecture, and compliance profile to recommend group settings automatically.
+A host can belong to more than one group at a time; group membership is a
+many-to-many relationship.
 
 ### Group scanning
 
@@ -143,16 +135,21 @@ OpenWatch automatically detects the operating system for hosts during scans.
 You can also trigger manual OS discovery from the host detail page by clicking
 **Discover OS**.
 
-A scheduled task runs daily at 02:00 UTC to discover the OS for all active
-hosts that have not been identified yet.
+A background scheduler ticks every 60 seconds and enqueues discovery for any
+host whose OS has never been discovered or whose last discovery is older than
+the per-host interval (default 24 hours, operator-tunable between 1 hour and 7
+days). There is no fixed time-of-day anchor—discovery runs continuously as
+hosts become due.
 
 ### Connectivity monitoring
 
-Host connectivity is probed every 5 minutes by default (operator-tunable, with
-a 60-second floor). Each probe layers ICMP reachability, then SSH port + banner
-reachability, then a privilege check; a host is marked degraded when a higher
-layer fails after a lower one succeeds. Host status (online, degraded,
-unreachable) updates in the host list.
+Host connectivity is probed every 15 minutes by default (`online_sec`,
+operator-tunable with a 60-second floor); a host in the degraded state is
+probed more frequently, every 5 minutes by default (`degraded_sec`). Each
+probe layers ICMP reachability, then SSH port + banner reachability, then a
+privilege check; a host is marked degraded when a higher layer fails after a
+lower one succeeds. Host status (online, degraded, unreachable) updates in the
+host list.
 
 ---
 
@@ -161,7 +158,6 @@ unreachable) updates in the host list.
 During compliance scans, OpenWatch collects detailed information about each host.
 This data is available on the host detail page under the **Intelligence** tab.
 
-![Server intelligence overview](../images/hosts/server-intelligence.png)
 
 ### Data collected
 
@@ -189,9 +185,9 @@ needing to SSH in manually.
 
 ## Remediation overview
 
-OpenWatch can automatically fix compliance findings through Kensa's 27
-remediation mechanisms. All changes are made over SSH—nothing is installed
-on target hosts.
+OpenWatch can automatically fix compliance findings through Kensa's 29
+registered remediation handlers. All changes are made over SSH—nothing is
+installed on target hosts.
 
 ### What remediation can fix
 
@@ -215,25 +211,29 @@ on target hosts.
 2. Select the failing findings you want to remediate (use checkboxes).
 3. Click **Remediate Selected**.
 
-![Selecting findings for remediation](../images/hosts/select-remediation.png)
 
-4. Review the proposed changes. Each finding shows what will be modified.
+4. Review the proposed changes. Each finding shows what changes.
 5. Click **Start Remediation** to confirm.
 
-![Remediation confirmation dialog](../images/hosts/confirm-remediation.png)
 
-For organizations that require an approval step:
+In the free-core edition, a single-rule remediation request auto-approves on
+submission—there is no separate approval step, and no per-organization toggle
+to require one. The request is still recorded and audited (with a note that
+it was auto-approved), and a user with `remediation:execute` applies it.
+
+**Roadmap (licensed tier).** A request/approve/reject workflow with
+separation of duties is planned for the licensed bulk/automated remediation
+track, not yet available today:
 
 1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
    selects findings, clicks **Request Remediation**, and enters a justification.
 2. A **different** user with `remediation:approve` (`security_admin` or `admin`)
-   reviews and approves or rejects it. You cannot approve your own request
-   (separation of duties; self-approval returns `409 self_review`).
+   reviews and approves or rejects it. The reviewer cannot be the requester
+   (separation of duties; self-review returns `409 remediation.self_review`).
 3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
-See [User roles](USER_ROLES.md) for the full role matrix. Single-operator
-workspaces cannot self-approve a bulk/automated remediation request today.
+See [User roles](USER_ROLES.md) for the full role matrix.
 
 ---
 
@@ -242,7 +242,6 @@ workspaces cannot self-approve a bulk/automated remediation request today.
 After starting a remediation, track its progress on the host detail page
 under the **Remediation** tab.
 
-![Remediation progress view](../images/hosts/remediation-progress.png)
 
 The progress view shows:
 
@@ -266,7 +265,6 @@ If a remediation causes problems, you can roll back to the pre-change state.
 4. Enter a reason for the rollback (logged for audit purposes).
 5. Click **Confirm Rollback**.
 
-![Rollback confirmation](../images/hosts/rollback.png)
 
 Rollback requires the `remediation:rollback` permission (`ops_lead`,
 `security_admin`, or `admin`).
@@ -308,8 +306,8 @@ role-to-permission mapping is served by the roles API, `GET /api/v1/roles`; see
    applying to a group.
 4. **Review findings before remediating.** Understand what each rule checks
    and what the fix changes.
-5. **Monitor compliance score after remediation.** The adaptive scheduler will
-   automatically scan again, but you can force a scan for immediate results.
+5. **Monitor compliance score after remediation.** The adaptive scheduler
+   automatically scans again, but you can force a scan for immediate results.
 6. **Use groups for consistent scanning.** Hosts in the same group share OS
    family, framework, and scan schedule settings.
 

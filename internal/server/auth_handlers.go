@@ -559,6 +559,9 @@ func (h *handlers) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
 			"failed to update profile", false)
 		return
 	}
+	emitAudit(r, audit.AuthProfileUpdated, id.ID, map[string]any{
+		"email_changed": req.Email != nil,
+	})
 	writeJSON(w, http.StatusOK, userToMe(u, string(id.RoleID)))
 }
 

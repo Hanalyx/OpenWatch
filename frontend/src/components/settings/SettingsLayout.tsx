@@ -38,7 +38,6 @@ interface NavItem {
     | '/settings/audit'
     | '/settings/about';
   count?: number;
-  pip?: 'warn' | 'crit';
 }
 
 interface NavGroup {
@@ -91,7 +90,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Security & auth',
         icon: <Shield size={14} />,
         to: '/settings/security',
-        pip: 'warn',
       },
       { id: 'audit', label: 'Audit log', icon: <ScrollText size={14} />, to: '/settings/audit' },
     ],
@@ -237,17 +235,6 @@ export function SettingsLayout({ children }: { children: ReactNode }) {
                     >
                       {item.count}
                     </span>
-                  )}
-                  {item.pip && (
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        background: item.pip === 'warn' ? 'var(--ow-warn)' : 'var(--ow-crit)',
-                        marginLeft: 'auto',
-                      }}
-                    />
                   )}
                 </Link>
               );

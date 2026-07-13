@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.2.0 (Go single-binary)
+**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
@@ -42,7 +42,9 @@ On a host that already runs PostgreSQL, this takes about five minutes.
 ## Requirements
 
 - **OS:**
-  - RPM: CentOS Stream 9, RHEL 9, Rocky Linux 9, AlmaLinux 9, Oracle Linux 9
+  - RPM: RHEL 9, Rocky Linux 9, AlmaLinux 9, Oracle Linux 9, CentOS Stream 9
+    (binary-compatible rebuilds; CI smoke-tests the RPM in `rockylinux:9` and
+    `almalinux:9` containers, not CentOS Stream 9)
   - DEB: Ubuntu 24.04 LTS, Debian 12 (or a compatible `systemd` derivative)
 - **Architecture:** `x86_64`/`amd64` or `aarch64`/`arm64` (packages ship for both).
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
@@ -108,7 +110,7 @@ Install **both** files in one transaction. `openwatch` declares a hard
 dependency on `kensa-rules`—the rule corpus the scan engine loads from
 `/usr/share/kensa/rules`. Installing `openwatch` alone fails the dependency
 check (by design: a corpus-less node cannot scan). `kensa-rules` is `noarch`
-and versioned on the Kensa content line (for example `0.7.0`), independent of the
+and versioned on the Kensa content line (for example `0.7.6`), independent of the
 platform version, so the rules can update without re-releasing OpenWatch.
 
 Use the filenames you downloaded (`aarch64` for the arm64 openwatch RPM; the
@@ -378,7 +380,7 @@ sudo journalctl -u openwatch --since '1 min ago' -p err
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `config: env override: OPENWATCH_DATABASE_DSN: …` | Malformed DSN in `secrets.env` | Use `postgres://user:pass@host:port/db?sslmode=…` |
+| `database.dsn: scheme "" must be postgres:// or postgresql://` | Malformed DSN in `secrets.env` | Use `postgres://user:pass@host:port/db?sslmode=…` |
 | `db: ping: … password authentication failed` | Wrong DSN password, or `pg_hba.conf` rejects scram | Recheck Step 2; reload PostgreSQL after edits |
 | `db: ping: … connection refused` | PostgreSQL not running | `sudo systemctl status postgresql` |
 | `server: … no such file: cert.pem` | TLS cert path or perms wrong | Ensure `/etc/openwatch/tls/cert.pem` is readable by `openwatch` |

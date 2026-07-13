@@ -51,6 +51,8 @@ const (
 	AuthSessionRevoked Code = "auth.session.revoked"
 	// User's password was successfully updated
 	AuthPasswordChanged Code = "auth.password.changed"
+	// User updated their own profile (self-service). email_changed is true when the update included the sign-in email.
+	AuthProfileUpdated Code = "auth.profile.updated"
 	// Password change rejected by the NIST 800-63B policy validator
 	AuthPasswordPolicyFailed Code = "auth.password.policy_failed"
 	// API key issued
@@ -428,6 +430,13 @@ var Metadata = map[Code]EventMeta{
 		Category:    "auth",
 		Severity:    SeverityInfo,
 		Description: `User's password was successfully updated`,
+		ActorTypes:  nil,
+	},
+	AuthProfileUpdated: {
+		Code:        AuthProfileUpdated,
+		Category:    "auth",
+		Severity:    SeverityInfo,
+		Description: `User updated their own profile (self-service). email_changed is true when the update included the sign-in email.`,
 		ActorTypes:  nil,
 	},
 	AuthPasswordPolicyFailed: {
@@ -1392,6 +1401,7 @@ var codeOrder = []Code{
 	AuthSessionExpired,
 	AuthSessionRevoked,
 	AuthPasswordChanged,
+	AuthProfileUpdated,
 	AuthPasswordPolicyFailed,
 	AuthApiKeyCreated,
 	AuthApiKeyRevoked,

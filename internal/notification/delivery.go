@@ -198,12 +198,14 @@ func sendSMTP(cfg Config, from string, to []string, msg []byte) error {
 	return client.Quit()
 }
 
-// buildEmailMessage assembles a minimal RFC 5322 message.
+// buildEmailMessage assembles a minimal RFC 5322 message. From/To/Subject are
+// CRLF-stripped so an operator-supplied header value cannot inject additional
+// headers (CWE-93); see stripCRLF in report_email.go.
 func buildEmailMessage(from string, to []string, subject, body string) []byte {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "From: %s\r\n", from)
-	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(to, ", "))
-	fmt.Fprintf(&b, "Subject: %s\r\n", subject)
+	fmt.Fprintf(&b, "From: %s\r\n", stripCRLF(from))
+	fmt.Fprintf(&b, "To: %s\r\n", stripCRLF(strings.Join(to, ", ")))
+	fmt.Fprintf(&b, "Subject: %s\r\n", stripCRLF(subject))
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 	b.WriteString("\r\n")

@@ -51,13 +51,15 @@ Configuration lives under `/etc/openwatch`:
 - `journalctl -u openwatch` shows a fatal boot error (config invalid, TLS key
   missing, JWT key missing, or DB pool open failure).
 - Logins fail or writes error while the process is up—usually PostgreSQL is
-  unreachable; the health response reports `db_connected: false`.
+  unreachable; the health probe returns `503`.
 
 The health endpoint is anonymous and returns a small JSON body. A healthy
-response is HTTP `200` with `{"status":"healthy","db_connected":true,"version":"..."}`.
-A degraded response is HTTP `503`. The fields are `status`, `db_connected`, and
-`version` only (the `HealthResponse` contract). There is no
-`redis` field—earlier Python-era runbooks that reference one are obsolete.
+response is HTTP `200` with `{"status":"healthy","db_connected":true,"version":"..."}`
+(the `HealthResponse` contract: `status`, `db_connected`, `version` only—there
+is no `redis` field; earlier Python-era runbooks that reference one are
+obsolete). When the database is unreachable, the endpoint does **not** return
+a degraded `HealthResponse` body—it returns HTTP `503` with the standard
+`ErrorEnvelope` (`"code": "server.unavailable"`) instead.
 
 ---
 
@@ -82,7 +84,7 @@ curl -sk https://localhost:8443/api/v1/health
 | Result | Likely cause |
 |--------|--------------|
 | HTTP `200`, `db_connected: true` | Server is up; the problem is upstream (TLS trust, reverse proxy, network, DNS) |
-| HTTP `503`, `db_connected: false` | Server is up but PostgreSQL is unreachable (see path B) |
+| HTTP `503` (`ErrorEnvelope`, code `server.unavailable`) | Server is up but PostgreSQL is unreachable (see path B) |
 | Connection refused / no response | Process is not listening—it failed to start or crashed (see path A) |
 | TLS error | TLS cert/key problem (see path C) |
 
@@ -115,7 +117,7 @@ env → flags), prints the resolved values with secrets redacted, and validates
 them. Exit `0` means valid.
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 ### Step 5: Confirm PostgreSQL is reachable
@@ -159,7 +161,7 @@ sudo systemctl restart openwatch
 
 The binary opens its connection pool at startup and exits non-zero if it cannot
 (`failed to open db pool`). A running process that loses the database serves
-`503` with `db_connected: false`.
+`503` (`ErrorEnvelope`, code `server.unavailable`) from `/api/v1/health`.
 
 ```bash
 # Is PostgreSQL running?
@@ -181,7 +183,7 @@ credentials/`pg_hba.conf` reject the service. Check the DSN the service actually
 uses (`OPENWATCH_DATABASE_DSN` overrides the TOML `dsn`):
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch check-config --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 The summary prints the DSN with the password redacted; confirm host, port,
@@ -220,7 +222,7 @@ If the binary was upgraded but migrations were not applied, the server can start
 but error on queries. Apply pending migrations (idempotent), then restart:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
 sudo systemctl restart openwatch
 ```
 
@@ -313,7 +315,7 @@ journalctl -u openwatch --since "5 minutes ago" | grep -iE "error|fatal" || echo
 ### 5. Migrations are current
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch migrate --config /etc/openwatch/openwatch.toml
+sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
 ```
 
 This prints the current schema version and applies nothing if already up to date.
@@ -349,7 +351,7 @@ Include when escalating:
   `/etc/openwatch/openwatch.toml` or `secrets.env` to catch a bad value before it
   takes the service down.
 - **Monitor the health probe**: poll `GET /api/v1/health` from your existing host
-  monitoring and alert on a non-`200` status or `db_connected: false`.
+  monitoring and alert on any non-`200` response.
 - **Order startup correctly**: the unit declares `After=`/`Wants=postgresql.service`
   so PostgreSQL starts first on the same host. For an external database, ensure
   network reachability before OpenWatch starts.

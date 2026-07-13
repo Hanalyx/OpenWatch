@@ -184,7 +184,7 @@ oversized pool against an undersized PostgreSQL can amplify CPU contention. Insp
 the resolved value:
 
 ```bash
-openwatch check-config --config /etc/openwatch/openwatch.toml
+openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 Adjust `[database].max_connections` (or the `OPENWATCH_DATABASE_MAX_CONNECTIONS`
@@ -227,7 +227,7 @@ is bounded by the per-host advisory lock and the number of worker processes you 
 If the worker is busy-looping against an empty queue, raise the interval:
 
 ```bash
-openwatch worker --config /etc/openwatch/openwatch.toml --poll-interval 5s
+openwatch --config /etc/openwatch/openwatch.toml worker --poll-interval 5s
 ```
 
 If scan demand is genuinely high and the host has CPU headroom, the queue drains as

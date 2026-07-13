@@ -13,7 +13,8 @@ OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by systemd (
 
 - Application logs show `Could not connect to PostgreSQL` or a connection error.
 - API requests return HTTP 500 or 503 errors.
-- Health endpoint (`GET /api/v1/health`) reports `"status": "degraded"` and `"db_connected": false`.
+- Health endpoint (`GET /api/v1/health`) returns `503` with an `ErrorEnvelope`
+  body (`"code": "server.unavailable"`), not a `"status": "degraded"` body.
 - Slow API response times (queries taking seconds instead of milliseconds).
 - Connection timeout errors in the `openwatch` service logs (`journalctl -u openwatch`).
 - Scans stuck in `pending` or `running` state indefinitely.
