@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.15.0"
+  version: "1.16.0"
   status: draft
   tier: 2
 
@@ -54,7 +54,7 @@ spec:
         - "Route /settings — redirects to /settings/profile by default"
         - "Two-pane shell — 260px left nav + main content"
         - "Left nav with 11 items in 3 groups plus search"
-        - "Active nav item highlighted with warn-pip on Security & auth"
+        - "Active nav item highlighted"
         - "Profile — identity from /auth/me + password change + MFA enroll + sessions placeholder"
         - "Preferences — theme/density/accent/landing/host-view/date-format/reduce-motion persisted to localStorage"
         - "SSH & credentials — list from GET /api/v1/credentials with Add (POST), Edit (in-place PATCH /credentials/{id}) and Delete (DELETE) modals; editing keeps the stored secret when the field is left blank (v1.9.0)"
@@ -248,7 +248,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: The left nav renders exactly 11 leaf items distributed as Workspace (5) + Access (3) + Personal (3). The Security & auth item carries a warn-tier pip in its right slot.
+      description: The left nav renders exactly 11 leaf items distributed as Workspace (5) + Access (3) + Personal (3). Nav items carry no hardcoded status pip (a static always-on warning dot on Security & auth was removed as misleading; a pip must reflect a real condition, not a literal).
       priority: critical
       references_constraints: [C-02]
     - id: AC-03

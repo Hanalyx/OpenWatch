@@ -3,7 +3,7 @@
 // AC traceability (this file):
 //
 //   AC-01  router: /settings redirects to /settings/profile
-//   AC-02  SettingsLayout nav has 11 leaf items in Workspace 5 / Access 3 / Personal 3 + warn pip on Security
+//   AC-02  SettingsLayout nav has 11 leaf items in Workspace 5 / Access 3 / Personal 3, no hardcoded status pip
 //   AC-03  Nav search filters labels case-insensitive
 //   AC-04  ProfilePage renders identity from useAuthStore + Save disabled
 //   AC-05  Password-change submit POSTs /auth/password:change
@@ -80,7 +80,7 @@ describe('frontend-settings — structural', () => {
   });
 
   // @ac AC-02
-  test('frontend-settings/AC-02 — 11 leaf nav items grouped 5/3/3 with warn pip on Security', () => {
+  test('frontend-settings/AC-02 — 11 leaf nav items grouped 5/3/3, no hardcoded status pip', () => {
     // Extract item IDs from each group.
     const workspaceMatch = LAYOUT_SRC.match(
       /title:\s*['"]Workspace['"]\s*,\s*items:\s*\[([\s\S]+?)\]/,
@@ -98,10 +98,10 @@ describe('frontend-settings — structural', () => {
     expect(countIds(accessMatch![1]!)).toBe(3);
     expect(countIds(personalMatch![1]!)).toBe(3);
 
-    // Security item carries pip: 'warn'. The id...pip span includes a
-    // JSX `<Shield size={14} />` whose `}` would defeat a [^}] charset,
-    // so use a more permissive within-array span match.
-    expect(LAYOUT_SRC).toMatch(/id:\s*['"]security['"][\s\S]*?pip:\s*['"]warn['"]/);
+    // No nav item carries a hardcoded status pip. A static always-on warn
+    // pip on Security & auth was removed as misleading (a pip must reflect a
+    // real condition, not a literal). The pip affordance is gone entirely.
+    expect(LAYOUT_SRC).not.toMatch(/pip:\s*['"]/);
   });
 
   // @ac AC-03
