@@ -35,13 +35,6 @@ const TOTPSecretBytes = 20 // 160 bits
 // validation, so 180s replay protection covers the boundary).
 const OTPReplayWindow = 180 * time.Second
 
-// LoadMFAKey is preserved as a thin wrapper over secretkey.LoadFromFile
-// for callers that haven't migrated to the shared package yet. Prefer
-// secretkey.LoadFromFile in new code.
-//
-// Deprecated: use secretkey.LoadFromFile instead.
-func LoadMFAKey(path string) error { return secretkey.LoadFromFile(path) }
-
 // SetEphemeralMFAKey installs a random key. Tests and dev mode only.
 // Wrapper over secretkey.SetEphemeral.
 //

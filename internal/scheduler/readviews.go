@@ -138,10 +138,17 @@ func HostSchedule(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (Ho
 	info := HostScheduleInfo{State: StateUnknown}
 	var state string
 	var next time.Time
+	// Maintenance comes from host_effective_maintenance (per-host OR per-group,
+	// migration 0049), NOT host_compliance_schedule.maintenance_mode — that
+	// column is never written (the scheduler moved to the view in 0049) and
+	// would always read false, leaving the host-detail "paused for maintenance"
+	// tile permanently unreachable.
 	err := pool.QueryRow(ctx, `
-		SELECT compliance_state, next_scheduled_scan,
-		       current_interval_minutes, maintenance_mode
-		  FROM host_compliance_schedule WHERE host_id = $1`, hostID).
+		SELECT s.compliance_state, s.next_scheduled_scan,
+		       s.current_interval_minutes, COALESCE(hem.in_maintenance, false)
+		  FROM host_compliance_schedule s
+		  LEFT JOIN host_effective_maintenance hem ON hem.host_id = s.host_id
+		 WHERE s.host_id = $1`, hostID).
 		Scan(&state, &next, &info.IntervalMinutes, &info.Maintenance)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -1,7 +1,6 @@
 package license
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -224,23 +223,4 @@ func translateFeatures(claims []string) (known []Feature, unknown []string) {
 		}
 	}
 	return known, unknown
-}
-
-// VerifyClaimsAsJSON serializes claims into JSON for diagnostics. Used
-// by /admin/license:verify to surface parsed-but-rejected payloads. Never
-// returns secrets (the JWT signature is not in claims).
-func VerifyClaimsAsJSON(jwtBlob string) (map[string]any, error) {
-	parts := strings.Split(jwtBlob, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("malformed JWT (expected 3 segments)")
-	}
-	payload, err := jwt.NewParser().DecodeSegment(parts[1])
-	if err != nil {
-		return nil, err
-	}
-	var out map[string]any
-	if err := json.Unmarshal(payload, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }

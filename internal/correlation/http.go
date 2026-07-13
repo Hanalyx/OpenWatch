@@ -1,7 +1,6 @@
 package correlation
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 )
@@ -50,18 +49,4 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max] + "..."
-}
-
-// MustFrom is a test/diagnostic helper that returns the correlation ID
-// from ctx or panics if missing. Intended for code paths that should
-// never run without a correlation ID (e.g., post-middleware handlers).
-//
-// Not part of the public contract — exists so tests don't have to thread
-// ok-checks. Production code should use From and handle the missing case.
-func MustFrom(ctx context.Context) string {
-	id, ok := From(ctx)
-	if !ok {
-		panic("correlation.MustFrom: no correlation id on context")
-	}
-	return id
 }
