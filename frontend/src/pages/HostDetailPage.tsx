@@ -30,6 +30,7 @@ import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
 import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
+import { useDefaultLens, resolveLensForHost } from '@/api/useDefaultLens';
 import { relativeTime } from '@/api/eventDisplay';
 import { EditHostModal } from '@/components/hosts/EditHostModal';
 import { HostCredentialModal } from '@/components/hosts/HostCredentialModal';
@@ -213,9 +214,33 @@ export function HostDetailPage() {
   const search = useSearch({ strict: false }) as HostDetailSearch;
   const navigate = useNavigate();
   const hostId = params.hostId ?? '';
-  const framework = search.framework;
   const activeTab: TabId = search.tab ?? 'overview';
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
+
+  // Default lens: with no explicit ?framework=, this host defaults to the org
+  // default lens resolved to its own OS key (family "stig" -> stig_rhel9). The
+  // explicit "all" sentinel means the user chose All rules (no filter),
+  // distinct from "no choice" which applies the default.
+  const defaultLens = useDefaultLens();
+  const hostFrameworksQuery = useQuery({
+    queryKey: ['host', hostId, 'compliance', 'frameworks'],
+    queryFn: async () => {
+      const { data, response } = await api.GET('/api/v1/hosts/{id}/compliance/frameworks', {
+        params: { path: { id: hostId } },
+      });
+      if (!response.ok) return null;
+      return data;
+    },
+    enabled: !!hostId,
+  });
+  const availableKeys = (hostFrameworksQuery.data?.frameworks ?? []).map((f) => f.framework_id);
+  const resolvedDefault = resolveLensForHost(defaultLens, availableKeys);
+  const framework =
+    search.framework === undefined
+      ? resolvedDefault || undefined
+      : search.framework === 'all'
+        ? undefined
+        : search.framework;
 
   const detailQuery = useQuery({
     queryKey: ['host', hostId, framework],
@@ -352,7 +377,10 @@ export function HostDetailPage() {
       to: '/hosts/$hostId',
       params: { hostId },
       search: {
-        ...(next ? { framework: next } : {}),
+        // Persist the choice explicitly. "All rules" writes the 'all'
+        // sentinel so it overrides the org default (an absent param would
+        // re-apply the default).
+        framework: next && next !== 'all' ? next : 'all',
         ...(activeTab !== 'overview' ? { tab: activeTab } : {}),
       },
     });

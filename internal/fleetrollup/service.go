@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,15 +36,17 @@ func NewService(pool *pgxpool.Pool) *Service {
 func (s *Service) FleetComplianceScore(ctx context.Context, opts ...Option) (Score, error) {
 	o := applyOpts(opts)
 
-	// Single SQL covers both the unfiltered (framework="") and
-	// framework-filtered paths via NULLIF + ? operator. PostgreSQL
-	// short-circuits to TRUE when $1 is NULL (no framework given).
-	const q = `
+	// Single SQL covers the unfiltered (framework=""), specific-key, and
+	// family paths. framework.MatchSQL($1) is TRUE when $1 is NULL (all
+	// rules) or framework_refs carries that exact key OR any key in that
+	// family (e.g. "stig" matches stig_rhel9 + stig_rhel10 across a mixed-OS
+	// fleet — a single key filter would miss the other OS).
+	q := `
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')                  AS passing,
 			COUNT(*) FILTER (WHERE current_status IN ('pass','fail'))        AS evaluations
 		  FROM host_rule_state
-		 WHERE ($1::text IS NULL OR framework_refs ? $1)`
+		 WHERE ` + framework.MatchSQL("$1")
 	var passing, evaluations int64
 	if err := s.pool.QueryRow(ctx, q, nullableFramework(o.framework)).Scan(&passing, &evaluations); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

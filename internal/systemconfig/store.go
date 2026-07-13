@@ -471,3 +471,79 @@ func (s *Store) SetScanVars(ctx context.Context, vars ScanVariables, changedBy s
 	}
 	return nil
 }
+
+// LoadCompliance returns the persisted compliance-display config, or
+// DefaultCompliance (All rules) when no row exists. Only returns an error
+// for DB / unmarshal failures.
+func (s *Store) LoadCompliance(ctx context.Context) (ComplianceConfig, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1`, KeyCompliance).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultCompliance(), nil
+	}
+	if err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: load %s: %w", KeyCompliance, err)
+	}
+	cfg := DefaultCompliance()
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: unmarshal %s: %w", KeyCompliance, err)
+	}
+	return cfg, nil
+}
+
+// SetCompliance validates and persists the compliance-display config,
+// emitting a SystemConfigChanged audit event with the old + new value.
+func (s *Store) SetCompliance(ctx context.Context, cfg ComplianceConfig, changedBy string) (ComplianceConfig, error) {
+	if err := cfg.Validate(); err != nil {
+		return ComplianceConfig{}, err
+	}
+	newBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: marshal: %w", err)
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldRaw []byte
+	err = tx.QueryRow(ctx, `SELECT value FROM system_config WHERE key = $1 FOR UPDATE`, KeyCompliance).Scan(&oldRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: read old: %w", err)
+	}
+	oldCfg := DefaultCompliance()
+	if len(oldRaw) > 0 {
+		_ = json.Unmarshal(oldRaw, &oldCfg)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO system_config (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE
+		   SET value      = EXCLUDED.value,
+		       updated_at = EXCLUDED.updated_at,
+		       updated_by = EXCLUDED.updated_by`,
+		KeyCompliance, newBytes, changedBy,
+	); err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: upsert: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ComplianceConfig{}, fmt.Errorf("systemconfig: commit: %w", err)
+	}
+
+	if s.emit != nil {
+		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
+			ActorType: "user",
+			ActorID:   changedBy,
+			Detail: audit.MakeDetail(map[string]any{
+				"config_key": KeyCompliance,
+				"old_value":  oldCfg,
+				"new_value":  cfg,
+				"changed_by": changedBy,
+			}),
+		})
+	}
+	return cfg, nil
+}

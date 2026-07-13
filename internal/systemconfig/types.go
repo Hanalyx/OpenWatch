@@ -14,6 +14,7 @@ const (
 	KeyDiscovery    = "discovery"
 	KeyScan         = "scan"
 	KeyScanVars     = "scan_variables"
+	KeyCompliance   = "compliance"
 )
 
 // ConnectivityConfig is the typed shape stored under KeyConnectivity.
@@ -377,6 +378,39 @@ func (v ScanVariables) Validate() error {
 		}
 		if len(val) > ScanVarsMaxValueLen {
 			return fmt.Errorf("%w: value for %q exceeds %d bytes", ErrInvalidConfig, name, ScanVarsMaxValueLen)
+		}
+	}
+	return nil
+}
+
+// ComplianceConfig holds org-wide compliance-DISPLAY settings. Phase 1
+// carries only the default lens: the framework FAMILY the score surfaces
+// (dashboard avg-compliance, hosts list, host detail) default to. An empty
+// value means "All rules" — the full Kensa corpus, an honest
+// framework-agnostic baseline and the factory default. A non-empty value
+// is a family id (e.g. "stig", "cis", "nist_800_53") resolved per-host to
+// the OS-specific corpus key at query time (internal/framework); an
+// unknown/absent family falls back to all-rules.
+type ComplianceConfig struct {
+	DefaultFramework string `json:"default_framework"`
+}
+
+// DefaultCompliance returns the baked-in default: All rules (empty lens).
+func DefaultCompliance() ComplianceConfig {
+	return ComplianceConfig{DefaultFramework: ""}
+}
+
+// Validate bounds the family id. It is resolved leniently against the live
+// corpus at query time, so this only rejects obvious garbage / length; an
+// empty value (All rules) is always valid.
+func (c ComplianceConfig) Validate() error {
+	f := c.DefaultFramework
+	if len(f) > 64 {
+		return fmt.Errorf("%w: default_framework exceeds 64 chars", ErrInvalidConfig)
+	}
+	for _, r := range f {
+		if !(r == '_' || r == '-' || r == '.' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return fmt.Errorf("%w: default_framework has invalid characters", ErrInvalidConfig)
 		}
 	}
 	return nil

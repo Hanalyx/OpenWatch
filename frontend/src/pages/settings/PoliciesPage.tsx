@@ -1,14 +1,9 @@
 import { useEffect } from 'react';
 import { useBreadcrumbStore } from '@/store/useBreadcrumbStore';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
-import {
-  PageHead,
-  Section,
-  SettingCard,
-  BackendPendingBanner,
-  Btn,
-} from '@/components/settings/primitives';
+import { PageHead, Section, BackendPendingBanner } from '@/components/settings/primitives';
 import { ScanVariablesCard } from '@/components/settings/ScanVariablesCard';
+import { DefaultLensCard } from '@/components/settings/DefaultLensCard';
 import { ExceptionQueue } from '@/components/settings/ExceptionQueue';
 
 // Settings → Compliance policies.
@@ -45,50 +40,21 @@ export function PoliciesPage() {
         <ScanVariablesCard />
       </Section>
 
-      {/* ────────── Framework lenses (stub) ────────── */}
-      <Section title="Framework lenses">
-        <BackendPendingBanner
-          slice="Framework registry endpoints"
-          text="Framework enable/disable and the default lens are not configurable yet. Every framework found in the rule corpus is currently available as a lens."
-        />
-        <SettingCard>
-          {[
-            {
-              name: 'Enabled frameworks',
-              description:
-                'CIS RHEL 9, STIG RHEL 9 V2R7, NIST 800-53 R5, PCI-DSS v4.0, FedRAMP Moderate.',
-            },
-            {
-              name: 'Default lens',
-              description: 'Which framework Hosts and Reports filter to by default.',
-            },
-          ].map((row, i) => (
-            <div
-              key={row.name}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr minmax(180px, auto)',
-                gap: 20,
-                alignItems: 'center',
-                padding: '16px 20px',
-                borderTop: i === 0 ? 'none' : '1px solid var(--ow-line)',
-                opacity: 0.7,
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 500, color: 'var(--ow-fg-0)' }}>{row.name}</div>
-                <div
-                  style={{ color: 'var(--ow-fg-2)', fontSize: 12, marginTop: 4, lineHeight: 1.5 }}
-                >
-                  {row.description}
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Btn disabled>Configure</Btn>
-              </div>
-            </div>
-          ))}
-        </SettingCard>
+      {/* ────────── Framework lenses ────────── */}
+      <Section title="Framework lenses" badge="Live" badgeTier="ok">
+        <p style={{ margin: '0 0 12px', color: 'var(--ow-fg-2)', fontSize: 13, lineHeight: 1.5 }}>
+          Scans always run the full Kensa rule corpus; a framework lens is a read-time view over
+          those results. Set the default lens the compliance scores (dashboard, hosts, host detail)
+          use out of the box. "All rules" keeps the framework-agnostic Kensa score. Individual host
+          views can still switch lens.
+        </p>
+        <DefaultLensCard />
+        <div style={{ marginTop: 12 }}>
+          <BackendPendingBanner
+            slice="Enabled frameworks"
+            text="Hiding frameworks you don't use (an allowlist) is a follow-up. Today every framework found in the corpus is available as a lens."
+          />
+        </div>
       </Section>
 
       {/* ────────── Exception workflow (LIVE) ────────── */}

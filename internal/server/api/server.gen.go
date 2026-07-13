@@ -1724,6 +1724,29 @@ type CategoryEntry struct {
 	Id          string `json:"id"`
 }
 
+// ComplianceConfig Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time.
+type ComplianceConfig struct {
+	// DefaultFramework Framework family id
+	DefaultFramework string `json:"default_framework"`
+}
+
+// ComplianceFramework defines model for ComplianceFramework.
+type ComplianceFramework struct {
+	// Id Family id (e.g. "stig")
+	Id string `json:"id"`
+
+	// Keys Concrete corpus keys in this family (e.g. stig_rhel9, stig_rhel10)
+	Keys []string `json:"keys"`
+
+	// Label Display label (e.g. "STIG")
+	Label string `json:"label"`
+}
+
+// ComplianceFrameworksResponse defines model for ComplianceFrameworksResponse.
+type ComplianceFrameworksResponse struct {
+	Frameworks []ComplianceFramework `json:"frameworks"`
+}
+
 // ConnectivityBreakdown defines model for ConnectivityBreakdown.
 type ConnectivityBreakdown struct {
 	// Critical unreachable + consecutive_failures<3
@@ -3715,6 +3738,9 @@ type GetFleetTopFailingRulesParams struct {
 type GetHostsParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 	Tag         *string `form:"tag,omitempty" json:"tag,omitempty"`
+
+	// Framework Lens each host card's compliance_summary through a framework family (e.g. "stig") or a specific corpus key; omit for All rules.
+	Framework *string `form:"framework,omitempty" json:"framework,omitempty"`
 }
 
 // GetHostMonitoringHistoryParams defines parameters for GetHostMonitoringHistory.
@@ -3947,6 +3973,9 @@ type PostSSOProviderJSONRequestBody = SSOProviderCreateRequest
 // PutSSOProviderJSONRequestBody defines body for PutSSOProvider for application/json ContentType.
 type PutSSOProviderJSONRequestBody = SSOProviderUpdateRequest
 
+// PutSystemComplianceConfigJSONRequestBody defines body for PutSystemComplianceConfig for application/json ContentType.
+type PutSystemComplianceConfigJSONRequestBody = ComplianceConfig
+
 // PutSystemConnectivityConfigJSONRequestBody defines body for PutSystemConnectivityConfig for application/json ContentType.
 type PutSystemConnectivityConfigJSONRequestBody = ConnectivityConfig
 
@@ -4063,6 +4092,9 @@ type ServerInterface interface {
 	// Fleet-wide compliance exception queue
 	// (GET /api/v1/compliance/exceptions)
 	GetComplianceExceptions(w http.ResponseWriter, r *http.Request, params GetComplianceExceptionsParams)
+	// List the framework families present in the scanned corpus
+	// (GET /api/v1/compliance/frameworks)
+	GetComplianceFrameworks(w http.ResponseWriter, r *http.Request)
 	// List credentials (metadata only)
 	// (GET /api/v1/credentials)
 	GetCredentials(w http.ResponseWriter, r *http.Request)
@@ -4354,6 +4386,12 @@ type ServerInterface interface {
 	// Update an SSO provider (omit client_secret to keep the existing one)
 	// (PUT /api/v1/sso/providers/{id})
 	PutSSOProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Read the org-wide compliance-display config (default lens)
+	// (GET /api/v1/system/compliance/config)
+	GetSystemComplianceConfig(w http.ResponseWriter, r *http.Request)
+	// Set the default compliance lens (framework family, or empty for All rules)
+	// (PUT /api/v1/system/compliance/config)
+	PutSystemComplianceConfig(w http.ResponseWriter, r *http.Request)
 	// Read the connectivity-monitor runtime config + baked-in defaults
 	// (GET /api/v1/system/connectivity/config)
 	GetSystemConnectivityConfig(w http.ResponseWriter, r *http.Request)
@@ -4603,6 +4641,12 @@ func (_ Unimplemented) GetAuthSSOLogin(w http.ResponseWriter, r *http.Request, i
 // Fleet-wide compliance exception queue
 // (GET /api/v1/compliance/exceptions)
 func (_ Unimplemented) GetComplianceExceptions(w http.ResponseWriter, r *http.Request, params GetComplianceExceptionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the framework families present in the scanned corpus
+// (GET /api/v1/compliance/frameworks)
+func (_ Unimplemented) GetComplianceFrameworks(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5185,6 +5229,18 @@ func (_ Unimplemented) GetSSOProvider(w http.ResponseWriter, r *http.Request, id
 // Update an SSO provider (omit client_secret to keep the existing one)
 // (PUT /api/v1/sso/providers/{id})
 func (_ Unimplemented) PutSSOProvider(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the org-wide compliance-display config (default lens)
+// (GET /api/v1/system/compliance/config)
+func (_ Unimplemented) GetSystemComplianceConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set the default compliance lens (framework family, or empty for All rules)
+// (PUT /api/v1/system/compliance/config)
+func (_ Unimplemented) PutSystemComplianceConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6331,6 +6387,20 @@ func (siw *ServerInterfaceWrapper) GetComplianceExceptions(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// GetComplianceFrameworks operation middleware
+func (siw *ServerInterfaceWrapper) GetComplianceFrameworks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetComplianceFrameworks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetCredentials operation middleware
 func (siw *ServerInterfaceWrapper) GetCredentials(w http.ResponseWriter, r *http.Request) {
 
@@ -7298,6 +7368,19 @@ func (siw *ServerInterfaceWrapper) GetHosts(w http.ResponseWriter, r *http.Reque
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tag"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tag", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "framework" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "framework", r.URL.Query(), &params.Framework, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "framework"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "framework", Err: err})
 		}
 		return
 	}
@@ -9146,6 +9229,34 @@ func (siw *ServerInterfaceWrapper) PutSSOProvider(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetSystemComplianceConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetSystemComplianceConfig(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSystemComplianceConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSystemComplianceConfig operation middleware
+func (siw *ServerInterfaceWrapper) PutSystemComplianceConfig(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSystemComplianceConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSystemConnectivityConfig operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemConnectivityConfig(w http.ResponseWriter, r *http.Request) {
 
@@ -9829,6 +9940,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v1/compliance/exceptions", wrapper.GetComplianceExceptions)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/compliance/frameworks", wrapper.GetComplianceFrameworks)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/credentials", wrapper.GetCredentials)
 	})
 	r.Group(func(r chi.Router) {
@@ -10118,6 +10232,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/api/v1/sso/providers/{id}", wrapper.PutSSOProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/system/compliance/config", wrapper.GetSystemComplianceConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/api/v1/system/compliance/config", wrapper.PutSystemComplianceConfig)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/system/connectivity/config", wrapper.GetSystemConnectivityConfig)

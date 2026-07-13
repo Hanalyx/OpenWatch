@@ -49,7 +49,7 @@ describe('frontend-hosts-list — v1.1.0 ACs', () => {
     // queryKey must include env + tag so the cache rotates on filter
     // change (and the same key restores from URL on reload).
     expect(PAGE_SRC).toMatch(
-      /queryKey:\s*\[\s*['"]hosts['"]\s*,\s*search\.env\s*,\s*search\.tag\s*\]/,
+      /queryKey:\s*\[\s*['"]hosts['"]\s*,\s*search\.env\s*,\s*search\.tag\s*,\s*lens\s*\]/,
     );
     // Params actually forwarded to the API call.
     expect(PAGE_SRC).toMatch(/params\.environment\s*=\s*search\.env/);

@@ -1,0 +1,73 @@
+spec:
+  id: system-compliance-lens
+  title: Default compliance lens — org-wide framework projection
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: An org-wide default framework "lens" the compliance-score surfaces project to
+    description: >
+      OpenWatch scans a host once against the full Kensa corpus; frameworks
+      (CIS, STIG, NIST, …) are read-time PROJECTIONS over that one result
+      (system-kensa-executor: "one scan, many framework views"). Phase 1 adds
+      an org-wide DEFAULT LENS: an admin picks a framework FAMILY (e.g. STIG)
+      and the score surfaces (dashboard + hosts avg compliance, hosts-list
+      cards, host detail) default to scoring against that framework's mapped
+      rules instead of All rules. The default is a family, not a versioned
+      key, so it resolves per-host to the OS-appropriate corpus key
+      (stig_rhel9 on RHEL 9, stig_rhel10 on RHEL 10); a host with no key for
+      the family scores N/A under it. Empty means All rules — the honest
+      framework-agnostic baseline and the factory default.
+    related_specs:
+      - system-kensa-executor
+      - api-fleet-observability
+      - api-hosts
+
+  objective:
+    summary: >
+      The default lens changes what compliance scores DEFAULT to showing,
+      org-wide, without changing what was scanned; All rules stays the
+      baseline and frameworks never blend into one number.
+    scope:
+      includes:
+        - 'ComplianceConfig.DefaultFramework (systemconfig) + config endpoints'
+        - 'Framework family resolution (FamilyOf) + corpus-derived family list'
+        - 'Family-aware score filter in the fleet score + hosts-list queries'
+      excludes:
+        - 'Per-host/per-group compliance TARGET assignment (Phase 3)'
+        - 'Framework-scoped posture history / trend (Phase 3)'
+        - 'Enabled-frameworks allowlist (Phase 2)'
+
+  constraints:
+    - id: C-01
+      description: The default lens is ComplianceConfig.DefaultFramework, persisted in systemconfig (KeyCompliance). An empty value means All rules (the factory default); a non-empty value is a framework FAMILY id. It is a read-time display default only — it MUST NOT affect what a scan runs (scans always execute the full corpus).
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: A framework FAMILY groups corpus keys by stripping a trailing OS suffix (_(rhel|ubuntu)<digits>); an OS-agnostic key (nist_800_53, pci_dss_4, srg) is its own family. The available family list MUST be derived from the live corpus (host_rule_state.framework_refs), never hardcoded. A score filter for a family MUST match ANY corpus key in that family (so a mixed-OS fleet scores across stig_rhel9 + stig_rhel10), while a specific key matches exactly; the family match SQL MUST mirror FamilyOf.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: The compliance config read is system:read; the write is system:config:write and emits a system.config.changed audit event. The frameworks list is host:read.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: ComplianceConfig defaults DefaultFramework to "" (All rules); Validate accepts empty and a short lowercase family token and rejects an over-long or invalid-character value. SetCompliance persists and LoadCompliance round-trips the value; a fresh store with no row returns the empty (All rules) default.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-02
+      description: FamilyOf strips a trailing OS suffix (stig_rhel9 -> stig, cis_ubuntu22 -> cis) and leaves an OS-agnostic key as its own family (nist_800_53, pci_dss_4, srg). Label renders a known family (STIG, NIST 800-53) and upper-cases an unknown id.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-03
+      description: The fleet compliance score with a FAMILY filter counts rule-states carrying ANY key in that family across a mixed-OS corpus (a host with stig_rhel9 and a host with stig_rhel10 both contribute to the "stig" fleet score); a specific-key filter counts only that key; an empty filter counts all rules. The hosts-list card summary honors the same family filter per host.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: GET /api/v1/compliance/frameworks returns the corpus-derived families (id, label, keys) and is host:read. GET /api/v1/system/compliance/config returns the current default lens (system:read); PUT sets it (system:config:write), rejects an invalid value with 400, and echoes the stored value.
+      priority: high
+      references_constraints: [C-01, C-03]

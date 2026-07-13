@@ -69,6 +69,7 @@ domains:
             - system-worker-subcommand
             - system-scan-runs
             - system-account-policy
+            - system-compliance-lens
             - api-host-compliance
             - api-system-scan-config
             - api-compliance-trend
