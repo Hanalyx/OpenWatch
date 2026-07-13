@@ -112,7 +112,7 @@ func TestMatchesTags(t *testing.T) {
 // surfaced to the operator without leaking the channel's secret target.
 func TestScrubHTTPErr(t *testing.T) {
 	t.Run("system-notifications/AC-22", func(t *testing.T) {
-		secret := "https://hooks.slack.com/services/T00/B00/SECRETTOKEN"
+		secret := "https://hooks.slack.com/services/T00/B00/SECRETTOKEN" // pragma: allowlist secret
 		ue := &url.Error{
 			Op:  "Post",
 			URL: secret,
@@ -202,6 +202,14 @@ func TestValidateEmailAndMessage(t *testing.T) {
 			if !strings.Contains(msg, want) {
 				t.Errorf("email message missing %q:\n%s", want, msg)
 			}
+		}
+		// CRLF in a header value must not inject an extra header (CWE-93). The
+		// injected "Bcc" must be flattened into the From line, not appear as a
+		// header of its own, and the header block must end after Subject.
+		inj := string(buildEmailMessage("ow@corp.com\r\nBcc: attacker@evil.com",
+			[]string{"a@corp.com"}, "Subj\r\nX-Injected: 1", "Body"))
+		if strings.Contains(inj, "\nBcc:") || strings.Contains(inj, "\nX-Injected:") {
+			t.Errorf("CRLF header injection not stripped:\n%q", inj)
 		}
 	})
 }
