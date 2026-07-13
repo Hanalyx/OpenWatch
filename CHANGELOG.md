@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] Eyrie — 2026-07-13
+
 ### Added
 
 - **Org-wide default compliance lens.** A scan always runs the full Kensa

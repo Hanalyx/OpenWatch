@@ -20,9 +20,9 @@ OpenWatch is the compliance operating system for teams managing Linux infrastruc
 > Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
 > Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
-> version is `0.2.1`, on the general-availability line that opened with `0.2.0`.
+> version is `0.4.0`, on the general-availability line that opened with `0.2.0`.
 
-![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 630 Kensa rules](docs/images/host-management.png)
+![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 748 Kensa rules](docs/images/host-management.png)
 
 ## The Problem with Point-in-Time Compliance
 
