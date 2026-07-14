@@ -1,6 +1,6 @@
 # Quickstart guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
@@ -56,7 +56,7 @@ A healthy response looks like this:
 ```
 
 `version` reflects how the binary was built: a packaged release reports its
-semver (for example `0.3.0`); a bare `go build` without the Makefile's
+semver (for example `0.5.0`); a bare `go build` without the Makefile's
 `-ldflags` reports `dev`.
 
 A healthy response is always `status: "healthy"`, `db_connected: true`. When
@@ -268,7 +268,7 @@ counts to a single framework key.
 |------|-------|
 | Full install and configuration reference | [Installation](INSTALLATION.md) |
 | Roles and permissions | [User roles](USER_ROLES.md) |
-| Kensa and OpenWatch boundary | the Kensa scanning engine |
+| How compliance scanning works | [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) |
 | API contract (source of truth) | the served `/api/v1` OpenAPI document |
 
 ## Troubleshooting

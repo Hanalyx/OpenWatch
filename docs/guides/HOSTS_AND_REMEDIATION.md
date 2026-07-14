@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -13,7 +13,7 @@ compliance findings. Most of these tasks are performed in the web UI.
 ### From the UI
 
 1. Navigate to **Hosts** in the left sidebar.
-2. Click **Add Host**.
+2. Select **Add Host**.
 3. Fill in the host details:
 
 | Field | Required | Example |
@@ -25,7 +25,7 @@ compliance findings. Most of these tasks are performed in the web UI.
 | Operating System | No | `RHEL 9` |
 | Environment | No | `production` |
 
-4. Click **Save**.
+4. Select **Save**.
 
 
 The host appears in the host list immediately after creation.
@@ -34,7 +34,7 @@ The host appears in the host list immediately after creation.
 
 For adding many hosts at once:
 
-1. Navigate to **Hosts** and click **Bulk Import**.
+1. Navigate to **Hosts** and select **Bulk Import**.
 2. Download the CSV template.
 3. Fill in the template with your host data.
 4. Upload the CSV file.
@@ -65,12 +65,12 @@ installed on target hosts.
 | **System Default** | Uses the credential configured in Settings > System Credentials. |
 
 4. Enter the SSH username.
-5. Click **Save**.
+5. Select **Save**.
 
 
 ### Testing connectivity
 
-After saving credentials, click **Test Connection** to verify that OpenWatch
+After saving credentials, select **Test Connection** to verify that OpenWatch
 can reach the host via SSH. The test checks:
 
 - Network reachability
@@ -104,24 +104,24 @@ compliance reporting and batch scanning.
 ### Creating a group
 
 1. Navigate to **Host Groups** in the sidebar.
-2. Click **Create Group**.
+2. Select **Create Group**.
 3. Enter a name, description, OS family, and compliance framework.
-4. Click **Save**.
+4. Select **Save**.
 
 
 ### Assigning hosts
 
 1. Open the group detail page.
-2. Click **Add Hosts**.
+2. Select **Add Hosts**.
 3. Select hosts from the list.
-4. Click **Confirm**.
+4. Select **Confirm**.
 
 A host can belong to more than one group at a time; group membership is a
 many-to-many relationship.
 
 ### Group scanning
 
-From the group detail page, click **Scan Group** to start a compliance scan
+From the group detail page, select **Scan Group** to start a compliance scan
 for all hosts in the group simultaneously. Monitor progress on the group's
 scan session page.
 
@@ -132,7 +132,7 @@ scan session page.
 ### OS detection
 
 OpenWatch automatically detects the operating system for hosts during scans.
-You can also trigger manual OS discovery from the host detail page by clicking
+You can also trigger manual OS discovery from the host detail page by selecting
 **Discover OS**.
 
 A background scheduler ticks every 60 seconds and enqueues discovery for any
@@ -209,11 +209,11 @@ installed on target hosts.
 
 1. Navigate to the host detail page and view the scan results.
 2. Select the failing findings you want to remediate (use checkboxes).
-3. Click **Remediate Selected**.
+3. Select **Remediate Selected**.
 
 
 4. Review the proposed changes. Each finding shows what changes.
-5. Click **Start Remediation** to confirm.
+5. Select **Start Remediation** to confirm.
 
 
 In the free-core edition, a single-rule remediation request auto-approves on
@@ -226,11 +226,11 @@ separation of duties is planned for the licensed bulk/automated remediation
 track, not yet available today:
 
 1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
-   selects findings, clicks **Request Remediation**, and enters a justification.
+   selects findings, chooses **Request Remediation**, and enters a justification.
 2. A **different** user with `remediation:approve` (`security_admin` or `admin`)
    reviews and approves or rejects it. The reviewer cannot be the requester
    (separation of duties; self-review returns `409 remediation.self_review`).
-3. Once approved, a user with `remediation:execute` clicks **Fix** to apply the
+3. Once approved, a user with `remediation:execute` selects **Fix** to apply the
    change. Execution is operator-initiated, not automatic.
 
 See [User roles](USER_ROLES.md) for the full role matrix.
@@ -261,9 +261,9 @@ If a remediation causes problems, you can roll back to the pre-change state.
 
 1. Go to the **Remediation** tab on the host detail page.
 2. Find the remediation job you want to roll back.
-3. Click **Rollback**.
+3. Select **Rollback**.
 4. Enter a reason for the rollback (logged for audit purposes).
-5. Click **Confirm Rollback**.
+5. Select **Confirm Rollback**.
 
 
 Rollback requires the `remediation:rollback` permission (`ops_lead`,

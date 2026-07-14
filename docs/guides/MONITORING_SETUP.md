@@ -1,6 +1,6 @@
 # OpenWatch monitoring and operations guide
 
-**Last updated**: 2026-06-26
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
 
 This guide describes how you monitor a running OpenWatch deployment and how you
 respond to common operational incidents. OpenWatch ships as a single Go binary
@@ -52,7 +52,7 @@ curl -k https://localhost:8443/api/v1/health
 A healthy response returns `200 OK`:
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.3.0"}
+{"status": "healthy", "db_connected": true, "version": "0.5.0"}
 ```
 
 When the database ping fails, the endpoint returns `503 Service Unavailable`
@@ -60,8 +60,10 @@ with an error envelope. Treat a non-`200` status, or a connection failure, as
 service-down.
 
 The response schema (`status`, `db_connected`, `version`) is defined by the
-`HealthResponse` contract. The current contract reports only a
-binary `healthy`/`degraded` status driven by database reachability.
+`HealthResponse` contract. On a `200` the `status` field is always `healthy`;
+when the database ping fails the endpoint returns `503` with an error envelope
+rather than a `degraded` status body. The signal is driven by database
+reachability.
 
 ### Version metadata
 
@@ -74,7 +76,7 @@ curl -k https://localhost:8443/api/v1/version
 
 ```json
 {
-  "openwatch": "0.3.0",
+  "openwatch": "0.5.0",
   "kensa": "<embedded engine version>",
   "go": "<go toolchain>",
   "commit": "<abbrev commit>",
@@ -362,8 +364,9 @@ operators do not look for them:
 - **Distributed tracing**—not implemented. Correlation IDs in the JSON logs
   are the current mechanism for following a request across log lines.
 - **Detailed authenticated health endpoints** (per-service, content, history)—
-  not implemented. The current health contract is a single binary
-  `healthy`/`degraded` status.
+  not implemented. The current health contract is a single `200`
+  (`status: healthy`) or `503` (error envelope) signal driven by database
+  reachability.
 
 This section and the API contract are updated together whenever metrics or
 tracing land.

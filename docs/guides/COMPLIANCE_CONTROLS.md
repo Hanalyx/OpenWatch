@@ -1,6 +1,6 @@
 # Compliance control mapping
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
@@ -19,11 +19,11 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| AC-2 | Account Management | User CRUD with RBAC (5 roles: viewer, auditor, ops_lead, security_admin, admin) | User list from the Users API; user audit events |
+| AC-2 | Account Management | User CRUD with RBAC (five roles: viewer, auditor, ops_lead, security_admin, admin) | User list from the Users API; user audit events |
 | AC-3 | Access Enforcement | Role-based permission checks on each route | `403` denials in the audit log; permission registry served by the API |
 | AC-6 | Least Privilege | Five built-in roles (least-privilege viewer baseline) | Role list from `/api/v1/roles` |
 | AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `429` responses with `Retry-After`; rate-limit denials in the audit log |
-| AC-11 | Session Lock | Inactivity timeout (default 15 min, configurable 1-480) | Session-timeout value in the running configuration |
+| AC-11 | Session Lock | Inactivity timeout (default 15 minutes, configurable from 5 minutes to 24 hours) | Session-timeout value in the running configuration |
 | AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | Token expiry observed on the API; logout audit events |
 | AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | Host-key validation behavior on connect |
 

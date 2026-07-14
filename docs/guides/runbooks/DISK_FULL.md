@@ -277,8 +277,8 @@ retention planning.
 
 ## Not yet implemented
 
-OpenWatch is currently `v0.2.0`, a pre-release. The following do not exist in
-the current code and must not be relied on:
+As of OpenWatch `v0.5.0`, the following do not exist in the current code and
+must not be relied on:
 
 - **Automated retention / pruning jobs** for `audit_events` or other tables.
   Cleanup is manual (path C). This is roadmap work.

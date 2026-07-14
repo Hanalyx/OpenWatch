@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary build)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary build)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch
@@ -133,8 +133,8 @@ is no silent fallback to ephemeral keys.
 
 | Config key | Default path | Contents | Shipped mode | Enforced at boot |
 |------------|--------------|----------|---------------|-------------------|
-| `[identity].jwt_private_key` | `/etc/openwatch/keys/jwt_private.pem` | PEM RSA private key, ≥ 2048-bit | `0640`, owner `root:openwatch` | No — the mode is not checked by code |
-| `[identity].credential_key_file` | `/etc/openwatch/keys/credential.key` | 32-byte raw AES-256 key | `0600`, owner `openwatch:openwatch` | Yes — boot refuses to start if the mode has any group/other bits set |
+| `[identity].jwt_private_key` | `/etc/openwatch/keys/jwt_private.pem` | PEM RSA private key, ≥ 2048-bit | `0640`, owner `root:openwatch` | No, the mode is not checked by code |
+| `[identity].credential_key_file` | `/etc/openwatch/keys/credential.key` | 32-byte raw AES-256 key | `0600`, owner `openwatch:openwatch` | Yes, boot refuses to start if the mode has any group/other bits set |
 
 
 
@@ -188,7 +188,7 @@ Authorization is a permission registry, not free-form strings. Every protected
 operation declares its required permission; the handler middleware checks the
 caller's effective permission set; built-in roles grant permissions from the
 same registry. The effective registry is served at runtime by the
-permissions-registry API endpoint. Design doc:
+permissions-registry API endpoint. See
 [User roles](USER_ROLES.md).
 
 Built-in roles, least to most privileged:
@@ -483,7 +483,7 @@ Network and transport
 Cryptography and keys
 
 - [ ] `[identity].jwt_private_key` present, RSA ≥ 2048; ships mode `0640`
-      (owner `root:openwatch`, not permission-checked at boot) — tightening to
+      (owner `root:openwatch`, not permission-checked at boot). Tightening to
       `0600` owned by `openwatch` is an optional, stricter-than-shipped step.
 - [ ] `[identity].credential_key_file` present, 32 bytes, mode `0600` (boot
       refuses to start otherwise).

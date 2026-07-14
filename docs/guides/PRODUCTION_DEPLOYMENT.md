@@ -1,6 +1,6 @@
 # Production deployment guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
 
 This guide covers running OpenWatch in production: a single Go binary that serves
 the REST API and the embedded React UI over HTTPS, backed by PostgreSQL, managed
@@ -14,7 +14,7 @@ touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
 > Verify the version you deploy. The current general-availability release is
-> `v0.3.0`. Confirm with `openwatch --version` before and after an upgrade.
+> `v0.5.0`. Confirm with `openwatch --version` before and after an upgrade.
 
 ---
 
@@ -44,7 +44,7 @@ step today (write a unit that runs `ExecStart=/usr/bin/openwatch worker`).
 | API + UI | `https://<host>:8443/` | UI embedded via `go:embed`; API under `/api/v1/` |
 | Database | PostgreSQL 14+ | The only datastore. Not provisioned by the package. |
 | Job queue | PostgreSQL table, `SKIP LOCKED` | No external broker. Drained by `serve`/`worker`. |
-| Compliance engine | Kensa (Go), in-process | SSH-based, native YAML rules. See the boundary doc. |
+| Compliance engine | Kensa (Go), in-process | SSH-based checks against native YAML rules; runs inside the `serve`/`worker` process. |
 
 
 ---

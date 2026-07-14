@@ -1,6 +1,6 @@
 # API guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 Most operators use the web UI for daily work—managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
@@ -12,7 +12,7 @@ React UI over HTTPS on port `8443`. All API paths live under `/api/v1`. The
 running binary serves its own OpenAPI document as the contract source of truth,
 and `GET /api/v1/version` reports the build it came from.
 
-This guide reflects OpenWatch `v0.3.0`. The compliance
+This guide reflects OpenWatch `v0.5.0`. The compliance
 surface (scan execution + results, remediation, exceptions, posture/drift, audit
 export, the rule browser) IS exposed over `/api/v1`. See [the compliance API surface
 (now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
@@ -124,7 +124,7 @@ permissions-registry endpoint under `/api/v1/auth`.
 | `PATCH` | `/api/v1/hosts/{id}` | `host:write` | Update mutable host fields. |
 | `DELETE` | `/api/v1/hosts/{id}` | `host:delete` | Soft-delete a host (`204`; sets `deleted_at`). |
 | `GET` | `/api/v1/hosts/{host_id}/monitoring/history` | `host:read` | Monitoring history. |
-| `POST` | `/api/v1/hosts/{host_id}/maintenance` | `host:write` | Toggle maintenance mode. |
+| `PUT` | `/api/v1/hosts/{host_id}/maintenance` | `host:write` | Pause or resume liveness probes for the host (maintenance mode). |
 | `POST` | `/api/v1/hosts/{id}/connectivity:check` | `host:write` | Run a connectivity check (idempotent). |
 | `GET` | `/api/v1/hosts/{id}/system-info` | `host:read` | Latest collected system intelligence. |
 | `POST` | `/api/v1/hosts/{id}/discovery:run` | `host:write` | Run host discovery (idempotent). |
@@ -281,7 +281,7 @@ curl -s --cacert /etc/openwatch/tls/cert.pem https://localhost:8443/api/v1/healt
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.3.0"}
+{"status": "healthy", "db_connected": true, "version": "0.5.0"}
 ```
 
 A healthy response is always `status: "healthy"`, `db_connected: true`. When

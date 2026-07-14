@@ -7,7 +7,7 @@
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-06-29 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 **Last verified:** 2026-07-13 against Kensa rule corpus **v0.7.6** (748 rules).
 Per-OS counts below are read from each rule's `platforms:` declarations in the
@@ -39,11 +39,13 @@ OpenWatch ships as native packages built for:
 
 | Platform | Form | Notes |
 |----------|------|-------|
-| **RHEL 9** | native **RPM** | Built on `ubuntu-latest` CI runners cross-packaging the RPM; smoke-tested in `rockylinux:9` and `almalinux:9` containers. RHEL 9, Rocky 9, AlmaLinux 9 are binary-compatible. |
-| **Ubuntu 24.04 LTS** | native **DEB** | Built/tested on Ubuntu 24.04. |
+| **RHEL 9** | native **RPM** | The RPM install is smoke-tested in `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, and `fedora:41` containers. RHEL 9, Rocky 9, AlmaLinux 9, and Oracle Linux 9 are binary-compatible. |
+| **Ubuntu 24.04 LTS** | native **DEB** | The DEB install is smoke-tested in `ubuntu:24.04` and `debian:12` containers. |
 
-Other distributions may run the server from source (Go 1.26 + PostgreSQL 14 or
-newer), but only the above are packaged, tested, and released.
+RHEL 9 and Ubuntu 24.04 LTS are the released, supported server platforms; the
+other RPM and DEB distributions above are covered by the package install
+smoke test. Any distribution may run the server from source (Go 1.26 +
+PostgreSQL 14 or newer).
 
 > The server OS is **independent** of the managed-host OS. You can run the
 > OpenWatch server on Ubuntu and scan RHEL hosts, or vice-versa.

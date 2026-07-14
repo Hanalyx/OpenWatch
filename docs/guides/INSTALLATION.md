@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch: install the package, point it at PostgreSQL, create the
@@ -359,7 +359,7 @@ Recognized environment variables:
 
 | Variable | Effect |
 |----------|--------|
-| `OPENWATCH_SERVER_LISTEN` | Override `[server].listen` (default `:8443`) |
+| `OPENWATCH_SERVER_LISTEN` | Override `[server].listen` (default `0.0.0.0:8443`) |
 | `OPENWATCH_SERVER_TLS_CERT` | Override `[server].tls_cert` |
 | `OPENWATCH_SERVER_TLS_KEY` | Override `[server].tls_key` |
 | `OPENWATCH_DATABASE_DSN` | Override `[database].dsn` |
