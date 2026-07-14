@@ -571,6 +571,9 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
         </div>
       )}
 
+      {/* compliance target (site groups only, D1) */}
+      {group.kind === 'site' && <GroupTargetControl group={group} canWrite={canWrite} />}
+
       {/* foot: maintenance toggle */}
       <div
         style={{
@@ -615,6 +618,97 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// GroupTargetControl: a SITE group's durable COMPLIANCE TARGET, the framework
+// family its member hosts are held to (unless a host sets its own override).
+// Writes POST /api/v1/groups/{id}:target (host:write, enforced server-side; the
+// backend rejects a target on an os_category group, D1). Families come from the
+// full corpus list (GET /compliance/frameworks?all=true) so a target outside the
+// enabled-frameworks allowlist still appears. Read-only callers see it as text.
+function GroupTargetControl({ group, canWrite }: { group: GroupWithRollup; canWrite: boolean }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+
+  // Full corpus family list (all=true), not the enabled-frameworks allowlist: a
+  // group may hold a target the org later drops from the allowlist, so the
+  // picker must still offer it or the current value would show as "None".
+  const frameworksQuery = useQuery({
+    queryKey: ['compliance-frameworks-all'],
+    queryFn: async () => {
+      const {
+        data,
+        error: e,
+        response,
+      } = await api.GET('/api/v1/compliance/frameworks', {
+        params: { query: { all: true } },
+      });
+      if (!response.ok) throw new Error(apiErrorMessage(e, 'Failed to load frameworks'));
+      return data!.frameworks;
+    },
+    enabled: canWrite,
+  });
+
+  const [value, setValue] = useState(group.target_framework ?? '');
+  useEffect(() => setValue(group.target_framework ?? ''), [group.target_framework]);
+
+  const mutation = useMutation({
+    mutationFn: async (next: string) => {
+      const { response, error: e } = await api.POST('/api/v1/groups/{id}:target', {
+        params: { path: { id: group.id } },
+        body: { target_framework: next },
+      });
+      if (!response.ok)
+        throw new Error(apiErrorMessage(e, `Failed to set target (HTTP ${response.status})`));
+    },
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const label = (id: string) =>
+    frameworksQuery.data?.find((f) => f.id === id)?.label ?? id.toUpperCase();
+
+  if (!canWrite) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+        <span style={{ color: 'var(--ow-fg-3)' }}>Compliance target</span>
+        <span style={{ color: 'var(--ow-fg-1)' }}>
+          {group.target_framework ? label(group.target_framework) : 'None'}
+        </span>
+      </div>
+    );
+  }
+
+  const options = [
+    { value: '', label: 'None (org default)' },
+    ...(frameworksQuery.data ?? []).map((f) => ({ value: f.id, label: f.label })),
+  ];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>Compliance target</span>
+      <Select
+        value={value}
+        onChange={(v) => {
+          setValue(v);
+          setError(null);
+          mutation.mutate(v);
+        }}
+        ariaLabel={`Compliance target for ${group.name}`}
+        options={options}
+        width="200px"
+        disabled={frameworksQuery.isLoading || mutation.isPending}
+      />
+      {error && (
+        <span role="alert" style={{ color: 'var(--ow-crit)', fontSize: 11 }}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

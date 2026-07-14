@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings-exception-queue
   title: Settings Compliance policies - exception approver queue
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -61,7 +61,11 @@ spec:
       type: security
       enforcement: error
     - id: C-03
-      description: 'A 409 (state already changed, or separation-of-duties at the server) surfaces inline as an actionable message, not a crash; the host cell links to the host detail page using host_name when present. UI copy carries no em-dashes'
+      description: 'A 409 (state already changed, separation-of-duties, or a lapsed-expiry request per api-compliance-exceptions AC-08) surfaces inline as an actionable message, not a crash. The message prefers the server envelope so the specific reason shows, falling back to a generic "already changed state" hint when the envelope is unparseable; the host cell links to the host detail page using host_name when present. UI copy carries no em-dashes'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'A requested (pending) row whose expires_at is already in the past is LAPSED: its expires_at is the requested waiver end, which has elapsed, so it cannot be approved (the server returns the lapsed-expiry 409) and the expiry sweep will expire it. The queue marks such a row with a "lapsed" indicator next to the expiry so an approver does not try to approve a dead request'
       type: technical
       enforcement: error
 
@@ -75,6 +79,10 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
-      description: 'Source inspection: a 409 maps to an inline "already changed state" message (not a throw to an error boundary); the host cell is a Link to /hosts/$hostId showing host_name. PoliciesPage mounts <ExceptionQueue /> in the Exception workflow section and no longer renders the BackendPendingBanner there'
+      description: 'Source inspection: a 409 is handled inline (not a throw to an error boundary) by surfacing the server message with a generic "already changed state" fallback; the host cell is a Link to /hosts/$hostId showing host_name. PoliciesPage mounts <ExceptionQueue /> in the Exception workflow section and no longer renders the BackendPendingBanner there'
       priority: high
       references_constraints: [C-03]
+    - id: AC-04
+      description: 'Source inspection: a requested row whose expires_at is in the past renders a "lapsed" indicator alongside the expiry (a status===requested + past-expires_at check), signaling the request cannot be approved and will be expired by the sweep'
+      priority: medium
+      references_constraints: [C-04]

@@ -78,4 +78,9 @@ var (
 	ErrSelfReview = errors.New("exception: requester cannot review their own request")
 	// ErrInvalidInput is returned for empty rule_id/reason etc.
 	ErrInvalidInput = errors.New("exception: invalid input")
+	// ErrExpired is returned when Approve is called on a requested row whose
+	// expires_at has already passed: the requested waiver end is in the past,
+	// so approving it would create an immediately-dead exception. The
+	// requester must submit a fresh request with a future expiry.
+	ErrExpired = errors.New("exception: the request's expiry has already passed")
 )

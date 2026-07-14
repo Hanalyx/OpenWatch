@@ -312,6 +312,39 @@ func (h *handlers) PatchHostByID(w http.ResponseWriter, r *http.Request, id open
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
 
+// PostHostTarget sets or clears the host's own compliance target framework
+// (the per-host override that wins over any site-group target). host:write.
+// Spec api-hosts, system-compliance-lens.
+func (h *handlers) PostHostTarget(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.HostWrite); denied {
+		return
+	}
+	var req api.HostTargetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
+			"malformed request body", false)
+		return
+	}
+	updated, err := h.hosts.SetTarget(r.Context(), uuid.UUID(id), req.TargetFramework)
+	if err != nil {
+		switch {
+		case errors.Is(err, host.ErrInvalidTarget):
+			writeError(w, http.StatusBadRequest, "hosts.invalid_input", "client",
+				"target_framework is too long or has invalid characters", false)
+		case errors.Is(err, host.ErrHostNotFound):
+			writeError(w, http.StatusNotFound, "hosts.not_found", "client",
+				"host not found", false)
+		default:
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				err.Error(), true)
+		}
+		return
+	}
+	emitAudit(r, audit.HostUpdated, updated.ID.String(), nil)
+	h.publishHostChange(r.Context(), updated.ID, eventbus.HostChangeUpdated)
+	writeJSON(w, http.StatusOK, hostResponse(updated))
+}
+
 // DeleteHostByID soft-deletes a host.
 // Spec api-hosts AC-11, AC-12.
 func (h *handlers) DeleteHostByID(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
@@ -372,6 +405,9 @@ func hostResponse(h host.Host) api.HostResponse {
 		Architecture:       h.Architecture,
 		PlatformIdentifier: h.PlatformIdentifier,
 		OsDiscoveredAt:     h.OSDiscoveredAt,
+		// Phase 3 (compliance-targets) — the host's own target framework
+		// (nil = inherit). omitempty: absent when unset. Spec api-hosts.
+		TargetFramework: h.TargetFramework,
 	}
 }
 

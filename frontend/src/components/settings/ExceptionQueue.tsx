@@ -70,7 +70,12 @@ export function ExceptionQueue() {
       });
       if (error || !response.ok) {
         if (response.status === 409) {
-          throw new Error('This exception already changed state (refresh the queue).');
+          // Prefer the server's specific 409 reason (state already changed,
+          // separation-of-duties, or a lapsed-expiry request) so the approver
+          // sees why; fall back to the generic hint if the envelope is empty.
+          throw new Error(
+            apiErrorMessage(error, 'This exception already changed state (refresh the queue).'),
+          );
         }
         throw new Error(apiErrorMessage(error, `Action failed (${response.status})`));
       }
@@ -215,6 +220,15 @@ export function ExceptionQueue() {
               </div>
               <div style={{ color: 'var(--ow-fg-3)', fontSize: 12 }}>
                 {e.expires_at ? new Date(e.expires_at).toLocaleDateString() : 'No expiry'}
+                {/* A pending row past its requested expiry is lapsed: it cannot be
+                    approved (server 409) and the sweep will expire it. */}
+                {e.status === 'requested' &&
+                  e.expires_at &&
+                  new Date(e.expires_at).getTime() <= Date.now() && (
+                    <span style={{ color: 'var(--ow-warn)', marginLeft: 6, fontSize: 11 }}>
+                      (lapsed)
+                    </span>
+                  )}
               </div>
               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                 {e.status === 'requested' && canApprove && (

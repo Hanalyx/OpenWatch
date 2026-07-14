@@ -1,6 +1,6 @@
 # Scanning and compliance
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
@@ -238,14 +238,18 @@ On the host detail page, the **Scheduling** section shows:
 
 ### Maintenance mode
 
-To pause scanning for a host (during planned maintenance):
+Maintenance mode is a manual on/off flag that pauses scheduled scans, alerts,
+and connectivity probes for a host during planned maintenance. It has no timer
+and does not expire on its own: it stays on until you turn it off.
+
+To pause a host:
 
 1. Go to the host detail page.
-2. Select **Maintenance Mode**.
-3. Set the duration (1–168 hours).
-4. Select **Enable**.
+2. Turn on the **Maintenance** toggle in the host action row.
 
-Maintenance mode expires automatically. You can disable it early from the same page.
+To resume, turn the toggle off. On-demand **Run Scan** still works while a host
+is in maintenance. You can also set maintenance for a whole group from the group
+detail page.
 
 ### Force scan
 

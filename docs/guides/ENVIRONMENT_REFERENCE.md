@@ -1,6 +1,6 @@
 # Configuration and environment reference
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 This document is the field reference for how you configure the OpenWatch
 binary: the TOML file, the environment-variable overrides, and the on-disk paths
@@ -127,6 +127,7 @@ sudo chmod 0640 /etc/openwatch/secrets.env
 | `OPENWATCH_POLICIES_DIR` | `/etc/openwatch/policies` | `serve` | Directory scanned when an admin triggers a policy reload through the API. |
 | `OPENWATCH_DEV_MODE` | unset | `serve` | When set to `true`, accepts unsigned policy envelopes. Development only; never set in production. |
 | `OPENWATCH_KENSA_STORE_PATH` | `.kensa/remediation.db` under the working directory (dev only, logs a warning) | `serve` | Durable path for Kensa's remediation rollback pre-state store. The packaged systemd unit sets this to `/var/lib/openwatch/kensa/remediation.db`. Production installs must set it to a persistent path or remediation rollback does not survive a restart. |
+| `OPENWATCH_KENSA_RULES_DIR` | unset | `serve`, `worker` | Development-only override for the Kensa rule corpus directory. When set, both processes log a startup warning. Production installs the signed `kensa-rules` package and must not set this; scans and remediation fail if no corpus is available. |
 
 Standard PostgreSQL libpq environment variables (for example `PGSSLROOTCERT`) are
 honored by the underlying driver when present, but OpenWatch itself only reads the

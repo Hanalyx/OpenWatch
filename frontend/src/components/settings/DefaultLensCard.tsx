@@ -40,7 +40,13 @@ export function DefaultLensCard() {
   const mutation = useMutation({
     mutationFn: async (next: string) => {
       const { response, error } = await api.PUT('/api/v1/system/compliance/config', {
-        body: { default_framework: next },
+        // The endpoint is a full replace: preserve the current enabled-frameworks
+        // allowlist, or omitting it would wipe the restriction every time the
+        // default lens changes.
+        body: {
+          default_framework: next,
+          enabled_frameworks: configQuery.data?.enabled_frameworks ?? [],
+        },
       });
       if (!response.ok) throw new Error(apiErrorMessage(error, 'Failed to save'));
     },

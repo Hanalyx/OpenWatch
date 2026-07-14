@@ -1,7 +1,7 @@
 spec:
   id: frontend-dashboard
   title: Dashboard (authenticated fleet overview)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -72,6 +72,17 @@ spec:
         (no api.POST / PUT / DELETE). UI copy carries no em-dashes
       type: technical
       enforcement: error
+    - id: C-04
+      description: >-
+        v1.1.0 - the compliance-trend widget MUST render the shared
+        interactive TrendChart (src/components/charts/TrendChart.tsx): a fixed
+        0..100 score domain with an 80% target line (no auto min/max scaling,
+        which would exaggerate small moves), a date-positioned x-axis with
+        visible gaps for missing days, and a hover tooltip. It MUST NOT label
+        endpoints with a point-count-as-days ("Nd ago") or a "today" that may
+        not be the latest snapshot's date; it colors the line by trend direction
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -90,3 +101,7 @@ spec:
       description: 'Source-inspection — the dashboard modules contain no api.POST / api.PUT / api.DELETE call (read-only), and dashboard UI copy contains no em-dash.'
       priority: high
       references_constraints: [C-03]
+    - id: AC-05
+      description: 'v1.1.0 source-inspection — WidgetComplianceTrend renders the shared TrendChart (not the auto-scaled Sparkline) with a fleet tooltip carrying avg score, hosts, failing rules, and hosts with critical findings, colored by trend direction; it no longer labels endpoints as "Nd ago" or "today".'
+      priority: high
+      references_constraints: [C-04]

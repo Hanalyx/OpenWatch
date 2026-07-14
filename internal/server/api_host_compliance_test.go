@@ -23,6 +23,7 @@
 //	       TestFrameworkCompatibleWithOS_Table (non-DSN)
 //	       TestFirstSentence_TrimsCatalogProse (non-DSN)
 //	AC-17  TestHostComplianceLens_ScanStateReflectsInFlightRun
+//	AC-18  TestHostComplianceFrameworks_AllowlistNarrowing
 package server
 
 import (
@@ -1078,6 +1079,81 @@ func TestHostComplianceFrameworks_OSAwareFiltering(t *testing.T) {
 		status, body := getLens(t, url, auth.RoleViewer, rhel8.String(), "?framework=cis_rhel9")
 		if status != http.StatusOK || len(body.Rules) != 1 {
 			t.Errorf("deep-linked cis_rhel9 lens: status=%d rules=%d, want 200/1", status, len(body.Rules))
+		}
+	})
+}
+
+// @ac AC-18
+// AC-18: the per-host lens bar narrows to the enabled-frameworks allowlist.
+func TestHostComplianceFrameworks_AllowlistNarrowing(t *testing.T) {
+	t.Run("api-host-compliance/AC-18", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+
+		// os_family NULL (seedHostForIntel) disables the OS-aware filter, so
+		// this exercises the allowlist filter in isolation.
+		hostID := seedHostForIntel(t, pool)
+		seedRuleStateForHostWithFrameworks(t, pool, hostID, "r.multi", "pass",
+			map[string]string{
+				"cis_rhel9": "1.1", "nist_800_53": "AC-6", "pci_dss_4": "2.2",
+				"srg": "SRG-1", "stig_rhel9": "V-1",
+			})
+
+		setAllowlist := func(list []string) {
+			t.Helper()
+			pr := doReq(t, asRole(t, "PUT", url+"/api/v1/system/compliance/config", auth.RoleAdmin,
+				map[string]any{"default_framework": "", "enabled_frameworks": list}))
+			if pr.StatusCode != http.StatusOK {
+				t.Fatalf("set allowlist %v = %d, want 200", list, pr.StatusCode)
+			}
+			pr.Body.Close()
+		}
+		fetch := func() []string {
+			t.Helper()
+			resp := doReq(t, asRole(t, "GET",
+				url+"/api/v1/hosts/"+hostID.String()+"/compliance/frameworks", auth.RoleViewer, nil))
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("frameworks status = %d, want 200", resp.StatusCode)
+			}
+			var body struct {
+				Frameworks []struct {
+					FrameworkID string `json:"framework_id"`
+				} `json:"frameworks"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			out := make([]string, 0, len(body.Frameworks))
+			for _, f := range body.Frameworks {
+				out = append(out, f.FrameworkID)
+			}
+			return out
+		}
+
+		// Allowlist {cis, nist_800_53, stig} → pci_dss_4 + srg dropped by family.
+		setAllowlist([]string{"cis", "nist_800_53", "stig"})
+		got := fetch()
+		want := []string{"cis_rhel9", "nist_800_53", "stig_rhel9"}
+		if len(got) != len(want) {
+			t.Fatalf("narrowed lenses = %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("narrowed lenses[%d] = %s, want %s", i, got[i], want[i])
+			}
+		}
+
+		// Empty allowlist → all five families list again.
+		setAllowlist([]string{})
+		if got := fetch(); len(got) != 5 {
+			t.Errorf("empty-allowlist lenses = %v, want all 5", got)
+		}
+
+		// A disabled family stays viewable by direct link (only the picker filters).
+		setAllowlist([]string{"cis", "nist_800_53", "stig"})
+		status, body := getLens(t, url, auth.RoleViewer, hostID.String(), "?framework=pci_dss_4")
+		if status != http.StatusOK || len(body.Rules) != 1 {
+			t.Errorf("deep-linked pci_dss_4 lens: status=%d rules=%d, want 200/1", status, len(body.Rules))
 		}
 	})
 }

@@ -44,6 +44,7 @@ import { stripKernelDistroSuffix } from '@/utils/kernelVersion';
 import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
 import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
+import { TrendChart } from '@/components/charts/TrendChart';
 import {
   PackagesTab,
   ServicesTab,
@@ -102,6 +103,9 @@ interface HostResponse {
   architecture?: string | null;
   platform_identifier?: string | null;
   os_discovered_at?: string | null;
+  // Phase 3 (compliance-targets) — the host's own target framework family
+  // (absent = inherit a site-group target, else the org default).
+  target_framework?: string;
 }
 
 type MonitoringBand = 'online' | 'degraded' | 'critical' | 'down' | 'maintenance' | 'unknown';
@@ -217,11 +221,29 @@ export function HostDetailPage() {
   const activeTab: TabId = search.tab ?? 'overview';
   const setCrumbs = useBreadcrumbStore((s) => s.setCrumbs);
 
-  // Default lens: with no explicit ?framework=, this host defaults to the org
-  // default lens resolved to its own OS key (family "stig" -> stig_rhel9). The
+  // Default lens: with no explicit ?framework=, this host defaults to its
+  // effective compliance TARGET resolved to its own OS key (family "stig" ->
+  // stig_rhel9). The host's OWN target takes precedence over the org default;
+  // when the host has none, this falls back to the org default lens. The
   // explicit "all" sentinel means the user chose All rules (no filter),
   // distinct from "no choice" which applies the default.
   const defaultLens = useDefaultLens();
+  // The host's own durable target is a host property, not a lens view, so it is
+  // fetched framework-agnostically under a distinct cache key. Keeping it out of
+  // the detail queryKey preserves the ['host', hostId, framework] shape the
+  // detail query is pinned to (frontend-host-detail AC-08), and a lens switch
+  // never refetches it. Invalidated by HostTargetControl on a target change.
+  const hostTargetQuery = useQuery({
+    queryKey: ['host', hostId, 'self'],
+    queryFn: async () => {
+      const { data, response } = await api.GET('/api/v1/hosts/{id}', {
+        params: { path: { id: hostId } },
+      });
+      return response.ok ? (data ?? null) : null;
+    },
+    enabled: !!hostId,
+  });
+  const hostOwnTarget = hostTargetQuery.data?.host?.target_framework ?? '';
   const hostFrameworksQuery = useQuery({
     queryKey: ['host', hostId, 'compliance', 'frameworks'],
     queryFn: async () => {
@@ -234,7 +256,8 @@ export function HostDetailPage() {
     enabled: !!hostId,
   });
   const availableKeys = (hostFrameworksQuery.data?.frameworks ?? []).map((f) => f.framework_id);
-  const resolvedDefault = resolveLensForHost(defaultLens, availableKeys);
+  // Prefer the host's own target over the org default (Phase 3 compliance-targets).
+  const resolvedDefault = resolveLensForHost(hostOwnTarget || defaultLens, availableKeys);
   const framework =
     search.framework === undefined
       ? resolvedDefault || undefined
@@ -494,6 +517,7 @@ export function HostDetailPage() {
               hostId={detailQuery.data.host.id}
               framework={framework}
               onFrameworkChange={onFrameworkChange}
+              targetFramework={detailQuery.data.host.target_framework ?? null}
             />
           ) : activeTab === 'packages' ? (
             <PackagesTab
@@ -2481,71 +2505,23 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
               }}
             >
               {diff > 0 ? '+' : ''}
-              {diff}% over {days.length} days
+              {diff}% since {first.date}
             </span>
           )}
         </div>
-        <TrendSparkline days={days} />
+        <TrendChart
+          points={days.map((d) => ({
+            date: d.date,
+            scorePct: d.score_pct,
+            tooltip: [d.date, `${d.score_pct}% compliant`, `${d.passing}/${d.total} passing`],
+          }))}
+          windowDays={30}
+        />
       </>
     );
   }
 
   return <Card title="Compliance trend · last 30 days">{body}</Card>;
-}
-
-// TrendSparkline draws the score line (0..100 domain) over the
-// snapshot points. Pure SVG, no chart dependency: the card needs one
-// readable line, not an axis system.
-function TrendSparkline({ days }: { days: { date: string; score_pct: number }[] }) {
-  const W = 280;
-  const H = 64;
-  const PAD = 4;
-  const n = days.length;
-  const x = (i: number) => (n === 1 ? W / 2 : PAD + (i * (W - 2 * PAD)) / (n - 1));
-  const y = (score: number) => PAD + (1 - score / 100) * (H - 2 * PAD);
-  const points = days.map((d, i) => `${x(i)},${y(d.score_pct)}`).join(' ');
-  return (
-    <div style={{ marginTop: 10 }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', height: 64, display: 'block' }}
-        role="img"
-        aria-label="Compliance score trend"
-      >
-        {/* Target line at 80%. */}
-        <line
-          x1={PAD}
-          x2={W - PAD}
-          y1={y(80)}
-          y2={y(80)}
-          stroke="var(--ow-line)"
-          strokeDasharray="3 3"
-        />
-        {n > 1 && <polyline points={points} fill="none" stroke="var(--ow-info)" strokeWidth={2} />}
-        {days.map((d, i) => (
-          <circle
-            key={d.date}
-            cx={x(i)}
-            cy={y(d.score_pct)}
-            r={n === 1 ? 3 : 2}
-            fill="var(--ow-info)"
-          />
-        ))}
-      </svg>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 10,
-          color: 'var(--ow-fg-3)',
-          marginTop: 2,
-        }}
-      >
-        <span>{days[0]!.date}</span>
-        <span>{days[days.length - 1]!.date}</span>
-      </div>
-    </div>
-  );
 }
 
 // RECENT_LIMIT caps the overview card at the most-recent N rows.

@@ -25,6 +25,7 @@ var (
 	ErrInvalidHost    = errors.New("host: invalid input")
 	ErrDuplicateHost  = errors.New("host: hostname already exists in this environment")
 	ErrInvalidCreator = errors.New("host: created_by user does not exist")
+	ErrInvalidTarget  = errors.New("host: target_framework is too long or has invalid characters")
 )
 
 // Host is the safe shape returned by every read API.
@@ -55,6 +56,14 @@ type Host struct {
 	Architecture       *string
 	PlatformIdentifier *string
 	OSDiscoveredAt     *time.Time
+
+	// Phase 3 (compliance-targets) — the host's own durable target
+	// framework: operator intent about which framework family this host is
+	// held to (its default lens, and the per-host override that wins over
+	// any site-group target in host_effective_target). nil = inherit
+	// (site-group target, else the org default). Set via SetTarget; read
+	// by GetByID/UpdateHost. Spec system-compliance-lens, api-hosts.
+	TargetFramework *string
 }
 
 // CreateParams is the input to CreateHost. Validation enforces the
@@ -190,7 +199,8 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		       environment, tags, group_id, COALESCE(username, ''),
 		       created_by, created_at, updated_at,
 		       maintenance_mode, check_priority,
-		       os_family, os_version, architecture, platform_identifier, os_discovered_at
+		       os_family, os_version, architecture, platform_identifier, os_discovered_at,
+		       target_framework
 		FROM hosts WHERE id = $1 AND deleted_at IS NULL`
 	var h Host
 	err := s.pool.QueryRow(ctx, stmt, id).Scan(
@@ -200,6 +210,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 		&h.MaintenanceMode, &h.CheckPriority,
 		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
+		&h.TargetFramework,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -208,6 +219,66 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Host, error) {
 		return Host{}, fmt.Errorf("host: query: %w", err)
 	}
 	return h, nil
+}
+
+// SetTarget sets (or clears, when family is "") the host's own compliance
+// target framework. This is the per-host override: in host_effective_target it
+// wins over any site-group target. Unlike a group target there is no site-only
+// constraint (D1) — a host may always carry its own target. The family token is
+// resolved leniently against the live corpus at query time, so this only
+// bounds garbage/length (D3 handles a target with no matching corpus key as
+// N/A, not 0%). Spec system-compliance-lens, api-hosts.
+func (s *Service) SetTarget(ctx context.Context, id uuid.UUID, family string) (Host, error) {
+	if !validTargetFramework(family) {
+		return Host{}, ErrInvalidTarget
+	}
+	var arg *string
+	if family != "" {
+		arg = &family
+	}
+	const stmt = `
+		UPDATE hosts SET target_framework = $2, updated_at = now()
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING id, hostname, host(ip_address), port,
+		          COALESCE(display_name, ''), COALESCE(description, ''),
+		          environment, tags, group_id, COALESCE(username, ''),
+		          created_by, created_at, updated_at,
+		          maintenance_mode, check_priority,
+		          os_family, os_version, architecture, platform_identifier, os_discovered_at,
+		          target_framework`
+	var h Host
+	err := s.pool.QueryRow(ctx, stmt, id, arg).Scan(
+		&h.ID, &h.Hostname, &h.IPAddress, &h.Port,
+		&h.DisplayName, &h.Description,
+		&h.Environment, &h.Tags, &h.GroupID, &h.Username,
+		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
+		&h.MaintenanceMode, &h.CheckPriority,
+		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
+		&h.TargetFramework,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Host{}, ErrHostNotFound
+		}
+		return Host{}, fmt.Errorf("host: set target: %w", err)
+	}
+	return h, nil
+}
+
+// validTargetFramework bounds a compliance-target family token: empty (clear)
+// or <=64 chars of lowercase alnum plus _-. It mirrors the group service's
+// validator; the token is resolved leniently against the live corpus at query
+// time, so this only blocks garbage / length.
+func validTargetFramework(f string) bool {
+	if len(f) > 64 {
+		return false
+	}
+	for _, r := range f {
+		if !(r == '_' || r == '-' || r == '.' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 // UpdateHost applies the supplied patch fields and bumps updated_at.
@@ -271,7 +342,8 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		          environment, tags, group_id, COALESCE(username, ''),
 		          created_by, created_at, updated_at,
 		          maintenance_mode, check_priority,
-		          os_family, os_version, architecture, platform_identifier, os_discovered_at`,
+		          os_family, os_version, architecture, platform_identifier, os_discovered_at,
+		          target_framework`,
 		strings.Join(sets, ", "), idPlaceholder)
 
 	var h Host
@@ -282,6 +354,7 @@ func (s *Service) UpdateHost(ctx context.Context, id uuid.UUID, p UpdateParams) 
 		&h.CreatedBy, &h.CreatedAt, &h.UpdatedAt,
 		&h.MaintenanceMode, &h.CheckPriority,
 		&h.OSFamily, &h.OSVersion, &h.Architecture, &h.PlatformIdentifier, &h.OSDiscoveredAt,
+		&h.TargetFramework,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

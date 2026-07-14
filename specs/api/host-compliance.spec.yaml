@@ -1,7 +1,7 @@
 spec:
   id: api-host-compliance
   title: Per-host compliance lens + failed-rules API + fleet scan-queue KPI
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -121,6 +121,10 @@ spec:
       description: 'v1.3.0 - /compliance/frameworks MUST filter version-pinned frameworks by the host OS: a framework id embedding an OS-pinned segment (a known family name followed by digits, e.g. rhel8, ubuntu2404) lists only when the family equals hosts.os_family and the digits equal the major version (or major+minor concatenation); ids with no OS-pinned segment are OS-neutral and always list; an empty os_family disables filtering entirely. The overall aggregate and the ?framework= lens query are NOT filtered'
       type: technical
       enforcement: error
+    - id: C-07
+      description: 'v1.5.0 - the per-host lens bar (GET /hosts/{id}/compliance/frameworks) MUST also honor the enabled-frameworks allowlist (system-compliance-lens C-04): when ComplianceConfig.EnabledFrameworks is non-empty, a framework key lists only when its FAMILY (framework.FamilyOf) is in the allowlist; an empty allowlist lists every family (unchanged). It is a DISPLAY filter, not a security boundary - a config-load error degrades to listing all, and neither the overall aggregate nor the ?framework= deep link is filtered (a disabled family stays viewable by direct link). This filter composes with the OS-aware filter (C-06): both must pass for a key to list'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -191,3 +195,7 @@ spec:
       description: 'v1.4.0 - scan_context.scan_state reflects the host''s in-flight run independent of the latest COMPLETED run: a host with a queued run returns scan_state="queued"; a running run returns "running"; a host with only completed/failed runs (or never scanned) returns scan_state null while last_scan_at/scan_id keep tracking the latest COMPLETED run. It is sourced from scanruns.ActiveForHost so a running scan does not disturb last_scan_at.'
       priority: high
       references_constraints: [C-02]
+    - id: AC-18
+      description: 'v1.5.0 - the lens bar honors the enabled-frameworks allowlist. With ComplianceConfig.EnabledFrameworks=[cis, nist_800_53, stig], GET /hosts/{id}/compliance/frameworks on a host (os_family rhel) whose rows carry refs for cis_rhel9, nist_800_53, pci_dss_4, srg and stig_rhel9 lists exactly cis_rhel9, nist_800_53, stig_rhel9 (pci_dss_4 and srg dropped by family); clearing the allowlist to empty lists all five; the overall aggregate still counts all rows and GET /compliance?framework=pci_dss_4 still projects normally (deep link unfiltered).'
+      priority: high
+      references_constraints: [C-07]

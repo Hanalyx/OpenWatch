@@ -3,8 +3,9 @@ import { Link } from '@tanstack/react-router';
 import api from '@/api/client';
 import { apiErrorMessage } from '@/api/errors';
 import { useDefaultLens } from '@/api/useDefaultLens';
-import { KpiValue, KpiSub, Sparkline, WidgetCard, WidgetState, toneVar } from './primitives';
+import { KpiValue, KpiSub, WidgetCard, WidgetState, toneVar } from './primitives';
 import { relativeTime, severityLabel, severityTone, sourceLabel } from '@/api/eventDisplay';
+import { TrendChart } from '@/components/charts/TrendChart';
 
 // Dashboard widgets — each is a lens into a fleet endpoint, owning its
 // own query so loading/empty/error states are independent. All read-only
@@ -148,20 +149,28 @@ export function WidgetComplianceTrend() {
       ) : (
         (() => {
           const days = q.data.days;
-          const series = days.map((d) => d.avg_score_pct);
           // Guarded by days.length < 2 above, so both ends exist.
           const first = days[0]!;
           const last = days[days.length - 1]!;
           const up = last.avg_score_pct >= first.avg_score_pct;
           return (
             <>
-              <div style={{ marginTop: 2 }}>
-                <Sparkline
-                  data={series}
-                  color={up ? 'var(--ow-ok)' : 'var(--ow-crit)'}
-                  height={70}
-                />
-              </div>
+              <TrendChart
+                points={days.map((d) => ({
+                  date: d.date,
+                  scorePct: d.avg_score_pct,
+                  tooltip: [
+                    d.date,
+                    `${Math.round(d.avg_score_pct)}% avg compliant`,
+                    `${d.hosts} hosts`,
+                    `${d.failing} failing rules`,
+                    `${d.critical_hosts} with critical`,
+                  ],
+                }))}
+                windowDays={30}
+                color={up ? 'var(--ow-ok)' : 'var(--ow-crit)'}
+                height={70}
+              />
               <div
                 style={{
                   display: 'flex',
@@ -171,11 +180,9 @@ export function WidgetComplianceTrend() {
                   color: 'var(--ow-fg-3)',
                 }}
               >
-                <span>
-                  {days.length}d ago · {Math.round(first.avg_score_pct)}%
-                </span>
+                <span>oldest {Math.round(first.avg_score_pct)}%</span>
                 <span style={{ color: up ? 'var(--ow-ok)' : 'var(--ow-crit)' }}>
-                  today · {Math.round(last.avg_score_pct)}%
+                  latest {Math.round(last.avg_score_pct)}%
                 </span>
               </div>
             </>

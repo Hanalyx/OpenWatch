@@ -256,8 +256,9 @@ psql -U openwatch -d openwatch -c "VACUUM VERBOSE;"
 For more aggressive space reclamation (requires exclusive table lock):
 
 ```bash
-# VACUUM FULL rewrites the entire table - use with caution during off-hours
-psql -U openwatch -d openwatch -c "VACUUM FULL scan_findings;"
+# VACUUM FULL rewrites the entire table - use with caution during off-hours.
+# Replace scan_results with the actual large table from Step 6; confirm it exists first.
+psql -U openwatch -d openwatch -c "VACUUM FULL scan_results;"
 ```
 
 Also see the [disk space runbook](DISK_FULL.md) for broader disk cleanup.
@@ -268,7 +269,7 @@ If queries return incorrect results or logs show index-related errors:
 
 ```bash
 # Reindex a specific table
-psql -U openwatch -d openwatch -c "REINDEX TABLE scan_findings;"
+psql -U openwatch -d openwatch -c "REINDEX TABLE scan_results;"
 
 # Reindex the entire database (takes longer, but thorough)
 psql -U openwatch -d openwatch -c "REINDEX DATABASE openwatch;"
@@ -370,8 +371,8 @@ Escalate if any of the following conditions are met:
 - **Connection limit per user**: Consider setting `ALTER ROLE openwatch CONNECTION LIMIT 80;` to leave headroom for administrative connections.
 - **Regular maintenance**: Schedule weekly `ANALYZE` on large tables to keep query planner statistics current:
   ```sql
-  ANALYZE scan_findings;
-  ANALYZE scans;
+  ANALYZE scan_results;
+  ANALYZE scan_runs;
   ANALYZE hosts;
-  ANALYZE audit_logs;
+  ANALYZE audit_events;
   ```

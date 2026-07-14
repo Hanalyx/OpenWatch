@@ -5,6 +5,7 @@
 //   AC-02  each widget GETs its named live fleet/activity endpoint via useQuery
 //   AC-03  every widget renders loading + error states (WidgetState)
 //   AC-04  read-only (no api.POST/PUT/DELETE) + no em-dash copy
+//   AC-05  compliance trend uses the shared interactive TrendChart
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -17,6 +18,10 @@ const PAGE_SRC = readFileSync(
 );
 const WIDGETS_SRC = readFileSync(resolve(process.cwd(), 'src/pages/dashboard/widgets.tsx'), 'utf8');
 const PRIM_SRC = readFileSync(resolve(process.cwd(), 'src/pages/dashboard/primitives.tsx'), 'utf8');
+const TREND_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/charts/TrendChart.tsx'),
+  'utf8',
+);
 
 function stripComments(s: string): string {
   return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -84,5 +89,22 @@ describe('frontend-dashboard — fleet overview', () => {
       expect(src).not.toMatch(/api\.(POST|PUT|DELETE)/);
       expect(stripComments(src)).not.toContain('—');
     }
+  });
+
+  // @ac AC-05
+  test('frontend-dashboard/AC-05 — compliance trend uses the shared interactive TrendChart', () => {
+    // The widget renders TrendChart (not the auto-scaled Sparkline) with a
+    // fleet tooltip and trend-direction color.
+    expect(WIDGETS_SRC).toContain('TrendChart');
+    expect(WIDGETS_SRC).not.toMatch(/<Sparkline/);
+    expect(WIDGETS_SRC).toContain('avg compliant');
+    expect(WIDGETS_SRC).toContain('failing rules');
+    expect(WIDGETS_SRC).toContain('with critical');
+    // No more misleading endpoint labels.
+    expect(WIDGETS_SRC).not.toContain('d ago');
+    expect(WIDGETS_SRC).not.toContain('today ·');
+    // Shared chart enforces the 0..100 domain + 80% target + hover.
+    expect(TREND_SRC).toMatch(/targetPct/);
+    expect(TREND_SRC).toContain('onMouseMove');
   });
 });

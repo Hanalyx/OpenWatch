@@ -57,6 +57,12 @@ export function EnabledFrameworksCard() {
   const defaultFramework = cfg?.default_framework ?? '';
   const restrict = enabled.length > 0;
   const busy = mutation.isPending || configQuery.isLoading || allFrameworksQuery.isLoading;
+  // A corpus with no framework families (never scanned, or the all=true query
+  // errored) means there is nothing to restrict. Turning the toggle on would
+  // seed an empty allowlist, which is indistinguishable from off, so the toggle
+  // would silently snap back. Guard against that: disable the toggle and show a
+  // note rather than persisting an empty (== off) list.
+  const noFamilies = allFrameworks.length === 0;
 
   const save = (enabledNext: string[]) => {
     setBanner(null);
@@ -65,7 +71,10 @@ export function EnabledFrameworksCard() {
 
   const setRestrict = (on: boolean) => {
     // On: seed with every family (explicit) so it's a no-op until trimmed.
-    // Off: empty list means every family is available.
+    // Off: empty list means every family is available. Never persist an empty
+    // list on "on" (it reads as off) — the toggle is disabled in that state,
+    // but guard here too against a race.
+    if (on && noFamilies) return;
     save(on ? allFrameworks.map((f) => f.id) : []);
   };
 
@@ -81,6 +90,12 @@ export function EnabledFrameworksCard() {
           <>
             Restrict which framework families are offered as compliance lenses. Off means every
             framework found in the corpus is available.{' '}
+            {!busy && noFamilies && (
+              <span style={{ color: 'var(--ow-fg-3)' }}>
+                No framework families in the scanned corpus yet. Scan a host, then this can be
+                limited.
+              </span>
+            )}
             {banner?.kind === 'success' && (
               <span style={{ color: 'var(--ow-ok)' }}>{banner.text}</span>
             )}
@@ -94,7 +109,7 @@ export function EnabledFrameworksCard() {
             value={restrict}
             onChange={setRestrict}
             ariaLabel="Limit lens options"
-            disabled={busy}
+            disabled={busy || noFamilies}
           />
         }
       />

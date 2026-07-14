@@ -1,6 +1,6 @@
 # Database migration guide
 
-**Last updated:** 2026-06-25 · **Applies to:** OpenWatch v0.3.0 (Go single-binary)
+**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
@@ -61,7 +61,7 @@ The DSN comes from `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (or
 in `goose_db_version`), and prints the version transition:
 
 ```
-migrations applied — version 47 -> 48
+migrations applied — version 50 -> 51
 ```
 
 When the schema is already current it reports that no migrations were pending
@@ -105,8 +105,8 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
 ## Adding a new migration
 
 1. Create a new migration file named with the next ascending
-   integer, for example `0051_add_scan_findings.sql` (the current highest
-   applied migration is `0050`; use the next free number, not this example
+   integer, for example `0052_add_scan_findings.sql` (the current highest
+   applied migration is `0051`; use the next free number, not this example
    literally). Migration order is driven by the filename prefix, not by
    dates.
 

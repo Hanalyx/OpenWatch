@@ -419,7 +419,7 @@ describe('frontend-host-detail v1.4.0 — live compliance trend card', () => {
   test('frontend-host-detail/AC-38 — trend card queries the snapshot endpoint with the host-prefixed key; honest states', () => {
     const card = PAGE_SRC.slice(
       PAGE_SRC.indexOf('function CardComplianceTrend'),
-      PAGE_SRC.indexOf('function TrendSparkline'),
+      PAGE_SRC.indexOf('// RECENT_LIMIT'),
     );
     expect(card.length).toBeGreaterThan(0);
     expect(card).toContain("queryKey: ['host', hostId, 'compliance_trend']");
@@ -430,9 +430,10 @@ describe('frontend-host-detail v1.4.0 — live compliance trend card', () => {
     // Honest empty state names the rollup, no fabricated zero line.
     expect(card).toContain('No snapshots yet');
     expect(card).toMatch(/hourly rollup/);
-    // Chart renders latest score + over-window delta when data exists.
-    expect(card).toContain('<TrendSparkline days={days} />');
-    expect(card).toMatch(/over \{days\.length\} days/);
+    // Chart renders latest score + first-snapshot-relative delta (the shared
+    // interactive TrendChart; the old index-axis TrendSparkline is gone).
+    expect(card).toContain('<TrendChart');
+    expect(card).toMatch(/since \{first\.date\}/);
     // The page passes the host id into the card.
     expect(PAGE_SRC).toContain('<CardComplianceTrend hostId={hostId} />');
   });

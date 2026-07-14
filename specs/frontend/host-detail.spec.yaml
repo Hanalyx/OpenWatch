@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 2
 
@@ -235,7 +235,11 @@ spec:
       priority: critical
       references_constraints: [C-10]
     - id: AC-38
-      description: 'v1.4.0 - the Compliance trend card is LIVE: it queries /api/v1/hosts/{id}/compliance/trend with queryKey ["host", hostId, "compliance_trend"] (the host prefix gives free scan.completed refresh), renders the score sparkline plus the latest score and the over-window delta when snapshots exist, and an honest empty state ("No snapshots yet", naming the hourly rollup) when none do; the loading guard is isPending'
+      description: 'v1.4.0 - the Compliance trend card is LIVE: it queries /api/v1/hosts/{id}/compliance/trend with queryKey ["host", hostId, "compliance_trend"] (the host prefix gives free scan.completed refresh), renders the shared TrendChart plus the latest score and the delta since the first snapshot when snapshots exist, and an honest empty state ("No snapshots yet", naming the hourly rollup) when none do; the loading guard is isPending'
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-46
+      description: 'v1.10.0 - the Compliance trend renders the shared interactive TrendChart (src/components/charts/TrendChart.tsx): a fixed 0..100 score domain with an 80% target line (no auto min/max scaling), a date-positioned x-axis over the 30-day window ending today so a day without a snapshot shows as a real gap (the polyline breaks where two snapshots are more than one calendar day apart, dayIndex delta != 1), and hover reveals the nearest point via a guide line + a tooltip carrying its date, score, and passing/total. The card delta is labeled against the first snapshot date, not a point count.'
       priority: high
       references_constraints: [C-04]
 

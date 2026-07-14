@@ -121,7 +121,7 @@ func (s *Service) Request(ctx context.Context, hostID uuid.UUID, ruleID, reason 
 // Emits compliance.exception.approved.
 func (s *Service) Approve(ctx context.Context, id, reviewedBy uuid.UUID, note string) (Exception, error) {
 	e, err := s.review(ctx, id, reviewedBy, note, StatusRequested, StatusApproved,
-		audit.ComplianceExceptionApproved, true)
+		audit.ComplianceExceptionApproved, true, true)
 	if err == nil {
 		s.notifyDecided(ctx, e, true)
 	}
@@ -133,7 +133,7 @@ func (s *Service) Approve(ctx context.Context, id, reviewedBy uuid.UUID, note st
 // compliance.exception.rejected.
 func (s *Service) Reject(ctx context.Context, id, reviewedBy uuid.UUID, note string) (Exception, error) {
 	e, err := s.review(ctx, id, reviewedBy, note, StatusRequested, StatusRejected,
-		audit.ComplianceExceptionRejected, true)
+		audit.ComplianceExceptionRejected, true, false)
 	if err == nil {
 		s.notifyDecided(ctx, e, false)
 	}
@@ -145,7 +145,7 @@ func (s *Service) Reject(ctx context.Context, id, reviewedBy uuid.UUID, note str
 // not a self-review concern). Emits compliance.exception.revoked.
 func (s *Service) Revoke(ctx context.Context, id, reviewedBy uuid.UUID, note string) (Exception, error) {
 	return s.review(ctx, id, reviewedBy, note, StatusApproved, StatusRevoked,
-		audit.ComplianceExceptionRevoked, false)
+		audit.ComplianceExceptionRevoked, false, false)
 }
 
 // review performs a guarded state transition fromState -> toState. The
@@ -153,19 +153,21 @@ func (s *Service) Revoke(ctx context.Context, id, reviewedBy uuid.UUID, note str
 // cannot double-transition; a zero-row update means the row was
 // missing or already moved.
 func (s *Service) review(ctx context.Context, id, reviewedBy uuid.UUID, note string,
-	fromState, toState Status, code audit.Code, blockSelfReview bool) (Exception, error) {
+	fromState, toState Status, code audit.Code, blockSelfReview, enforceNotExpired bool) (Exception, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Exception{}, fmt.Errorf("exception: review begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Lock the row and read the requester for the self-review check.
+	// Lock the row and read the requester for the self-review check plus
+	// expires_at for the lapsed-request guard.
 	var status string
 	var requestedBy uuid.UUID
+	var expiresAt *time.Time
 	err = tx.QueryRow(ctx, `
-		SELECT status, requested_by FROM compliance_exceptions
-		 WHERE id = $1 FOR UPDATE`, id).Scan(&status, &requestedBy)
+		SELECT status, requested_by, expires_at FROM compliance_exceptions
+		 WHERE id = $1 FOR UPDATE`, id).Scan(&status, &requestedBy, &expiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Exception{}, ErrNotFound
 	}
@@ -177,6 +179,11 @@ func (s *Service) review(ctx context.Context, id, reviewedBy uuid.UUID, note str
 	}
 	if blockSelfReview && requestedBy == reviewedBy {
 		return Exception{}, ErrSelfReview
+	}
+	// A lapsed request cannot be approved into an immediately-dead waiver.
+	// Only Approve enforces this (enforceNotExpired); Reject/Revoke do not.
+	if enforceNotExpired && expiresAt != nil && !expiresAt.After(time.Now()) {
+		return Exception{}, ErrExpired
 	}
 
 	row := tx.QueryRow(ctx, `
@@ -283,14 +290,21 @@ func (s *Service) ActiveRuleIDsForHost(ctx context.Context, hostID uuid.UUID) (m
 	return out, rows.Err()
 }
 
-// ExpireSweep flips approved exceptions whose expires_at has passed to
-// 'expired' and emits compliance.exception.expired for each. Returns
-// the count expired. Idempotent: a second run finds nothing.
+// ExpireSweep flips any OPEN exception (approved OR requested) whose
+// expires_at has passed to 'expired' and emits compliance.exception.expired
+// for each. Returns the count expired. Idempotent: a second run finds nothing.
+//
+// A requested row is expired too: its expires_at is the requested waiver end,
+// so once that has passed there is nothing left to approve — leaving it pending
+// forever would strand it and block a fresh request for the same host+rule
+// (the open-uniqueness rule, C-02). Approve independently rejects a lapsed
+// request (ErrExpired), so the two guards agree.
 func (s *Service) ExpireSweep(ctx context.Context) (int, error) {
 	rows, err := s.pool.Query(ctx, `
 		UPDATE compliance_exceptions
 		   SET status = 'expired', updated_at = now()
-		 WHERE status = 'approved' AND expires_at IS NOT NULL AND expires_at <= now()
+		 WHERE status IN ('approved', 'requested')
+		   AND expires_at IS NOT NULL AND expires_at <= now()
 		RETURNING `+selectCols)
 	if err != nil {
 		return 0, fmt.Errorf("exception: expire sweep: %w", err)

@@ -10,6 +10,41 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] Eyrie — 2026-07-14
+
+### Added
+
+- **Per-host and per-group compliance targets (UI + host override).** Building on
+  the per-host and per-group target foundation, a host or a site group can now be
+  assigned a target framework family from the UI (the host Compliance tab and the
+  Groups page). A host's own target wins over its site group's, which wins over
+  the org default; a host's compliance summary and default lens follow that
+  effective target. Set via `POST /api/v1/hosts/{id}:target` and
+  `POST /api/v1/groups/{id}:target` (`host:write`). See spec
+  `system-compliance-lens`.
+- **Interactive compliance trend chart.** The host Compliance-trend card and the
+  dashboard fleet-trend widget now share one interactive chart. Hover any point
+  to read its date and score (the fleet chart also shows host count, failing
+  rules, and hosts with critical findings). The chart uses a fixed 0 to 100
+  scale with an 80% target line, and a date-positioned axis so a day with no
+  snapshot shows as a real gap rather than an interpolated line.
+
+### Fixed
+
+- **The framework-lens allowlist now applies to the per-host lens bar.**
+  Disabling a framework family under Settings, Compliance policies, Limit lens
+  options now also removes it from a host's "View as" chips, not just the
+  org-level picker. Deep links to a disabled family still work; the allowlist is
+  a display filter, not a security boundary.
+- **The Limit lens options toggle no longer silently reverts,** and changing the
+  default lens no longer clears the enabled-frameworks allowlist (the config
+  write is a full replace, so the default-lens control now preserves the
+  allowlist).
+- **Compliance exceptions handle a lapsed request correctly.** A pending request
+  whose expiry has already passed is now moved to expired by the hourly sweep
+  instead of sitting pending forever, and approving a lapsed request is refused
+  with a clear error rather than creating an immediately-dead waiver.
+
 ## [0.4.0] Eyrie — 2026-07-13
 
 ### Added
