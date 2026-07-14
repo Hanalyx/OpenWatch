@@ -44,6 +44,7 @@ import { stripKernelDistroSuffix } from '@/utils/kernelVersion';
 import { CardServerIntel } from '@/pages/host-detail/CardServerIntel';
 import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
+import { TrendChart } from '@/components/charts/TrendChart';
 import {
   PackagesTab,
   ServicesTab,
@@ -2504,71 +2505,23 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
               }}
             >
               {diff > 0 ? '+' : ''}
-              {diff}% over {days.length} days
+              {diff}% since {first.date}
             </span>
           )}
         </div>
-        <TrendSparkline days={days} />
+        <TrendChart
+          points={days.map((d) => ({
+            date: d.date,
+            scorePct: d.score_pct,
+            tooltip: [d.date, `${d.score_pct}% compliant`, `${d.passing}/${d.total} passing`],
+          }))}
+          windowDays={30}
+        />
       </>
     );
   }
 
   return <Card title="Compliance trend · last 30 days">{body}</Card>;
-}
-
-// TrendSparkline draws the score line (0..100 domain) over the
-// snapshot points. Pure SVG, no chart dependency: the card needs one
-// readable line, not an axis system.
-function TrendSparkline({ days }: { days: { date: string; score_pct: number }[] }) {
-  const W = 280;
-  const H = 64;
-  const PAD = 4;
-  const n = days.length;
-  const x = (i: number) => (n === 1 ? W / 2 : PAD + (i * (W - 2 * PAD)) / (n - 1));
-  const y = (score: number) => PAD + (1 - score / 100) * (H - 2 * PAD);
-  const points = days.map((d, i) => `${x(i)},${y(d.score_pct)}`).join(' ');
-  return (
-    <div style={{ marginTop: 10 }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', height: 64, display: 'block' }}
-        role="img"
-        aria-label="Compliance score trend"
-      >
-        {/* Target line at 80%. */}
-        <line
-          x1={PAD}
-          x2={W - PAD}
-          y1={y(80)}
-          y2={y(80)}
-          stroke="var(--ow-line)"
-          strokeDasharray="3 3"
-        />
-        {n > 1 && <polyline points={points} fill="none" stroke="var(--ow-info)" strokeWidth={2} />}
-        {days.map((d, i) => (
-          <circle
-            key={d.date}
-            cx={x(i)}
-            cy={y(d.score_pct)}
-            r={n === 1 ? 3 : 2}
-            fill="var(--ow-info)"
-          />
-        ))}
-      </svg>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 10,
-          color: 'var(--ow-fg-3)',
-          marginTop: 2,
-        }}
-      >
-        <span>{days[0]!.date}</span>
-        <span>{days[days.length - 1]!.date}</span>
-      </div>
-    </div>
-  );
 }
 
 // RECENT_LIMIT caps the overview card at the most-recent N rows.

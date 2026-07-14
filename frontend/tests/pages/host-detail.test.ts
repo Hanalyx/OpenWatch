@@ -17,6 +17,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostDetailPage.tsx'), 'utf8');
+const TREND_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/charts/TrendChart.tsx'),
+  'utf8',
+);
 
 describe('frontend-host-detail — structural', () => {
   // @ac AC-02
@@ -127,6 +131,24 @@ describe('frontend-host-detail — structural', () => {
     expect(cardSlice).not.toMatch(/evidence/i);
     // No dead Remediate action before Phase 7.
     expect(cardSlice).not.toContain('Remediate');
+  });
+
+  // @ac AC-46
+  test('frontend-host-detail/AC-46 — Compliance trend uses the shared interactive TrendChart', () => {
+    // Host card wires the shared chart with a per-point tooltip and a
+    // first-snapshot-relative delta label (not a point count).
+    expect(PAGE_SRC).toContain('TrendChart');
+    expect(PAGE_SRC).toContain('scorePct: d.score_pct');
+    expect(PAGE_SRC).toContain('passing`');
+    expect(PAGE_SRC).toContain('% since {first.date}');
+    // Shared chart: fixed 0..100 domain (score/100), 80% target line, hover
+    // state + tooltip, and a gap-broken line (dayIndex delta != 1).
+    expect(TREND_SRC).toContain('useState');
+    expect(TREND_SRC).toContain('onMouseMove');
+    expect(TREND_SRC).toMatch(/targetPct/);
+    expect(TREND_SRC).toMatch(/\/\s*100/); // 0..100 domain
+    expect(TREND_SRC).toMatch(/!==\s*1/); // gap-break: not exactly one day apart
+    expect(TREND_SRC).toContain('tooltip');
   });
 
   // @ac AC-14
