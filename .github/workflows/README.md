@@ -40,8 +40,12 @@ container and executes:
 - `make vet`
 - `make lint` (golangci-lint, built from source to match the runner toolchain)
 - `make vuln` (govulncheck)
-- `make test-race` (race detector plus the integration suite against PostgreSQL)
-- `go test -json` and frontend `vitest`, ingested by `specter` for spec AC coverage
+- a single `go test -race -json -timeout 600s -p 4 ./...` run: the race detector
+  plus the full integration suite against PostgreSQL, emitting the JSON that
+  `specter` ingests. This is one pass, not two — it replaced the former separate
+  `make test-race` + non-race `go test -json` runs (which walked the DB-bound
+  suite twice)
+- frontend `vitest` (JUnit), also ingested by `specter` for spec AC coverage
 - `specter sync` to enforce coverage thresholds
 
 The DSN is supplied via `OPENWATCH_TEST_DSN`; module resolution is pinned read-only
@@ -74,7 +78,7 @@ The workflow then:
 Distribution is via GitHub Releases. Operators install with
 `sudo dnf install ./openwatch-*.rpm` or `sudo apt install ./openwatch_*.deb`. A tag
 with a pre-release suffix (for example `-rc.5`) is marked as a pre-release; a bare
-`vX.Y.Z` is GA. The current version (`0.2.1`) is a GA release. See
+`vX.Y.Z` is GA. The current version (`0.4.0`, Eyrie) is a GA release. See
 `specs/system/supply-chain.spec.yaml`, `specs/release/package-build.spec.yaml`, and
 `docs/runbooks/RELEASING.md`.
 
@@ -91,9 +95,17 @@ verifies that:
 - the `openwatch` system user is created
 - `openwatch --version` and `openwatch check-config` run
 
-This is amd64 only (GitHub runners are amd64); arm64 correctness is covered by the
-cross-build in `release.yml`. Service start and functional E2E against a real fleet
-remain a manual RC step (see `docs/runbooks/RELEASING.md`).
+A third job, **Package upgrade (`rpm -U` auto-migrate)**, covers the path the
+per-distro `smoke` job (a fresh install) does not: in a `rockylinux:9` container it
+builds an old + new RPM, installs the old one, stands up PostgreSQL, rolls the schema
+back one migration, then `rpm -U`s the new package and asserts the `%post` scriptlet
+migrates the DB to head, takes a pre-upgrade backup, and stop/starts the service. It
+runs via `packaging/tests/run-upgrade-container-test.sh` (uses `--network host` and a
+throwaway Postgres on port `55432`).
+
+The smoke matrix is amd64 only (GitHub runners are amd64); arm64 correctness is
+covered by the cross-build in `release.yml`. Service start and functional E2E against
+a real fleet remain a manual RC step (see `docs/runbooks/RELEASING.md`).
 
 ## Repository automation
 
