@@ -30,6 +30,7 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -305,6 +306,21 @@ func (h *handlers) GetHostComplianceFrameworks(
 	}
 	defer rows.Close()
 
+	// Enabled-frameworks allowlist (system-compliance-lens C-04): the lens
+	// bar offers only the framework FAMILIES the org enabled. Empty allowlist =
+	// every family (unchanged). A config-load error degrades to showing all —
+	// this is a display filter, not a security boundary, exactly like the
+	// org-level GET /compliance/frameworks. The ?framework= deep link and the
+	// overall aggregate stay unfiltered (a disabled family is still viewable by
+	// direct link; only the offered chips are narrowed).
+	var enabledFamilies map[string]bool
+	if cfg, cerr := h.sysCfg.LoadCompliance(ctx); cerr == nil && len(cfg.EnabledFrameworks) > 0 {
+		enabledFamilies = make(map[string]bool, len(cfg.EnabledFrameworks))
+		for _, f := range cfg.EnabledFrameworks {
+			enabledFamilies[f] = true
+		}
+	}
+
 	resp := api.HostComplianceFrameworksResponse{Frameworks: []api.HostComplianceFramework{}}
 	for rows.Next() {
 		var item api.HostComplianceFramework
@@ -320,6 +336,10 @@ func (h *handlers) GetHostComplianceFrameworks(
 		// exist because shared rules carry refs for several framework
 		// versions; offering a RHEL 9 lens on a RHEL 8 host is noise.
 		if !frameworkCompatibleWithOS(item.FrameworkId, osFamily, osVersion) {
+			continue
+		}
+		// Allowlist narrowing: drop a family the org disabled as a lens.
+		if enabledFamilies != nil && !enabledFamilies[framework.FamilyOf(item.FrameworkId)] {
 			continue
 		}
 		item.Passing = int(passing)
