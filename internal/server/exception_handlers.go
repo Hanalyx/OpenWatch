@@ -101,6 +101,9 @@ func mapExceptionErr(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, exception.ErrSelfReview):
 		writeError(w, http.StatusConflict, "exceptions.self_review", "client",
 			"the requester cannot review their own exception", false)
+	case errors.Is(err, exception.ErrExpired):
+		writeError(w, http.StatusConflict, "exceptions.expired", "client",
+			"the request's expiry has already passed; ask the requester to resubmit with a future expiry", false)
 	case errors.Is(err, exception.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
 			"rule_id and reason are required", false)

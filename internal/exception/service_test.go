@@ -9,6 +9,7 @@
 //	AC-04  TestActiveQueries_OverlayNeverMutatesRuleState
 //	AC-05  TestExpireSweep_FlipsAndIdempotent
 //	AC-07  TestListHostNameJoin
+//	AC-08  TestApprove_RejectsLapsedRequest
 package exception
 
 import (
@@ -268,28 +269,88 @@ func TestExpireSweep_FlipsAndIdempotent(t *testing.T) {
 
 		past := time.Now().Add(-time.Hour)
 		future := time.Now().Add(time.Hour)
-		e1, _ := svc.Request(ctx, hostID, "rule-1", "reason", requester, &past)
-		_, _ = svc.Approve(ctx, e1.ID, reviewer, "ok")
-		e2, _ := svc.Request(ctx, hostID, "rule-2", "reason", requester, &future)
-		_, _ = svc.Approve(ctx, e2.ID, reviewer, "ok")
-		e3, _ := svc.Request(ctx, hostID, "rule-3", "reason", requester, nil) // no expiry
-		_, _ = svc.Approve(ctx, e3.ID, reviewer, "ok")
+
+		// approved + past: approve with a FUTURE expiry, then age it into the
+		// past via SQL. (Approve now rejects a past expiry, AC-08, so we cannot
+		// request-past-then-approve to build this row.)
+		eAppPast, _ := svc.Request(ctx, hostID, "rule-app-past", "reason", requester, &future)
+		if _, err := svc.Approve(ctx, eAppPast.ID, reviewer, "ok"); err != nil {
+			t.Fatalf("approve rule-app-past: %v", err)
+		}
+		if _, err := pool.Exec(ctx,
+			`UPDATE compliance_exceptions SET expires_at = $2 WHERE id = $1`, eAppPast.ID, past); err != nil {
+			t.Fatalf("age approved row: %v", err)
+		}
+		// requested + past: a request whose requested end passed while pending.
+		if _, err := svc.Request(ctx, hostID, "rule-req-past", "reason", requester, &past); err != nil {
+			t.Fatalf("request rule-req-past: %v", err)
+		}
+		// approved + future and approved + null: both must survive the sweep.
+		eFut, _ := svc.Request(ctx, hostID, "rule-fut", "reason", requester, &future)
+		_, _ = svc.Approve(ctx, eFut.ID, reviewer, "ok")
+		eNull, _ := svc.Request(ctx, hostID, "rule-null", "reason", requester, nil)
+		_, _ = svc.Approve(ctx, eNull.ID, reviewer, "ok")
 
 		calls = nil
 		n, err := svc.ExpireSweep(ctx)
-		if err != nil || n != 1 {
-			t.Fatalf("ExpireSweep = %d (err %v), want 1 (only the past-expiry row)", n, err)
+		if err != nil || n != 2 {
+			t.Fatalf("ExpireSweep = %d (err %v), want 2 (approved-past + requested-past)", n, err)
 		}
-		if len(calls) != 1 || calls[0].Code != audit.ComplianceExceptionExpired {
-			t.Errorf("sweep audit = %+v, want one expired", calls)
+		if len(calls) != 2 {
+			t.Fatalf("sweep audit = %+v, want two expired", calls)
 		}
-		// future + null expiry untouched.
+		for _, c := range calls {
+			if c.Code != audit.ComplianceExceptionExpired {
+				t.Errorf("sweep audit code = %v, want expired", c.Code)
+			}
+		}
+		// future + null expiry (both approved) untouched.
 		if c, _ := svc.ActiveCountForHost(ctx, hostID); c != 2 {
 			t.Errorf("active after sweep = %d, want 2", c)
 		}
 		// idempotent.
 		if n2, _ := svc.ExpireSweep(ctx); n2 != 0 {
 			t.Errorf("second sweep = %d, want 0", n2)
+		}
+	})
+}
+
+// @ac AC-08
+// AC-08: a lapsed request cannot be approved into an immediately-dead waiver.
+func TestApprove_RejectsLapsedRequest(t *testing.T) {
+	t.Run("api-compliance-exceptions/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		requester := seedUser(t, pool, "req")
+		reviewer := seedUser(t, pool, "rev")
+		hostID := seedHost(t, pool, requester)
+		svc := NewService(pool, nil)
+
+		// A request whose expires_at is already in the past (it lapsed while
+		// pending). Approve must refuse it and leave the row unchanged.
+		past := time.Now().Add(-time.Hour)
+		e, err := svc.Request(ctx, hostID, "rule-lapsed", "reason", requester, &past)
+		if err != nil {
+			t.Fatalf("Request: %v", err)
+		}
+		if _, err := svc.Approve(ctx, e.ID, reviewer, "ok"); !errors.Is(err, ErrExpired) {
+			t.Fatalf("Approve(lapsed) err = %v, want ErrExpired", err)
+		}
+		var status string
+		if err := pool.QueryRow(ctx,
+			`SELECT status FROM compliance_exceptions WHERE id = $1`, e.ID).Scan(&status); err != nil {
+			t.Fatalf("read status: %v", err)
+		}
+		if Status(status) != StatusRequested {
+			t.Errorf("status after refused approve = %q, want requested", status)
+		}
+
+		// A future-dated request approves fine: the guard is specific to a
+		// past expiry, not to having an expiry at all.
+		future := time.Now().Add(time.Hour)
+		e2, _ := svc.Request(ctx, hostID, "rule-ok", "reason", requester, &future)
+		if _, err := svc.Approve(ctx, e2.ID, reviewer, "ok"); err != nil {
+			t.Errorf("Approve(future) err = %v, want nil", err)
 		}
 	})
 }

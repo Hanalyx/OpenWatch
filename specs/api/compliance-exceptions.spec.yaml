@@ -1,7 +1,7 @@
 spec:
   id: api-compliance-exceptions
   title: Compliance exception governance - operator rule waivers (request/approve/revoke lifecycle)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -93,7 +93,7 @@ spec:
       type: security
       enforcement: error
     - id: C-06
-      description: '"Active" (suppressing) is status=approved AND (expires_at IS NULL OR expires_at > now()). ActiveCountForHost and ActiveRuleIDsForHost apply this predicate so they are correct even before the expiry sweep runs. ExpireSweep flips approved+past-expiry to expired and emits compliance.exception.expired per row; it is idempotent'
+      description: '"Active" (suppressing) is status=approved AND (expires_at IS NULL OR expires_at > now()). ActiveCountForHost and ActiveRuleIDsForHost apply this predicate so they are correct even before the expiry sweep runs. ExpireSweep flips any OPEN row (status approved OR requested) whose expires_at has passed to expired and emits compliance.exception.expired per row; it is idempotent. A requested row is expired too because its expires_at is the requested waiver end: once it has passed there is nothing left to approve, so a lapsed request must not sit pending forever. Approve rejects a requested row whose expires_at has already passed (ErrExpired) so the sub-sweep-interval window cannot approve a lapsed request into an immediately-dead waiver'
       type: technical
       enforcement: error
 
@@ -115,7 +115,7 @@ spec:
       priority: critical
       references_constraints: [C-01, C-06]
     - id: AC-05
-      description: 'ExpireSweep flips every approved row whose expires_at has passed to expired, emits compliance.exception.expired per flipped row, returns the count, and is idempotent (a second run flips zero); approved rows with a future or null expires_at are untouched'
+      description: 'ExpireSweep flips every OPEN row (status approved OR requested) whose expires_at has passed to expired, emits compliance.exception.expired per flipped row, returns the count, and is idempotent (a second run flips zero); rows with a future or null expires_at, and already-terminal rows (rejected/revoked/expired), are untouched'
       priority: high
       references_constraints: [C-06]
     - id: AC-06
@@ -126,3 +126,7 @@ spec:
       description: 'v1.1.0 - the list responses (GET /hosts/{id}/exceptions and GET /compliance/exceptions) populate host_name via a join on hosts so the fleet approver queue is readable without resolving UUIDs; the fleet list excludes soft-deleted hosts (JOIN ... deleted_at IS NULL); single-row lifecycle results (request/approve/reject/revoke) leave host_name empty'
       priority: high
       references_constraints: [C-05]
+    - id: AC-08
+      description: 'v1.2.0 - a lapsed request cannot become a dead waiver: Approve of a requested exception whose expires_at has already passed returns ErrExpired and leaves the row unchanged (Reject and Revoke apply no such guard). ExpireSweep additionally flips a requested (not just approved) row whose expires_at has passed to expired, so a request that is never decided before its requested end is expired rather than left pending forever'
+      priority: high
+      references_constraints: [C-06]
