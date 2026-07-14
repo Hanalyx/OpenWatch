@@ -1,7 +1,7 @@
 spec:
   id: frontend-settings
   title: Settings — two-pane shell with 11 sub-pages
-  version: "1.17.0"
+  version: "1.18.0"
   status: draft
   tier: 2
 
@@ -241,6 +241,21 @@ spec:
         BackendPendingBanner.
       type: security
       enforcement: error
+    - id: C-17
+      description: >-
+        v1.18.0 — Framework-lens allowlist integrity on Compliance policies.
+        The "Limit lens options" toggle (EnabledFrameworksCard) MUST NOT persist
+        an empty enabled_frameworks when turned on: an empty allowlist is
+        indistinguishable from off, so seeding it from a corpus family list that
+        has not loaded (or errored, or is empty) would make the toggle silently
+        revert. The toggle is therefore disabled until the all=true corpus
+        family list has loaded with at least one family, and turning it on
+        never saves an empty list; an empty corpus shows an explanatory note.
+        Separately, DefaultLensCard's PUT MUST preserve the current
+        enabled_frameworks (the endpoint is a full replace, so omitting it wipes
+        the allowlist whenever the default lens changes).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -379,3 +394,13 @@ spec:
       description: "v1.13.0 source-inspection: the Audit log renders Export CSV and Export JSON buttons that call exportAudit('csv'|'json'), which GETs '/api/v1/audit/events/export' with parseAs 'blob', passing the format plus the currently-applied filters (action / actor_type / since / until), then triggers a browser download by creating an object URL from the returned blob and clicking a temporary anchor (download attribute). It surfaces an inline export error on a non-ok response and disables both buttons while an export is in flight. Reading remains a GET (no new write verb)."
       priority: high
       references_constraints: [C-13]
+
+    - id: AC-33
+      description: "v1.18.0 source-inspection (EnabledFrameworksCard): the \"Limit lens options\" toggle is disabled when the corpus family list is empty (disabled includes an allFrameworks.length === 0 condition), setRestrict returns early without saving when turned on with an empty allFrameworks (so an empty enabled_frameworks is never persisted), and the card renders an explanatory note when no framework families are present in the scanned corpus. This closes the silent-revert where a not-yet-loaded or errored all=true query made turning the toggle on save an empty (== off) allowlist."
+      priority: high
+      references_constraints: [C-17]
+
+    - id: AC-34
+      description: "v1.18.0 source-inspection (DefaultLensCard): the PUT to /api/v1/system/compliance/config includes enabled_frameworks sourced from the current config (configQuery.data?.enabled_frameworks) alongside default_framework, so changing the default lens preserves the enabled-frameworks allowlist instead of wiping it (the endpoint is a full replace)."
+      priority: high
+      references_constraints: [C-17]

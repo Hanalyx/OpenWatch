@@ -71,6 +71,14 @@ const PREFS_STORE_SRC = readFileSync(
   resolve(process.cwd(), 'src/store/usePreferencesStore.ts'),
   'utf8',
 );
+const ENABLED_FRAMEWORKS_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/settings/EnabledFrameworksCard.tsx'),
+  'utf8',
+);
+const DEFAULT_LENS_SRC = readFileSync(
+  resolve(process.cwd(), 'src/components/settings/DefaultLensCard.tsx'),
+  'utf8',
+);
 
 describe('frontend-settings — structural', () => {
   // @ac AC-01
@@ -546,5 +554,26 @@ describe('frontend-settings — structural', () => {
     expect(AUDIT_SRC).toMatch(/setExportError/);
     // Reading remains GET-only.
     expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+  });
+
+  // @ac AC-33
+  test('frontend-settings/AC-33 — Limit lens options toggle never persists an empty allowlist', () => {
+    // The toggle is disabled when there are no corpus families to restrict.
+    expect(ENABLED_FRAMEWORKS_SRC).toMatch(/allFrameworks\.length === 0/);
+    expect(ENABLED_FRAMEWORKS_SRC).toMatch(/disabled=\{busy \|\| noFamilies\}/);
+    // Turning it on with no families returns early (no empty save).
+    expect(ENABLED_FRAMEWORKS_SRC).toMatch(/if \(on && noFamilies\) return/);
+    // An explanatory note is shown when the corpus has no families.
+    expect(ENABLED_FRAMEWORKS_SRC).toContain('No framework families in the scanned corpus yet');
+  });
+
+  // @ac AC-34
+  test('frontend-settings/AC-34 — DefaultLensCard preserves the enabled-frameworks allowlist', () => {
+    // The default-lens PUT carries enabled_frameworks from the current config
+    // so changing the default never wipes the allowlist.
+    expect(DEFAULT_LENS_SRC).toMatch(
+      /enabled_frameworks:\s*configQuery\.data\?\.enabled_frameworks/,
+    );
+    expect(DEFAULT_LENS_SRC).toContain('default_framework: next');
   });
 });
