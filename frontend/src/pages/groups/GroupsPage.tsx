@@ -626,16 +626,25 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
 // family its member hosts are held to (unless a host sets its own override).
 // Writes POST /api/v1/groups/{id}:target (host:write, enforced server-side; the
 // backend rejects a target on an os_category group, D1). Families come from the
-// same corpus-derived list as the org default lens (GET /compliance/frameworks).
-// Read-only callers see the current target as text.
+// full corpus list (GET /compliance/frameworks?all=true) so a target outside the
+// enabled-frameworks allowlist still appears. Read-only callers see it as text.
 function GroupTargetControl({ group, canWrite }: { group: GroupWithRollup; canWrite: boolean }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
+  // Full corpus family list (all=true), not the enabled-frameworks allowlist: a
+  // group may hold a target the org later drops from the allowlist, so the
+  // picker must still offer it or the current value would show as "None".
   const frameworksQuery = useQuery({
-    queryKey: ['compliance-frameworks'],
+    queryKey: ['compliance-frameworks-all'],
     queryFn: async () => {
-      const { data, error: e, response } = await api.GET('/api/v1/compliance/frameworks');
+      const {
+        data,
+        error: e,
+        response,
+      } = await api.GET('/api/v1/compliance/frameworks', {
+        params: { query: { all: true } },
+      });
       if (!response.ok) throw new Error(apiErrorMessage(e, 'Failed to load frameworks'));
       return data!.frameworks;
     },

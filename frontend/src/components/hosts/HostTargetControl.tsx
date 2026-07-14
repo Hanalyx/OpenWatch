@@ -22,10 +22,16 @@ export function HostTargetControl({
   const queryClient = useQueryClient();
   const [banner, setBanner] = useState<string | null>(null);
 
+  // The full corpus family list (all=true), NOT the enabled-frameworks
+  // allowlist. A host may hold a target family the org later removes from the
+  // allowlist; the picker must still offer it so the current value has a
+  // matching option and is never silently misrepresented as "Inherit".
   const frameworksQuery = useQuery({
-    queryKey: ['compliance-frameworks'],
+    queryKey: ['compliance-frameworks-all'],
     queryFn: async () => {
-      const { data, error, response } = await api.GET('/api/v1/compliance/frameworks');
+      const { data, error, response } = await api.GET('/api/v1/compliance/frameworks', {
+        params: { query: { all: true } },
+      });
       if (!response.ok) throw new Error(apiErrorMessage(error, 'Failed to load frameworks'));
       return data!.frameworks;
     },
