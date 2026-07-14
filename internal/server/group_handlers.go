@@ -91,17 +91,18 @@ func toAPIRollup(r group.Rollup) api.GroupRollup {
 // toAPIGroupWithRollup maps a service group+rollup to the wire shape.
 func toAPIGroupWithRollup(g group.GroupWithRollup) api.GroupWithRollup {
 	return api.GroupWithRollup{
-		Id:          openapitypes.UUID(g.ID),
-		Name:        g.Name,
-		Kind:        api.GroupWithRollupKind(g.Kind),
-		Subtype:     g.Subtype,
-		Color:       g.Color,
-		Membership:  api.GroupWithRollupMembership(g.Membership),
-		Maintenance: g.Maintenance,
-		CreatedAt:   g.CreatedAt,
-		UpdatedAt:   g.UpdatedAt,
-		MatchFamily: matchFamilyPtr(g.MatchFamily),
-		Rollup:      toAPIRollup(g.Rollup),
+		Id:              openapitypes.UUID(g.ID),
+		Name:            g.Name,
+		Kind:            api.GroupWithRollupKind(g.Kind),
+		Subtype:         g.Subtype,
+		Color:           g.Color,
+		Membership:      api.GroupWithRollupMembership(g.Membership),
+		Maintenance:     g.Maintenance,
+		CreatedAt:       g.CreatedAt,
+		UpdatedAt:       g.UpdatedAt,
+		MatchFamily:     matchFamilyPtr(g.MatchFamily),
+		TargetFramework: matchFamilyPtr(g.TargetFramework),
+		Rollup:          toAPIRollup(g.Rollup),
 	}
 }
 

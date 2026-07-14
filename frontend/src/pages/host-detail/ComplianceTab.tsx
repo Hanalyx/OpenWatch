@@ -51,6 +51,7 @@ import { RuleDetailPanel } from '@/pages/scans/RuleDetailPanel';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
 import { RequestRemediationModal } from '@/components/hosts/RequestRemediationModal';
+import { HostTargetControl } from '@/components/hosts/HostTargetControl';
 import { SeverityPill } from '@/pages/host-detail/SeverityPill';
 
 type LensResponse = components['schemas']['HostComplianceLensResponse'];
@@ -73,10 +74,15 @@ export function ComplianceTab({
   hostId,
   framework,
   onFrameworkChange,
+  targetFramework,
 }: {
   hostId: string;
   framework?: string;
   onFrameworkChange: (next: string | undefined) => void;
+  // The host's OWN durable compliance target (null = inherit). Drives the
+  // Compliance target control; the active lens above it may still differ when
+  // the user switches "View as".
+  targetFramework?: string | null;
 }) {
   // Lens response — keyed under the ['host', hostId] prefix (free
   // scan.completed refresh) and embedding the framework so the cache
@@ -241,11 +247,22 @@ export function ComplianceTab({
         policyVersion={lensQuery.data?.scan_context.policy_version ?? ''}
         scanState={lensQuery.data?.scan_context.scan_state ?? null}
       />
-      <LensBar
-        framework={framework}
-        options={frameworksQuery.data}
-        onFrameworkChange={onFrameworkChange}
-      />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <LensBar
+          framework={framework}
+          options={frameworksQuery.data}
+          onFrameworkChange={onFrameworkChange}
+        />
+        <HostTargetControl hostId={hostId} currentTarget={targetFramework} />
+      </div>
       {body}
       {requestRule && (
         <RequestExceptionModal

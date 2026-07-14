@@ -2641,11 +2641,14 @@ type HostResponse struct {
 	OsVersion *string `json:"os_version,omitempty"`
 
 	// PlatformIdentifier e.g. platform:el9
-	PlatformIdentifier *string    `json:"platform_identifier,omitempty"`
-	Port               int        `json:"port"`
-	Tags               *[]string  `json:"tags,omitempty"`
-	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
-	Username           *string    `json:"username,omitempty"`
+	PlatformIdentifier *string   `json:"platform_identifier,omitempty"`
+	Port               int       `json:"port"`
+	Tags               *[]string `json:"tags,omitempty"`
+
+	// TargetFramework Host's own compliance target framework family (absent when unset/inheriting).
+	TargetFramework *string    `json:"target_framework,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+	Username        *string    `json:"username,omitempty"`
 }
 
 // HostScanContext defines model for HostScanContext.
@@ -2704,6 +2707,12 @@ type HostSystemInfo struct {
 	// SelinuxStatus Enforcing | Permissive | Disabled | empty if not present
 	SelinuxStatus *string `json:"selinux_status,omitempty"`
 	SwapTotalMb   *int    `json:"swap_total_mb,omitempty"`
+}
+
+// HostTargetRequest defines model for HostTargetRequest.
+type HostTargetRequest struct {
+	// TargetFramework Compliance target family id, or empty to clear the host's own target.
+	TargetFramework string `json:"target_framework"`
 }
 
 // HostUpdateRequest defines model for HostUpdateRequest.
@@ -3964,6 +3973,9 @@ type PatchHostByIDJSONRequestBody = HostUpdateRequest
 // PostHostExceptionJSONRequestBody defines body for PostHostException for application/json ContentType.
 type PostHostExceptionJSONRequestBody = ExceptionRequest
 
+// PostHostTargetJSONRequestBody defines body for PostHostTarget for application/json ContentType.
+type PostHostTargetJSONRequestBody = HostTargetRequest
+
 // PostNotificationChannelJSONRequestBody defines body for PostNotificationChannel for application/json ContentType.
 type PostNotificationChannelJSONRequestBody = NotificationChannelCreate
 
@@ -4278,6 +4290,9 @@ type ServerInterface interface {
 	// Read the latest Discovery facts for one host
 	// (GET /api/v1/hosts/{id}/system-info)
 	GetHostSystemInfo(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Set or clear a host's compliance target framework
+	// (POST /api/v1/hosts/{id}:target)
+	PostHostTarget(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// List OS Intelligence change events
 	// (GET /api/v1/intelligence/events)
 	GetIntelligenceEvents(w http.ResponseWriter, r *http.Request, params GetIntelligenceEventsParams)
@@ -4992,6 +5007,12 @@ func (_ Unimplemented) PostHostScan(w http.ResponseWriter, r *http.Request, id o
 // Read the latest Discovery facts for one host
 // (GET /api/v1/hosts/{id}/system-info)
 func (_ Unimplemented) GetHostSystemInfo(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set or clear a host's compliance target framework
+// (POST /api/v1/hosts/{id}:target)
+func (_ Unimplemented) PostHostTarget(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -8123,6 +8144,32 @@ func (siw *ServerInterfaceWrapper) GetHostSystemInfo(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// PostHostTarget operation middleware
+func (siw *ServerInterfaceWrapper) PostHostTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostHostTarget(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetIntelligenceEvents operation middleware
 func (siw *ServerInterfaceWrapper) GetIntelligenceEvents(w http.ResponseWriter, r *http.Request) {
 
@@ -10178,6 +10225,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/hosts/{id}/system-info", wrapper.GetHostSystemInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/hosts/{id}:target", wrapper.PostHostTarget)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/intelligence/events", wrapper.GetIntelligenceEvents)

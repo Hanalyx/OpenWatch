@@ -1155,6 +1155,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hosts/{id}:target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set or clear a host's compliance target framework
+         * @description Sets (or clears, when target_framework is empty) the host's own
+         *     compliance target family - the per-host override that wins over any
+         *     site-group target in the effective-target resolution. A host may always
+         *     carry its own target (no site-only constraint). RBAC: host:write.
+         *     Spec api-hosts, system-compliance-lens.
+         */
+        post: operations["postHostTarget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hosts/{id}/exceptions": {
         parameters: {
             query?: never;
@@ -3080,6 +3104,8 @@ export interface components {
             platform_identifier?: string | null;
             /** Format: date-time */
             os_discovered_at?: string | null;
+            /** @description Host's own compliance target framework family (absent when unset/inheriting). */
+            target_framework?: string;
         };
         HostLiveness: {
             /** @enum {string} */
@@ -4138,6 +4164,10 @@ export interface components {
         };
         GroupTargetRequest: {
             /** @description Compliance target family id, or empty to clear the target. */
+            target_framework: string;
+        };
+        HostTargetRequest: {
+            /** @description Compliance target family id, or empty to clear the host's own target. */
             target_framework: string;
         };
         GroupMemberRequest: {
@@ -7011,6 +7041,68 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             /** @description Caller lacks system:config:write permission */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    postHostTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostTargetRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostResponse"];
+                };
+            };
+            /** @description An invalid target family value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller is not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks host:write permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Host not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

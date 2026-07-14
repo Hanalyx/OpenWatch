@@ -1774,6 +1774,51 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/hosts/{id}:target:
+    post:
+      operationId: postHostTarget
+      summary: Set or clear a host's compliance target framework
+      description: |
+        Sets (or clears, when target_framework is empty) the host's own
+        compliance target family - the per-host override that wins over any
+        site-group target in the effective-target resolution. A host may always
+        carry its own target (no site-only constraint). RBAC: host:write.
+        Spec api-hosts, system-compliance-lens.
+      x-required-permission: host:write
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/HostTargetRequest'}
+      responses:
+        '200':
+          description: The updated host
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HostResponse'}
+        '400':
+          description: An invalid target family value
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          description: Caller is not authenticated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks host:write permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          description: Host not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/hosts/{id}/exceptions:
     get:
       operationId: getHostExceptions
@@ -4791,6 +4836,10 @@ components:
         architecture:        {type: string, nullable: true, description: 'e.g. x86_64, aarch64'}
         platform_identifier: {type: string, nullable: true, description: 'e.g. platform:el9'}
         os_discovered_at:    {type: string, format: date-time, nullable: true}
+        # Phase 3 (compliance-targets) — the host's OWN target framework
+        # (nil = inherit the site-group target, else the org default). The
+        # per-host override; wins over any group target. Spec api-hosts.
+        target_framework:    {type: string, description: "Host's own compliance target framework family (absent when unset/inheriting)."}
 
     # Per-host enrichment (spec api-hosts v1.1.0 C-05).
     # Populated on GET /hosts/{id} when host_liveness has a row for the host.
@@ -6233,6 +6282,14 @@ components:
         target_framework:
           type: string
           description: Compliance target family id, or empty to clear the target.
+
+    HostTargetRequest:
+      type: object
+      required: [target_framework]
+      properties:
+        target_framework:
+          type: string
+          description: Compliance target family id, or empty to clear the host's own target.
 
     GroupMemberRequest:
       type: object

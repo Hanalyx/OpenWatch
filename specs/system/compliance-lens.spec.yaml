@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -70,6 +70,9 @@ spec:
         host's default lens: a host's compliance summary defaults to its effective
         target instead of All rules when no explicit lens is requested. A target
         family with no matching corpus key for a host scores N/A, never 0% (D3).
+        The host override is set via host.SetTarget and the group target via
+        group.SetTarget; each surfaces its stored target_framework on the
+        respective read model (host detail and the groups rollup list).
       type: technical
       enforcement: error
 
@@ -109,5 +112,16 @@ spec:
         yields NULL, and empty when neither is set. A group target set on an
         os_category group is rejected (only a site group may carry one, D1); a
         target on a site group sets and clears via SetTarget.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: >-
+        host.SetTarget sets (a valid family), clears (empty), and validates
+        (rejects an over-long or invalid-character token with ErrInvalidTarget)
+        the host's OWN target_framework, and returns ErrHostNotFound for an
+        unknown or soft-deleted host. Unlike a group target there is no
+        site-only constraint — a host may always carry its own target, and it is
+        the per-host override that wins in host_effective_target. GetByID
+        surfaces the stored target_framework (nil when unset).
       priority: high
       references_constraints: [C-05]
