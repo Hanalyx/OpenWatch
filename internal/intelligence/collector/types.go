@@ -73,7 +73,35 @@ type Snapshot struct {
 	// CollectedAt is when the snapshot was captured. Set by the
 	// service, not the parsers.
 	CollectedAt time.Time `json:"collected_at,omitempty"`
+
+	// Observed records which snapshot CATEGORIES this cycle actually
+	// collected (the probe ran and returned usable output). It is transient
+	// (`json:"-"`, never stored): before Diff + persist, RunCycle carries
+	// forward the prior stored value for any category NOT observed, so a
+	// failed or denied probe never blanks previously-good data (spec C-03,
+	// v1.2.0). An observed category keeps this cycle's value even when
+	// genuinely empty — that is a real observation.
+	Observed map[SnapCategory]bool `json:"-"`
 }
+
+// SnapCategory groups Snapshot fields by the probe that collects them, so the
+// no-clobber merge can carry forward an unobserved category's prior value.
+type SnapCategory string
+
+const (
+	SnapUsers      SnapCategory = "users"
+	SnapGroups     SnapCategory = "groups"
+	SnapPorts      SnapCategory = "listening_ports"
+	SnapInterfaces SnapCategory = "network_interfaces"
+	SnapRoutes     SnapCategory = "routes"
+	SnapFirewall   SnapCategory = "firewall_rule_count"
+	SnapPackages   SnapCategory = "packages"
+	SnapServices   SnapCategory = "services"
+	SnapKernel     SnapCategory = "kernel_release"
+	SnapUptime     SnapCategory = "uptime"
+	SnapMounts     SnapCategory = "mountpoints"
+	SnapConfig     SnapCategory = "config_hashes"
+)
 
 // ListeningPort is one entry from `ss -tln`.
 type ListeningPort struct {

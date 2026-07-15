@@ -3,6 +3,7 @@
 // AC traceability (this file):
 //
 //	AC-08  TestDiscover_HappyPath_PersistsAndPublishes
+//	AC-24  TestDiscover_NoClobberOnPartialCollection
 
 package discovery
 
@@ -129,6 +130,79 @@ func TestDiscover_HappyPath_PersistsAndPublishes(t *testing.T) {
 		// own test; defensive duplication is cheap.)
 		if got := emits.CountFor("host.discovery.completed"); got != 1 {
 			t.Errorf("audit emits for host.discovery.completed = %d, want 1", got)
+		}
+	})
+}
+
+// @ac AC-24
+// AC-24: a partial-collection run does not blank previously-good categories.
+func TestDiscover_NoClobberOnPartialCollection(t *testing.T) {
+	t.Run("system-host-discovery/AC-24", func(t *testing.T) {
+		pool, hostID, _ := freshDBHost(t)
+		ctx := context.Background()
+		svc := &Service{pool: pool}
+		allObserved := map[FactCategory]bool{
+			CatOSRelease: true, CatUname: true, CatMemory: true, CatDisk: true,
+			CatHostname: true, CatFQDN: true, CatSELinux: true, CatAppArmor: true, CatFirewall: true,
+		}
+
+		// First run: fully observed fingerprint.
+		full := SystemFacts{
+			OSName: "Rocky Linux", OSVersion: "9.4", OSID: "rocky", OSFamily: "rhel",
+			KernelRelease: "5.14.0-570", Architecture: "x86_64",
+			MemTotalMB: 8000, DiskTotalGB: 100, DiskUsedGB: 60, DiskFreeGB: 40,
+			Hostname: "web01", SELinuxStatus: "Enforcing", AppArmorEnabled: false,
+			FirewallService: "firewalld", FirewallStatus: "active",
+			CollectedAt: time.Now().UTC(), Observed: allObserved,
+		}
+		if err := svc.persist(ctx, hostID, full); err != nil {
+			t.Fatalf("first persist: %v", err)
+		}
+
+		// Second run: only os_release + uname observed; firewall/disk/selinux
+		// probes failed (fields empty, categories absent from Observed).
+		partial := SystemFacts{
+			OSName: "Rocky Linux", OSVersion: "9.5", OSID: "rocky", OSFamily: "rhel",
+			KernelRelease: "5.14.0-580", Architecture: "x86_64",
+			CollectedAt: time.Now().UTC(),
+			Observed:    map[FactCategory]bool{CatOSRelease: true, CatUname: true},
+		}
+		if err := svc.persist(ctx, hostID, partial); err != nil {
+			t.Fatalf("second persist: %v", err)
+		}
+
+		var osVer, kernel, fwSvc, selinux string
+		var diskFree int
+		if err := pool.QueryRow(ctx, `
+			SELECT os_version, kernel_release, COALESCE(firewall_service, ''),
+			       COALESCE(selinux_status, ''), COALESCE(disk_free_gb, 0)
+			  FROM host_system_info WHERE host_id = $1`, hostID).
+			Scan(&osVer, &kernel, &fwSvc, &selinux, &diskFree); err != nil {
+			t.Fatalf("read host_system_info: %v", err)
+		}
+		// Observed categories updated.
+		if osVer != "9.5" {
+			t.Errorf("os_version = %q, want 9.5 (observed, updated)", osVer)
+		}
+		if kernel != "5.14.0-580" {
+			t.Errorf("kernel_release = %q, want 5.14.0-580 (observed, updated)", kernel)
+		}
+		// Unobserved categories retained prior values, NOT blanked.
+		if fwSvc != "firewalld" {
+			t.Errorf("firewall_service = %q, want firewalld retained (unobserved)", fwSvc)
+		}
+		if selinux != "Enforcing" {
+			t.Errorf("selinux_status = %q, want Enforcing retained (unobserved)", selinux)
+		}
+		if diskFree != 40 {
+			t.Errorf("disk_free_gb = %d, want 40 retained (unobserved)", diskFree)
+		}
+
+		// hosts.os_* also updated from the merged (observed) facts.
+		var hOsVer string
+		_ = pool.QueryRow(ctx, `SELECT COALESCE(os_version, '') FROM hosts WHERE id = $1`, hostID).Scan(&hOsVer)
+		if hOsVer != "9.5" {
+			t.Errorf("hosts.os_version = %q, want 9.5", hOsVer)
 		}
 	})
 }

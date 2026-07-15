@@ -114,7 +114,33 @@ type SystemFacts struct {
 	FirewallStatus  string
 
 	CollectedAt time.Time
+
+	// Observed records which fact CATEGORIES this run actually collected (the
+	// probe ran and returned usable output). persist() carries forward the
+	// prior stored value for any category NOT observed, so a failed or denied
+	// probe never blanks previously-good data (spec C-08, v1.5.0). An observed
+	// category keeps the run's values even when genuinely empty/zero — that is
+	// a real observation, not a missing one.
+	Observed map[FactCategory]bool
 }
+
+// FactCategory groups host_system_info columns by the probe that collects them,
+// so persist() can merge at category granularity: an unobserved category
+// retains its prior stored value rather than being overwritten with an empty
+// read.
+type FactCategory string
+
+const (
+	CatOSRelease FactCategory = "os_release"
+	CatUname     FactCategory = "uname"
+	CatMemory    FactCategory = "memory"
+	CatDisk      FactCategory = "disk"
+	CatHostname  FactCategory = "hostname"
+	CatFQDN      FactCategory = "fqdn"
+	CatSELinux   FactCategory = "selinux"
+	CatAppArmor  FactCategory = "apparmor"
+	CatFirewall  FactCategory = "firewall"
+)
 
 // AuditEmitFunc is the audit emission seam. Production wires it to
 // audit.Emit; tests use a recorder that counts emissions.
@@ -299,7 +325,7 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 	}
 	defer sess.Close()
 
-	facts := SystemFacts{CollectedAt: time.Now().UTC()}
+	facts := SystemFacts{CollectedAt: time.Now().UTC(), Observed: map[FactCategory]bool{}}
 
 	// World-readable probes — sudo not required.
 	if out, code, err := sess.Run(ctx, "cat /etc/os-release"); err == nil && code == 0 {
@@ -312,6 +338,7 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.OSPrettyName = osf.OSPrettyName
 		facts.PlatformIdentifier = osf.PlatformIdentifier
 		facts.OSFamily = deriveOSFamily(osf.OSID, osf.OSIDLike)
+		facts.Observed[CatOSRelease] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "uname -srvm"); err == nil && code == 0 {
@@ -320,6 +347,7 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.KernelRelease = uf.KernelRelease
 		facts.KernelVersion = uf.KernelVersion
 		facts.Architecture = uf.Architecture
+		facts.Observed[CatUname] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "cat /proc/meminfo"); err == nil && code == 0 {
@@ -327,6 +355,7 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.MemTotalMB = mi.MemTotalMB
 		facts.MemAvailableMB = mi.MemAvailableMB
 		facts.SwapTotalMB = mi.SwapTotalMB
+		facts.Observed[CatMemory] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "df -BG /"); err == nil && code == 0 {
@@ -334,21 +363,27 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.DiskTotalGB = total
 		facts.DiskUsedGB = used
 		facts.DiskFreeGB = free
+		facts.Observed[CatDisk] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "hostname"); err == nil && code == 0 {
 		facts.Hostname = strings.TrimSpace(string(out))
+		facts.Observed[CatHostname] = true
 	}
 	if out, code, err := sess.Run(ctx, "hostname -f"); err == nil && code == 0 {
 		facts.FQDN = strings.TrimSpace(string(out))
+		facts.Observed[CatFQDN] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "getenforce"); err == nil && code == 0 {
 		facts.SELinuxStatus = strings.TrimSpace(string(out))
+		facts.Observed[CatSELinux] = true
 	}
 	if _, code, err := sess.Run(ctx, "aa-status --enabled"); err == nil {
-		// aa-status --enabled exits 0 when enabled, 1 when not.
+		// aa-status --enabled exits 0 when enabled, 1 when not. Either exit is
+		// a genuine observation of the AppArmor state.
 		facts.AppArmorEnabled = code == 0
+		facts.Observed[CatAppArmor] = true
 	}
 
 	// Firewall introspection — needs sudo on most distros. Per spec C-03
@@ -377,6 +412,7 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 	if ok {
 		facts.FirewallService = svc
 		facts.FirewallStatus = status
+		facts.Observed[CatFirewall] = true
 	}
 	if s.profiles != nil && learnedSudo != connprofile.SudoUnknown && learnedSudo != knownSudo {
 		_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
@@ -398,6 +434,16 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 		return fmt.Errorf("discovery: begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// No-clobber merge (spec C-08, v1.5.0): carry forward the prior stored value
+	// for any category this run did NOT observe, so a failed or denied probe
+	// never blanks previously-good data. Read + write inside the same tx so the
+	// merge is atomic. First discovery (no prior row) skips the merge.
+	if prior, ok, perr := readPriorFacts(ctx, tx, hostID); perr != nil {
+		return fmt.Errorf("discovery: read prior facts: %w", perr)
+	} else if ok {
+		mergeUnobserved(&f, prior)
+	}
 
 	const upsertSystemInfo = `
 		INSERT INTO host_system_info (
@@ -491,6 +537,78 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 		return fmt.Errorf("discovery: commit: %w", err)
 	}
 	return nil
+}
+
+// readPriorFacts loads the current host_system_info row (if any) so persist can
+// carry forward categories a run did not observe. ok=false means no row yet
+// (first discovery), in which case there is nothing to preserve.
+func readPriorFacts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (SystemFacts, bool, error) {
+	var f SystemFacts
+	err := tx.QueryRow(ctx, `
+		SELECT COALESCE(os_name, ''), COALESCE(os_version, ''), COALESCE(os_version_full, ''),
+		       COALESCE(os_id, ''), COALESCE(os_id_like, ''), COALESCE(os_pretty_name, ''),
+		       COALESCE(platform_identifier, ''), COALESCE(os_family, ''),
+		       COALESCE(kernel_name, ''), COALESCE(kernel_release, ''), COALESCE(kernel_version, ''),
+		       COALESCE(architecture, ''),
+		       COALESCE(mem_total_mb, 0), COALESCE(mem_available_mb, 0), COALESCE(swap_total_mb, 0),
+		       COALESCE(disk_total_gb, 0), COALESCE(disk_used_gb, 0), COALESCE(disk_free_gb, 0),
+		       COALESCE(hostname, ''), COALESCE(fqdn, ''),
+		       COALESCE(selinux_status, ''), COALESCE(apparmor_enabled, false),
+		       COALESCE(firewall_service, ''), COALESCE(firewall_status, '')
+		  FROM host_system_info WHERE host_id = $1`, hostID).Scan(
+		&f.OSName, &f.OSVersion, &f.OSVersionFull, &f.OSID, &f.OSIDLike, &f.OSPrettyName,
+		&f.PlatformIdentifier, &f.OSFamily,
+		&f.KernelName, &f.KernelRelease, &f.KernelVersion, &f.Architecture,
+		&f.MemTotalMB, &f.MemAvailableMB, &f.SwapTotalMB,
+		&f.DiskTotalGB, &f.DiskUsedGB, &f.DiskFreeGB,
+		&f.Hostname, &f.FQDN,
+		&f.SELinuxStatus, &f.AppArmorEnabled,
+		&f.FirewallService, &f.FirewallStatus,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SystemFacts{}, false, nil
+	}
+	if err != nil {
+		return SystemFacts{}, false, err
+	}
+	return f, true, nil
+}
+
+// mergeUnobserved carries forward prior values for every category the current
+// run did not observe, so persist never overwrites good data with a failed or
+// denied probe's empty result. A nil Observed map treats all categories as
+// unobserved (the safe default: preserve everything rather than blank).
+func mergeUnobserved(f *SystemFacts, prior SystemFacts) {
+	if !f.Observed[CatOSRelease] {
+		f.OSName, f.OSVersion, f.OSVersionFull = prior.OSName, prior.OSVersion, prior.OSVersionFull
+		f.OSID, f.OSIDLike, f.OSPrettyName = prior.OSID, prior.OSIDLike, prior.OSPrettyName
+		f.PlatformIdentifier, f.OSFamily = prior.PlatformIdentifier, prior.OSFamily
+	}
+	if !f.Observed[CatUname] {
+		f.KernelName, f.KernelRelease = prior.KernelName, prior.KernelRelease
+		f.KernelVersion, f.Architecture = prior.KernelVersion, prior.Architecture
+	}
+	if !f.Observed[CatMemory] {
+		f.MemTotalMB, f.MemAvailableMB, f.SwapTotalMB = prior.MemTotalMB, prior.MemAvailableMB, prior.SwapTotalMB
+	}
+	if !f.Observed[CatDisk] {
+		f.DiskTotalGB, f.DiskUsedGB, f.DiskFreeGB = prior.DiskTotalGB, prior.DiskUsedGB, prior.DiskFreeGB
+	}
+	if !f.Observed[CatHostname] {
+		f.Hostname = prior.Hostname
+	}
+	if !f.Observed[CatFQDN] {
+		f.FQDN = prior.FQDN
+	}
+	if !f.Observed[CatSELinux] {
+		f.SELinuxStatus = prior.SELinuxStatus
+	}
+	if !f.Observed[CatAppArmor] {
+		f.AppArmorEnabled = prior.AppArmorEnabled
+	}
+	if !f.Observed[CatFirewall] {
+		f.FirewallService, f.FirewallStatus = prior.FirewallService, prior.FirewallStatus
+	}
 }
 
 // publishBusEvent emits HostDiscovered on the eventbus. Best-effort —

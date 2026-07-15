@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 1
 
@@ -115,7 +115,7 @@ spec:
       type: security
       enforcement: error
     - id: C-08
-      description: 'host_system_info table MUST upsert keyed by host_id (UNIQUE constraint). Subsequent Discover runs UPDATE the existing row + bump collected_at + updated_at. The table NEVER appends — it represents the CURRENT fingerprint, not a history'
+      description: 'host_system_info table MUST upsert keyed by host_id (UNIQUE constraint). Subsequent Discover runs UPDATE the existing row + bump collected_at + updated_at. The table NEVER appends — it represents the CURRENT fingerprint, not a history. v1.5.0 no-clobber: a run MUST NOT overwrite a previously-good category with a failed/denied probe''s empty read. A run records which fact CATEGORIES it OBSERVED (the probe ran and returned usable output: os_release, uname, memory, disk, hostname, fqdn, selinux, apparmor, firewall); persist carries forward the prior stored value for any category NOT observed, and writes the run''s value (even a genuine empty/zero, which is a real observation) for an observed category. The read-and-merge happens inside the persist transaction. The denormalized hosts.os_* columns (C-09) follow the same rule via the merged facts. A first discovery (no prior row) has nothing to carry forward'
       type: technical
       enforcement: error
     - id: C-09
@@ -204,3 +204,7 @@ spec:
       description: 'v1.4.0 — emitAuditSuccess attributes the trigger: called with a context carrying a bound operator identity (auth.SetIdentity), the emitted audit.HostDiscoveryCompleted event has actor_type="user" and actor_id equal to that identity''s id; called with an anonymous/background context (no bound identity, i.e. the scheduled sweep), it has actor_type="system". The event is never emitted with an empty actor_type.'
       priority: high
       references_constraints: [C-07]
+    - id: AC-24
+      description: 'v1.5.0 no-clobber merge: given a host whose host_system_info is fully populated, a second Discover run that observes only some categories (e.g. os_release + uname) and whose other probes failed/were-denied (firewall, disk, selinux fields empty, those categories absent from Observed) leaves the unobserved categories'' columns at their prior values (firewall_service, disk_free_gb, selinux_status retained) while the observed categories update (os_version, kernel_release change). A first Discover with no prior row persists only what it observed (unobserved categories stay empty). An observed category with a genuine empty/zero value writes that value rather than carrying forward.'
+      priority: high
+      references_constraints: [C-08]

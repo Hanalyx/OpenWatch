@@ -1,7 +1,7 @@
 spec:
   id: system-os-intelligence
   title: Host OS Intelligence — recurring snapshot + diff-driven event log
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -89,7 +89,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'host_intelligence_state UPSERT keyed by host_id (UNIQUE). The table represents the LAST snapshot, never a history. Subsequent cycles UPDATE the existing row'
+      description: 'host_intelligence_state UPSERT keyed by host_id (UNIQUE). The table represents the LAST snapshot, never a history. Subsequent cycles UPDATE the existing row. v1.2.0 no-clobber: a cycle records which snapshot CATEGORIES it OBSERVED (the probe ran and returned usable output: users, groups, listening_ports, network_interfaces, routes, firewall_rule_count, packages, services, kernel_release, uptime, mountpoints, config_hashes). BEFORE the diff and the UPSERT, the cycle carries forward the prior stored value for any category NOT observed, so a failed/denied probe neither emits a false change event nor blanks previously-good data; an observed category keeps this cycle''s value even when genuinely empty. The Observed set is transient (never serialized into the stored snapshot). This extends the C-07 partial-success discipline from the change log to the stored state'
       type: technical
       enforcement: error
     - id: C-04
@@ -182,3 +182,7 @@ spec:
       description: 'v1.1.0 — the diff engine emits the reserved account.password.expired code once when a user''s password crosses PasswordExpiresAt between two cycles (prior snapshot collected before expiry, current after), deduped by the append-only UNIQUE key. It does NOT fire when both cycles are pre-expiry, both post-expiry, or when there is no policy. Expiry is time-based (the shadow fields are unchanged; wall-clock crosses), and the warn-window "expiring" notification is owned by system-account-policy.'
       priority: high
       references_constraints: [C-05]
+    - id: AC-18
+      description: 'v1.2.0 no-clobber merge (mergeUnobserved): given a prior stored snapshot with packages + services + users, a cycle that observes only packages (Observed = {packages}) and whose services/users probes failed keeps the prior services + users in the stored snapshot and emits NO service/user change events, while an observed packages change is stored and diffed normally. An observed category with a genuinely empty value overwrites (not carried forward). A nil Observed map carries forward every category (safe default).'
+      priority: high
+      references_constraints: [C-03]
