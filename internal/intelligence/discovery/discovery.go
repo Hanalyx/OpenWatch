@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -141,6 +142,41 @@ const (
 	CatAppArmor  FactCategory = "apparmor"
 	CatFirewall  FactCategory = "firewall"
 )
+
+// allFactCategories is the fixed set persist stamps freshness for.
+var allFactCategories = []FactCategory{
+	CatOSRelease, CatUname, CatMemory, CatDisk, CatHostname,
+	CatFQDN, CatSELinux, CatAppArmor, CatFirewall,
+}
+
+// freshnessEntry is one category's collection freshness, stored in the
+// host_system_info.category_freshness JSONB (migration 0052).
+type freshnessEntry struct {
+	ObservedAt time.Time `json:"observed_at"`
+	AttemptAt  time.Time `json:"attempt_at"`
+	Status     string    `json:"status"` // ok | stale
+}
+
+// computeFreshness builds the per-category freshness map from this run's
+// observed set and the prior stored freshness. An observed category is "ok"
+// (observed_at = now); an unobserved category with a prior observation is
+// "stale" (prior observed_at kept, attempt_at = now, so a consumer can show
+// "last good X ago"); a category never observed has no entry.
+func computeFreshness(observed map[FactCategory]bool, prior map[string]freshnessEntry, now time.Time) map[string]freshnessEntry {
+	out := make(map[string]freshnessEntry, len(allFactCategories))
+	for _, cat := range allFactCategories {
+		key := string(cat)
+		switch {
+		case observed[cat]:
+			out[key] = freshnessEntry{ObservedAt: now, AttemptAt: now, Status: "ok"}
+		case prior != nil:
+			if p, ok := prior[key]; ok {
+				out[key] = freshnessEntry{ObservedAt: p.ObservedAt, AttemptAt: now, Status: "stale"}
+			}
+		}
+	}
+	return out
+}
 
 // AuditEmitFunc is the audit emission seam. Production wires it to
 // audit.Emit; tests use a recorder that counts emissions.
@@ -439,11 +475,19 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 	// for any category this run did NOT observe, so a failed or denied probe
 	// never blanks previously-good data. Read + write inside the same tx so the
 	// merge is atomic. First discovery (no prior row) skips the merge.
-	if prior, ok, perr := readPriorFacts(ctx, tx, hostID); perr != nil {
+	var priorFresh map[string]freshnessEntry
+	if prior, freshRaw, ok, perr := readPriorFacts(ctx, tx, hostID); perr != nil {
 		return fmt.Errorf("discovery: read prior facts: %w", perr)
 	} else if ok {
 		mergeUnobserved(&f, prior)
+		if len(freshRaw) > 0 {
+			_ = json.Unmarshal(freshRaw, &priorFresh)
+		}
 	}
+	// Per-category freshness (spec v1.6.0): stamp when each category was last
+	// observed vs merely attempted, so a consumer can tell fresh from
+	// carried-forward data.
+	freshJSON, _ := json.Marshal(computeFreshness(f.Observed, priorFresh, f.CollectedAt))
 
 	const upsertSystemInfo = `
 		INSERT INTO host_system_info (
@@ -456,7 +500,7 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 			hostname, fqdn,
 			selinux_status, apparmor_enabled,
 			firewall_service, firewall_status,
-			collected_at, created_at, updated_at
+			collected_at, category_freshness, created_at, updated_at
 		) VALUES (
 			$1,
 			$2, $3, $4, $5, $6,
@@ -467,7 +511,7 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 			$20, $21,
 			$22, $23,
 			$24, $25,
-			$26, now(), now()
+			$26, $27, now(), now()
 		)
 		ON CONFLICT (host_id) DO UPDATE SET
 			os_name             = EXCLUDED.os_name,
@@ -495,6 +539,7 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 			firewall_service    = EXCLUDED.firewall_service,
 			firewall_status     = EXCLUDED.firewall_status,
 			collected_at        = EXCLUDED.collected_at,
+			category_freshness  = EXCLUDED.category_freshness,
 			updated_at          = now()`
 
 	if _, err := tx.Exec(ctx, upsertSystemInfo,
@@ -508,7 +553,7 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 		nilIfEmpty(f.Hostname), nilIfEmpty(f.FQDN),
 		nilIfEmpty(f.SELinuxStatus), f.AppArmorEnabled,
 		nilIfEmpty(f.FirewallService), nilIfEmpty(f.FirewallStatus),
-		f.CollectedAt,
+		f.CollectedAt, freshJSON,
 	); err != nil {
 		return fmt.Errorf("discovery: upsert host_system_info: %w", err)
 	}
@@ -542,8 +587,9 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 // readPriorFacts loads the current host_system_info row (if any) so persist can
 // carry forward categories a run did not observe. ok=false means no row yet
 // (first discovery), in which case there is nothing to preserve.
-func readPriorFacts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (SystemFacts, bool, error) {
+func readPriorFacts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (SystemFacts, []byte, bool, error) {
 	var f SystemFacts
+	var freshRaw []byte
 	err := tx.QueryRow(ctx, `
 		SELECT COALESCE(os_name, ''), COALESCE(os_version, ''), COALESCE(os_version_full, ''),
 		       COALESCE(os_id, ''), COALESCE(os_id_like, ''), COALESCE(os_pretty_name, ''),
@@ -554,7 +600,8 @@ func readPriorFacts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (SystemFac
 		       COALESCE(disk_total_gb, 0), COALESCE(disk_used_gb, 0), COALESCE(disk_free_gb, 0),
 		       COALESCE(hostname, ''), COALESCE(fqdn, ''),
 		       COALESCE(selinux_status, ''), COALESCE(apparmor_enabled, false),
-		       COALESCE(firewall_service, ''), COALESCE(firewall_status, '')
+		       COALESCE(firewall_service, ''), COALESCE(firewall_status, ''),
+		       category_freshness
 		  FROM host_system_info WHERE host_id = $1`, hostID).Scan(
 		&f.OSName, &f.OSVersion, &f.OSVersionFull, &f.OSID, &f.OSIDLike, &f.OSPrettyName,
 		&f.PlatformIdentifier, &f.OSFamily,
@@ -564,14 +611,15 @@ func readPriorFacts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (SystemFac
 		&f.Hostname, &f.FQDN,
 		&f.SELinuxStatus, &f.AppArmorEnabled,
 		&f.FirewallService, &f.FirewallStatus,
+		&freshRaw,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return SystemFacts{}, false, nil
+		return SystemFacts{}, nil, false, nil
 	}
 	if err != nil {
-		return SystemFacts{}, false, err
+		return SystemFacts{}, nil, false, err
 	}
-	return f, true, nil
+	return f, freshRaw, true, nil
 }
 
 // mergeUnobserved carries forward prior values for every category the current

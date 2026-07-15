@@ -4,6 +4,7 @@
 //
 //	AC-08  TestDiscover_HappyPath_PersistsAndPublishes
 //	AC-24  TestDiscover_NoClobberOnPartialCollection
+//	AC-25  TestDiscover_CategoryFreshness
 
 package discovery
 
@@ -203,6 +204,59 @@ func TestDiscover_NoClobberOnPartialCollection(t *testing.T) {
 		_ = pool.QueryRow(ctx, `SELECT COALESCE(os_version, '') FROM hosts WHERE id = $1`, hostID).Scan(&hOsVer)
 		if hOsVer != "9.5" {
 			t.Errorf("hosts.os_version = %q, want 9.5", hOsVer)
+		}
+	})
+}
+
+// @ac AC-25
+// AC-25: persist stamps per-category freshness — observed categories are "ok"
+// (observed_at advances), unobserved categories with a prior observation flip
+// to "stale" keeping their earlier observed_at.
+func TestDiscover_CategoryFreshness(t *testing.T) {
+	t.Run("system-host-discovery/AC-25", func(t *testing.T) {
+		pool, hostID, _ := freshDBHost(t)
+		ctx := context.Background()
+		svc := &Service{pool: pool}
+		allObserved := map[FactCategory]bool{
+			CatOSRelease: true, CatUname: true, CatMemory: true, CatDisk: true,
+			CatHostname: true, CatFQDN: true, CatSELinux: true, CatAppArmor: true, CatFirewall: true,
+		}
+
+		run1 := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+		if err := svc.persist(ctx, hostID, SystemFacts{
+			OSVersion: "9.4", KernelRelease: "5.14.0-570", FirewallService: "firewalld",
+			CollectedAt: run1, Observed: allObserved,
+		}); err != nil {
+			t.Fatalf("run1 persist: %v", err)
+		}
+
+		run2 := time.Now().UTC().Truncate(time.Second)
+		if err := svc.persist(ctx, hostID, SystemFacts{
+			OSVersion: "9.5", KernelRelease: "5.14.0-580",
+			CollectedAt: run2, Observed: map[FactCategory]bool{CatOSRelease: true, CatUname: true},
+		}); err != nil {
+			t.Fatalf("run2 persist: %v", err)
+		}
+
+		var osStatus, fwStatus string
+		var fwEarlier bool
+		if err := pool.QueryRow(ctx, `
+			SELECT category_freshness->'os_release'->>'status',
+			       category_freshness->'firewall'->>'status',
+			       (category_freshness->'firewall'->>'observed_at')::timestamptz
+			         < (category_freshness->'os_release'->>'observed_at')::timestamptz
+			  FROM host_system_info WHERE host_id = $1`, hostID).
+			Scan(&osStatus, &fwStatus, &fwEarlier); err != nil {
+			t.Fatalf("read freshness: %v", err)
+		}
+		if osStatus != "ok" {
+			t.Errorf("os_release status = %q, want ok (observed run2)", osStatus)
+		}
+		if fwStatus != "stale" {
+			t.Errorf("firewall status = %q, want stale (unobserved run2)", fwStatus)
+		}
+		if !fwEarlier {
+			t.Errorf("firewall observed_at should be earlier than os_release (kept run1 time)")
 		}
 	})
 }

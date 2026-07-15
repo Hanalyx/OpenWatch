@@ -3,10 +3,14 @@
 // AC traceability (this file):
 //
 //	AC-18  TestMergeUnobserved_NoClobberAndNoFalseEvents
+//	AC-19  TestComputeSnapFreshness
 
 package collector
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // @ac AC-18
 // AC-18: an unobserved category carries forward its prior value (no clobber,
@@ -63,6 +67,37 @@ func TestMergeUnobserved_NoClobberAndNoFalseEvents(t *testing.T) {
 		merged3 := mergeUnobserved(Snapshot{}, prior)
 		if merged3.Packages["openssh"] != "9.0" || merged3.Services["sshd"] != "active" {
 			t.Errorf("nil Observed should carry forward all: %+v", merged3)
+		}
+	})
+}
+
+// @ac AC-19
+// AC-19: computeSnapFreshness stamps observed→ok (observed_at=now),
+// unobserved-with-prior→stale (prior observed_at kept, attempt advances), and
+// omits never-observed categories.
+func TestComputeSnapFreshness(t *testing.T) {
+	t.Run("system-os-intelligence/AC-19", func(t *testing.T) {
+		now := time.Now().UTC()
+		earlier := now.Add(-time.Hour)
+		prior := map[string]snapFreshnessEntry{
+			"packages": {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
+			"services": {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
+		}
+
+		out := computeSnapFreshness(map[SnapCategory]bool{SnapPackages: true}, prior, now)
+
+		if e := out["packages"]; e.Status != "ok" || !e.ObservedAt.Equal(now) {
+			t.Errorf("packages = %+v, want ok observed_at=now", e)
+		}
+		if e := out["services"]; e.Status != "stale" || !e.ObservedAt.Equal(earlier) || !e.AttemptAt.Equal(now) {
+			t.Errorf("services = %+v, want stale keeping earlier observed_at, attempt=now", e)
+		}
+		if _, ok := out["users"]; ok {
+			t.Errorf("users should be absent (never observed, no prior)")
+		}
+
+		if out2 := computeSnapFreshness(map[SnapCategory]bool{}, nil, now); len(out2) != 0 {
+			t.Errorf("nil prior + nothing observed should be empty, got %+v", out2)
 		}
 	})
 }

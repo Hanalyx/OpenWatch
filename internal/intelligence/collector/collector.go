@@ -576,15 +576,31 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, snap Snapshot, 
 	if err != nil {
 		return fmt.Errorf("collector: encode snapshot: %w", err)
 	}
+	// Per-category freshness (spec v1.3.0): stamp when each category was last
+	// observed vs merely attempted, so a consumer can tell fresh from
+	// carried-forward data.
+	var priorFreshRaw []byte
+	if err := tx.QueryRow(ctx,
+		`SELECT category_freshness FROM host_intelligence_state WHERE host_id = $1`, hostID,
+	).Scan(&priorFreshRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("collector: read prior freshness: %w", err)
+	}
+	var priorFresh map[string]snapFreshnessEntry
+	if len(priorFreshRaw) > 0 {
+		_ = json.Unmarshal(priorFreshRaw, &priorFresh)
+	}
+	freshJSON, _ := json.Marshal(computeSnapFreshness(snap.Observed, priorFresh, snap.CollectedAt))
+
 	// Spec C-03: UPSERT keyed by host_id.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO host_intelligence_state (host_id, snapshot, collected_at, created_at, updated_at)
-		VALUES ($1, $2, $3, now(), now())
+		INSERT INTO host_intelligence_state (host_id, snapshot, collected_at, category_freshness, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, now(), now())
 		ON CONFLICT (host_id) DO UPDATE SET
-			snapshot     = EXCLUDED.snapshot,
-			collected_at = EXCLUDED.collected_at,
-			updated_at   = now()`,
-		hostID, raw, snap.CollectedAt,
+			snapshot           = EXCLUDED.snapshot,
+			collected_at       = EXCLUDED.collected_at,
+			category_freshness = EXCLUDED.category_freshness,
+			updated_at         = now()`,
+		hostID, raw, snap.CollectedAt, freshJSON,
 	); err != nil {
 		return fmt.Errorf("collector: upsert state: %w", err)
 	}
