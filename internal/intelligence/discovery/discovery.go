@@ -123,6 +123,53 @@ type SystemFacts struct {
 	// category keeps the run's values even when genuinely empty/zero — that is
 	// a real observation, not a missing one.
 	Observed map[FactCategory]bool
+
+	// Attempts records WHY a non-observed category was not collected this run
+	// (denied | failed | timeout), so the persisted freshness can tell an
+	// operator whether a stale value is a fixable sudo denial or a transient
+	// connectivity failure. Only categories that were attempted-but-not-observed
+	// appear here; an observed category is absent from this map. Spec C-14,
+	// v1.7.0.
+	Attempts map[FactCategory]string
+}
+
+// Attempt outcomes for a non-observed fact category on one run. observed is
+// represented by absence from SystemFacts.Attempts (the category is in Observed
+// instead). These label the reason a probe did not yield a value so a stale
+// carried-forward value can be explained.
+const (
+	outcomeDenied  = "denied"  // positive evidence of a sudo/permission refusal
+	outcomeFailed  = "failed"  // transport error or non-permission command failure
+	outcomeTimeout = "timeout" // the probe exceeded the run deadline
+)
+
+// classifyOutcome maps a probe's (out, code, err) triple to a non-observed
+// outcome. Positive-evidence only for "denied": we label a category denied
+// ONLY when the combined output carries a recognizable sudo-refusal signature,
+// so a genuinely-absent tool or a transport error is never mislabeled as a
+// permission problem (under-reporting denied is safer than over-reporting an
+// actionable signal). A context deadline is a timeout; any other Go-level error
+// is a failure; a non-zero exit without a sudo signature is a failure.
+func classifyOutcome(out []byte, err error) string {
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return outcomeTimeout
+		}
+		return outcomeFailed
+	}
+	if sudoDenied(out) {
+		return outcomeDenied
+	}
+	return outcomeFailed
+}
+
+// recordFailure stamps the reason a category was not observed this run. Safe
+// to call with a nil Attempts map (lazily initialized).
+func (f *SystemFacts) recordFailure(cat FactCategory, out []byte, err error) {
+	if f.Attempts == nil {
+		f.Attempts = make(map[FactCategory]string, len(allFactCategories))
+	}
+	f.Attempts[cat] = classifyOutcome(out, err)
 }
 
 // FactCategory groups host_system_info columns by the probe that collects them,
@@ -154,15 +201,18 @@ var allFactCategories = []FactCategory{
 type freshnessEntry struct {
 	ObservedAt time.Time `json:"observed_at"`
 	AttemptAt  time.Time `json:"attempt_at"`
-	Status     string    `json:"status"` // ok | stale
+	Status     string    `json:"status"`           // ok | stale
+	Reason     string    `json:"reason,omitempty"` // denied | failed | timeout (stale only)
 }
 
 // computeFreshness builds the per-category freshness map from this run's
-// observed set and the prior stored freshness. An observed category is "ok"
-// (observed_at = now); an unobserved category with a prior observation is
-// "stale" (prior observed_at kept, attempt_at = now, so a consumer can show
-// "last good X ago"); a category never observed has no entry.
-func computeFreshness(observed map[FactCategory]bool, prior map[string]freshnessEntry, now time.Time) map[string]freshnessEntry {
+// observed set, its per-category failure reasons, and the prior stored
+// freshness. An observed category is "ok" (observed_at = now); an unobserved
+// category with a prior observation is "stale" (prior observed_at kept,
+// attempt_at = now, so a consumer can show "last good X ago") and carries the
+// reason it was not re-observed this run (denied | failed | timeout); a
+// category never observed has no entry. Spec C-13 (freshness) + C-14 (reason).
+func computeFreshness(observed map[FactCategory]bool, attempts map[FactCategory]string, prior map[string]freshnessEntry, now time.Time) map[string]freshnessEntry {
 	out := make(map[string]freshnessEntry, len(allFactCategories))
 	for _, cat := range allFactCategories {
 		key := string(cat)
@@ -171,7 +221,16 @@ func computeFreshness(observed map[FactCategory]bool, prior map[string]freshness
 			out[key] = freshnessEntry{ObservedAt: now, AttemptAt: now, Status: "ok"}
 		case prior != nil:
 			if p, ok := prior[key]; ok {
-				out[key] = freshnessEntry{ObservedAt: p.ObservedAt, AttemptAt: now, Status: "stale"}
+				reason := attempts[cat]
+				if reason == "" {
+					reason = outcomeFailed // not observed, cause unrecorded → failed
+				}
+				out[key] = freshnessEntry{
+					ObservedAt: p.ObservedAt,
+					AttemptAt:  now,
+					Status:     "stale",
+					Reason:     reason,
+				}
 			}
 		}
 	}
@@ -363,7 +422,10 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 
 	facts := SystemFacts{CollectedAt: time.Now().UTC(), Observed: map[FactCategory]bool{}}
 
-	// World-readable probes — sudo not required.
+	// World-readable probes — sudo not required. On a non-observation we record
+	// the reason (classifyOutcome) so a stale carried-forward value can be
+	// explained; these read-only probes never need sudo, so their failures
+	// classify as failed/timeout (never denied) absent a sudo signature.
 	if out, code, err := sess.Run(ctx, "cat /etc/os-release"); err == nil && code == 0 {
 		osf, _ := probe.ParseOSRelease(out)
 		facts.OSName = osf.OSName
@@ -375,6 +437,8 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.PlatformIdentifier = osf.PlatformIdentifier
 		facts.OSFamily = deriveOSFamily(osf.OSID, osf.OSIDLike)
 		facts.Observed[CatOSRelease] = true
+	} else {
+		facts.recordFailure(CatOSRelease, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "uname -srvm"); err == nil && code == 0 {
@@ -384,6 +448,8 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.KernelVersion = uf.KernelVersion
 		facts.Architecture = uf.Architecture
 		facts.Observed[CatUname] = true
+	} else {
+		facts.recordFailure(CatUname, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "cat /proc/meminfo"); err == nil && code == 0 {
@@ -392,6 +458,8 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.MemAvailableMB = mi.MemAvailableMB
 		facts.SwapTotalMB = mi.SwapTotalMB
 		facts.Observed[CatMemory] = true
+	} else {
+		facts.recordFailure(CatMemory, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "df -BG /"); err == nil && code == 0 {
@@ -400,26 +468,36 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.DiskUsedGB = used
 		facts.DiskFreeGB = free
 		facts.Observed[CatDisk] = true
+	} else {
+		facts.recordFailure(CatDisk, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "hostname"); err == nil && code == 0 {
 		facts.Hostname = strings.TrimSpace(string(out))
 		facts.Observed[CatHostname] = true
+	} else {
+		facts.recordFailure(CatHostname, out, err)
 	}
 	if out, code, err := sess.Run(ctx, "hostname -f"); err == nil && code == 0 {
 		facts.FQDN = strings.TrimSpace(string(out))
 		facts.Observed[CatFQDN] = true
+	} else {
+		facts.recordFailure(CatFQDN, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "getenforce"); err == nil && code == 0 {
 		facts.SELinuxStatus = strings.TrimSpace(string(out))
 		facts.Observed[CatSELinux] = true
+	} else {
+		facts.recordFailure(CatSELinux, out, err)
 	}
-	if _, code, err := sess.Run(ctx, "aa-status --enabled"); err == nil {
+	if out, code, err := sess.Run(ctx, "aa-status --enabled"); err == nil {
 		// aa-status --enabled exits 0 when enabled, 1 when not. Either exit is
 		// a genuine observation of the AppArmor state.
 		facts.AppArmorEnabled = code == 0
 		facts.Observed[CatAppArmor] = true
+	} else {
+		facts.recordFailure(CatAppArmor, out, err)
 	}
 
 	// Firewall introspection — needs sudo on most distros. Per spec C-03
@@ -444,11 +522,18 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 			cfg.prefer = knownSudo
 		}
 	}
-	svc, status, learnedSudo, ok := probeFirewall(ctx, sess, cfg)
+	svc, status, learnedSudo, ok, fwReason := probeFirewall(ctx, sess, cfg)
 	if ok {
 		facts.FirewallService = svc
 		facts.FirewallStatus = status
 		facts.Observed[CatFirewall] = true
+	} else {
+		// probeFirewall already classified the non-observation: "denied" when a
+		// sudo-refusal signature was seen across its attempts, else "failed".
+		if facts.Attempts == nil {
+			facts.Attempts = make(map[FactCategory]string, len(allFactCategories))
+		}
+		facts.Attempts[CatFirewall] = fwReason
 	}
 	if s.profiles != nil && learnedSudo != connprofile.SudoUnknown && learnedSudo != knownSudo {
 		_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
@@ -486,8 +571,9 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 	}
 	// Per-category freshness (spec v1.6.0): stamp when each category was last
 	// observed vs merely attempted, so a consumer can tell fresh from
-	// carried-forward data.
-	freshJSON, _ := json.Marshal(computeFreshness(f.Observed, priorFresh, f.CollectedAt))
+	// carried-forward data. v1.7.0 also stamps WHY a stale category was not
+	// re-observed (denied | failed | timeout) from f.Attempts.
+	freshJSON, _ := json.Marshal(computeFreshness(f.Observed, f.Attempts, priorFresh, f.CollectedAt))
 
 	const upsertSystemInfo = `
 		INSERT INTO host_system_info (

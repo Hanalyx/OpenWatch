@@ -5,6 +5,7 @@
 //	AC-08  TestDiscover_HappyPath_PersistsAndPublishes
 //	AC-24  TestDiscover_NoClobberOnPartialCollection
 //	AC-25  TestDiscover_CategoryFreshness
+//	AC-27  TestDiscover_FreshnessReason
 
 package discovery
 
@@ -257,6 +258,73 @@ func TestDiscover_CategoryFreshness(t *testing.T) {
 		}
 		if !fwEarlier {
 			t.Errorf("firewall observed_at should be earlier than os_release (kept run1 time)")
+		}
+	})
+}
+
+// @ac AC-27
+// AC-27: a stale category carries the reason it was not re-observed. A second
+// run whose Attempts records firewall="denied" and disk="failed" persists those
+// reasons on the stale freshness entries; an observed category has status "ok"
+// with no reason; a stale category whose reason was unrecorded defaults to
+// "failed", never a false "denied".
+func TestDiscover_FreshnessReason(t *testing.T) {
+	t.Run("system-host-discovery/AC-27", func(t *testing.T) {
+		pool, hostID, _ := freshDBHost(t)
+		ctx := context.Background()
+		svc := &Service{pool: pool}
+		allObserved := map[FactCategory]bool{
+			CatOSRelease: true, CatUname: true, CatMemory: true, CatDisk: true,
+			CatHostname: true, CatFQDN: true, CatSELinux: true, CatAppArmor: true, CatFirewall: true,
+		}
+
+		// Run 1: fully observed.
+		if err := svc.persist(ctx, hostID, SystemFacts{
+			OSVersion: "9.4", KernelRelease: "5.14.0-570", FirewallService: "firewalld",
+			DiskTotalGB: 100, DiskFreeGB: 40, SELinuxStatus: "Enforcing",
+			CollectedAt: time.Now().Add(-time.Hour).UTC(), Observed: allObserved,
+		}); err != nil {
+			t.Fatalf("run1 persist: %v", err)
+		}
+
+		// Run 2: os_release observed; firewall denied, disk failed, selinux
+		// unobserved with NO recorded reason (defaults to failed).
+		if err := svc.persist(ctx, hostID, SystemFacts{
+			OSVersion:   "9.5",
+			CollectedAt: time.Now().UTC(),
+			Observed:    map[FactCategory]bool{CatOSRelease: true},
+			Attempts: map[FactCategory]string{
+				CatFirewall: outcomeDenied,
+				CatDisk:     outcomeFailed,
+			},
+		}); err != nil {
+			t.Fatalf("run2 persist: %v", err)
+		}
+
+		var osStatus, osReason, fwStatus, fwReason, diskReason, selinuxReason string
+		if err := pool.QueryRow(ctx, `
+			SELECT category_freshness->'os_release'->>'status',
+			       COALESCE(category_freshness->'os_release'->>'reason', ''),
+			       category_freshness->'firewall'->>'status',
+			       COALESCE(category_freshness->'firewall'->>'reason', ''),
+			       COALESCE(category_freshness->'disk'->>'reason', ''),
+			       COALESCE(category_freshness->'selinux'->>'reason', '')
+			  FROM host_system_info WHERE host_id = $1`, hostID).
+			Scan(&osStatus, &osReason, &fwStatus, &fwReason, &diskReason, &selinuxReason); err != nil {
+			t.Fatalf("read freshness: %v", err)
+		}
+		if osStatus != "ok" || osReason != "" {
+			t.Errorf("os_release = {status:%q reason:%q}, want ok with no reason", osStatus, osReason)
+		}
+		if fwStatus != "stale" || fwReason != "denied" {
+			t.Errorf("firewall = {status:%q reason:%q}, want stale/denied", fwStatus, fwReason)
+		}
+		if diskReason != "failed" {
+			t.Errorf("disk reason = %q, want failed", diskReason)
+		}
+		// Unrecorded reason on a stale category defaults to failed — never denied.
+		if selinuxReason != "failed" {
+			t.Errorf("selinux reason = %q, want failed (unrecorded default)", selinuxReason)
 		}
 	})
 }

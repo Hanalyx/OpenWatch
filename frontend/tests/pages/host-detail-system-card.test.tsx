@@ -131,12 +131,12 @@ describe('frontend-host-detail-system-card — freshness', () => {
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
     const now = new Date().toISOString();
 
-    // Stale firewall → caveat present.
+    // Stale firewall with reason "denied" → caveat present + actionable label.
     const staleInfo: CardSystemInfo = {
       firewall_status: 'active',
       firewall_service: 'firewalld',
       category_freshness: {
-        firewall: { status: 'stale', observed_at: twoDaysAgo, attempt_at: now },
+        firewall: { status: 'stale', reason: 'denied', observed_at: twoDaysAgo, attempt_at: now },
       },
     };
     const { unmount } = renderWith(
@@ -146,8 +146,27 @@ describe('frontend-host-detail-system-card — freshness', () => {
         systemInfo={staleInfo}
       />,
     );
-    expect(screen.getByText(/Last verified/i)).toBeInTheDocument();
+    expect(screen.getByText(/Last verified 2d ago \(sudo denied\)/i)).toBeInTheDocument();
     unmount();
+
+    // Stale with NO reason → caveat present, no parenthetical.
+    const staleNoReason: CardSystemInfo = {
+      firewall_status: 'active',
+      firewall_service: 'firewalld',
+      category_freshness: {
+        firewall: { status: 'stale', observed_at: twoDaysAgo, attempt_at: now },
+      },
+    };
+    const noReason = renderWith(
+      <CardSystem
+        host={makeHost({ os_family: 'rhel', os_version: '9.2' })}
+        intelligenceSnapshot={null}
+        systemInfo={staleNoReason}
+      />,
+    );
+    expect(screen.getByText(/Last verified 2d ago$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/sudo denied/i)).toBeNull();
+    noReason.unmount();
 
     // ok firewall → no caveat.
     const freshInfo: CardSystemInfo = {

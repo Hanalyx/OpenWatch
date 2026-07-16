@@ -6546,12 +6546,15 @@ components:
         Per-category collection freshness. status=ok when the category was
         observed on the most recent run; status=stale when the run did not
         observe it and the last-known-good value was carried forward
-        (observed_at then points at the last successful observation).
-        Spec system-host-discovery / system-os-intelligence.
+        (observed_at then points at the last successful observation). On a
+        stale entry, reason records WHY it was not re-observed: denied (a
+        fixable sudo/permission refusal), failed (transport or command
+        failure), or timeout. Spec system-host-discovery / system-os-intelligence.
       properties:
         status:      {type: string, enum: [ok, stale]}
         observed_at: {type: string, format: date-time}
         attempt_at:  {type: string, format: date-time}
+        reason:      {type: string, enum: [denied, failed, timeout], description: 'Present only on stale entries: why the category was not re-observed this run'}
     CategoryFreshness:
       type: object
       additionalProperties: {$ref: '#/components/schemas/FreshnessEntry'}

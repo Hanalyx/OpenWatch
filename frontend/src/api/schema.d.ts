@@ -4369,8 +4369,10 @@ export interface components {
          * @description Per-category collection freshness. status=ok when the category was
          *     observed on the most recent run; status=stale when the run did not
          *     observe it and the last-known-good value was carried forward
-         *     (observed_at then points at the last successful observation).
-         *     Spec system-host-discovery / system-os-intelligence.
+         *     (observed_at then points at the last successful observation). On a
+         *     stale entry, reason records WHY it was not re-observed: denied (a
+         *     fixable sudo/permission refusal), failed (transport or command
+         *     failure), or timeout. Spec system-host-discovery / system-os-intelligence.
          */
         FreshnessEntry: {
             /** @enum {string} */
@@ -4379,6 +4381,11 @@ export interface components {
             observed_at: string;
             /** Format: date-time */
             attempt_at: string;
+            /**
+             * @description Present only on stale entries: why the category was not re-observed this run
+             * @enum {string}
+             */
+            reason?: "denied" | "failed" | "timeout";
         };
         /**
          * @description Map of fact category -> freshness. Absent categories were never

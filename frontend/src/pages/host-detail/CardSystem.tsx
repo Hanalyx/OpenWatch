@@ -41,11 +41,21 @@ export interface CardSystemHost {
 // (system-host-discovery v1.6.0). status=stale means the value shown was
 // carried forward from an earlier successful run — the most recent Discovery
 // did not re-observe this category (SSH degraded, sudo denied, probe failed).
+// reason (v1.7.0) records WHY a stale value was not re-observed.
 export interface CategoryFreshness {
   status: 'ok' | 'stale';
   observed_at: string;
   attempt_at: string;
+  reason?: 'denied' | 'failed' | 'timeout';
 }
+
+// Human labels for the stale reason. "denied" is the actionable one (grant
+// sudo); the others signal a transient collection problem.
+const REASON_LABEL: Record<string, string> = {
+  denied: 'sudo denied',
+  failed: 'probe failed',
+  timeout: 'probe timed out',
+};
 
 // Subset of HostSystemInfo we render. Mirrors the API schema column
 // names; null fields tolerate partial-collection rows (sudo unavailable,
@@ -383,12 +393,14 @@ export function StaleNote({
 }) {
   const entry = freshness?.[category];
   if (!entry || entry.status !== 'stale') return null;
+  const reasonLabel = entry.reason ? REASON_LABEL[entry.reason] : undefined;
   return (
     <div
       style={{ ...subValueStyle, color: 'var(--ow-warn)' }}
       title={`Last verified ${entry.observed_at}`}
     >
       Last verified {formatTimeAgo(entry.observed_at)}
+      {reasonLabel ? ` (${reasonLabel})` : ''}
     </div>
   );
 }

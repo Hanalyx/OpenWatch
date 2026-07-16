@@ -1,7 +1,7 @@
 spec:
   id: api-host-system-info
   title: GET /hosts/{id}/system-info — last Discovery result for one host
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -96,6 +96,6 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-06
-      description: 'GET /api/v1/hosts/{id}/system-info with host:read on a row whose category_freshness JSONB records a stale category returns 200 with a category_freshness object; the stale category entry carries status="stale" and an observed_at earlier than attempt_at. A row with NULL category_freshness returns 200 with the field omitted'
+      description: 'GET /api/v1/hosts/{id}/system-info with host:read on a row whose category_freshness JSONB records a stale category returns 200 with a category_freshness object; the stale category entry carries status="stale", an observed_at earlier than attempt_at, and a reason ∈ {denied, failed, timeout} (system-host-discovery v1.7.0). A row with NULL category_freshness returns 200 with the field omitted'
       priority: high
       references_constraints: [C-05]

@@ -170,6 +170,35 @@ func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, c
 	return fOut, fCode, connprofile.SudoUnknown, fErr
 }
 
+// sudoDenialSignatures are lowercase substrings sudo (or PAM) emits on the
+// combined stdout+stderr when a command is refused for permission / tty /
+// password reasons. Detection is positive-evidence only: a category is labeled
+// "denied" ONLY when one of these appears, so a genuinely-absent tool or a
+// transport error is never mislabeled as a permission problem. Spec C-14.
+var sudoDenialSignatures = []string{
+	"a password is required",
+	"a terminal is required",
+	"no tty present",
+	"is not allowed to run sudo",
+	"is not in the sudoers file",
+	"not allowed to execute",
+	"incorrect password",
+	"sorry, try again",
+}
+
+// sudoDenied reports whether the combined command output carries a recognizable
+// sudo-refusal signature. Case-insensitive substring match on the signatures
+// above.
+func sudoDenied(out []byte) bool {
+	s := strings.ToLower(string(out))
+	for _, sig := range sudoDenialSignatures {
+		if strings.Contains(s, sig) {
+			return true
+		}
+	}
+	return false
+}
+
 // probeFirewall tries each known firewall service in order. The first
 // one to answer (exit 0) wins. Returns ("", "", false) when none answer
 // — typically because the credential lacks sudo. Per spec C-03 + AC-05
@@ -185,42 +214,58 @@ func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, c
 // sudo firewall command (SudoUnknown when none answered via sudo — e.g.
 // a sudoless firewalld host, or one with no firewall tool). Spec
 // system-connection-profile v1.2.0 C-07 / AC-11.
-func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig) (service, status string, learned connprofile.SudoMode, ok bool) {
+func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig) (service, status string, learned connprofile.SudoMode, ok bool, reason string) {
 	// note records the strongest confirmation a sudo attempt produced.
 	note := func(observed connprofile.SudoMode) {
 		if observed != connprofile.SudoUnknown {
 			learned = observed
 		}
 	}
+	// sawDenial latches when any sudo attempt's output shows a permission
+	// refusal, so a non-answering firewall probe reports "denied" (actionable:
+	// grant sudo) rather than the generic "failed". Positive-evidence only.
+	sawDenial := false
+	seen := func(out []byte) {
+		if sudoDenied(out) {
+			sawDenial = true
+		}
+	}
 	// firewalld via systemctl is sudoless on many distros.
 	if out, code, err := sess.Run(ctx, "systemctl is-active firewalld"); err == nil && code == 0 {
-		return "firewalld", strings.TrimSpace(string(out)), learned, true
+		return "firewalld", strings.TrimSpace(string(out)), learned, true, ""
 	}
 	// ufw — Debian / Ubuntu. Needs sudo on most distros for `status`.
 	out, code, observed, err := runSudoWithFallback(ctx, sess, "ufw status", cfg)
 	note(observed)
+	seen(out)
 	if err == nil && code == 0 {
-		return "ufw", firstWord(string(out)), learned, true
+		return "ufw", firstWord(string(out)), learned, true, ""
 	}
 	// nftables.
-	_, code, observed, err = runSudoWithFallback(ctx, sess, "nft list ruleset", cfg)
+	out, code, observed, err = runSudoWithFallback(ctx, sess, "nft list ruleset", cfg)
 	note(observed)
+	seen(out)
 	if err == nil && code == 0 {
-		return "nftables", "active", learned, true
+		return "nftables", "active", learned, true, ""
 	}
 	// iptables fallback.
-	_, code, observed, err = runSudoWithFallback(ctx, sess, "iptables -L", cfg)
+	out, code, observed, err = runSudoWithFallback(ctx, sess, "iptables -L", cfg)
 	note(observed)
+	seen(out)
 	if err == nil && code == 0 {
-		return "iptables", "active", learned, true
+		return "iptables", "active", learned, true, ""
 	}
 	// firewall-cmd as last resort (RHEL).
 	out, code, observed, err = runSudoWithFallback(ctx, sess, "firewall-cmd --state", cfg)
 	note(observed)
+	seen(out)
 	if err == nil && code == 0 {
-		return "firewalld", strings.TrimSpace(string(out)), learned, true
+		return "firewalld", strings.TrimSpace(string(out)), learned, true, ""
 	}
-	return "", "", learned, false
+	if sawDenial {
+		return "", "", learned, false, outcomeDenied
+	}
+	return "", "", learned, false, outcomeFailed
 }
 
 func firstWord(s string) string {
