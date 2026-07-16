@@ -6463,6 +6463,11 @@ components:
           additionalProperties: true
           description: Free-form host_intelligence_state.snapshot — mirrors collector.Snapshot
         collected_at: {type: string, format: date-time}
+        # Per-category collection freshness (system-os-intelligence v1.3.0 C-09).
+        # nullable: rows written before migration 0052 have no freshness map.
+        category_freshness:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/CategoryFreshness'}]
 
     Alert:
       type: object
@@ -6534,6 +6539,29 @@ components:
         reason: {type: string, maxLength: 256}
         until:  {type: string, format: date-time, nullable: true}
 
+    FreshnessEntry:
+      type: object
+      required: [status, observed_at, attempt_at]
+      description: |
+        Per-category collection freshness. status=ok when the category was
+        observed on the most recent run; status=stale when the run did not
+        observe it and the last-known-good value was carried forward
+        (observed_at then points at the last successful observation).
+        Spec system-host-discovery / system-os-intelligence.
+      properties:
+        status:      {type: string, enum: [ok, stale]}
+        observed_at: {type: string, format: date-time}
+        attempt_at:  {type: string, format: date-time}
+    CategoryFreshness:
+      type: object
+      additionalProperties: {$ref: '#/components/schemas/FreshnessEntry'}
+      description: |
+        Map of fact category -> freshness. Absent categories were never
+        observed. Discovery keys: os_release, uname, memory, disk, hostname,
+        fqdn, selinux, apparmor, firewall. Intelligence keys: users, groups,
+        ports, interfaces, routes, firewall, packages, services, kernel,
+        uptime, mounts, config.
+
     HostSystemInfo:
       type: object
       required: [host_id, collected_at]
@@ -6574,6 +6602,11 @@ components:
         firewall_service: {type: string, nullable: true, description: 'firewalld | ufw | nftables | iptables | empty'}
         firewall_status:  {type: string, nullable: true}
         collected_at:     {type: string, format: date-time}
+        # Per-category collection freshness (system-host-discovery v1.6.0 C-13).
+        # nullable: rows written before migration 0052 have no freshness map.
+        category_freshness:
+          nullable: true
+          allOf: [{$ref: '#/components/schemas/CategoryFreshness'}]
 
     FleetRuleFailure:
       type: object

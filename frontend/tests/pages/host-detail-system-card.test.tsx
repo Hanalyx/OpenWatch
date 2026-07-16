@@ -14,7 +14,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CardSystem, type CardSystemHost } from '@/pages/host-detail/CardSystem';
+import {
+  CardSystem,
+  formatTimeAgo,
+  type CardSystemHost,
+  type CardSystemInfo,
+} from '@/pages/host-detail/CardSystem';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const PAGE_SRC = readFileSync(
@@ -116,6 +121,58 @@ describe('frontend-host-detail-system-card — behavior', () => {
     );
     expect(screen.getByText('Not discovered yet')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /re-run discovery/i })).toBeNull();
+  });
+});
+
+describe('frontend-host-detail-system-card — freshness', () => {
+  // @ac AC-08
+  test('frontend-host-detail-system-card/AC-08 — stale category shows Last verified caveat; ok/absent shows none', () => {
+    withWriter();
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+    const now = new Date().toISOString();
+
+    // Stale firewall → caveat present.
+    const staleInfo: CardSystemInfo = {
+      firewall_status: 'active',
+      firewall_service: 'firewalld',
+      category_freshness: {
+        firewall: { status: 'stale', observed_at: twoDaysAgo, attempt_at: now },
+      },
+    };
+    const { unmount } = renderWith(
+      <CardSystem
+        host={makeHost({ os_family: 'rhel', os_version: '9.2' })}
+        intelligenceSnapshot={null}
+        systemInfo={staleInfo}
+      />,
+    );
+    expect(screen.getByText(/Last verified/i)).toBeInTheDocument();
+    unmount();
+
+    // ok firewall → no caveat.
+    const freshInfo: CardSystemInfo = {
+      firewall_status: 'active',
+      firewall_service: 'firewalld',
+      category_freshness: {
+        firewall: { status: 'ok', observed_at: now, attempt_at: now },
+      },
+    };
+    renderWith(
+      <CardSystem
+        host={makeHost({ os_family: 'rhel', os_version: '9.2' })}
+        intelligenceSnapshot={null}
+        systemInfo={freshInfo}
+      />,
+    );
+    expect(screen.queryByText(/Last verified/i)).toBeNull();
+  });
+
+  // @ac AC-08
+  test('frontend-host-detail-system-card/AC-08 — formatTimeAgo buckets to coarse m/h/d ago', () => {
+    expect(formatTimeAgo(new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString())).toBe('2d ago');
+    expect(formatTimeAgo(new Date(Date.now() - 5 * 3600 * 1000).toISOString())).toBe('5h ago');
+    expect(formatTimeAgo(new Date(Date.now() - 10 * 60 * 1000).toISOString())).toBe('10m ago');
+    expect(formatTimeAgo(new Date().toISOString())).toBe('just now');
   });
 });
 

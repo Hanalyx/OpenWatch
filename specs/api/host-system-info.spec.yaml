@@ -1,7 +1,7 @@
 spec:
   id: api-host-system-info
   title: GET /hosts/{id}/system-info — last Discovery result for one host
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -69,6 +69,10 @@ spec:
       description: '200 response body MUST be the existing HostSystemInfo schema (declared by api/openapi.yaml, also returned by POST /hosts/{id}/discovery:run). No new schema, no transformation — the column-for-column shape stays consistent across the synchronous Discovery result and this read path'
       type: technical
       enforcement: error
+    - id: C-05
+      description: 'When the host_system_info row carries a category_freshness JSONB map (migration 0052; written by system-host-discovery v1.6.0), the 200 body MUST expose it as the CategoryFreshness field so operators can tell a freshly-observed value from a carried-forward (stale) one. A NULL/absent map (rows written before 0052) MUST omit the field rather than emit an empty object — the endpoint stays backward compatible'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -91,3 +95,7 @@ spec:
       description: 'Source inspection: the handler reads host_system_info via a parameterized pgx QueryRow with $1 bound to the host id — never a string-concat or fmt.Sprintf-built SQL. Source MUST contain WHERE host_id = $1'
       priority: critical
       references_constraints: [C-02]
+    - id: AC-06
+      description: 'GET /api/v1/hosts/{id}/system-info with host:read on a row whose category_freshness JSONB records a stale category returns 200 with a category_freshness object; the stale category entry carries status="stale" and an observed_at earlier than attempt_at. A row with NULL category_freshness returns 200 with the field omitted'
+      priority: high
+      references_constraints: [C-05]

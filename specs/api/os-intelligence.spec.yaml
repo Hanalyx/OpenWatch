@@ -1,7 +1,7 @@
 spec:
   id: api-os-intelligence
   title: OS Intelligence read API
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -74,6 +74,10 @@ spec:
       description: 'The events response severity filter accepts the closed set {info, low, medium, high, critical}. Unknown severity values yield 400 validation.field_range'
       type: technical
       enforcement: error
+    - id: C-06
+      description: 'When the host_intelligence_state row carries a category_freshness JSONB map (migration 0052; written by system-os-intelligence v1.3.0), GET /intelligence/state/{host_id} MUST expose it as the CategoryFreshness field so callers can distinguish a freshly-observed snapshot category from a carried-forward (stale) one. A NULL/absent map MUST omit the field, not emit an empty object'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -116,3 +120,7 @@ spec:
       description: 'GET /api/v1/intelligence/events?since=<ts>&until=<ts> filters by detected_at within [since, until). Inclusive on since, exclusive on until — same semantics as /audit/events'
       priority: high
       references_constraints: [C-03]
+    - id: AC-11
+      description: 'GET /api/v1/intelligence/state/{host_id} on a row whose category_freshness JSONB records a stale category returns 200 with a category_freshness object; the stale entry carries status="stale". A row with NULL category_freshness returns 200 with the field omitted'
+      priority: high
+      references_constraints: [C-06]

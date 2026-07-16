@@ -4294,6 +4294,7 @@ export interface components {
             };
             /** Format: date-time */
             collected_at: string;
+            category_freshness?: components["schemas"]["CategoryFreshness"] | null;
         };
         Alert: {
             /** Format: uuid */
@@ -4365,6 +4366,31 @@ export interface components {
             until?: string | null;
         };
         /**
+         * @description Per-category collection freshness. status=ok when the category was
+         *     observed on the most recent run; status=stale when the run did not
+         *     observe it and the last-known-good value was carried forward
+         *     (observed_at then points at the last successful observation).
+         *     Spec system-host-discovery / system-os-intelligence.
+         */
+        FreshnessEntry: {
+            /** @enum {string} */
+            status: "ok" | "stale";
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            attempt_at: string;
+        };
+        /**
+         * @description Map of fact category -> freshness. Absent categories were never
+         *     observed. Discovery keys: os_release, uname, memory, disk, hostname,
+         *     fqdn, selinux, apparmor, firewall. Intelligence keys: users, groups,
+         *     ports, interfaces, routes, firewall, packages, services, kernel,
+         *     uptime, mounts, config.
+         */
+        CategoryFreshness: {
+            [key: string]: components["schemas"]["FreshnessEntry"];
+        };
+        /**
          * @description Result of a Discovery run. Mirrors the host_system_info table
          *     column-for-column. Spec system-host-discovery.
          */
@@ -4400,6 +4426,7 @@ export interface components {
             firewall_status?: string | null;
             /** Format: date-time */
             collected_at: string;
+            category_freshness?: components["schemas"]["CategoryFreshness"] | null;
         };
         FleetRuleFailure: {
             rule_id: string;
