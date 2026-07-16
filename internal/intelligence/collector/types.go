@@ -73,6 +73,68 @@ type Snapshot struct {
 	// CollectedAt is when the snapshot was captured. Set by the
 	// service, not the parsers.
 	CollectedAt time.Time `json:"collected_at,omitempty"`
+
+	// Observed records which snapshot CATEGORIES this cycle actually
+	// collected (the probe ran and returned usable output). It is transient
+	// (`json:"-"`, never stored): before Diff + persist, RunCycle carries
+	// forward the prior stored value for any category NOT observed, so a
+	// failed or denied probe never blanks previously-good data (spec C-03,
+	// v1.2.0). An observed category keeps this cycle's value even when
+	// genuinely empty — that is a real observation.
+	Observed map[SnapCategory]bool `json:"-"`
+}
+
+// SnapCategory groups Snapshot fields by the probe that collects them, so the
+// no-clobber merge can carry forward an unobserved category's prior value.
+type SnapCategory string
+
+const (
+	SnapUsers      SnapCategory = "users"
+	SnapGroups     SnapCategory = "groups"
+	SnapPorts      SnapCategory = "listening_ports"
+	SnapInterfaces SnapCategory = "network_interfaces"
+	SnapRoutes     SnapCategory = "routes"
+	SnapFirewall   SnapCategory = "firewall_rule_count"
+	SnapPackages   SnapCategory = "packages"
+	SnapServices   SnapCategory = "services"
+	SnapKernel     SnapCategory = "kernel_release"
+	SnapUptime     SnapCategory = "uptime"
+	SnapMounts     SnapCategory = "mountpoints"
+	SnapConfig     SnapCategory = "config_hashes"
+)
+
+// allSnapCategories is the fixed set persist stamps freshness for.
+var allSnapCategories = []SnapCategory{
+	SnapUsers, SnapGroups, SnapPorts, SnapInterfaces, SnapRoutes, SnapFirewall,
+	SnapPackages, SnapServices, SnapKernel, SnapUptime, SnapMounts, SnapConfig,
+}
+
+// snapFreshnessEntry is one category's collection freshness, stored in
+// host_intelligence_state.category_freshness (migration 0052).
+type snapFreshnessEntry struct {
+	ObservedAt time.Time `json:"observed_at"`
+	AttemptAt  time.Time `json:"attempt_at"`
+	Status     string    `json:"status"` // ok | stale
+}
+
+// computeSnapFreshness stamps per-category freshness: an observed category is
+// "ok" (observed_at = now); an unobserved category with a prior observation is
+// "stale" (prior observed_at kept, attempt_at = now, so a consumer can show
+// "last good X ago"); a category never observed has no entry.
+func computeSnapFreshness(observed map[SnapCategory]bool, prior map[string]snapFreshnessEntry, now time.Time) map[string]snapFreshnessEntry {
+	out := make(map[string]snapFreshnessEntry, len(allSnapCategories))
+	for _, cat := range allSnapCategories {
+		key := string(cat)
+		switch {
+		case observed[cat]:
+			out[key] = snapFreshnessEntry{ObservedAt: now, AttemptAt: now, Status: "ok"}
+		case prior != nil:
+			if p, ok := prior[key]; ok {
+				out[key] = snapFreshnessEntry{ObservedAt: p.ObservedAt, AttemptAt: now, Status: "stale"}
+			}
+		}
+	}
+	return out
 }
 
 // ListeningPort is one entry from `ss -tln`.

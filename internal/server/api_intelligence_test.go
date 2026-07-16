@@ -12,6 +12,7 @@
 //	AC-08  TestAPI_Intelligence_State_WithSnapshot_Returns200
 //	AC-09  TestAPI_Intelligence_Events_UnknownSeverity_Returns400
 //	AC-10  TestAPI_Intelligence_Events_TimeRangeFilter
+//	AC-11  TestAPI_Intelligence_State_ExposesCategoryFreshness
 
 package server
 
@@ -288,6 +289,71 @@ func TestAPI_Intelligence_State_WithSnapshot_Returns200(t *testing.T) {
 			t.Errorf("snapshot is nil")
 		} else if state.Snapshot["kernel_release"] != "5.14.0-test" {
 			t.Errorf("snapshot.kernel_release=%v", state.Snapshot["kernel_release"])
+		}
+	})
+}
+
+// AC-11: a state row whose category_freshness records a stale category
+// is exposed on the 200 body; a row with NULL freshness omits the field.
+// @ac AC-11
+func TestAPI_Intelligence_State_ExposesCategoryFreshness(t *testing.T) {
+	t.Run("api-os-intelligence/AC-11", func(t *testing.T) {
+		srv, pool := freshAPIServer(t)
+
+		// Host WITH a stale-services freshness map.
+		staleHost := seedHostForIntel(t, pool)
+		seedIntelState(t, pool, staleHost, map[string]any{"kernel_release": "6.1.0"}, time.Now().UTC())
+		_, err := pool.Exec(context.Background(),
+			`UPDATE host_intelligence_state
+			    SET category_freshness = jsonb_build_object(
+			          'services', jsonb_build_object(
+			            'status', 'stale',
+			            'observed_at', to_char((now() - interval '3 hours') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+			            'attempt_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')))
+			  WHERE host_id = $1`, staleHost)
+		if err != nil {
+			t.Fatalf("update freshness: %v", err)
+		}
+
+		req := asRole(t, "GET", srv+"/api/v1/intelligence/state/"+staleHost.String(), auth.RoleAdmin, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var state api.IntelligenceState
+		if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if state.CategoryFreshness == nil {
+			t.Fatalf("category_freshness nil, want stale services entry")
+		}
+		svc, ok := (*state.CategoryFreshness)["services"]
+		if !ok {
+			t.Fatalf("services freshness missing: %+v", *state.CategoryFreshness)
+		}
+		if string(svc.Status) != "stale" {
+			t.Errorf("services status = %q, want stale", svc.Status)
+		}
+
+		// Host with NULL freshness: field omitted.
+		plainHost := seedHostForIntel(t, pool)
+		seedIntelState(t, pool, plainHost, map[string]any{"kernel_release": "6.1.0"}, time.Now().UTC())
+		req2 := asRole(t, "GET", srv+"/api/v1/intelligence/state/"+plainHost.String(), auth.RoleAdmin, nil)
+		resp2, err := http.DefaultClient.Do(req2)
+		if err != nil {
+			t.Fatalf("GET plain: %v", err)
+		}
+		defer resp2.Body.Close()
+		var raw map[string]json.RawMessage
+		if err := json.NewDecoder(resp2.Body).Decode(&raw); err != nil {
+			t.Fatalf("decode plain: %v", err)
+		}
+		if _, present := raw["category_freshness"]; present {
+			t.Errorf("category_freshness should be omitted for a NULL row, got %s", raw["category_freshness"])
 		}
 	})
 }

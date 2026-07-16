@@ -173,11 +173,12 @@ func (h *handlers) GetIntelligenceState(
 	var (
 		snapshotBytes []byte
 		collectedAt   time.Time
+		freshRaw      []byte
 	)
 	err := h.pool.QueryRow(r.Context(),
-		`SELECT snapshot, collected_at FROM host_intelligence_state WHERE host_id = $1`,
+		`SELECT snapshot, collected_at, category_freshness FROM host_intelligence_state WHERE host_id = $1`,
 		hid,
-	).Scan(&snapshotBytes, &collectedAt)
+	).Scan(&snapshotBytes, &collectedAt, &freshRaw)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Spec C-04: same envelope as "host unknown".
@@ -194,9 +195,18 @@ func (h *handlers) GetIntelligenceState(
 	if len(snapshotBytes) > 0 {
 		_ = json.Unmarshal(snapshotBytes, &snap)
 	}
-	writeJSON(w, http.StatusOK, api.IntelligenceState{
+	resp := api.IntelligenceState{
 		HostId:      openapitypes.UUID(hid),
 		Snapshot:    snap,
 		CollectedAt: collectedAt,
-	})
+	}
+	// category_freshness is JSONB; NULL for rows written before migration
+	// 0052. Decode failures are non-fatal — the snapshot is still valid.
+	if len(freshRaw) > 0 {
+		var cf api.CategoryFreshness
+		if json.Unmarshal(freshRaw, &cf) == nil && len(cf) > 0 {
+			resp.CategoryFreshness = &cf
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

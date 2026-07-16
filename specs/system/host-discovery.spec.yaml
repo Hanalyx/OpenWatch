@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.4.0"
+  version: "1.6.0"
   status: approved
   tier: 1
 
@@ -115,7 +115,7 @@ spec:
       type: security
       enforcement: error
     - id: C-08
-      description: 'host_system_info table MUST upsert keyed by host_id (UNIQUE constraint). Subsequent Discover runs UPDATE the existing row + bump collected_at + updated_at. The table NEVER appends — it represents the CURRENT fingerprint, not a history'
+      description: 'host_system_info table MUST upsert keyed by host_id (UNIQUE constraint). Subsequent Discover runs UPDATE the existing row + bump collected_at + updated_at. The table NEVER appends — it represents the CURRENT fingerprint, not a history. v1.5.0 no-clobber: a run MUST NOT overwrite a previously-good category with a failed/denied probe''s empty read. A run records which fact CATEGORIES it OBSERVED (the probe ran and returned usable output: os_release, uname, memory, disk, hostname, fqdn, selinux, apparmor, firewall); persist carries forward the prior stored value for any category NOT observed, and writes the run''s value (even a genuine empty/zero, which is a real observation) for an observed category. The read-and-merge happens inside the persist transaction. The denormalized hosts.os_* columns (C-09) follow the same rule via the merged facts. A first discovery (no prior row) has nothing to carry forward'
       type: technical
       enforcement: error
     - id: C-09
@@ -132,6 +132,10 @@ spec:
       enforcement: error
     - id: C-12
       description: 'v1.3.0 — The value persisted into hosts.os_family AND host_system_info.os_family MUST be the distro ID (lower-cased) from /etc/os-release''s ID field whenever that field is non-empty. Collapsing the distro ID into a family rollup via ID_LIKE (e.g. Ubuntu → "debian" because ID_LIKE=debian) is forbidden because it strips information the front-end''s osDisplayLabel mapping (frontend-host-list-os AC-01..AC-03) needs to distinguish Ubuntu from Debian, Rocky from RHEL, etc. The rollup fallback applies ONLY when ID is empty — Discovery then walks ID_LIKE for the first recognized family. When neither yields a recognized value the persisted family is the literal "other".'
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: 'v1.6.0 — persist stamps host_system_info.category_freshness (JSONB, migration 0052): one key per fact category mapping to {observed_at, attempt_at, status}. An OBSERVED category this run is status "ok" with observed_at = attempt_at = collected_at. An UNOBSERVED category that has a prior observation is status "stale" with the prior observed_at kept and attempt_at = this run (so a consumer can render "last good X ago"). A category never observed has no key. This is the read-side companion to the C-08 no-clobber merge: it records WHEN each carried-forward value was actually last seen.'
       type: technical
       enforcement: error
 
@@ -204,3 +208,11 @@ spec:
       description: 'v1.4.0 — emitAuditSuccess attributes the trigger: called with a context carrying a bound operator identity (auth.SetIdentity), the emitted audit.HostDiscoveryCompleted event has actor_type="user" and actor_id equal to that identity''s id; called with an anonymous/background context (no bound identity, i.e. the scheduled sweep), it has actor_type="system". The event is never emitted with an empty actor_type.'
       priority: high
       references_constraints: [C-07]
+    - id: AC-24
+      description: 'v1.5.0 no-clobber merge: given a host whose host_system_info is fully populated, a second Discover run that observes only some categories (e.g. os_release + uname) and whose other probes failed/were-denied (firewall, disk, selinux fields empty, those categories absent from Observed) leaves the unobserved categories'' columns at their prior values (firewall_service, disk_free_gb, selinux_status retained) while the observed categories update (os_version, kernel_release change). A first Discover with no prior row persists only what it observed (unobserved categories stay empty). An observed category with a genuine empty/zero value writes that value rather than carrying forward.'
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-25
+      description: 'v1.6.0 freshness: after a Discover run, host_system_info.category_freshness has status "ok" for every observed category with observed_at = the row''s collected_at; after a SECOND run that observes only some categories, the observed ones stay "ok" with a bumped observed_at while the unobserved ones flip to "stale" keeping their earlier observed_at (attempt_at advances). A first run stamps only observed categories (no key for never-observed ones).'
+      priority: high
+      references_constraints: [C-13]

@@ -7,6 +7,7 @@
 //   AC-03  TestAPI_HostSystemInfo_GET_UnknownHost_404
 //   AC-04  TestAPI_HostSystemInfo_GET_Anonymous_Forbidden
 //   AC-05  TestAPI_HostSystemInfo_Handler_UsesParameterizedSQL
+//   AC-06  TestAPI_HostSystemInfo_GET_ExposesCategoryFreshness
 
 package server
 
@@ -201,6 +202,102 @@ func TestAPI_HostSystemInfo_Handler_UsesParameterizedSQL(t *testing.T) {
 		// `SELECT`. Heuristic but catches the obvious case.
 		if strings.Contains(s, "SELECT") && strings.Contains(s, `" + `) {
 			t.Error("handler appears to concatenate strings into the SQL — SQL injection risk")
+		}
+	})
+}
+
+// AC-06: a row whose category_freshness records a stale category is
+// exposed on the 200 body; a row with NULL freshness omits the field.
+// @ac AC-06
+func TestAPI_HostSystemInfo_GET_ExposesCategoryFreshness(t *testing.T) {
+	t.Run("api-host-system-info/AC-06", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+
+		// Host WITH a stale-firewall freshness map. observed_at is two
+		// days before attempt_at — the firewall probe last succeeded two
+		// days ago and the latest run carried the value forward.
+		staleHid := uuid.Must(uuid.NewV7())
+		_, err := pool.Exec(context.Background(),
+			`INSERT INTO hosts (id, hostname, ip_address, environment, created_by)
+			 VALUES ($1, $2, $3::inet, 'production', (SELECT id FROM users LIMIT 1))`,
+			staleHid, "ow-fresh-stale", "192.0.2.10")
+		if err != nil {
+			t.Fatalf("seed host: %v", err)
+		}
+		_, err = pool.Exec(context.Background(),
+			`INSERT INTO host_system_info (host_id, os_family, collected_at, category_freshness)
+			 VALUES ($1, 'rhel', now(),
+			   jsonb_build_object(
+			     'firewall', jsonb_build_object(
+			       'status', 'stale',
+			       'observed_at', to_char((now() - interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+			       'attempt_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
+			     'os_release', jsonb_build_object(
+			       'status', 'ok',
+			       'observed_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+			       'attempt_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))))`,
+			staleHid)
+		if err != nil {
+			t.Fatalf("seed system_info w/ freshness: %v", err)
+		}
+
+		req := asRole(t, "GET", url+"/api/v1/hosts/"+staleHid.String()+"/system-info", auth.RoleViewer, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var body struct {
+			CategoryFreshness map[string]struct {
+				Status     string `json:"status"`
+				ObservedAt string `json:"observed_at"`
+				AttemptAt  string `json:"attempt_at"`
+			} `json:"category_freshness"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		fw, ok := body.CategoryFreshness["firewall"]
+		if !ok {
+			t.Fatalf("firewall freshness missing: %+v", body.CategoryFreshness)
+		}
+		if fw.Status != "stale" {
+			t.Errorf("firewall status = %q, want stale", fw.Status)
+		}
+		if !(fw.ObservedAt < fw.AttemptAt) {
+			t.Errorf("stale observed_at %q not earlier than attempt_at %q", fw.ObservedAt, fw.AttemptAt)
+		}
+
+		// Host with NULL freshness: field omitted entirely.
+		plainHid := uuid.Must(uuid.NewV7())
+		_, err = pool.Exec(context.Background(),
+			`INSERT INTO hosts (id, hostname, ip_address, environment, created_by)
+			 VALUES ($1, $2, $3::inet, 'production', (SELECT id FROM users LIMIT 1))`,
+			plainHid, "ow-fresh-null", "192.0.2.11")
+		if err != nil {
+			t.Fatalf("seed plain host: %v", err)
+		}
+		_, err = pool.Exec(context.Background(),
+			`INSERT INTO host_system_info (host_id, os_family, collected_at)
+			 VALUES ($1, 'rhel', now())`, plainHid)
+		if err != nil {
+			t.Fatalf("seed plain system_info: %v", err)
+		}
+		req2 := asRole(t, "GET", url+"/api/v1/hosts/"+plainHid.String()+"/system-info", auth.RoleViewer, nil)
+		resp2, err := http.DefaultClient.Do(req2)
+		if err != nil {
+			t.Fatalf("GET plain: %v", err)
+		}
+		defer resp2.Body.Close()
+		var raw map[string]json.RawMessage
+		if err := json.NewDecoder(resp2.Body).Decode(&raw); err != nil {
+			t.Fatalf("decode plain: %v", err)
+		}
+		if _, present := raw["category_freshness"]; present {
+			t.Errorf("category_freshness should be omitted for a NULL row, got %s", raw["category_freshness"])
 		}
 	})
 }

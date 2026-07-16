@@ -212,6 +212,12 @@ func (s *Service) RunCycle(ctx context.Context, hostID uuid.UUID) ([]Event, erro
 		return nil, err
 	}
 
+	// No-clobber (spec C-03, v1.2.0): carry forward the prior value for any
+	// category this cycle did NOT observe, BEFORE diffing and persisting, so a
+	// failed or denied probe neither emits a false change event nor blanks the
+	// stored snapshot.
+	snapshot = mergeUnobserved(snapshot, prior)
+
 	events := Diff(prior, snapshot)
 	if err := s.persist(ctx, hostID, snapshot, events); err != nil {
 		return nil, err
@@ -293,9 +299,10 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 		}
 	}
 
-	snap := Snapshot{CollectedAt: time.Now().UTC()}
+	snap := Snapshot{CollectedAt: time.Now().UTC(), Observed: map[SnapCategory]bool{}}
 
 	if out, code, err := sess.Run(ctx, "cat /etc/passwd"); err == nil && code == 0 {
+		snap.Observed[SnapUsers] = true
 		// Spec v1.1.0 C-09: sudo -n first; sudo -S -k with cred.Password
 		// on fallback if policy + credential allow.
 		shadow, scode, used, observed, serr := owssh.RunSudo(ctx, sess, hf.Cred, policy, sudoPrefer, "cat /etc/shadow")
@@ -314,11 +321,13 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 
 	if out, code, err := sess.Run(ctx, "getent group"); err == nil && code == 0 {
 		snap.Groups = parseGroupOutput(out)
+		snap.Observed[SnapGroups] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "ss -tln"); err == nil && code == 0 {
 		ports, _ := ParseListeningPorts(out)
 		snap.ListeningPorts = ports
+		snap.Observed[SnapPorts] = true
 	}
 
 	// Network interfaces: `ip -j addr` gives addresses + state + MAC +
@@ -342,12 +351,14 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 				stats = ParseSysfsNetStats(sout)
 			}
 			snap.NetworkInterfaces = MergeNetworkInterfaces(ifaces, stats)
+			snap.Observed[SnapInterfaces] = true
 		}
 	}
 
 	if out, code, err := sess.Run(ctx, "ip -j route show 2>/dev/null"); err == nil && code == 0 {
 		if routes, perr := ParseIPRouteJSON(out); perr == nil {
 			snap.Routes = routes
+			snap.Observed[SnapRoutes] = true
 		}
 	}
 
@@ -386,6 +397,9 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
         fi
     `
 	if out, code, err := sess.Run(ctx, fwRuleCmd); err == nil && code == 0 {
+		// The probe ran: this is an observation (the value is a real count, or
+		// -1 for "no engine"). Only a probe that could not run carries forward.
+		snap.Observed[SnapFirewall] = true
 		if n, ok := parseFirewallRuleCount(out); ok {
 			nn := n
 			snap.FirewallRuleCount = &nn
@@ -395,14 +409,17 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	if out, code, err := sess.Run(ctx, "rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"); err == nil && code == 0 {
 		pkgs, _ := ParseInstalledPackages(out)
 		snap.Packages = pkgs
+		snap.Observed[SnapPackages] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "systemctl list-units --type=service --all --no-legend --plain"); err == nil && code == 0 {
 		snap.Services = parseSystemctlUnits(out)
+		snap.Observed[SnapServices] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "uname -r"); err == nil && code == 0 {
 		snap.KernelRelease = strings.TrimSpace(string(out))
+		snap.Observed[SnapKernel] = true
 	}
 
 	// Reboot marker — present on Debian-family; some RHEL setups expose
@@ -413,10 +430,12 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 
 	if out, code, err := sess.Run(ctx, "cat /proc/uptime"); err == nil && code == 0 {
 		snap.UptimeSeconds = parseUptime(out)
+		snap.Observed[SnapUptime] = true
 	}
 
 	if out, code, err := sess.Run(ctx, "cat /proc/mounts"); err == nil && code == 0 {
 		snap.Mountpoints = parseProcMounts(out)
+		snap.Observed[SnapMounts] = true
 	}
 
 	// Config hashes — small fixed set. sha256 keeps the JSONB short.
@@ -445,6 +464,12 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 			}
 		}
 	}
+	// Config hashes are partial by nature (sudo-gated /etc/shadow may drop);
+	// treat the category as observed only when at least one file hashed, so a
+	// fully-denied run carries forward the prior hashes rather than blanking.
+	if len(snap.ConfigHashes) > 0 {
+		snap.Observed[SnapConfig] = true
+	}
 
 	// TODO(v1.2): the firewall-rule probe embeds three `sudo -n` calls
 	// inside one shell heredoc. Wrapping them through ssh.RunSudo
@@ -462,6 +487,53 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	}
 
 	return snap, sudoFallbackCount, nil
+}
+
+// mergeUnobserved carries forward prior values for every category the current
+// cycle did not observe, so a failed or denied probe never overwrites good data
+// with an empty result. An observed category keeps this cycle's value even when
+// genuinely empty (a real observation). A nil Observed map treats all
+// categories as unobserved — the safe default: preserve everything rather than
+// blank. RebootRequired and CollectedAt always come from this cycle.
+func mergeUnobserved(snap, prior Snapshot) Snapshot {
+	obs := snap.Observed
+	if !obs[SnapUsers] {
+		snap.Users = prior.Users
+	}
+	if !obs[SnapGroups] {
+		snap.Groups = prior.Groups
+	}
+	if !obs[SnapPorts] {
+		snap.ListeningPorts = prior.ListeningPorts
+	}
+	if !obs[SnapInterfaces] {
+		snap.NetworkInterfaces = prior.NetworkInterfaces
+	}
+	if !obs[SnapRoutes] {
+		snap.Routes = prior.Routes
+	}
+	if !obs[SnapFirewall] {
+		snap.FirewallRuleCount = prior.FirewallRuleCount
+	}
+	if !obs[SnapPackages] {
+		snap.Packages = prior.Packages
+	}
+	if !obs[SnapServices] {
+		snap.Services = prior.Services
+	}
+	if !obs[SnapKernel] {
+		snap.KernelRelease = prior.KernelRelease
+	}
+	if !obs[SnapUptime] {
+		snap.UptimeSeconds = prior.UptimeSeconds
+	}
+	if !obs[SnapMounts] {
+		snap.Mountpoints = prior.Mountpoints
+	}
+	if !obs[SnapConfig] {
+		snap.ConfigHashes = prior.ConfigHashes
+	}
+	return snap
 }
 
 // loadPriorSnapshot reads the prior cycle's snapshot from
@@ -504,15 +576,31 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, snap Snapshot, 
 	if err != nil {
 		return fmt.Errorf("collector: encode snapshot: %w", err)
 	}
+	// Per-category freshness (spec v1.3.0): stamp when each category was last
+	// observed vs merely attempted, so a consumer can tell fresh from
+	// carried-forward data.
+	var priorFreshRaw []byte
+	if err := tx.QueryRow(ctx,
+		`SELECT category_freshness FROM host_intelligence_state WHERE host_id = $1`, hostID,
+	).Scan(&priorFreshRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("collector: read prior freshness: %w", err)
+	}
+	var priorFresh map[string]snapFreshnessEntry
+	if len(priorFreshRaw) > 0 {
+		_ = json.Unmarshal(priorFreshRaw, &priorFresh)
+	}
+	freshJSON, _ := json.Marshal(computeSnapFreshness(snap.Observed, priorFresh, snap.CollectedAt))
+
 	// Spec C-03: UPSERT keyed by host_id.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO host_intelligence_state (host_id, snapshot, collected_at, created_at, updated_at)
-		VALUES ($1, $2, $3, now(), now())
+		INSERT INTO host_intelligence_state (host_id, snapshot, collected_at, category_freshness, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, now(), now())
 		ON CONFLICT (host_id) DO UPDATE SET
-			snapshot     = EXCLUDED.snapshot,
-			collected_at = EXCLUDED.collected_at,
-			updated_at   = now()`,
-		hostID, raw, snap.CollectedAt,
+			snapshot           = EXCLUDED.snapshot,
+			collected_at       = EXCLUDED.collected_at,
+			category_freshness = EXCLUDED.category_freshness,
+			updated_at         = now()`,
+		hostID, raw, snap.CollectedAt, freshJSON,
 	); err != nil {
 		return fmt.Errorf("collector: upsert state: %w", err)
 	}

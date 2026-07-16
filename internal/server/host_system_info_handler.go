@@ -14,6 +14,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -62,11 +63,12 @@ func (h *handlers) GetHostSystemInfo(
 		       hostname, fqdn,
 		       selinux_status, apparmor_enabled,
 		       firewall_service, firewall_status,
-		       collected_at
+		       collected_at, category_freshness
 		  FROM host_system_info
 		 WHERE host_id = $1`
 
 	resp := api.HostSystemInfo{HostId: openapitypes.UUID(hid)}
+	var freshRaw []byte
 	err := h.pool.QueryRow(r.Context(), q, hid).Scan(
 		&resp.OsName, &resp.OsVersion, &resp.OsVersionFull, &resp.OsId, &resp.OsIdLike,
 		&resp.OsPrettyName, &resp.PlatformIdentifier, &resp.OsFamily,
@@ -76,7 +78,7 @@ func (h *handlers) GetHostSystemInfo(
 		&resp.Hostname, &resp.Fqdn,
 		&resp.SelinuxStatus, &resp.ApparmorEnabled,
 		&resp.FirewallService, &resp.FirewallStatus,
-		&resp.CollectedAt,
+		&resp.CollectedAt, &freshRaw,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -88,6 +90,16 @@ func (h *handlers) GetHostSystemInfo(
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"system_info lookup failed", true)
 		return
+	}
+
+	// category_freshness is JSONB; NULL for rows written before migration
+	// 0052. Unmarshal into the typed map when present; a decode failure is
+	// non-fatal — the row's facts are still valid without freshness metadata.
+	if len(freshRaw) > 0 {
+		var cf api.CategoryFreshness
+		if json.Unmarshal(freshRaw, &cf) == nil && len(cf) > 0 {
+			resp.CategoryFreshness = &cf
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)

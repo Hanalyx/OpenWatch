@@ -431,6 +431,24 @@ func (e FleetTransactionStatus) Valid() bool {
 	}
 }
 
+// Defines values for FreshnessEntryStatus.
+const (
+	FreshnessEntryStatusOk    FreshnessEntryStatus = "ok"
+	FreshnessEntryStatusStale FreshnessEntryStatus = "stale"
+)
+
+// Valid indicates whether the value is a known member of the FreshnessEntryStatus enum.
+func (e FreshnessEntryStatus) Valid() bool {
+	switch e {
+	case FreshnessEntryStatusOk:
+		return true
+	case FreshnessEntryStatusStale:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GenerateReportRequestKind.
 const (
 	GenerateReportRequestKindAttestation GenerateReportRequestKind = "attestation"
@@ -1393,25 +1411,25 @@ func (e GetComplianceExceptionsParamsStatus) Valid() bool {
 
 // Defines values for GetIntelligenceEventsParamsSeverity.
 const (
-	GetIntelligenceEventsParamsSeverityCritical GetIntelligenceEventsParamsSeverity = "critical"
-	GetIntelligenceEventsParamsSeverityHigh     GetIntelligenceEventsParamsSeverity = "high"
-	GetIntelligenceEventsParamsSeverityInfo     GetIntelligenceEventsParamsSeverity = "info"
-	GetIntelligenceEventsParamsSeverityLow      GetIntelligenceEventsParamsSeverity = "low"
-	GetIntelligenceEventsParamsSeverityMedium   GetIntelligenceEventsParamsSeverity = "medium"
+	Critical GetIntelligenceEventsParamsSeverity = "critical"
+	High     GetIntelligenceEventsParamsSeverity = "high"
+	Info     GetIntelligenceEventsParamsSeverity = "info"
+	Low      GetIntelligenceEventsParamsSeverity = "low"
+	Medium   GetIntelligenceEventsParamsSeverity = "medium"
 )
 
 // Valid indicates whether the value is a known member of the GetIntelligenceEventsParamsSeverity enum.
 func (e GetIntelligenceEventsParamsSeverity) Valid() bool {
 	switch e {
-	case GetIntelligenceEventsParamsSeverityCritical:
+	case Critical:
 		return true
-	case GetIntelligenceEventsParamsSeverityHigh:
+	case High:
 		return true
-	case GetIntelligenceEventsParamsSeverityInfo:
+	case Info:
 		return true
-	case GetIntelligenceEventsParamsSeverityLow:
+	case Low:
 		return true
-	case GetIntelligenceEventsParamsSeverityMedium:
+	case Medium:
 		return true
 	default:
 		return false
@@ -1723,6 +1741,13 @@ type CategoryEntry struct {
 	Description string `json:"description"`
 	Id          string `json:"id"`
 }
+
+// CategoryFreshness Map of fact category -> freshness. Absent categories were never
+// observed. Discovery keys: os_release, uname, memory, disk, hostname,
+// fqdn, selinux, apparmor, firewall. Intelligence keys: users, groups,
+// ports, interfaces, routes, firewall, packages, services, kernel,
+// uptime, mounts, config.
+type CategoryFreshness map[string]FreshnessEntry
 
 // ComplianceConfig Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. enabled_frameworks is the allowlist of families offered as lenses; empty means all corpus families are available. A non-empty default_framework must be in a non-empty enabled_frameworks.
 type ComplianceConfig struct {
@@ -2161,6 +2186,20 @@ type FleetTransactionChangeKind string
 
 // FleetTransactionStatus defines model for FleetTransaction.Status.
 type FleetTransactionStatus string
+
+// FreshnessEntry Per-category collection freshness. status=ok when the category was
+// observed on the most recent run; status=stale when the run did not
+// observe it and the last-known-good value was carried forward
+// (observed_at then points at the last successful observation).
+// Spec system-host-discovery / system-os-intelligence.
+type FreshnessEntry struct {
+	AttemptAt  time.Time            `json:"attempt_at"`
+	ObservedAt time.Time            `json:"observed_at"`
+	Status     FreshnessEntryStatus `json:"status"`
+}
+
+// FreshnessEntryStatus defines model for FreshnessEntry.Status.
+type FreshnessEntryStatus string
 
 // GenerateReportRequest Optional kind + scope for the report. An empty body (or empty
 // object) generates the all-hosts, all-frameworks executive summary.
@@ -2675,12 +2714,13 @@ type HostScanContextScanState string
 // HostSystemInfo Result of a Discovery run. Mirrors the host_system_info table
 // column-for-column. Spec system-host-discovery.
 type HostSystemInfo struct {
-	ApparmorEnabled *bool     `json:"apparmor_enabled,omitempty"`
-	Architecture    *string   `json:"architecture,omitempty"`
-	CollectedAt     time.Time `json:"collected_at"`
-	DiskFreeGb      *int      `json:"disk_free_gb,omitempty"`
-	DiskTotalGb     *int      `json:"disk_total_gb,omitempty"`
-	DiskUsedGb      *int      `json:"disk_used_gb,omitempty"`
+	ApparmorEnabled   *bool              `json:"apparmor_enabled,omitempty"`
+	Architecture      *string            `json:"architecture,omitempty"`
+	CategoryFreshness *CategoryFreshness `json:"category_freshness,omitempty"`
+	CollectedAt       time.Time          `json:"collected_at"`
+	DiskFreeGb        *int               `json:"disk_free_gb,omitempty"`
+	DiskTotalGb       *int               `json:"disk_total_gb,omitempty"`
+	DiskUsedGb        *int               `json:"disk_used_gb,omitempty"`
 
 	// FirewallService firewalld | ufw | nftables | iptables | empty
 	FirewallService *string            `json:"firewall_service,omitempty"`
@@ -2770,8 +2810,9 @@ type IntelligenceEventsPage struct {
 
 // IntelligenceState defines model for IntelligenceState.
 type IntelligenceState struct {
-	CollectedAt time.Time          `json:"collected_at"`
-	HostId      openapi_types.UUID `json:"host_id"`
+	CategoryFreshness *CategoryFreshness `json:"category_freshness,omitempty"`
+	CollectedAt       time.Time          `json:"collected_at"`
+	HostId            openapi_types.UUID `json:"host_id"`
 
 	// Snapshot Free-form host_intelligence_state.snapshot — mirrors collector.Snapshot
 	Snapshot map[string]interface{} `json:"snapshot"`

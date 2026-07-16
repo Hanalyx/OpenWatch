@@ -37,6 +37,16 @@ export interface CardSystemHost {
   os_version?: string | null;
 }
 
+// Per-category collection freshness. Mirrors the API CategoryFreshness map
+// (system-host-discovery v1.6.0). status=stale means the value shown was
+// carried forward from an earlier successful run — the most recent Discovery
+// did not re-observe this category (SSH degraded, sudo denied, probe failed).
+export interface CategoryFreshness {
+  status: 'ok' | 'stale';
+  observed_at: string;
+  attempt_at: string;
+}
+
 // Subset of HostSystemInfo we render. Mirrors the API schema column
 // names; null fields tolerate partial-collection rows (sudo unavailable,
 // older snapshots).
@@ -50,6 +60,7 @@ export interface CardSystemInfo {
   firewall_service?: string | null;
   firewall_status?: string | null;
   collected_at?: string;
+  category_freshness?: Record<string, CategoryFreshness> | null;
 }
 
 interface CardSystemProps {
@@ -135,6 +146,7 @@ export function CardSystem({ host, intelligenceSnapshot, systemInfo }: CardSyste
                   {systemInfo?.architecture && (
                     <div style={subValueStyle}>{systemInfo.architecture}</div>
                   )}
+                  <StaleNote freshness={systemInfo?.category_freshness} category="os_release" />
                 </div>,
               ],
               [
@@ -145,9 +157,10 @@ export function CardSystem({ host, intelligenceSnapshot, systemInfo }: CardSyste
               ],
               [
                 'FQDN',
-                <span key="f" style={{ fontFamily: 'var(--ow-font-mono)' }}>
-                  {fqdnDisplay}
-                </span>,
+                <div key="f">
+                  <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{fqdnDisplay}</span>
+                  <StaleNote freshness={systemInfo?.category_freshness} category="fqdn" />
+                </div>,
               ],
               [
                 'Uptime',
@@ -205,6 +218,7 @@ export function CardSystem({ host, intelligenceSnapshot, systemInfo }: CardSyste
                   status={systemInfo?.firewall_status ?? null}
                   service={systemInfo?.firewall_service ?? null}
                 />
+                <StaleNote freshness={systemInfo?.category_freshness} category="firewall" />
               </div>,
             ],
           ]}
@@ -280,6 +294,7 @@ function HardwareSection({ systemInfo }: { systemInfo: CardSystemInfo }) {
             ) : (
               <span style={{ color: 'var(--ow-fg-3)' }}>—</span>
             )}
+            <StaleNote freshness={systemInfo.category_freshness} category="disk" />
           </div>,
         ],
         [
@@ -289,6 +304,7 @@ function HardwareSection({ systemInfo }: { systemInfo: CardSystemInfo }) {
               {memGb !== null ? `${memGb} GB` : '—'}
             </div>
             <div style={subValueStyle}>Live utilization not collected</div>
+            <StaleNote freshness={systemInfo.category_freshness} category="memory" />
           </div>,
         ],
       ]}
@@ -349,6 +365,46 @@ const subValueStyle: React.CSSProperties = {
   color: 'var(--ow-fg-3)',
   marginTop: 2,
 };
+
+// StaleNote — the honesty marker for "The Eye": when a rendered value was
+// carried forward (the last Discovery did not re-observe this category), we
+// tell the operator what they're looking at is last-known-good, not a fresh
+// reading, and when it was last actually verified. An ok/absent category
+// renders nothing (a fresh reading needs no caveat).
+//
+// `category` is a host_system_info freshness key: os_release, uname, memory,
+// disk, hostname, fqdn, selinux, apparmor, firewall.
+export function StaleNote({
+  freshness,
+  category,
+}: {
+  freshness: Record<string, CategoryFreshness> | null | undefined;
+  category: string;
+}) {
+  const entry = freshness?.[category];
+  if (!entry || entry.status !== 'stale') return null;
+  return (
+    <div
+      style={{ ...subValueStyle, color: 'var(--ow-warn)' }}
+      title={`Last verified ${entry.observed_at}`}
+    >
+      Last verified {formatTimeAgo(entry.observed_at)}
+    </div>
+  );
+}
+
+// formatTimeAgo — compact "Xm/Xh/Xd ago" from an ISO timestamp, for the
+// stale-value caveat. Self-contained so CardSystem stays testable.
+export function formatTimeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return 'earlier';
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
 
 function NotDiscoveredState({
   canWrite,
