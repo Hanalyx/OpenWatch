@@ -258,7 +258,11 @@ jobs:
           # ships inside the kensa module, so api-system-scan-config/AC-08 runs
           # here instead of skipping (100% outcome coverage requires it).
           export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
-          go test -race -json -timeout 600s -p 4 ./... > /tmp/go-test.json
+          # -timeout is per package. internal/server is the heavy suite (~470s
+          # without -race) and rides near the old 600s limit under -race + -p 4
+          # DB contention, so it intermittently times out (e.g. main run #976).
+          # 900s gives headroom without masking a genuine hang.
+          go test -race -json -timeout 900s -p 4 ./... > /tmp/go-test.json
           EXIT=$?
           if [ "$EXIT" -ne 0 ]; then
             echo "::group::Failed tests"
