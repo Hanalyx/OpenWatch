@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -75,6 +75,25 @@ spec:
         respective read model (host detail and the groups rollup list).
       type: technical
       enforcement: error
+    - id: C-06
+      description: >
+        The effective-lens default (C-05) MUST apply uniformly across the
+        compliance SCORE surfaces, not only the host-detail hero tile, so one
+        host shows one score everywhere. Specifically, with NO explicit
+        ?framework=: (a) the GET /hosts LIST compliance_summary scores each host
+        against its OWN effective target (host_effective_target, else the org
+        default) resolved per host in one grouped query; the Scans Coverage tab
+        inherits this since it reads the same endpoint; and (b) the fleet KPI
+        (GET /fleet/score) defaults to the ORG default lens
+        (ComplianceConfig.DefaultFramework) — per-host targets are NOT
+        aggregated into one fleet number (mixed-fleet cohorts are a later
+        phase). An explicit ?framework= overrides the default uniformly on both
+        surfaces. When neither a target nor an org default is set, both stay All
+        rules (backward compatible). The compliance TREND card is out of scope
+        here — it reads all-rules posture snapshots that carry no framework
+        dimension (a separate storage change).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -125,3 +144,25 @@ spec:
         surfaces the stored target_framework (nil when unset).
       priority: high
       references_constraints: [C-05]
+    - id: AC-09
+      description: >
+        GET /hosts with NO ?framework= scores each host's list compliance_summary
+        against its OWN effective target: a host with a target_framework override
+        is scored against that family (its all-rules total differs from the
+        family-scoped total); a host with no override but an org default set is
+        scored against the org default; a host with neither (and no org default)
+        is scored All rules. An explicit ?framework= overrides per host uniformly.
+        Two hosts with different targets in the same response each reflect their
+        own target — verified against seeded host_rule_state with mixed
+        framework_refs.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: >
+        GET /fleet/score with NO ?framework= defaults to the org default lens
+        (ComplianceConfig.DefaultFramework): with an org default set, the fleet
+        passing-fraction is computed only over rule-states matching that family;
+        with no org default set it is All rules; an explicit ?framework=
+        overrides. An empty ?framework= behaves identically to no param.
+      priority: high
+      references_constraints: [C-06]
