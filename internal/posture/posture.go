@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/cron"
+	"github.com/Hanalyx/openwatch/internal/framework"
 )
 
 // RollupInterval is the production cadence of the snapshot rollup.
@@ -32,16 +33,28 @@ import (
 // each pass is one aggregate UPSERT over a bounded table.
 const RollupInterval = time.Hour
 
-// Rollup UPSERTs today's snapshot row for every live host that has
-// host_rule_state rows (a never-scanned host has no posture to
-// record). Returns the number of host rows written.
+// Rollup UPSERTs today's snapshot rows for every live host that has
+// host_rule_state rows (a never-scanned host has no posture to record).
+//
+// It writes the all-rules series (framework = ”) PLUS one row per
+// framework FAMILY the host has rules in, each OS-RESOLVED: a RHEL 9
+// host's "stig" row scores its stig_rhel9 rules only (never stig_rhel10),
+// matching the host-detail hero tile and list column. Storing every
+// family means switching the org default lens just selects a different
+// pre-computed series — no recompute, no broken history (compliance-lens
+// Phase 3c). Returns the number of rows written (all-rules + per-family).
 func Rollup(ctx context.Context, pool *pgxpool.Pool, asOf time.Time) (int, error) {
-	tag, err := pool.Exec(ctx, `
+	// The per-family series expands each rule to the family of its
+	// OS-compatible key: a key with no OS suffix (regexp_replace is a no-op,
+	// so fk = fam) is OS-neutral (nist_800_53, pci_dss_4, srg); a key equal to
+	// fam + '_' + <host os token> is the host's own OS variant (stig_rhel9 on
+	// a RHEL 9 host). A wrong-OS variant (stig_rhel10 on a RHEL 9 host) matches
+	// neither and is excluded, so a rule contributes to a family at most once.
+	q := `
 		INSERT INTO posture_snapshots
-			(host_id, snapshot_date, passing, failing, skipped, error, total,
+			(host_id, snapshot_date, framework, passing, failing, skipped, error, total,
 			 score_pct, has_critical_findings, updated_at)
-		SELECT s.host_id,
-		       $1::date,
+		SELECT s.host_id, $1::date, '',
 		       COUNT(*) FILTER (WHERE s.current_status = 'pass'),
 		       COUNT(*) FILTER (WHERE s.current_status = 'fail'),
 		       COUNT(*) FILTER (WHERE s.current_status = 'skipped'),
@@ -54,7 +67,29 @@ func Rollup(ctx context.Context, pool *pgxpool.Pool, asOf time.Time) (int, error
 		  FROM host_rule_state s
 		  JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
 		 GROUP BY s.host_id
-		ON CONFLICT (host_id, snapshot_date) DO UPDATE
+		UNION ALL
+		SELECT e.host_id, $1::date, e.fam,
+		       COUNT(*) FILTER (WHERE e.current_status = 'pass'),
+		       COUNT(*) FILTER (WHERE e.current_status = 'fail'),
+		       COUNT(*) FILTER (WHERE e.current_status = 'skipped'),
+		       COUNT(*) FILTER (WHERE e.current_status = 'error'),
+		       COUNT(*),
+		       ROUND((COUNT(*) FILTER (WHERE e.current_status = 'pass'))::numeric
+		             / COUNT(*) * 1000) / 10,
+		       BOOL_OR(e.current_status = 'fail' AND e.severity = 'critical'),
+		       now()
+		  FROM (
+		      SELECT s.host_id, s.current_status, s.severity,
+		             regexp_replace(fk, '` + framework.OSSuffixSQL + `', '') AS fam
+		        FROM host_rule_state s
+		        JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
+		        CROSS JOIN LATERAL jsonb_object_keys(s.framework_refs) AS fk
+		       WHERE fk = regexp_replace(fk, '` + framework.OSSuffixSQL + `', '')
+		          OR fk = regexp_replace(fk, '` + framework.OSSuffixSQL + `', '')
+		                  || '_' || lower(h.os_family) || split_part(h.os_version, '.', 1)
+		  ) e
+		 GROUP BY e.host_id, e.fam
+		ON CONFLICT (host_id, snapshot_date, framework) DO UPDATE
 		   SET passing               = EXCLUDED.passing,
 		       failing               = EXCLUDED.failing,
 		       skipped               = EXCLUDED.skipped,
@@ -62,8 +97,8 @@ func Rollup(ctx context.Context, pool *pgxpool.Pool, asOf time.Time) (int, error
 		       total                 = EXCLUDED.total,
 		       score_pct             = EXCLUDED.score_pct,
 		       has_critical_findings = EXCLUDED.has_critical_findings,
-		       updated_at            = now()`,
-		asOf.UTC())
+		       updated_at            = now()`
+	tag, err := pool.Exec(ctx, q, asOf.UTC())
 	if err != nil {
 		return 0, fmt.Errorf("posture: rollup: %w", err)
 	}
@@ -107,16 +142,21 @@ type DayPoint struct {
 	Total    int
 }
 
-// HostTrend returns the host's snapshots over the trailing N days
-// (today inclusive), oldest first. Days without a snapshot are simply
-// absent - the chart renders the gaps.
-func HostTrend(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, days int) ([]DayPoint, error) {
+// HostTrend returns the host's snapshots for one LENS over the trailing
+// N days (today inclusive), oldest first. lens is a framework FAMILY id
+// (stig, cis, nist_800_53, …) whose stored series is the host's
+// OS-resolved score for that family; "" is the all-rules series. A
+// specific corpus key is normalized to its family (stig_rhel9 -> stig)
+// since the snapshot stores per family. Days without a snapshot are
+// simply absent - the chart renders the gaps.
+func HostTrend(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, days int, lens string) ([]DayPoint, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT snapshot_date, score_pct, passing, failing, total
 		  FROM posture_snapshots
 		 WHERE host_id = $1
+		   AND framework = $3
 		   AND snapshot_date > current_date - $2::int
-		 ORDER BY snapshot_date`, hostID, days)
+		 ORDER BY snapshot_date`, hostID, days, framework.FamilyOf(lens))
 	if err != nil {
 		return nil, fmt.Errorf("posture: host trend: %w", err)
 	}
@@ -145,7 +185,7 @@ type FleetDayPoint struct {
 // days, oldest first: average score across snapshotted hosts, host
 // count, total failing rules, and hosts carrying critical findings.
 // Soft-deleted hosts are excluded even when their snapshots linger.
-func FleetTrend(ctx context.Context, pool *pgxpool.Pool, days int) ([]FleetDayPoint, error) {
+func FleetTrend(ctx context.Context, pool *pgxpool.Pool, days int, lens string) ([]FleetDayPoint, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT p.snapshot_date,
 		       ROUND(AVG(p.score_pct)::numeric * 10) / 10,
@@ -154,9 +194,10 @@ func FleetTrend(ctx context.Context, pool *pgxpool.Pool, days int) ([]FleetDayPo
 		       COUNT(*) FILTER (WHERE p.has_critical_findings)::int
 		  FROM posture_snapshots p
 		  JOIN hosts h ON h.id = p.host_id AND h.deleted_at IS NULL
-		 WHERE p.snapshot_date > current_date - $1::int
+		 WHERE p.framework = $2
+		   AND p.snapshot_date > current_date - $1::int
 		 GROUP BY p.snapshot_date
-		 ORDER BY p.snapshot_date`, days)
+		 ORDER BY p.snapshot_date`, days, framework.FamilyOf(lens))
 	if err != nil {
 		return nil, fmt.Errorf("posture: fleet trend: %w", err)
 	}

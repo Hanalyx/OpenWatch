@@ -103,9 +103,11 @@ spec:
         aggregated — a mixed-OS fleet's "stig" still spans rhel9 + rhel10 hosts,
         each via its own key.
 
-        The compliance TREND card is out of scope here — it reads all-rules
-        posture snapshots that carry no framework dimension (a separate storage
-        change).
+        The compliance TREND card follows the same effective lens via
+        per-family posture snapshots (system-posture-snapshots C-04 +
+        api-compliance-trend C-03): the rollup stores an OS-resolved score per
+        family per host per day, so the trend line agrees with the tile and
+        switching the org default just selects a different stored series.
       type: technical
       enforcement: error
 

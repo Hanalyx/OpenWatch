@@ -16,6 +16,7 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/posture"
 	"github.com/Hanalyx/openwatch/internal/scheduler"
@@ -64,7 +65,20 @@ func (h *handlers) GetHostComplianceTrend(
 		return
 	}
 
-	points, err := posture.HostTrend(ctx, h.pool, hostID, trendDays(params.Days))
+	// Lens: the trend follows the same effective lens as the host-detail hero
+	// tile (per-host / group target, else the org default), OS-resolved at
+	// rollup time. So the trend line and the tile agree instead of the trend
+	// showing all-rules. Empty (no target, no org default) reads the all-rules
+	// series. compliance-lens Phase 3c.
+	lens := ""
+	if h.sysCfg != nil {
+		if cfg, cerr := h.sysCfg.LoadCompliance(ctx); cerr == nil {
+			if eff, eerr := framework.NewService(h.pool).EffectiveTarget(ctx, hostID, cfg.DefaultFramework); eerr == nil {
+				lens = eff
+			}
+		}
+	}
+	points, err := posture.HostTrend(ctx, h.pool, hostID, trendDays(params.Days), lens)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"trend query failed", true)
@@ -107,7 +121,16 @@ func (h *handlers) GetFleetComplianceTrend(
 		return
 	}
 
-	points, err := posture.FleetTrend(r.Context(), h.pool, trendDays(params.Days))
+	// Fleet trend follows the ORG default lens (each host OS-resolved at
+	// rollup time), so the dashboard trend agrees with the fleet KPI. Empty
+	// org default reads the all-rules series. compliance-lens Phase 3c.
+	lens := ""
+	if h.sysCfg != nil {
+		if cfg, cerr := h.sysCfg.LoadCompliance(r.Context()); cerr == nil {
+			lens = cfg.DefaultFramework
+		}
+	}
+	points, err := posture.FleetTrend(r.Context(), h.pool, trendDays(params.Days), lens)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"fleet trend query failed", true)
