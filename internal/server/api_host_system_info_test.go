@@ -230,6 +230,7 @@ func TestAPI_HostSystemInfo_GET_ExposesCategoryFreshness(t *testing.T) {
 			   jsonb_build_object(
 			     'firewall', jsonb_build_object(
 			       'status', 'stale',
+			       'reason', 'denied',
 			       'observed_at', to_char((now() - interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
 			       'attempt_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
 			     'os_release', jsonb_build_object(
@@ -253,6 +254,7 @@ func TestAPI_HostSystemInfo_GET_ExposesCategoryFreshness(t *testing.T) {
 		var body struct {
 			CategoryFreshness map[string]struct {
 				Status     string `json:"status"`
+				Reason     string `json:"reason"`
 				ObservedAt string `json:"observed_at"`
 				AttemptAt  string `json:"attempt_at"`
 			} `json:"category_freshness"`
@@ -266,6 +268,9 @@ func TestAPI_HostSystemInfo_GET_ExposesCategoryFreshness(t *testing.T) {
 		}
 		if fw.Status != "stale" {
 			t.Errorf("firewall status = %q, want stale", fw.Status)
+		}
+		if fw.Reason != "denied" {
+			t.Errorf("firewall reason = %q, want denied", fw.Reason)
 		}
 		if !(fw.ObservedAt < fw.AttemptAt) {
 			t.Errorf("stale observed_at %q not earlier than attempt_at %q", fw.ObservedAt, fw.AttemptAt)

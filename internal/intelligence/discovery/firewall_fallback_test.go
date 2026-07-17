@@ -57,7 +57,7 @@ func TestProbeFirewall_PasswordFallback_UFWSuccess(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
 			cred:   validHostCred(),
 		}
-		svc, status, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, status, learned, ok, _ := probeFirewall(testCtx(t), sess, cfg)
 		if !ok {
 			t.Fatalf("ok: want true (fallback succeeded), got false")
 		}
@@ -111,7 +111,7 @@ func TestProbeFirewall_PasswordFallback_PolicyOff(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: false},
 			cred:   validHostCred(),
 		}
-		_, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		_, _, learned, ok, _ := probeFirewall(testCtx(t), sess, cfg)
 		if ok {
 			t.Errorf("ok: want false (policy off, no sudo path succeeded), got true")
 		}
@@ -142,7 +142,7 @@ func TestProbeFirewall_NoFallbackOnSudoNSuccess(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
 			cred:   validHostCred(),
 		}
-		svc, status, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, status, learned, ok, _ := probeFirewall(testCtx(t), sess, cfg)
 		if !ok || svc != "firewalld" || status != "active" {
 			t.Errorf("first-firewall hit: svc=%q status=%q ok=%v", svc, status, ok)
 		}
@@ -176,7 +176,7 @@ func TestProbeFirewall_SudoModeLearning(t *testing.T) {
 			policy: systemconfig.SecurityConfig{AllowCredentialSudoPassword: true},
 			cred:   validHostCred(),
 		}
-		svc, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, _, learned, ok, _ := probeFirewall(testCtx(t), sess, cfg)
 		if !ok || svc != "ufw" {
 			t.Fatalf("probe: ok=%v svc=%q, want true/ufw", ok, svc)
 		}
@@ -201,7 +201,7 @@ func TestProbeFirewall_SudoModeLearning(t *testing.T) {
 			cred:   validHostCred(),
 			prefer: connprofile.SudoPassword,
 		}
-		svc, _, learned, ok := probeFirewall(testCtx(t), sess, cfg)
+		svc, _, learned, ok, _ := probeFirewall(testCtx(t), sess, cfg)
 		if !ok || svc != "ufw" {
 			t.Fatalf("probe: ok=%v svc=%q, want true/ufw", ok, svc)
 		}

@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail-system-card
   title: Host detail System card — Distribution / Kernel / Uptime from real data
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -99,7 +99,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-07
-      description: 'When systemInfo.category_freshness marks a rendered category status="stale" (the value was carried forward from an earlier run because the latest Discovery did not re-observe it; api-host-system-info C-05), the card MUST render an inline "Last verified <relative>" caveat beneath that value so the operator knows the reading is last-known-good, not fresh. A category with status="ok" or an absent freshness map MUST render NO caveat. The relative helper MUST be pure of locale/timezone effects that would change the coarse bucket (m/h/d ago)'
+      description: 'When systemInfo.category_freshness marks a rendered category status="stale" (the value was carried forward from an earlier run because the latest Discovery did not re-observe it; api-host-system-info C-05), the card MUST render an inline "Last verified <relative>" caveat beneath that value so the operator knows the reading is last-known-good, not fresh. When the stale entry carries a reason (denied | failed | timeout; system-host-discovery v1.7.0), the caveat MUST append a human label for it — "sudo denied" / "probe failed" / "probe timed out" — so the actionable denied case is distinguishable from a transient failure. A category with status="ok" or an absent freshness map MUST render NO caveat. The relative helper MUST be pure of locale/timezone effects that would change the coarse bucket (m/h/d ago)'
       type: technical
       enforcement: error
 
@@ -133,6 +133,6 @@ spec:
       priority: high
       references_constraints: [C-06]
     - id: AC-08
-      description: 'CardSystem rendered with a discovered host whose systemInfo.category_freshness marks "firewall" status="stale" (observed_at ~2 days earlier) shows a "Last verified" caveat on the Firewall row; the same card with category_freshness null (or the firewall entry status="ok") renders NO "Last verified" text. formatTimeAgo(now-2d) buckets to "2d ago"; formatTimeAgo of a value < 1 minute old is "just now"'
+      description: 'CardSystem rendered with a discovered host whose systemInfo.category_freshness marks "firewall" status="stale" (observed_at ~2 days earlier) with reason="denied" shows a "Last verified 2d ago (sudo denied)" caveat on the Firewall row; a stale entry with no reason shows "Last verified <relative>" and no parenthetical; the same card with category_freshness null (or the firewall entry status="ok") renders NO "Last verified" text. formatTimeAgo(now-2d) buckets to "2d ago"; formatTimeAgo of a value < 1 minute old is "just now"'
       priority: high
       references_constraints: [C-07]

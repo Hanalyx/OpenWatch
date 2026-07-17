@@ -431,6 +431,27 @@ func (e FleetTransactionStatus) Valid() bool {
 	}
 }
 
+// Defines values for FreshnessEntryReason.
+const (
+	FreshnessEntryReasonDenied  FreshnessEntryReason = "denied"
+	FreshnessEntryReasonFailed  FreshnessEntryReason = "failed"
+	FreshnessEntryReasonTimeout FreshnessEntryReason = "timeout"
+)
+
+// Valid indicates whether the value is a known member of the FreshnessEntryReason enum.
+func (e FreshnessEntryReason) Valid() bool {
+	switch e {
+	case FreshnessEntryReasonDenied:
+		return true
+	case FreshnessEntryReasonFailed:
+		return true
+	case FreshnessEntryReasonTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FreshnessEntryStatus.
 const (
 	FreshnessEntryStatusOk    FreshnessEntryStatus = "ok"
@@ -1384,25 +1405,25 @@ func (e GetAuditEventsExportParamsFormat) Valid() bool {
 
 // Defines values for GetComplianceExceptionsParamsStatus.
 const (
-	GetComplianceExceptionsParamsStatusApproved  GetComplianceExceptionsParamsStatus = "approved"
-	GetComplianceExceptionsParamsStatusExpired   GetComplianceExceptionsParamsStatus = "expired"
-	GetComplianceExceptionsParamsStatusRejected  GetComplianceExceptionsParamsStatus = "rejected"
-	GetComplianceExceptionsParamsStatusRequested GetComplianceExceptionsParamsStatus = "requested"
-	GetComplianceExceptionsParamsStatusRevoked   GetComplianceExceptionsParamsStatus = "revoked"
+	Approved  GetComplianceExceptionsParamsStatus = "approved"
+	Expired   GetComplianceExceptionsParamsStatus = "expired"
+	Rejected  GetComplianceExceptionsParamsStatus = "rejected"
+	Requested GetComplianceExceptionsParamsStatus = "requested"
+	Revoked   GetComplianceExceptionsParamsStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the GetComplianceExceptionsParamsStatus enum.
 func (e GetComplianceExceptionsParamsStatus) Valid() bool {
 	switch e {
-	case GetComplianceExceptionsParamsStatusApproved:
+	case Approved:
 		return true
-	case GetComplianceExceptionsParamsStatusExpired:
+	case Expired:
 		return true
-	case GetComplianceExceptionsParamsStatusRejected:
+	case Rejected:
 		return true
-	case GetComplianceExceptionsParamsStatusRequested:
+	case Requested:
 		return true
-	case GetComplianceExceptionsParamsStatusRevoked:
+	case Revoked:
 		return true
 	default:
 		return false
@@ -2190,13 +2211,21 @@ type FleetTransactionStatus string
 // FreshnessEntry Per-category collection freshness. status=ok when the category was
 // observed on the most recent run; status=stale when the run did not
 // observe it and the last-known-good value was carried forward
-// (observed_at then points at the last successful observation).
-// Spec system-host-discovery / system-os-intelligence.
+// (observed_at then points at the last successful observation). On a
+// stale entry, reason records WHY it was not re-observed: denied (a
+// fixable sudo/permission refusal), failed (transport or command
+// failure), or timeout. Spec system-host-discovery / system-os-intelligence.
 type FreshnessEntry struct {
-	AttemptAt  time.Time            `json:"attempt_at"`
-	ObservedAt time.Time            `json:"observed_at"`
-	Status     FreshnessEntryStatus `json:"status"`
+	AttemptAt  time.Time `json:"attempt_at"`
+	ObservedAt time.Time `json:"observed_at"`
+
+	// Reason Present only on stale entries: why the category was not re-observed this run
+	Reason *FreshnessEntryReason `json:"reason,omitempty"`
+	Status FreshnessEntryStatus  `json:"status"`
 }
+
+// FreshnessEntryReason Present only on stale entries: why the category was not re-observed this run
+type FreshnessEntryReason string
 
 // FreshnessEntryStatus defines model for FreshnessEntry.Status.
 type FreshnessEntryStatus string

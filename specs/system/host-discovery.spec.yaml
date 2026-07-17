@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 1
 
@@ -138,6 +138,10 @@ spec:
       description: 'v1.6.0 — persist stamps host_system_info.category_freshness (JSONB, migration 0052): one key per fact category mapping to {observed_at, attempt_at, status}. An OBSERVED category this run is status "ok" with observed_at = attempt_at = collected_at. An UNOBSERVED category that has a prior observation is status "stale" with the prior observed_at kept and attempt_at = this run (so a consumer can render "last good X ago"). A category never observed has no key. This is the read-side companion to the C-08 no-clobber merge: it records WHEN each carried-forward value was actually last seen.'
       type: technical
       enforcement: error
+    - id: C-14
+      description: 'v1.7.0 — a "stale" freshness entry MUST also carry a reason ∈ {denied, failed, timeout} recording WHY the category was not re-observed this run, so an operator can tell a fixable sudo denial from a transient connectivity failure. Classification is positive-evidence only for "denied": a category is labeled denied ONLY when the probe''s combined stdout+stderr carries a recognizable sudo-refusal signature (e.g. "a password is required", "is not in the sudoers file", "not allowed to execute"); a context-deadline error is "timeout"; any other Go-level error or a non-zero exit without a sudo signature is "failed". World-readable probes (os_release, uname, memory, disk, hostname, fqdn, selinux, apparmor) require no sudo, so their non-observations classify as failed/timeout and never denied. An "ok" entry carries no reason. When a stale category''s cause was not recorded, reason defaults to "failed" (never a false "denied").'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -216,3 +220,15 @@ spec:
       description: 'v1.6.0 freshness: after a Discover run, host_system_info.category_freshness has status "ok" for every observed category with observed_at = the row''s collected_at; after a SECOND run that observes only some categories, the observed ones stay "ok" with a bumped observed_at while the unobserved ones flip to "stale" keeping their earlier observed_at (attempt_at advances). A first run stamps only observed categories (no key for never-observed ones).'
       priority: high
       references_constraints: [C-13]
+    - id: AC-26
+      description: 'v1.7.0 classifyOutcome (pure): a context.DeadlineExceeded error maps to "timeout"; any other non-nil error maps to "failed"; a nil error whose combined output carries a sudo-refusal signature ("a password is required", "is not in the sudoers file", "not allowed to execute", "a terminal is required", "incorrect password") maps to "denied"; a nil error with a non-zero-exit output that has NO sudo signature maps to "failed". sudoDenied is a case-insensitive substring match over that signature set.'
+      priority: high
+      references_constraints: [C-14]
+    - id: AC-27
+      description: 'v1.7.0 reason persistence: after a full first run, a second Discover run whose Attempts records firewall="denied" and disk="failed" (both unobserved, carried forward) persists category_freshness.firewall = {status:"stale", reason:"denied"} and category_freshness.disk = {status:"stale", reason:"failed"}; an observed category (os_release) is {status:"ok"} with no reason key. A stale category whose reason was not recorded defaults to reason "failed", never "denied".'
+      priority: high
+      references_constraints: [C-14]
+    - id: AC-28
+      description: 'v1.7.0 probeFirewall reason: when every firewall attempt is refused with a sudo-denial signature (systemctl absent, sudo -n / sudo -S all show "a password is required" / "not in the sudoers file"), probeFirewall returns ok=false with reason="denied"; when the attempts fail WITHOUT any sudo signature (no firewall tool present, plain non-zero exits), it returns ok=false with reason="failed". A successful probe returns ok=true with an empty reason.'
+      priority: high
+      references_constraints: [C-14]
