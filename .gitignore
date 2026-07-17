@@ -481,6 +481,10 @@ cache/
 *api_key*
 *private_key*
 
+# Exception: the GitHub secret-scanning config is NOT a secret — it must be
+# committed for GitHub to read it (paths-ignore for test fixtures).
+!.github/secret_scanning.yml
+
 # Exception: Allow alembic migration files (they describe schemas, not actual credentials)
 !backend/alembic/versions/*credential*.py
 
