@@ -57,6 +57,39 @@ func MatchSQL(paramRef string) string {
 			    OR regexp_replace(fk, '` + OSSuffixSQL + `', '') = ` + paramRef + `))`
 }
 
+// OSResolvedMatchSQL returns a SQL boolean fragment (for a WHERE clause on a
+// table with a framework_refs JSONB column) that is TRUE when framework_refs
+// matches the family in famRef RESOLVED to the host's OWN OS-specific corpus
+// key — NOT the union of every OS variant.
+//
+// This is the correct filter for a PER-HOST compliance score. MatchSQL is
+// family-aware and matches ANY key in a family (stig -> stig_rhel9 +
+// stig_rhel10 + …); that over-counts a single host, which carries mapped rules
+// for several OS benchmarks at once (a RHEL 9 host has stig_rhel9 AND
+// stig_rhel10 refs). Grading a RHEL 9 host partly against the RHEL 10 STIG is
+// wrong. OSResolvedMatchSQL instead scopes a family to `<family>_<osfamily><major>`
+// (stig on a rhel 9.6 host -> stig_rhel9), so the list/summary/fleet score
+// matches the host-detail tile.
+//
+// It is TRUE when:
+//   - famRef IS NULL (all rules, no filter), OR
+//   - framework_refs has the OS-resolved key `famRef || '_' || <osfamily><major>`
+//     (a family scoped to this host's OS: stig -> stig_rhel9), OR
+//   - framework_refs has a key equal to famRef itself — which covers an
+//     OS-neutral family (nist_800_53, pci_dss_4, srg, whose key carries no OS
+//     suffix) and an explicitly-passed specific key (stig_rhel9).
+//
+// famRef, osFamilyExpr, osVersionExpr are SQL expressions (a bind placeholder
+// like "$2", or a column reference like "eff.fam"/"hh.os_family"); they must be
+// fixed literals in code, never user input. The OS token mirrors the corpus key
+// suffix: lower(os_family) concatenated with the major version
+// (split_part(os_version,'.',1)) — e.g. rhel+9 = rhel9, ubuntu+22 = ubuntu22.
+func OSResolvedMatchSQL(famRef, osFamilyExpr, osVersionExpr string) string {
+	return `(` + famRef + `::text IS NULL
+			OR framework_refs ? (` + famRef + ` || '_' || lower(` + osFamilyExpr + `) || split_part(` + osVersionExpr + `, '.', 1))
+			OR framework_refs ? ` + famRef + `)`
+}
+
 // familyLabels overrides the display label for known families; anything else
 // falls back to an upper-cased id.
 var familyLabels = map[string]string{

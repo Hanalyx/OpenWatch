@@ -62,20 +62,29 @@ func TestAPI_HostsList_DefaultsToPerHostEffectiveTarget(t *testing.T) {
 		url, pool := freshAPIServer(t)
 		user := firstSeededUserID(t, pool)
 
-		// Host A carries its own STIG target. It has 2 STIG rules (1 pass,
-		// 1 fail) and 1 CIS rule (pass): STIG-scoped total=2, all-rules total=3.
+		// Host A is a RHEL 9 host with its own STIG target. It carries STIG
+		// rules for TWO OS benchmarks (as real corpus rows do): stig_rhel9
+		// (its own) AND stig_rhel10 (another OS). Under STIG it MUST score only
+		// stig_rhel9 (2 rules: 1 pass, 1 fail) — the stig_rhel10 pass is
+		// excluded because it belongs to the RHEL 10 benchmark. It also has 1
+		// cis_rhel9 rule. So STIG total=2/pass=1 (NOT the family-union total=3).
 		hostA := seedFleetHost(t, pool, user)
 		if _, err := pool.Exec(ctx,
-			`UPDATE hosts SET target_framework='stig' WHERE id=$1`, hostA); err != nil {
-			t.Fatalf("set host A target: %v", err)
+			`UPDATE hosts SET target_framework='stig', os_family='rhel', os_version='9.6' WHERE id=$1`, hostA); err != nil {
+			t.Fatalf("set host A target/os: %v", err)
 		}
-		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.stig.pass", "pass", map[string]string{"stig_rhel9": "x"})
-		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.stig.fail", "fail", map[string]string{"stig_rhel9": "x"})
+		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.stig9.pass", "pass", map[string]string{"stig_rhel9": "x"})
+		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.stig9.fail", "fail", map[string]string{"stig_rhel9": "x"})
+		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.stig10.pass", "pass", map[string]string{"stig_rhel10": "x"})
 		seedFleetRuleStateWithFrameworks(t, pool, hostA, "a.cis.pass", "pass", map[string]string{"cis_rhel9": "x"})
 
-		// Host B has NO target and (this test sets no org default) scores All
-		// rules: 1 CIS rule -> total=1.
+		// Host B is a RHEL 9 host with NO target and (this test sets no org
+		// default) scores All rules: 1 CIS rule -> total=1.
 		hostB := seedFleetHost(t, pool, user)
+		if _, err := pool.Exec(ctx,
+			`UPDATE hosts SET os_family='rhel', os_version='9.6' WHERE id=$1`, hostB); err != nil {
+			t.Fatalf("set host B os: %v", err)
+		}
 		seedFleetRuleStateWithFrameworks(t, pool, hostB, "b.cis.pass", "pass", map[string]string{"cis_rhel9": "x"})
 
 		// No framework param: A defaults to its STIG target, B to All rules.
@@ -86,7 +95,7 @@ func TestAPI_HostsList_DefaultsToPerHostEffectiveTarget(t *testing.T) {
 			t.Fatalf("host A missing compliance_summary: %+v", a)
 		}
 		if a.ComplianceSummary.Total != 2 || a.ComplianceSummary.Passing != 1 {
-			t.Errorf("host A (target stig): total=%d passing=%d, want 2/1 (STIG-scoped, not all-rules 3)",
+			t.Errorf("host A (target stig on RHEL9): total=%d passing=%d, want 2/1 (stig_rhel9 only; stig_rhel10 excluded, not family-union 3)",
 				a.ComplianceSummary.Total, a.ComplianceSummary.Passing)
 		}
 		if b == nil || b.ComplianceSummary == nil {
@@ -138,17 +147,25 @@ func TestAPI_FleetScore_DefaultsToOrgLens(t *testing.T) {
 			t.Fatalf("set org default: %v", err)
 		}
 
-		// One host: 2 STIG (1 pass, 1 fail) + 1 CIS (pass). STIG: 1/2 = 0.5;
-		// All rules would be 2/3.
+		// One RHEL 9 host with STIG rules for two OS benchmarks: stig_rhel9
+		// (1 pass, 1 fail) + stig_rhel10 (1 pass, wrong OS) + cis_rhel9 (pass).
+		// Under the STIG org default the host scores against stig_rhel9 ONLY:
+		// evaluations=2 (pass+fail), passing=1 -> 0.5. The stig_rhel10 pass is
+		// excluded (family-union would wrongly give 2/3).
 		h := seedFleetHost(t, pool, user)
-		seedFleetRuleStateWithFrameworks(t, pool, h, "s.pass", "pass", map[string]string{"stig_rhel9": "x"})
-		seedFleetRuleStateWithFrameworks(t, pool, h, "s.fail", "fail", map[string]string{"stig_rhel9": "x"})
+		if _, err := pool.Exec(ctx,
+			`UPDATE hosts SET os_family='rhel', os_version='9.6' WHERE id=$1`, h); err != nil {
+			t.Fatalf("set host os: %v", err)
+		}
+		seedFleetRuleStateWithFrameworks(t, pool, h, "s9.pass", "pass", map[string]string{"stig_rhel9": "x"})
+		seedFleetRuleStateWithFrameworks(t, pool, h, "s9.fail", "fail", map[string]string{"stig_rhel9": "x"})
+		seedFleetRuleStateWithFrameworks(t, pool, h, "s10.pass", "pass", map[string]string{"stig_rhel10": "x"})
 		seedFleetRuleStateWithFrameworks(t, pool, h, "c.pass", "pass", map[string]string{"cis_rhel9": "x"})
 
-		// No param -> org default STIG.
+		// No param -> org default STIG, resolved to stig_rhel9 for this host.
 		s := getFleetScore(t, url, "")
 		if s.TotalEvaluations != 2 || s.PassingFraction != 0.5 {
-			t.Errorf("fleet default (org stig): frac=%v total=%d, want 0.5/2 (STIG, not all-rules 2/3)",
+			t.Errorf("fleet default (org stig on RHEL9): frac=%v total=%d, want 0.5/2 (stig_rhel9 only; stig_rhel10 excluded)",
 				s.PassingFraction, s.TotalEvaluations)
 		}
 

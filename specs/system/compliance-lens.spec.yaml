@@ -46,7 +46,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: A framework FAMILY groups corpus keys by stripping a trailing OS suffix (_(rhel|ubuntu)<digits>); an OS-agnostic key (nist_800_53, pci_dss_4, srg) is its own family. The available family list MUST be derived from the live corpus (host_rule_state.framework_refs), never hardcoded. A score filter for a family MUST match ANY corpus key in that family (so a mixed-OS fleet scores across stig_rhel9 + stig_rhel10), while a specific key matches exactly; the family match SQL MUST mirror FamilyOf.
+      description: A framework FAMILY groups corpus keys by stripping a trailing OS suffix (_(rhel|ubuntu)<digits>); an OS-agnostic key (nist_800_53, pci_dss_4, srg) is its own family. The available family list MUST be derived from the live corpus (host_rule_state.framework_refs), never hardcoded. The family-wide match (framework.MatchSQL) matches ANY corpus key in that family (stig -> stig_rhel9 + stig_rhel10 + …) and mirrors FamilyOf; it is used for family-scoped rule LISTS (fleet top-failing-rules, recent-changes). A per-host SCORE does NOT use the family union — it resolves the family to that host's OS-specific key (C-06), because a single host carries mapped rules for several OS benchmarks and the union would over-count it. A specific corpus key always matches exactly.
       type: technical
       enforcement: error
     - id: C-03
@@ -85,13 +85,27 @@ spec:
         default) resolved per host in one grouped query; the Scans Coverage tab
         inherits this since it reads the same endpoint; and (b) the fleet KPI
         (GET /fleet/score) defaults to the ORG default lens
-        (ComplianceConfig.DefaultFramework) — per-host targets are NOT
-        aggregated into one fleet number (mixed-fleet cohorts are a later
-        phase). An explicit ?framework= overrides the default uniformly on both
-        surfaces. When neither a target nor an org default is set, both stay All
-        rules (backward compatible). The compliance TREND card is out of scope
-        here — it reads all-rules posture snapshots that carry no framework
-        dimension (a separate storage change).
+        (ComplianceConfig.DefaultFramework). An explicit ?framework= overrides
+        the default uniformly. When neither a target nor an org default is set,
+        both stay All rules (backward compatible).
+
+        CRUCIALLY, a per-host SCORE MUST resolve a family lens to the host's OWN
+        OS-specific corpus key (framework.OSResolvedMatchSQL), NOT the family
+        union: a RHEL 9 host's "stig" scores against stig_rhel9 ONLY, matching
+        the host-detail hero tile. A single host carries mapped rules for
+        SEVERAL OS benchmarks at once (a RHEL 9 host has stig_rhel9 AND
+        stig_rhel10 refs), so the family union (MatchSQL) over-counts it —
+        grading a RHEL 9 host partly against the RHEL 10 STIG. The three score
+        surfaces (list compliance_summary, single-host compliance_summary, fleet
+        score) all OS-resolve; an OS-neutral family (nist_800_53, pci_dss_4,
+        srg) and an explicit specific key resolve to the bare key. The fleet
+        score is thus each host measured against its own OS benchmark, then
+        aggregated — a mixed-OS fleet's "stig" still spans rhel9 + rhel10 hosts,
+        each via its own key.
+
+        The compliance TREND card is out of scope here — it reads all-rules
+        posture snapshots that carry no framework dimension (a separate storage
+        change).
       type: technical
       enforcement: error
 
@@ -105,7 +119,7 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-03
-      description: The fleet compliance score with a FAMILY filter counts rule-states carrying ANY key in that family across a mixed-OS corpus (a host with stig_rhel9 and a host with stig_rhel10 both contribute to the "stig" fleet score); a specific-key filter counts only that key; an empty filter counts all rules. The hosts-list card summary honors the same family filter per host.
+      description: The fleet compliance score with a FAMILY filter resolves each host to its OWN OS key (a RHEL 9 host's "stig" -> stig_rhel9, a RHEL 10 host's -> stig_rhel10) so a mixed-OS fleet's "stig" spans both hosts, each measured against its own benchmark; a specific-key filter counts only that key; an empty filter counts all rules.
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
@@ -147,22 +161,22 @@ spec:
     - id: AC-09
       description: >
         GET /hosts with NO ?framework= scores each host's list compliance_summary
-        against its OWN effective target: a host with a target_framework override
-        is scored against that family (its all-rules total differs from the
-        family-scoped total); a host with no override but an org default set is
-        scored against the org default; a host with neither (and no org default)
-        is scored All rules. An explicit ?framework= overrides per host uniformly.
-        Two hosts with different targets in the same response each reflect their
-        own target — verified against seeded host_rule_state with mixed
-        framework_refs.
+        against its OWN effective target, RESOLVED to the host's OS-specific key:
+        a RHEL 9 host targeted to "stig" scores against stig_rhel9 only — a
+        stig_rhel10 rule the host also carries is EXCLUDED (not the family
+        union). A host with no override but an org default set is scored against
+        the org default (OS-resolved); a host with neither (and no org default)
+        is scored All rules. An explicit ?framework= overrides per host. This
+        makes the list column equal the host-detail hero tile for the same host.
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
       description: >
         GET /fleet/score with NO ?framework= defaults to the org default lens
-        (ComplianceConfig.DefaultFramework): with an org default set, the fleet
-        passing-fraction is computed only over rule-states matching that family;
-        with no org default set it is All rules; an explicit ?framework=
-        overrides. An empty ?framework= behaves identically to no param.
+        (ComplianceConfig.DefaultFramework), each host OS-resolved: with an org
+        default of "stig" set, a RHEL 9 host contributes stig_rhel9 rules only
+        (a stig_rhel10 rule it also carries is EXCLUDED); with no org default set
+        it is All rules; an explicit ?framework= overrides. An empty ?framework=
+        behaves identically to no param.
       priority: high
       references_constraints: [C-06]
