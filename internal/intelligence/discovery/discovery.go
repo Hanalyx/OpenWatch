@@ -133,43 +133,14 @@ type SystemFacts struct {
 	Attempts map[FactCategory]string
 }
 
-// Attempt outcomes for a non-observed fact category on one run. observed is
-// represented by absence from SystemFacts.Attempts (the category is in Observed
-// instead). These label the reason a probe did not yield a value so a stale
-// carried-forward value can be explained.
-const (
-	outcomeDenied  = "denied"  // positive evidence of a sudo/permission refusal
-	outcomeFailed  = "failed"  // transport error or non-permission command failure
-	outcomeTimeout = "timeout" // the probe exceeded the run deadline
-)
-
-// classifyOutcome maps a probe's (out, code, err) triple to a non-observed
-// outcome. Positive-evidence only for "denied": we label a category denied
-// ONLY when the combined output carries a recognizable sudo-refusal signature,
-// so a genuinely-absent tool or a transport error is never mislabeled as a
-// permission problem (under-reporting denied is safer than over-reporting an
-// actionable signal). A context deadline is a timeout; any other Go-level error
-// is a failure; a non-zero exit without a sudo signature is a failure.
-func classifyOutcome(out []byte, err error) string {
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return outcomeTimeout
-		}
-		return outcomeFailed
-	}
-	if sudoDenied(out) {
-		return outcomeDenied
-	}
-	return outcomeFailed
-}
-
-// recordFailure stamps the reason a category was not observed this run. Safe
-// to call with a nil Attempts map (lazily initialized).
+// recordFailure stamps the reason a category was not observed this run, via the
+// shared probe.ClassifyOutcome classifier (denied | failed | timeout). Safe to
+// call with a nil Attempts map (lazily initialized). Spec C-14.
 func (f *SystemFacts) recordFailure(cat FactCategory, out []byte, err error) {
 	if f.Attempts == nil {
 		f.Attempts = make(map[FactCategory]string, len(allFactCategories))
 	}
-	f.Attempts[cat] = classifyOutcome(out, err)
+	f.Attempts[cat] = probe.ClassifyOutcome(out, err)
 }
 
 // FactCategory groups host_system_info columns by the probe that collects them,
@@ -223,7 +194,7 @@ func computeFreshness(observed map[FactCategory]bool, attempts map[FactCategory]
 			if p, ok := prior[key]; ok {
 				reason := attempts[cat]
 				if reason == "" {
-					reason = outcomeFailed // not observed, cause unrecorded → failed
+					reason = probe.OutcomeFailed // not observed, cause unrecorded → failed
 				}
 				out[key] = freshnessEntry{
 					ObservedAt: p.ObservedAt,

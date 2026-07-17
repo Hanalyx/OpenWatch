@@ -17,6 +17,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -294,8 +295,8 @@ func TestDiscover_FreshnessReason(t *testing.T) {
 			CollectedAt: time.Now().UTC(),
 			Observed:    map[FactCategory]bool{CatOSRelease: true},
 			Attempts: map[FactCategory]string{
-				CatFirewall: outcomeDenied,
-				CatDisk:     outcomeFailed,
+				CatFirewall: probe.OutcomeDenied,
+				CatDisk:     probe.OutcomeFailed,
 			},
 		}); err != nil {
 			t.Fatalf("run2 persist: %v", err)

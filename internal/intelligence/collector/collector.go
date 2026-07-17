@@ -317,17 +317,23 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 			af, _ := ParsePasswdShadow(out, nil)
 			snap.Users = af.Users
 		}
+	} else {
+		snap.recordFailure(SnapUsers, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "getent group"); err == nil && code == 0 {
 		snap.Groups = parseGroupOutput(out)
 		snap.Observed[SnapGroups] = true
+	} else {
+		snap.recordFailure(SnapGroups, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "ss -tln"); err == nil && code == 0 {
 		ports, _ := ParseListeningPorts(out)
 		snap.ListeningPorts = ports
 		snap.Observed[SnapPorts] = true
+	} else {
+		snap.recordFailure(SnapPorts, out, err)
 	}
 
 	// Network interfaces: `ip -j addr` gives addresses + state + MAC +
@@ -353,6 +359,8 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 			snap.NetworkInterfaces = MergeNetworkInterfaces(ifaces, stats)
 			snap.Observed[SnapInterfaces] = true
 		}
+	} else {
+		snap.recordFailure(SnapInterfaces, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "ip -j route show 2>/dev/null"); err == nil && code == 0 {
@@ -360,6 +368,8 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 			snap.Routes = routes
 			snap.Observed[SnapRoutes] = true
 		}
+	} else {
+		snap.recordFailure(SnapRoutes, out, err)
 	}
 
 	// Firewall rule count: try engines in priority order. First non-
@@ -404,22 +414,30 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 			nn := n
 			snap.FirewallRuleCount = &nn
 		}
+	} else {
+		snap.recordFailure(SnapFirewall, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "rpm -qa --queryformat='%{NAME} %{VERSION}-%{RELEASE}\\n' 2>/dev/null || dpkg -l 2>/dev/null"); err == nil && code == 0 {
 		pkgs, _ := ParseInstalledPackages(out)
 		snap.Packages = pkgs
 		snap.Observed[SnapPackages] = true
+	} else {
+		snap.recordFailure(SnapPackages, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "systemctl list-units --type=service --all --no-legend --plain"); err == nil && code == 0 {
 		snap.Services = parseSystemctlUnits(out)
 		snap.Observed[SnapServices] = true
+	} else {
+		snap.recordFailure(SnapServices, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "uname -r"); err == nil && code == 0 {
 		snap.KernelRelease = strings.TrimSpace(string(out))
 		snap.Observed[SnapKernel] = true
+	} else {
+		snap.recordFailure(SnapKernel, out, err)
 	}
 
 	// Reboot marker — present on Debian-family; some RHEL setups expose
@@ -431,11 +449,15 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	if out, code, err := sess.Run(ctx, "cat /proc/uptime"); err == nil && code == 0 {
 		snap.UptimeSeconds = parseUptime(out)
 		snap.Observed[SnapUptime] = true
+	} else {
+		snap.recordFailure(SnapUptime, out, err)
 	}
 
 	if out, code, err := sess.Run(ctx, "cat /proc/mounts"); err == nil && code == 0 {
 		snap.Mountpoints = parseProcMounts(out)
 		snap.Observed[SnapMounts] = true
+	} else {
+		snap.recordFailure(SnapMounts, out, err)
 	}
 
 	// Config hashes — small fixed set. sha256 keeps the JSONB short.
@@ -467,8 +489,13 @@ func (s *Service) runCycleWithTransport(ctx context.Context, hf hostFacts) (Snap
 	// Config hashes are partial by nature (sudo-gated /etc/shadow may drop);
 	// treat the category as observed only when at least one file hashed, so a
 	// fully-denied run carries forward the prior hashes rather than blanking.
+	// A fully-empty result means even the world-readable sha256sums failed —
+	// a broad collection failure, classified "failed" (no single probe output
+	// to attribute a specific sudo denial to).
 	if len(snap.ConfigHashes) > 0 {
 		snap.Observed[SnapConfig] = true
+	} else {
+		snap.recordFailure(SnapConfig, nil, nil)
 	}
 
 	// TODO(v1.2): the firewall-rule probe embeds three `sudo -n` calls
@@ -589,7 +616,7 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, snap Snapshot, 
 	if len(priorFreshRaw) > 0 {
 		_ = json.Unmarshal(priorFreshRaw, &priorFresh)
 	}
-	freshJSON, _ := json.Marshal(computeSnapFreshness(snap.Observed, priorFresh, snap.CollectedAt))
+	freshJSON, _ := json.Marshal(computeSnapFreshness(snap.Observed, snap.Attempts, priorFresh, snap.CollectedAt))
 
 	// Spec C-03: UPSERT keyed by host_id.
 	if _, err := tx.Exec(ctx, `

@@ -4,12 +4,15 @@
 //
 //	AC-18  TestMergeUnobserved_NoClobberAndNoFalseEvents
 //	AC-19  TestComputeSnapFreshness
+//	AC-20  TestComputeSnapFreshness_Reason
 
 package collector
 
 import (
 	"testing"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
 )
 
 // @ac AC-18
@@ -84,7 +87,7 @@ func TestComputeSnapFreshness(t *testing.T) {
 			"services": {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
 		}
 
-		out := computeSnapFreshness(map[SnapCategory]bool{SnapPackages: true}, prior, now)
+		out := computeSnapFreshness(map[SnapCategory]bool{SnapPackages: true}, nil, prior, now)
 
 		if e := out["packages"]; e.Status != "ok" || !e.ObservedAt.Equal(now) {
 			t.Errorf("packages = %+v, want ok observed_at=now", e)
@@ -96,8 +99,46 @@ func TestComputeSnapFreshness(t *testing.T) {
 			t.Errorf("users should be absent (never observed, no prior)")
 		}
 
-		if out2 := computeSnapFreshness(map[SnapCategory]bool{}, nil, now); len(out2) != 0 {
+		if out2 := computeSnapFreshness(map[SnapCategory]bool{}, nil, nil, now); len(out2) != 0 {
 			t.Errorf("nil prior + nothing observed should be empty, got %+v", out2)
+		}
+	})
+}
+
+// @ac AC-20
+// AC-20: a stale category carries the reason it was not re-observed, from the
+// cycle's Attempts map; an unrecorded cause defaults to "failed", never a false
+// "denied".
+func TestComputeSnapFreshness_Reason(t *testing.T) {
+	t.Run("system-os-intelligence/AC-20", func(t *testing.T) {
+		now := time.Now().UTC()
+		earlier := now.Add(-time.Hour)
+		prior := map[string]snapFreshnessEntry{
+			"services":        {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
+			"packages":        {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
+			"listening_ports": {ObservedAt: earlier, AttemptAt: earlier, Status: "ok"},
+		}
+		attempts := map[SnapCategory]string{
+			SnapServices: probe.OutcomeDenied,
+			SnapPackages: probe.OutcomeTimeout,
+			// listening_ports unobserved with NO recorded reason → defaults to failed.
+		}
+
+		out := computeSnapFreshness(map[SnapCategory]bool{}, attempts, prior, now)
+
+		if e := out["services"]; e.Status != "stale" || e.Reason != "denied" {
+			t.Errorf("services = %+v, want stale/denied", e)
+		}
+		if e := out["packages"]; e.Status != "stale" || e.Reason != "timeout" {
+			t.Errorf("packages = %+v, want stale/timeout", e)
+		}
+		if e := out["listening_ports"]; e.Status != "stale" || e.Reason != "failed" {
+			t.Errorf("listening_ports = %+v, want stale/failed (unrecorded default)", e)
+		}
+		// An observed category carries no reason.
+		out2 := computeSnapFreshness(map[SnapCategory]bool{SnapServices: true}, attempts, prior, now)
+		if e := out2["services"]; e.Status != "ok" || e.Reason != "" {
+			t.Errorf("observed services = %+v, want ok with no reason", e)
 		}
 	})
 }

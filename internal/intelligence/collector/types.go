@@ -1,6 +1,10 @@
 package collector
 
-import "time"
+import (
+	"time"
+
+	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
+)
 
 // Snapshot is the full structured state one RunCycle collects from a
 // host. Persisted as JSONB in host_intelligence_state.snapshot; the
@@ -82,6 +86,24 @@ type Snapshot struct {
 	// v1.2.0). An observed category keeps this cycle's value even when
 	// genuinely empty — that is a real observation.
 	Observed map[SnapCategory]bool `json:"-"`
+
+	// Attempts records WHY a non-observed category was not collected this cycle
+	// (denied | failed | timeout), so the persisted freshness can explain a
+	// stale carried-forward value. Transient (`json:"-"`, never stored); only
+	// categories attempted-but-not-observed appear. Spec C-10, v1.4.0.
+	Attempts map[SnapCategory]string `json:"-"`
+}
+
+// recordFailure stamps the reason a category was not observed this cycle, via
+// the shared probe.ClassifyOutcome classifier. Safe with a nil Attempts map.
+// Note: several collector probes suppress stderr (2>/dev/null) or fall back to
+// a non-sudo path, so a sudo-refusal signature is often not visible — such
+// categories honestly classify as "failed" rather than a guessed "denied".
+func (s *Snapshot) recordFailure(cat SnapCategory, out []byte, err error) {
+	if s.Attempts == nil {
+		s.Attempts = make(map[SnapCategory]string, len(allSnapCategories))
+	}
+	s.Attempts[cat] = probe.ClassifyOutcome(out, err)
 }
 
 // SnapCategory groups Snapshot fields by the probe that collects them, so the
@@ -114,14 +136,17 @@ var allSnapCategories = []SnapCategory{
 type snapFreshnessEntry struct {
 	ObservedAt time.Time `json:"observed_at"`
 	AttemptAt  time.Time `json:"attempt_at"`
-	Status     string    `json:"status"` // ok | stale
+	Status     string    `json:"status"`           // ok | stale
+	Reason     string    `json:"reason,omitempty"` // denied | failed | timeout (stale only)
 }
 
 // computeSnapFreshness stamps per-category freshness: an observed category is
 // "ok" (observed_at = now); an unobserved category with a prior observation is
 // "stale" (prior observed_at kept, attempt_at = now, so a consumer can show
-// "last good X ago"); a category never observed has no entry.
-func computeSnapFreshness(observed map[SnapCategory]bool, prior map[string]snapFreshnessEntry, now time.Time) map[string]snapFreshnessEntry {
+// "last good X ago") and carries the reason it was not re-observed this cycle
+// (denied | failed | timeout, defaulting an unrecorded cause to failed — never
+// a false denied); a category never observed has no entry. Spec C-09 + C-10.
+func computeSnapFreshness(observed map[SnapCategory]bool, attempts map[SnapCategory]string, prior map[string]snapFreshnessEntry, now time.Time) map[string]snapFreshnessEntry {
 	out := make(map[string]snapFreshnessEntry, len(allSnapCategories))
 	for _, cat := range allSnapCategories {
 		key := string(cat)
@@ -130,7 +155,16 @@ func computeSnapFreshness(observed map[SnapCategory]bool, prior map[string]snapF
 			out[key] = snapFreshnessEntry{ObservedAt: now, AttemptAt: now, Status: "ok"}
 		case prior != nil:
 			if p, ok := prior[key]; ok {
-				out[key] = snapFreshnessEntry{ObservedAt: p.ObservedAt, AttemptAt: now, Status: "stale"}
+				reason := attempts[cat]
+				if reason == "" {
+					reason = probe.OutcomeFailed
+				}
+				out[key] = snapFreshnessEntry{
+					ObservedAt: p.ObservedAt,
+					AttemptAt:  now,
+					Status:     "stale",
+					Reason:     reason,
+				}
 			}
 		}
 	}
