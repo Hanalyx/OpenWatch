@@ -123,22 +123,28 @@ func TestRunCycle_EmitsAuditPerTaxonomyCode(t *testing.T) {
 			t.Skip("first-ever cycle suppressed all changes — taxonomy-emit path not exercised this run")
 		}
 
-		// Allow the async audit writer to flush.
-		time.Sleep(100 * time.Millisecond)
-
-		// Count audit rows whose action matches one of the events we
-		// emitted. Every change MUST yield exactly one row.
+		// The audit writer is async + batched (FlushInterval 20ms). Poll for
+		// each emitted event's row up to a deadline rather than sleeping a
+		// fixed interval — a fixed wait is flaky under -race + -p 4 CI load
+		// when the writer goroutine is starved past the sleep. Every change
+		// MUST eventually yield exactly one row.
+		deadline := time.Now().Add(5 * time.Second)
 		for _, ev := range events {
 			var count int
-			err := pool.QueryRow(context.Background(),
-				`SELECT COUNT(*) FROM audit_events
-				   WHERE action = $1 AND resource_id = $2`,
-				string(ev.Code), hostID.String()).Scan(&count)
-			if err != nil {
-				t.Fatalf("count audit rows for %s: %v", ev.Code, err)
+			for {
+				if err := pool.QueryRow(context.Background(),
+					`SELECT COUNT(*) FROM audit_events
+					   WHERE action = $1 AND resource_id = $2`,
+					string(ev.Code), hostID.String()).Scan(&count); err != nil {
+					t.Fatalf("count audit rows for %s: %v", ev.Code, err)
+				}
+				if count > 0 || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(20 * time.Millisecond)
 			}
 			if count == 0 {
-				t.Errorf("audit row missing for taxonomy code %q (host %s)",
+				t.Errorf("audit row missing for taxonomy code %q (host %s) after 5s",
 					ev.Code, hostID)
 			}
 		}

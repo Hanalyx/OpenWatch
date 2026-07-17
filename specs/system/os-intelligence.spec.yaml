@@ -1,7 +1,7 @@
 spec:
   id: system-os-intelligence
   title: Host OS Intelligence — recurring snapshot + diff-driven event log
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -116,6 +116,10 @@ spec:
       description: 'v1.3.0 — persist stamps host_intelligence_state.category_freshness (JSONB, migration 0052): one key per snapshot category mapping to {observed_at, attempt_at, status}. computeSnapFreshness sets an OBSERVED category to status "ok" (observed_at = attempt_at = collected_at); an UNOBSERVED category with a prior observation to status "stale" (prior observed_at kept, attempt_at = this run); a never-observed category has no key. This is the read-side companion to the C-03 no-clobber merge — it records WHEN each carried-forward category was actually last seen.'
       type: technical
       enforcement: error
+    - id: C-10
+      description: 'v1.4.0 — a "stale" freshness entry MUST also carry a reason ∈ {denied, failed, timeout} recording WHY the category was not re-observed this cycle, from the cycle Snapshot.Attempts map. Each probe records its non-observation via the shared probe.ClassifyOutcome classifier (positive-evidence-only "denied": only when the combined output shows a sudo-refusal signature). Note: several collector probes suppress stderr (2>/dev/null) or fall back to a non-sudo path, so a sudo signature is often not visible — those categories honestly classify as "failed" rather than a guessed "denied". A stale category whose cause was not recorded defaults to reason "failed", never "denied". An "ok" entry carries no reason. Attempts is transient (json:"-"), never stored in the snapshot.'
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -194,3 +198,7 @@ spec:
       description: 'v1.3.0 freshness (computeSnapFreshness): an observed category maps to status "ok" with observed_at = attempt_at = the passed now; an unobserved category present in the prior freshness maps to status "stale" with the prior observed_at kept and attempt_at = now; an unobserved category with no prior entry is absent from the output; a nil prior with an unobserved category yields no entry.'
       priority: high
       references_constraints: [C-09]
+    - id: AC-20
+      description: 'v1.4.0 reason (computeSnapFreshness): a stale category whose SnapCategory appears in the attempts map with "denied" / "timeout" carries that reason; a stale category absent from attempts defaults to reason "failed" (never a false "denied"); an observed category carries no reason. The attempts map is threaded from the cycle Snapshot.Attempts.'
+      priority: high
+      references_constraints: [C-10]

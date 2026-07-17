@@ -7,6 +7,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/connprofile"
 	"github.com/Hanalyx/openwatch/internal/credential"
+	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
 
@@ -170,35 +171,6 @@ func runSudoWithFallback(ctx context.Context, sess SSHSession, sudoCmd string, c
 	return fOut, fCode, connprofile.SudoUnknown, fErr
 }
 
-// sudoDenialSignatures are lowercase substrings sudo (or PAM) emits on the
-// combined stdout+stderr when a command is refused for permission / tty /
-// password reasons. Detection is positive-evidence only: a category is labeled
-// "denied" ONLY when one of these appears, so a genuinely-absent tool or a
-// transport error is never mislabeled as a permission problem. Spec C-14.
-var sudoDenialSignatures = []string{
-	"a password is required",
-	"a terminal is required",
-	"no tty present",
-	"is not allowed to run sudo",
-	"is not in the sudoers file",
-	"not allowed to execute",
-	"incorrect password",
-	"sorry, try again",
-}
-
-// sudoDenied reports whether the combined command output carries a recognizable
-// sudo-refusal signature. Case-insensitive substring match on the signatures
-// above.
-func sudoDenied(out []byte) bool {
-	s := strings.ToLower(string(out))
-	for _, sig := range sudoDenialSignatures {
-		if strings.Contains(s, sig) {
-			return true
-		}
-	}
-	return false
-}
-
 // probeFirewall tries each known firewall service in order. The first
 // one to answer (exit 0) wins. Returns ("", "", false) when none answer
 // — typically because the credential lacks sudo. Per spec C-03 + AC-05
@@ -226,7 +198,7 @@ func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig)
 	// grant sudo) rather than the generic "failed". Positive-evidence only.
 	sawDenial := false
 	seen := func(out []byte) {
-		if sudoDenied(out) {
+		if probe.SudoDenied(out) {
 			sawDenial = true
 		}
 	}
@@ -263,9 +235,9 @@ func probeFirewall(ctx context.Context, sess SSHSession, cfg sudoFallbackConfig)
 		return "firewalld", strings.TrimSpace(string(out)), learned, true, ""
 	}
 	if sawDenial {
-		return "", "", learned, false, outcomeDenied
+		return "", "", learned, false, probe.OutcomeDenied
 	}
-	return "", "", learned, false, outcomeFailed
+	return "", "", learned, false, probe.OutcomeFailed
 }
 
 func firstWord(s string) string {

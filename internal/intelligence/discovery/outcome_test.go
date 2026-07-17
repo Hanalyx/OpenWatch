@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
 )
 
 // @ac AC-26
@@ -25,27 +27,27 @@ func TestClassifyOutcome_AndSudoDenied(t *testing.T) {
 			err  error
 			want string
 		}{
-			{"deadline is timeout", "partial", context.DeadlineExceeded, outcomeTimeout},
-			{"wrapped deadline is timeout", "x", errWrap(context.DeadlineExceeded), outcomeTimeout},
-			{"transport error is failed", "x", errors.New("ssh: connection lost"), outcomeFailed},
-			{"sudo password signature is denied", "sudo: a password is required", nil, outcomeDenied},
-			{"sudoers signature is denied", "owadmin is not in the sudoers file", nil, outcomeDenied},
-			{"not-allowed signature is denied", "user is not allowed to execute", nil, outcomeDenied},
-			{"command-not-found is failed", "bash: getenforce: command not found", nil, outcomeFailed},
-			{"empty non-zero is failed", "", nil, outcomeFailed},
+			{"deadline is timeout", "partial", context.DeadlineExceeded, probe.OutcomeTimeout},
+			{"wrapped deadline is timeout", "x", errWrap(context.DeadlineExceeded), probe.OutcomeTimeout},
+			{"transport error is failed", "x", errors.New("ssh: connection lost"), probe.OutcomeFailed},
+			{"sudo password signature is denied", "sudo: a password is required", nil, probe.OutcomeDenied},
+			{"sudoers signature is denied", "owadmin is not in the sudoers file", nil, probe.OutcomeDenied},
+			{"not-allowed signature is denied", "user is not allowed to execute", nil, probe.OutcomeDenied},
+			{"command-not-found is failed", "bash: getenforce: command not found", nil, probe.OutcomeFailed},
+			{"empty non-zero is failed", "", nil, probe.OutcomeFailed},
 		}
 		for _, c := range cases {
-			if got := classifyOutcome([]byte(c.out), c.err); got != c.want {
-				t.Errorf("%s: classifyOutcome(%q, %v) = %q, want %q", c.name, c.out, c.err, got, c.want)
+			if got := probe.ClassifyOutcome([]byte(c.out), c.err); got != c.want {
+				t.Errorf("%s: probe.ClassifyOutcome(%q, %v) = %q, want %q", c.name, c.out, c.err, got, c.want)
 			}
 		}
 
 		// sudoDenied is case-insensitive and does not false-positive on benign
 		// output.
-		if !sudoDenied([]byte("SUDO: A PASSWORD IS REQUIRED")) {
+		if !probe.SudoDenied([]byte("SUDO: A PASSWORD IS REQUIRED")) {
 			t.Error("sudoDenied should match case-insensitively")
 		}
-		if sudoDenied([]byte("Status: active")) {
+		if probe.SudoDenied([]byte("Status: active")) {
 			t.Error("sudoDenied should not match benign firewall output")
 		}
 	})
@@ -78,8 +80,8 @@ func TestProbeFirewall_ReasonOnNonObservation(t *testing.T) {
 		if ok {
 			t.Fatalf("denied case: ok=true, want false")
 		}
-		if reason != outcomeDenied {
-			t.Errorf("denied case: reason=%q, want %q", reason, outcomeDenied)
+		if reason != probe.OutcomeDenied {
+			t.Errorf("denied case: reason=%q, want %q", reason, probe.OutcomeDenied)
 		}
 
 		// Failed: no firewall tool present, every attempt returns 127 with no
@@ -91,8 +93,8 @@ func TestProbeFirewall_ReasonOnNonObservation(t *testing.T) {
 		if ok {
 			t.Fatalf("failed case: ok=true, want false")
 		}
-		if reason != outcomeFailed {
-			t.Errorf("failed case: reason=%q, want %q", reason, outcomeFailed)
+		if reason != probe.OutcomeFailed {
+			t.Errorf("failed case: reason=%q, want %q", reason, probe.OutcomeFailed)
 		}
 
 		// Success: firewalld active via sudoless systemctl → empty reason.

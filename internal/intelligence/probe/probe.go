@@ -10,10 +10,69 @@ package probe
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strconv"
 	"strings"
 )
+
+// Observation outcomes for a probe that did NOT yield a value on a run. Shared
+// by Discovery (system-host-discovery) and the intelligence collector
+// (system-os-intelligence) so the sudo-refusal signature list — a
+// security-relevant classifier — lives in exactly one place and cannot drift
+// between the two callers.
+const (
+	OutcomeDenied  = "denied"  // positive evidence of a sudo/permission refusal
+	OutcomeFailed  = "failed"  // transport error or non-permission command failure
+	OutcomeTimeout = "timeout" // the probe exceeded the run deadline
+)
+
+// sudoDenialSignatures are lowercase substrings sudo (or PAM) emits on the
+// combined stdout+stderr when a command is refused for permission / tty /
+// password reasons. Detection is positive-evidence only: a category is labeled
+// "denied" ONLY when one of these appears, so a genuinely-absent tool or a
+// transport error is never mislabeled as a permission problem.
+var sudoDenialSignatures = []string{
+	"a password is required",
+	"a terminal is required",
+	"no tty present",
+	"is not allowed to run sudo",
+	"is not in the sudoers file",
+	"not allowed to execute",
+	"incorrect password",
+	"sorry, try again",
+}
+
+// SudoDenied reports whether the combined command output carries a recognizable
+// sudo-refusal signature. Case-insensitive substring match.
+func SudoDenied(out []byte) bool {
+	s := strings.ToLower(string(out))
+	for _, sig := range sudoDenialSignatures {
+		if strings.Contains(s, sig) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClassifyOutcome maps a probe's (out, err) to a non-observed outcome. A
+// context-deadline error is OutcomeTimeout; any other error is OutcomeFailed; a
+// nil error whose output carries a sudo-refusal signature is OutcomeDenied; a
+// nil error with a non-zero-exit output and no signature is OutcomeFailed.
+// Positive-evidence only for denied — under-reporting a denial is safer than
+// mislabeling an absent tool or a dropped connection as a permission problem.
+func ClassifyOutcome(out []byte, err error) string {
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return OutcomeTimeout
+		}
+		return OutcomeFailed
+	}
+	if SudoDenied(out) {
+		return OutcomeDenied
+	}
+	return OutcomeFailed
+}
 
 // OSFacts is the structured form of /etc/os-release. Field semantics
 // follow the FHS/os-release standard; both RHEL-family (quoted values)
