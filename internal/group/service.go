@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/framework"
 )
 
 // Sentinel errors. Handlers map these to HTTP status codes.
@@ -222,7 +224,7 @@ func (s *Service) RemoveMember(ctx context.Context, groupID, hostID uuid.UUID) e
 }
 
 // List returns every group with its computed rollup, sites first.
-func (s *Service) List(ctx context.Context) ([]GroupWithRollup, error) {
+func (s *Service) List(ctx context.Context, orgDefault string) ([]GroupWithRollup, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+groupCols+`
 		FROM groups
@@ -246,7 +248,7 @@ func (s *Service) List(ctx context.Context) ([]GroupWithRollup, error) {
 
 	out := make([]GroupWithRollup, 0, len(groups))
 	for _, g := range groups {
-		roll, err := s.rollup(ctx, g)
+		roll, err := s.rollup(ctx, g, orgDefault)
 		if err != nil {
 			return nil, err
 		}
@@ -298,10 +300,22 @@ func memberCTE(g Group) (string, any) {
 	return `SELECT host_id FROM group_members WHERE group_id = $1`, g.ID
 }
 
-func (s *Service) rollup(ctx context.Context, g Group) (Rollup, error) {
+func (s *Service) rollup(ctx context.Context, g Group, orgDefault string) (Rollup, error) {
 	cte, arg := memberCTE(g)
 	var r Rollup
 	var passing, evaluated int
+	// Compliance counts (critical / passing / evaluated) are scored against
+	// each member's EFFECTIVE compliance target (host_effective_target, else
+	// the org default $2), RESOLVED to that host's OS-specific key
+	// (framework.OSResolvedMatchSQL) — so a group's AVG matches the hosts-list
+	// column and host-detail tile instead of an unlensed all-rules number.
+	// Empty target + empty org default = all rules (backward compatible).
+	// Connectivity counts (hosts/online/down) are OS-agnostic and unfiltered.
+	lensRef := `COALESCE(NULLIF(het.target_framework, ''), NULLIF($2::text, ''))`
+	osMatch := framework.OSResolvedMatchSQL(lensRef, "h.os_family", "h.os_version")
+	lensJoin := `JOIN host_rule_state hrs ON hrs.host_id = m.host_id
+		         JOIN hosts h ON h.id = m.host_id
+		         LEFT JOIN host_effective_target het ON het.host_id = m.host_id`
 	err := s.pool.QueryRow(ctx, `
 		WITH m AS (`+cte+`)
 		SELECT
@@ -310,13 +324,13 @@ func (s *Service) rollup(ctx context.Context, g Group) (Rollup, error) {
 		     WHERE hl.reachability_status = 'reachable'),
 		  (SELECT count(*) FROM m JOIN host_liveness hl ON hl.host_id = m.host_id
 		     WHERE hl.reachability_status = 'unreachable'),
-		  (SELECT count(DISTINCT hrs.host_id) FROM m JOIN host_rule_state hrs ON hrs.host_id = m.host_id
-		     WHERE hrs.current_status = 'fail' AND hrs.severity ILIKE 'critical'),
-		  (SELECT count(*) FROM m JOIN host_rule_state hrs ON hrs.host_id = m.host_id
-		     WHERE hrs.current_status = 'pass'),
-		  (SELECT count(*) FROM m JOIN host_rule_state hrs ON hrs.host_id = m.host_id
-		     WHERE hrs.current_status IN ('pass','fail'))`,
-		arg).Scan(&r.Hosts, &r.Online, &r.Down, &r.CriticalHosts, &passing, &evaluated)
+		  (SELECT count(DISTINCT hrs.host_id) FROM m `+lensJoin+`
+		     WHERE hrs.current_status = 'fail' AND hrs.severity ILIKE 'critical' AND `+osMatch+`),
+		  (SELECT count(*) FROM m `+lensJoin+`
+		     WHERE hrs.current_status = 'pass' AND `+osMatch+`),
+		  (SELECT count(*) FROM m `+lensJoin+`
+		     WHERE hrs.current_status IN ('pass','fail') AND `+osMatch+`)`,
+		arg, orgDefault).Scan(&r.Hosts, &r.Online, &r.Down, &r.CriticalHosts, &passing, &evaluated)
 	if err != nil {
 		return Rollup{}, fmt.Errorf("group: rollup: %w", err)
 	}
@@ -351,7 +365,7 @@ func (s *Service) rollup(ctx context.Context, g Group) (Rollup, error) {
 }
 
 // Summary computes the Groups-page KPI row.
-func (s *Service) Summary(ctx context.Context) (FleetSummary, error) {
+func (s *Service) Summary(ctx context.Context, orgDefault string) (FleetSummary, error) {
 	var sum FleetSummary
 	err := s.pool.QueryRow(ctx, `
 		SELECT
@@ -397,13 +411,19 @@ func (s *Service) Summary(ctx context.Context) (FleetSummary, error) {
 		return FleetSummary{}, fmt.Errorf("group: summary ungrouped: %w", err)
 	}
 
-	// Fleet avg compliance across all active hosts (passing / evaluated).
+	// Fleet avg compliance across all hosts, scored against the ORG default
+	// lens ($1), each host OS-resolved — the same rule as GET /fleet/score so
+	// the two fleet KPIs agree (empty org default = all rules). Per-host
+	// targets are not aggregated into this one number (matches the fleet KPI).
 	var passing, evaluated int
 	err = s.pool.QueryRow(ctx, `
 		SELECT
-		  count(*) FILTER (WHERE current_status = 'pass'),
-		  count(*) FILTER (WHERE current_status IN ('pass','fail'))
-		FROM host_rule_state`).Scan(&passing, &evaluated)
+		  count(*) FILTER (WHERE hrs.current_status = 'pass'),
+		  count(*) FILTER (WHERE hrs.current_status IN ('pass','fail'))
+		FROM host_rule_state hrs
+		JOIN hosts h ON h.id = hrs.host_id
+		WHERE `+framework.OSResolvedMatchSQL("NULLIF($1::text, '')", "h.os_family", "h.os_version"),
+		orgDefault).Scan(&passing, &evaluated)
 	if err != nil {
 		return FleetSummary{}, fmt.Errorf("group: summary compliance: %w", err)
 	}

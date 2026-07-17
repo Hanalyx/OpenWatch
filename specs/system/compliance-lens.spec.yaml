@@ -182,3 +182,14 @@ spec:
         behaves identically to no param.
       priority: high
       references_constraints: [C-06]
+    - id: AC-11
+      description: >
+        The /groups compliance averages are lens-scoped and OS-resolved, not
+        all-rules. With the org default set to "stig", a group whose RHEL 9
+        member carries stig_rhel9 (1 pass, 1 fail) + stig_rhel10 (1 pass) has a
+        per-group AvgCompliancePct computed from stig_rhel9 ONLY (1/2 = 50, the
+        stig_rhel10 row EXCLUDED), and the groups-page fleet AvgCompliancePct is
+        the same org-default OS-resolved score as GET /fleet/score. With no org
+        default and no group/host target, both revert to all-rules.
+      priority: high
+      references_constraints: [C-06]
