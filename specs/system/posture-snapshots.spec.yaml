@@ -1,7 +1,7 @@
 spec:
   id: system-posture-snapshots
   title: Daily compliance posture snapshots (trend substrate)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -42,18 +42,21 @@ spec:
       scan path.
     scope:
       includes:
-        - posture_snapshots table (migration 0025, PK (host_id, snapshot_date))
-        - posture.Rollup - single aggregate UPSERT over host_rule_state
+        - posture_snapshots table (migration 0025; PK (host_id, snapshot_date, framework) since migration 0053)
+        - posture.Rollup - single aggregate UPSERT over host_rule_state, all-rules + per-family OS-resolved series
         - posture.Run - hourly cron + immediate boot pass
-        - posture.HostTrend / posture.FleetTrend read queries
+        - posture.HostTrend / posture.FleetTrend read queries (lens-projected)
       excludes:
-        - Retroactive backfill from transactions
-        - Retention pruning (the table grows ~hosts rows/day; revisit at scale)
-        - Per-framework trend slices (lens-projected trends are a later need)
+        - Retroactive backfill of per-family history (start-fresh; pre-0053 rows are the all-rules series, per-family accrues forward)
+        - Retention pruning (the table grows ~hosts x families rows/day; revisit at scale)
 
   constraints:
     - id: C-01
-      description: 'The rollup MUST be a single aggregate UPSERT keyed (host_id, snapshot_date): re-running within the same day updates rather than duplicates, and a day rollover starts a fresh row leaving prior days untouched. Soft-deleted hosts are excluded; hosts without host_rule_state rows produce no row'
+      description: 'The rollup MUST be a single aggregate UPSERT keyed (host_id, snapshot_date, framework): re-running within the same day updates rather than duplicates, and a day rollover starts a fresh row leaving prior days untouched. Soft-deleted hosts are excluded; hosts without host_rule_state rows produce no row'
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: 'v1.1.0 (compliance-lens Phase 3c) — the rollup MUST write, per host per day, the all-rules series (framework = "") AND one row per framework FAMILY the host has rules in. A per-family row is OS-RESOLVED: a rule contributes to family F only via the host''s OS-compatible key — the bare key when F is OS-neutral (nist_800_53, pci_dss_4, srg), or F_<osfamily><major> when OS-specific (a RHEL 9 host''s stig via stig_rhel9, NEVER stig_rhel10) — so a rule counts at most once per family and the family series equals the host-detail hero tile / list score. Storing every family means switching the org default lens selects a different pre-computed series with no recompute (history is start-fresh: pre-migration rows are the "" series, per-family accrues forward). HostTrend/FleetTrend take a lens and read that series (a specific corpus key normalizes to its family, stig_rhel9 -> stig)'
       type: technical
       enforcement: error
     - id: C-02
@@ -74,3 +77,7 @@ spec:
       description: 'HostTrend returns only the requested trailing window oldest-first; FleetTrend aggregates per day (avg score to one decimal, host count, summed failing, critical-host count) and drops soft-deleted hosts'
       priority: critical
       references_constraints: [C-03]
+    - id: AC-03
+      description: 'v1.1.0 per-family OS-resolved series: after a rollup over a RHEL 9 host carrying stig_rhel9 (1 pass, 1 fail), stig_rhel10 (1 pass), cis_rhel9 (1 pass), nist_800_53 (1 pass), the framework="stig" row is 1/2 (stig_rhel9 only; stig_rhel10 EXCLUDED), framework="cis" is 1/1, framework="nist_800_53" is 1/1, and framework="" (all rules) is 4/5. HostTrend(lens="stig") and HostTrend(lens="stig_rhel9") both return the stig series; HostTrend(lens="") returns the all-rules series'
+      priority: critical
+      references_constraints: [C-01, C-04]

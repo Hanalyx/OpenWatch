@@ -33,8 +33,10 @@ func seedRuleStateFW(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID,
 }
 
 // @ac AC-03
-// AC-03: a FAMILY filter spans a mixed-OS fleet (stig_rhel9 + stig_rhel10),
-// a specific-key filter matches only that OS, and no filter counts all rules.
+// AC-03: a FAMILY filter spans a mixed-OS fleet — each host resolved to its
+// OWN OS key (a RHEL 9 host's "stig" -> stig_rhel9, a RHEL 10 host's ->
+// stig_rhel10) so both contribute; a specific-key filter matches only that OS;
+// no filter counts all rules.
 func TestFleetComplianceScore_FamilyMatchesMixedOS(t *testing.T) {
 	t.Run("system-compliance-lens/AC-03", func(t *testing.T) {
 		pool := freshPool(t)
@@ -42,14 +44,22 @@ func TestFleetComplianceScore_FamilyMatchesMixedOS(t *testing.T) {
 		user := seedUser(t, pool)
 		h9 := seedHost(t, pool, user)  // RHEL 9
 		h10 := seedHost(t, pool, user) // RHEL 10
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE hosts SET os_family='rhel', os_version='9.6' WHERE id=$1`, h9); err != nil {
+			t.Fatalf("set h9 os: %v", err)
+		}
+		if _, err := pool.Exec(context.Background(),
+			`UPDATE hosts SET os_family='rhel', os_version='10.0' WHERE id=$1`, h10); err != nil {
+			t.Fatalf("set h10 os: %v", err)
+		}
 
 		seedRuleStateFW(t, pool, h9, "r.a", "pass", `{"stig_rhel9":["V-1"]}`)
 		seedRuleStateFW(t, pool, h9, "r.b", "fail", `{"stig_rhel9":["V-2"]}`)
 		seedRuleStateFW(t, pool, h9, "r.c", "pass", `{"cis_rhel9":["1.1"]}`)
 		seedRuleStateFW(t, pool, h10, "r.a", "pass", `{"stig_rhel10":["V-1"]}`)
 
-		// Family "stig" = stig_rhel9 (1 pass, 1 fail) + stig_rhel10 (1 pass)
-		// across both hosts → 2 pass / 3 evaluations.
+		// Family "stig": h9 resolves to stig_rhel9 (1 pass, 1 fail), h10 to
+		// stig_rhel10 (1 pass) → 2 pass / 3 evaluations across the fleet.
 		stig, err := svc.FleetComplianceScore(context.Background(), WithFramework("stig"))
 		if err != nil {
 			t.Fatalf("stig score: %v", err)

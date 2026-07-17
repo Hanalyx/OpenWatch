@@ -36,17 +36,18 @@ func NewService(pool *pgxpool.Pool) *Service {
 func (s *Service) FleetComplianceScore(ctx context.Context, opts ...Option) (Score, error) {
 	o := applyOpts(opts)
 
-	// Single SQL covers the unfiltered (framework=""), specific-key, and
-	// family paths. framework.MatchSQL($1) is TRUE when $1 is NULL (all
-	// rules) or framework_refs carries that exact key OR any key in that
-	// family (e.g. "stig" matches stig_rhel9 + stig_rhel10 across a mixed-OS
-	// fleet — a single key filter would miss the other OS).
+	// Per-host OS-resolved lens (framework.OSResolvedMatchSQL): each host
+	// contributes its OWN OS-specific benchmark — a RHEL 9 host scores against
+	// stig_rhel9, a RHEL 10 host against stig_rhel10 — rather than the family
+	// union, which would grade every host against every OS variant it carries
+	// mapped rules for. $1 NULL = all rules. Joins hosts for each row's OS.
 	q := `
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')                  AS passing,
 			COUNT(*) FILTER (WHERE current_status IN ('pass','fail'))        AS evaluations
-		  FROM host_rule_state
-		 WHERE ` + framework.MatchSQL("$1")
+		  FROM host_rule_state hrs
+		  JOIN hosts hh ON hh.id = hrs.host_id
+		 WHERE ` + framework.OSResolvedMatchSQL("$1", "hh.os_family", "hh.os_version")
 	var passing, evaluations int64
 	if err := s.pool.QueryRow(ctx, q, nullableFramework(o.framework)).Scan(&passing, &evaluations); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
