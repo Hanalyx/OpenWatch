@@ -6,6 +6,7 @@
 //	AC-02  TestComplianceTrend_RBACAndUnknownHost
 //	AC-03  TestFleetComplianceTrend_AggregatesAndDeletedHosts
 //	AC-04  TestComplianceTrend_DaysClamp
+//	AC-05  TestHostComplianceTrend_FollowsOrgLens
 package server
 
 import (
@@ -17,7 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/systemconfig"
 )
 
 // seedTrendSnapshot writes one posture_snapshots row daysAgo days back.
@@ -32,6 +35,22 @@ func seedTrendSnapshot(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID,
 		hostID, daysAgo, passing, failing, score, critical)
 	if err != nil {
 		t.Fatalf("seed snapshot: %v", err)
+	}
+}
+
+// seedTrendSnapshotFW writes a snapshot row for a specific framework series
+// (framework="" is all-rules; a family id is that lens's series).
+func seedTrendSnapshotFW(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID,
+	daysAgo int, framework string, score float64, passing, failing int) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO posture_snapshots
+			(host_id, snapshot_date, framework, passing, failing, skipped, error, total,
+			 score_pct, has_critical_findings)
+		VALUES ($1, current_date - $2::int, $3, $4, $5, 0, 0, $4::int + $5::int, $6, false)`,
+		hostID, daysAgo, framework, passing, failing, score)
+	if err != nil {
+		t.Fatalf("seed snapshot fw: %v", err)
 	}
 }
 
@@ -209,6 +228,45 @@ func TestComplianceTrend_DaysClamp(t *testing.T) {
 		status, body = getHostTrend(t, url, hostID.String(), "")
 		if status != http.StatusOK || len(body.Days) != 2 {
 			t.Errorf("default: status=%d len=%d, want 200/2", status, len(body.Days))
+		}
+	})
+}
+
+// @ac AC-05
+// AC-05: the trend follows the effective lens server-side — with the org
+// default set to "stig", the host trend returns its STIG series, not
+// all-rules; clearing the org default falls back to the all-rules series.
+func TestHostComplianceTrend_FollowsOrgLens(t *testing.T) {
+	t.Run("api-compliance-trend/AC-05", func(t *testing.T) {
+		ctx := context.Background()
+		url, pool := freshAPIServer(t)
+		user := firstSeededUserID(t, pool)
+		hostID := seedHostForIntel(t, pool)
+
+		// Two series for today: STIG (88) and all-rules (68).
+		seedTrendSnapshotFW(t, pool, hostID, 0, "stig", 88, 353, 32)
+		seedTrendSnapshotFW(t, pool, hostID, 0, "", 68, 523, 106)
+
+		store := systemconfig.NewStore(pool, audit.Emit)
+
+		// Org default = stig -> trend follows STIG (88).
+		if _, err := store.SetCompliance(ctx,
+			systemconfig.ComplianceConfig{DefaultFramework: "stig"}, user.String()); err != nil {
+			t.Fatalf("set org default: %v", err)
+		}
+		status, body := getHostTrend(t, url, hostID.String(), "")
+		if status != http.StatusOK || len(body.Days) != 1 || body.Days[0].ScorePct != 88 {
+			t.Errorf("org default stig: status=%d days=%+v, want the STIG series (88)", status, body.Days)
+		}
+
+		// Clear the org default -> trend falls back to all-rules (68).
+		if _, err := store.SetCompliance(ctx,
+			systemconfig.ComplianceConfig{DefaultFramework: ""}, user.String()); err != nil {
+			t.Fatalf("clear org default: %v", err)
+		}
+		status, body = getHostTrend(t, url, hostID.String(), "")
+		if status != http.StatusOK || len(body.Days) != 1 || body.Days[0].ScorePct != 68 {
+			t.Errorf("no org default: status=%d days=%+v, want the all-rules series (68)", status, body.Days)
 		}
 	})
 }

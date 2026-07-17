@@ -25,7 +25,19 @@ func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request, params 
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
 	}
-	score, err := h.fleet.FleetComplianceScore(r.Context(), frameworkOpts(params.Framework)...)
+	// v1.2.0 (compliance-targets): with no explicit ?framework=, the fleet KPI
+	// defaults to the ORG default lens (ComplianceConfig.DefaultFramework) so
+	// the tile reflects the selected standard instead of All rules. Per-host
+	// targets are not aggregated into one fleet number here — mixed-fleet
+	// cohorts are Phase 3b; the org default is the single-lens fleet view.
+	lens := params.Framework
+	if (lens == nil || *lens == "") && h.sysCfg != nil {
+		if cfg, cerr := h.sysCfg.LoadCompliance(r.Context()); cerr == nil && cfg.DefaultFramework != "" {
+			d := cfg.DefaultFramework
+			lens = &d
+		}
+	}
+	score, err := h.fleet.FleetComplianceScore(r.Context(), frameworkOpts(lens)...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"failed to compute fleet compliance score", true)

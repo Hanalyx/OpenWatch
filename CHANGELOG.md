@@ -10,6 +10,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] Eyrie — 2026-07-17
+
+### Added
+
+- **The framework lens is now the default compliance score on every surface.**
+  With an org default lens (or a per-host / per-group target) set, the
+  compliance score reflects that framework by default on the hosts list, Scans
+  → Coverage, the fleet KPI, the Groups-page averages, and the host-detail
+  compliance trend — not only the host-detail hero tile. Previously those
+  surfaces showed the raw all-rules score unless a framework was explicitly
+  requested. An explicit `?framework=` still overrides. See spec
+  `system-compliance-lens`.
+- **Framework-scoped posture snapshots — the compliance trend follows the
+  lens.** The daily posture rollup now stores an OS-resolved score per framework
+  family per host per day (migration 0053) alongside the all-rules series. The
+  host trend card and the dashboard fleet trend read the effective lens's
+  series, so the trend agrees with the hero tile, and switching the org default
+  lens selects a different pre-computed series with no recompute. History is
+  start-fresh (per-family series accrues forward from the migration). Specs
+  `system-posture-snapshots`, `api-compliance-trend`.
+
+### Fixed
+
+- **Per-host compliance scores resolve to the host's OS-specific benchmark.** A
+  family lens (e.g. STIG) is scored against the host's own corpus key (a RHEL 9
+  host's STIG = `stig_rhel9`), not the union of every OS variant. Before, the
+  hosts list scored a RHEL 9 host against RHEL 8/10 and Ubuntu STIG rules too
+  (a family-wide match), so the list read (for example) 70% while the
+  host-detail tile read 88% for the same host and lens. Every per-host score
+  surface — list, Coverage, host summary, fleet score, Groups averages — now
+  agrees. New `framework.OSResolvedMatchSQL`.
+- **The Groups page compliance averages are lens-scoped.** The per-group and
+  groups-page fleet averages were the last surface still counting all rules;
+  they now follow the effective lens (OS-resolved), so the Groups fleet average
+  equals the hosts-page fleet KPI.
+
 ## [0.5.0] Eyrie — 2026-07-14
 
 ### Added

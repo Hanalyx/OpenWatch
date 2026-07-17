@@ -177,11 +177,21 @@ func (h *handlers) GetGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	sum, err := h.groupSvc.Summary(ctx)
+	// The org default lens (empty = all rules) scopes the per-group and fleet
+	// compliance averages, resolved per host to its OS-specific benchmark, so
+	// the Groups page agrees with the hosts list / fleet KPI instead of showing
+	// unlensed all-rules numbers. compliance-lens Phase 3.
+	orgDefault := ""
+	if h.sysCfg != nil {
+		if cfg, cerr := h.sysCfg.LoadCompliance(ctx); cerr == nil {
+			orgDefault = cfg.DefaultFramework
+		}
+	}
+	sum, err := h.groupSvc.Summary(ctx, orgDefault)
 	if mapGroupErr(w, err) {
 		return
 	}
-	groups, err := h.groupSvc.List(ctx)
+	groups, err := h.groupSvc.List(ctx, orgDefault)
 	if mapGroupErr(w, err) {
 		return
 	}

@@ -63,11 +63,21 @@ func (h *handlers) GetHosts(w http.ResponseWriter, r *http.Request, params api.G
 			"last_scan_at join failed", true)
 		return
 	}
+	// v1.8.0 (compliance-targets): with no explicit ?framework=, the per-host
+	// compliance summary defaults to each host's EFFECTIVE TARGET, falling back
+	// to the org default lens — resolved in-query by loadHostListComplianceByIDs
+	// so the list column matches the host hero tile. An explicit param wins.
 	listLens := ""
 	if params.Framework != nil {
 		listLens = *params.Framework
 	}
-	complianceByID, err := loadHostListComplianceByIDs(r.Context(), h.pool, ids, listLens)
+	orgDefault := ""
+	if listLens == "" && h.sysCfg != nil {
+		if cfg, cerr := h.sysCfg.LoadCompliance(r.Context()); cerr == nil {
+			orgDefault = cfg.DefaultFramework
+		}
+	}
+	complianceByID, err := loadHostListComplianceByIDs(r.Context(), h.pool, ids, listLens, orgDefault)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"compliance summary join failed", true)

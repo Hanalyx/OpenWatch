@@ -216,32 +216,55 @@ func loadHostLatestScanIDByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uu
 // compliance_summary: null ("never scanned"). critical_failing counts
 // rows with current_status='fail' AND critical severity
 // (case-insensitive). Spec api-hosts v1.5.0 C-12 / AC-23.
-func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID, lens string) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
+func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID, explicitLens, orgDefault string) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
 	out := map[uuid.UUID]*api.HostListComplianceSummary{}
 	if len(ids) == 0 {
 		return out, nil
 	}
-	// $2 is the default-lens family / specific key (or NULL for all rules);
-	// framework.MatchSQL resolves a family per host in-query so each card
-	// reflects the same lens as the fleet KPI.
+	// Per-host effective lens (Phase 3 compliance-targets): when the caller
+	// passes NO explicit ?framework= ($2 empty), each host's score defaults to
+	// its OWN effective target — host_effective_target (host override, else the
+	// oldest site-group target; migration 0051), else the org default ($3),
+	// else All rules. An explicit $2 wins uniformly across the page.
+	//
+	// The family is RESOLVED to each host's OS-specific corpus key
+	// (framework.OSResolvedMatchSQL): a RHEL 9 host's "stig" scores against
+	// stig_rhel9 only, NOT the union stig_rhel9+stig_rhel10+…, so the list
+	// column matches the host-detail hero tile (a mixed-OS host carries mapped
+	// rules for several OS benchmarks; the family union over-counts it). eff
+	// carries each host's os_family/os_version for that resolution.
 	q := `
-		SELECT host_id,
-		       COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
-		       COUNT(*) FILTER (WHERE current_status = 'fail')::BIGINT    AS failing,
-		       COUNT(*) FILTER (WHERE current_status = 'skipped')::BIGINT AS skipped,
-		       COUNT(*) FILTER (WHERE current_status = 'error')::BIGINT   AS errors,
-		       COUNT(*)::BIGINT                                           AS total,
-		       COUNT(*) FILTER (WHERE current_status = 'fail'
-		                          AND lower(COALESCE(severity, '')) = 'critical')::BIGINT AS critical_failing
-		  FROM host_rule_state
-		 WHERE host_id = ANY($1)
-		   AND ` + framework.MatchSQL("$2") + `
-		 GROUP BY host_id`
-	var frameworkParam any
-	if lens != "" {
-		frameworkParam = lens
+		WITH eff AS (
+			SELECT hh.id AS host_id,
+			       COALESCE(NULLIF($2::text, ''),
+			                NULLIF(het.target_framework, ''),
+			                NULLIF($3::text, '')) AS lens,
+			       hh.os_family AS osf,
+			       hh.os_version AS osv
+			  FROM hosts hh
+			  LEFT JOIN host_effective_target het ON het.host_id = hh.id
+			 WHERE hh.id = ANY($1)
+		)
+		SELECT hrs.host_id,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'pass')::BIGINT    AS passing,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail')::BIGINT    AS failing,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'skipped')::BIGINT AS skipped,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'error')::BIGINT   AS errors,
+		       COUNT(*)::BIGINT                                               AS total,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail'
+		                          AND lower(COALESCE(hrs.severity, '')) = 'critical')::BIGINT AS critical_failing
+		  FROM host_rule_state hrs
+		  JOIN eff ON eff.host_id = hrs.host_id
+		 WHERE ` + framework.OSResolvedMatchSQL("eff.lens", "eff.osf", "eff.osv") + `
+		 GROUP BY hrs.host_id`
+	var explicitParam, orgParam any
+	if explicitLens != "" {
+		explicitParam = explicitLens
 	}
-	rows, err := pool.Query(ctx, q, ids, frameworkParam)
+	if orgDefault != "" {
+		orgParam = orgDefault
+	}
+	rows, err := pool.Query(ctx, q, ids, explicitParam, orgParam)
 	if err != nil {
 		return nil, fmt.Errorf("loadHostListComplianceByIDs: %w", err)
 	}
@@ -267,20 +290,23 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 // whose rule_state has no rows mapped to the requested framework
 // returns all-zero counts (AC-18).
 func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID, lens string) (api.HostComplianceSummary, error) {
-	// $2 is a family id or a specific corpus key (or NULL for all rules);
-	// framework.MatchSQL resolves a family (e.g. "stig") to the host's own
-	// OS key (stig_rhel9 for a RHEL 9 host) in-query, so the list can carry
-	// a single family filter uniformly across a mixed-OS fleet.
+	// $2 is a family id or a specific corpus key (or NULL for all rules). The
+	// family is RESOLVED to THIS host's OS-specific key
+	// (framework.OSResolvedMatchSQL): a RHEL 9 host's "stig" scores against
+	// stig_rhel9 only, matching the host-detail lens bar / hero tile rather
+	// than the family union (which over-counts a host that carries mapped
+	// rules for several OS benchmarks). Joins hosts for the host's OS.
 	q := `
 		SELECT
-			COUNT(*) FILTER (WHERE current_status = 'pass')::BIGINT    AS passing,
-			COUNT(*) FILTER (WHERE current_status = 'fail')::BIGINT    AS failing,
-			COUNT(*) FILTER (WHERE current_status = 'skipped')::BIGINT AS skipped,
-			COUNT(*) FILTER (WHERE current_status = 'error')::BIGINT   AS errors,
-			COUNT(*)::BIGINT                                           AS total
-		  FROM host_rule_state
-		 WHERE host_id = $1
-		   AND ` + framework.MatchSQL("$2")
+			COUNT(*) FILTER (WHERE hrs.current_status = 'pass')::BIGINT    AS passing,
+			COUNT(*) FILTER (WHERE hrs.current_status = 'fail')::BIGINT    AS failing,
+			COUNT(*) FILTER (WHERE hrs.current_status = 'skipped')::BIGINT AS skipped,
+			COUNT(*) FILTER (WHERE hrs.current_status = 'error')::BIGINT   AS errors,
+			COUNT(*)::BIGINT                                               AS total
+		  FROM host_rule_state hrs
+		  JOIN hosts hh ON hh.id = hrs.host_id
+		 WHERE hrs.host_id = $1
+		   AND ` + framework.OSResolvedMatchSQL("$2", "hh.os_family", "hh.os_version")
 	var s api.HostComplianceSummary
 	var frameworkParam any
 	if lens != "" {

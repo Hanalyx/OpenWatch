@@ -439,7 +439,7 @@ func TestSummary_Counts(t *testing.T) {
 			t.Fatalf("maintenance: %v", err)
 		}
 
-		sum, err := svc.Summary(ctx)
+		sum, err := svc.Summary(ctx, "")
 		if err != nil {
 			t.Fatalf("Summary: %v", err)
 		}
@@ -467,7 +467,7 @@ func TestSummary_Counts(t *testing.T) {
 // test if the group is absent.
 func listOne(t *testing.T, svc *Service, ctx context.Context, id uuid.UUID) Rollup {
 	t.Helper()
-	all, err := svc.List(ctx)
+	all, err := svc.List(ctx, "")
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
