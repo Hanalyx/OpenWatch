@@ -7,7 +7,7 @@
 // or mutates host_rule_state / transactions. Request, Approve, and Reject are
 // pure state transitions over remediation_requests; ProjectLift only reads
 // host_rule_state. The act of mutating a host (dry-run / execute / rollback)
-// is the OpenWatch+ licensed track, gated by the remediation_execution license
+// is the OpenWatch Enterprise licensed track, gated by the remediation_execution license
 // feature, and is NOT implemented here.
 //
 // Separation of duties: the requester cannot review their own request
@@ -26,7 +26,7 @@ import (
 
 // Status is the remediation request lifecycle state. The free path uses
 // pending_approval -> approved | rejected; the remaining states are driven by
-// the OpenWatch+ licensed execution track.
+// the OpenWatch Enterprise licensed execution track.
 type Status string
 
 const (

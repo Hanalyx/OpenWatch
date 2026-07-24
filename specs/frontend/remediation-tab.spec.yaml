@@ -7,7 +7,7 @@ spec:
 
   context:
     system: openwatch
-    feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch+ upsell.
+    feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch Enterprise upsell.
     description: >
       The frontend half of the remediation feature. The backend exposes
       /api/v1/remediation/* (api-remediation):
@@ -22,7 +22,7 @@ spec:
       :execute requires remediation:execute and returns 202 (queued), or
       409 if the request is not in 'approved' state. :rollback requires
       remediation:rollback, returns 202, or 409 if not 'executed'. The
-      remaining OpenWatch+ paywall is BULK and AUTOMATED remediation
+      remaining OpenWatch Enterprise paywall is BULK and AUTOMATED remediation
       (apply many rules / fleet-wide, scheduled auto-remediation),
       rendered as a DISABLED upsell never wired to any endpoint.
 
@@ -45,7 +45,7 @@ spec:
     summary: >
       A usable free-tier remediation surface: request a fix from a
       failing rule, see this host's requests, approve or reject within
-      the caller's authority, and a clear OpenWatch+ upsell for the
+      the caller's authority, and a clear OpenWatch Enterprise upsell for the
       host-mutating apply step that is never wired to the act endpoints.
     scope:
       includes:
@@ -54,10 +54,10 @@ spec:
         - RemediationTab panel on host detail with approve/reject gating and the atomic-model explainer
         - Per-rule Fix (:execute) gated on remediation:execute||isAdmin and Roll back (:rollback) gated on remediation:rollback||isAdmin
         - Lifecycle status rendering (executing "Applying...", executed "Fixed", rolled_back, failed)
-        - The OpenWatch+ upsell for BULK and AUTOMATED remediation (disabled, never calls any endpoint)
+        - The OpenWatch Enterprise upsell for BULK and AUTOMATED remediation (disabled, never calls any endpoint)
       excludes:
-        - Calling :dry-run (OpenWatch+ licensed track)
-        - Bulk / fleet-wide apply and scheduled auto-remediation (OpenWatch+, upsell only)
+        - Calling :dry-run (OpenWatch Enterprise licensed track)
+        - Bulk / fleet-wide apply and scheduled auto-remediation (OpenWatch Enterprise, upsell only)
         - The transaction journal (steps) view
         - A fleet-wide remediation queue (host-scoped only here)
 
@@ -71,7 +71,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'The Remediation tab lists this host''s requests (status chip, rule_id, projected lift) newest first. On a pending_approval row, a caller with remediation:approve (|| isAdmin) gets Approve / Reject (POST :approve / :reject, invalidate on success, 409 inline); without it, "Awaiting approval". BULK and AUTOMATED remediation render as a DISABLED OpenWatch+ upsell that is never wired to any endpoint'
+      description: 'The Remediation tab lists this host''s requests (status chip, rule_id, projected lift) newest first. On a pending_approval row, a caller with remediation:approve (|| isAdmin) gets Approve / Reject (POST :approve / :reject, invalidate on success, 409 inline); without it, "Awaiting approval". BULK and AUTOMATED remediation render as a DISABLED OpenWatch Enterprise upsell that is never wired to any endpoint'
       type: security
       enforcement: error
     - id: C-04
@@ -105,6 +105,6 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-07
-      description: 'Source inspection: the OpenWatch+ upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch+)"), is DISABLED, and the single-rule "Execute on host (OpenWatch+)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
+      description: 'Source inspection: the OpenWatch Enterprise upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch Enterprise)"), is DISABLED, and the single-rule "Execute on host (OpenWatch Enterprise)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
       priority: high
       references_constraints: [C-03, C-04]

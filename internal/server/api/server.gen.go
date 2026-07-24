@@ -892,9 +892,8 @@ func (e LicenseStateResponseStatus) Valid() bool {
 
 // Defines values for LicenseStateResponseTier.
 const (
-	Enterprise    LicenseStateResponseTier = "enterprise"
-	Free          LicenseStateResponseTier = "free"
-	OpenwatchPlus LicenseStateResponseTier = "openwatch_plus"
+	Enterprise LicenseStateResponseTier = "enterprise"
+	Free       LicenseStateResponseTier = "free"
 )
 
 // Valid indicates whether the value is a known member of the LicenseStateResponseTier enum.
@@ -903,8 +902,6 @@ func (e LicenseStateResponseTier) Valid() bool {
 	case Enterprise:
 		return true
 	case Free:
-		return true
-	case OpenwatchPlus:
 		return true
 	default:
 		return false

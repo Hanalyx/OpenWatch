@@ -1217,7 +1217,7 @@ function TabStub({ tab, subsystem }: { tab: TabId; subsystem: string }) {
 //   executing        -> "Applying..." (polled to executed | failed)
 //   executed         -> Roll back / :rollback (remediation:rollback)
 // Act permissions also pass with the 'admin' permission (|| isAdmin).
-// The remaining OpenWatch+ paywall is BULK and AUTOMATED remediation
+// The remaining OpenWatch Enterprise paywall is BULK and AUTOMATED remediation
 // (apply many rules / fleet-wide, scheduled auto-remediation), rendered
 // as a DISABLED upsell never wired to any endpoint.
 //
@@ -1375,7 +1375,7 @@ function RemediationTab({ hostId }: { hostId: string }) {
 }
 
 // RemediationExplainer states the atomic transaction model as static
-// copy (the model the OpenWatch+ apply step follows): Capture, Apply,
+// copy (the model the OpenWatch Enterprise apply step follows): Capture, Apply,
 // Validate, Commit, with a rollback to the captured state on failure.
 function RemediationExplainer() {
   const phases = ['Capture', 'Apply', 'Validate', 'Commit'];
@@ -1422,7 +1422,7 @@ function RemediationExplainer() {
         Each approved fix captures the current host state, applies the change, validates the result,
         then commits. A failed validation rolls back to the captured state, so a host is never left
         half-fixed. Applying a single approved fix on the host (and rolling it back) is part of
-        core. Bulk and automated remediation are OpenWatch+ features.
+        core. Bulk and automated remediation are OpenWatch Enterprise features.
       </div>
     </div>
   );
@@ -1707,7 +1707,7 @@ function RemediationRowAction({
   return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>—</span>;
 }
 
-// RemediationUpsell renders the ACTUAL OpenWatch+ boundary as a DISABLED
+// RemediationUpsell renders the ACTUAL OpenWatch Enterprise boundary as a DISABLED
 // upsell. Single-rule manual execute and rollback moved into free core,
 // so the paywall is now bulk and automated remediation: applying many
 // rules at once (fleet-wide) and scheduled auto-remediation. This control
@@ -1729,19 +1729,19 @@ function RemediationUpsell() {
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)', marginBottom: 4 }}>
-          Bulk and automated remediation (OpenWatch+)
+          Bulk and automated remediation (OpenWatch Enterprise)
         </div>
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
           Applying a single approved fix (and rolling it back) is part of core. Applying many rules
           at once across the fleet, and scheduling auto-remediation so approved fixes apply without
-          a per-rule click, are OpenWatch+ features.
+          a per-rule click, are OpenWatch Enterprise features.
         </div>
       </div>
       <button
         type="button"
         disabled
         aria-disabled="true"
-        title="Bulk and automated remediation is an OpenWatch+ feature"
+        title="Bulk and automated remediation is an OpenWatch Enterprise feature"
         style={{
           height: 32,
           padding: '0 16px',
@@ -1755,7 +1755,7 @@ function RemediationUpsell() {
           flexShrink: 0,
         }}
       >
-        Bulk remediation (OpenWatch+)
+        Bulk remediation (OpenWatch Enterprise)
       </button>
     </div>
   );

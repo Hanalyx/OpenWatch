@@ -52,6 +52,7 @@ func TestCodegen_FeatureConstants(t *testing.T) {
 			AuditExport,
 			TemporalQueries,
 			RemediationExecution,
+			RemediationAuto,
 			StructuredExceptions,
 			PriorityUpdates,
 			SsoSaml,
@@ -63,8 +64,8 @@ func TestCodegen_FeatureConstants(t *testing.T) {
 				t.Errorf("FeatureRegistry missing %q", f)
 			}
 		}
-		if len(FeatureRegistry) != 10 {
-			t.Errorf("FeatureRegistry size = %d, want 10", len(FeatureRegistry))
+		if len(FeatureRegistry) != 11 {
+			t.Errorf("FeatureRegistry size = %d, want 11", len(FeatureRegistry))
 		}
 	})
 }
@@ -73,7 +74,7 @@ func TestCodegen_FeatureConstants(t *testing.T) {
 // AC-02: Metadata map has Tier, Description, Introduced per feature.
 func TestCodegen_FeatureRegistryMetadata(t *testing.T) {
 	t.Run("system-license-features/AC-02", func(t *testing.T) {
-		// ComplianceCheck is free; RemediationExecution is openwatch_plus.
+		// ComplianceCheck is free; RemediationExecution is enterprise.
 		ccMeta, ok := FeatureRegistry[ComplianceCheck]
 		if !ok || ccMeta.Tier != TierFree {
 			t.Errorf("ComplianceCheck tier = %v, want free", ccMeta.Tier)
@@ -82,8 +83,8 @@ func TestCodegen_FeatureRegistryMetadata(t *testing.T) {
 			t.Errorf("ComplianceCheck description/introduced empty: %+v", ccMeta)
 		}
 		reMeta := FeatureRegistry[RemediationExecution]
-		if reMeta.Tier != TierOpenWatchPlus {
-			t.Errorf("RemediationExecution tier = %v, want openwatch_plus", reMeta.Tier)
+		if reMeta.Tier != TierEnterprise {
+			t.Errorf("RemediationExecution tier = %v, want enterprise", reMeta.Tier)
 		}
 	})
 }
@@ -137,7 +138,7 @@ func TestIsEnabled_AfterLicenseLoad(t *testing.T) {
 		resetState(t)
 		setState(&State{
 			License: &License{
-				Tier:     TierOpenWatchPlus,
+				Tier:     TierEnterprise,
 				Features: []Feature{RemediationExecution},
 			},
 			LoadedAt: time.Now(),
@@ -160,7 +161,7 @@ func TestIsEnabled_AfterLicenseReload(t *testing.T) {
 		// First: license grants RemediationExecution.
 		setState(&State{
 			License: &License{
-				Tier:     TierOpenWatchPlus,
+				Tier:     TierEnterprise,
 				Features: []Feature{RemediationExecution},
 			},
 			LoadedAt: time.Now(),
@@ -171,7 +172,7 @@ func TestIsEnabled_AfterLicenseReload(t *testing.T) {
 		// Reload with a license that drops RemediationExecution.
 		setState(&State{
 			License: &License{
-				Tier:     TierOpenWatchPlus,
+				Tier:     TierEnterprise,
 				Features: []Feature{PremiumDiagnostics},
 			},
 			LoadedAt: time.Now(),
@@ -192,7 +193,7 @@ func TestIsEnabled_DoesNotAllocate(t *testing.T) {
 		resetState(t)
 		setState(&State{
 			License: &License{
-				Tier:     TierOpenWatchPlus,
+				Tier:     TierEnterprise,
 				Features: []Feature{RemediationExecution},
 			},
 			LoadedAt: time.Now(),
@@ -213,7 +214,7 @@ func BenchmarkIsEnabled(b *testing.B) {
 	_ = Init()
 	setState(&State{
 		License: &License{
-			Tier:     TierOpenWatchPlus,
+			Tier:     TierEnterprise,
 			Features: []Feature{RemediationExecution},
 		},
 		LoadedAt: time.Now(),
@@ -233,7 +234,7 @@ func TestIsEnabled_P99Latency(t *testing.T) {
 		resetState(t)
 		setState(&State{
 			License: &License{
-				Tier:     TierOpenWatchPlus,
+				Tier:     TierEnterprise,
 				Features: []Feature{RemediationExecution},
 			},
 			LoadedAt: time.Now(),
@@ -387,7 +388,7 @@ func TestIsEnabled_ConcurrentStateSwap(t *testing.T) {
 				}
 				setState(&State{
 					License: &License{
-						Tier:     TierOpenWatchPlus,
+						Tier:     TierEnterprise,
 						Features: features,
 					},
 					LoadedAt: time.Now(),

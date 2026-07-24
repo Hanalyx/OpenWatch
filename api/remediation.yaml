@@ -3,7 +3,7 @@
 # Compliance remediation: request → approve → dry-run → execute → rollback.
 # Read endpoints (list, get, audit) are unrestricted by license so operators
 # can review what's been done. ACT endpoints (:dry-run, :execute, :rollback)
-# require the OpenWatch+ `remediation_execution` feature.
+# require the OpenWatch Enterprise `remediation_execution` feature.
 #
 # Governed by two policies (see app/docs/policies_as_data.md):
 #   - approvals policy   — who can approve, dual-approval rules, timeouts

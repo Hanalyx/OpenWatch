@@ -50,7 +50,6 @@ type Tier string
 
 const (
 	TierFree         Tier = "free"
-	TierOpenWatchPlus Tier = "openwatch_plus"
 	TierEnterprise   Tier = "enterprise"
 )
 
@@ -177,8 +176,6 @@ func tierToPascal(t string) string {
 	switch t {
 	case "free":
 		return "Free"
-	case "openwatch_plus":
-		return "OpenWatchPlus"
 	case "enterprise":
 		return "Enterprise"
 	default:

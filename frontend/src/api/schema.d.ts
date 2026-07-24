@@ -1357,7 +1357,7 @@ export interface paths {
          * List a remediation request's transaction journal (steps)
          * @description Per-step Kensa transaction journal (Capture/Apply/Validate/Commit
          *     outcomes). Empty until the request is executed (executing is the
-         *     OpenWatch+ licensed track). RBAC: remediation:read. Spec
+         *     OpenWatch Enterprise licensed track). RBAC: remediation:read. Spec
          *     api-remediation.
          */
         get: operations["listRemediationSteps"];
@@ -3451,7 +3451,7 @@ export interface components {
         };
         LicenseStateResponse: {
             /** @enum {string} */
-            tier: "free" | "openwatch_plus" | "enterprise";
+            tier: "free" | "enterprise";
             /** @enum {string} */
             status: "active" | "grace" | "expired" | "no_license" | "invalid";
             features: string[];

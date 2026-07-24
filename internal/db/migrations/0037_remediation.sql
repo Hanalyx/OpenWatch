@@ -8,7 +8,7 @@
 -- FREE-PATH INVARIANT: the free service (Request/Approve/Reject + the
 -- read-only ProjectLift) NEVER contacts a host and NEVER writes host_rule_state
 -- or transactions. remediation_transactions (the per-step Kensa journal) is
--- written only by the OpenWatch+ licensed execute path; in the free build the
+-- written only by the OpenWatch Enterprise licensed execute path; in the free build the
 -- table exists but stays empty.
 --
 -- Lifecycle: pending_approval -> approved | rejected. The approved -> executed
@@ -61,7 +61,7 @@ CREATE INDEX remediation_requests_host   ON remediation_requests (host_id);
 CREATE INDEX remediation_requests_status ON remediation_requests (status);
 
 -- Per-step Kensa transaction journal (Capture/Apply/Validate/Commit). Written
--- only by the OpenWatch+ licensed execute path; the durable rollback point and
+-- only by the OpenWatch Enterprise licensed execute path; the durable rollback point and
 -- signed-evidence record. Empty in the free build.
 CREATE TABLE remediation_transactions (
     id           UUID PRIMARY KEY,

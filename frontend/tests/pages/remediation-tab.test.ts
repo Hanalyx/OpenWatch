@@ -12,7 +12,7 @@
 //   AC-05  Executed row: Fixed status + Roll back gated on
 //          remediation:rollback||isAdmin POSTing :rollback
 //   AC-06  Lifecycle status rendering + executing poll
-//   AC-07  Bulk/automated OpenWatch+ upsell replaces the single-rule one
+//   AC-07  Bulk/automated OpenWatch Enterprise upsell replaces the single-rule one
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -146,9 +146,9 @@ describe('frontend-remediation-tab — source inspection', () => {
   // @ac AC-07
   test('frontend-remediation-tab/AC-07 — bulk/auto upsell replaces single-rule upsell, no em-dash', () => {
     expect(PAGE).toContain('RemediationUpsell');
-    expect(PAGE).toContain('Bulk and automated remediation (OpenWatch+)');
+    expect(PAGE).toContain('Bulk and automated remediation (OpenWatch Enterprise)');
     // The old single-rule execute upsell copy is gone.
-    expect(PAGE).not.toContain('Execute on host (OpenWatch+)');
+    expect(PAGE).not.toContain('Execute on host (OpenWatch Enterprise)');
     // No em-dashes in the user-facing prose (project hard rule). The bare
     // em-dash placeholder glyph in table cells is a separate convention.
     expect(EXPLAINER).not.toContain('—');

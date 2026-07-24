@@ -13,7 +13,7 @@ type RemediationRequest = components['schemas']['RemediationRequest'];
 // round-trip.
 //
 // Free-tier lifecycle: pending_approval -> approved | rejected. The
-// act verbs (dry_run/execute/rollback) are OpenWatch+ only and never
+// act verbs (dry_run/execute/rollback) are OpenWatch Enterprise only and never
 // called from the free build; the matching statuses
 // (dry_run_complete/executing/executed/rolled_back) can still arrive
 // from a licensed deployment, so the open set accounts for them.
