@@ -10,6 +10,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The paid tier is now "OpenWatch Enterprise" and the free tier is "OpenWatch
+  Community"; the `openwatch_plus` identifier is gone.** Wherever the API
+  reports a license tier, the enum is now `free | enterprise` rather than
+  `free | openwatch_plus` — `GET /api/v1/license` and every schema that embeds
+  a tier. This is a breaking change for any client that matches on the literal
+  string `openwatch_plus`, and it rides in a minor release under the pre-1.0
+  allowance. **Action required if you hold a license key:** keys minted with
+  the `openwatch_plus` tier must be re-issued as `enterprise` before they will
+  validate. Feature gating itself is unchanged — entitlement still turns on
+  whether the tier is free — so no deployment gains or loses access by
+  upgrading.
+- **Narrowed the `remediation_execution` entitlement to bulk remediation only,
+  and registered a new `remediation_auto` flag.** Single-rule remediation stays
+  free, as it is today. `remediation_auto` is registered but dormant: nothing
+  consumes it yet, so no behavior changes in this release.
+
 ## [0.6.0] Eyrie — 2026-07-17
 
 ### Added
