@@ -206,12 +206,20 @@ spec-check:
 	specter check --test
 	specter coverage --strictness annotation
 
+# docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
+# speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
+# dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
+# Use DOC_STYLE_ARGS=--all to sweep the whole tree instead of changed files.
+.PHONY: docs-style
+docs-style:
+	python3 scripts/check-doc-style.py $(or $(DOC_STYLE_ARGS),--changed)
+
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone
 # omits the generated-code, spec, and frontend gates — this target is the
 # full mirror.
 .PHONY: ci-local
-ci-local: check-generated vet lint vuln spec-check test-race
+ci-local: check-generated vet lint vuln spec-check test-race docs-style
 	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
 	@if [ -z "$$OPENWATCH_TEST_DSN" ]; then \
 	  echo ""; \
