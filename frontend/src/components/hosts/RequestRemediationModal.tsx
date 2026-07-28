@@ -109,8 +109,8 @@ export function RequestRemediationModal({
 
         <p style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5, margin: '0 0 14px' }}>
           This files a remediation request for review. An approver decides whether the fix is
-          applied. Applying the fix on the host is an OpenWatch Enterprise feature: the free tier governs the
-          request and approval only.
+          applied. Applying a single rule on the host, and rolling it back, are included in
+          OpenWatch Community. Bulk and automated remediation are OpenWatch Enterprise features.
         </p>
 
         {mutation.error && (
