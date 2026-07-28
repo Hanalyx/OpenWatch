@@ -1368,7 +1368,7 @@ const excPill: CSSProperties = {
 // remediation:request - a Request button that opens the confirm modal.
 // Non-failing rules with no open request render nothing. This is the
 // request/approval half of the workflow only; applying the fix on the
-// host is the OpenWatch+ track surfaced on the Remediation tab.
+// host is the OpenWatch Enterprise track surfaced on the Remediation tab.
 function RemediationCell({
   rule,
   requested,

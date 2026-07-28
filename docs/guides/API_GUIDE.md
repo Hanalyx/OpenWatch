@@ -247,7 +247,7 @@ API; see [Operations](#operations-the-cli-and-systemd).
 
 ## License
 
-OpenWatch has a tiered license model (`free`, `openwatch_plus`, `enterprise`).
+OpenWatch has a tiered license model (`free`, `enterprise`, `enterprise`).
 Premium-gated endpoints return `402` when the active tier lacks the feature.
 
 | Method | Path | Purpose |

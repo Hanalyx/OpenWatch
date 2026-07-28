@@ -493,7 +493,7 @@ errors:
     http_status: 402
     fault: policy
     retryable: false
-    description: Feature requires an OpenWatch+ license tier
+    description: Feature requires an OpenWatch Enterprise license tier
     detail_schema:
       type: object
       properties:

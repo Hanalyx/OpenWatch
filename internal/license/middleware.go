@@ -52,7 +52,7 @@ func DenyFeature(w http.ResponseWriter, r *http.Request, f Feature) {
 		"code":          "license.feature_unavailable",
 		"fault":         "policy",
 		"retryable":     false,
-		"human_message": "this feature requires an OpenWatch+ license",
+		"human_message": "this feature requires an OpenWatch Enterprise license",
 		"detail": map[string]any{
 			"feature": string(f),
 		},

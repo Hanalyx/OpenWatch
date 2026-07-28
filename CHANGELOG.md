@@ -10,6 +10,37 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The paid tier is now "OpenWatch Enterprise" and the free tier is "OpenWatch
+  Community"; the `openwatch_plus` identifier is gone.** Wherever the API
+  reports a license tier, the enum is now `free | enterprise` rather than
+  `free | openwatch_plus` — `GET /api/v1/license` and every schema that embeds
+  a tier. This is a breaking change for any client that matches on the literal
+  string `openwatch_plus`, and it rides in a minor release under the pre-1.0
+  allowance. **Action required if you hold a license key:** keys minted with
+  the `openwatch_plus` tier must be re-issued as `enterprise` before they will
+  validate. Feature gating itself is unchanged — entitlement still turns on
+  whether the tier is free — so no deployment gains or loses access by
+  upgrading.
+- **Narrowed the `remediation_execution` entitlement to bulk remediation only,
+  and registered a new `remediation_auto` flag.** Single-rule remediation stays
+  free, as it is today. `remediation_auto` is registered but dormant: nothing
+  consumes it yet, so no behavior changes in this release.
+- **SAML 2.0 SSO and FIDO2 / WebAuthn MFA are now free core.** `sso_saml` and
+  `fido2_mfa` move from the enterprise tier to free, so the paid tier is eight
+  entitlements rather than ten. OIDC single sign-on and TOTP multi-factor
+  already shipped free; gating their SAML and FIDO2 counterparts behind a paid
+  tier would have placed an authentication-strength ceiling on the free tier.
+  No deployment gains or loses access, because neither entitlement gated a
+  route: nothing declares them as a required feature and no handler enforces
+  them. **One response does change:** `GET /api/v1/license` builds its
+  `features` array from the free tier of the entitlement registry, so a
+  deployment running without a license key now reports `compliance_check`,
+  `fido2_mfa`, and `sso_saml` where it previously reported `compliance_check`
+  alone. A client that asserts on the exact length or contents of that array
+  needs updating. The `tier` enum is unchanged.
+
 ## [0.6.0] Eyrie — 2026-07-17
 
 ### Added

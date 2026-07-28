@@ -56,7 +56,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: GET /license with valid openwatch_plus license includes tier="openwatch_plus", status="active", features listing every claim, exp populated.
+      description: GET /license with valid enterprise license includes tier="enterprise", status="active", features listing every claim, exp populated.
       priority: critical
     - id: AC-03
       description: GET /license MUST NOT return raw JWT, signature, or customer PII (email, name).

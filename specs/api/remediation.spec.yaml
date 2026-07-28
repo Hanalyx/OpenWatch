@@ -71,7 +71,7 @@ spec:
       A correct, auditable remediation request/approve lifecycle with
       separation of duties, one open request per host+rule, a read-only
       projected-lift estimate, and a license gate that keeps host mutation
-      behind OpenWatch+ - all without ever touching a host in the free path.
+      behind OpenWatch Enterprise - all without ever touching a host in the free path.
     scope:
       includes:
         - remediation_requests + remediation_transactions tables (migration 0037)

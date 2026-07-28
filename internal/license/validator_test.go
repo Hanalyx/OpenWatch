@@ -66,7 +66,7 @@ func validClaims() claims {
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(365 * 24 * time.Hour)),
 		},
-		Tier:       TierOpenWatchPlus,
+		Tier:       TierEnterprise,
 		Features:   []string{"premium_diagnostics", "remediation_execution"},
 		CustomerID: "test-customer",
 	}
@@ -97,8 +97,8 @@ func TestVerify_ValidJWT(t *testing.T) {
 		if lic == nil {
 			t.Fatal("license is nil on valid JWT")
 		}
-		if lic.Tier != TierOpenWatchPlus {
-			t.Errorf("tier = %s, want openwatch_plus", lic.Tier)
+		if lic.Tier != TierEnterprise {
+			t.Errorf("tier = %s, want enterprise", lic.Tier)
 		}
 		if len(lic.Features) != 2 {
 			t.Errorf("features = %v, want 2 entries", lic.Features)

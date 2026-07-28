@@ -49,7 +49,7 @@ func mintTestLicenseJWT(t *testing.T, features []string) string {
 		"aud":         "openwatch",
 		"iat":         now.Unix(),
 		"exp":         now.Add(365 * 24 * time.Hour).Unix(),
-		"tier":        "openwatch_plus",
+		"tier":        "enterprise",
 		"features":    features,
 		"customer_id": "test-customer-api",
 	}
@@ -145,8 +145,8 @@ func TestAPI_PremiumEcho_DeniesWithoutLicense(t *testing.T) {
 }
 
 // @ac AC-02
-// api-license/AC-02: GET /license with a valid openwatch_plus license
-// returns tier="openwatch_plus", status="active", features list, exp.
+// api-license/AC-02: GET /license with a valid enterprise license
+// returns tier="enterprise", status="active", features list, exp.
 func TestAPI_License_OpenwatchPlusActive(t *testing.T) {
 	t.Run("api-license/AC-02", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -165,8 +165,8 @@ func TestAPI_License_OpenwatchPlusActive(t *testing.T) {
 			ExpiresAt *string  `json:"expires_at"`
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&got)
-		if got.Tier != "openwatch_plus" {
-			t.Errorf("tier = %q, want openwatch_plus", got.Tier)
+		if got.Tier != "enterprise" {
+			t.Errorf("tier = %q, want enterprise", got.Tier)
 		}
 		if got.Status != "active" {
 			t.Errorf("status = %q, want active", got.Status)
@@ -370,8 +370,8 @@ func TestAPI_License_LiveReload(t *testing.T) {
 			Tier string `json:"tier"`
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&after)
-		if after.Tier != "openwatch_plus" {
-			t.Errorf("post-reload tier = %q, want openwatch_plus", after.Tier)
+		if after.Tier != "enterprise" {
+			t.Errorf("post-reload tier = %q, want enterprise", after.Tier)
 		}
 	})
 }

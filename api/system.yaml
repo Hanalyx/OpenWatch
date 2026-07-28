@@ -57,7 +57,7 @@ paths:
       summary: Runtime capability surface (license tier, enabled features, available frameworks, plugin list).
       description: |
         Returns what this running instance can do right now: license tier
-        (free | openwatch_plus | enterprise), enabled features (from the
+        (free | enterprise), enabled features (from the
         active license), frameworks loaded from Kensa mappings, plugins
         registered, FIPS mode, supported auth methods (password, oidc, saml).
         Requires authentication: license-tier and feature lists are

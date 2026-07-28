@@ -123,7 +123,7 @@ sudo chmod 0640 /etc/openwatch/secrets.env
 
 | Variable | Default | Read by | Purpose |
 |----------|---------|---------|---------|
-| `OPENWATCH_LICENSE_FILE` | `/etc/openwatch/license.lic` | `serve`, `worker` | Path to the OpenWatch+ license file. A missing file is not fatal; the service runs at the free tier. |
+| `OPENWATCH_LICENSE_FILE` | `/etc/openwatch/license.lic` | `serve`, `worker` | Path to the OpenWatch Enterprise license file. A missing file is not fatal; the service runs at the free tier. |
 | `OPENWATCH_POLICIES_DIR` | `/etc/openwatch/policies` | `serve` | Directory scanned when an admin triggers a policy reload through the API. |
 | `OPENWATCH_DEV_MODE` | unset | `serve` | When set to `true`, accepts unsigned policy envelopes. Development only; never set in production. |
 | `OPENWATCH_KENSA_STORE_PATH` | `.kensa/remediation.db` under the working directory (dev only, logs a warning) | `serve` | Durable path for Kensa's remediation rollback pre-state store. The packaged systemd unit sets this to `/var/lib/openwatch/kensa/remediation.db`. Production installs must set it to a persistent path or remediation rollback does not survive a restart. |
@@ -145,7 +145,7 @@ DSN. Prefer encoding connection options in the DSN query string
 | `/etc/openwatch/tls/key.pem` | `openwatch`, `0600` | TLS server private key. |
 | `/etc/openwatch/keys/jwt_private.pem` | `root:openwatch`, `0640` (shipped; not permission-checked at boot) | RSA key that signs access and refresh JWTs. |
 | `/etc/openwatch/keys/credential.key` | `openwatch:openwatch`, `0600` (enforced—boot refuses any other mode) | AES-256 key encrypting MFA secrets and stored SSH credentials. |
-| `/etc/openwatch/license.lic` | readable by `openwatch` | Optional OpenWatch+ license. |
+| `/etc/openwatch/license.lic` | readable by `openwatch` | Optional OpenWatch Enterprise license. |
 | `/var/lib/openwatch` | `openwatch` | Service state directory (`ReadWritePaths` in the unit). |
 | `/var/log/openwatch` | `openwatch` | Log directory; journald remains the primary log sink. |
 

@@ -6,7 +6,7 @@
 #
 # Build invariants enforced by scripts/validate-features.go:
 #   - Every feature id matches ^[a-z][a-z0-9_]*$
-#   - Every tier is one of: free | openwatch_plus | enterprise
+#   - Every tier is one of: free | enterprise
 #   - Every introduced version is valid semver
 #   - permissions.yaml license_gated values resolve to a feature here
 #   - OpenAPI specs: every x-required-feature value matches an active feature id
@@ -19,7 +19,7 @@
 #      `x-required-feature:`.
 #   4. CI fails if a handler emits a string literal that isn't a registered id.
 #
-# Design: app/docs/licensing_foundation.md §3 (feature registry).
+# Design: docs/engineering/licensing_foundation.md §3 (feature registry).
 
 version: 1
 
@@ -30,42 +30,59 @@ features:
     introduced: "1.0.0"
 
   - id: audit_query
-    tier: openwatch_plus
+    tier: enterprise
     description: Saved and ad-hoc audit query DSL via POST /audit/events:query
     introduced: "1.0.0"
 
   - id: audit_export
-    tier: openwatch_plus
+    tier: enterprise
     description: Export audit data as JSON/CSV with signed bundles
     introduced: "1.0.0"
 
   - id: temporal_queries
-    tier: openwatch_plus
+    tier: enterprise
     description: Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log
     introduced: "1.0.0"
 
   - id: remediation_execution
-    tier: openwatch_plus
-    description: Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)
+    tier: enterprise
+    description: Bulk / fleet-wide manual remediation - apply many rules at once across a host selection (single-rule manual remediation is free core)
+    introduced: "1.0.0"
+
+  # Policy-driven / scheduled auto-remediation (the flagship automation surface:
+  # severity-routed auto-fix, canary, max-changes-per-run, circuit breaker,
+  # scheduled playbooks). Split out from remediation_execution so the higher-
+  # blast-radius unattended posture gates independently of manual bulk apply.
+  # PLANNED — registered ahead of the build (registry-first); not yet enforced.
+  # See docs/engineering/roadmap/enterprise/ROADMAP.md and remediation_licensed_plan.md.
+  - id: remediation_auto
+    tier: enterprise
+    description: Policy-driven and scheduled auto-remediation across the fleet (severity routing, canary, guardrails, circuit breaker)
     introduced: "1.0.0"
 
   - id: structured_exceptions
-    tier: openwatch_plus
+    tier: enterprise
     description: Multi-stage exception approval workflow with policy enforcement
     introduced: "1.0.0"
 
   - id: priority_updates
-    tier: openwatch_plus
+    tier: enterprise
     description: Early access to Kensa rule updates and framework mappings
     introduced: "1.0.0"
 
+  # Enterprise authentication is FREE CORE. OIDC SSO and TOTP MFA already ship
+  # free, and gating their SAML/FIDO2 siblings behind a paid tier would put an
+  # authentication-strength ceiling on the free tier. Security posture is not a
+  # paywall. Both ids stay in the registry (rather than being deleted) so that
+  # any already-minted license naming them still resolves, and so a future
+  # managed/hosted SSO service has an id to hang off.
   - id: sso_saml
-    tier: openwatch_plus
+    tier: free
     description: SAML 2.0 single sign-on integration
     introduced: "1.0.0"
 
   - id: fido2_mfa
-    tier: openwatch_plus
+    tier: free
     description: FIDO2 / WebAuthn second factor for user authentication
     introduced: "1.0.0"
 
@@ -74,7 +91,7 @@ features:
   # end-to-end. Retained post-Stage-0 only if a genuine premium diagnostic
   # surface emerges; otherwise marked deprecated and removed.
   - id: premium_diagnostics
-    tier: openwatch_plus
+    tier: enterprise
     description: Premium diagnostic endpoints (Stage 0 demo and future operator tooling)
     introduced: "1.0.0"
 

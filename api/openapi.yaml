@@ -2042,7 +2042,7 @@ paths:
   # ===========================================================================
   # Remediation (Phase 7). Free core: request -> approve | reject + projected
   # lift (see-and-govern). The act verbs (:dry-run, :execute, :rollback) are
-  # OpenWatch+ licensed (remediation_execution) and return 402 on the free
+  # OpenWatch Enterprise licensed (remediation_execution) and return 402 on the free
   # tier. Spec api-remediation; plan docs/engineering/remediation_core_plan.md.
   # ===========================================================================
   /api/v1/remediation/requests:
@@ -2158,7 +2158,7 @@ paths:
       description: |
         Per-step Kensa transaction journal (Capture/Apply/Validate/Commit
         outcomes). Empty until the request is executed (executing is the
-        OpenWatch+ licensed track). RBAC: remediation:read. Spec
+        OpenWatch Enterprise licensed track). RBAC: remediation:read. Spec
         api-remediation.
       x-required-permission: remediation:read
       parameters:
@@ -5313,7 +5313,7 @@ components:
       type: object
       required: [tier, status, features]
       properties:
-        tier: {type: string, enum: [free, openwatch_plus, enterprise]}
+        tier: {type: string, enum: [free, enterprise]}
         status: {type: string, enum: [active, grace, expired, no_license, invalid]}
         features: {type: array, items: {type: string}}
         customer_id: {type: string}
