@@ -13,6 +13,7 @@
 //   AC-10  TestRequireFeature_DeniesWith402
 //   AC-11  TestRequireFeature_DedupWithinWindow
 //   AC-12  TestIsEnabled_ConcurrentStateSwap
+//   AC-13  TestFreeTierSet_IsPinned
 
 package license
 
@@ -406,6 +407,54 @@ func TestIsEnabled_ConcurrentStateSwap(t *testing.T) {
 		}, &quick.Config{MaxCount: 100})
 		if err != nil {
 			t.Errorf("quick.Check failure: %v", err)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13: the free-tier set is pinned. A tier reassignment cannot land silently
+// because this test names the expected free features explicitly and fails until
+// the expectation is updated on purpose.
+//
+// Why this is worth pinning: GET /api/v1/license builds its advertised
+// `features` array from the registry's free tier (server.stageZeroFreeFeatures
+// iterates FeatureRegistry for Tier == TierFree). Moving a feature between
+// tiers therefore changes that response for every unlicensed deployment, which
+// is an observable API change even when no route is gated on the feature.
+func TestFreeTierSet_IsPinned(t *testing.T) {
+	t.Run("system-license-features/AC-13", func(t *testing.T) {
+		resetState(t)
+
+		// The free tier, stated deliberately. Update ONLY alongside a
+		// considered tier decision (see CHANGELOG + licensing/features.yaml).
+		want := map[Feature]bool{
+			ComplianceCheck: true, // free since 1.0.0
+			SsoSaml:         true, // moved to free 2026-07-27: SAML is not a paywall
+			Fido2Mfa:        true, // moved to free 2026-07-27: FIDO2 is not a paywall
+		}
+
+		got := map[Feature]bool{}
+		for f, meta := range FeatureRegistry {
+			if meta.Tier == TierFree {
+				got[f] = true
+			}
+		}
+
+		for f := range want {
+			if !got[f] {
+				t.Errorf("feature %q is expected to be free tier but the registry has it paid", f)
+			}
+			// C-03: a free feature is enabled with no license loaded at all.
+			if !IsEnabled(f) {
+				t.Errorf("free-tier feature %q must be enabled without a license", f)
+			}
+		}
+		for f := range got {
+			if !want[f] {
+				t.Errorf("feature %q became free tier without updating this AC; "+
+					"if the move is intended, add it to want and record it in the CHANGELOG "+
+					"(it changes the GET /api/v1/license features array)", f)
+			}
 		}
 	})
 }

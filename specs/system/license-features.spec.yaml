@@ -1,7 +1,7 @@
 spec:
   id: system-license-features
   title: License features and gating middleware
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -99,3 +99,15 @@ spec:
     - id: AC-12
       description: Concurrent calls to IsEnabled during state swap do not panic and return self-consistent results (no torn reads).
       priority: high
+    - id: AC-13
+      description: >
+        The free-tier feature set is pinned explicitly, so a tier reassignment
+        cannot land silently. Every Feature whose registry Tier is free MUST
+        return IsEnabled=true with no license loaded, and the free set MUST
+        equal exactly {compliance_check, sso_saml, fido2_mfa}. Moving a feature
+        between tiers fails this AC until the expectation is updated
+        deliberately. This guards a real observable surface: GET /api/v1/license
+        derives its advertised features array from the registry's free tier, so
+        a tier change alters that response for every unlicensed deployment.
+      priority: high
+      references_constraints: [C-03]
