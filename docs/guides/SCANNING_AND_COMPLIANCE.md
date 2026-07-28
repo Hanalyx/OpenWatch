@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-748 rules evaluated (Kensa v0.7.6; check commands, config values, file permissions)
+769 rules in the corpus (Kensa v0.8.0; check commands, config values, file permissions). The number evaluated on a given host is lower: rules resolve per operating system
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
