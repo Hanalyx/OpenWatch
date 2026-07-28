@@ -50,9 +50,10 @@ type RemediationRunResult struct {
 	CompletedAt  time.Time
 }
 
-// RemediationTxn is one Kensa transaction outcome (committed / rolled_back /
-// partially_applied / errored), with its signed evidence captured for the
-// remediation_transactions journal.
+// RemediationTxn is one Kensa transaction outcome (committed / staged /
+// rolled_back / partially_applied / errored / recovered), with its signed
+// evidence captured for the remediation_transactions journal. Status is the raw
+// Kensa value; remediation.OutcomeOf maps it.
 type RemediationTxn struct {
 	TxnID    uuid.UUID
 	Status   string
@@ -185,6 +186,24 @@ func findRule(rules []*kensaapi.Rule, ruleID string) *kensaapi.Rule {
 }
 
 // mapTxns copies kensa TransactionResults into the OpenWatch journal shape.
+//
+// Status is passed through verbatim. Interpreting it is remediation.OutcomeOf's
+// job, deliberately in one place, so a new Kensa terminal status is handled (or
+// loudly rejected) at a single site rather than absorbed by whichever switch
+// happens to see it first.
+//
+// NOT DETECTED HERE: the "engine refused without mutating the host" case, e.g.
+// Kensa v0.8.0's duplicate-audit-action guard declining to write a second
+// drop-in for an already-audited action. Kensa surfaces that as StepResult
+// Success=false plus a human-readable Detail, with no distinguishable
+// TransactionStatus, so telling it apart from a genuine failure would mean
+// pattern-matching step text. That is not a dependency worth taking on a path
+// that mutates hosts as root: a text change upstream would silently reclassify
+// real failures. Until Kensa exposes an explicit signal, a refusal maps by its
+// status like anything else, which lands on "reverted" (host untouched). That
+// is truthful, just less specific than it could be. Tracked as a Kensa request;
+// remediation.StatusNotApplied and the DB enum already accept the value so
+// wiring it later is a one-line change here.
 func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 	out := make([]RemediationTxn, 0, len(in))
 	for _, t := range in {

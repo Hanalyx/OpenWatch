@@ -2060,7 +2060,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+            enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed, staged, reverted, not_applied, partially_applied]
         - name: host_id
           in: query
           required: false
@@ -5744,7 +5744,7 @@ components:
         rule_id:      {type: string}
         status:
           type: string
-          enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+          enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed, staged, reverted, not_applied, partially_applied]
         requested_by: {type: string, format: uuid}
         reviewed_by:  {type: string, format: uuid, nullable: true}
         review_note:  {type: string}

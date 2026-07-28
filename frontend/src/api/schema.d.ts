@@ -3743,7 +3743,7 @@ export interface components {
             host_name?: string;
             rule_id: string;
             /** @enum {string} */
-            status: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed";
+            status: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed" | "staged" | "reverted" | "not_applied" | "partially_applied";
             /** Format: uuid */
             requested_by: string;
             /** Format: uuid */
@@ -7436,7 +7436,7 @@ export interface operations {
     listRemediationRequests: {
         parameters: {
             query?: {
-                status?: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed";
+                status?: "pending_approval" | "approved" | "rejected" | "dry_run_complete" | "executing" | "executed" | "rolled_back" | "failed" | "staged" | "reverted" | "not_applied" | "partially_applied";
                 host_id?: string;
                 rule_id?: string;
                 limit?: number;

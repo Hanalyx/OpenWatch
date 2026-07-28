@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -118,6 +118,24 @@ spec:
       description: 'ProjectLift is read-only and best-effort: for a failing rule it returns per-framework projected score deltas derived from host_rule_state.framework_refs (delta ~= 100/N where N is the count of that framework''s rules on the host); when framework data is absent or unparseable it returns an empty projection and never errors or blocks the request'
       type: technical
       enforcement: warning
+    - id: C-09
+      description: >
+        A remediation outcome MUST distinguish states that require different
+        operator actions, and MUST NOT report a host as unchanged when it was
+        changed. Every Kensa TransactionStatus maps to exactly one request
+        status: committed->executed, staged->staged, rolled_back->reverted,
+        partially_applied->partially_applied, errored->failed; a transaction
+        that Kensa refused (Success=false with a detail, e.g. the audit-rule
+        duplicate-action guard) maps to not_applied. staged means the persist
+        layer was written but the runtime has NOT converged: the host IS
+        mutated, so the rule MUST NOT be flipped to pass in host_rule_state,
+        and rollback MUST remain reachable. reverted means Kensa auto-restored
+        pre-state after a failed validation: the host is untouched, so it MUST
+        NOT be presented as a failure of the same kind as an errored run. An
+        unrecognised TransactionStatus MUST be logged at WARN naming the
+        status and MUST NOT be silently absorbed by a default branch.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -151,3 +169,39 @@ spec:
     - id: AC-08
       description: 'Per-host remediation serialization: HostHasExecuting(host) reports whether a request is in the executing state on the host; RevertToApproved(id) returns an executing request to approved (and is ErrWrongState otherwise). The worker uses these plus a backoff requeue (queue.EnqueueAfter) so a second concurrent execute/rollback on a busy host requeues and retries once the host frees, instead of colliding on the per-host SSH guard and being marked failed.'
       priority: high
+    - id: AC-09
+      description: >
+        Staged is a distinct terminal outcome and is never reported as a
+        failure that changed nothing. A Kensa transaction with Status=staged
+        drives the request to status=staged (not failed), journals
+        phase_result=staged, and does NOT flip the rule to pass in
+        host_rule_state because the runtime has not converged. The operator
+        message MUST NOT claim no host change was committed. Rollback is
+        reachable from staged: the rollback precondition accepts staged as
+        well as executed, and the rollback transaction handle resolves from a
+        staged journal row as well as a committed one.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-10
+      description: >
+        The remaining Kensa outcomes map one-to-one and are individually
+        distinguishable. rolled_back (Kensa auto-restored pre-state after a
+        failed validation, host untouched) drives status=reverted, not failed.
+        partially_applied drives status=partially_applied. A transaction the
+        engine refused without mutating the host drives status=not_applied and
+        carries the refusal detail so the operator can tell it from a defect.
+        errored and host-unreachable still drive status=failed. Each status is
+        journalled with the matching phase_result rather than being collapsed
+        into skipped.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-11
+      description: >
+        Negative path: an unrecognised Kensa TransactionStatus does not
+        degrade silently. Mapping an unknown status logs at WARN naming the
+        offending value, and the request is driven to failed (fail-closed,
+        never to a success-shaped outcome). This is the guard that the Kensa
+        v0.8.0 staged status defeated: a default branch absorbed a new
+        terminal state and reported a mutated host as unchanged.
+      priority: critical
+      references_constraints: [C-09]

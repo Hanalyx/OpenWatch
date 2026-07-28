@@ -1,7 +1,7 @@
 spec:
   id: frontend-remediation-tab
   title: Host detail Remediation tab + per-rule request/apply affordance
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -108,3 +108,18 @@ spec:
       description: 'Source inspection: the OpenWatch Enterprise upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch Enterprise)"), is DISABLED, and the single-rule "Execute on host (OpenWatch Enterprise)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
       priority: high
       references_constraints: [C-03, C-04]
+    - id: AC-08
+      description: >
+        Source inspection: the outcome vocabulary is rendered so that colour and
+        wording follow what the operator must DO. Rollback eligibility is a set
+        (ROLLBACK_ELIGIBLE = new Set(['executed', 'staged'])) rather than a
+        single status, so a staged change keeps its Roll back action. A staged
+        row renders "Staged, reboot required" in the warning colour and NEVER in
+        the success colour, because the host is not protected until it reboots.
+        A reverted row renders "Reverted, host unchanged" in a NEUTRAL colour,
+        not the critical colour: Kensa restored the host itself, so presenting
+        it as a failure would train operators to distrust the safety net.
+        not_applied likewise renders neutral. partially_applied renders
+        critical, because that host needs a human.
+      priority: critical
+      references_constraints: [C-04]
