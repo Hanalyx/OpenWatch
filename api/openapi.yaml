@@ -1475,7 +1475,7 @@ paths:
               schema: {$ref: '#/components/schemas/IntelligenceConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1524,7 +1524,7 @@ paths:
               schema: {$ref: '#/components/schemas/DiscoveryConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1548,7 +1548,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DiscoverySweepResponse'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1603,7 +1603,7 @@ paths:
     put:
       operationId: putSystemComplianceConfig
       summary: Set the default compliance lens (framework family, or empty for All rules)
-      x-required-permission: system:config:write
+      x-required-permission: system:config_write
       requestBody:
         required: true
         content:
@@ -1621,7 +1621,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '403':
-          description: Caller lacks system:config:write
+          description: Caller lacks system:config_write
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1671,7 +1671,7 @@ paths:
               schema: {$ref: '#/components/schemas/ScanConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1769,7 +1769,7 @@ paths:
               schema: {$ref: '#/components/schemas/ScanVariableOverrides'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}

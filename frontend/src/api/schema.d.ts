@@ -6694,7 +6694,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Caller lacks system:config:write permission */
+            /** @description Caller lacks system:config_write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6757,7 +6757,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Caller lacks system:config:write permission */
+            /** @description Caller lacks system:config_write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6786,7 +6786,7 @@ export interface operations {
                     "application/json": components["schemas"]["DiscoverySweepResponse"];
                 };
             };
-            /** @description Caller lacks system:config:write permission */
+            /** @description Caller lacks system:config_write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6889,7 +6889,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Caller lacks system:config:write */
+            /** @description Caller lacks system:config_write */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6952,7 +6952,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Caller lacks system:config:write permission */
+            /** @description Caller lacks system:config_write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7073,7 +7073,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Caller lacks system:config:write permission */
+            /** @description Caller lacks system:config_write permission */
             403: {
                 headers: {
                     [name: string]: unknown;
