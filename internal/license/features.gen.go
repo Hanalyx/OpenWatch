@@ -33,6 +33,8 @@ const (
 	StructuredExceptions Feature = "structured_exceptions"
 	// Early access to Kensa rule updates and framework mappings
 	PriorityUpdates Feature = "priority_updates"
+	// Fleet-wide signed attestation reports and the fleet OSCAL SAR export
+	ComplianceAttestation Feature = "compliance_attestation"
 	// SAML 2.0 single sign-on integration
 	SsoSaml Feature = "sso_saml"
 	// FIDO2 / WebAuthn second factor for user authentication
@@ -99,6 +101,12 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 		Description: `Early access to Kensa rule updates and framework mappings`,
 		Introduced:  "1.0.0",
 	},
+	ComplianceAttestation: {
+		ID:          ComplianceAttestation,
+		Tier:        TierEnterprise,
+		Description: `Fleet-wide signed attestation reports and the fleet OSCAL SAR export`,
+		Introduced:  "1.0.0",
+	},
 	SsoSaml: {
 		ID:          SsoSaml,
 		Tier:        TierFree,
@@ -135,6 +143,7 @@ var featureOrder = []Feature{
 	RemediationAuto,
 	StructuredExceptions,
 	PriorityUpdates,
+	ComplianceAttestation,
 	SsoSaml,
 	Fido2Mfa,
 	PremiumDiagnostics,

@@ -59,14 +59,15 @@ func TestCodegen_FeatureConstants(t *testing.T) {
 			SsoSaml,
 			Fido2Mfa,
 			PremiumDiagnostics,
+			ComplianceAttestation,
 		}
 		for _, f := range mustExist {
 			if _, ok := FeatureRegistry[f]; !ok {
 				t.Errorf("FeatureRegistry missing %q", f)
 			}
 		}
-		if len(FeatureRegistry) != 11 {
-			t.Errorf("FeatureRegistry size = %d, want 11", len(FeatureRegistry))
+		if len(FeatureRegistry) != 12 {
+			t.Errorf("FeatureRegistry size = %d, want 12", len(FeatureRegistry))
 		}
 	})
 }

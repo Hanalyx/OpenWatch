@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/group"
+	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -216,6 +217,10 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 		req.PeriodDays = *body.PeriodDays
 	}
 
+	if enforceAttestationLicense(w, r, req.Kind) {
+		return
+	}
+
 	rep, err := h.reportSvc.Generate(r.Context(), reportActor(r), req)
 	if errors.Is(err, report.ErrInvalidKind) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_kind", "client",
@@ -274,6 +279,18 @@ func (h *handlers) GetReportExport(w http.ResponseWriter, r *http.Request, id op
 		face = string(*params.Format)
 	}
 
+	// Gate on the STORED report's kind, not on anything the caller sends.
+	// Gating only generation would leave every attestation report already in
+	// the database freely exportable, and the OSCAL SAR face is exactly the
+	// artifact being monetized. A report that cannot be read is treated as
+	// not found by the export call below, so a lookup failure here is not a
+	// reason to open the gate.
+	if rep, rerr := h.reportSvc.Get(r.Context(), id); rerr == nil {
+		if enforceAttestationLicense(w, r, rep.Kind) {
+			return
+		}
+	}
+
 	body, mediaType, err := h.reportSvc.Export(r.Context(), id, face)
 	if errors.Is(err, report.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "reports.not_found", "client", "report not found", false)
@@ -328,4 +345,28 @@ func (h *handlers) GetReportByID(w http.ResponseWriter, r *http.Request, id open
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// enforceAttestationLicense gates the auditor-facing compliance artifact.
+//
+// OpenWatch monetizes the evidence a compliance officer files, not the ability
+// to see your own posture. Everything that lets a Community user observe and
+// prove compliance stays free: the `executive` report kind at any scope, every
+// per-scan and per-host OSCAL export, the signing key, and report listing.
+// What is paid is the fleet-wide signed attestation package.
+//
+// The line is the report KIND, not the scope. Scope was the obvious axis and
+// it is wrong: an empty request body means all hosts and all frameworks, so a
+// scope-based gate would gate the default executive summary, which is the
+// everyday free artifact. Kind is also exact, because report.FaceOSCALSAR is
+// attestation-only (exportFleetOSCALSAR), so gating this one kind gates the
+// fleet OSCAL SAR and nothing else.
+//
+// Returns true when the caller was denied and a 402 has been written.
+// Spec api-reports C-09 / AC-14.
+func enforceAttestationLicense(w http.ResponseWriter, r *http.Request, kind report.Kind) bool {
+	if kind != report.KindAttestation {
+		return false
+	}
+	return license.EnforceFeature(w, r, license.ComplianceAttestation)
 }

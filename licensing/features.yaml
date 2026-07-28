@@ -76,6 +76,18 @@ features:
   # paywall. Both ids stay in the registry (rather than being deleted) so that
   # any already-minted license naming them still resolves, and so a future
   # managed/hosted SSO service has an id to hang off.
+  # The auditor-facing compliance artifact. OpenWatch monetizes the evidence a
+  # compliance officer files, not the ability to see your own posture. The
+  # `executive` report kind, every per-scan and per-host OSCAL export, the
+  # signing key, and report listing all stay FREE: a Community user can see
+  # their compliance state and prove it per scan. What is paid is the
+  # fleet-wide signed attestation package (report kind `attestation`, which is
+  # the only producer of the fleet OSCAL SAR face).
+  - id: compliance_attestation
+    tier: enterprise
+    description: Fleet-wide signed attestation reports and the fleet OSCAL SAR export
+    introduced: "1.0.0"
+
   - id: sso_saml
     tier: free
     description: SAML 2.0 single sign-on integration
