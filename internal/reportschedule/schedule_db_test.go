@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
 )
 
@@ -161,6 +162,12 @@ func TestClaimDue_NoDoubleClaim(t *testing.T) {
 // @ac AC-02
 func TestDispatcher_RunsDueSchedule(t *testing.T) {
 	t.Run("system-report-schedule/AC-02", func(t *testing.T) {
+		// This suite uses the `attestation` kind as its fixture because it has
+		// the richest content, and that kind is licensed
+		// (compliance_attestation). It is testing schedule mechanics, not
+		// licensing, so it runs as a licensed deployment would. The refusal
+		// path has its own test below.
+		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		pool := freshPool(t)
 		ctx := context.Background()
 		svc := NewService(pool)

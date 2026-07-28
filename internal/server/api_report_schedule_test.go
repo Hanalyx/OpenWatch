@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/license"
 )
 
 // @spec system-report-schedule
@@ -19,6 +20,9 @@ import (
 // round-trips; RBAC is enforced.
 func TestAPI_ReportSchedules(t *testing.T) {
 	t.Run("system-report-schedule/AC-04", func(t *testing.T) {
+		// The `attestation` fixture is a licensed kind (compliance_attestation);
+		// this suite tests schedule mechanics, not licensing.
+		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		url, pool := freshAPIServer(t)
 
 		// A real email channel for the schedule's FK + delivery transport.
