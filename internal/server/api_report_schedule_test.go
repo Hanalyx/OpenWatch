@@ -20,10 +20,12 @@ import (
 // round-trips; RBAC is enforced.
 func TestAPI_ReportSchedules(t *testing.T) {
 	t.Run("system-report-schedule/AC-04", func(t *testing.T) {
-		// The `attestation` fixture is a licensed kind (compliance_attestation);
-		// this suite tests schedule mechanics, not licensing.
-		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		url, pool := freshAPIServer(t)
+		// The `attestation` fixture is a licensed kind (compliance_attestation);
+		// this suite tests schedule mechanics, not licensing. Enable AFTER
+		// freshAPIServer: it calls license.Init(), which resets state and would
+		// wipe an earlier enablement.
+		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 
 		// A real email channel for the schedule's FK + delivery transport.
 		chID := uuid.New()

@@ -167,8 +167,10 @@ func TestDispatcher_RunsDueSchedule(t *testing.T) {
 		// (compliance_attestation). It is testing schedule mechanics, not
 		// licensing, so it runs as a licensed deployment would. The refusal
 		// path has its own test below.
-		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		pool := freshPool(t)
+		// Enable AFTER the fixture setup: helpers that call license.Init()
+		// reset state and would wipe an earlier enablement.
+		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		ctx := context.Background()
 		svc := NewService(pool)
 		ch := seedChannel(t, pool)
