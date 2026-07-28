@@ -70,13 +70,19 @@ features:
     description: Early access to Kensa rule updates and framework mappings
     introduced: "1.0.0"
 
+  # Enterprise authentication is FREE CORE. OIDC SSO and TOTP MFA already ship
+  # free, and gating their SAML/FIDO2 siblings behind a paid tier would put an
+  # authentication-strength ceiling on the free tier. Security posture is not a
+  # paywall. Both ids stay in the registry (rather than being deleted) so that
+  # any already-minted license naming them still resolves, and so a future
+  # managed/hosted SSO service has an id to hang off.
   - id: sso_saml
-    tier: enterprise
+    tier: free
     description: SAML 2.0 single sign-on integration
     introduced: "1.0.0"
 
   - id: fido2_mfa
-    tier: enterprise
+    tier: free
     description: FIDO2 / WebAuthn second factor for user authentication
     introduced: "1.0.0"
 

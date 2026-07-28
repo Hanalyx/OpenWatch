@@ -101,13 +101,13 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	},
 	SsoSaml: {
 		ID:          SsoSaml,
-		Tier:        TierEnterprise,
+		Tier:        TierFree,
 		Description: `SAML 2.0 single sign-on integration`,
 		Introduced:  "1.0.0",
 	},
 	Fido2Mfa: {
 		ID:          Fido2Mfa,
-		Tier:        TierEnterprise,
+		Tier:        TierFree,
 		Description: `FIDO2 / WebAuthn second factor for user authentication`,
 		Introduced:  "1.0.0",
 	},
