@@ -5,7 +5,7 @@
 // applied (or rolled back) the rule on the host — this package still NEVER
 // contacts a host itself; the worker owns the *kensa.Executor.
 //
-// Spec: api-remediation v1.1.0.
+// Spec: api-remediation v1.2.0.
 package remediation
 
 import (
@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,10 +27,12 @@ func (s *Service) MarkExecuting(ctx context.Context, id uuid.UUID) (Request, err
 	return s.transition(ctx, id, StatusApproved, StatusExecuting)
 }
 
-// MarkRolledBack transitions an 'executed' request to 'rolled_back'. Returns
-// ErrWrongState when the request is not 'executed'.
+// MarkRolledBack transitions a rollback-eligible request to 'rolled_back'.
+// Eligible means 'executed' OR 'staged' (Status.RollbackEligible): a staged
+// change is a real host mutation with captured pre-state, so it must be
+// reversible. Returns ErrWrongState otherwise.
 func (s *Service) MarkRolledBack(ctx context.Context, id uuid.UUID) (Request, error) {
-	return s.transition(ctx, id, StatusExecuted, StatusRolledBack)
+	return s.transitionFrom(ctx, id, Status.RollbackEligible, StatusRolledBack)
 }
 
 // RevertToApproved transitions an 'executing' request back to 'approved'. The
@@ -62,6 +65,14 @@ func (s *Service) HostHasExecuting(ctx context.Context, hostID uuid.UUID) (bool,
 // Unlike review() it does not touch reviewed_by/reviewed_at — execution
 // transitions are system-driven, not a human review.
 func (s *Service) transition(ctx context.Context, id uuid.UUID, fromState, toState Status) (Request, error) {
+	return s.transitionFrom(ctx, id, func(cur Status) bool { return cur == fromState }, toState)
+}
+
+// transitionFrom is transition() over a SET of acceptable source states,
+// expressed as a predicate. Rollback needs it because two different statuses
+// are rollback-eligible ('executed' and 'staged'), and hard-coding a single
+// source state is what made a staged host change unreversible.
+func (s *Service) transitionFrom(ctx context.Context, id uuid.UUID, eligible func(Status) bool, toState Status) (Request, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Request{}, fmt.Errorf("remediation: transition begin: %w", err)
@@ -78,7 +89,7 @@ func (s *Service) transition(ctx context.Context, id uuid.UUID, fromState, toSta
 	if err != nil {
 		return Request{}, fmt.Errorf("remediation: transition lock: %w", err)
 	}
-	if Status(status) != fromState {
+	if !eligible(Status(status)) {
 		return Request{}, ErrWrongState
 	}
 
@@ -107,29 +118,7 @@ func (s *Service) transition(ctx context.Context, id uuid.UUID, fromState, toSta
 // finalStatus is computed from the transactions; the caller does not pass it.
 // Returns the updated Request.
 func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID string, txns []ExecTxn) (Request, error) {
-	final := StatusFailed
-	anyCommitted := false
-	anyErrored := false
-	failReason := ""
-	for _, t := range txns {
-		if t.Committed() {
-			anyCommitted = true
-		}
-		if t.Status == "errored" || t.Err != "" {
-			anyErrored = true
-			if failReason == "" && t.Err != "" {
-				failReason = t.Err
-			}
-		}
-	}
-	if anyCommitted && !anyErrored {
-		final = StatusExecuted
-	}
-	// A failed execute with no per-transaction error (e.g. the host was
-	// unreachable, so the journal is empty) still gets a usable reason.
-	if final == StatusFailed && failReason == "" {
-		failReason = "Remediation did not complete. No host change was committed."
-	}
+	final, failReason := rollUpOutcome(ctx, txns)
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -163,7 +152,7 @@ func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID stri
 
 	if existing == 0 {
 		for i, t := range txns {
-			phase := phaseResult(t.Status)
+			phase := phaseResult(t)
 			ev := t.Evidence
 			if len(ev) == 0 {
 				ev = []byte("{}")
@@ -199,20 +188,27 @@ func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID stri
 	return rq, nil
 }
 
-// FirstCommittedTxn returns the first committed transaction id for a request,
-// or false when none committed. The worker uses it to find the rollback
-// handle when a rollback is requested.
-func (s *Service) FirstCommittedTxn(ctx context.Context, id uuid.UUID) (uuid.UUID, bool, error) {
+// FirstReversibleTxn returns the first REVERSIBLE transaction id for a request,
+// or false when none exists. The worker uses it to find the rollback handle.
+//
+// 'staged' counts as reversible alongside 'committed' (api-remediation AC-09).
+// A staged transaction wrote a real change to the host and Kensa captured its
+// pre-state, so `kensa rollback` reverses it byte-perfect. Matching only
+// 'committed' here was half of why a staged change could not be undone through
+// the UI; the other half was the executed-only precondition in the worker.
+func (s *Service) FirstReversibleTxn(ctx context.Context, id uuid.UUID) (uuid.UUID, bool, error) {
 	var raw string
 	err := s.pool.QueryRow(ctx, `
 		SELECT kensa_txn_id FROM remediation_transactions
-		 WHERE request_id = $1 AND phase_result = 'committed' AND kensa_txn_id IS NOT NULL
+		 WHERE request_id = $1
+		   AND phase_result IN ('committed', 'staged')
+		   AND kensa_txn_id IS NOT NULL
 		 ORDER BY ordinal ASC, created_at ASC LIMIT 1`, id).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, fmt.Errorf("remediation: first committed txn: %w", err)
+		return uuid.Nil, false, fmt.Errorf("remediation: first reversible txn: %w", err)
 	}
 	txnID, perr := uuid.Parse(raw)
 	if perr != nil {
@@ -257,17 +253,101 @@ func (s *Service) EmitRolledBack(ctx context.Context, rq Request, actor uuid.UUI
 	s.emitAudit(ctx, auditRemediationRolledBack, rq, actor, detail)
 }
 
-// phaseResult maps a kensa transaction status to the remediation_transactions
-// phase_result CHECK enum (committed | rolled_back | skipped). Anything that is
-// not a clean commit or rollback is recorded as 'skipped' (the journal's catch
-// -all for partially_applied / errored), with the raw status preserved in the
-// evidence envelope.
-func phaseResult(status string) string {
-	switch status {
-	case "committed":
+// rollUpOutcome reduces a request's transactions to one terminal status plus an
+// operator-facing reason.
+//
+// Cardinality note: Kensa's Remediate runs a transaction per FAILING rule and
+// OpenWatch passes exactly one rule, so this is 1 transaction in practice today
+// and the roll-up is lossless. The mixed case is defined anyway rather than left
+// emergent, because bulk remediation (Enterprise) will exercise it: when
+// transactions disagree the honest answer is partially_applied, "go look at this
+// host", not an arbitrary precedence winner.
+//
+// api-remediation AC-09, AC-10, AC-11.
+func rollUpOutcome(ctx context.Context, txns []ExecTxn) (Status, string) {
+	if len(txns) == 0 {
+		// No journal at all, e.g. the host was unreachable so nothing ran.
+		// Nothing was attempted, so the old message is accurate here.
+		return StatusFailed, "Remediation did not complete. No host change was committed."
+	}
+
+	seen := make(map[Status]bool, len(txns))
+	reason := ""
+	for _, t := range txns {
+		st, known := OutcomeOf(t)
+		if !known {
+			// AC-11: never absorb an unknown terminal state silently. This is
+			// the guard that Kensa v0.8.0's `staged` defeated.
+			slog.WarnContext(ctx, "remediation: unrecognised kensa transaction status; failing closed",
+				slog.String("kensa_status", t.Status),
+				slog.String("txn_id", t.TxnID.String()),
+				slog.String("action", "add the status to remediation.OutcomeOf and the phase_result CHECK"))
+		}
+		seen[st] = true
+		if reason == "" && t.Err != "" {
+			reason = t.Err
+		}
+	}
+
+	final := StatusFailed
+	switch {
+	case len(seen) == 1:
+		for st := range seen {
+			final = st
+		}
+	case seen[StatusFailed] || seen[StatusPartiallyApplied]:
+		// Something broke or stranded amid other work: host state is unknown.
+		final = StatusPartiallyApplied
+	default:
+		// Several non-failing outcomes disagree (e.g. one committed, one
+		// staged). The host is partly converged and partly pending a reboot.
+		final = StatusPartiallyApplied
+	}
+
+	if reason == "" {
+		reason = outcomeReason(final)
+	}
+	return final, reason
+}
+
+// outcomeReason is the operator-facing sentence for a terminal status when the
+// engine gave no error string of its own. Each one names the host's actual
+// state, because the single worst thing the old code did was tell an operator
+// nothing had changed on a host that had just been modified.
+func outcomeReason(s Status) string {
+	switch s {
+	case StatusExecuted:
+		return "Fix applied and validated on the host."
+	case StatusStaged:
+		return "Change written and staged. It takes effect after the host reboots; a re-scan reports this rule as still failing until then. You can roll it back."
+	case StatusReverted:
+		return "Validation failed, so the host was restored to its previous state. Nothing was left changed."
+	case StatusNotApplied:
+		return "No change made. The engine declined to apply this rule."
+	case StatusPartiallyApplied:
+		return "Remediation did not complete cleanly and some steps cannot be reversed automatically. Inspect this host."
+	default:
+		return "Remediation did not complete. No host change was committed."
+	}
+}
+
+// phaseResult maps a kensa transaction to the remediation_transactions
+// phase_result enum, widened by migration 0054 so the journal records the true
+// outcome. It no longer collapses everything unknown into 'skipped'; 'skipped'
+// is retained only for historical rows written before 0054.
+func phaseResult(t ExecTxn) string {
+	st, _ := OutcomeOf(t)
+	switch st {
+	case StatusExecuted:
 		return "committed"
-	case "rolled_back":
-		return "rolled_back"
+	case StatusStaged:
+		return "staged"
+	case StatusReverted:
+		return "reverted"
+	case StatusNotApplied:
+		return "not_applied"
+	case StatusPartiallyApplied:
+		return "partially_applied"
 	default:
 		return "skipped"
 	}

@@ -38,7 +38,60 @@ const (
 	StatusExecuted        Status = "executed"
 	StatusRolledBack      Status = "rolled_back"
 	StatusFailed          Status = "failed"
+
+	// The terminal outcomes below distinguish states that need DIFFERENT
+	// operator actions. Before they existed, "failed" meant any of five
+	// things and carried the message "No host change was committed", which
+	// was false for one of them. See api-remediation C-09.
+
+	// StatusStaged: the persist layer was written but the runtime did NOT
+	// converge, so the change takes effect at the next reboot. THE HOST IS
+	// MUTATED. Produced by Kensa when a mechanism cannot change live kernel
+	// state under the host's current configuration, today audit_rule_set on
+	// a host with an immutable audit config (`auditctl -s` = `enabled 2`).
+	// A staged rule must NOT be flipped to pass in host_rule_state (a
+	// re-scan correctly still reports it failing), and rollback must remain
+	// reachable.
+	StatusStaged Status = "staged"
+
+	// StatusReverted: Kensa's validation failed after apply and the engine
+	// auto-restored the captured pre-state. THE HOST IS UNTOUCHED. This is
+	// the atomic model working as designed, so it is deliberately not
+	// presented as the same kind of failure as an errored run.
+	StatusReverted Status = "reverted"
+
+	// StatusNotApplied: the engine refused to act without mutating the host,
+	// e.g. Kensa v0.8.0's duplicate-audit-action guard declining to write a
+	// second drop-in for an action another rules.d file already audits. THE
+	// HOST IS UNTOUCHED and is arguably already compliant. Carries the
+	// refusal detail so an operator can tell it from a defect.
+	StatusNotApplied Status = "not_applied"
+
+	// StatusPartiallyApplied: non-capturable steps succeeded before a later
+	// failure, so they are stranded and rollback cannot reverse them. HOST
+	// STATE IS UNKNOWN and needs inspection.
+	StatusPartiallyApplied Status = "partially_applied"
 )
+
+// HostMutated reports whether reaching this terminal status means the host was
+// changed. It is the predicate that decides whether an operator has cleanup to
+// consider, and it is why "reverted" must not render like "failed".
+func (s Status) HostMutated() bool {
+	switch s {
+	case StatusExecuted, StatusStaged, StatusPartiallyApplied:
+		return true
+	default:
+		return false
+	}
+}
+
+// RollbackEligible reports whether a request in this status can be rolled back.
+// Staged is included deliberately: Kensa captured pre-state and `kensa rollback`
+// reverses a staged drop-in byte-perfect, so refusing here would strand a real
+// host change with no route back. See api-remediation AC-09.
+func (s Status) RollbackEligible() bool {
+	return s == StatusExecuted || s == StatusStaged
+}
 
 // ProjectedLift is the estimated per-framework compliance-score delta
 // (percentage points) if the rule flips to pass. A nil field means that
@@ -90,10 +143,15 @@ type ExecTxn struct {
 	// TxnID is the Kensa transaction id (the rollback handle). Stored as
 	// remediation_transactions.kensa_txn_id.
 	TxnID uuid.UUID
-	// Status is the per-transaction outcome: committed | rolled_back |
-	// partially_applied | errored. Mapped to the phase_result CHECK enum
-	// (committed | rolled_back | skipped) for the journal row.
+	// Status is the raw per-transaction Kensa outcome: committed |
+	// rolled_back | partially_applied | errored | staged. Passed through
+	// verbatim from api.TransactionStatus and mapped by OutcomeOf.
 	Status string
+	// Refused is true when the engine declined to act WITHOUT mutating the
+	// host (Kensa reported Success=false with a detail rather than an error),
+	// e.g. the v0.8.0 duplicate-audit-action guard. Kensa has no distinct
+	// TransactionStatus for this, so it is carried alongside.
+	Refused bool
 	// Evidence is the signed evidence envelope (or a summary), stored in the
 	// remediation_transactions.evidence JSONB column.
 	Evidence []byte
@@ -105,6 +163,57 @@ type ExecTxn struct {
 // Kensa runs Validate before Commit, so a committed transaction means the
 // rule's check passed on the host.
 func (t ExecTxn) Committed() bool { return t.Status == "committed" }
+
+// Staged reports whether the transaction wrote a reboot-deferred change. The
+// host IS mutated but the runtime has not converged.
+func (t ExecTxn) Staged() bool { return t.Status == "staged" }
+
+// Kensa transaction statuses, named so the mapping below reads against the
+// upstream vocabulary rather than bare strings. Mirrors api.TransactionStatus;
+// duplicated as untyped strings because ExecTxn deliberately does not import
+// the kensa package (it would create an import cycle through credential).
+const (
+	kensaCommitted        = "committed"
+	kensaRolledBack       = "rolled_back"
+	kensaPartiallyApplied = "partially_applied"
+	kensaErrored          = "errored"
+	kensaRecovered        = "recovered"
+	kensaStaged           = "staged"
+)
+
+// OutcomeOf maps one Kensa transaction to the request status it implies, and
+// reports whether the status was recognised.
+//
+// The bool is the point of this function. api-remediation AC-11 requires that
+// an unrecognised Kensa status is never silently absorbed: the previous code
+// collapsed everything unknown through a `default:` branch, which is exactly
+// how Kensa v0.8.0's `staged` came to be reported as "failed, no host change
+// was committed" on a host that had just been modified. A false return means
+// the caller MUST log the offending value and fail closed.
+func OutcomeOf(t ExecTxn) (Status, bool) {
+	// A refusal is not a Kensa status; check it before the status switch.
+	// The engine declined without touching the host.
+	if t.Refused {
+		return StatusNotApplied, true
+	}
+	switch t.Status {
+	case kensaCommitted:
+		return StatusExecuted, true
+	case kensaStaged:
+		return StatusStaged, true
+	case kensaRolledBack, kensaRecovered:
+		// Kensa restored pre-state itself. The host is untouched, so this is
+		// NOT the same event as an errored run and must not read like one.
+		return StatusReverted, true
+	case kensaPartiallyApplied:
+		return StatusPartiallyApplied, true
+	case kensaErrored:
+		return StatusFailed, true
+	default:
+		// Fail closed: unknown means unknown, never a success-shaped outcome.
+		return StatusFailed, false
+	}
+}
 
 var (
 	// ErrNotFound is returned when a remediation request id does not exist.

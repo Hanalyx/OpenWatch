@@ -1233,7 +1233,32 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   executed: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Executed' },
   rolled_back: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Rolled back' },
   failed: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Failed' },
+
+  // Terminal outcomes added with the outcome vocabulary (api-remediation
+  // v1.2.0). Each colour is chosen from what the operator has to DO, not from
+  // whether the word sounds good:
+  //
+  //   staged      amber. It worked, but the host is not protected yet and
+  //               someone has to reboot. Green would claim a protection the
+  //               host does not have.
+  //   reverted    neutral, deliberately NOT red. Validation failed and the
+  //               host was restored. That is the atomic model doing its job,
+  //               and colouring it as a failure teaches operators to distrust
+  //               the thing protecting them.
+  //   not_applied neutral. The engine declined and the host is untouched.
+  //   partially_applied  red. Some steps cannot be reversed automatically and
+  //               the host needs a human.
+  staged: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Staged, reboot required' },
+  reverted: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Reverted, host unchanged' },
+  not_applied: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Not applied' },
+  partially_applied: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Partially applied' },
 };
+
+// Statuses a rollback can be started from. Mirrors Status.RollbackEligible in
+// internal/remediation: 'staged' is included because a staged change is a real
+// host mutation with captured pre-state, so the operator must be able to undo
+// it. Omitting it here was half of why a staged change was unreversible.
+const ROLLBACK_ELIGIBLE = new Set(['executed', 'staged']);
 
 function RemStatusChip({ status }: { status: string }) {
   const s = REM_STATUS_STYLE[status] ?? {
@@ -1635,24 +1660,39 @@ function RemediationRowAction({
     );
   }
 
-  if (request.status === 'executed') {
+  if (ROLLBACK_ELIGIBLE.has(request.status)) {
+    // 'executed' means the runtime converged: the host is protected now.
+    // 'staged' means the change is written but takes effect at reboot, so the
+    // host is NOT protected yet. Both keep the Roll back action; only the
+    // wording and colour differ, because they call for different next steps.
+    const isStaged = request.status === 'staged';
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span
+          title={
+            isStaged
+              ? 'The change is written to the host but the running system has not picked it up. A re-scan still reports this rule as failing until the host reboots.'
+              : undefined
+          }
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
             fontSize: 11,
             fontWeight: 600,
-            color: 'var(--ow-ok)',
+            color: isStaged ? 'var(--ow-warn)' : 'var(--ow-ok)',
           }}
         >
           <span
             aria-hidden
-            style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ow-ok)' }}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: isStaged ? 'var(--ow-warn)' : 'var(--ow-ok)',
+            }}
           />
-          Fixed
+          {isStaged ? 'Staged, reboot required' : 'Fixed'}
         </span>
         {canRollback && (
           <button
@@ -1682,6 +1722,18 @@ function RemediationRowAction({
 
   if (request.status === 'rolled_back') {
     return <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>Rolled back</span>;
+  }
+
+  // Host untouched. Neutral, not red: the engine restored the host itself, or
+  // declined to act. Showing these as failures trains operators to ignore the
+  // colour that is supposed to mean "something needs you".
+  if (request.status === 'reverted' || request.status === 'not_applied') {
+    return (
+      <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>
+        {request.status === 'reverted' ? 'Reverted, host unchanged' : 'Not applied'}
+        {inlineNote}
+      </span>
+    );
   }
 
   if (request.status === 'failed') {

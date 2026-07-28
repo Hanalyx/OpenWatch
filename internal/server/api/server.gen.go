@@ -1021,14 +1021,18 @@ func (e NotificationFeedItemSeverity) Valid() bool {
 
 // Defines values for RemediationRequestStatus.
 const (
-	RemediationRequestStatusApproved        RemediationRequestStatus = "approved"
-	RemediationRequestStatusDryRunComplete  RemediationRequestStatus = "dry_run_complete"
-	RemediationRequestStatusExecuted        RemediationRequestStatus = "executed"
-	RemediationRequestStatusExecuting       RemediationRequestStatus = "executing"
-	RemediationRequestStatusFailed          RemediationRequestStatus = "failed"
-	RemediationRequestStatusPendingApproval RemediationRequestStatus = "pending_approval"
-	RemediationRequestStatusRejected        RemediationRequestStatus = "rejected"
-	RemediationRequestStatusRolledBack      RemediationRequestStatus = "rolled_back"
+	RemediationRequestStatusApproved         RemediationRequestStatus = "approved"
+	RemediationRequestStatusDryRunComplete   RemediationRequestStatus = "dry_run_complete"
+	RemediationRequestStatusExecuted         RemediationRequestStatus = "executed"
+	RemediationRequestStatusExecuting        RemediationRequestStatus = "executing"
+	RemediationRequestStatusFailed           RemediationRequestStatus = "failed"
+	RemediationRequestStatusNotApplied       RemediationRequestStatus = "not_applied"
+	RemediationRequestStatusPartiallyApplied RemediationRequestStatus = "partially_applied"
+	RemediationRequestStatusPendingApproval  RemediationRequestStatus = "pending_approval"
+	RemediationRequestStatusRejected         RemediationRequestStatus = "rejected"
+	RemediationRequestStatusReverted         RemediationRequestStatus = "reverted"
+	RemediationRequestStatusRolledBack       RemediationRequestStatus = "rolled_back"
+	RemediationRequestStatusStaged           RemediationRequestStatus = "staged"
 )
 
 // Valid indicates whether the value is a known member of the RemediationRequestStatus enum.
@@ -1044,11 +1048,19 @@ func (e RemediationRequestStatus) Valid() bool {
 		return true
 	case RemediationRequestStatusFailed:
 		return true
+	case RemediationRequestStatusNotApplied:
+		return true
+	case RemediationRequestStatusPartiallyApplied:
+		return true
 	case RemediationRequestStatusPendingApproval:
 		return true
 	case RemediationRequestStatusRejected:
 		return true
+	case RemediationRequestStatusReverted:
+		return true
 	case RemediationRequestStatusRolledBack:
+		return true
+	case RemediationRequestStatusStaged:
 		return true
 	default:
 		return false
@@ -1456,14 +1468,18 @@ func (e GetIntelligenceEventsParamsSeverity) Valid() bool {
 
 // Defines values for ListRemediationRequestsParamsStatus.
 const (
-	ListRemediationRequestsParamsStatusApproved        ListRemediationRequestsParamsStatus = "approved"
-	ListRemediationRequestsParamsStatusDryRunComplete  ListRemediationRequestsParamsStatus = "dry_run_complete"
-	ListRemediationRequestsParamsStatusExecuted        ListRemediationRequestsParamsStatus = "executed"
-	ListRemediationRequestsParamsStatusExecuting       ListRemediationRequestsParamsStatus = "executing"
-	ListRemediationRequestsParamsStatusFailed          ListRemediationRequestsParamsStatus = "failed"
-	ListRemediationRequestsParamsStatusPendingApproval ListRemediationRequestsParamsStatus = "pending_approval"
-	ListRemediationRequestsParamsStatusRejected        ListRemediationRequestsParamsStatus = "rejected"
-	ListRemediationRequestsParamsStatusRolledBack      ListRemediationRequestsParamsStatus = "rolled_back"
+	ListRemediationRequestsParamsStatusApproved         ListRemediationRequestsParamsStatus = "approved"
+	ListRemediationRequestsParamsStatusDryRunComplete   ListRemediationRequestsParamsStatus = "dry_run_complete"
+	ListRemediationRequestsParamsStatusExecuted         ListRemediationRequestsParamsStatus = "executed"
+	ListRemediationRequestsParamsStatusExecuting        ListRemediationRequestsParamsStatus = "executing"
+	ListRemediationRequestsParamsStatusFailed           ListRemediationRequestsParamsStatus = "failed"
+	ListRemediationRequestsParamsStatusNotApplied       ListRemediationRequestsParamsStatus = "not_applied"
+	ListRemediationRequestsParamsStatusPartiallyApplied ListRemediationRequestsParamsStatus = "partially_applied"
+	ListRemediationRequestsParamsStatusPendingApproval  ListRemediationRequestsParamsStatus = "pending_approval"
+	ListRemediationRequestsParamsStatusRejected         ListRemediationRequestsParamsStatus = "rejected"
+	ListRemediationRequestsParamsStatusReverted         ListRemediationRequestsParamsStatus = "reverted"
+	ListRemediationRequestsParamsStatusRolledBack       ListRemediationRequestsParamsStatus = "rolled_back"
+	ListRemediationRequestsParamsStatusStaged           ListRemediationRequestsParamsStatus = "staged"
 )
 
 // Valid indicates whether the value is a known member of the ListRemediationRequestsParamsStatus enum.
@@ -1479,11 +1495,19 @@ func (e ListRemediationRequestsParamsStatus) Valid() bool {
 		return true
 	case ListRemediationRequestsParamsStatusFailed:
 		return true
+	case ListRemediationRequestsParamsStatusNotApplied:
+		return true
+	case ListRemediationRequestsParamsStatusPartiallyApplied:
+		return true
 	case ListRemediationRequestsParamsStatusPendingApproval:
 		return true
 	case ListRemediationRequestsParamsStatusRejected:
 		return true
+	case ListRemediationRequestsParamsStatusReverted:
+		return true
 	case ListRemediationRequestsParamsStatusRolledBack:
+		return true
+	case ListRemediationRequestsParamsStatusStaged:
 		return true
 	default:
 		return false
