@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -132,3 +132,17 @@ spec:
       description: "Built-in role grants match the remediation/exception governance matrix, locking separation of duties against drift. Remediation: ops_lead grants request/execute/rollback but NOT approve; remediation:approve is held only by security_admin and admin; viewer/auditor cannot request remediation. Exceptions: auditor grants request/approve, ops_lead grants request but NOT approve, revoke is security_admin/admin only. viewer holds only remediation:read/exception:read of the governed categories; admin holds all. Verified against BuiltInRoles so a permissions.yaml edit that breaks the matrix fails the build."
       priority: critical
       references_constraints: [C-08]
+    - id: AC-18
+      description: >
+        Per-route enforcement is structurally guaranteed, not remembered. Every
+        operation in api/openapi.yaml that declares x-required-permission MUST
+        have a handler that enforces the matching codegen-typed constant from
+        internal/auth/permissions.gen.go, and the declared permission MUST exist
+        in the registry. A handler that omits the check, or a contract that
+        names a permission the registry does not have, fails the build. The
+        check follows delegation to a same-receiver helper (several handlers are
+        thin wrappers whose enforcement lives one call down), so a false
+        positive cannot be "fixed" by weakening it. Before this AC the
+        x-required-permission declarations were decorative: nothing linked the
+        contract to the code, and the link was maintained by review alone.
+      priority: critical
