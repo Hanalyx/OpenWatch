@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -145,4 +145,33 @@ spec:
         positive cannot be "fixed" by weakening it. Before this AC the
         x-required-permission declarations were decorative: nothing linked the
         contract to the code, and the link was maintained by review alone.
+      priority: critical
+    - id: AC-19
+      description: >
+        The anti-escalation guard fails CLOSED on any role it cannot resolve.
+        RoleGrantsWithin previously returned true (allow) for every role absent
+        from the built-in registry, on the reasoning that an unknown role
+        confers nothing. That reasoning does not hold for a CUSTOM role: it
+        exists, it is not built in, and the downstream existence check accepts
+        it, so the guard passed for every custom role on both the role-assign
+        and the API-token-mint paths. The guard MUST now distinguish three
+        states and treat them differently. A role that RESOLVES is evaluated
+        against its actual permission set, whether built in or custom. A role
+        that is INDETERMINATE (no resolver, or the lookup failed) is DENIED,
+        because the guard cannot show the grant is within the caller's
+        authority and a database fault must not open it. A role that is
+        PROVABLY ABSENT passes the guard, because it confers nothing and the
+        downstream existence check rejects it as bad input; denying there would
+        turn a client typo into an authorization error and change the
+        documented 400 for an unknown role id into a 403.
+      priority: critical
+    - id: AC-20
+      description: >
+        A caller MUST NOT author a custom role granting a permission they do
+        not themselves hold. Validating that a permission is registered is not
+        the same as validating the author may confer it: authoring an
+        over-broad role and then having it assigned is a two-step escalation
+        that neither step catches alone. CreateCustomRole rejects with
+        ErrRoleExceedsGrant and names the offending permissions so the API can
+        return them.
       priority: critical

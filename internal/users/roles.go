@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // CustomRole-related errors.
@@ -13,6 +14,9 @@ var (
 	ErrRoleIDTaken       = errors.New("users: role id collides with a built-in or existing custom role")
 	ErrUnknownPermission = errors.New("users: role grants permission not in the registry")
 	ErrCustomRoleEmpty   = errors.New("users: custom role must grant at least one permission")
+	// ErrRoleExceedsGrant is returned when the caller tries to author a custom
+	// role granting a permission they do not themselves hold.
+	ErrRoleExceedsGrant = errors.New("users: custom role grants a permission the creator does not hold")
 )
 
 // PermissionValidator returns true if a permission id is registered.
@@ -26,6 +30,12 @@ type CustomRoleParams struct {
 	Description string
 	Permissions []string
 	CreatedBy   uuid.UUID
+	// CallerHolds reports whether the CREATOR holds a permission. Supplied by
+	// the handler from the caller's identity so this package need not import
+	// internal/auth (which would cycle). A nil CallerHolds skips the
+	// subset check and is intended ONLY for trusted internal seeding; every
+	// request-driven path must set it.
+	CallerHolds func(perm string) bool
 }
 
 // Role is the on-wire shape for built-in and custom roles.
@@ -90,6 +100,22 @@ func (s *Service) CreateCustomRole(ctx context.Context, p CustomRoleParams, vali
 	if len(invalid) > 0 {
 		return Role{}, invalid, ErrUnknownPermission
 	}
+	// Anti-escalation on the AUTHORING step. Validating that a permission
+	// exists is not the same as validating the author may confer it: without
+	// this, a caller could author a role granting anything in the registry and
+	// then have it assigned, an escalation that neither step catches alone.
+	// CallerHolds is supplied by the handler from the caller's identity.
+	if p.CallerHolds != nil {
+		var exceeds []string
+		for _, perm := range p.Permissions {
+			if !p.CallerHolds(perm) {
+				exceeds = append(exceeds, perm)
+			}
+		}
+		if len(exceeds) > 0 {
+			return Role{}, exceeds, ErrRoleExceedsGrant
+		}
+	}
 	// Built-in collision check (cheap; before the SQL round-trip).
 	for _, builtin := range []string{"viewer", "auditor", "ops_lead", "security_admin", "admin"} {
 		if p.ID == builtin {
@@ -122,4 +148,32 @@ func isUniqueViolation(err error) bool {
 		return pgErr.SQLState() == "23505"
 	}
 	return false
+}
+
+// RolePermissions returns the permissions a role confers, and whether the role
+// exists. Built-in roles are answered from the registry by the caller; this
+// reads the roles table, which is where a CUSTOM role's permission set lives.
+//
+// It backs the anti-escalation guard (auth.RoleGrantsWithinResolved). Without
+// it the guard can only see built-in roles, and its only safe response to a
+// custom role is to deny, which would break legitimate custom-role assignment.
+//
+// It returns three states. A missing row is (nil, false, nil): provably absent.
+// A query failure is (nil, false, err): indeterminate, and the guard denies.
+// Collapsing the two would either turn a client typo into a 403 or let a
+// database fault open the guard.
+func (s *Service) RolePermissions(ctx context.Context, roleID string) ([]string, bool, error) {
+	var perms []string
+	err := s.pool.QueryRow(ctx,
+		`SELECT permissions FROM roles WHERE id = $1`, roleID).Scan(&perms)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Provably absent. Not an error: the caller needs to tell this apart
+		// from "could not determine" so an unknown role id stays a 400 and
+		// does not become a 403.
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("users: role permissions: %w", err)
+	}
+	return perms, true, nil
 }
