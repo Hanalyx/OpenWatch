@@ -129,7 +129,7 @@ func (h *handlers) PostUserRolesAssign(w http.ResponseWriter, r *http.Request, i
 	}
 	// Anti-escalation: a caller may not grant a role more privileged than
 	// themselves. Spec api-users C-05 / AC-13 (mirrors api-tokens C-03).
-	if !auth.RoleGrantsWithin(auth.FromContext(r.Context()), auth.RoleID(req.RoleId)) {
+	if !auth.RoleGrantsWithinResolved(auth.FromContext(r.Context()), auth.RoleID(req.RoleId), h.roleResolver(r)) {
 		writeError(w, http.StatusForbidden, "authz.role_exceeds_grant", "client",
 			"cannot assign a role that grants permissions you do not hold", false)
 		return
@@ -193,8 +193,15 @@ func (h *handlers) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
 		_, ok := auth.Permissions[auth.Permission(perm)]
 		return ok
 	}
+	// Anti-escalation on the authoring step: the creator may not confer a
+	// permission they do not hold. Without this, authoring a role granting
+	// anything in the registry and then having it assigned is a two-step
+	// escalation that neither step catches alone.
+	caller := auth.FromContext(r.Context())
+	holds := func(perm string) bool { return caller.HasPermission(auth.Permission(perm)) }
 	role, invalid, err := h.users.CreateCustomRole(r.Context(), users.CustomRoleParams{
 		ID: req.Id, Description: req.Description, Permissions: req.Permissions, CreatedBy: created,
+		CallerHolds: holds,
 	}, validator)
 	if err != nil {
 		switch {
@@ -205,6 +212,10 @@ func (h *handlers) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, users.ErrRoleIDTaken):
 			writeError(w, http.StatusConflict, "users.role_id_taken", "client",
 				"role id already exists", false)
+		case errors.Is(err, users.ErrRoleExceedsGrant):
+			detail := map[string]any{"exceeds_grant": invalid}
+			writeErrorWithDetail(w, http.StatusForbidden, "authz.role_exceeds_grant", "client",
+				"cannot create a role granting permissions you do not hold", false, detail)
 		case errors.Is(err, users.ErrCustomRoleEmpty):
 			writeError(w, http.StatusBadRequest, "validation.field_required", "client",
 				"permissions must be non-empty", false)
@@ -277,4 +288,32 @@ func writeErrorWithDetail(w http.ResponseWriter, status int, code, fault, msg st
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(bs)
+}
+
+// errNoUserService marks the resolver as unable to answer, which the guard
+// treats as a denial rather than as "the role does not exist".
+var errNoUserService = errors.New("server: users service unavailable for role resolution")
+
+// roleResolver returns an auth.RoleResolver backed by the roles table, so the
+// anti-escalation guard can evaluate a CUSTOM role on its real permission set.
+//
+// It preserves the three-state contract. A query failure or a missing service
+// is an ERROR (the guard denies); a row that simply is not there is
+// found=false with no error (the guard passes it through so the downstream
+// existence check returns the correct 400 for an unknown role id).
+func (h *handlers) roleResolver(r *http.Request) auth.RoleResolver {
+	return func(id auth.RoleID) ([]auth.Permission, bool, error) {
+		if h.users == nil {
+			return nil, false, errNoUserService
+		}
+		raw, found, err := h.users.RolePermissions(r.Context(), string(id))
+		if err != nil || !found {
+			return nil, false, err
+		}
+		out := make([]auth.Permission, 0, len(raw))
+		for _, p := range raw {
+			out = append(out, auth.Permission(p))
+		}
+		return out, true, nil
+	}
 }
