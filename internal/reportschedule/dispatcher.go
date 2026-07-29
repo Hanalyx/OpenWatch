@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
 )
 
@@ -65,7 +66,20 @@ func (d *Dispatcher) Tick(ctx context.Context) error {
 }
 
 // run generates the scheduled report, renders its PDF face, and emails it.
+//
+// The licence is checked HERE, at fire time, not only when the schedule was
+// created. A schedule created while licensed would otherwise keep minting the
+// paid attestation artifact on a timer after the licence lapsed, which would
+// make the gate on the HTTP paths theatre. Skipping is deliberate rather than
+// failing: an unlicensed attestation schedule is inert, not broken, and the
+// operator sees it in the log.
 func (d *Dispatcher) run(ctx context.Context, sch Schedule) error {
+	if report.Kind(sch.Kind) == report.KindAttestation && !license.IsEnabled(license.ComplianceAttestation) {
+		slog.WarnContext(ctx, "skipping scheduled attestation report: not licensed",
+			slog.String("schedule_id", sch.ID.String()),
+			slog.String("feature", string(license.ComplianceAttestation)))
+		return nil
+	}
 	req := report.GenerateRequest{
 		Kind:       report.Kind(sch.Kind),
 		GroupID:    sch.Scope.GroupID,

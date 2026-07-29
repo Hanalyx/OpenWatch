@@ -17,6 +17,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/notification"
+	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/reportschedule"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -114,6 +115,14 @@ func (h *handlers) CreateReportSchedule(w http.ResponseWriter, r *http.Request) 
 	}
 	if freq == reportschedule.Monthly && body.DayOfMonth == nil {
 		writeError(w, http.StatusBadRequest, "schedule.invalid_request", "client", "monthly schedule requires day_of_month", false)
+		return
+	}
+
+	// A scheduled attestation would otherwise mint the paid artifact on a
+	// timer without ever touching the gated generate endpoint. Gate it here
+	// too. Update cannot change the kind, so it needs no gate; the dispatcher
+	// re-checks at fire time so a lapsed licence stops the timer.
+	if enforceAttestationLicense(w, r, report.Kind(body.Kind)) {
 		return
 	}
 

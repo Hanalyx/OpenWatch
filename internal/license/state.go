@@ -79,3 +79,21 @@ func setKeyring(ring *publicKeyRing) {
 func activeKeyring() *publicKeyRing {
 	return keyring.Load()
 }
+
+// EnableFeatureForTesting turns f on in the active state and returns a restore
+// func. It exists because gating a capability broke tests that use that
+// capability as a fixture but are not testing licensing: the report-schedule
+// suites both use the `attestation` kind because it has the richest content,
+// so they must run as a licensed deployment would.
+//
+// Do NOT use it to paper over a gate. A test asserting that an UNLICENSED
+// caller is refused must not call this; that is the case the gate exists for.
+func EnableFeatureForTesting(f Feature) (restore func()) {
+	prev := current.Load()
+	lic := &License{Features: []Feature{f}}
+	if prev != nil && prev.License != nil {
+		lic.Features = append(append([]Feature{}, prev.License.Features...), f)
+	}
+	setState(&State{License: lic, LoadedAt: time.Now()})
+	return func() { current.Store(prev) }
+}
