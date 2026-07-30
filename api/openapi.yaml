@@ -2680,6 +2680,10 @@ paths:
   /api/v1/reports:generate:
     post:
       operationId: postReportGenerate
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Generate a Fleet Compliance Executive Summary
       description: |
         Computes a point-in-time posture snapshot from current data
@@ -2767,6 +2771,10 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
       operationId: createReportSchedule
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Create a report delivery schedule
       description: |
         Schedules a report to generate on a daily/weekly/monthly cadence and
@@ -2934,6 +2942,10 @@ paths:
   /api/v1/reports/{id}/export:
     get:
       operationId: getReportExport
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Download a rendered face of a report (PDF, JSON, CSV, or OSCAL SAR)
       description: |
         Streams a rendered face of the report as a downloadable

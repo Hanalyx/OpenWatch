@@ -131,17 +131,31 @@ func handlerBody(src, operationID string) string {
 // to weaken the check, which is how a real gap gets let through later.
 const maxDelegationDepth = 2
 
-func enforces(src, body, constName string, depth int) bool {
-	if strings.Contains(body, "auth."+constName) {
+// qualified is the package-qualified constant the caller is looking for, e.g.
+// "auth.HostRead" or "license.ComplianceAttestation". It is a parameter rather
+// than a hardcoded "auth." prefix because the license coverage check reuses
+// this walker; the first cut hardcoded auth. and silently reported every
+// license gate as missing.
+func enforces(src, body, qualified string, depth int) bool {
+	if strings.Contains(body, qualified) {
 		return true
 	}
 	if depth >= maxDelegationDepth {
 		return false
 	}
-	// Follow calls to same-receiver helpers, e.g. "h.reviewRemediation(".
-	re := regexp.MustCompile(`h\.([a-z][A-Za-z0-9]*)\(`)
-	for _, m := range re.FindAllStringSubmatch(body, -1) {
-		marker := "func (h *handlers) " + m[1] + "("
+	// Follow calls to same-receiver helpers, e.g. "h.reviewRemediation(", and
+	// to package-level helpers, e.g. "enforceAttestationLicense(". Both are
+	// real patterns here: RBAC delegates to a method, the license gate to a
+	// package function. Following only one of them silently under-checks the
+	// other.
+	seen := map[string]bool{}
+	for _, m := range regexp.MustCompile(`h\.([a-z][A-Za-z0-9]*)\(`).FindAllStringSubmatch(body, -1) {
+		seen["func (h *handlers) "+m[1]+"("] = true
+	}
+	for _, m := range regexp.MustCompile(`(?:^|[^.\w])([a-z][A-Za-z0-9]*)\(`).FindAllStringSubmatch(body, -1) {
+		seen["func "+m[1]+"("] = true
+	}
+	for marker := range seen {
 		i := strings.Index(src, marker)
 		if i < 0 {
 			continue
@@ -150,7 +164,7 @@ func enforces(src, body, constName string, depth int) bool {
 		if j := strings.Index(rest, "\nfunc "); j >= 0 {
 			rest = rest[:j]
 		}
-		if enforces(src, rest, constName, depth+1) {
+		if enforces(src, rest, qualified, depth+1) {
 			return true
 		}
 	}
@@ -186,7 +200,7 @@ func TestRBACCoverage_EveryDeclaredPermissionIsEnforced(t *testing.T) {
 			}
 			// The handler must reference the generated constant, not a raw
 			// string. forbidigo separately bans raw permission literals.
-			if enforces(src, body, constName, 0) {
+			if enforces(src, body, "auth."+constName, 0) {
 				continue
 			}
 			notEnforced = append(notEnforced, opID+" must enforce auth."+constName+" ("+perm+")")

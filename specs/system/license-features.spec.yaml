@@ -1,7 +1,7 @@
 spec:
   id: system-license-features
   title: License features and gating middleware
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -111,3 +111,21 @@ spec:
         a tier change alters that response for every unlicensed deployment.
       priority: high
       references_constraints: [C-03]
+    - id: AC-14
+      description: >
+        License enforcement is structurally guaranteed, not remembered. Every
+        route that declares a license feature MUST name one registered in
+        licensing/features.yaml, and MUST enforce it somewhere in that route's
+        own call graph. Conversely a paid feature enforced in the server
+        package MUST be declared by at least one route, or the public contract
+        hides a paywall. Two annotations exist and are distinct:
+        x-required-feature means the whole route is paid; x-conditional-feature
+        means the route is paid only for some requests, decided from the body.
+        Reports are the live case for the second, since only the `attestation`
+        report kind is entitled and declaring the route paid outright would be
+        false. Resolution follows the route's own call graph, NOT a package-wide
+        search for the constant: a package-wide match passes a route whose gate
+        has been swapped to a different feature, which reads as coverage while
+        providing none.
+      priority: critical
+      references_constraints: [C-01]
