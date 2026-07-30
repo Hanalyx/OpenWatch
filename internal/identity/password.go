@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -204,4 +205,43 @@ func parsePHC(s string) (argonParams, []byte, []byte, error) {
 func sha1Hex(pw string) string {
 	h := sha1.Sum([]byte(pw)) //nolint:gosec // see function doc
 	return strings.ToUpper(hex.EncodeToString(h[:]))
+}
+
+// decoyHash is a valid PHC-encoded Argon2id hash of a random password,
+// computed once. It exists only to be verified against and never matches.
+var decoyHash = sync.OnceValue(func() string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		// A hash of a fixed string is still a valid decoy: the point is the
+		// Argon2id work, not the secrecy of the input.
+		buf = []byte("openwatch-decoy-password-fallback")
+	}
+	h, err := HashPassword(base64.RawStdEncoding.EncodeToString(buf))
+	if err != nil {
+		return ""
+	}
+	return h
+})
+
+// BurnPasswordVerify performs an Argon2id verification that is guaranteed to
+// fail, so a caller can spend the same work on a missing account as on a real
+// one.
+//
+// WHY: VerifyUserPassword returned immediately when the username did not
+// exist, skipping Argon2id entirely. A real account costs tens of milliseconds
+// of deliberate key-stretching; a missing one cost a single indexed query. The
+// difference is trivially measurable over a handful of requests, which turns
+// the login endpoint into a username-enumeration oracle. Enumeration is the
+// step before credential stuffing and before targeted phishing, so it matters
+// even though no password is disclosed.
+//
+// This does not make login constant-time in the strict sense. Argon2id
+// dominates the request either way, which closes the gap that is actually
+// observable across a network.
+func BurnPasswordVerify() {
+	h := decoyHash()
+	if h == "" {
+		return
+	}
+	_ = VerifyPassword("openwatch-decoy-attempt", h)
 }
