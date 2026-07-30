@@ -1,6 +1,6 @@
 # Configuration and environment reference
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 This document is the field reference for how you configure the OpenWatch
 binary: the TOML file, the environment-variable overrides, and the on-disk paths

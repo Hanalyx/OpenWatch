@@ -1,6 +1,6 @@
 # Compliance control mapping
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 

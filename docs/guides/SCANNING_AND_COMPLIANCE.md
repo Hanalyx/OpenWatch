@@ -1,6 +1,6 @@
 # Scanning and compliance
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and

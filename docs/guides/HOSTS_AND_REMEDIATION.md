@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
