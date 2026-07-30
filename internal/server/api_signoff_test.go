@@ -319,7 +319,9 @@ func TestSignoff_DoD15_PolicyReload(t *testing.T) {
 func TestSignoff_DoD16_QueueWorkerCorrelation(t *testing.T) {
 	t.Run("release-stage-0-signoff/AC-10", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
-		req, _ := http.NewRequest("POST", url+"/api/v1/diagnostics:enqueue-test-job", nil)
+		// enqueue-test-job writes to the real job queue and is now admin-gated:
+		// unauthenticated it was a denial-of-service primitive.
+		req := asRole(t, "POST", url+"/api/v1/diagnostics:enqueue-test-job", auth.RoleAdmin, nil)
 		req.Header.Set("X-Correlation-Id", "req-end2end-001")
 		resp := doReq(t, req)
 		defer resp.Body.Close()
