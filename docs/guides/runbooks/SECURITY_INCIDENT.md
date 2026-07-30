@@ -199,7 +199,7 @@ LIMIT 20;
 "
 ```
 
-A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated—treat the owning account as compromised.
+A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated: treat the owning account as compromised.
 
 ### Credential access
 
@@ -278,7 +278,7 @@ sudo chmod 0640 /etc/openwatch/keys/jwt_private.pem
 sudo systemctl restart openwatch
 ```
 
-Confirm the configured path before generating a new key—`openwatch check-config` prints the resolved configuration with secrets redacted:
+Confirm the configured path before generating a new key: `openwatch check-config` prints the resolved configuration with secrets redacted:
 
 ```bash
 sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
