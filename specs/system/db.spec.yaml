@@ -91,3 +91,16 @@ spec:
     - id: AC-12
       description: Data persists across binary restart (rebuild + remigrate idempotently; row remains).
       priority: high
+    - id: AC-13
+      description: >
+        Server-version preflight. ServerVersion reads server_version_num (not
+        the server_version string, which carries vendor suffixes) and
+        CheckServerVersion enforces two distinct lines. Below
+        MinServerVersionNum (130000, set by gen_random_uuid becoming a
+        built-in) it returns an error naming both the version found and the
+        version required, and the caller refuses to migrate so a half-applied
+        schema is impossible. Between the hard floor and
+        SupportedServerVersionNum (150000) it returns a non-empty advisory and
+        no error, so an existing deployment on an older server still migrates.
+        At or above the supported floor both returns are empty.
+      priority: high
