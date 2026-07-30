@@ -1,6 +1,6 @@
 # Scanning and compliance
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 This guide covers how OpenWatch performs compliance scanning, how to read
 results and posture scores, and how to use drift detection, alerts, and
@@ -69,8 +69,7 @@ per-OS rule applicability matrix.
 Framework mappings are carried per-rule as Kensa's normalized `framework_refs`
 (a multi-valued framework_id -> control-ids map, since one rule can satisfy
 several controls within a framework). They are stored per host-rule as
-`framework_refs` JSONB and projected into the lens views at query time—
-there is no separate sync service in the Go rebuild.
+`framework_refs` JSONB and projected into the lens views at query time: there is no separate sync service in the Go rebuild.
 
 ---
 
@@ -81,7 +80,7 @@ there is no separate sync service in the Go rebuild.
 1. Navigate to **Hosts** and select the host you want to scan.
 2. On the host detail page, select **Run Scan**.
 
-A scan always runs the **full applicable rule corpus**—you do not pick a
+A scan always runs the **full applicable rule corpus**. You do not pick a
 framework to scan. Frameworks (CIS, STIG, NIST, PCI) are **reporting lenses**
 applied at view time on the Compliance tab: one scan, viewed through any
 framework. The lens bar only offers frameworks compatible with the host's
@@ -107,10 +106,10 @@ the **Compliance** tab.
 
 ### What you see
 
-- **Compliance score**—percentage of rules passing (for example, 85.0%)
-- **Summary bar**—pass, fail, error, and skipped counts
-- **Severity breakdown**—counts by critical, high, medium, low
-- **Findings table**—sortable, filterable list of all findings
+- **Compliance score**: percentage of rules passing (for example, 85.0%)
+- **Summary bar**: pass, fail, error, and skipped counts
+- **Severity breakdown**: counts by critical, high, medium, low
+- **Findings table**: sortable, filterable list of all findings
 
 ### Finding details
 
@@ -129,9 +128,9 @@ Select any finding row to expand it. Each finding shows:
 
 Use the filter controls above the findings table to narrow results:
 
-- **By severity**—show only critical and high findings
-- **By status**—show only failures
-- **By search**—search rule titles and descriptions
+- **By severity**: show only critical and high findings
+- **By status**: show only failures
+- **By search**: search rule titles and descriptions
 
 ---
 
@@ -182,10 +181,10 @@ and now passes is an **improvement**.
 
 The drift view shows:
 
-- **Score delta**—how much the compliance score changed
-- **Drift type**—stable, minor, major, or improvement
-- **Rules improved** and **rules regressed**—counts with expandable lists
-- **Timeline**—when each drift event occurred
+- **Score delta**: how much the compliance score changed
+- **Drift type**: stable, minor, major, or improvement
+- **Rules improved** and **rules regressed**: counts with expandable lists
+- **Timeline**: when each drift event occurred
 
 ### Field-level value drift
 
@@ -210,7 +209,7 @@ compliance state. You do not need to trigger manual scans for routine monitoring
 
 A host is classified into one of five score bands (plus Unknown for
 never-scanned hosts) after every scan, and the next scan is scheduled from the
-band's interval. The intervals below are the **defaults**—they are
+band's interval. The intervals below are the **defaults**. They are
 operator-editable per band under **Settings -> Scanning and monitoring ->
 Compliance scanner**, clamped to a 5-minute floor and a 48-hour ceiling.
 
@@ -261,12 +260,12 @@ on the host detail page. This bypasses the schedule and runs at highest priority
 ## Compliance exceptions
 
 A compliance exception is a documented, operator-approved waiver for a failing
-rule on a host—accepted risk ("rule X on host Y is accepted because Z, until
+rule on a host: accepted risk ("rule X on host Y is accepted because Z, until
 date D"). Exceptions are governed through a request and approval workflow.
 
 **Overlay model (important):** an exception **never changes a rule's scan
 verdict**. A failing rule with an active exception still shows as failing in the
-raw results and still counts against the raw compliance score—Kensa's verdict
+raw results and still counts against the raw compliance score. Kensa's verdict
 is authoritative. The exception is a governance annotation that marks the
 failure as accepted risk wherever it surfaces. This keeps the score honest and
 keeps the audit trail showing both "the control failed" and "the failure was
@@ -329,9 +328,9 @@ acknowledged, and recently resolved alerts.
 
 Use filters to narrow by:
 
-- **Status**—active, acknowledged, silenced, resolved, dismissed
-- **Severity**—critical, high, medium, low, info
-- **Category**—compliance, operational, exception, drift
+- **Status**: active, acknowledged, silenced, resolved, dismissed
+- **Severity**: critical, high, medium, low, info
+- **Category**: compliance, operational, exception, drift
 
 ### Alert lifecycle
 
@@ -373,7 +372,7 @@ downloads the events matching the same filters as `GET /api/v1/audit/events`
 (`action`, `actor_type`, `resource_type`, `resource_id`, `since`, `until`) as a
 synchronous CSV or JSON attachment, capped at 10,000 rows newest-first. There
 is no saved-query library, no preview step, no background/async generation,
-and no checksum or expiry on this export—it downloads immediately with the
+and no checksum or expiry on this export. It downloads immediately with the
 filters you pass.
 
 ```bash
@@ -391,9 +390,9 @@ report kind) CSV.
 
 ## What's next
 
-- [Hosts and remediation](HOSTS_AND_REMEDIATION.md)—managing hosts and fixing findings
-- [User roles](USER_ROLES.md)—role-based access control
-- [API guide](API_GUIDE.md)—REST API for automation and scripting
+- [Hosts and remediation](HOSTS_AND_REMEDIATION.md): managing hosts and fixing findings
+- [User roles](USER_ROLES.md): role-based access control
+- [API guide](API_GUIDE.md): REST API for automation and scripting
 
 ---
 

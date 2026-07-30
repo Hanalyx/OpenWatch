@@ -1,6 +1,6 @@
 # Quickstart guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and
@@ -186,7 +186,7 @@ curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/connectivity:chec
   -H "Idempotency-Key: $(uuidgen)" | jq .
 ```
 
-A failure here means SSH cannot connect—wrong credentials, an unreachable
+A failure here means SSH cannot connect: wrong credentials, an unreachable
 address, or a firewall blocking TCP/22. Fix that before expecting compliance
 results.
 
@@ -244,8 +244,7 @@ The summary counts are integers:
 }
 ```
 
-All-zero counts mean no compliance check has completed against the host yet—
-give the scheduler time, and confirm Step 5 passed.
+All-zero counts mean no compliance check has completed against the host yet: give the scheduler time, and confirm Step 5 passed.
 
 For a fleet-wide view, the dashboard aggregates across hosts. The backing
 endpoints include:
@@ -352,7 +351,7 @@ PostgreSQL. Replace `<dsn>` with the value from
 3. Check PostgreSQL data growth and look for table bloat:
    `psql "<dsn>" -c "SELECT pg_size_pretty(pg_database_size(current_database()));"`.
 4. If audit or history tables dominate, apply your retention policy rather than
-   deleting rows ad hoc—these back compliance evidence.
+   deleting rows ad hoc. These back compliance evidence.
 5. After freeing space, confirm the service recovered:
    `systemctl status openwatch` and the health endpoint.
 
@@ -370,8 +369,8 @@ PostgreSQL. Replace `<dsn>` with the value from
    `psql "<dsn>" -c "SELECT status, count(*) FROM job_queue GROUP BY status;"`.
 5. If load is sustained and harmful, lower scheduler pressure via the runtime
    config endpoints (`PUT /api/v1/system/intelligence/config`,
-   `PUT /api/v1/system/discovery/config`)—for example by enabling the
-   maintenance pause—rather than killing the process.
+   `PUT /api/v1/system/discovery/config`): for example by enabling the
+   maintenance pause: rather than killing the process.
 
 ### Security incident
 
