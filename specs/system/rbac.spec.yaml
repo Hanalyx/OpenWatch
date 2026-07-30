@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -174,4 +174,22 @@ spec:
         that neither step catches alone. CreateCustomRole rejects with
         ErrRoleExceedsGrant and names the offending permissions so the API can
         return them.
+      priority: critical
+    - id: AC-21
+      description: >
+        Privileged surfaces are not reachable anonymously, and identity is not
+        disclosed to a caller who has none. POST /diagnostics:enqueue-test-job
+        writes to the real job queue and MUST require an admin-mutating
+        permission: unauthenticated it is a denial-of-service primitive and a
+        source of unbounded table growth. POST /admin/license:verify MUST
+        require an admin read: anonymously it answers whether any submitted JWT
+        verifies and reports its tier, features, expiry, and whether it was
+        signed with the previous key, which leaks key-rotation state. POST
+        /hosts/{id}/connectivity:check MUST require host:connectivity_check
+        rather than host:read, because it makes the server open an SSH or ICMP
+        connection to a managed host on demand; that is a side effect, not a
+        read, and viewer and auditor therefore lose it. GET /license MUST omit
+        customer_id unless the caller holds system:read, since the tier and
+        feature list are operational facts a pre-login UI needs but the paying
+        organisation's identity is not.
       priority: critical

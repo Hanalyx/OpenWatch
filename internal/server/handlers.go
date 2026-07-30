@@ -276,7 +276,13 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 		resp.Tier = api.LicenseStateResponseTier(lic.Tier)
 		resp.Status = api.LicenseStateResponseStatus(lic.Status)
 		resp.Features = featuresToStrings(lic.Features)
-		resp.CustomerId = &lic.CustomerID
+		// customer_id identifies the paying organisation. The tier, status and
+		// feature list are operational facts a UI needs before login, but the
+		// customer identity is not, and this route is reachable anonymously.
+		// Disclose it only to a caller who can already read system config.
+		if auth.FromContext(r.Context()).HasPermission(auth.SystemRead) {
+			resp.CustomerId = &lic.CustomerID
+		}
 		exp := lic.ExpiresAt
 		resp.ExpiresAt = &exp
 		grace := lic.InGracePeriod
@@ -290,6 +296,13 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 // PostAdminLicenseVerify dry-run validates a JWT without installing.
 // Spec: app/specs/api/license.spec.yaml AC-4, AC-5, AC-6.
 func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request) {
+	// Anonymous, this is a signature and entitlement oracle on an /admin/
+	// path: submit any JWT and learn whether it verifies, which tier and
+	// features it carries, when it expires, and whether it was signed with the
+	// previous key. That last one leaks key-rotation state. Admin read.
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
 	var req api.LicenseVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
@@ -807,6 +820,14 @@ func (h *handlers) PostDiagnosticsEvaluateAlert(w http.ResponseWriter, r *http.R
 // carrying the request's correlation_id.
 // Spec release-stage-0-signoff AC-10.
 func (h *handlers) PostDiagnosticsEnqueueTestJob(w http.ResponseWriter, r *http.Request) {
+	// This writes to the REAL job queue. Unauthenticated it is a denial-of-
+	// service primitive and a source of unbounded table growth: anyone who can
+	// reach the port can enqueue without limit. It is a Stage-0 walking-
+	// skeleton demo, so gate it behind the same permission as any other
+	// system-mutating operation.
+	if denied := auth.EnforcePermission(w, r, auth.SystemConfigWrite); denied {
+		return
+	}
 	jobID, err := queue.Enqueue(r.Context(), h.pool, "diagnostics.test_job", nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "queue.enqueue_failed", "server",

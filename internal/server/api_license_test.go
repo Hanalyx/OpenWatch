@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -94,9 +95,10 @@ func TestAPI_License_FreeTier(t *testing.T) {
 func TestAPI_License_VerifyTamperedJWT(t *testing.T) {
 	t.Run("api-license/AC-05", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
-		body := strings.NewReader(`{"license_jwt":"not.a.valid"}`)
-		req, _ := http.NewRequest("POST", url+"/api/v1/admin/license:verify", body)
-		req.Header.Set("Content-Type", "application/json")
+		// :verify is admin-gated: anonymously it is a signature and
+		// entitlement oracle on an /admin/ path.
+		req := asRole(t, "POST", url+"/api/v1/admin/license:verify", auth.RoleAdmin,
+			map[string]string{"license_jwt": "not.a.valid"})
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -222,9 +224,8 @@ func TestAPI_License_VerifyValidJWT(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		jwtBlob := mintTestLicenseJWT(t, []string{"premium_diagnostics", "remediation_execution"})
 
-		body := strings.NewReader(`{"license_jwt":"` + jwtBlob + `"}`)
-		req, _ := http.NewRequest("POST", url+"/api/v1/admin/license:verify", body)
-		req.Header.Set("Content-Type", "application/json")
+		req := asRole(t, "POST", url+"/api/v1/admin/license:verify", auth.RoleAdmin,
+			map[string]string{"license_jwt": jwtBlob})
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		var got struct {
@@ -253,9 +254,8 @@ func TestAPI_License_VerifyDoesNotInstall(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		jwtBlob := mintTestLicenseJWT(t, []string{"premium_diagnostics"})
 
-		body := strings.NewReader(`{"license_jwt":"` + jwtBlob + `"}`)
-		req, _ := http.NewRequest("POST", url+"/api/v1/admin/license:verify", body)
-		req.Header.Set("Content-Type", "application/json")
+		req := asRole(t, "POST", url+"/api/v1/admin/license:verify", auth.RoleAdmin,
+			map[string]string{"license_jwt": jwtBlob})
 		resp := doReq(t, req)
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()

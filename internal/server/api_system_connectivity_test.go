@@ -404,7 +404,7 @@ func TestAPI_HostConnectivity_Check_NotFound_Returns404(t *testing.T) {
 	t.Run("api-host-connectivity-check/AC-03", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
 		missing, _ := uuid.NewV7()
-		req := asRole(t, "POST", url+"/api/v1/hosts/"+missing.String()+"/connectivity:check", auth.RoleViewer, nil)
+		req := asRole(t, "POST", url+"/api/v1/hosts/"+missing.String()+"/connectivity:check", auth.RoleOpsLead, nil)
 		req.Header.Set("Idempotency-Key", "test-key-"+missing.String())
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -429,7 +429,7 @@ func TestAPI_HostConnectivity_Check_MissingIdempotencyKey_Returns400(t *testing.
 			 VALUES ($1, $2, $3::inet, $4)`,
 			id, "h-"+id.String(), "192.0.2.10", uid)
 
-		req := asRole(t, "POST", url+"/api/v1/hosts/"+id.String()+"/connectivity:check", auth.RoleViewer, nil)
+		req := asRole(t, "POST", url+"/api/v1/hosts/"+id.String()+"/connectivity:check", auth.RoleOpsLead, nil)
 		// Intentionally no Idempotency-Key.
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
