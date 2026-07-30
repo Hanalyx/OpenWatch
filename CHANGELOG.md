@@ -100,6 +100,10 @@ the host.
   failure.
 - A remediation that only staged a change no longer marks the rule as passing.
   A re-scan correctly continues to report it failing until the host reboots.
+- **Rolling back a staged remediation returned a conflict instead of running.**
+  The interface offered a Roll back action on a staged change and the request
+  was refused, leaving the change in place on the host with no way to undo it
+  from the application. Staged remediations can now be rolled back.
 
 ### Security
 

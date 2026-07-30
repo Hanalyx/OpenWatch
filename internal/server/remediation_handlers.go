@@ -372,9 +372,15 @@ func (h *handlers) RollbackRemediation(w http.ResponseWriter, r *http.Request, r
 	if mapRemediationErr(w, err) {
 		return
 	}
-	if rq.Status != remediation.StatusExecuted {
+	// Eligibility is Status.RollbackEligible, never a literal comparison: a
+	// staged change is written to the host and IS reversible, so the HTTP
+	// layer must accept it exactly as the worker and the UI already do. This
+	// guard read `!= StatusExecuted` when 'staged' was introduced, which made
+	// the Roll back button the UI offers on a staged remediation fail with a
+	// 409 and stranded the change on the host.
+	if !rq.Status.RollbackEligible() {
 		writeError(w, http.StatusConflict, "remediation.wrong_state", "client",
-			"only an executed request can be rolled back", false)
+			"only an executed or staged request can be rolled back", false)
 		return
 	}
 

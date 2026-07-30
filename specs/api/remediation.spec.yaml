@@ -159,7 +159,7 @@ spec:
       priority: critical
       references_constraints: [C-05, C-03]
     - id: AC-06
-      description: 'Execute/rollback are FREE core: a caller WITH remediation:execute executing an approved request gets 202 and a remediation job is enqueued. A free-core request is auto-approved, so it executes directly with no separate approval step. A caller LACKING remediation:execute is 403; executing a non-approved (pending_approval) request is 409; rolling back (remediation:rollback) a non-executed request is 409. No remediation act endpoint returns 402. :dry-run returns 501. request/approve/reject and the GET reads return their normal status codes.'
+      description: 'Execute/rollback are FREE core: a caller WITH remediation:execute executing an approved request gets 202 and a remediation job is enqueued. A free-core request is auto-approved, so it executes directly with no separate approval step. A caller LACKING remediation:execute is 403; executing a non-approved (pending_approval) request is 409; rolling back (remediation:rollback) a request that is not rollback-eligible is 409 (eligibility is Status.RollbackEligible - executed OR staged - never a literal equality with executed; see AC-09). No remediation act endpoint returns 402. :dry-run returns 501. request/approve/reject and the GET reads return their normal status codes.'
       priority: critical
       references_constraints: [C-06]
     - id: AC-07
