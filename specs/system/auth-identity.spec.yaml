@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 1
 
@@ -144,6 +144,20 @@ spec:
         unattended session alive forever. Fail-safe: an UNMARKED non-SSE request
         slides as before, so a client that does not send the header is unaffected
         (no premature logout).
+      type: security
+      enforcement: error
+
+    - id: C-30
+      description: >
+        Login MUST NOT leak whether a username exists via response time. The
+        password path deliberately costs Argon2id work; a lookup miss that
+        skips it is measurably faster over a handful of requests, which turns
+        login into a username-enumeration oracle. A miss MUST spend equivalent
+        key-stretching work before answering. Logout MUST NOT report success it
+        did not achieve: if the server cannot revoke the session or refresh
+        token, it MUST say so rather than answer 204, because the client clears
+        its cookies either way and the user would otherwise believe a
+        credential is dead when it is still live.
       type: security
       enforcement: error
 
@@ -310,3 +324,22 @@ spec:
         (source-inspection of frontend/src/api/client.ts).
       priority: high
       references_constraints: [C-29]
+    - id: AC-32
+      description: >
+        Username enumeration via login timing is closed. VerifyUserPassword
+        spends Argon2id work on a username that does not exist, using a decoy
+        verification that always fails, so a miss and a wrong password cost
+        comparable time. The decoy performs real key stretching rather than a
+        sleep or a constant.
+      priority: critical
+      references_constraints: [C-30]
+    - id: AC-33
+      description: >
+        Logout reports the truth. A failure to revoke the session or the
+        refresh token is logged at error level and returns a 5xx naming the
+        incomplete revoke, rather than the unconditional 204 the handler
+        previously returned while discarding both errors. Cookies are still
+        cleared in that case, so the browser stops presenting the credential
+        even though the server could not kill it.
+      priority: critical
+      references_constraints: [C-30]

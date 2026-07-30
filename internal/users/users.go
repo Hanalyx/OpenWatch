@@ -334,6 +334,12 @@ func (s *Service) VerifyUserPassword(ctx context.Context, username, password str
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Spend the same Argon2id work as a real account before answering.
+			// Returning here directly made login a username-enumeration
+			// oracle: a real user costs tens of milliseconds of key
+			// stretching, a missing one cost a single indexed query, and the
+			// difference is measurable over a few requests.
+			identity.BurnPasswordVerify()
 			return User{}, ErrUserNotFound
 		}
 		return User{}, fmt.Errorf("users: lookup: %w", err)

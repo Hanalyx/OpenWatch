@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
@@ -174,14 +175,30 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 // Spec api-auth + system-auth-identity AC-24.
 func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	id := auth.FromContext(r.Context())
+	// revokeFailed tracks whether we could NOT guarantee the credential is
+	// dead server-side. Logout previously discarded both revoke errors and
+	// answered 204 unconditionally. That is a lie with consequences: the
+	// cookies are cleared either way, so the user sees a successful logout and
+	// stops worrying, while a stolen session or refresh token stays valid.
+	// Someone logging out on a shared or compromised machine is exactly the
+	// person who cannot afford that.
+	revokeFailed := false
+
 	// If anonymous, this is a no-op — still 204 (logout is idempotent).
 	if !id.IsAnonymous {
 		// Find the session by cookie token and revoke it.
 		if cookie, err := r.Cookie(identity.SessionCookieName); err == nil && cookie.Value != "" {
 			if sess, err := identity.VerifySession(r.Context(), h.pool, cookie.Value); err == nil {
-				_ = identity.RevokeSession(r.Context(), h.pool, sess.ID)
+				if rerr := identity.RevokeSession(r.Context(), h.pool, sess.ID); rerr != nil {
+					revokeFailed = true
+					slog.ErrorContext(r.Context(), "logout: session revoke failed; session may still be valid",
+						slog.String("session_id", sess.ID.String()),
+						slog.String("error", rerr.Error()))
+				}
 				emitAudit(r, audit.AuthLogout, id.ID, nil)
 			}
+			// A session that does not verify needs no revoking: it is already
+			// expired or unknown. That is not a failure.
 		}
 	}
 	// Revoke the refresh token if the cookie carries one, regardless of
@@ -189,7 +206,14 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// was holding. Best-effort: an unparseable / unknown refresh cookie
 	// is silently ignored (no oracle).
 	if rc, err := r.Cookie(identity.RefreshCookieName); err == nil && rc.Value != "" {
-		_ = identity.RevokeRefreshToken(r.Context(), h.pool, rc.Value)
+		if rerr := identity.RevokeRefreshToken(r.Context(), h.pool, rc.Value); rerr != nil {
+			// An unknown or unparseable refresh cookie is not an error and
+			// RevokeRefreshToken does not report one, so reaching here means a
+			// real failure to revoke a token that exists.
+			revokeFailed = true
+			slog.ErrorContext(r.Context(), "logout: refresh-token revoke failed; token may still be valid",
+				slog.String("error", rerr.Error()))
+		}
 	}
 	// Clear both cookies in the same response.
 	http.SetCookie(w, &http.Cookie{
@@ -210,6 +234,16 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+	// Cookies are cleared above regardless, so the browser stops presenting
+	// the credential either way. But if the server could not revoke, say so
+	// rather than reporting a clean logout: the client needs to know the
+	// credential may still be live so a human can revoke the session
+	// explicitly or rotate.
+	if revokeFailed {
+		writeError(w, http.StatusInternalServerError, "auth.logout_incomplete", "server",
+			"signed out on this device, but the server could not revoke the session. It may remain valid until it expires. Revoke it from Settings or contact an administrator.", true)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
