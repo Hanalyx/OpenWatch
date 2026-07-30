@@ -321,6 +321,30 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      summary: What this deployment is entitled to use
+      description: |
+        The paywall, made visible. Returns every registered capability with
+        whether THIS deployment can use it, so the interface can lock or
+        upsell a control instead of letting a Community user click it and
+        collect a 402.
+
+        Deliberately unauthenticated, like GET /license: a pre-login screen
+        needs to know what the deployment offers. It exposes no customer
+        identity and no license key material, only capability ids, their tier,
+        and whether each is available here.
+
+        There are no quotas. Tiering is by capability alone: OpenWatch does not
+        cap hosts, scans, or users.
+      responses:
+        '200':
+          description: Capability set for this deployment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CapabilitiesResponse'}
+
   /api/v1/license:
     get:
       operationId: getLicense
@@ -5320,6 +5344,25 @@ components:
         echoed: {type: string}
         correlation_id: {type: string}
         audit_event_id: {type: string, format: uuid}
+
+    CapabilitiesResponse:
+      type: object
+      required: [tier, status, capabilities]
+      properties:
+        tier: {type: string, enum: [free, enterprise]}
+        status: {type: string, enum: [active, grace, expired, no_license, invalid]}
+        capabilities:
+          type: array
+          items: {$ref: '#/components/schemas/Capability'}
+
+    Capability:
+      type: object
+      required: [id, tier, available, description]
+      properties:
+        id:          {type: string, description: 'Registry id, e.g. remediation_execution'}
+        tier:        {type: string, enum: [free, enterprise]}
+        available:   {type: boolean, description: 'Whether THIS deployment may use it now'}
+        description: {type: string}
 
     LicenseStateResponse:
       type: object

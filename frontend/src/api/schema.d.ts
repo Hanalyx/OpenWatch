@@ -222,6 +222,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What this deployment is entitled to use
+         * @description The paywall, made visible. Returns every registered capability with
+         *     whether THIS deployment can use it, so the interface can lock or
+         *     upsell a control instead of letting a Community user click it and
+         *     collect a 402.
+         *
+         *     Deliberately unauthenticated, like GET /license: a pre-login screen
+         *     needs to know what the deployment offers. It exposes no customer
+         *     identity and no license key material, only capability ids, their tier,
+         *     and whether each is available here.
+         *
+         *     There are no quotas. Tiering is by capability alone: OpenWatch does not
+         *     cap hosts, scans, or users.
+         */
+        get: operations["getCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/license": {
         parameters: {
             query?: never;
@@ -3449,6 +3480,22 @@ export interface components {
             /** Format: uuid */
             audit_event_id?: string;
         };
+        CapabilitiesResponse: {
+            /** @enum {string} */
+            tier: "free" | "enterprise";
+            /** @enum {string} */
+            status: "active" | "grace" | "expired" | "no_license" | "invalid";
+            capabilities: components["schemas"]["Capability"][];
+        };
+        Capability: {
+            /** @description Registry id, e.g. remediation_execution */
+            id: string;
+            /** @enum {string} */
+            tier: "free" | "enterprise";
+            /** @description Whether THIS deployment may use it now */
+            available: boolean;
+            description: string;
+        };
         LicenseStateResponse: {
             /** @enum {string} */
             tier: "free" | "enterprise";
@@ -5031,6 +5078,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Capability set for this deployment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilitiesResponse"];
                 };
             };
         };

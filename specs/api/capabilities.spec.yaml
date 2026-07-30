@@ -1,0 +1,87 @@
+spec:
+  id: api-capabilities
+  title: Capability discovery - what this deployment is entitled to use
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: The paywall, made visible
+    description: >
+      Every registered capability, with whether THIS deployment can use it, so
+      the interface can lock or upsell a control instead of letting a Community
+      user click it and collect a 402. Before this endpoint existed a customer
+      could not see that a paid tier existed at all, which is the reason the
+      licensing machinery shipped complete and earned nothing.
+
+      Built from licensing/features.yaml plus the runtime entitlement check, so
+      a capability cannot appear without being registered first. Same
+      registry-first rule the gating side follows.
+    related_specs:
+      - system-license-features
+      - api-license
+
+  objective:
+    summary: >
+      A client can render an accurate lock or upsell state without guessing,
+      and without discovering entitlement by provoking a 402.
+    scope:
+      includes:
+        - GET /api/v1/capabilities
+        - Capability id, tier, availability, description
+      excludes:
+        - Quotas. There are none; tiering is by capability alone.
+        - Customer identity, expiry, and key material (see api-license)
+        - The lock and upsell UI itself
+
+  constraints:
+    - id: C-01
+      description: >
+        The response MUST be derived from the feature registry, never from a
+        hand-maintained list, so it cannot drift from what is actually gated.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >
+        The endpoint is unauthenticated by design, so it MUST NOT disclose
+        customer identity, license expiry, fingerprint, or key material. It
+        discloses only capability ids, their tier, and availability here.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >
+        Capability order MUST be stable, so a client that diffs the response
+        does not churn on Go map iteration order.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        GET /api/v1/capabilities returns every entry in the feature registry,
+        each with id, tier, availability and description. The count matches the
+        registry exactly: a capability cannot be reported without being
+        registered, and none may be silently omitted.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >
+        availability reflects the runtime entitlement. On an unlicensed
+        deployment every free-tier capability reports available=true and every
+        enterprise capability reports available=false. Loading a license that
+        grants a paid capability flips that one to true without a restart.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: >
+        The response discloses no customer identity, expiry, fingerprint, or
+        key material, even though the endpoint is anonymous. Only id, tier,
+        available and description appear per capability.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: >
+        Capabilities are returned in a stable order (by id).
+      priority: high
+      references_constraints: [C-03]

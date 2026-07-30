@@ -122,6 +122,69 @@ func (e AlertState) Valid() bool {
 	}
 }
 
+// Defines values for CapabilitiesResponseStatus.
+const (
+	CapabilitiesResponseStatusActive    CapabilitiesResponseStatus = "active"
+	CapabilitiesResponseStatusExpired   CapabilitiesResponseStatus = "expired"
+	CapabilitiesResponseStatusGrace     CapabilitiesResponseStatus = "grace"
+	CapabilitiesResponseStatusInvalid   CapabilitiesResponseStatus = "invalid"
+	CapabilitiesResponseStatusNoLicense CapabilitiesResponseStatus = "no_license"
+)
+
+// Valid indicates whether the value is a known member of the CapabilitiesResponseStatus enum.
+func (e CapabilitiesResponseStatus) Valid() bool {
+	switch e {
+	case CapabilitiesResponseStatusActive:
+		return true
+	case CapabilitiesResponseStatusExpired:
+		return true
+	case CapabilitiesResponseStatusGrace:
+		return true
+	case CapabilitiesResponseStatusInvalid:
+		return true
+	case CapabilitiesResponseStatusNoLicense:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CapabilitiesResponseTier.
+const (
+	CapabilitiesResponseTierEnterprise CapabilitiesResponseTier = "enterprise"
+	CapabilitiesResponseTierFree       CapabilitiesResponseTier = "free"
+)
+
+// Valid indicates whether the value is a known member of the CapabilitiesResponseTier enum.
+func (e CapabilitiesResponseTier) Valid() bool {
+	switch e {
+	case CapabilitiesResponseTierEnterprise:
+		return true
+	case CapabilitiesResponseTierFree:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CapabilityTier.
+const (
+	CapabilityTierEnterprise CapabilityTier = "enterprise"
+	CapabilityTierFree       CapabilityTier = "free"
+)
+
+// Valid indicates whether the value is a known member of the CapabilityTier enum.
+func (e CapabilityTier) Valid() bool {
+	switch e {
+	case CapabilityTierEnterprise:
+		return true
+	case CapabilityTierFree:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ConnectivityCheckResultNewReachabilityStatus.
 const (
 	ConnectivityCheckResultNewReachabilityStatusReachable   ConnectivityCheckResultNewReachabilityStatus = "reachable"
@@ -1414,25 +1477,25 @@ func (e GetAuditEventsExportParamsFormat) Valid() bool {
 
 // Defines values for GetComplianceExceptionsParamsStatus.
 const (
-	Approved  GetComplianceExceptionsParamsStatus = "approved"
-	Expired   GetComplianceExceptionsParamsStatus = "expired"
-	Rejected  GetComplianceExceptionsParamsStatus = "rejected"
-	Requested GetComplianceExceptionsParamsStatus = "requested"
-	Revoked   GetComplianceExceptionsParamsStatus = "revoked"
+	GetComplianceExceptionsParamsStatusApproved  GetComplianceExceptionsParamsStatus = "approved"
+	GetComplianceExceptionsParamsStatusExpired   GetComplianceExceptionsParamsStatus = "expired"
+	GetComplianceExceptionsParamsStatusRejected  GetComplianceExceptionsParamsStatus = "rejected"
+	GetComplianceExceptionsParamsStatusRequested GetComplianceExceptionsParamsStatus = "requested"
+	GetComplianceExceptionsParamsStatusRevoked   GetComplianceExceptionsParamsStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the GetComplianceExceptionsParamsStatus enum.
 func (e GetComplianceExceptionsParamsStatus) Valid() bool {
 	switch e {
-	case Approved:
+	case GetComplianceExceptionsParamsStatusApproved:
 		return true
-	case Expired:
+	case GetComplianceExceptionsParamsStatusExpired:
 		return true
-	case Rejected:
+	case GetComplianceExceptionsParamsStatusRejected:
 		return true
-	case Requested:
+	case GetComplianceExceptionsParamsStatusRequested:
 		return true
-	case Revoked:
+	case GetComplianceExceptionsParamsStatusRevoked:
 		return true
 	default:
 		return false
@@ -1777,6 +1840,33 @@ type AuthPolicyUpdateRequest struct {
 type AuthRefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
+
+// CapabilitiesResponse defines model for CapabilitiesResponse.
+type CapabilitiesResponse struct {
+	Capabilities []Capability               `json:"capabilities"`
+	Status       CapabilitiesResponseStatus `json:"status"`
+	Tier         CapabilitiesResponseTier   `json:"tier"`
+}
+
+// CapabilitiesResponseStatus defines model for CapabilitiesResponse.Status.
+type CapabilitiesResponseStatus string
+
+// CapabilitiesResponseTier defines model for CapabilitiesResponse.Tier.
+type CapabilitiesResponseTier string
+
+// Capability defines model for Capability.
+type Capability struct {
+	// Available Whether THIS deployment may use it now
+	Available   bool   `json:"available"`
+	Description string `json:"description"`
+
+	// Id Registry id, e.g. remediation_execution
+	Id   string         `json:"id"`
+	Tier CapabilityTier `json:"tier"`
+}
+
+// CapabilityTier defines model for Capability.Tier.
+type CapabilityTier string
 
 // CategoryEntry defines model for CategoryEntry.
 type CategoryEntry struct {
@@ -4216,6 +4306,9 @@ type ServerInterface interface {
 	// Begin SSO sign-in — redirects to the IdP authorization endpoint
 	// (GET /api/v1/auth/sso/{id}/login)
 	GetAuthSSOLogin(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAuthSSOLoginParams)
+	// What this deployment is entitled to use
+	// (GET /api/v1/capabilities)
+	GetCapabilities(w http.ResponseWriter, r *http.Request)
 	// Fleet-wide compliance exception queue
 	// (GET /api/v1/compliance/exceptions)
 	GetComplianceExceptions(w http.ResponseWriter, r *http.Request, params GetComplianceExceptionsParams)
@@ -4768,6 +4861,12 @@ func (_ Unimplemented) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request
 // Begin SSO sign-in — redirects to the IdP authorization endpoint
 // (GET /api/v1/auth/sso/{id}/login)
 func (_ Unimplemented) GetAuthSSOLogin(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAuthSSOLoginParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// What this deployment is entitled to use
+// (GET /api/v1/capabilities)
+func (_ Unimplemented) GetCapabilities(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6477,6 +6576,20 @@ func (siw *ServerInterfaceWrapper) GetAuthSSOLogin(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAuthSSOLogin(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCapabilities operation middleware
+func (siw *ServerInterfaceWrapper) GetCapabilities(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCapabilities(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -10151,6 +10264,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/auth/sso/{id}/login", wrapper.GetAuthSSOLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/capabilities", wrapper.GetCapabilities)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/compliance/exceptions", wrapper.GetComplianceExceptions)
