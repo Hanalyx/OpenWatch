@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
@@ -262,7 +262,7 @@ The registry supports custom, DB-stored roles created at runtime via
 `POST /api/v1/roles:create` (requires `role:write`). A custom role may grant
 any concrete `resource:action` permission from the registry (for example
 `host:read`, `scan:execute`), but not category wildcards such as `host:*` or
-the bare `*` wildcard—those exist only for the built-in roles. Every
+the bare `*` wildcard. Those exist only for the built-in roles. Every
 permission a custom role lists is validated against the registry; a wildcard
 or any permission not in the registry is rejected with `400`.
 
@@ -271,6 +271,6 @@ permissions, query the permissions-registry API endpoint.
 
 ## Related documentation
 
-- [Installation guide](INSTALLATION.md)—install, `migrate`, `create-admin`, service start
+- [Installation guide](INSTALLATION.md): install, `migrate`, `create-admin`, service start
 - The running binary serves its API contract under `/api/v1`; the permission and
   role registry is available from the permissions-registry API endpoint

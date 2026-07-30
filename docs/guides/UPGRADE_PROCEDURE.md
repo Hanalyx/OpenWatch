@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API
@@ -25,8 +25,7 @@ migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md)
 ## Quick upgrade (automatic, recommended)
 
 On a single-instance install an upgrade is **one command**. The package
-post-install scriptlet applies any pending database migrations automatically—
-taking a backup restore point first—and restarts the service.
+post-install scriptlet applies any pending database migrations automatically, taking a backup restore point first, and restarts the service.
 
 ```bash
 # RHEL / CentOS / Rocky / Alma / Fedora
@@ -41,14 +40,14 @@ sudo apt update && sudo apt install --only-upgrade openwatch kensa-rules
 The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 
 1. **Checks the database is reachable.** If it isn't, migrations are skipped
-   with a warning (the upgrade doesn't fail)—run `openwatch migrate` manually
+   with a warning (the upgrade doesn't fail): run `openwatch migrate` manually
    once the DB is back, then `systemctl restart openwatch`.
-2. **Stops the service**—so the new binary never runs against an old schema.
+2. **Stops the service**: so the new binary never runs against an old schema.
 3. **Backs up the database** with `pg_dump` to `/var/lib/openwatch/backups/`
    (your restore point; the password is passed via the environment, never on the
    command line).
 4. **Applies pending migrations.** Each runs in a transaction, so a failure
-   rolls back atomically—data is never left half-migrated.
+   rolls back atomically: data is never left half-migrated.
 5. **On success → starts the service** on the new version.
    **On failure → leaves the service stopped**, prints the restore path, and
    exits non-zero so `dnf`/`apt` flag that the upgrade needs attention.
@@ -90,7 +89,7 @@ To restore the pre-upgrade dump instead, see [Rollback](#rollback).
 
 ## Controlled (manual) upgrade
 
-The remaining sections are the manual, step-at-a-time path—for production
+The remaining sections are the manual, step-at-a-time path: for production
 change windows, multi-step validation, or when `AUTO_BACKUP=no`.
 
 ## Before you upgrade
@@ -103,7 +102,7 @@ Run through this checklist on the running host:
       (expect `{"status":"healthy","db_connected":true,"version":"<version>"}`).
 - [ ] Record the current version: `openwatch --version`.
 - [ ] Record the current migration version (printed at the end of
-      `openwatch migrate`, or query `goose_db_version`—see
+      `openwatch migrate`, or query `goose_db_version`: see
       [Record the migration version](#record-the-migration-version)).
 - [ ] Take a full PostgreSQL backup (see the [backup and recovery guide](BACKUP_RECOVERY.md)).
 - [ ] Back up `/etc/openwatch/` (config, `secrets.env`, and `tls/`).
@@ -138,13 +137,13 @@ These steps assume the OpenWatch user is `openwatch` and the database DSN is in
 `/etc/openwatch/secrets.env` as `OPENWATCH_DATABASE_DSN`, matching the install
 guide.
 
-### Step 1—Back up the database
+### Step 1: Back up the database
 
 Take a fresh dump immediately before the upgrade (commands in
 the [backup and recovery guide](BACKUP_RECOVERY.md)). Do not skip this: it is the only
 rollback path for schema changes.
 
-### Step 2—Stop the service
+### Step 2: Stop the service
 
 ```bash
 sudo systemctl stop openwatch
@@ -153,7 +152,7 @@ sudo systemctl stop openwatch
 Stopping the service quiesces the API, the embedded worker loops, and the
 PostgreSQL-native job queue before the schema changes.
 
-### Step 3—Install the new package
+### Step 3: Install the new package
 
 On RHEL-family hosts (RPM):
 
@@ -178,7 +177,7 @@ Confirm the binary version:
 openwatch --version
 ```
 
-### Step 4—Validate the resolved config
+### Step 4: Validate the resolved config
 
 Catch missing or renamed config keys before starting the server:
 
@@ -190,7 +189,7 @@ This prints the resolved configuration with secrets redacted and exits non-zero
 if validation fails. Config layering, highest precedence first: CLI flags > env
 vars (`OPENWATCH_<SECTION>_<KEY>`) > the TOML file > built-in defaults.
 
-### Step 5—Apply migrations
+### Step 5: Apply migrations
 
 ```bash
 sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
@@ -198,17 +197,16 @@ sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
 ```
 
 The command prints the current version, the count of migration files, and each
-filename, then `migrations applied`. If it fails, the service is still stopped—
-fix the cause or restore the backup (see [Rollback](#rollback)) before starting.
+filename, then `migrations applied`. If it fails, the service is still stopped: fix the cause or restore the backup (see [Rollback](#rollback)) before starting.
 
-### Step 6—Start the service
+### Step 6: Start the service
 
 ```bash
 sudo systemctl start openwatch
 sudo systemctl status openwatch
 ```
 
-### Step 7—Verify the upgrade
+### Step 7: Verify the upgrade
 
 ```bash
 # Health and reported version.
@@ -273,7 +271,7 @@ Keep the pre-upgrade dump until you have validated the upgrade in production
 
 Kensa is the SSH-based compliance engine, integrated as a Go dependency; its native YAML rules are compiled into the `openwatch`
 binary. Rules therefore travel with
-the binary—installing a new OpenWatch package is what updates the bundled
+the binary: installing a new OpenWatch package is what updates the bundled
 rule set. There is no separate rule-pull or out-of-band rule-sync step. See
 [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
 Kensa during a scan.
@@ -282,14 +280,14 @@ Kensa during a scan.
 
 PostgreSQL is provisioned and operated independently of the OpenWatch package
 (see the [installation guide](INSTALLATION.md)). A **PostgreSQL major-version upgrade**
-(for example 15 to 16) is **never** performed by the OpenWatch package scriptlet—it is
+(for example 15 to 16) is **never** performed by the OpenWatch package scriptlet. It is
 a data-directory migration (`pg_upgrade` or dump/restore) that needs both server
 versions and must be operator-supervised; doing it silently from a package
 upgrade would risk the whole database. Plan it separately, with its own backup:
 follow your distribution's procedure, stop `openwatch.service` first so no
 connections are open, then start it again afterward and run the
 [verification](#step-7--verify-the-upgrade) checks. (Minor PostgreSQL and
-dependency updates are handled by `dnf`/`apt` via package dependencies—nothing
+dependency updates are handled by `dnf`/`apt` via package dependencies: nothing
 extra to do.)
 
 ## Troubleshooting
@@ -303,14 +301,14 @@ sudo journalctl -u openwatch -n 200 --no-pager
 
 Common causes:
 
-- Invalid or incomplete config—run
+- Invalid or incomplete config: run
   `sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config`.
-- Missing database secret—confirm `/etc/openwatch/secrets.env` defines
+- Missing database secret: confirm `/etc/openwatch/secrets.env` defines
   `OPENWATCH_DATABASE_DSN`.
-- Missing signing/encryption key material—the server refuses to start without
+- Missing signing/encryption key material. The server refuses to start without
   `[identity].jwt_private_key` and `[identity].credential_key_file`; the log line
   names the missing key.
-- Schema not migrated—run Step 5.
+- Schema not migrated: run Step 5.
 
 ### `migrate` fails
 
@@ -323,7 +321,7 @@ the schema is in an unexpected state, restore the pre-upgrade backup.
 ### Health endpoint returns 503
 
 A 503 from `/api/v1/health` means the service started but a dependency is
-unhealthy—typically the database. Check `db_connected` in the response body
+unhealthy: typically the database. Check `db_connected` in the response body
 and confirm PostgreSQL is running and reachable.
 
 ## Post-upgrade checklist

@@ -7,7 +7,7 @@
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 **Last verified:** 2026-07-28 against Kensa rule corpus **v0.8.0** (769 rules in the corpus).
 Per-OS counts below are read from each rule's `platforms:` declarations in the
@@ -23,7 +23,7 @@ v0.8.0 corpus, not from a live scan.
 - **Each rule declares the platforms it applies to**, so a host is only
   evaluated against rules that match its detected OS. Ubuntu hosts are scanned
   against the Ubuntu rule set; RHEL hosts against the RHEL rule set.
-- **Fedora, Debian, and SUSE remain inventory only**—the corpus carries no rules
+- **Fedora, Debian, and SUSE remain inventory only**: the corpus carries no rules
   for them, so a scan reports 0 applicable rules. This is intentional: running
   rules written for another distro would report *wrong* compliance, so Kensa
   skips rather than misreport.
@@ -59,9 +59,9 @@ sensitivity:
 
 | Phase | What it does | OS sensitivity |
 |-------|--------------|----------------|
-| **Discovery** | SSH in, read `/etc/os-release`, fingerprint OS/CPU/mem/disk | **OS-agnostic**—works on any SSH-reachable Linux |
-| **Server Intelligence** | Collect packages/services/users/network/firewall | **OS-agnostic**—portable probes; `rpm -qa` *or* `dpkg -l`, `firewall-cmd`/`ufw`/`nft`/`iptables` |
-| **Compliance scan (Kensa)** | Evaluate hardening rules, produce posture | **RHEL family and Ubuntu**—each rule is filtered to the platforms it declares |
+| **Discovery** | SSH in, read `/etc/os-release`, fingerprint OS/CPU/mem/disk | **OS-agnostic**: works on any SSH-reachable Linux |
+| **Server Intelligence** | Collect packages/services/users/network/firewall | **OS-agnostic**: portable probes; `rpm -qa` *or* `dpkg -l`, `firewall-cmd`/`ufw`/`nft`/`iptables` |
+| **Compliance scan (Kensa)** | Evaluate hardening rules, produce posture | **RHEL family and Ubuntu**: each rule is filtered to the platforms it declares |
 
 ### Per-OS rule applicability
 
@@ -96,7 +96,7 @@ Legend: **Supported** means the phase works; **Partial** means partial or
 unverified support; **Not supported** means no coverage for that phase.
 
 > **"Inventory only"** means discovery + Server Intelligence populate the host
-> (OS, packages, services, and so on) but there is **no compliance posture**—every
+> (OS, packages, services, and so on) but there is **no compliance posture**: every
 > scan reports 0 applicable rules. These distros are *recognized*, but not
 > *scannable* with today's corpus.
 
@@ -184,6 +184,6 @@ a compliance score.
 - Kensa filters its corpus by the host's detected platform at scan time.
 - Rule corpus applicability (read from the corpus platform declarations): the
   currently bundled corpus is Kensa v0.8.0, **769 rules** spanning RHEL
-  8/9/10 and Ubuntu 22.04/24.04—668 applicable to the RHEL family, 117 to
+  8/9/10 and Ubuntu 22.04/24.04: 668 applicable to the RHEL family, 117 to
   Ubuntu (rules can apply to more than one platform, so these overlap).
 - Framework mappings: CIS RHEL 9 v2.0.0, STIG RHEL 9 V2R7, plus CIS/STIG Ubuntu.

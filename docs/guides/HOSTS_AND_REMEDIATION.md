@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -138,7 +138,7 @@ You can also trigger manual OS discovery from the host detail page by selecting
 A background scheduler ticks every 60 seconds and enqueues discovery for any
 host whose OS has never been discovered or whose last discovery is older than
 the per-host interval (default 24 hours, operator-tunable between 1 hour and 7
-days). There is no fixed time-of-day anchor—discovery runs continuously as
+days). There is no fixed time-of-day anchor: discovery runs continuously as
 hosts become due.
 
 ### Connectivity monitoring
@@ -186,7 +186,7 @@ needing to SSH in manually.
 ## Remediation overview
 
 OpenWatch can automatically fix compliance findings through Kensa's 29
-registered remediation handlers. All changes are made over SSH—nothing is
+registered remediation handlers. All changes are made over SSH: nothing is
 installed on target hosts.
 
 ### What remediation can fix
@@ -217,7 +217,7 @@ installed on target hosts.
 
 
 In the free-core edition, a single-rule remediation request auto-approves on
-submission—there is no separate approval step, and no per-organization toggle
+submission. There is no separate approval step, and no per-organization toggle
 to require one. The request is still recorded and audited (with a note that
 it was auto-approved), and a user with `remediation:execute` applies it.
 
@@ -315,9 +315,9 @@ role-to-permission mapping is served by the roles API, `GET /api/v1/roles`; see
 
 ## What's next
 
-- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)—understanding scan results and posture
-- [User roles](USER_ROLES.md)—role permissions and what each role can access
-- [API guide](API_GUIDE.md)—REST API for automation
+- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md): understanding scan results and posture
+- [User roles](USER_ROLES.md): role permissions and what each role can access
+- [API guide](API_GUIDE.md): REST API for automation
 
 ---
 

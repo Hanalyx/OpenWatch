@@ -1,11 +1,11 @@
 # Production deployment guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
 
 This guide covers running OpenWatch in production: a single Go binary that serves
 the REST API and the embedded React UI over HTTPS, backed by PostgreSQL, managed
 by `systemd`. There is no container runtime, no separate web tier, no Redis, and
-no Celery—those belonged to the archived Python stack and are gone.
+no Celery. Those belonged to the archived Python stack and are gone.
 
 For first-time install and database provisioning, follow the canonical
 [install guide](INSTALLATION.md). This document does **not**
@@ -25,8 +25,8 @@ subcommands:
 
 | Subcommand | Role | Long-running |
 |------------|------|--------------|
-| `serve` | HTTPS API + embedded UI, schedulers (liveness, intelligence, discovery), event bus, alert router | Yes—this is the service unit |
-| `worker` | Scan-job claimer/dispatcher loop; drains the PostgreSQL job queue and runs Kensa scans | Yes—optional separate unit |
+| `serve` | HTTPS API + embedded UI, schedulers (liveness, intelligence, discovery), event bus, alert router | Yes. This is the service unit |
+| `worker` | Scan-job claimer/dispatcher loop; drains the PostgreSQL job queue and runs Kensa scans | Yes: optional separate unit |
 | `migrate` | Apply pending database migrations, then exit | No |
 | `create-admin` | Create the first admin user, then exit | No |
 | `check-config` | Validate and print the resolved config (secrets redacted), then exit | No |
@@ -36,7 +36,7 @@ in-process schedulers, so a minimal single-node deployment needs only that one
 unit. The `worker` subcommand exists for separating scan execution onto its own
 process or host; it is HTTP-free and shares the same boot prerequisites
 (config, DB pool, audit, license, JWT key, credential DEK) as `serve`. There is
-no packaged `worker` unit yet—running `worker` as its own service is a manual
+no packaged `worker` unit yet: running `worker` as its own service is a manual
 step today (write a unit that runs `ExecStart=/usr/bin/openwatch worker`).
 
 | Component | Where | Notes |
@@ -102,14 +102,14 @@ The TOML file has five sections:
 | `[server]` | `listen` | `0.0.0.0:8443` | Bind address and port for API + UI |
 | `[server]` | `tls_cert` | `/etc/openwatch/tls/cert.pem` | TLS certificate |
 | `[server]` | `tls_key` | `/etc/openwatch/tls/key.pem` | TLS private key |
-| `[database]` | `dsn` | — | PostgreSQL DSN (set via `secrets.env` in production) |
+| `[database]` | `dsn` | none | PostgreSQL DSN (set via `secrets.env` in production) |
 | `[database]` | `max_connections` | `25` | Connection-pool ceiling |
 | `[logging]` | `level` | `info` | `debug` / `info` / `warn` / `error` |
 | `[logging]` | `format` | `json` | `json` / `text` |
 | `[reports]` | `signing_key_file` | unset (ephemeral per-boot key, dev only) | Ed25519 seed that signs report snapshots; production should set a durable key |
 
 Two more values come from `[identity]` and must be set for `serve`/`worker` to
-boot—the JWT signing key (`jwt_private_key`) and the credential DEK file
+boot: the JWT signing key (`jwt_private_key`) and the credential DEK file
 (`credential_key_file`). Without them the process exits at startup rather than
 running with a silent fallback.
 
@@ -164,7 +164,7 @@ The packaged unit already applies
 | `Restart` | `on-failure` (`RestartSec=5s`) | Auto-restart on crash |
 
 If you front OpenWatch with a reverse proxy or load balancer, terminate or
-pass through TLS to 8443—there is no separate HTTP listener to target.
+pass through TLS to 8443. There is no separate HTTP listener to target.
 
 ---
 
@@ -196,7 +196,7 @@ sudo journalctl -u openwatch --since '5 min ago'  # recent
 sudo journalctl -u openwatch -o cat | jq .        # pretty-print
 ```
 
-> Prometheus-style `/metrics` scraping is **not yet implemented**—there is no
+> Prometheus-style `/metrics` scraping is **not yet implemented**. There is no
 > HTTP metrics endpoint. The in-process connectivity-monitor metrics are exposed
 > only through the authenticated `GET /api/v1/system/connectivity/status`
 > endpoint, not via an open-text scrape target. For production observability
@@ -251,7 +251,7 @@ binary. Take a database backup before upgrading (see below). Config under
 ## Backup and restore
 
 OpenWatch keeps all durable state in PostgreSQL. Back up the database with the
-standard PostgreSQL tooling—there is no OpenWatch-specific backup command.
+standard PostgreSQL tooling. There is no OpenWatch-specific backup command.
 
 ```bash
 # Backup
@@ -261,7 +261,7 @@ pg_dump -h 127.0.0.1 -U openwatch -d openwatch -Fc -f openwatch-$(date -u +%Y-%m
 pg_restore -h 127.0.0.1 -U openwatch -d openwatch --clean --if-exists openwatch-<timestamp>.dump
 ```
 
-Also back up `/etc/openwatch/`—it holds the TLS material, the JWT signing key,
+Also back up `/etc/openwatch/`. It holds the TLS material, the JWT signing key,
 the credential DEK, and `secrets.env`. Losing the credential DEK makes stored SSH
 credentials and MFA secrets unrecoverable. Test restores periodically; a backup
 you have never restored is a hypothesis, not a backup.
@@ -271,10 +271,10 @@ you have never restored is a hypothesis, not a backup.
 ## Operational runbooks
 
 Concise, single-binary runbooks follow. Diagnose with `systemctl`, `journalctl`,
-`psql`, `df`, and `top`—not `docker`. For the full incident runbooks, see
+`psql`, `df`, and `top`: not `docker`. For the full incident runbooks, see
 [the runbooks directory](runbooks/).
 
-### SERVICE_DOWN—service unavailable
+### SERVICE_DOWN: service unavailable
 
 Symptoms: `https://<host>:8443/` refuses connections, or `/api/v1/health` times
 out or returns `503`.
@@ -298,7 +298,7 @@ curl -k https://localhost:8443/api/v1/health
    ```
 4. Verify recovery: `curl -k https://localhost:8443/api/v1/health` returns `200`.
 
-### DATABASE_ISSUES—database connectivity
+### DATABASE_ISSUES: database connectivity
 
 Symptoms: `/api/v1/health` returns `503` (`ErrorEnvelope` code
 `server.unavailable`); journal shows `db: ping:` errors.
@@ -315,7 +315,7 @@ PGPASSWORD=... psql -h 127.0.0.1 -U openwatch -d openwatch -c 'SELECT 1;'
    server's `max_connections`), then restart OpenWatch.
 4. Re-test with `curl -k https://localhost:8443/api/v1/health`.
 
-### DISK_FULL—disk space exhausted
+### DISK_FULL: disk space exhausted
 
 Symptoms: writes fail; the journal shows `no space left on device`; the service
 may crash-loop.
@@ -339,10 +339,10 @@ sudo du -xh /var/lib/pgsql /var/lib/postgresql 2>/dev/null | sort -rh | head
    ```
 3. The transaction-log/write-on-change model bounds growth (`transactions` plus a
    fixed-size `host_rule_state`), so unbounded growth usually means audit/event
-   retention or PostgreSQL WAL—not scan results. Investigate before deleting.
+   retention or PostgreSQL WAL: not scan results. Investigate before deleting.
 4. After freeing space: `sudo systemctl restart openwatch` and re-check `df -h`.
 
-### HIGH_CPU—sustained high CPU
+### HIGH_CPU: sustained high CPU
 
 Symptoms: load high; UI/API latency up.
 
@@ -369,7 +369,7 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 4. Re-check `top` and API latency after each change; re-enable maintenance flags
    when load normalizes.
 
-### SECURITY_INCIDENT—suspected compromise
+### SECURITY_INCIDENT: suspected compromise
 
 1. **Preserve evidence first.** Do not wipe the host. Capture the journal and the
    audit trail:
@@ -383,7 +383,7 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
    sudo systemctl stop openwatch
    ```
    Or block 8443 at the firewall if you need the process alive for forensics.
-3. **Rotate secrets** in `/etc/openwatch/`—the JWT signing key, credential DEK,
+3. **Rotate secrets** in `/etc/openwatch/`: the JWT signing key, credential DEK,
    and database password. Rotating the JWT key invalidates all sessions
    (everyone re-authenticates). Rotating the DEK requires re-encrypting stored
    credentials; plan that change deliberately.
@@ -416,7 +416,7 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 
 ## See also
 
-- [Install guide](INSTALLATION.md)—canonical install and provisioning.
-- [User roles](USER_ROLES.md)—roles and permissions.
-- [API guide](API_GUIDE.md)—every endpoint, its permission, and audit events.
-- [Operational runbooks](runbooks/)—incident response procedures.
+- [Install guide](INSTALLATION.md): canonical install and provisioning.
+- [User roles](USER_ROLES.md): roles and permissions.
+- [API guide](API_GUIDE.md): every endpoint, its permission, and audit events.
+- [Operational runbooks](runbooks/): incident response procedures.
