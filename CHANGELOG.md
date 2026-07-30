@@ -1,4 +1,4 @@
-# OpenWatch (Go rebuild) — Changelog
+# OpenWatch (Go rebuild): Changelog
 
 Changelog for OpenWatch, which lives at the repo root. The
 legacy Python project was archived out of the repo on 2026-06-05.
@@ -9,6 +9,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ---
 
 ## [Unreleased]
+
+## [0.7.0] Eyrie (2026-07-30)
+
+Enforcement and integrity. Authorization and licensing are now guaranteed by the
+build rather than by review, and remediation reports what actually happened on
+the host.
+
+### Added
+
+- **`GET /api/v1/capabilities`** lists every capability with whether this
+  deployment can use it, so a client can show a locked or upgradable control
+  instead of discovering an entitlement by receiving a `402`. Unauthenticated,
+  and it reports no customer identity or licence detail.
+- **Remediation reports what happened, not just success or failure.** Four new
+  outcomes appear on remediation requests and in the UI: `staged`, `reverted`,
+  `not_applied` and `partially_applied`. A client matching on the remediation
+  status enum must handle them. What each means:
+  - `staged` the change is written but takes effect at the next reboot. The host
+    is changed and a re-scan still reports the rule failing until it reboots.
+    You can roll it back.
+  - `reverted` validation failed and the host was restored. Nothing was left
+    changed.
+  - `not_applied` no change was made.
+  - `partially_applied` the run did not complete cleanly and some steps cannot
+    be reversed automatically. Inspect the host.
 
 ### Changed
 
@@ -23,8 +48,71 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   No deployment gains or loses access. `GET /api/v1/license` now lists
   `sso_saml` and `fido2_mfa` in its `features` array; update any client that
   asserts on the array's exact contents or length.
+- **Kensa 0.8.0. Compliance verdicts change on the first scan after upgrade, and
+  fleet scores move with them.** These are corrections, not regressions, but
+  they are visible: password-quality rules now read `pwquality.conf.d/` drop-ins
+  as well as the base file, `maxrepeat` and `maxsequence` now fail an explicit
+  `=0` (which disables the check and previously passed), and where CIS and STIG
+  disagree on a required value the stricter one now ships. Set a looser value
+  with a scan variable if your baseline is CIS. Expect drift alerts on the first
+  scan. The corpus grows to 769 rules, Ubuntu 22.04 and 24.04 STIG coverage
+  rises from about 6 percent to 84 and 86 percent, and CIS Ubuntu coverage
+  reaches about 42 and 39 percent. **Upgrade `openwatch` and `kensa-rules`
+  together**, in one transaction.
+- **Signed attestation reports now require OpenWatch Enterprise.** Generating,
+  exporting or scheduling a report of kind `attestation`, including its fleet
+  OSCAL assessment-results face, returns `402` without it. Everything else stays
+  free: the `executive` report kind at any scope, per-scan and per-host OSCAL
+  (`/scans/{id}/oscal`), the report signing key, and listing and reading
+  reports. A scheduled attestation report is skipped while unlicensed rather
+  than failing.
+- **Triggering a connectivity check now requires `host:connectivity_check`**
+  instead of `host:read`, because it makes the server open a connection to the
+  managed host. **`viewer` and `auditor` lose this;** `ops_lead`,
+  `security_admin` and `admin` keep it. Grant the permission to a custom role if
+  you need it elsewhere.
+- **Three endpoints that answered anonymously now require permission.**
+  `POST /api/v1/diagnostics:enqueue-test-job` requires `system:config_write`;
+  `POST /api/v1/admin/license:verify` requires `system:read`; and
+  `GET /api/v1/license` omits `customer_id` unless the caller holds
+  `system:read`. Tier, status and features stay available without a session.
+- **`POST /api/v1/auth/logout` can now return `500`.** It does so when the
+  server cleared your cookies but could not revoke the session or refresh token,
+  which means the credential may stay valid until it expires. Treat any
+  non-`204` response as "signed out here, but revoke explicitly": the previous
+  behaviour reported success either way.
+- **The permission `system:config:write` is spelled `system:config_write`** in
+  the API contract. The old spelling matched no registered permission. Update
+  any client or role definition that used it.
+- Assigning a role, minting an API token, or creating a custom role is now
+  refused when the requested role cannot be resolved, and a custom role can no
+  longer grant a permission its creator does not hold. An unknown role id still
+  returns `400`.
 
-## [0.6.0] Eyrie — 2026-07-17
+### Fixed
+
+- **Settings > Compliance policies showed an empty "Scan variables" section
+  with no explanation** when the Kensa rule corpus could not be loaded. It now
+  reports that the corpus is unavailable and names the package and path to
+  check. A deployment that genuinely has no scan variables says so.
+- A remediation whose rollback could not be verified is now reported as
+  `partially_applied` with a prompt to inspect the host, instead of as a plain
+  failure.
+- A remediation that only staged a change no longer marks the rule as passing.
+  A re-scan correctly continues to report it failing until the host reboots.
+
+### Security
+
+- **Login no longer reveals whether a username exists.** A sign-in attempt for
+  an unknown account now costs the same password-hashing work as a real one, so
+  response time cannot be used to enumerate accounts.
+- Bumped `golang.org/x/text` to 0.39.0 (GO-2026-5970).
+- Kensa 0.8.0 corrects two checks that could report a false result: audit rules
+  are now matched on whole fields, so a rule watching `/usr/bin/su` no longer
+  matches a host that audits only `/usr/bin/sudo`, and password-quality checks
+  no longer pass a host whose configuration disables them.
+
+## [0.6.0] Eyrie (2026-07-17)
 
 ### Added
 
@@ -32,11 +120,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   With an org default lens (or a per-host / per-group target) set, the
   compliance score reflects that framework by default on the hosts list, Scans
   → Coverage, the fleet KPI, the Groups-page averages, and the host-detail
-  compliance trend — not only the host-detail hero tile. Previously those
+  compliance trend: not only the host-detail hero tile. Previously those
   surfaces showed the raw all-rules score unless a framework was explicitly
   requested. An explicit `?framework=` still overrides. See spec
   `system-compliance-lens`.
-- **Framework-scoped posture snapshots — the compliance trend follows the
+- **Framework-scoped posture snapshots: the compliance trend follows the
   lens.** The daily posture rollup now stores an OS-resolved score per framework
   family per host per day (migration 0053) alongside the all-rules series. The
   host trend card and the dashboard fleet trend read the effective lens's
@@ -53,14 +141,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hosts list scored a RHEL 9 host against RHEL 8/10 and Ubuntu STIG rules too
   (a family-wide match), so the list read (for example) 70% while the
   host-detail tile read 88% for the same host and lens. Every per-host score
-  surface — list, Coverage, host summary, fleet score, Groups averages — now
+  surface: list, Coverage, host summary, fleet score, Groups averages: now
   agrees. New `framework.OSResolvedMatchSQL`.
 - **The Groups page compliance averages are lens-scoped.** The per-group and
   groups-page fleet averages were the last surface still counting all rules;
   they now follow the effective lens (OS-resolved), so the Groups fleet average
   equals the hosts-page fleet KPI.
 
-## [0.5.0] Eyrie — 2026-07-14
+## [0.5.0] Eyrie (2026-07-14)
 
 ### Added
 
@@ -95,7 +183,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instead of sitting pending forever, and approving a lapsed request is refused
   with a clear error rather than creating an immediately-dead waiver.
 
-## [0.4.0] Eyrie — 2026-07-13
+## [0.4.0] Eyrie (2026-07-13)
 
 ### Added
 
@@ -174,12 +262,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [0.3.0] Eyrie — 2026-07-06
+## [0.3.0] Eyrie (2026-07-06)
 
 ### Added
 
 - **Live per-host scan indicator.** While a scan is running, the host now shows
-  a live **Running / Queued** state instead of only its last-scan time — on the
+  a live **Running / Queued** state instead of only its last-scan time: on the
   Scans coverage list, the Hosts card/table, and the host-detail hero and
   re-scan buttons. Backed by a new `scan.started` server-sent event and a
   `scan_state` field on the host read models (no polling); the paired
@@ -207,7 +295,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [0.2.1] Eyrie — 2026-06-30
+## [0.2.1] Eyrie (2026-06-30)
 
 ### Changed
 
@@ -224,7 +312,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [0.2.0] Eyrie — 2026-06-29
+## [0.2.0] Eyrie (2026-06-29)
 
 First general-availability release of OpenWatch. Consolidates the `0.2.0-rc`
 series into a stable line; see the rc sections below for the incremental
@@ -265,7 +353,7 @@ development history.
 
 ---
 
-## [0.2.0-rc.17] Eyrie — 2026-06-27
+## [0.2.0-rc.17] Eyrie (2026-06-27)
 
 ### Security
 
@@ -310,7 +398,7 @@ development history.
 
 ---
 
-## [0.2.0-rc.16] Eyrie — 2026-06-25
+## [0.2.0-rc.16] Eyrie (2026-06-25)
 
 Extends the change-driven notification bell from a durable feed into a full,
 severity-ranked, RBAC-scoped action queue: compliance regressions, governance
@@ -337,7 +425,7 @@ specific users who must act on them.
 
 ---
 
-## [0.2.0-rc.15] Eyrie — 2026-06-25
+## [0.2.0-rc.15] Eyrie (2026-06-25)
 
 A security + reliability candidate on top of rc.14: a production-breaking
 remediation fix, full session-timeout enforcement, the durable change-driven
@@ -372,7 +460,7 @@ notification bell, and a dashboard/hosts compliance-parity fix.
 
 ---
 
-## [0.2.0-rc.14] Eyrie — 2026-06-23
+## [0.2.0-rc.14] Eyrie (2026-06-23)
 
 A maintenance candidate on top of rc.13: the Kensa engine moves to v0.6.0, a
 known-hosts trust race is closed, hardened hosts that require
@@ -380,7 +468,7 @@ keyboard-interactive auth no longer report as falsely degraded, and the
 operator guides + README were corrected to the Go reality.
 
 ### Changed
-- **Kensa engine bumped to v0.6.0** ("atomicity engine" — remediation
+- **Kensa engine bumped to v0.6.0** ("atomicity engine": remediation
   crash-recovery). The bundled rule corpus is now **538** (one rule removed
   upstream; was 539), verified by a live end-to-end scan against a RHEL host
   (completed, 538 rules, 0 errors). The three Kensa version pins (`go.mod`, the
@@ -389,8 +477,8 @@ operator guides + README were corrected to the Go reality.
 
 ### Security
 - **Known-hosts `Put` fails closed on a concurrent first-use key conflict.**
-  When a row already exists for a hostname with a different key — the first-use
-  race where another connection recorded a key first — `Put` now returns a
+  When a row already exists for a hostname with a different key: the first-use
+  race where another connection recorded a key first: `Put` now returns a
   host-key mismatch instead of silently reporting success, so the
   trust-on-first-use callback can no longer accept an unverified (possibly
   MITM) host key on that connection. (#668)
@@ -425,7 +513,7 @@ operator guides + README were corrected to the Go reality.
 
 ---
 
-## [0.2.0-rc.13] Eyrie — 2026-06-22
+## [0.2.0-rc.13] Eyrie (2026-06-22)
 
 The Reports surface is now a complete compliance-artifact platform, spanning
 the executive summary, an auditor/GRC bulk path, two new GRC read-model
@@ -440,8 +528,8 @@ kinds, and recurring email delivery.
   A frozen, signed compliance rollup (compliance %, pass/fail, top-failing)
   is shown in-app and on the PDF cover.
 - **Exception Register report kind** (Compliance/GRC): a point-in-time
-  read-model of compliance waivers — counts by state (active, pending,
-  expiring-soon) plus the register rows — with CSV + PDF + JSON faces.
+  read-model of compliance waivers: counts by state (active, pending,
+  expiring-soon) plus the register rows: with CSV + PDF + JSON faces.
 - **Remediation Activity report kind** (Operations): a read-model of
   remediation requests over a look-back window (last 7/30/90 days), with
   an outcome summary and CSV + PDF + JSON faces.
@@ -451,7 +539,7 @@ kinds, and recurring email delivery.
   (create / pause-resume / delete). Endpoints under
   `/api/v1/reports/schedules`.
 - **Asynchronous report rendering** + a new `report.ready` event on the
-  event bus — the first producer of the in-app **notification bell**.
+  event bus: the first producer of the in-app **notification bell**.
 - **Ed25519 report signing** with an in-browser **offline Verify**, a
   fleet **framework catalog** endpoint, and a kind selector + scope/period
   pickers on the Library tab.
@@ -485,7 +573,7 @@ kinds, and recurring email delivery.
 
 ---
 
-## [0.2.0-rc.12] Eyrie — 2026-06-20
+## [0.2.0-rc.12] Eyrie (2026-06-20)
 
 The fleet activity stream and audit trail are now readable end to end: every
 event renders a plain-language title instead of a raw dotted code, enum, or
@@ -500,7 +588,7 @@ security pass hardened the new export and fixed a cursor data-loss bug.
 - Activity & audit readability: the unified feed and the audit list now render
   a server-built, human-readable title + summary for all five legs. The three
   legs that previously leaked machine codes (compliance/transaction,
-  intelligence, audit) are humanized — a rule's catalog title instead of its
+  intelligence, audit) are humanized: a rule's catalog title instead of its
   id, "Package updated" instead of `system.package.updated`, "alice@example.com
   created a host" instead of `host.created` over a UUID. Unmapped codes degrade
   structurally (dots/underscores to spaces) so a newly-added code can never
@@ -541,7 +629,7 @@ security pass hardened the new export and fixed a cursor data-loss bug.
 
 ---
 
-## [0.2.0-rc.11] Eyrie — 2026-06-19
+## [0.2.0-rc.11] Eyrie (2026-06-19)
 
 The bundled Kensa scan engine moves to v0.5.2, which corrects a class of false
 compliance FAILs on TAB-delimited rules. Single-operator remediation no longer
@@ -564,7 +652,7 @@ and the GA-readiness pass hardened CI and the release workflow.
 - Updated the bundled Kensa scan engine and rule corpus to v0.5.2. v0.5.2 fixes
   a `config_value` matching bug so a `" "` delimiter matches any whitespace
   (including TAB), correcting a class of false FAILs on TAB-delimited rules such
-  as RHEL `login.defs` — affected hosts may see their compliance score improve.
+  as RHEL `login.defs`: affected hosts may see their compliance score improve.
   It also adds rule-engine correctness gates (check-method parameter contracts,
   value-domain validation, a comparator + delimiter engine, and a schema/engine
   parity gate). The corpus stays at 539 rules and the engine's frozen API
@@ -611,7 +699,7 @@ and the GA-readiness pass hardened CI and the release workflow.
 
 ---
 
-## [0.2.0-rc.10] Eyrie — 2026-06-17
+## [0.2.0-rc.10] Eyrie (2026-06-17)
 
 Per-host SSH credentials become directly manageable from the UI, the bundled
 Kensa engine moves to v0.5.0, and a packaging fix stops upgrades from
@@ -658,7 +746,7 @@ overwriting an operator's TLS certificate.
 
 ---
 
-## [0.2.0-rc.9] Eyrie — 2026-06-17
+## [0.2.0-rc.9] Eyrie (2026-06-17)
 
 Two fixes that came out of production hardening: password login now works on
 PAM-hardened hosts, and compliance scans run across the fleet in parallel
@@ -683,7 +771,7 @@ instead of one host at a time.
 
 ---
 
-## [0.2.0-rc.8] Eyrie — 2026-06-17
+## [0.2.0-rc.8] Eyrie (2026-06-17)
 
 Settings became a working control panel, OpenWatch started learning how to
 reach each host over SSH, package upgrades became a single safe command, and a
@@ -765,7 +853,7 @@ high-severity finding re-verified by hand) closed eight findings (#584):
 
 ---
 
-## [0.2.0-rc.7] Eyrie — 2026-06-14
+## [0.2.0-rc.7] Eyrie (2026-06-14)
 
 The navigable-application candidate: rc.6 made compliance scanning work, and
 rc.7 makes it a product you move through. The full app shell came alive (a
@@ -805,7 +893,7 @@ pre-release, pending the GA fleet-verification gate.
 - **Fleet dashboard MVP** at `/dashboard`, wired to the live fleet endpoints
   (#529).
 - **Activity feed MVP** at `/activity` (#530).
-- **Scans overview MVP** at `/scans` — the home for scan history and the rule
+- **Scans overview MVP** at `/scans`: the home for scan history and the rule
   library (#531).
 - **Groups + Reports MVP** (#533): Groups organizes the fleet by site and OS
   category; Reports is a reports library. Specs `api-groups`, `frontend-groups`,
@@ -828,7 +916,7 @@ pre-release, pending the GA fleet-verification gate.
 
 ---
 
-## [0.2.0-rc.6] Eyrie — 2026-06-13
+## [0.2.0-rc.6] Eyrie (2026-06-13)
 
 The compliance-scanning candidate: this RC turns OpenWatch from a scanner
 shell into a working compliance platform. Kensa now scans real hosts on an
@@ -846,7 +934,7 @@ exceptions. Still a pre-release, pending the GA fleet-verification gate.
 - **Lens model on the Compliance tab.** One scan, viewed through any
   framework: `GET /hosts/{id}/compliance` (+ `/frameworks`) projects the
   per-rule results through CIS / STIG / NIST / PCI / SRG at query time. The
-  lens bar is OS-aware — a RHEL 8 host no longer offers RHEL 9/10 lenses,
+  lens bar is OS-aware: a RHEL 8 host no longer offers RHEL 9/10 lenses,
   while OS-neutral frameworks always appear. (#515, #518)
 - **Adaptive compliance scheduler.** Hosts auto-scan on a five-band,
   state-driven cadence (critical 4h … compliant 48h), operator-editable per
@@ -901,11 +989,11 @@ exceptions. Still a pre-release, pending the GA fleet-verification gate.
 
 ---
 
-## [0.2.0-rc.5] Eyrie — 2026-06-08
+## [0.2.0-rc.5] Eyrie (2026-06-08)
 
 Package-refresh candidate: re-cuts the signed RPM/DEB from `main` so the
 published artifacts include the version-endpoint and auth-redirect fixes
-that landed after rc.4. Still a pre-release — not GA.
+that landed after rc.4. Still a pre-release: not GA.
 
 ### Added
 
@@ -926,7 +1014,7 @@ that landed after rc.4. Still a pre-release — not GA.
 
 ---
 
-## [0.2.0-rc.4] Eyrie — 2026-06-08
+## [0.2.0-rc.4] Eyrie (2026-06-08)
 
 The release-readiness candidate: OpenWatch Go is now a single, installable
 product. `dnf install ./openwatch-*.rpm` / `apt install ./openwatch_*.deb`
@@ -939,37 +1027,37 @@ early rc.3 cut.
 
 **Distribution & supply chain**
 
-- Native multi-arch packages — RPM (CentOS Stream 9) and DEB (Ubuntu 24.04),
+- Native multi-arch packages: RPM (CentOS Stream 9) and DEB (Ubuntu 24.04),
   each built for amd64 and arm64 via `CGO_ENABLED=0` cross-compile (#490).
 - The React SPA is embedded into the binary via `go:embed` and served by the
   Go server (static assets + `index.html` fallback; `/api/` paths still 404),
-  so one artifact is the whole product — air-gap clean, no separate web tier
+  so one artifact is the whole product: air-gap clean, no separate web tier
   (#486).
-- `release.yml` — on a `v*` tag, builds all four packages, generates a
+- `release.yml`: on a `v*` tag, builds all four packages, generates a
   CycloneDX 1.5 SBOM per artifact (syft), writes `SHA256SUMS`, and publishes
   a GitHub Release (#491).
-- Release signing — each RPM (`rpmsign`) and DEB (`dpkg-sig`) is GPG-signed,
+- Release signing: each RPM (`rpmsign`) and DEB (`dpkg-sig`) is GPG-signed,
   and `SHA256SUMS` gets both a detached GPG signature and a cosign sigstore
   signature; the Hanalyx public key ships as `KEYS`. Every signing layer is
   gated on its key secret and skipped gracefully when absent (#493, #494).
-- `package-smoke.yml` — installs the built RPM on Rocky/Alma/Fedora/Oracle and
+- `package-smoke.yml`: installs the built RPM on Rocky/Alma/Fedora/Oracle and
   the DEB on Ubuntu/Debian, then smoke-tests the binary (#492).
-- `docs/runbooks/RELEASING.md` — the gated release process (docs freeze →
+- `docs/runbooks/RELEASING.md`: the gated release process (docs freeze →
   RC → verification gate → GA), including signing-key setup (#492).
 - Go module supply-chain spec + depguard allowlist + Dependabot for the
   module set (#416).
 
 **Product features (since rc.3)**
 
-- OS discovery — scheduler, first-contact policy, and fleet sweep that learns
+- OS discovery: scheduler, first-contact policy, and fleet sweep that learns
   each host's distro over SSH and persists it to `hosts.os_family` (#467, #471).
-- Server intelligence — packages/services/users/network/system collected over
+- Server intelligence: packages/services/users/network/system collected over
   SSH and surfaced as a host-detail snapshot grid, with a settings page to
   tune collection (#455, #472).
-- Host liveness — adaptive, per-state probe intervals and a fleet-health
+- Host liveness: adaptive, per-state probe intervals and a fleet-health
   surface (#421, #434, #435).
-- Alerts — router, persistence, and lifecycle (#424, #444, #445, #420).
-- Fleet observability API — read-only fleet endpoints and `hosts/{id}`
+- Alerts: router, persistence, and lifecycle (#424, #444, #445, #420).
+- Fleet observability API: read-only fleet endpoints and `hosts/{id}`
   enrichment (liveness + compliance summary) (#427, #428).
 - React 19 + MUI v7 + TanStack frontend for auth, hosts, host-detail,
   settings, and an activity feed, with five approved frontend specs at 100%
@@ -984,14 +1072,14 @@ early rc.3 cut.
 - The admin CLI is retired: `openwatch` is the single binary and command
   (`serve`/`worker`/`migrate`/`create-admin`/`check-config`); lifecycle is
   managed by systemd, not a separate `owadm` (#487).
-- Repository restructure — the Python backend/frontend were archived out of
+- Repository restructure: the Python backend/frontend were archived out of
   the repo and the Go tree was promoted from `app/` to the repo root (#482).
-- Tooling — Prettier + a flat ESLint config for the frontend, with the lint
+- Tooling: Prettier + a flat ESLint config for the frontend, with the lint
   pre-commit hook re-enabled; `.env` templates rewritten for the Go server
   (#483, #484, #485).
 - Dependabot retargeted for the post-promotion layout (`gomod` at `/`, dead
   `backend`/`docker` ecosystems dropped) (#495).
-- SSH connectivity — credential-password sudo fallback extended across
+- SSH connectivity: credential-password sudo fallback extended across
   liveness probes and discovery queries; auth offers both key and password
   methods when configured for both (#460, #469, #470).
 - Frontend surfaces the backend's `human_message` instead of a generic HTTP
@@ -1009,23 +1097,22 @@ early rc.3 cut.
 
 ---
 
-## [0.2.0-rc.3] Eyrie — 2026-05-25
+## [0.2.0-rc.3] Eyrie (2026-05-25)
 
 API hygiene pass driven by manual testing of the rc.2 surface. Three
-related cleanups that all surfaced from the same underlying issue —
-inconsistent naming between API paths/fields and the role/permission
+related cleanups that all surfaced from the same underlying issue: inconsistent naming between API paths/fields and the role/permission
 model behind them.
 
 ### Added
 
-- `GET /api/v1/openapi.yaml` — serves the embedded OpenAPI 3 spec.
-- `GET /docs/` — Swagger UI mounted from the binary (assets embedded
+- `GET /api/v1/openapi.yaml`: serves the embedded OpenAPI 3 spec.
+- `GET /docs/`: Swagger UI mounted from the binary (assets embedded
   via go:embed; no CDN dependency, air-gap clean).
 - New spec `api-openapi-docs` with 4 ACs pinning the spec/UI endpoints,
   same-origin asset constraint, and byte-identical embed.
 - Build-time copy: `make build` now syncs `api/openapi.yaml` into
   `internal/server/openapi_embed.yaml` (gitignored) before compiling.
-- Migration 0010 — drops the `users.is_admin` column.
+- Migration 0010: drops the `users.is_admin` column.
 
 ### Changed
 
@@ -1034,7 +1121,7 @@ model behind them.
 The design doc (`docs/api_design_principles.md` §12.2) reserves the
 `/admin/` namespace for system operations (`POST /admin/operations:*`),
 not resource CRUD. Slice A inadvertently put resource endpoints under
-`/admin/` which read as a role gate but isn't — `host:read` for example
+`/admin/` which read as a role gate but isn't: `host:read` for example
 is held by `viewer`. The rename collapses the disconnect:
 
 | Before | After |
@@ -1087,7 +1174,7 @@ Wire response changes:
 ### Lessons captured
 
 Two API-design issues caught in two sessions of manual testing (the
-`/admin/*` prefix overload and the `is_admin` drift) — both
+`/admin/*` prefix overload and the `is_admin` drift): both
 semantic-conflation bugs that 100% per-spec coverage missed because
 each individual behavior was tested in isolation. The Slice B spec
 template will add a meta-AC pattern requiring that any wire field
@@ -1096,7 +1183,7 @@ documents how it stays in sync with the underlying data.
 
 ---
 
-## [0.2.0-rc.2] Eyrie — 2026-05-25
+## [0.2.0-rc.2] Eyrie (2026-05-25)
 
 Boot-wiring fixes for the admin surface. `rc.1` shipped a binary whose
 JWT signing key and credential DEK were never loaded at boot, so every
@@ -1107,8 +1194,7 @@ binary's `main.go` did not.
 ### Added
 
 - `[identity]` config section with `jwt_private_key` and
-  `credential_key_file` paths. Both are required for `openwatch serve` —
-  no silent fallback to ephemeral keys.
+  `credential_key_file` paths. Both are required for `openwatch serve`:   no silent fallback to ephemeral keys.
 - Env-var overrides: `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY`,
   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`.
 - `openwatch create-admin --username --email --password` subcommand.
@@ -1136,9 +1222,9 @@ sign-off to the artifact, not just the unit tests.
 
 ---
 
-## [0.2.0-rc.1] Eyrie — 2026-05-25 (yanked)
+## [0.2.0-rc.1] Eyrie (2026-05-25) (yanked)
 
-Tagged locally, never pushed. Superseded by 0.2.0-rc.2 — `cmd/openwatch/main.go`
+Tagged locally, never pushed. Superseded by 0.2.0-rc.2: `cmd/openwatch/main.go`
 did not load the JWT signing key or credential DEK at boot, so login
 returned 500 against the actual binary. See 0.2.0-rc.2 entry for the
 fix. Original deliverable details preserved below for traceability.
@@ -1150,31 +1236,31 @@ that knit them together.
 ### Added
 
 **Specs (9 new, all 100% strict coverage):**
-- `system-auth-identity` — Argon2id password hashing, NIST SP 800-63B
+- `system-auth-identity`: Argon2id password hashing, NIST SP 800-63B
   policy, sessions, JWT (RS256), refresh-token rotation with reuse
   detection, TOTP MFA, production identity binder.
-- `system-user-management` — users + user_roles + custom roles tables
+- `system-user-management`: users + user_roles + custom roles tables
   with the highest-privilege-wins resolver and `identity.Lookups`
   adapter.
-- `system-credential-store` — credentials table (system + host scope),
+- `system-credential-store`: credentials table (system + host scope),
   AES-256-GCM via the shared `internal/secretkey` DEK, host→system
   resolver, partial unique index for the "one system default" rule.
-- `system-host-inventory` — hosts table with INET addresses, TEXT[]
+- `system-host-inventory`: hosts table with INET addresses, TEXT[]
   tags + GIN index, soft delete via `deleted_at`.
-- `system-ssh-connectivity` — SSH dial (`golang.org/x/crypto/ssh`),
+- `system-ssh-connectivity`: SSH dial (`golang.org/x/crypto/ssh`),
   known-hosts store, strict / trust-on-first-use modes, NIST SP 800-57
   key strength validation.
-- `api-auth` — `/auth/login`, `/auth/me`, `/auth/logout`,
+- `api-auth`: `/auth/login`, `/auth/me`, `/auth/logout`,
   `/auth/refresh`, `/auth/mfa:enroll`, `/auth/mfa:validate`,
   `/auth/password:change`.
-- `api-users` — `/admin/users` (GET/POST), `/admin/users/{id}`
+- `api-users`: `/admin/users` (GET/POST), `/admin/users/{id}`
   (GET/DELETE), `/admin/users/{id}/roles:{assign,unassign}`,
   `/admin/roles:create`.
-- `api-credentials` — `/admin/credentials` (GET/POST),
+- `api-credentials`: `/admin/credentials` (GET/POST),
   `/admin/credentials/{id}` (GET/DELETE),
   `/admin/hosts/{host_id}/credentials:resolve`. Metadata-only at the
   wire; plaintext + ciphertext never cross the HTTP layer.
-- `api-hosts` — `/admin/hosts` (GET/POST), `/admin/hosts/{id}`
+- `api-hosts`: `/admin/hosts` (GET/POST), `/admin/hosts/{id}`
   (GET/PATCH/DELETE) with environment + tag filters.
 
 **RBAC additions:**
@@ -1217,7 +1303,7 @@ that knit them together.
 ### Fixed
 
 - `TestResolve_HostScopeWins` in `internal/credential/credential_test.go`
-  now seeds a host row before creating a host-scope credential — the
+  now seeds a host row before creating a host-scope credential: the
   deferred FK from migration 0008 had previously made the test order
   fragile.
 - `release-package-build` AC-12 test now reads the Go-rebuild's own
@@ -1226,18 +1312,18 @@ that knit them together.
 
 ### Deferred (not in 0.2.0)
 
-- `POST /hosts/{id}:connectivity-check` — moves to the next release
+- `POST /hosts/{id}:connectivity-check`: moves to the next release
   with the scan executor.
-- OIDC/SAML initiate endpoint that returns 402 — license feature
+- OIDC/SAML initiate endpoint that returns 402: license feature
   `sso_saml` is in the registry; the endpoint lands with the SSO
   implementation work.
-- PUT-style full updates on hosts and users — only PATCH ships in
+- PUT-style full updates on hosts and users: only PATCH ships in
   0.2.0.
-- Bulk host import and cursor-paginated list — next release.
+- Bulk host import and cursor-paginated list: next release.
 
 ---
 
-## [0.1.0-stage-0] — pre-2026-05-25
+## [0.1.0-stage-0]: pre-2026-05-25
 
 Walking-skeleton phase (pre-0.2.0). See
 `docs/stage_0_walking_skeleton.md` and the `release-stage-0-signoff`

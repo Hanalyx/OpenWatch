@@ -27,7 +27,7 @@ and a human signs off.
 
 ---
 
-## Stage 1 — Docs freeze (before any tag)
+## Stage 1: Docs freeze (before any tag)
 
 1. Bump `packaging/version.env` (`VERSION`, `CODENAME`).
 2. Update `CHANGELOG.md` for the version (GitHub auto-notes supplement this).
@@ -38,7 +38,7 @@ and a human signs off.
    - API docs if `api/openapi.yaml` changed
 4. Confirm `specter check` and `specter coverage` are clean locally.
 
-## Stage 2 — Cut the release candidate
+## Stage 2: Cut the release candidate
 
 ```bash
 git tag v<version>-rc.N
@@ -48,20 +48,20 @@ git push origin v<version>-rc.N
 This triggers `release.yml` (builds + SBOMs + publishes a pre-release) and
 `package-smoke.yml` (per-distro install matrix).
 
-## Stage 3 — Verification gate (must all pass before GA)
+## Stage 3: Verification gate (must all pass before GA)
 
 **Automated (CI):**
-- `go-ci` green on `main` at the RC commit — includes `specter sync` at **100% AC
+- `go-ci` green on `main` at the RC commit: includes `specter sync` at **100% AC
   coverage** (the `release-admin-signoff` C-01 requirement) and the composition
   E2E (`internal/server/api_admin_*signoff*_test.go`, real session cookies).
-- `package-smoke` green — RPM installs on Rocky/Alma/Fedora/Oracle, DEB installs
+- `package-smoke` green: RPM installs on Rocky/Alma/Fedora/Oracle, DEB installs
   on Ubuntu/Debian; binary runs (`--version`, `check-config`); system user + files
   land. (amd64; arm64 install is covered by cross-build correctness until arm64
   runners are wired in.)
 
-**Manual (on the RC, against a real fleet — CI cannot reach workstation hosts):**
+**Manual (on the RC, against a real fleet: CI cannot reach workstation hosts):**
 1. Install the RC packages on a clean VM of at least one RHEL-family and one
-   Debian-family distro — both the platform and the rule corpus, in one
+   Debian-family distro: both the platform and the rule corpus, in one
    transaction (openwatch hard-depends on kensa-rules):
    `sudo dnf install ./openwatch-<v>.x86_64.rpm ./kensa-rules-<kv>.noarch.rpm` /
    `sudo apt install ./openwatch_<v>_amd64.deb ./kensa-rules_<kv>_all.deb`.
@@ -82,7 +82,7 @@ captain records pass/fail per DoD step and signs.
 > If any gate fails, fix on `main`, cut the next `-rc.N`, and repeat. Never
 > promote an RC that skipped a gate.
 
-## Stage 4 — Promote to GA
+## Stage 4: Promote to GA
 
 ```bash
 git tag v<version>          # no -rc suffix
@@ -92,7 +92,7 @@ git push origin v<version>
 `release.yml` builds the final signed artifacts + SBOMs and publishes the GA
 GitHub Release.
 
-## Stage 5 — Post-release smoke
+## Stage 5: Post-release smoke
 
 On a clean box, install the **published** artifact and confirm it starts:
 
@@ -119,7 +119,7 @@ layers:
 | Layer | How | Operator verifies |
 |---|---|---|
 | **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
-| **Each DEB** | *not* signed per-package — see note | covered by the signed `SHA256SUMS` below |
+| **Each DEB** | *not* signed per-package. See note | covered by the signed `SHA256SUMS` below |
 | **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`) | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
 
 > **Why DEBs aren't signed per-package:** `apt`/`dpkg` never verify a
@@ -138,7 +138,7 @@ OpenWatch reuses the **Hanalyx release-signing key** (the same one Kensa uses;
 see the offline vault at `~/vault/hanalyx`, generated 2026-05-28).
 
 > **NEVER push `MASTER-secret.asc` to a GitHub secret.** It is the
-> certify-capable **master** private key — your root of trust. Only the
+> certify-capable **master** private key. Your root of trust. Only the
 > **signing subkey** belongs in CI. The vault's `scripts/setup-signing-keys.sh`
 > enforces this: it exports `--export-secret-subkeys` and hard-aborts unless the
 > master private has been replaced with a `gnu-dummy` stub. Follow the same rule
@@ -148,12 +148,12 @@ see the offline vault at `~/vault/hanalyx`, generated 2026-05-28).
 |---|---|---|
 | `GPG_PRIVATE_KEY` | the **signing subkey only**, exported from the master with the master stubbed (see below) | yes |
 | `GPG_PASSPHRASE` | the subkey passphrase (same as master by default) | yes |
-| `COSIGN_PRIVATE_KEY` | the cosign private key (NOT in this vault — retrieve from wherever Kensa's `COSIGN_PRIVATE_KEY` was generated, e.g. 1Password) | optional |
+| `COSIGN_PRIVATE_KEY` | the cosign private key (NOT in this vault: retrieve from wherever Kensa's `COSIGN_PRIVATE_KEY` was generated, e.g. 1Password) | optional |
 | `COSIGN_PASSWORD` | the cosign keypair password | optional |
 
 cosign is **optional**: `release.yml` gates it independently, so with only the
 two GPG secrets set, releases still get per-package GPG signatures **and** a
-GPG-signed `SHA256SUMS` — just no cosign `.sig`. Set the GPG pair first; add
+GPG-signed `SHA256SUMS`: just no cosign `.sig`. Set the GPG pair first; add
 cosign once you have its private key.
 
 **Export the signing subkey (never the master) and set the GPG secrets:**
