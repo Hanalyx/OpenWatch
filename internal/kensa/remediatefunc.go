@@ -59,6 +59,9 @@ type RemediationTxn struct {
 	Status   string
 	Evidence json.RawMessage
 	Err      string
+	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and
+	// only if Kensa can prove the host is in its pre-transaction state.
+	HostUnchanged bool
 }
 
 // RollbackRunResult is the OpenWatch-side view of a kensa RollbackResult.
@@ -208,9 +211,10 @@ func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 	out := make([]RemediationTxn, 0, len(in))
 	for _, t := range in {
 		txn := RemediationTxn{
-			TxnID:    t.TransactionID,
-			Status:   string(t.Status),
-			Evidence: txnEvidence(t),
+			TxnID:         t.TransactionID,
+			Status:        string(t.Status),
+			Evidence:      txnEvidence(t),
+			HostUnchanged: t.HostUnchanged,
 		}
 		if t.Error != nil {
 			txn.Err = friendlyTxnErr(t.Error.Error())

@@ -63,7 +63,21 @@ export function ScanVariablesCard() {
       </div>
     );
   }
-  if (!vars || vars.length === 0) return null;
+  // An empty list is a real state, not a reason to render nothing. Returning
+  // null here left the "Scan variables" heading sitting above a blank gap with
+  // no explanation, which reads as a broken page rather than as information.
+  // The corpus-missing case now arrives as an error above; this is the
+  // genuinely-empty case.
+  if (!vars || vars.length === 0) {
+    return (
+      <div style={{ marginTop: 14 }}>
+        <Callout tier="info">
+          No scan variables are in use. Variables appear here when a rule in the loaded Kensa corpus
+          references one.
+        </Callout>
+      </div>
+    );
+  }
 
   const configureMeCount = vars.filter((v) => v.configure_me && !v.overridden).length;
 

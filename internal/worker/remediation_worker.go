@@ -448,10 +448,11 @@ func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 	out := make([]remediation.ExecTxn, 0, len(in))
 	for _, t := range in {
 		out = append(out, remediation.ExecTxn{
-			TxnID:    t.TxnID,
-			Status:   t.Status,
-			Evidence: t.Evidence,
-			Err:      t.Err,
+			TxnID:         t.TxnID,
+			Status:        t.Status,
+			Evidence:      t.Evidence,
+			Err:           t.Err,
+			HostUnchanged: t.HostUnchanged,
 		})
 	}
 	return out
