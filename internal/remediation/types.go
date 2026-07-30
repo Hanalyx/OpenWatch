@@ -157,6 +157,19 @@ type ExecTxn struct {
 	Evidence []byte
 	// Err is the transaction error string, empty on success.
 	Err string
+	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and
+	// only if Kensa can PROVE the host is in its pre-transaction state.
+	//
+	// Carried into the journal for evidence, but deliberately NOT used to
+	// decide severity. It is a bool, so false is ambiguous: it means either
+	// "Kensa proved the host was mutated" or "nobody populated this field".
+	// An errored transaction synthesised for an unreachable host arrives with
+	// it unset, and escalating on that would send an operator to inspect a
+	// host nothing ever touched. Alarm fatigue is its own failure mode, and
+	// building severity on an ambiguous signal is the same mistake as
+	// pattern-matching step prose. If Kensa ever gives this three states, or a
+	// positive "host was mutated" assertion, revisit.
+	HostUnchanged bool
 }
 
 // TxnCommitted reports whether s is the terminal "rule now passes" status.
@@ -179,6 +192,7 @@ const (
 	kensaErrored          = "errored"
 	kensaRecovered        = "recovered"
 	kensaStaged           = "staged"
+	kensaRollbackFailed   = "rollback_failed"
 )
 
 // OutcomeOf maps one Kensa transaction to the request status it implies, and
@@ -206,6 +220,14 @@ func OutcomeOf(t ExecTxn) (Status, bool) {
 		// NOT the same event as an errored run and must not read like one.
 		return StatusReverted, true
 	case kensaPartiallyApplied:
+		return StatusPartiallyApplied, true
+	case kensaRollbackFailed:
+		// The engine applied, then tried to reverse, and could NOT verify the
+		// restoration. Kensa: "the host is in an unconfirmed state." That is
+		// the most severe outcome it reports, more so than partially_applied,
+		// because an undo was attempted and its success is unknown. It maps to
+		// the outcome that tells an operator to go look, never to a plain
+		// failure, which would read as "nothing to do here".
 		return StatusPartiallyApplied, true
 	case kensaErrored:
 		return StatusFailed, true
