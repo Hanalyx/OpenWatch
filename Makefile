@@ -213,7 +213,24 @@ spec-check:
 .PHONY: ci-local
 ci-local: check-generated vet lint vuln spec-check test-race
 	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
+	@if [ -z "$$OPENWATCH_TEST_DSN" ]; then \
+	  echo ""; \
+	  echo "ci-local WARNING: OPENWATCH_TEST_DSN is unset, so every DB-gated suite was SKIPPED."; \
+	  echo "  CI runs them. A change can pass here and fail there; that happened three times"; \
+	  echo "  on the v0.7 branches. Start the local test database and re-run:"; \
+	  echo "      make test-db && eval \"\$$(scripts/test-db.sh dsn)\" && make ci-local"; \
+	  echo ""; \
+	fi
 	@echo "ci-local: all gates passed — safe to push"
+
+## test-db: start the local test database (mirrors the CI service container)
+.PHONY: test-db test-db-down
+test-db:
+	@scripts/test-db.sh up
+	@echo "eval \"\$$(scripts/test-db.sh dsn)\"  # to point tests at it"
+
+test-db-down:
+	@scripts/test-db.sh down
 
 .PHONY: clean
 clean:
