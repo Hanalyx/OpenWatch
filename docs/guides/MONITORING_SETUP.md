@@ -1,6 +1,6 @@
 # OpenWatch monitoring and operations guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 This guide describes how you monitor a running OpenWatch deployment and how you
 respond to common operational incidents. OpenWatch ships as a single Go binary

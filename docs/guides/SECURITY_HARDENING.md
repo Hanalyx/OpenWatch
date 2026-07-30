@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch

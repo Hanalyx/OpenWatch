@@ -1,6 +1,6 @@
 # Quickstart guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 Go from a freshly installed package to your first host under automatic
 compliance monitoring. This guide assumes OpenWatch is already installed and

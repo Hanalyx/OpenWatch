@@ -1,6 +1,6 @@
 # API guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.6.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
 
 Most operators use the web UI for daily work: managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
@@ -53,8 +53,14 @@ permission set:
   rotation and the on-401 refresh flow are UI concerns and are not covered here.
 
 Anonymous endpoints (`GET /api/v1/health`, `GET /api/v1/version`,
-`POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`) require no credential.
-Everything else requires a valid identity.
+`GET /api/v1/capabilities`, `POST /api/v1/auth/login`,
+`POST /api/v1/auth/refresh`) require no credential. Everything else requires a
+valid identity.
+
+`GET /api/v1/capabilities` reports every capability this deployment has, with
+whether it is available here, so a client can present a locked control rather
+than discovering the limit from a `402`. It exposes no customer identity or
+licence detail; `GET /api/v1/license` is the authenticated surface for that.
 
 ### Log in
 
