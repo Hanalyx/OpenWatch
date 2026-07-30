@@ -1,8 +1,8 @@
-# AGENTS.md — contributor & AI-assistant guide
+# AGENTS.md: contributor and AI-assistant guide
 
 This is the **tracked, reviewed** orientation for anyone (human or AI) working in
 this repo. It is intentionally short and points at authoritative, tracked
-sources rather than restating them — restated facts rot. For live counts
+sources rather than restating them. Restated facts rot. For live counts
 (version, package count, spec count) run **`scripts/repo-facts.sh`** instead of
 trusting a number written here.
 
@@ -17,7 +17,7 @@ trusting a number written here.
 A single Go binary (`github.com/Hanalyx/openwatch`, Go 1.26) that serves a REST
 API plus an embedded React 19 SPA over HTTPS, backed by **PostgreSQL only** (no
 MongoDB, Redis, or Celery). Compliance scanning is the **Kensa** engine
-(SSH-based, native YAML rules), integrated as a Go dependency — OpenSCAP/`oscap`
+(SSH-based, native YAML rules), integrated as a Go dependency. OpenSCAP/`oscap`
 is not used. See [README.md](README.md) and [docs/guides/](docs/guides/) for the
 product-level picture.
 
@@ -64,7 +64,7 @@ full workflow and the pre-commit / pre-push hooks.
 `internal/server/api/server.gen.go` and `frontend/src/api/schema.d.ts`. CI fails
 if they drift (the "Verify generated … in sync" steps). The generator
 (oapi-codegen) is **pinned** in the Makefile and the embedded-spec blob is
-**off** (see `api/oapi-codegen.yaml`) so regeneration is byte-deterministic —
+**off** (see `api/oapi-codegen.yaml`) so regeneration is byte-deterministic, so
 don't turn embedded-spec back on without reading the comment there.
 
 ## Spec-driven development (Specter)
@@ -74,18 +74,29 @@ Every acceptance criterion (`AC-NN`) must be covered by a test carrying a litera
 `// @spec <id>` + `// @ac AC-NN` annotation, and Go subtests also use a
 `t.Run("<spec-id>/AC-NN", …)` token. CI enforces annotation hygiene
 (`specter check --test`), 100% **structural** coverage
-(`specter coverage --strictness annotation` — the literal `// @ac` is required,
+(`specter coverage --strictness annotation`; the literal `// @ac` is required,
 the `t.Run` token alone is not enough), and 100% **outcome** coverage
-(`specter sync` — the annotated test must pass). Run `make spec-check` locally
+(`specter sync`; the annotated test must pass). Run `make spec-check` locally
 first. If the spec and code disagree, the (human-approved) spec wins.
 
 ## Standards that trip people up
 
-- **`gofmt -s` before committing** — CI lint is strict; `go vet`/`build` pass on
+- **`gofmt -s` before committing.** CI lint is strict; `go vet`/`build` pass on
   unformatted code, so run `gofmt -l` on touched files yourself.
-- **No emojis anywhere in code/config/specs** (YAML/encoding hazards).
-- **No em-dashes in user-facing UI copy** — restructure with periods/colons/
-  parentheses. (Docs and commit messages are unaffected.)
+- **No emojis anywhere in code, config, specs, or docs** (YAML and encoding
+  hazards; CI fails the build on emojis in Markdown).
+- **No em dashes in docs or user-facing UI copy.** Restructure with periods,
+  colons, or parentheses. Commit messages are unaffected.
+- **Developer docs follow the Hanalyx style guide**, and CI enforces its hard
+  rules. `make docs-style` runs the same check locally that the "Doc Style" job
+  runs on changed Markdown. The three gates are: no em dashes, no emojis, no AI
+  speak (hype adjectives, filler openers, padding verbs such as `leverage` and
+  `utilize`). Write "we" only for real team actions, never for the product, and
+  state capabilities as team facts with numbers. The guide is the source of
+  truth and lives in the Hanalyx Context Plane at
+  `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives at
+  `dev/tools/doc-style-check`. Fix a finding rather than suppress it. A cleared
+  term can carry `<!-- doc-style: allow -->` on its line, with a reason.
 - **Security is not optional**: parameterized SQL only, argument-list exec (never
   a shell), RBAC + license gates on handlers, audit auth/authz events, secrets
   from env/files only. `.golangci.yml` forbidigo encodes several of these

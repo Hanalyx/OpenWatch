@@ -355,3 +355,21 @@ jobs:
             /tmp/go-test.json
             /tmp/vitest-junit.xml
           retention-days: 7
+
+  # Hanalyx documentation style gate. Runs as its own job on purpose: the
+  # "gates" job above short-circuits to success on doc-only changes, so a
+  # step inside it would be skipped exactly when documentation is what
+  # changed. Enforces the prohibited list (em dashes, emojis, AI speak)
+  # from the Context Plane at dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
+  # Shared implementation: dev/tools/doc-style-check.
+  doc-style:
+    name: Doc Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check changed Markdown against the style guide
+        run: |
+          git fetch origin main --depth=1 2>/dev/null || true
+          python3 scripts/check-doc-style.py --changed
