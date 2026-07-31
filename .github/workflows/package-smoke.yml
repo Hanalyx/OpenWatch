@@ -151,13 +151,15 @@ jobs:
           name: packages
           path: dist
 
-      # --allow-untested because the Debian family is SupportUntested in
-      # internal/setup/platform.go today. This job passing is the evidence
-      # that would justify promoting it; until that lands, the flag stays.
+      # No --allow-untested: these platforms are SupportTested in
+      # internal/setup/platform.go precisely because this job runs. Passing no
+      # flag is also what an operator does, so the job exercises the real
+      # invocation. If someone demotes a platform, this fails loudly rather
+      # than quietly testing a different code path.
       - name: openwatch setup clean install and re-run
         run: |
           bash packaging/tests/run-setup-container-test.sh \
-            "${{ matrix.distro }}" "${{ matrix.kind }}" --allow-untested
+            "${{ matrix.distro }}" "${{ matrix.kind }}"
 
   upgrade:
     name: Package upgrade (rpm -U auto-migrate)

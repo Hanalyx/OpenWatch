@@ -41,8 +41,12 @@ func TestSetup_PlatformSupportTiers(t *testing.T) {
 			{"ol", "fedora", "9.8", FamilyRHEL, SupportUntested},
 			{"almalinux", "rhel", "8.10", FamilyRHEL, SupportUntested},
 			{"almalinux", "rhel", "10.2", FamilyRHEL, SupportUntested},
-			{"ubuntu", "debian", "24.04", FamilyDebian, SupportUntested},
-			{"debian", "", "12", FamilyDebian, SupportUntested},
+			{"ubuntu", "debian", "24.04", FamilyDebian, SupportTested},
+			// 24.10 shares the major and is a different release CI never runs.
+			{"ubuntu", "debian", "24.10", FamilyDebian, SupportUntested},
+			{"ubuntu", "debian", "22.04", FamilyDebian, SupportUntested},
+			{"debian", "", "12", FamilyDebian, SupportTested},
+			{"debian", "", "11", FamilyDebian, SupportUntested},
 			// An unlisted derivative is placed by ID_LIKE rather than needing
 			// this code to know every rebuild by name.
 			{"navylinux", "rhel", "9.4", FamilyRHEL, SupportUntested},
@@ -54,7 +58,7 @@ func TestSetup_PlatformSupportTiers(t *testing.T) {
 		for _, c := range cases {
 			gotFamily := familyOf(c.id, c.idLike)
 			major := majorOf(c.version)
-			gotSupport := supportOf(c.id, major, gotFamily)
+			gotSupport := supportOf(c.id, c.version, major, gotFamily)
 			if gotFamily != c.wantFamily {
 				t.Errorf("familyOf(%q, %q) = %q, want %q", c.id, c.idLike, gotFamily, c.wantFamily)
 			}
@@ -271,7 +275,7 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 		for _, c := range []struct{ id, ver string }{
 			{"rocky", "9.3"}, {"almalinux", "9.8"}, {"ol", "9.8"}, {"almalinux", "10.2"},
 		} {
-			if got := supportOf(c.id, majorOf(c.ver), FamilyRHEL); got != SupportUntested {
+			if got := supportOf(c.id, c.ver, majorOf(c.ver), FamilyRHEL); got != SupportUntested {
 				t.Errorf("%s %s is %q; the recorded run used --allow-untested, which "+
 					"only makes sense for untested", c.id, c.ver, got)
 			}
@@ -289,7 +293,7 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 // generated password by regenerating it on every run.
 func TestSetup_LiveVerificationIsRecorded(t *testing.T) {
 	t.Run("system-setup/AC-11", func(t *testing.T) {
-		if got := supportOf("rhel", 9, FamilyRHEL); got != SupportTested {
+		if got := supportOf("rhel", "9.8", 9, FamilyRHEL); got != SupportTested {
 			t.Errorf("RHEL 9 is %q; the live run used no --allow-untested, which only "+
 				"holds while it is tested", got)
 		}

@@ -93,7 +93,7 @@ func DetectPlatform() Platform {
 	p.VersionID = osRelease["VERSION_ID"]
 	p.Major = majorOf(p.VersionID)
 	p.Family = familyOf(p.ID, osRelease["ID_LIKE"])
-	p.Support = supportOf(p.ID, p.Major, p.Family)
+	p.Support = supportOf(p.ID, p.VersionID, p.Major, p.Family)
 	return p
 }
 
@@ -124,11 +124,27 @@ func familyOf(id, idLike string) Family {
 // at the same major are untested rather than unsupported because they share
 // the paths this code uses; Debian-family is untested because the PostgreSQL
 // layout genuinely differs (versioned clusters) and has not been exercised.
-func supportOf(id string, major int, family Family) Support {
+// versionID is carried alongside major because the Debian family needs it.
+// "24" identifies no Ubuntu release: 24.04 is an LTS that CI installs on every
+// push, and 24.10 is a different, interim release nobody has run. Matching on
+// the major alone would extend a tested claim to a distribution the matrix
+// never touches, which is the support statement starting to lie that C-10
+// warns about. RHEL 9.x point releases are one product line and keep the
+// coarser match.
+func supportOf(id, versionID string, major int, family Family) Support {
 	if family == FamilyUnknown || major == 0 {
 		return SupportUnsupported
 	}
+	// Tested means a CI job installs here on every push and asserts the API
+	// answers, not that someone tried it once. Each entry below corresponds
+	// to a blocking platform in release/gates.toml.
 	if id == "rhel" && major == 9 {
+		return SupportTested
+	}
+	if id == "ubuntu" && versionID == "24.04" {
+		return SupportTested
+	}
+	if id == "debian" && major == 12 {
 		return SupportTested
 	}
 	switch family {
