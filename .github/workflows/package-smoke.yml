@@ -121,10 +121,44 @@ jobs:
   # then in a rockylinux:9 container install the old one, stand up Postgres,
   # roll the schema back one migration, and `rpm -U` the new one — asserting
   # the %post scriptlet migrates the DB to head, takes a pre-upgrade backup,
-  # and stop/starts the service. This is the half the per-distro `smoke` job
-  # (a fresh install) does not cover. The driver script builds both RPMs and
-  # runs the container; it uses --network host (so the container's dnf reaches
-  # mirrors) and a throwaway Postgres on port 55432.
+  # `openwatch setup` end to end, per distro. This is the gate evidence for
+  # release/gates.toml I1 (clean install) and I2 (idempotence).
+  #
+  # It exists because the `smoke` job above cannot prove what it looks like it
+  # proves: smoke installs the packages and runs `openwatch check-config` as
+  # ROOT, never starting the service and never running as the openwatch user.
+  # That blind spot hid a defect where the DEB shipped /etc/openwatch as
+  # root:root, so the service user could not read its own config and no Debian
+  # install could ever have worked.
+  #
+  # Needs a real init, because setup drives systemctl for both PostgreSQL and
+  # its own unit, so this runs docker itself rather than using `container:`.
+  setup-install:
+    name: setup ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'ubuntu:24.04', kind: deb }
+          - { distro: 'debian:12', kind: deb }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+
+      # --allow-untested because the Debian family is SupportUntested in
+      # internal/setup/platform.go today. This job passing is the evidence
+      # that would justify promoting it; until that lands, the flag stays.
+      - name: openwatch setup clean install and re-run
+        run: |
+          bash packaging/tests/run-setup-container-test.sh \
+            "${{ matrix.distro }}" "${{ matrix.kind }}" --allow-untested
+
   upgrade:
     name: Package upgrade (rpm -U auto-migrate)
     runs-on: ubuntu-latest

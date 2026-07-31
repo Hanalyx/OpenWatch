@@ -216,6 +216,21 @@ def evaluate(gates, tag, commit):
         elif kind == "per-platform":
             for p in platforms:
                 label = f"{g['title']} [{p['id']}]"
+                # A CI job that proves this platform outranks an attestation:
+                # it re-runs on every candidate, so it cannot go stale the way
+                # a hand-recorded observation can. Only gates that need a human
+                # observer refuse it.
+                if p.get("check") and not g.get("human_required"):
+                    if runs is None:
+                        yield gid, label, ERROR, "could not read check runs (gh auth?)"
+                    elif p["check"] not in runs:
+                        yield (gid, label, MISSING,
+                               f"no run for {p['check']!r} on this commit")
+                    elif runs[p["check"]] == "success":
+                        yield gid, label, PASS, f"{p['check']} on {commit[:8]}"
+                    else:
+                        yield gid, label, FAIL, f"{p['check']}: {runs[p['check']]}"
+                    continue
                 match = [a for a in atts
                          if a.get("kind") == g["kind"]
                          and a.get("platform") == p["id"]]
