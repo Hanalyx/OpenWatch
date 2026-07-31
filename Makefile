@@ -206,6 +206,25 @@ spec-check:
 	specter check --test
 	specter coverage --strictness annotation
 
+# release-status: render release/gates.toml for a candidate and return a
+# go/no-go verdict. Needs `gh` authenticated to read check runs and assets.
+#
+# The script exits 0 for GO, 1 for NO-GO and 2 for a lookup error. make
+# collapses any recipe failure to its own status, so anything automated should
+# call scripts/release-status.py directly to tell a NO-GO from a broken lookup.
+#
+#   make release-status                  # most recent tag
+#   make release-status TAG=v0.7.0-rc.3
+.PHONY: release-status
+release-status:
+	python3 scripts/release-status.py $(if $(TAG),--tag $(TAG),)
+
+# release-status-test: the checker's own guards. Stdlib only, no network,
+# runs in milliseconds. CI runs this in the Quality gates job.
+.PHONY: release-status-test
+release-status-test:
+	python3 scripts/test_release_status.py
+
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
 # speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
 # dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
