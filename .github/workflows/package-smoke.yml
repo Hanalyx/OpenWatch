@@ -144,6 +144,7 @@ jobs:
         include:
           - { distro: 'ubuntu:24.04', kind: deb }
           - { distro: 'debian:12', kind: deb }
+          - { distro: 'almalinux:10', kind: rpm }
     steps:
       - uses: actions/checkout@v7
 
