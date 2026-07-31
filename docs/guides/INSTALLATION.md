@@ -49,8 +49,11 @@ On a host that already runs PostgreSQL, this takes about five minutes.
 - **Architecture:** `x86_64`/`amd64` or `aarch64`/`arm64` (packages ship for both).
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
 - **Disk:** 500 MB for the binary plus database growth sized to your retention.
-- **PostgreSQL:** 14 or newer. The package depends on the PostgreSQL client/server
-  but does **not** create a database. You do that in Step 2.
+- **PostgreSQL:** 15 or newer. The package depends on the PostgreSQL
+  client/server but does **not** create a database. You do that in Step 2.
+  PostgreSQL 14 reaches end of life in November 2026, within this release's
+  service life, so it is not a supported target for a new install. RHEL 9
+  defaults to PostgreSQL 13 and needs a newer module stream enabled: see Step 1.
 - **Network:**
   - TCP/8443 inbound for the API and UI.
   - TCP/22 outbound from this host to every managed host (Kensa scans over SSH).
@@ -69,22 +72,69 @@ On a host that already runs PostgreSQL, this takes about five minutes.
 
 ### Step 1: Install PostgreSQL
 
+**Check which version your distribution offers before installing.** RHEL 9
+defaults to PostgreSQL 13, which is below the supported minimum:
+
+```bash
+dnf module list postgresql
+```
+
+If the default stream is 14 or lower, enable a stream of 15 or newer first.
+Substitute the highest stream your release offers:
+
+```bash
+sudo dnf module enable -y postgresql:16
+```
+
+Then install, initialise, and start:
+
 ```bash
 sudo dnf install -y postgresql-server postgresql-contrib
 sudo postgresql-setup --initdb
 sudo systemctl enable --now postgresql
 ```
 
+Confirm you got what you expected before continuing:
+
+```bash
+psql --version
+```
+
+If this reports 14 or lower, go back and enable a newer stream. Continuing puts
+you on a version this release does not support, and the symptom appears several
+steps later as an authentication failure rather than a version error.
+
 ### Step 2: Provision the database
 
 Create the role and database:
 
 ```bash
-sudo -u postgres psql <<'SQL'
-CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password';
-CREATE DATABASE openwatch OWNER openwatch;
-SQL
+sudo -u postgres psql -c "SET password_encryption = 'scram-sha-256'; CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password'"
+sudo -u postgres psql -c "CREATE DATABASE openwatch OWNER openwatch"
 ```
+
+Setting `password_encryption` explicitly is deliberate. `CREATE ROLE` otherwise
+hashes the password using whatever the server default happens to be, and that
+default changed from `md5` to `scram-sha-256` in PostgreSQL 14. On an older
+server the password is stored as an md5 hash while the `pg_hba.conf` rules below
+require `scram-sha-256`, and the two can never match. Setting it in the same
+session makes this step behave identically on every supported version.
+
+Each statement reports its own `CREATE ROLE` or `CREATE DATABASE`, so you can
+see which one succeeded. `could not change directory to "/root"` is harmless:
+the `postgres` user cannot read root's working directory, and the command still
+runs. Run these from a directory `postgres` can read, such as `/tmp`, to silence
+it.
+
+Confirm the password was stored in the expected format:
+
+```bash
+sudo -u postgres psql -c "SELECT rolname, substring(rolpassword,1,13) AS stored_as FROM pg_authid WHERE rolname='openwatch'"
+```
+
+This must report `SCRAM-SHA-256`. If it reports `md5`, the `SET` did not take
+effect; re-run it as `ALTER ROLE openwatch PASSWORD '...'` in the same session
+as the `SET`.
 
 Allow password auth from localhost. Edit `/var/lib/pgsql/data/pg_hba.conf` and
 ensure these lines exist near the top of the host rules, then reload:
@@ -96,8 +146,7 @@ host    openwatch    openwatch    ::1/128         scram-sha-256
 
 ```bash
 sudo systemctl reload postgresql
-PGPASSWORD='replace-with-a-strong-password' \
-  psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
+PGPASSWORD='replace-with-a-strong-password' psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
 ### Step 3: Install the packages
@@ -145,12 +194,38 @@ The service reads its database connection string from
 config. The `systemd` unit loads this file automatically.
 
 ```bash
-sudo tee /etc/openwatch/secrets.env >/dev/null <<'EOF'
-OPENWATCH_DATABASE_DSN=postgres://openwatch:replace-with-a-strong-password@127.0.0.1:5432/openwatch?sslmode=disable
-EOF
+echo 'OPENWATCH_DATABASE_DSN=postgres://openwatch:replace-with-a-strong-password@127.0.0.1:5432/openwatch?sslmode=disable' | sudo tee /etc/openwatch/secrets.env >/dev/null
 sudo chown root:openwatch /etc/openwatch/secrets.env
 sudo chmod 0640 /etc/openwatch/secrets.env
 ```
+
+> **Percent-encode any reserved character in the password.** The DSN is a URI,
+> so a password containing one of these characters must be encoded, or the
+> connection string parses into something other than what you typed:
+>
+> | Character | Encode as |
+> |---|---|
+> | `@` | `%40` |
+> | `:` | `%3A` |
+> | `/` | `%2F` |
+> | `?` | `%3F` |
+> | `#` | `%23` |
+> | `[` | `%5B` |
+> | `]` | `%5D` |
+> | `%` | `%25` |
+>
+> A password of `p@ss@word` becomes
+> `postgres://openwatch:p%40ss%40word@127.0.0.1:5432/openwatch?sslmode=disable`.
+> Encode only the password. The `@` that separates the credentials from the host
+> stays literal, and encoding a character that did not need it is harmless.
+>
+> This is worth care because it rarely fails as a parse error. An unencoded `@`
+> splits the URI at the wrong place and the result still looks like a valid DSN,
+> so the error you get points somewhere else. Depending on where the character
+> falls you will see either `password authentication failed for user
+> "openwatch"`, which points at the role, or a host resolution failure naming a
+> host built from part of your password. Step 5 below is the first command to
+> use this DSN, so that is where a bad encoding surfaces.
 
 > Use `sslmode=require` (or stronger) for any PostgreSQL that is not on the
 > loopback interface.
@@ -162,8 +237,7 @@ queue, and more). Run it as the `openwatch` user with the same DSN the service
 uses:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
 ```
 
 The command applies every pending migration and reports the version it reached.
@@ -175,8 +249,7 @@ This is the account you sign in with. The admin password policy requires **at
 least 15 characters**; pick a single line with no spaces.
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch create-admin --username admin --email admin@example.com
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email admin@example.com
 # Type the admin password at the prompt and press Enter.
 ```
 
@@ -187,8 +260,7 @@ screen is not observed or recorded, or pipe the password in. For automation,
 pipe it instead:
 
 ```bash
-printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch create-admin --username admin --email admin@example.com
+printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email admin@example.com
 ```
 
 On success it prints `created admin user admin (admin@example.com) with id=…` and
@@ -232,22 +304,34 @@ sudo apt install -y postgresql postgresql-contrib
 sudo systemctl enable --now postgresql
 ```
 
+Ubuntu 24.04 ships PostgreSQL 16 and Debian 12 ships 15, so the default package
+is already at or above the supported minimum and no pinning is needed. Confirm
+anyway, since this is the check that catches an older or customised base image:
+
+```bash
+psql --version
+```
+
+If it reports 14 or lower, install a newer version from the PostgreSQL APT
+repository before continuing.
+
 ### Step 2: Provision the database
 
 ```bash
-sudo -u postgres psql <<'SQL'
-CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password';
-CREATE DATABASE openwatch OWNER openwatch;
-SQL
+sudo -u postgres psql -c "SET password_encryption = 'scram-sha-256'; CREATE ROLE openwatch WITH LOGIN PASSWORD 'replace-with-a-strong-password'"
+sudo -u postgres psql -c "CREATE DATABASE openwatch OWNER openwatch"
 ```
+
+`password_encryption` is set explicitly for the same reason as the RPM path: it
+makes the stored hash format independent of the server default, which differs
+between PostgreSQL versions.
 
 Ubuntu's default `pg_hba.conf` already allows `scram-sha-256` for
 `host all all 127.0.0.1/32`, so no edit is needed unless you customized it.
 Verify:
 
 ```bash
-PGPASSWORD='replace-with-a-strong-password' \
-  psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
+PGPASSWORD='replace-with-a-strong-password' psql -h 127.0.0.1 -U openwatch -d openwatch -c '\conninfo'
 ```
 
 ### Step 3: Install the packages
@@ -322,8 +406,7 @@ sudo journalctl -u openwatch -o cat | jq .       # pretty-print JSON
 ### Inspect the resolved config
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch check-config
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
 ```
 
 ### Replace the demo TLS cert
@@ -497,10 +580,8 @@ the TLS material; remove those manually if needed.
 Removing the package does **not** touch PostgreSQL. To reclaim that space:
 
 ```bash
-sudo -u postgres psql <<'SQL'
-DROP DATABASE openwatch;
-DROP ROLE openwatch;
-SQL
+sudo -u postgres psql -c "DROP DATABASE openwatch"
+sudo -u postgres psql -c "DROP ROLE openwatch"
 ```
 
 ---
