@@ -52,6 +52,10 @@ title = "Ubuntu 24.04 LTS"
 method = "container"
 package = "deb"
 support_tier = "untested"
+# The package-smoke job that installs and re-runs setup here. A passing run
+# satisfies both I1 and I2, because the job asserts both: it checks /health
+# reports db_connected after the first run AND after the second.
+check = "setup ubuntu:24.04"
 blocking = true
 
 [[platform]]
@@ -60,6 +64,7 @@ title = "Debian 12"
 method = "container"
 package = "deb"
 support_tier = "untested"
+check = "setup debian:12"
 blocking = true
 
 # -------------------------------------------------------------------- gates

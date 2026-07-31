@@ -109,6 +109,35 @@ class HumanRequired(unittest.TestCase):
         self.assertEqual(status, rs.STALE)
 
 
+class PlatformCheckWiring(unittest.TestCase):
+    """A platform proven by a CI job names a check run, and that name has to
+    match a job the workflow actually produces. A typo here reads as MISSING
+    forever, which looks like unfinished work rather than a broken manifest."""
+
+    def setUp(self):
+        import re
+        import tomllib
+        with rs.GATES.open("rb") as fh:
+            self.gates = tomllib.load(fh)
+        wf = (rs.REPO / ".github" / "workflows" / "package-smoke.yml").read_text()
+        # The job's `name:` is a template over the matrix, so collect the
+        # matrix values it expands to rather than parsing YAML semantics.
+        self.distros = set(re.findall(r"distro:\s*'([^']+)'", wf))
+
+    def test_platform_check_names_match_a_real_matrix_leg(self):
+        for p in self.gates["platform"]:
+            check = p.get("check")
+            if not check:
+                continue
+            with self.subTest(platform=p["id"]):
+                # Names are "setup <distro>" from the setup-install job.
+                self.assertTrue(
+                    check.startswith("setup "),
+                    f"{check!r} does not look like the setup-install job name")
+                self.assertIn(check.split(" ", 1)[1], self.distros,
+                              f"{check!r} names a distro the matrix does not run")
+
+
 class ManifestIsLoadable(unittest.TestCase):
     """The shipped manifest must parse and reference only known evidence
     kinds, so a typo in gates.toml surfaces here rather than as a gate that
