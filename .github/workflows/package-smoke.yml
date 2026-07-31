@@ -161,6 +161,38 @@ jobs:
           bash packaging/tests/run-setup-container-test.sh \
             "${{ matrix.distro }}" "${{ matrix.kind }}"
 
+  # The REAL previous-GA upgrade (gate U2), as distinct from the synthetic
+  # scriptlet test below (U1). Installs the published previous GA, provisions
+  # it by hand because `openwatch setup` did not exist then, and upgrades to
+  # the candidate with both packages in one transaction under real systemd.
+  #
+  # RHEL family only, on purpose. v0.6.0's DEB shipped /etc/openwatch as
+  # root:root, so the service user could not read its config and no Debian
+  # install of it could ever have run. There is no working previous GA on that
+  # family to upgrade from; v0.7.0 is the first. release/gates.toml records
+  # that as not-applicable rather than pretending the coverage exists.
+  upgrade-from-ga:
+    name: upgrade-from-ga ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'rockylinux:9', kind: rpm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+      - name: upgrade the previous GA to the candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash packaging/tests/run-upgrade-from-ga-test.sh \
+            "${{ matrix.distro }}" "${{ matrix.kind }}" v0.6.0
+
   upgrade:
     name: Package upgrade (rpm -U auto-migrate)
     runs-on: ubuntu-latest
