@@ -259,7 +259,10 @@ func WriteReceipt(r *Run, version string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(ReceiptPath), 0o750); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(ReceiptPath, append(b, '\n'), 0o640); err != nil {
+	// Root-only. The receipt carries no credential (C-02), but it does name
+	// every path the installer touched, and nothing reads it as the service
+	// user, so there is no reason to widen it.
+	if err := os.WriteFile(ReceiptPath, append(b, '\n'), 0o600); err != nil {
 		return "", err
 	}
 	return ReceiptPath, nil

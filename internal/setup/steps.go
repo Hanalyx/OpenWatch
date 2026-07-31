@@ -628,7 +628,7 @@ func (s stepVerify) Apply(ctx context.Context, r *Run) error {
 // -------------------------------------------------------------- detection
 
 const (
-	secretsEnvPath = "/etc/openwatch/secrets.env"
+	secretsEnvPath = "/etc/openwatch/secrets.env" //nolint:gosec // G101: a file path, not a credential
 	openwatchBin   = "/usr/bin/openwatch"
 )
 

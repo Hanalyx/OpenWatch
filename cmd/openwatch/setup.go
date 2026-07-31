@@ -110,7 +110,11 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		}
 		header := "# OpenWatch setup plan. Contains no secrets: each credential records\n" +
 			"# only where it comes from. Apply with: openwatch setup --plan <file>\n"
-		if err := os.WriteFile(*savePlan, append([]byte(header), b...), 0o644); err != nil {
+		// Written 0600 even though the plan holds no credential: setup runs as
+		// root, and a root-written world-readable file in an operator-chosen
+		// path (often /tmp) is not something to create by default. Sharing it
+		// is a deliberate chmod away.
+		if err := os.WriteFile(*savePlan, append([]byte(header), b...), 0o600); err != nil {
 			fmt.Fprintf(stderr, "openwatch setup: write plan: %v\n", err)
 			return 1
 		}

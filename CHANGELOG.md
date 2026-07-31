@@ -18,6 +18,20 @@ the host.
 
 ### Added
 
+- **`openwatch setup` installs and configures a deployment in one command.**
+  After installing the packages, run `openwatch setup` as root: it detects the
+  distribution, PostgreSQL, SELinux, FIPS and fapolicyd, shows a plan marking
+  what is already done, asks before it changes anything, then provisions
+  PostgreSQL, creates the role and database, writes the DSN, migrates, creates
+  the first administrator, opens the listen port, starts the service, and
+  confirms the API answers with `db_connected`. Every change lands in a receipt
+  at `/var/lib/openwatch/setup-receipt.json`. It is safe to re-run after a
+  part-way failure: each step reports whether it is already satisfied before it
+  acts. `--yes` runs unattended, `--save-plan` and `--plan` capture and replay a
+  configuration across a fleet, and no credential value is written to either the
+  plan or the receipt. `pg_hba.conf` is only edited with `--manage-pg-hba`, and
+  `--no-firewall` declines the port. The manual database and configuration steps
+  remain documented in the installation guide for anyone who prefers them.
 - **`GET /api/v1/capabilities`** lists every capability with whether this
   deployment can use it, so a client can show a locked or upgradable control
   instead of discovering an entitlement by receiving a `402`. Unauthenticated,
