@@ -40,7 +40,9 @@ func TestSetup_PlatformSupportTiers(t *testing.T) {
 			{"almalinux", "rhel centos fedora", "9.8", FamilyRHEL, SupportUntested},
 			{"ol", "fedora", "9.8", FamilyRHEL, SupportUntested},
 			{"almalinux", "rhel", "8.10", FamilyRHEL, SupportUntested},
-			{"almalinux", "rhel", "10.2", FamilyRHEL, SupportUntested},
+			{"almalinux", "rhel", "10.2", FamilyRHEL, SupportTested},
+			// RHEL 10 shares the major but has no job; it must not inherit.
+			{"rhel", "fedora", "10.0", FamilyRHEL, SupportUntested},
 			{"ubuntu", "debian", "24.04", FamilyDebian, SupportTested},
 			// 24.10 shares the major and is a different release CI never runs.
 			{"ubuntu", "debian", "24.10", FamilyDebian, SupportUntested},
@@ -272,8 +274,12 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 		}
 		// Every distribution in the matrix except RHEL itself needed
 		// --allow-untested, which is only true while they are untested.
+		// AlmaLinux 10 is deliberately absent: the recorded run used
+		// --allow-untested, but a CI job now installs on almalinux:10 on
+		// every push, so it is tested and AC-04 owns that claim. The rest of
+		// the recorded matrix is still untested and still needed the flag.
 		for _, c := range []struct{ id, ver string }{
-			{"rocky", "9.3"}, {"almalinux", "9.8"}, {"ol", "9.8"}, {"almalinux", "10.2"},
+			{"rocky", "9.3"}, {"almalinux", "9.8"}, {"ol", "9.8"},
 		} {
 			if got := supportOf(c.id, c.ver, majorOf(c.ver), FamilyRHEL); got != SupportUntested {
 				t.Errorf("%s %s is %q; the recorded run used --allow-untested, which "+

@@ -42,11 +42,17 @@ upgrade-from-ga = "upgrade-from-ga rockylinux:9"
 
 [[platform]]
 id = "el10"
-title = "AlmaLinux 10 / RHEL 10"
+# AlmaLinux 10 specifically. RHEL 10 shares the major but has no image in the
+# matrix, so it is not covered and internal/setup/platform.go does not claim it.
+title = "AlmaLinux 10"
 method = "container"
 package = "rpm"
-support_tier = "untested"
+support_tier = "tested"
 blocking = true
+[platform.checks]
+clean-install = "setup almalinux:10"
+idempotence = "setup almalinux:10"
+upgrade-from-ga = "upgrade-from-ga almalinux:10"
 
 [[platform]]
 id = "ubuntu2404"
@@ -125,6 +131,7 @@ checks = [
   "fedora:41",
   "ubuntu:24.04",
   "debian:12",
+  "almalinux:10",
 ]
 blocking = true
 

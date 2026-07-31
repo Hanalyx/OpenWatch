@@ -210,9 +210,10 @@ spec:
       references_constraints: [C-11]
     - id: AC-04
       description: >
-        Platform support tiers resolve correctly: RHEL 9, Ubuntu 24.04 and
-        Debian 12 are tested, because a CI job installs on each of them on
-        every push and asserts the API answers. Other RHEL-family majors 8 to
+        Platform support tiers resolve correctly: RHEL 9, Ubuntu 24.04,
+        Debian 12 and AlmaLinux 10 are tested, because a CI job installs on
+        each of them on every push and asserts the API answers. RHEL 10 shares
+        AlmaLinux 10's major but has no job, so it does not inherit the claim. Other RHEL-family majors 8 to
         10 and other Debian-family releases are untested, and unknown families
         and unparseable versions are unsupported. Ubuntu is matched on the full
         version rather than the major, because 24.10 shares the major with
@@ -262,7 +263,9 @@ spec:
         `openwatch setup --yes --allow-untested --manage-pg-hba` completes and
         the health endpoint reports db_connected on Rocky 9, AlmaLinux 9,
         Oracle Linux 9 and AlmaLinux 10; a second identical run also exits zero,
-        proving idempotence. AlmaLinux 8 is correctly refused because its
+        proving idempotence. AlmaLinux 10 has since been promoted to tested and
+        is covered continuously by a CI job, so this record no longer carries
+        it; the other three remain untested and still need the flag. AlmaLinux 8 is correctly refused because its
         default PostgreSQL is 10, below the floor of 13, with a message naming
         the remedy.
       priority: critical
