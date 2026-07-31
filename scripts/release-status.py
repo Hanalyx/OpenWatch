@@ -37,6 +37,9 @@ GATES = REPO / "release" / "gates.toml"
 ATTEST_DIR = REPO / "release" / "attestations"
 
 PASS, FAIL, MISSING, STALE, ERROR = "PASS", "FAIL", "MISSING", "STALE", "ERROR"
+# N/A is not a pass and not a failure: the claim cannot apply to this platform,
+# and the manifest has to carry the reason so nobody re-opens it as a gap.
+NA = "N/A"
 BAD = {FAIL, MISSING, STALE, ERROR}
 
 
@@ -220,6 +223,13 @@ def evaluate(gates, tag, commit):
                 # it re-runs on every candidate, so it cannot go stale the way
                 # a hand-recorded observation can. Only gates that need a human
                 # observer refuse it.
+                # A claim that cannot apply here. Recorded with its reason
+                # rather than left MISSING, which would read as unfinished
+                # work forever, or marked PASS, which would be a lie.
+                na = p.get("not_applicable", {}).get(g["kind"])
+                if na:
+                    yield gid, label, NA, na
+                    continue
                 # Scoped per gate kind: a job proves the claims it actually
                 # asserts and no others. A job that installs cleanly says
                 # nothing about upgrading from the previous GA.

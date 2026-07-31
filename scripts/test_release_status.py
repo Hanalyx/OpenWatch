@@ -137,15 +137,31 @@ class PlatformCheckWiring(unittest.TestCase):
                         self.assertIn(
                             kind, {"clean-install", "idempotence"},
                             f"the setup-install job cannot prove {kind!r}")
+                    if check.startswith("upgrade-from-ga "):
+                        self.assertEqual(
+                            kind, "upgrade-from-ga",
+                            f"the upgrade job cannot prove {kind!r}")
+
+    def test_not_applicable_carries_a_reason(self):
+        """N/A suppresses a blocking gate, so it has to say why in enough
+        detail that a reader can challenge it."""
+        for p in self.gates["platform"]:
+            for kind, reason in p.get("not_applicable", {}).items():
+                with self.subTest(platform=p["id"], kind=kind):
+                    self.assertGreater(
+                        len(reason), 60,
+                        "an N/A reason must explain itself, not assert itself")
+                    self.assertNotIn(kind, p.get("checks", {}),
+                                     "a kind cannot be both N/A and proven")
 
     def test_platform_check_names_match_a_real_matrix_leg(self):
         for p in self.gates["platform"]:
             for check in p.get("checks", {}).values():
                 with self.subTest(platform=p["id"], check=check):
                     # Names are "setup <distro>" from the setup-install job.
-                    self.assertTrue(
-                        check.startswith("setup "),
-                        f"{check!r} does not look like the setup-install job name")
+                    self.assertRegex(
+                        check, r"^(setup|upgrade-from-ga) ",
+                        f"{check!r} does not look like a matrix job name")
                     self.assertIn(
                         check.split(" ", 1)[1], self.distros,
                         f"{check!r} names a distro the matrix does not run")

@@ -54,10 +54,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Pin the VERSION as well as the arch. A CI runner's dist/ holds only the
+# current build, but a developer's accumulates every historical one, and a
+# glob that matches thirteen packages installs whichever the package manager
+# happens to prefer.
+VERSION="$(. packaging/version.env && echo "$VERSION")"
+KENSA_DEB="$(ls -1 dist/kensa-rules_*_all.deb | sort -V | tail -1)"
+KENSA_RPM="$(ls -1 dist/kensa-rules-*.noarch.rpm | sort -V | tail -1)"
 if [ "$KIND" = deb ]; then
-    cp dist/openwatch_*_"${DEB_ARCH}".deb dist/kensa-rules_*_all.deb "$PKGS/"
+    cp "dist/openwatch_${VERSION}_${DEB_ARCH}.deb" "$KENSA_DEB" "$PKGS/"
 else
-    cp dist/openwatch-*."${RPM_ARCH}".rpm dist/kensa-rules-*.noarch.rpm "$PKGS/"
+    cp "dist/openwatch-${VERSION}-1.${RPM_ARCH}.rpm" "$KENSA_RPM" "$PKGS/"
 fi
 echo ">> staged $(ls "$PKGS" | tr '\n' ' ')"
 
