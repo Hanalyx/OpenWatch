@@ -216,14 +216,17 @@ itself.
 
 | Platform | Behaviour |
 |---|---|
-| RHEL 9 | Runs. Covered by testing. |
+| RHEL 9, Debian 12, Ubuntu 24.04 | Runs. Covered by testing. |
 | Rocky, AlmaLinux, Oracle Linux 8-10 | Requires `--allow-untested` |
-| Debian 12, Ubuntu 22.04 and 24.04 | Requires `--allow-untested` |
+| Ubuntu 22.04, other Debian releases | Requires `--allow-untested` |
 | Anything else | Refused |
 
 `untested` means the code recognises the layout and is expected to work, but it
 is not covered by automated testing. It runs with `--allow-untested`; please
 report the result.
+
+Ubuntu is matched on the full version rather than the major. 24.04 is covered;
+24.10 is a different release and is not.
 
 ### Exit codes
 

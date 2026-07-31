@@ -132,7 +132,9 @@ spec:
         untested requires --allow-untested, unsupported refuses. Publishing a
         support matrix that CI does not exercise is how a support statement
         starts lying; refusing every unrecognised host would block derivatives
-        running identical paths.
+        running identical paths. A platform is tested only while a CI job
+        installs on it and asserts the API answers, so promoting one means
+        adding that job, not editing the constant.
       type: technical
       enforcement: error
     - id: C-11
@@ -208,10 +210,14 @@ spec:
       references_constraints: [C-11]
     - id: AC-04
       description: >
-        Platform support tiers resolve correctly: RHEL 9 is tested, other
-        RHEL-family majors 8 to 10 and Debian-family are untested, unknown
-        families and unparseable versions are unsupported. ID_LIKE is consulted
-        so an unlisted derivative naming its parent is placed correctly.
+        Platform support tiers resolve correctly: RHEL 9, Ubuntu 24.04 and
+        Debian 12 are tested, because a CI job installs on each of them on
+        every push and asserts the API answers. Other RHEL-family majors 8 to
+        10 and other Debian-family releases are untested, and unknown families
+        and unparseable versions are unsupported. Ubuntu is matched on the full
+        version rather than the major, because 24.10 shares the major with
+        24.04 and is a different release CI never runs. ID_LIKE is consulted so
+        an unlisted derivative naming its parent is placed correctly.
       priority: critical
       references_constraints: [C-10]
     - id: AC-05
