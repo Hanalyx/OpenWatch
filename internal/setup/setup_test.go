@@ -15,6 +15,7 @@
 //	AC-11  TestSetup_LiveVerificationIsRecorded
 //	AC-12  TestSetup_RoleSQLForcesScram
 //	AC-13  TestSetup_NoCredentialInPlanOrReceipt + TestSetup_ArtifactFileModes
+//	AC-14  TestSetup_NonInteractivePromptSourceIsRefused
 package setup
 
 import (
@@ -434,6 +435,57 @@ func TestSetup_ArtifactFileModes(t *testing.T) {
 		if !strings.Contains(string(steps), `r.writeFile(s.ID(), secretsEnvPath, []byte(content), 0o640)`) {
 			t.Error("secrets.env is no longer written 0640; the service user must be able " +
 				"to read the DSN, and the file is chowned root:openwatch for that reason")
+		}
+	})
+}
+
+// @ac AC-14
+// AC-14: a run that cannot prompt is refused in preflight.
+//
+// `--yes` advertises accepting every default, and the default admin password
+// source is an interactive prompt, so `openwatch setup --yes` alone could never
+// succeed. It used to fail at secret resolution, after the plan had printed,
+// which reads as a late surprise rather than a flag mistake. The plan still
+// renders; what changed is that the reason now appears as the first preflight
+// check rather than as an error after everything.
+func TestSetup_NonInteractivePromptSourceIsRefused(t *testing.T) {
+	t.Run("system-setup/AC-14", func(t *testing.T) {
+		rhel := Platform{ID: "rhel", Major: 9, Family: FamilyRHEL}
+
+		// The default plan, non-interactively: refused, naming the flag.
+		c, bad := credentialSourceCheck(DefaultPlan(rhel), false)
+		if !bad {
+			t.Fatal("the default plan is not obtainable without a prompt; it must be refused")
+		}
+		if !c.Fatal || c.OK {
+			t.Errorf("check must be a fatal failure, got OK=%v Fatal=%v", c.OK, c.Fatal)
+		}
+		if !strings.Contains(c.Detail, "--admin-password-from") {
+			t.Errorf("the message must name the flag that fixes it: %q", c.Detail)
+		}
+
+		// The same plan interactively: the prompt is available, so no refusal.
+		if _, bad := credentialSourceCheck(DefaultPlan(rhel), true); bad {
+			t.Error("an interactive run can prompt; it must not be refused")
+		}
+
+		// Non-interactive with a resolvable source: allowed.
+		p := DefaultPlan(rhel)
+		p.Admin.Password = Secret{Source: SecretFile, Ref: "/root/pw"} // pragma: allowlist secret
+		if _, bad := credentialSourceCheck(p, false); bad {
+			t.Error("a file-sourced admin password needs no prompt; it must not be refused")
+		}
+
+		// The database password is checked too, not just the admin one.
+		p = DefaultPlan(rhel)
+		p.Admin.Password = Secret{Source: SecretGenerate, Length: 32} // pragma: allowlist secret
+		p.Database.Password = Secret{Source: SecretPrompt}            // pragma: allowlist secret
+		c, bad = credentialSourceCheck(p, false)
+		if !bad {
+			t.Fatal("a prompt-sourced database password must be refused too")
+		}
+		if !strings.Contains(c.Detail, "--db-password-from") {
+			t.Errorf("the message must name the database flag: %q", c.Detail)
 		}
 	})
 }
