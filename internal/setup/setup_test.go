@@ -12,6 +12,7 @@
 //	AC-08  TestSetup_NoSudoInvocations
 //	AC-09  TestSetup_PgHbaPausesWhenUnmanaged
 //	AC-10  TestSetup_ContainerVerificationIsRecorded
+//	AC-11  TestSetup_LiveVerificationIsRecorded
 package setup
 
 import (
@@ -270,6 +271,35 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 				t.Errorf("%s %s is %q; the recorded run used --allow-untested, which "+
 					"only makes sense for untested", c.id, c.ver, got)
 			}
+		}
+	})
+}
+
+// @ac AC-11
+// AC-11: the live RHEL 9.8 result, recorded with the assumptions it rests on.
+//
+// The run that produced it went from no cluster to a signed-in administrator in
+// one invocation, and a second invocation left that administrator able to log
+// in. Both depend on facts this test can still check: that RHEL 9 is a tested
+// platform needing no override, and that the default plan does not rotate a
+// generated password by regenerating it on every run.
+func TestSetup_LiveVerificationIsRecorded(t *testing.T) {
+	t.Run("system-setup/AC-11", func(t *testing.T) {
+		if got := supportOf("rhel", 9, FamilyRHEL); got != SupportTested {
+			t.Errorf("RHEL 9 is %q; the live run used no --allow-untested, which only "+
+				"holds while it is tested", got)
+		}
+		// The reuse path is what kept the administrator able to log in after the
+		// second run. It only engages for a generated password.
+		p := DefaultPlan(Platform{ID: "rhel", Major: 9, Family: FamilyRHEL})
+		if p.Database.Password.Source != SecretGenerate {
+			t.Errorf("default database password source is %q; the recorded re-run "+
+				"result depends on the generate-then-reuse path", p.Database.Password.Source)
+		}
+		// The live host listened on the wildcard, and the summary URL has to be
+		// something an operator can open. "i" was the kernel hostname there.
+		if got := hostnameOr("0.0.0.0"); got == "" || got == "0.0.0.0" {
+			t.Errorf("hostnameOr(0.0.0.0) = %q, want a usable address", got)
 		}
 	})
 }

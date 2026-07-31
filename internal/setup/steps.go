@@ -147,14 +147,24 @@ func (s stepPostgresCluster) Apply(ctx context.Context, r *Run) error {
 	// difference: the next step fails with "cannot determine the PostgreSQL
 	// server version" on some distributions and not others, from identical
 	// code. Wait for the socket rather than trusting the unit state.
+	var last cmdResult
 	for i := 0; i < 30; i++ {
-		if postgresReachable(ctx) {
+		last = psql(ctx, "SELECT 1")
+		if last.Err == nil {
 			return nil
+		}
+		// A server that is up but refusing this connection is a different
+		// problem from one that has not started, and the remedies share
+		// nothing. Reporting the first as the second sends the operator to
+		// `systemctl status`, which says active, and the trail ends there.
+		if diag := diagnosePsqlRefusal(last); diag != "" {
+			return fmt.Errorf("%s: %s", s.ID(), diag)
 		}
 		sleep(ctx, 1)
 	}
 	return fmt.Errorf("%s: postgresql started but did not accept connections within 30s; "+
-		"check `systemctl status postgresql` and `journalctl -u postgresql`", s.ID())
+		"check `systemctl status postgresql` and `journalctl -u postgresql`. Last error: %s",
+		s.ID(), firstLine(last.Stderr))
 }
 
 type stepPostgresVersion struct{}
@@ -256,7 +266,7 @@ func (s stepRole) Apply(ctx context.Context, r *Run) error {
 	if err := r.psqlMutate(ctx, s.ID(), strings.ToLower(verb), sql); err != nil {
 		return err
 	}
-	r.record(s.ID(), strings.ToLower(verb), "role "+name, "")
+	r.record(s.ID(), strings.ToLower(verb), name, "")
 	return nil
 }
 
@@ -557,6 +567,33 @@ func postgresMajor(ctx context.Context) int {
 		return 0
 	}
 	return n / 10000
+}
+
+// diagnosePsqlRefusal turns a connection rejection into an actionable
+// sentence, or returns "" when the failure is not a rejection.
+//
+// setup reaches PostgreSQL as the postgres superuser over the local socket for
+// every check it makes, so a pg_hba.conf without a local rule disables the
+// installer completely. That file having been edited by hand is exactly how
+// this state arises, and the raw error names a socket rather than the rule.
+func diagnosePsqlRefusal(res cmdResult) string {
+	msg := res.Stderr + res.Stdout
+	switch {
+	case strings.Contains(msg, "no pg_hba.conf entry"):
+		return "PostgreSQL is running but refuses local superuser connections: " +
+			"pg_hba.conf has no rule for local connections by the postgres user. " +
+			"setup needs that access for every check it makes. Add the line " +
+			"`local   all   all   peer` above the other rules in pg_hba.conf, run " +
+			"`systemctl reload postgresql`, and run setup again. This state usually " +
+			"follows a hand-edit that replaced the file's default rules rather than " +
+			"adding to them"
+	case strings.Contains(msg, "authentication failed"):
+		return "PostgreSQL is running but rejected the postgres superuser's " +
+			"credentials. Check the local rule's method in pg_hba.conf; peer is " +
+			"expected for the postgres user"
+	default:
+		return ""
+	}
 }
 
 // roleExists reports whether the login role is already present.

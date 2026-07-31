@@ -284,14 +284,39 @@ func RenderSummary(w func(string, ...any), r *Run, receipt string) {
 	}
 }
 
+// hostnameOr renders the address an operator should actually browse to.
+//
+// A wildcard listen address is not usable in a URL, so it has to be resolved
+// to something. os.Hostname alone is not enough: it returns the kernel's
+// transient hostname, which on a real RHEL host was observed to be the single
+// letter "i" while the static hostname was a proper FQDN. Printing
+// https://i:8443/ helps nobody. Prefer a routable address, which is what the
+// operator will type, and fall back through the hostname to loopback.
 func hostnameOr(listen string) string {
-	if listen == "0.0.0.0" || listen == "::" || listen == "" {
-		if h, err := os.Hostname(); err == nil && h != "" {
-			return h
-		}
-		return "127.0.0.1"
+	if listen != "0.0.0.0" && listen != "::" && listen != "" {
+		return listen
 	}
-	return listen
+	if ip := primaryIP(); ip != "" {
+		return ip
+	}
+	if h, err := os.Hostname(); err == nil && strings.Contains(h, ".") {
+		return h
+	}
+	return "127.0.0.1"
+}
+
+// primaryIP returns the address the host would use to reach the outside world,
+// found without sending anything: a UDP "connection" only selects a route.
+func primaryIP() string {
+	c, err := net.Dial("udp", "192.0.2.1:9")
+	if err != nil {
+		return ""
+	}
+	defer c.Close()
+	if addr, ok := c.LocalAddr().(*net.UDPAddr); ok && addr.IP != nil && !addr.IP.IsLoopback() {
+		return addr.IP.String()
+	}
+	return ""
 }
 
 func portFree(port int) bool {
