@@ -345,6 +345,9 @@ frontend_test.log
 !scripts/test_*.py
 !scripts/test_*.sh
 
+# Byte-code left behind by running the script test suites.
+__pycache__/
+
 # ...but scripts/ holds real, tracked tooling whose names contain "test". The
 # blanket patterns above silently swallowed scripts/test-db.sh: `git add`
 # refused it, the Makefile shipped referencing a script that was never
