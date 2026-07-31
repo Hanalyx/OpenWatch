@@ -124,18 +124,31 @@ class PlatformCheckWiring(unittest.TestCase):
         # matrix values it expands to rather than parsing YAML semantics.
         self.distros = set(re.findall(r"distro:\s*'([^']+)'", wf))
 
+    def test_a_check_never_covers_a_kind_the_job_does_not_assert(self):
+        """The setup-install job installs and re-runs. It never touches the
+        previous GA, so it must not be wired to the upgrade gate: that would
+        report PASS for something nobody ran."""
+        kinds = {g["kind"] for g in self.gates["gate"] if "kind" in g}
+        for p in self.gates["platform"]:
+            for kind, check in p.get("checks", {}).items():
+                with self.subTest(platform=p["id"], kind=kind):
+                    self.assertIn(kind, kinds, f"{kind!r} is not a gate kind")
+                    if check.startswith("setup "):
+                        self.assertIn(
+                            kind, {"clean-install", "idempotence"},
+                            f"the setup-install job cannot prove {kind!r}")
+
     def test_platform_check_names_match_a_real_matrix_leg(self):
         for p in self.gates["platform"]:
-            check = p.get("check")
-            if not check:
-                continue
-            with self.subTest(platform=p["id"]):
-                # Names are "setup <distro>" from the setup-install job.
-                self.assertTrue(
-                    check.startswith("setup "),
-                    f"{check!r} does not look like the setup-install job name")
-                self.assertIn(check.split(" ", 1)[1], self.distros,
-                              f"{check!r} names a distro the matrix does not run")
+            for check in p.get("checks", {}).values():
+                with self.subTest(platform=p["id"], check=check):
+                    # Names are "setup <distro>" from the setup-install job.
+                    self.assertTrue(
+                        check.startswith("setup "),
+                        f"{check!r} does not look like the setup-install job name")
+                    self.assertIn(
+                        check.split(" ", 1)[1], self.distros,
+                        f"{check!r} names a distro the matrix does not run")
 
 
 class ManifestIsLoadable(unittest.TestCase):
