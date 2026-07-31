@@ -246,3 +246,29 @@ spec:
         the remedy.
       priority: critical
       references_constraints: [C-07, C-09, C-12]
+    - id: AC-11
+      description: >
+        Live verification on RHEL 9.8, recorded here for the same reason as
+        AC-10. One invocation went from no cluster to a signed-in
+        administrator, and a second invocation left that administrator able to
+        log in. The assumptions it rests on are still checkable: RHEL 9 is a
+        tested platform needing no override, the default plan generates and
+        then reuses the database password rather than rotating it per run, and
+        the completion summary resolves a wildcard listen address to something
+        an operator can open.
+      priority: critical
+      references_constraints: [C-04, C-10, C-13]
+    - id: AC-12
+      description: >
+        The role mutation sets password_encryption to scram-sha-256 in the same
+        statement as CREATE ROLE or ALTER ROLE, so the hash does not depend on
+        the server default, and a role found already hashed md5 is re-hashed by
+        the ALTER path. The password is a quote-doubled literal.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: >
+        Neither the serialised plan nor the receipt contains a credential
+        value, and the Secret type declares no field able to hold one.
+      priority: critical
+      references_constraints: [C-02]

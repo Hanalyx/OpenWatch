@@ -13,9 +13,12 @@
 //	AC-09  TestSetup_PgHbaPausesWhenUnmanaged
 //	AC-10  TestSetup_ContainerVerificationIsRecorded
 //	AC-11  TestSetup_LiveVerificationIsRecorded
+//	AC-12  TestSetup_RoleSQLForcesScram
+//	AC-13  TestSetup_NoCredentialInPlanOrReceipt
 package setup
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -300,6 +303,99 @@ func TestSetup_LiveVerificationIsRecorded(t *testing.T) {
 		// something an operator can open. "i" was the kernel hostname there.
 		if got := hostnameOr("0.0.0.0"); got == "" || got == "0.0.0.0" {
 			t.Errorf("hostnameOr(0.0.0.0) = %q, want a usable address", got)
+		}
+	})
+}
+
+// @ac AC-12
+// AC-12: the role is hashed scram-sha-256 whatever the server default is.
+//
+// PostgreSQL 13 defaults password_encryption to md5 and RHEL 9 still ships 13,
+// so a role created without the SET cannot authenticate against the
+// scram-sha-256 pg_hba rules this same installer writes. The failure surfaces
+// two steps later as "password authentication failed", which reads as a wrong
+// password rather than a wrong hash.
+func TestSetup_RoleSQLForcesScram(t *testing.T) {
+	t.Run("system-setup/AC-12", func(t *testing.T) {
+		// Both verbs matter: ALTER is the path taken for a role found already
+		// hashed md5, which is exactly the role that must be re-hashed.
+		for _, verb := range []string{"CREATE ROLE", "ALTER ROLE"} {
+			sql := roleSQL(verb, "openwatch", "pw")
+			if !strings.HasPrefix(sql, "SET password_encryption = 'scram-sha-256';") {
+				t.Errorf("%s: %q does not set password_encryption first", verb, sql)
+			}
+			// One statement, one session. Splitting them lets the SET land in a
+			// session that no longer exists when the role is created.
+			if strings.Contains(sql, "\n") || !strings.Contains(sql, "; "+verb+" ") {
+				t.Errorf("%s: the SET and the role mutation must share one session: %q", verb, sql)
+			}
+		}
+		// The password is a quoted literal, not an identifier: passwords are the
+		// one input that cannot be restricted to plain identifiers.
+		if got := roleSQL("CREATE ROLE", "openwatch", "it's"); !strings.HasSuffix(got, `'it''s'`) {
+			t.Errorf("password literal is not quote-doubled: %q", got)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13: no credential value reaches the plan or the receipt.
+//
+// This is what makes a plan safe to commit or attach to a ticket and a receipt
+// safe to hand to support. Secret describes where a credential comes from; the
+// resolved value lives on Run and is never copied into either structure.
+func TestSetup_NoCredentialInPlanOrReceipt(t *testing.T) {
+	t.Run("system-setup/AC-13", func(t *testing.T) {
+		const dbPw = "db-secret-Ic4WdA"
+		const adminPw = "admin-secret-Zq7Lme"
+
+		r := &Run{
+			Plan:          DefaultPlan(Platform{ID: "rhel", Major: 9, Family: FamilyRHEL}),
+			DBPassword:    dbPw,
+			AdminPassword: adminPw,
+		}
+		r.record("database-role", "create role", "openwatch", "")
+		r.record("secrets-env", "write", secretsEnvPath, "")
+
+		planJSON, err := json.Marshal(r.Plan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiptJSON, err := json.Marshal(newReceipt(r, "0.7.0"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range []struct{ what, body string }{
+			{"plan", string(planJSON)},
+			{"receipt", string(receiptJSON)},
+		} {
+			for _, credential := range []string{dbPw, adminPw} {
+				if strings.Contains(c.body, credential) {
+					t.Errorf("the %s carries a credential value (see C-02)", c.what)
+				}
+			}
+		}
+
+		// The structural half: Secret has no field able to hold a value, so a
+		// future field cannot reintroduce the leak without failing here.
+		b, err := os.ReadFile("plan.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(b)
+		const typeDecl = "type Secret struct {"
+		i := strings.Index(src, typeDecl)
+		if i < 0 {
+			t.Fatal("the Secret type has moved; this check is stale")
+		}
+		decl := src[i+len(typeDecl):]
+		if end := strings.Index(decl, "\n}"); end > 0 {
+			decl = decl[:end]
+		}
+		for _, field := range []string{"Value", "Password", "Secret "} {
+			if strings.Contains(decl, field) {
+				t.Errorf("Secret declares %q; it must record the source, never the value", field)
+			}
 		}
 	})
 }

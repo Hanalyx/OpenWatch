@@ -232,12 +232,11 @@ type Receipt struct {
 	URL       string   `json:"url"`
 }
 
-// WriteReceipt records what happened, for support and for audit.
-func WriteReceipt(r *Run, version string) (string, error) {
-	if r.DryRun {
-		return "", nil
-	}
-	rec := Receipt{
+// newReceipt assembles the record from the run. Split out from WriteReceipt so
+// the no-secrets property (C-02) can be asserted against the real thing rather
+// than against a hand-built copy of it.
+func newReceipt(r *Run, version string) Receipt {
+	return Receipt{
 		AppliedAt: time.Now().UTC().Format(time.RFC3339),
 		Version:   version,
 		Platform:  r.Plan.Platform,
@@ -245,6 +244,14 @@ func WriteReceipt(r *Run, version string) (string, error) {
 		Changes:   r.Changes,
 		URL:       fmt.Sprintf("https://%s:%d/", hostnameOr(r.Plan.Service.ListenHost), r.Plan.Service.ListenPort),
 	}
+}
+
+// WriteReceipt records what happened, for support and for audit.
+func WriteReceipt(r *Run, version string) (string, error) {
+	if r.DryRun {
+		return "", nil
+	}
+	rec := newReceipt(r, version)
 	b, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {
 		return "", err

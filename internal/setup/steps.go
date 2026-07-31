@@ -256,18 +256,25 @@ func (s stepRole) Apply(ctx context.Context, r *Run) error {
 	if exists.Err == nil && strings.TrimSpace(exists.Stdout) == "1" {
 		verb = "ALTER ROLE"
 	}
-	// password_encryption is SET in the same session, so the hash format does
-	// not depend on the server default. That default changed from md5 to
-	// scram-sha-256 in PostgreSQL 14, and RHEL 9 still ships 13, so relying on
-	// it produces a role that cannot authenticate against the pg_hba rules
-	// this installer also writes.
-	sql := fmt.Sprintf("SET password_encryption = 'scram-sha-256'; %s %s WITH LOGIN PASSWORD %s",
-		verb, name, sqlLiteral(r.DBPassword))
+	sql := roleSQL(verb, name, r.DBPassword)
 	if err := r.psqlMutate(ctx, s.ID(), strings.ToLower(verb), sql); err != nil {
 		return err
 	}
 	r.record(s.ID(), strings.ToLower(verb), name, "")
 	return nil
+}
+
+// roleSQL builds the role mutation.
+//
+// password_encryption is SET in the same session, so the hash format does not
+// depend on the server default. That default changed from md5 to scram-sha-256
+// in PostgreSQL 14, and RHEL 9 still ships 13, so relying on it produces a role
+// that cannot authenticate against the pg_hba rules this installer also writes.
+// The same statement re-hashes a role that was found already hashed md5,
+// because the verb is ALTER ROLE in that case and the SET still applies.
+func roleSQL(verb, name, password string) string {
+	return fmt.Sprintf("SET password_encryption = 'scram-sha-256'; %s %s WITH LOGIN PASSWORD %s",
+		verb, name, sqlLiteral(password))
 }
 
 type stepDatabase struct{}
