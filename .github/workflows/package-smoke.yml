@@ -67,6 +67,7 @@ jobs:
           - { distro: 'oraclelinux:9', kind: rpm }
           - { distro: 'ubuntu:24.04', kind: deb }
           - { distro: 'debian:12', kind: deb }
+          - { distro: 'almalinux:10', kind: rpm }
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -180,6 +181,7 @@ jobs:
       matrix:
         include:
           - { distro: 'rockylinux:9', kind: rpm }
+          - { distro: 'almalinux:10', kind: rpm }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4

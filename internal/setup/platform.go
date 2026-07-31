@@ -147,6 +147,11 @@ func supportOf(id, versionID string, major int, family Family) Support {
 	if id == "debian" && major == 12 {
 		return SupportTested
 	}
+	// AlmaLinux 10, not the whole family's major 10. RHEL 10 has no image in
+	// the matrix and no job, so it stays untested until one exists.
+	if id == "almalinux" && major == 10 {
+		return SupportTested
+	}
 	switch family {
 	case FamilyRHEL:
 		if major >= 8 && major <= 10 {

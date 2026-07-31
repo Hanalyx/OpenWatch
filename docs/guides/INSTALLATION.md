@@ -216,8 +216,8 @@ itself.
 
 | Platform | Behaviour |
 |---|---|
-| RHEL 9, Debian 12, Ubuntu 24.04 | Runs. Covered by testing. |
-| Rocky, AlmaLinux, Oracle Linux 8-10 | Requires `--allow-untested` |
+| RHEL 9, AlmaLinux 10, Debian 12, Ubuntu 24.04 | Runs. Covered by testing. |
+| Rocky, Oracle Linux 8-10, AlmaLinux 8-9, RHEL 10 | Requires `--allow-untested` |
 | Ubuntu 22.04, other Debian releases | Requires `--allow-untested` |
 | Anything else | Refused |
 
