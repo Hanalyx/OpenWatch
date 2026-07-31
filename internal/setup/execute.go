@@ -146,7 +146,7 @@ func Resolve(ctx context.Context, p Plan) []PlannedStep {
 
 // RenderPlan writes the human-facing plan.
 func RenderPlan(w func(string, ...any), p Plan, checks []Check, planned []PlannedStep) {
-	w("OpenWatch setup — %s", p.Platform.String())
+	w("OpenWatch setup: %s", p.Platform.String())
 	w("")
 	w("Preflight")
 	for _, c := range checks {
