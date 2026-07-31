@@ -63,7 +63,7 @@ func Steps(p Plan) []Step {
 	if p.Migrate {
 		s = append(s, stepMigrate{})
 	}
-	s = append(s, stepAdmin{}, stepService{}, stepVerify{})
+	s = append(s, stepAdmin{}, stepFirewall{}, stepService{}, stepVerify{})
 	return s
 }
 
@@ -459,6 +459,67 @@ func (s stepAdmin) Apply(ctx context.Context, r *Run) error {
 		"--password", r.AdminPassword)
 }
 
+type stepFirewall struct{}
+
+func (stepFirewall) ID() string { return "firewall" }
+
+func (stepFirewall) Describe(p Plan) string {
+	if !p.Service.OpenFirewall {
+		return fmt.Sprintf("report whether port %d is reachable through the firewall "+
+			"(not changing it; --no-firewall was passed)", p.Service.ListenPort)
+	}
+	return fmt.Sprintf("allow inbound %d/tcp through the host firewall", p.Service.ListenPort)
+}
+
+func (stepFirewall) Status(ctx context.Context, p Plan) StepStatus {
+	switch {
+	case !firewalldActive():
+		return StepStatus{Done: true, Detail: "no active host firewall to configure"}
+	case firewalldAllowsPort(ctx, p.Service.ListenPort):
+		return StepStatus{Done: true, Detail: fmt.Sprintf("firewalld already allows %d/tcp", p.Service.ListenPort)}
+	default:
+		return StepStatus{Detail: fmt.Sprintf("firewalld is active and does NOT allow %d/tcp", p.Service.ListenPort)}
+	}
+}
+
+// Apply opens the port the service listens on.
+//
+// WHY THIS IS A STEP AT ALL: without it the installer finishes, reports the API
+// healthy, and prints a URL nobody can open. The health check runs over
+// loopback, where the firewall does not apply, so a fully firewalled host looks
+// identical to a working one. That was observed on a live RHEL 9.8 install:
+// every internal check passed and the service was unreachable from any other
+// machine with "No route to host".
+//
+// Opening it is default rather than opt-in, unlike the pg_hba edit. The two
+// risks are not comparable: a pg_hba mistake removes access the operator
+// already had, whereas allowing the port a web application listens on is the
+// access they asked for by installing it. The plan states it before it happens
+// and --no-firewall declines it.
+func (s stepFirewall) Apply(ctx context.Context, r *Run) error {
+	port := r.Plan.Service.ListenPort
+	if !firewalldActive() {
+		return nil
+	}
+	if !r.Plan.Service.OpenFirewall {
+		r.logf("    firewalld is active and does not allow %d/tcp, so the service will", port)
+		r.logf("    not be reachable from other hosts. To allow it:")
+		r.logf("")
+		r.logf("      sudo firewall-cmd --permanent --add-port=%d/tcp", port)
+		r.logf("      sudo firewall-cmd --reload")
+		return nil
+	}
+	if err := r.mutate(ctx, s.ID(), "add firewall port", "firewall-cmd",
+		"--permanent", fmt.Sprintf("--add-port=%d/tcp", port)); err != nil {
+		return err
+	}
+	if err := r.mutate(ctx, s.ID(), "reload firewalld", "firewall-cmd", "--reload"); err != nil {
+		return err
+	}
+	r.record(s.ID(), "allow", fmt.Sprintf("%d/tcp", port), "")
+	return nil
+}
+
 type stepService struct{}
 
 func (stepService) ID() string { return "service" }
@@ -527,6 +588,11 @@ func (s stepVerify) Apply(ctx context.Context, r *Run) error {
 	if r.DryRun || !r.Plan.Service.StartNow {
 		return nil
 	}
+	// Loopback deliberately: this proves the service is serving and reached
+	// its database. It does NOT prove the host is reachable from elsewhere,
+	// because the firewall does not apply to loopback. The firewall step above
+	// owns that, and this reports what remains unproven rather than implying
+	// more than it checked.
 	url := fmt.Sprintf("https://127.0.0.1:%d/api/v1/health", r.Plan.Service.ListenPort)
 	var last string
 	for i := 0; i < 15; i++ {
@@ -536,6 +602,11 @@ func (s stepVerify) Apply(ctx context.Context, r *Run) error {
 			if !strings.Contains(res.Stdout, `"db_connected":true`) {
 				return fmt.Errorf("%s: the service is up but reports db_connected=false; "+
 					"check the DSN in %s", s.ID(), secretsEnvPath)
+			}
+			if firewalldActive() && !firewalldAllowsPort(ctx, r.Plan.Service.ListenPort) {
+				r.logf("    NOTE: checked over loopback only. firewalld does not allow %d/tcp,",
+					r.Plan.Service.ListenPort)
+				r.logf("    so this service is not reachable from any other host.")
 			}
 			return nil
 		}
@@ -600,6 +671,32 @@ func diagnosePsqlRefusal(res cmdResult) string {
 func roleExists(ctx context.Context, name string) bool {
 	res := psql(ctx, fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname=%s", sqlLiteral(name)))
 	return res.Err == nil && strings.TrimSpace(res.Stdout) == "1"
+}
+
+// firewalldActive reports whether firewalld is managing the host. ufw is not
+// handled: Debian-family support is untested, and guessing at a firewall is
+// worse than reporting it.
+func firewalldActive() bool { return serviceActive("firewalld") }
+
+// firewalldAllowsPort reports whether inbound traffic to the port is already
+// permitted, by port or by a service definition covering it.
+func firewalldAllowsPort(ctx context.Context, port int) bool {
+	want := fmt.Sprintf("%d/tcp", port)
+	res := run(ctx, "firewall-cmd", "--list-ports")
+	if res.Err == nil {
+		for _, f := range strings.Fields(res.Stdout) {
+			if f == want {
+				return true
+			}
+		}
+	}
+	// A service definition (for example https on 443) can cover the port
+	// without it appearing in --list-ports.
+	if res := run(ctx, "firewall-cmd", "--list-all"); res.Err == nil &&
+		strings.Contains(res.Stdout, want) {
+		return true
+	}
+	return false
 }
 
 func postgresReachable(ctx context.Context) bool {

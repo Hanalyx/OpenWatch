@@ -86,6 +86,11 @@ type ServicePlan struct {
 	BindCapability bool `yaml:"bind_capability"`
 	EnableOnBoot   bool `yaml:"enable_on_boot"`
 	StartNow       bool `yaml:"start_now"`
+	// OpenFirewall allows inbound traffic to ListenPort. Default true: the
+	// health check runs over loopback, where the firewall does not apply, so
+	// without this an install can report itself healthy while being
+	// unreachable from every other machine.
+	OpenFirewall bool `yaml:"open_firewall"`
 }
 
 // AdminPlan is the first login.
@@ -129,6 +134,7 @@ func DefaultPlan(p Platform) Plan {
 			ListenPort:   8443,
 			EnableOnBoot: true,
 			StartNow:     true,
+			OpenFirewall: true,
 		},
 		Admin: AdminPlan{
 			Username: "admin",

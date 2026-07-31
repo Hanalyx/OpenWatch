@@ -32,6 +32,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		planPath      = fs.String("plan", "", "apply a saved plan file (implies non-interactive)")
 		savePlan      = fs.String("save-plan", "", "write the resolved plan to this path and exit")
 		allowUntested = fs.Bool("allow-untested", false, "proceed on a platform CI does not cover")
+		noFirewall    = fs.Bool("no-firewall", false, "do not open the listen port in the host firewall (the service will only be reachable from this host)")
 		managePgHba   = fs.Bool("manage-pg-hba", false, "let setup edit pg_hba.conf (backed up, validated, rolled back on failure)")
 		dbMode        = fs.String("db-mode", "", "provision | existing (default provision)")
 		dbHost        = fs.String("db-host", "", "database host (default 127.0.0.1)")
@@ -81,7 +82,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		managePgHba: *managePgHba, dbMode: *dbMode, dbHost: *dbHost, dbPort: *dbPort,
 		dbName: *dbName, dbRole: *dbRole, listenPort: *listenPort,
 		adminUser: *adminUser, adminEmail: *adminEmail,
-		adminPwFrom: *adminPwFrom, dbPwFrom: *dbPwFrom,
+		adminPwFrom: *adminPwFrom, dbPwFrom: *dbPwFrom, noFirewall: *noFirewall,
 	}, fs)
 
 	interactive := !*yes && *planPath == "" && isTerminal(os.Stdin)
@@ -188,6 +189,7 @@ type flagOverrides struct {
 	dbPort, listenPort     int
 	adminUser, adminEmail  string
 	adminPwFrom, dbPwFrom  string
+	noFirewall             bool
 }
 
 // parseSecretSpec turns a --*-password-from value into a Secret.
@@ -247,6 +249,9 @@ func applyFlagOverrides(p *setup.Plan, o flagOverrides, fs *flag.FlagSet) {
 		if sec, err := parseSecretSpec(o.adminPwFrom); err == nil {
 			p.Admin.Password = sec
 		}
+	}
+	if set["no-firewall"] {
+		p.Service.OpenFirewall = !o.noFirewall
 	}
 	if set["db-password-from"] {
 		if sec, err := parseSecretSpec(o.dbPwFrom); err == nil {

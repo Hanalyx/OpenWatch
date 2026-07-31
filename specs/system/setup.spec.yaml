@@ -152,6 +152,22 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-13
+      description: >
+        setup MUST allow the listen port through an active host firewall, and
+        the completion summary MUST NOT imply reachability it did not check.
+        The health check runs over loopback, where the firewall does not apply,
+        so a fully firewalled host is indistinguishable from a working one: a
+        live RHEL 9.8 install passed every internal check and was unreachable
+        from every other machine with "No route to host". Opening the port is
+        the default rather than opt-in, unlike the pg_hba edit, because the two
+        risks differ in kind: a pg_hba mistake removes access the operator
+        already had, whereas allowing the port a web application listens on is
+        the access they requested by installing it. --no-firewall declines it,
+        and when the port is left closed the run says so explicitly.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: >
