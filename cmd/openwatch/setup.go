@@ -27,7 +27,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var (
-		yes           = fs.Bool("yes", false, "accept every default without prompting")
+		yes           = fs.Bool("yes", false, "run without prompting; needs --admin-password-from, since the default admin password is an interactive prompt")
 		dryRun        = fs.Bool("dry-run", false, "show the plan and change nothing")
 		planPath      = fs.String("plan", "", "apply a saved plan file (implies non-interactive)")
 		savePlan      = fs.String("save-plan", "", "write the resolved plan to this path and exit")
@@ -122,7 +122,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		return 0
 	}
 
-	checks := setup.Preflight(ctx, plan, *allowUntested)
+	checks := setup.Preflight(ctx, plan, *allowUntested, interactive)
 	planned := setup.Resolve(ctx, plan)
 	setup.RenderPlan(out, plan, checks, planned)
 

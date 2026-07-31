@@ -31,13 +31,60 @@ type Check struct {
 	Detail string
 }
 
+// credentialSourceCheck refuses a run that cannot obtain a credential it
+// will need.
+//
+// The default plan reads the admin password from an interactive prompt, so a
+// run that cannot prompt is doomed from the start. Left to itself it fails at
+// ResolveSecrets, which is after the full plan has been rendered: the operator
+// reads twelve steps and then an error about step zero. Worse, --yes advertises
+// itself as accepting every default, and accepting the default admin password
+// source is exactly what makes it fail.
+//
+// The fix is refusal here rather than a silent generate. There is no
+// password-reset command, so a generated admin password that the operator
+// never sees produces an account nobody can log into, and printing a
+// credential to stdout to avoid that is not an improvement. An unattended
+// install has to say where its credentials come from.
+func credentialSourceCheck(p Plan, interactive bool) (Check, bool) {
+	if interactive {
+		return Check{}, false
+	}
+	for _, c := range []struct {
+		what, flag string
+		src        SecretSource
+	}{
+		{"admin password", "--admin-password-from", p.Admin.Password.Source},
+		{"database password", "--db-password-from", p.Database.Password.Source},
+	} {
+		if c.src == SecretPrompt {
+			return Check{
+				Name:  c.what + " source",
+				OK:    false,
+				Fatal: true,
+				Detail: "this run cannot prompt (--yes, --plan, or stdin is not a " +
+					"terminal) but the " + c.what + " comes from an interactive " +
+					"prompt. Pass " + c.flag + " with generate, env:NAME or file:PATH",
+			}, true
+		}
+	}
+	return Check{}, false
+}
+
 // Preflight inspects the host before anything is planned. It never mutates.
 //
 // AllowUntested lets a recognised-but-unverified distro proceed: refusing
 // outright would block Rocky and Alma users running identical paths, while
 // claiming to support them would be a promise CI does not keep.
-func Preflight(ctx context.Context, p Plan, allowUntested bool) []Check {
+//
+// Interactive says whether this run can prompt, which decides whether a
+// prompt-sourced credential is obtainable.
+func Preflight(ctx context.Context, p Plan, allowUntested, interactive bool) []Check {
 	var out []Check
+
+	if c, bad := credentialSourceCheck(p, interactive); bad {
+		out = append(out, c)
+	}
 
 	root := os.Geteuid() == 0
 	rootCheck := Check{Name: "running as root", OK: root, Fatal: true}

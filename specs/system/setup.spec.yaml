@@ -168,6 +168,21 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-14
+      description: >
+        A run that cannot prompt MUST be refused in preflight when a credential
+        it needs comes from an interactive prompt, naming the flag that
+        resolves it. The default plan sources the admin password from a prompt,
+        so `--yes` alone is doomed from the start; left to itself it fails at
+        secret resolution, after the whole plan has been rendered, so the
+        operator reads twelve steps and then an error about step zero. Refusing
+        is correct rather than silently generating one: there is no
+        password-reset command, so a generated admin password the operator
+        never sees produces an account nobody can log into, and printing a
+        credential to stdout to avoid that is not an improvement.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: >
@@ -266,6 +281,15 @@ spec:
         the ALTER path. The password is a quote-doubled literal.
       priority: critical
       references_constraints: [C-03]
+    - id: AC-14
+      description: >
+        A non-interactive run whose admin or database password is sourced from
+        a prompt produces a fatal preflight check naming the flag that fixes
+        it. The same plan run interactively produces no such check, and a
+        non-interactive run whose sources are all non-prompt produces none
+        either.
+      priority: critical
+      references_constraints: [C-14]
     - id: AC-13
       description: >
         Neither the serialised plan nor the receipt contains a credential
