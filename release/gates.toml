@@ -52,11 +52,14 @@ title = "Ubuntu 24.04 LTS"
 method = "container"
 package = "deb"
 support_tier = "untested"
-# The package-smoke job that installs and re-runs setup here. A passing run
-# satisfies both I1 and I2, because the job asserts both: it checks /health
-# reports db_connected after the first run AND after the second.
-check = "setup ubuntu:24.04"
 blocking = true
+# Which CI job proves which gate kind. Scoped per kind on purpose: the
+# setup-install job asserts a clean install AND a re-run, so it proves both
+# I1 and I2, but it never touches the previous GA, so it must not be allowed
+# to satisfy U2. A gate kind absent here falls back to an attestation.
+[platform.checks]
+clean-install = "setup ubuntu:24.04"
+idempotence = "setup ubuntu:24.04"
 
 [[platform]]
 id = "debian12"
@@ -64,8 +67,10 @@ title = "Debian 12"
 method = "container"
 package = "deb"
 support_tier = "untested"
-check = "setup debian:12"
 blocking = true
+[platform.checks]
+clean-install = "setup debian:12"
+idempotence = "setup debian:12"
 
 # -------------------------------------------------------------------- gates
 

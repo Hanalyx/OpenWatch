@@ -220,16 +220,20 @@ def evaluate(gates, tag, commit):
                 # it re-runs on every candidate, so it cannot go stale the way
                 # a hand-recorded observation can. Only gates that need a human
                 # observer refuse it.
-                if p.get("check") and not g.get("human_required"):
+                # Scoped per gate kind: a job proves the claims it actually
+                # asserts and no others. A job that installs cleanly says
+                # nothing about upgrading from the previous GA.
+                pcheck = p.get("checks", {}).get(g["kind"])
+                if pcheck and not g.get("human_required"):
                     if runs is None:
                         yield gid, label, ERROR, "could not read check runs (gh auth?)"
-                    elif p["check"] not in runs:
+                    elif pcheck not in runs:
                         yield (gid, label, MISSING,
-                               f"no run for {p['check']!r} on this commit")
-                    elif runs[p["check"]] == "success":
-                        yield gid, label, PASS, f"{p['check']} on {commit[:8]}"
+                               f"no run for {pcheck!r} on this commit")
+                    elif runs[pcheck] == "success":
+                        yield gid, label, PASS, f"{pcheck} on {commit[:8]}"
                     else:
-                        yield gid, label, FAIL, f"{p['check']}: {runs[p['check']]}"
+                        yield gid, label, FAIL, f"{pcheck}: {runs[pcheck]}"
                     continue
                 match = [a for a in atts
                          if a.get("kind") == g["kind"]
