@@ -138,7 +138,23 @@ func (s stepPostgresCluster) Apply(ctx context.Context, r *Run) error {
 		return err
 	}
 	r.record(s.ID(), "enable", "postgresql.service", "")
-	return nil
+	if r.DryRun {
+		return nil
+	}
+	// systemctl returns once the unit is active, which is not the same as the
+	// server accepting connections. The gap is small enough that a fast host
+	// wins the race and a slower one does not, which is the worst kind of
+	// difference: the next step fails with "cannot determine the PostgreSQL
+	// server version" on some distributions and not others, from identical
+	// code. Wait for the socket rather than trusting the unit state.
+	for i := 0; i < 30; i++ {
+		if postgresReachable(ctx) {
+			return nil
+		}
+		sleep(ctx, 1)
+	}
+	return fmt.Errorf("%s: postgresql started but did not accept connections within 30s; "+
+		"check `systemctl status postgresql` and `journalctl -u postgresql`", s.ID())
 }
 
 type stepPostgresVersion struct{}
@@ -196,19 +212,31 @@ func (stepRole) Describe(p Plan) string {
 		p.Database.RoleName, verb)
 }
 
+// Status never reports Done, deliberately.
+//
+// The role's password and the password inside the DSN this run will write must
+// be the same value, and the only way to guarantee that from any starting state
+// is to set both every time. Skipping the role because it "already exists"
+// leaves whatever password it happened to have, which need not be the one about
+// to be written to secrets.env; the result is "password authentication failed
+// for user openwatch" from an installer that just reported success. ALTER ROLE
+// with the same password is harmless, so converging always is cheaper than
+// detecting divergence.
+//
+// The reported detail still distinguishes the cases, because an md5-hashed role
+// is worth naming: it can never authenticate against the scram-sha-256 rules
+// this installer also writes.
 func (stepRole) Status(ctx context.Context, p Plan) StepStatus {
 	res := psql(ctx, fmt.Sprintf(
 		"SELECT substring(rolpassword,1,13) FROM pg_authid WHERE rolname=%s", sqlLiteral(p.Database.RoleName)))
-	if res.Err != nil || res.Stdout == "" {
+	switch {
+	case res.Err != nil || res.Stdout == "":
 		return StepStatus{}
+	case strings.HasPrefix(strings.ToLower(res.Stdout), "md5"):
+		return StepStatus{Detail: "exists but hashed md5; will be re-set as scram-sha-256"}
+	default:
+		return StepStatus{Detail: "exists; password will be set to match the DSN"}
 	}
-	// A role hashed as md5 against pg_hba rules demanding scram can never
-	// authenticate, and the only symptom is "password authentication failed"
-	// pointing at the role. Treat it as not-done so Apply re-hashes it.
-	if strings.HasPrefix(strings.ToLower(res.Stdout), "md5") {
-		return StepStatus{Detail: "exists but hashed md5; password will be re-set as scram-sha-256"}
-	}
-	return StepStatus{Done: true, Detail: "role exists with a scram-sha-256 password"}
 }
 
 func (s stepRole) Apply(ctx context.Context, r *Run) error {
@@ -306,16 +334,19 @@ func (s stepPgHba) Apply(ctx context.Context, r *Run) error {
 		r.logf("      sudo systemctl reload postgresql")
 		r.logf("")
 		r.logf("    Re-run setup afterwards, or pass --manage-pg-hba to have setup do it.")
-		return nil
+		// Halt rather than continue. Every later step authenticates as this
+		// role, so proceeding guarantees a failure at the migration step whose
+		// message names the role and not the missing rules.
+		return &PauseError{Step: s.ID(), Reason: "pg_hba.conf needs the rules above before " +
+			"the database role can authenticate"}
 	}
 
 	existing, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("%s: read %s: %w", s.ID(), path, err)
 	}
-	block := "\n# BEGIN OpenWatch (added by `openwatch setup`)\n" +
-		strings.Join(lines, "\n") + "\n# END OpenWatch\n"
-	if err := r.writeFile(s.ID(), path, append(existing, []byte(block)...), 0o600); err != nil {
+	updated := insertHbaBlock(string(existing), lines)
+	if err := r.writeFile(s.ID(), path, []byte(updated), 0o600); err != nil {
 		return err
 	}
 	if err := r.mutate(ctx, s.ID(), "reload postgresql", "systemctl", "reload", "postgresql"); err != nil {
@@ -376,7 +407,7 @@ func (stepMigrate) ID() string { return "migrate" }
 func (stepMigrate) Describe(Plan) string { return "apply database migrations" }
 
 func (stepMigrate) Status(ctx context.Context, p Plan) StepStatus {
-	res := psql(ctx, "SELECT max(version_id) FROM goose_db_version")
+	res := psqlIn(ctx, p.Database.Name, "SELECT max(version_id) FROM goose_db_version")
 	if res.Err == nil && res.Stdout != "" && res.Stdout != "0" {
 		return StepStatus{Detail: "schema at version " + res.Stdout + "; pending migrations will be applied"}
 	}
@@ -384,7 +415,7 @@ func (stepMigrate) Status(ctx context.Context, p Plan) StepStatus {
 }
 
 func (s stepMigrate) Apply(ctx context.Context, r *Run) error {
-	return r.mutate(ctx, s.ID(), "openwatch migrate", "sudo", "-u", "openwatch",
+	return r.mutate(ctx, s.ID(), "openwatch migrate", "runuser", "-u", "openwatch", "--",
 		"env", "OPENWATCH_DATABASE_DSN="+r.Plan.Database.DSN(r.DBPassword),
 		openwatchBin, "migrate")
 }
@@ -398,7 +429,9 @@ func (stepAdmin) Describe(p Plan) string {
 }
 
 func (stepAdmin) Status(ctx context.Context, p Plan) StepStatus {
-	res := psql(ctx, fmt.Sprintf("SELECT 1 FROM users WHERE username=%s", sqlLiteral(p.Admin.Username)))
+	res := psqlIn(ctx, p.Database.Name,
+		fmt.Sprintf("SELECT 1 FROM users WHERE username=%s AND deleted_at IS NULL",
+			sqlLiteral(p.Admin.Username)))
 	// A missing users table means migrations have not run yet, which is not
 	// an error at plan time: the migrate step precedes this one.
 	if res.Err == nil && strings.TrimSpace(res.Stdout) == "1" {
@@ -408,7 +441,7 @@ func (stepAdmin) Status(ctx context.Context, p Plan) StepStatus {
 }
 
 func (s stepAdmin) Apply(ctx context.Context, r *Run) error {
-	return r.mutate(ctx, s.ID(), "create-admin", "sudo", "-u", "openwatch",
+	return r.mutate(ctx, s.ID(), "create-admin", "runuser", "-u", "openwatch", "--",
 		"env", "OPENWATCH_DATABASE_DSN="+r.Plan.Database.DSN(r.DBPassword),
 		openwatchBin, "create-admin",
 		"--username", r.Plan.Admin.Username,
@@ -526,6 +559,12 @@ func postgresMajor(ctx context.Context) int {
 	return n / 10000
 }
 
+// roleExists reports whether the login role is already present.
+func roleExists(ctx context.Context, name string) bool {
+	res := psql(ctx, fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname=%s", sqlLiteral(name)))
+	return res.Err == nil && strings.TrimSpace(res.Stdout) == "1"
+}
+
 func postgresReachable(ctx context.Context) bool {
 	return psql(ctx, "SELECT 1").Err == nil
 }
@@ -559,6 +598,46 @@ func pgHbaLines(dbName, roleName string) []string {
 		fmt.Sprintf("host    %-12s %-12s 127.0.0.1/32    scram-sha-256", dbName, roleName),
 		fmt.Sprintf("host    %-12s %-12s ::1/128         scram-sha-256", dbName, roleName),
 	}
+}
+
+// insertHbaBlock places the rules ABOVE the first existing authentication
+// rule, never at the end of the file.
+//
+// pg_hba.conf is first-match-wins, and the stock RHEL file contains
+//
+//	host    all    all    127.0.0.1/32    ident
+//
+// so a block appended to the end is unreachable: ident matches first and the
+// connection fails with "Ident authentication failed for user openwatch",
+// naming a mechanism the operator never chose. Appending is the intuitive
+// implementation and it silently does nothing useful.
+func insertHbaBlock(content string, lines []string) string {
+	block := []string{"# BEGIN OpenWatch (added by `openwatch setup`)"}
+	block = append(block, lines...)
+	block = append(block, "# END OpenWatch", "")
+
+	src := strings.Split(content, "\n")
+	insertAt := -1
+	for i, line := range src {
+		f := strings.Fields(strings.TrimSpace(line))
+		if len(f) == 0 || strings.HasPrefix(f[0], "#") {
+			continue
+		}
+		// The first active connection-type rule; everything below it is
+		// shadowed for the tuples we care about.
+		if f[0] == "local" || f[0] == "host" || f[0] == "hostssl" || f[0] == "hostnossl" {
+			insertAt = i
+			break
+		}
+	}
+	if insertAt < 0 {
+		return content + "\n" + strings.Join(block, "\n")
+	}
+	out := make([]string, 0, len(src)+len(block))
+	out = append(out, src[:insertAt]...)
+	out = append(out, block...)
+	out = append(out, src[insertAt:]...)
+	return strings.Join(out, "\n")
 }
 
 // hasOpenWatchHbaRules reports whether both loopback rules are present and

@@ -10,6 +10,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,6 +41,8 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		listenPort    = fs.Int("listen-port", 0, "HTTPS port (default 8443)")
 		adminUser     = fs.String("admin-username", "", "first admin username (default admin)")
 		adminEmail    = fs.String("admin-email", "", "first admin email")
+		adminPwFrom   = fs.String("admin-password-from", "", "where the admin password comes from: prompt | generate | env:NAME | file:PATH")
+		dbPwFrom      = fs.String("db-password-from", "", "where the database password comes from: generate | prompt | env:NAME | file:PATH")
 	)
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -78,6 +81,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		managePgHba: *managePgHba, dbMode: *dbMode, dbHost: *dbHost, dbPort: *dbPort,
 		dbName: *dbName, dbRole: *dbRole, listenPort: *listenPort,
 		adminUser: *adminUser, adminEmail: *adminEmail,
+		adminPwFrom: *adminPwFrom, dbPwFrom: *dbPwFrom,
 	}, fs)
 
 	interactive := !*yes && *planPath == "" && isTerminal(os.Stdin)
@@ -140,15 +144,29 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 	if interactive {
 		prompt = func(label string) (string, error) { return readSecret(stdout, os.Stdin, label) }
 	}
-	if err := setup.ResolveSecrets(r, prompt); err != nil {
+	if err := setup.ResolveSecrets(ctx, r, prompt); err != nil {
 		fmt.Fprintf(stderr, "openwatch setup: %v\n", err)
 		return 1
 	}
 
 	out("")
 	if err := setup.Execute(ctx, r, planned); err != nil {
+		receipt, _ := setup.WriteReceipt(r, version.Version)
+		// A pause is the operator's own choice coming due, not a fault, and
+		// saying "failed" for it would send them looking for a bug.
+		var pause *setup.PauseError
+		if errors.As(err, &pause) {
+			out("")
+			out("Setup paused: %s", pause.Reason)
+			out("Everything before this step is done. Complete the manual step above,")
+			out("then run `openwatch setup` again to continue from here.")
+			if receipt != "" {
+				out("Progress recorded at %s", receipt)
+			}
+			return 3
+		}
 		fmt.Fprintf(stderr, "\nopenwatch setup: %v\n", err)
-		if receipt, werr := setup.WriteReceipt(r, version.Version); werr == nil && receipt != "" {
+		if receipt != "" {
 			fmt.Fprintf(stderr, "Partial run recorded at %s; setup is idempotent, so fix the "+
 				"cause and run it again.\n", receipt)
 		}
@@ -169,6 +187,28 @@ type flagOverrides struct {
 	dbRole                 string
 	dbPort, listenPort     int
 	adminUser, adminEmail  string
+	adminPwFrom, dbPwFrom  string
+}
+
+// parseSecretSpec turns a --*-password-from value into a Secret.
+//
+// Unattended installs need a way to supply credentials that is not a prompt,
+// and the alternatives are worse: a --password flag lands the value in the
+// process table and shell history, where any user on the box can read it.
+// env: and file: keep it out of both.
+func parseSecretSpec(spec string) (setup.Secret, error) {
+	switch {
+	case spec == "generate":
+		return setup.Secret{Source: setup.SecretGenerate, Length: 32}, nil
+	case spec == "prompt":
+		return setup.Secret{Source: setup.SecretPrompt}, nil
+	case strings.HasPrefix(spec, "env:"):
+		return setup.Secret{Source: setup.SecretEnv, Ref: strings.TrimPrefix(spec, "env:")}, nil
+	case strings.HasPrefix(spec, "file:"):
+		return setup.Secret{Source: setup.SecretFile, Ref: strings.TrimPrefix(spec, "file:")}, nil
+	default:
+		return setup.Secret{}, fmt.Errorf("password source %q must be generate, prompt, env:NAME, or file:PATH", spec)
+	}
 }
 
 // applyFlagOverrides applies only the flags actually passed, so a flag left
@@ -202,6 +242,16 @@ func applyFlagOverrides(p *setup.Plan, o flagOverrides, fs *flag.FlagSet) {
 	}
 	if set["admin-email"] {
 		p.Admin.Email = o.adminEmail
+	}
+	if set["admin-password-from"] {
+		if sec, err := parseSecretSpec(o.adminPwFrom); err == nil {
+			p.Admin.Password = sec
+		}
+	}
+	if set["db-password-from"] {
+		if sec, err := parseSecretSpec(o.dbPwFrom); err == nil {
+			p.Database.Password = sec
+		}
 	}
 }
 

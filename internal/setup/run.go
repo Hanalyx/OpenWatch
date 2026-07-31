@@ -96,6 +96,13 @@ func (r *Run) mutate(ctx context.Context, step, what string, name string, args .
 
 // psql runs SQL as the PostgreSQL superuser over the local socket.
 //
+// runuser rather than sudo. setup already runs as root, so there is no
+// privilege to acquire, and sudo drags in a PAM stack that is not guaranteed
+// to be configured: on minimal AlmaLinux and Oracle Linux images `sudo -u
+// postgres` fails with "PAM account management error: Authentication service
+// cannot retrieve authentication info" while runuser works. It also removes a
+// dependency on sudo being installed at all.
+//
 // Deliberately invoked from a directory the postgres user can read: running it
 // from root's home produces "could not change directory to /root: Permission
 // denied" on every call, which is harmless but reads as a failure and has sent
@@ -103,7 +110,27 @@ func (r *Run) mutate(ctx context.Context, step, what string, name string, args .
 func psql(ctx context.Context, sql string) cmdResult {
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, "sudo", "-u", "postgres", "psql", "-tAqc", sql)
+	cmd := exec.CommandContext(cctx, "runuser", "-u", "postgres", "--", "psql", "-tAqc", sql)
+	cmd.Dir = "/tmp"
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return cmdResult{Stdout: strings.TrimSpace(stdout.String()), Stderr: strings.TrimSpace(stderr.String()), Err: err}
+}
+
+// psqlIn runs SQL against a NAMED database as the superuser.
+//
+// psql without -d connects to the "postgres" maintenance database. The cluster
+// objects (roles, databases, settings) live there, but the application's own
+// tables do not, so an idempotence check for a row in the openwatch database
+// has to say so. Getting this wrong is silent: the query errors with "relation
+// does not exist", the step reads that as not-yet-done, and re-running the
+// installer tries to create something that is already there.
+func psqlIn(ctx context.Context, database, sql string) cmdResult {
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, "runuser", "-u", "postgres", "--", "psql", "-d", database, "-tAqc", sql)
 	cmd.Dir = "/tmp"
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout

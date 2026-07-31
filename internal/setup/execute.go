@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,6 +187,25 @@ func RenderPlan(w func(string, ...any), p Plan, checks []Check, planned []Planne
 	w("")
 }
 
+// PauseError stops the run for a manual step the operator chose to own,
+// rather than for a failure.
+//
+// The distinction is not cosmetic. Without it, declining to manage pg_hba.conf
+// means setup writes the DSN, then fails at the migration step with "Ident
+// authentication failed for user openwatch" -- an error two steps downstream of
+// its cause, naming the role rather than the host-based authentication rules.
+// Halting at the step that needs the operator keeps the message next to the
+// problem, and because every step is idempotent, re-running afterwards
+// continues from here.
+type PauseError struct {
+	Step   string
+	Reason string
+}
+
+func (e *PauseError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Step, e.Reason)
+}
+
 // Execute applies the steps that are not already satisfied.
 func Execute(ctx context.Context, r *Run, planned []PlannedStep) error {
 	for _, ps := range planned {
@@ -286,15 +306,59 @@ func portFree(port int) bool {
 // ResolveSecrets fills the run's credentials from their declared sources. It
 // is the only place a secret enters the process, and nothing here writes one
 // to the plan, the receipt, or the log.
-func ResolveSecrets(r *Run, prompt func(label string) (string, error)) error {
+func ResolveSecrets(ctx context.Context, r *Run, prompt func(label string) (string, error)) error {
 	var err error
-	if r.DBPassword, err = resolveSecret("database password", r.Plan.Database.Password, prompt); err != nil {
+	if r.DBPassword, err = resolveDBPassword(ctx, r.Plan, prompt); err != nil {
 		return err
 	}
 	if r.AdminPassword, err = resolveSecret("admin password", r.Plan.Admin.Password, prompt); err != nil {
 		return err
 	}
 	return nil
+}
+
+// resolveDBPassword reuses the password already in secrets.env when the role
+// exists and the plan asks for a generated one.
+//
+// Without this, a second run generates a fresh password, skips the role step
+// because the role already exists, and writes the new password into the DSN.
+// The role then holds the old password and the DSN the new one, and the next
+// step fails with "password authentication failed for user openwatch" -- the
+// same symptom as a mistyped password, from an installer that had just
+// succeeded. Reuse also means re-running setup does not silently rotate a
+// credential that other things may depend on.
+func resolveDBPassword(ctx context.Context, p Plan, prompt func(string) (string, error)) (string, error) {
+	if p.Database.Password.Source == SecretGenerate {
+		if pw, ok := existingDSNPassword(secretsEnvPath); ok && roleExists(ctx, p.Database.RoleName) {
+			return pw, nil
+		}
+	}
+	return resolveSecret("database password", p.Database.Password, prompt)
+}
+
+// existingDSNPassword recovers the password from a previously written
+// secrets.env. Parsed as a URI rather than by string surgery, so a password
+// containing reserved characters is decoded the same way the server decodes it.
+func existingDSNPassword(path string) (string, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		raw, found := strings.CutPrefix(line, "OPENWATCH_DATABASE_DSN=")
+		if !found {
+			continue
+		}
+		u, err := url.Parse(strings.Trim(raw, `"'`))
+		if err != nil || u.User == nil {
+			return "", false
+		}
+		if pw, set := u.User.Password(); set && pw != "" {
+			return pw, true
+		}
+	}
+	return "", false
 }
 
 func resolveSecret(label string, s Secret, prompt func(string) (string, error)) (string, error) {
