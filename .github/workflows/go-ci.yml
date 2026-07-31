@@ -191,6 +191,14 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         run: make vuln
 
+      # The release readiness checker decides go/no-go for a candidate, so its
+      # own guards have to hold: evidence tied to an artifact digest goes
+      # stale when the bits change, an unreadable checksum list fails closed,
+      # and an agent cannot satisfy a gate that requires a human observer.
+      # Stdlib only and no network, so this runs unconditionally and fast.
+      - name: release gate checker tests
+        run: python3 scripts/test_release_status.py
+
       # Annotation hygiene: cross-reference every test's @spec / @ac
       # annotation against the spec registry and fail on a dangling spec
       # ref, unknown AC id, malformed AC id, or unreachable annotation

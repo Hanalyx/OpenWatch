@@ -219,6 +219,12 @@ spec-check:
 release-status:
 	python3 scripts/release-status.py $(if $(TAG),--tag $(TAG),)
 
+# release-status-test: the checker's own guards. Stdlib only, no network,
+# runs in milliseconds. CI runs this in the Quality gates job.
+.PHONY: release-status-test
+release-status-test:
+	python3 scripts/test_release_status.py
+
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
 # speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
 # dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.

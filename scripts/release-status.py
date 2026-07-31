@@ -91,11 +91,17 @@ def release_assets(tag):
 
 
 def release_digests(tag):
-    """sha256 -> filename, from the candidate's published SHA256SUMS."""
+    """sha256 -> filename, from the candidate's published SHA256SUMS.
+
+    Returns None when the list could not be read at all, which callers must
+    treat as "cannot verify" rather than "nothing to check against". An
+    unreachable checksum list is the one case where a stale attestation would
+    otherwise sail through as PASS.
+    """
     rc, out = sh("gh", "release", "download", tag, "--pattern", "SHA256SUMS",
                  "--output", "-")
     if rc != 0:
-        return {}
+        return None
     digests = {}
     for line in out.splitlines():
         parts = line.split()
@@ -135,7 +141,13 @@ def eval_attestation(att, digests, human_required):
     sha = att.get("artifact_sha256")
     if not sha:
         return FAIL, f"{att['_file']}: no artifact_sha256"
-    if digests and sha not in digests:
+    if digests is None:
+        # Fail closed. If the candidate's SHA256SUMS cannot be read, the
+        # attestation cannot be tied to these bits, and an unverifiable claim
+        # is not evidence.
+        return ERROR, (f"{att['_file']}: cannot read SHA256SUMS for this "
+                       "candidate, so the attested artifact is unverifiable")
+    if sha not in digests:
         return STALE, (f"{att['_file']}: artifact {sha[:12]} is not in this "
                        "candidate's SHA256SUMS")
     who = att.get("performed_by", "?")

@@ -339,6 +339,12 @@ frontend_test.log
 *test*.js
 *test*.cjs
 
+# Committed test suites, which the blanket patterns above would otherwise
+# swallow silently: `git add` refuses and prints nothing unless you look.
+# scripts/test_release_status.py was lost this way once.
+!scripts/test_*.py
+!scripts/test_*.sh
+
 # ...but scripts/ holds real, tracked tooling whose names contain "test". The
 # blanket patterns above silently swallowed scripts/test-db.sh: `git add`
 # refused it, the Makefile shipped referencing a script that was never
