@@ -1,0 +1,278 @@
+spec:
+  id: system-setup
+  title: Guided installer (openwatch setup)
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: One-command install
+    description: >
+      `openwatch setup` takes a host with the packages installed to a running,
+      signed-in OpenWatch: provision PostgreSQL, create the role and database,
+      write the DSN, migrate, create the first admin, start the service, and
+      prove it answers. It detects, shows a plan, asks, applies only what is
+      missing, and records what it touched.
+    related_specs:
+      - release-package-build
+      - system-db
+      - system-config
+
+  objective:
+    summary: >
+      Every failure observed in a v0.7.0 install walkthrough was a
+      transcription or an assumption rather than a misunderstanding: an
+      indented heredoc terminator, trailing whitespace after a line
+      continuation, an unencoded '@' in a DSN, a password_encryption default
+      that differs by PostgreSQL version, a pg_hba.conf edit that removed the
+      local rule, and a distro default of PostgreSQL 13 under a guide asking
+      for 14. None concerned OpenWatch itself. A document copied by hand cannot
+      remove that class of error; a program can.
+    scope:
+      includes:
+        - Detection of distribution, PostgreSQL, SELinux, FIPS, fapolicyd
+        - A plan shown before any change, with per-step already-done status
+        - Guided, --yes, and --plan fill modes over one plan object
+        - Provisioning PostgreSQL, role, database, DSN, migrations, admin, service
+        - A health check that proves the install rather than declaring it
+        - A receipt recording every change
+      excludes:
+        - Installing the OpenWatch packages themselves (the package ships setup)
+        - Non-systemd init systems
+        - Remote PostgreSQL provisioning (mode existing validates, never provisions)
+
+  constraints:
+    - id: C-01
+      description: >
+        The DSN MUST be assembled by net/url from a raw password, never by
+        string concatenation. A DSN is a URI: an unencoded '@', '/' or ':' in
+        the password silently relocates the URI boundaries, and the resulting
+        failure names the role or the host rather than the connection string.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >
+        The plan MUST record only where each credential comes from, never its
+        value, and the receipt MUST NOT contain a credential. This is what
+        makes a plan file safe to commit, attach to a ticket, or replay across
+        a fleet.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >
+        CREATE ROLE MUST set password_encryption to scram-sha-256 in the same
+        session. The server default changed from md5 in PostgreSQL 14 and RHEL
+        9 still ships 13, so inheriting it produces a role that cannot
+        authenticate against the pg_hba rules setup itself requires. A role
+        found already hashed md5 MUST be re-hashed.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >
+        The database role's password and the password written into the DSN MUST
+        be the same value after every run. A generated password that is not
+        reused across runs, or a role step skipped because the role exists,
+        produces a role and a DSN holding different secrets and a
+        "password authentication failed" error from an installer that just
+        reported success.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >
+        pg_hba.conf MUST NOT be modified unless --manage-pg-hba is passed.
+        Editing it is the most effective way to lock an operator out of their
+        own database. When managed, setup MUST back the file up, insert its
+        block ABOVE the first existing authentication rule (pg_hba is
+        first-match-wins, and the stock RHEL file matches 127.0.0.1/32 with
+        ident before any appended block), validate by reload, and restore the
+        original if the reload fails.
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >
+        Declining to manage pg_hba.conf MUST halt the run at that step with the
+        required lines, not continue. Every later step authenticates as the
+        role, so proceeding guarantees a failure two steps downstream whose
+        message names ident authentication rather than the missing rules.
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: >
+        Every step MUST report whether it is already satisfied before it acts,
+        and MUST be safe to re-run. The usual moment to run an installer is
+        after a previous attempt failed part-way. Status checks against
+        application tables MUST target the application database: psql without
+        -d connects to the postgres maintenance database, where those tables do
+        not exist, and the resulting error reads as not-yet-done.
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >
+        Privilege drops MUST use runuser, not sudo. setup already runs as root,
+        so there is nothing to acquire, and sudo requires a PAM stack that is
+        not always configured: on minimal AlmaLinux and Oracle Linux images
+        `sudo -u postgres` fails with a PAM account management error while
+        runuser succeeds.
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: >
+        After starting PostgreSQL, setup MUST wait for the server to accept
+        connections rather than trusting systemctl's return. The unit becomes
+        active before the socket is ready, and the gap is wide enough that some
+        distributions win the race and others do not, producing an
+        inconsistent "cannot determine the PostgreSQL server version" from
+        identical code.
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >
+        Platform support MUST be three-valued and enforced in code: tested runs,
+        untested requires --allow-untested, unsupported refuses. Publishing a
+        support matrix that CI does not exercise is how a support statement
+        starts lying; refusing every unrecognised host would block derivatives
+        running identical paths.
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >
+        Role and database names reaching SQL MUST be restricted to plain
+        identifiers rather than escaped. These are interpolated into CREATE
+        statements, which cannot be parameterised; rejecting a hostile
+        identifier is safer than trusting an escape.
+      type: security
+      enforcement: error
+    - id: C-12
+      description: >
+        The run MUST end by confirming the API answers and reports
+        db_connected, not by declaring success. An installer that reports done
+        when the service is not serving moves the failure later and further
+        from its cause.
+      type: technical
+      enforcement: error
+
+    - id: C-13
+      description: >
+        setup MUST allow the listen port through an active host firewall, and
+        the completion summary MUST NOT imply reachability it did not check.
+        The health check runs over loopback, where the firewall does not apply,
+        so a fully firewalled host is indistinguishable from a working one: a
+        live RHEL 9.8 install passed every internal check and was unreachable
+        from every other machine with "No route to host". Opening the port is
+        the default rather than opt-in, unlike the pg_hba edit, because the two
+        risks differ in kind: a pg_hba mistake removes access the operator
+        already had, whereas allowing the port a web application listens on is
+        the access they requested by installing it. --no-firewall declines it,
+        and when the port is left closed the run says so explicitly.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        A password containing any URI-reserved character round-trips through
+        DatabasePlan.DSN: parsing the result recovers the exact password and
+        leaves username, host and port intact.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >
+        Derive computes dependent fields: a listen port below 1024 sets
+        bind_capability, and a non-loopback database host raises sslmode off
+        disable.
+      priority: high
+    - id: AC-03
+      description: >
+        Validate rejects provisioning a remote host, cleartext to a remote
+        host, identifiers that are not plain, out-of-range ports, unknown
+        sslmodes, an address without '@', a secret source of env or file with
+        no ref, and a generated length under 16. The default plan validates and
+        does NOT manage pg_hba.conf.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-04
+      description: >
+        Platform support tiers resolve correctly: RHEL 9 is tested, other
+        RHEL-family majors 8 to 10 and Debian-family are untested, unknown
+        families and unparseable versions are unsupported. ID_LIKE is consulted
+        so an unlisted derivative naming its parent is placed correctly.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-05
+      description: >
+        insertHbaBlock places its block above the first active authentication
+        rule, never at the end. Given a stock file whose first rule is
+        "host all all 127.0.0.1/32 ident", the OpenWatch rules precede it.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: >
+        existingDSNPassword recovers the password from a previously written
+        secrets.env by URI parsing, so a password containing reserved
+        characters is decoded exactly as the server decodes it, and returns not
+        found for a missing file or a line without a DSN.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-07
+      description: >
+        hasOpenWatchHbaRules detects both loopback rules regardless of
+        whitespace, ignores commented lines, and accepts the "all" wildcards
+        that a hand-written file may use.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-08
+      description: >
+        Source inspection: no invocation of "sudo" remains in internal/setup;
+        privilege drops use runuser.
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-09
+      description: >
+        Source inspection: the pg_hba step returns a PauseError when the rules
+        are missing and ManagePgHba is false, rather than returning nil and
+        letting later steps proceed.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: >
+        Container verification across the RHEL family, recorded here because it
+        cannot run in unit tests. With the shipped RPM on systemd containers,
+        `openwatch setup --yes --allow-untested --manage-pg-hba` completes and
+        the health endpoint reports db_connected on Rocky 9, AlmaLinux 9,
+        Oracle Linux 9 and AlmaLinux 10; a second identical run also exits zero,
+        proving idempotence. AlmaLinux 8 is correctly refused because its
+        default PostgreSQL is 10, below the floor of 13, with a message naming
+        the remedy.
+      priority: critical
+      references_constraints: [C-07, C-09, C-12]
+    - id: AC-11
+      description: >
+        Live verification on RHEL 9.8, recorded here for the same reason as
+        AC-10. One invocation went from no cluster to a signed-in
+        administrator, and a second invocation left that administrator able to
+        log in. The assumptions it rests on are still checkable: RHEL 9 is a
+        tested platform needing no override, the default plan generates and
+        then reuses the database password rather than rotating it per run, and
+        the completion summary resolves a wildcard listen address to something
+        an operator can open.
+      priority: critical
+      references_constraints: [C-04, C-10, C-13]
+    - id: AC-12
+      description: >
+        The role mutation sets password_encryption to scram-sha-256 in the same
+        statement as CREATE ROLE or ALTER ROLE, so the hash does not depend on
+        the server default, and a role found already hashed md5 is re-hashed by
+        the ALTER path. The password is a quote-doubled literal.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-13
+      description: >
+        Neither the serialised plan nor the receipt contains a credential
+        value, and the Secret type declares no field able to hold one. Both
+        files are written root-only (0600): they are the two artifacts the run
+        leaves behind for a human, setup writes them as root, and neither has a
+        reader that is not root. secrets.env is the deliberate exception at
+        0640, because it is chowned to the service group that must read the DSN.
+      priority: critical
+      references_constraints: [C-02]
