@@ -144,6 +144,8 @@ func run(args []string, stdout, stderr *os.File) int {
 		return cmdCheckConfig(cfg, rest, stdout, stderr)
 	case "create-admin":
 		return cmdCreateAdmin(cfg, rest, stdout, stderr)
+	case "setup":
+		return cmdSetup(rest, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "openwatch: unknown subcommand %q\n\n", subcommand)
 		printUsage(stderr)
@@ -1006,6 +1008,12 @@ subcommands:
                   --backup-dir <dir>  pg_dump a restore point before applying
   create-admin  create the first admin user (requires --username --email --password)
   check-config  validate and print resolved config
+  setup         provision the database, configure, and start the service
+                  --dry-run          show the plan, change nothing
+                  --yes              accept defaults without prompting
+                  --plan <file>      apply a saved plan
+                  --save-plan <file> capture answers without applying
+                  --manage-pg-hba    let setup edit pg_hba.conf
 
 global flags:
   --config <path>       TOML config file (default %s)

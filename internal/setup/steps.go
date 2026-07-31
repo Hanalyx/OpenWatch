@@ -1,0 +1,591 @@
+// The steps `openwatch setup` performs, in order.
+//
+// Each step answers three questions independently: is it already done
+// (Status), what would doing it mean (Describe), and do it (Apply). Keeping
+// Status separate is what makes the whole run idempotent and what lets the
+// plan be shown before anything is touched.
+package setup
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// PostgreSQL floors. These mirror internal/db: the hard floor is what the
+// migrations actually require (gen_random_uuid became a built-in in 13), the
+// supported floor is policy (14 reaches end of life in November 2026, inside
+// this release's service life). setup checks before installing so the operator
+// finds out at the start rather than at the migration step.
+const (
+	minPostgresMajor       = 13
+	supportedPostgresMajor = 15
+)
+
+// StepStatus is the result of a step's idempotence check.
+type StepStatus struct {
+	// Done means the desired state already holds; Apply will be skipped.
+	Done bool
+	// Detail is shown in the plan, e.g. "already exists" or the version found.
+	Detail string
+}
+
+// Step is one unit of the install.
+type Step interface {
+	ID() string
+	// Describe says what applying it would do, for the plan.
+	Describe(p Plan) string
+	// Status reports whether it is already satisfied. Must not mutate.
+	Status(ctx context.Context, p Plan) StepStatus
+	// Apply performs it.
+	Apply(ctx context.Context, r *Run) error
+}
+
+// Steps returns the ordered steps for a plan. Order matters and is not
+// configurable: the database must exist before migrations, migrations before
+// the admin user, and the service starts last so it never boots against a
+// schema that is not there.
+func Steps(p Plan) []Step {
+	var s []Step
+	if p.Database.Mode == DBProvision {
+		s = append(s, stepPostgresInstall{}, stepPostgresCluster{})
+	}
+	s = append(s,
+		stepPostgresVersion{},
+		stepRole{},
+		stepDatabase{},
+		stepPgHba{},
+		stepSecretsEnv{},
+	)
+	if p.Migrate {
+		s = append(s, stepMigrate{})
+	}
+	s = append(s, stepAdmin{}, stepService{}, stepVerify{})
+	return s
+}
+
+// ---------------------------------------------------------------- postgres
+
+type stepPostgresInstall struct{}
+
+func (stepPostgresInstall) ID() string { return "postgres-install" }
+
+func (stepPostgresInstall) Describe(p Plan) string {
+	if p.Platform.Family == FamilyDebian {
+		return "install PostgreSQL (apt-get install postgresql postgresql-contrib)"
+	}
+	return "install PostgreSQL (dnf install postgresql-server postgresql-contrib)"
+}
+
+func (stepPostgresInstall) Status(ctx context.Context, p Plan) StepStatus {
+	if v := postgresMajor(ctx); v > 0 {
+		return StepStatus{Done: true, Detail: fmt.Sprintf("PostgreSQL %d already installed", v)}
+	}
+	return StepStatus{}
+}
+
+func (s stepPostgresInstall) Apply(ctx context.Context, r *Run) error {
+	if r.Plan.Platform.Family == FamilyDebian {
+		if err := r.mutate(ctx, s.ID(), "apt-get update", "apt-get", "update"); err != nil {
+			return err
+		}
+		if err := r.mutate(ctx, s.ID(), "install postgresql", "apt-get", "install", "-y",
+			"postgresql", "postgresql-contrib"); err != nil {
+			return err
+		}
+	} else {
+		if err := r.mutate(ctx, s.ID(), "install postgresql-server", "dnf", "install", "-y",
+			"postgresql-server", "postgresql-contrib"); err != nil {
+			return err
+		}
+	}
+	r.record(s.ID(), "install", "postgresql", "")
+	return nil
+}
+
+type stepPostgresCluster struct{}
+
+func (stepPostgresCluster) ID() string { return "postgres-cluster" }
+
+func (stepPostgresCluster) Describe(p Plan) string {
+	if p.Platform.Family == FamilyDebian {
+		return "enable and start postgresql (Debian initialises the cluster on install)"
+	}
+	return "initialise the data directory and enable postgresql"
+}
+
+func (stepPostgresCluster) Status(ctx context.Context, p Plan) StepStatus {
+	if postgresReachable(ctx) {
+		return StepStatus{Done: true, Detail: "cluster is running"}
+	}
+	return StepStatus{}
+}
+
+func (s stepPostgresCluster) Apply(ctx context.Context, r *Run) error {
+	// RHEL ships an uninitialised data directory; Debian initialises on
+	// install. initdb is only safe when the directory is genuinely empty, so
+	// this checks rather than relying on the family alone.
+	if r.Plan.Platform.Family == FamilyRHEL && !postgresDataDirInitialised() {
+		if err := r.mutate(ctx, s.ID(), "initdb", "postgresql-setup", "--initdb"); err != nil {
+			return err
+		}
+		r.record(s.ID(), "initdb", "/var/lib/pgsql/data", "")
+	}
+	if err := r.mutate(ctx, s.ID(), "enable postgresql", "systemctl", "enable", "--now", "postgresql"); err != nil {
+		return err
+	}
+	r.record(s.ID(), "enable", "postgresql.service", "")
+	return nil
+}
+
+type stepPostgresVersion struct{}
+
+func (stepPostgresVersion) ID() string { return "postgres-version" }
+
+func (stepPostgresVersion) Describe(Plan) string {
+	return fmt.Sprintf("verify PostgreSQL >= %d (supported >= %d)", minPostgresMajor, supportedPostgresMajor)
+}
+
+func (stepPostgresVersion) Status(ctx context.Context, p Plan) StepStatus {
+	v := postgresMajor(ctx)
+	switch {
+	case v == 0:
+		return StepStatus{}
+	case v < minPostgresMajor:
+		return StepStatus{Detail: fmt.Sprintf("PostgreSQL %d is BELOW the minimum %d", v, minPostgresMajor)}
+	case v < supportedPostgresMajor:
+		return StepStatus{Done: true, Detail: fmt.Sprintf("PostgreSQL %d (below supported %d, will warn)", v, supportedPostgresMajor)}
+	default:
+		return StepStatus{Done: true, Detail: fmt.Sprintf("PostgreSQL %d", v)}
+	}
+}
+
+func (s stepPostgresVersion) Apply(ctx context.Context, r *Run) error {
+	v := postgresMajor(ctx)
+	if v == 0 {
+		return fmt.Errorf("%s: cannot determine the PostgreSQL server version", s.ID())
+	}
+	if v < minPostgresMajor {
+		return fmt.Errorf(
+			"%s: PostgreSQL %d is too old; OpenWatch requires %d or newer because the "+
+				"schema uses gen_random_uuid as a column default. Upgrade the server, or "+
+				"on RHEL enable a newer module stream (dnf module list postgresql)",
+			s.ID(), v, minPostgresMajor)
+	}
+	if v < supportedPostgresMajor {
+		r.logf("    WARNING: PostgreSQL %d is below the supported minimum %d. It will work, "+
+			"but note that %d defaults password_encryption to md5 where 14+ default to "+
+			"scram-sha-256", v, supportedPostgresMajor, v)
+	}
+	return nil
+}
+
+type stepRole struct{}
+
+func (stepRole) ID() string { return "database-role" }
+
+func (stepRole) Describe(p Plan) string {
+	verb := map[SecretSource]string{
+		SecretGenerate: "a generated", SecretPrompt: "an operator-supplied",
+		SecretEnv: "an environment-supplied", SecretFile: "a file-supplied",
+	}[p.Database.Password.Source]
+	return fmt.Sprintf("create role %q with %s password, hashed scram-sha-256",
+		p.Database.RoleName, verb)
+}
+
+func (stepRole) Status(ctx context.Context, p Plan) StepStatus {
+	res := psql(ctx, fmt.Sprintf(
+		"SELECT substring(rolpassword,1,13) FROM pg_authid WHERE rolname=%s", sqlLiteral(p.Database.RoleName)))
+	if res.Err != nil || res.Stdout == "" {
+		return StepStatus{}
+	}
+	// A role hashed as md5 against pg_hba rules demanding scram can never
+	// authenticate, and the only symptom is "password authentication failed"
+	// pointing at the role. Treat it as not-done so Apply re-hashes it.
+	if strings.HasPrefix(strings.ToLower(res.Stdout), "md5") {
+		return StepStatus{Detail: "exists but hashed md5; password will be re-set as scram-sha-256"}
+	}
+	return StepStatus{Done: true, Detail: "role exists with a scram-sha-256 password"}
+}
+
+func (s stepRole) Apply(ctx context.Context, r *Run) error {
+	name := r.Plan.Database.RoleName
+	exists := psql(ctx, fmt.Sprintf("SELECT 1 FROM pg_roles WHERE rolname=%s", sqlLiteral(name)))
+	verb := "CREATE ROLE"
+	if exists.Err == nil && strings.TrimSpace(exists.Stdout) == "1" {
+		verb = "ALTER ROLE"
+	}
+	// password_encryption is SET in the same session, so the hash format does
+	// not depend on the server default. That default changed from md5 to
+	// scram-sha-256 in PostgreSQL 14, and RHEL 9 still ships 13, so relying on
+	// it produces a role that cannot authenticate against the pg_hba rules
+	// this installer also writes.
+	sql := fmt.Sprintf("SET password_encryption = 'scram-sha-256'; %s %s WITH LOGIN PASSWORD %s",
+		verb, name, sqlLiteral(r.DBPassword))
+	if err := r.psqlMutate(ctx, s.ID(), strings.ToLower(verb), sql); err != nil {
+		return err
+	}
+	r.record(s.ID(), strings.ToLower(verb), "role "+name, "")
+	return nil
+}
+
+type stepDatabase struct{}
+
+func (stepDatabase) ID() string { return "database" }
+
+func (stepDatabase) Describe(p Plan) string {
+	return fmt.Sprintf("create database %q owned by %q", p.Database.Name, p.Database.RoleName)
+}
+
+func (stepDatabase) Status(ctx context.Context, p Plan) StepStatus {
+	res := psql(ctx, fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname=%s", sqlLiteral(p.Database.Name)))
+	if res.Err == nil && strings.TrimSpace(res.Stdout) == "1" {
+		return StepStatus{Done: true, Detail: "database exists"}
+	}
+	return StepStatus{}
+}
+
+func (s stepDatabase) Apply(ctx context.Context, r *Run) error {
+	sql := fmt.Sprintf("CREATE DATABASE %s OWNER %s", r.Plan.Database.Name, r.Plan.Database.RoleName)
+	if err := r.psqlMutate(ctx, s.ID(), "create database", sql); err != nil {
+		return err
+	}
+	r.record(s.ID(), "create", "database "+r.Plan.Database.Name, "")
+	return nil
+}
+
+// ------------------------------------------------------------------ pg_hba
+
+type stepPgHba struct{}
+
+func (stepPgHba) ID() string { return "pg-hba" }
+
+func (stepPgHba) Describe(p Plan) string {
+	if !p.Database.ManagePgHba {
+		return "check pg_hba.conf for the required host rules and print them if missing (not editing; pass --manage-pg-hba to write them)"
+	}
+	return "append the OpenWatch host rules to pg_hba.conf, after backing it up"
+}
+
+func (stepPgHba) Status(ctx context.Context, p Plan) StepStatus {
+	path := pgHbaPath(ctx)
+	if path == "" {
+		return StepStatus{}
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return StepStatus{}
+	}
+	if hasOpenWatchHbaRules(string(b), p.Database.Name, p.Database.RoleName) {
+		return StepStatus{Done: true, Detail: "rules already present in " + path}
+	}
+	return StepStatus{Detail: "rules missing from " + path}
+}
+
+func (s stepPgHba) Apply(ctx context.Context, r *Run) error {
+	path := pgHbaPath(ctx)
+	if path == "" {
+		return fmt.Errorf("%s: cannot locate pg_hba.conf", s.ID())
+	}
+	lines := pgHbaLines(r.Plan.Database.Name, r.Plan.Database.RoleName)
+
+	if !r.Plan.Database.ManagePgHba {
+		// The default. Editing this file by hand is how an operator locks
+		// themselves out of local postgres access, and doing it automatically
+		// carries the same risk, so setup asks rather than assumes.
+		r.logf("    pg_hba.conf needs these lines. Add them ABOVE any catch-all")
+		r.logf("    'host all all' rule (pg_hba is first-match-wins), then reload:")
+		r.logf("")
+		for _, l := range lines {
+			r.logf("      %s", l)
+		}
+		r.logf("")
+		r.logf("      sudo systemctl reload postgresql")
+		r.logf("")
+		r.logf("    Re-run setup afterwards, or pass --manage-pg-hba to have setup do it.")
+		return nil
+	}
+
+	existing, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("%s: read %s: %w", s.ID(), path, err)
+	}
+	block := "\n# BEGIN OpenWatch (added by `openwatch setup`)\n" +
+		strings.Join(lines, "\n") + "\n# END OpenWatch\n"
+	if err := r.writeFile(s.ID(), path, append(existing, []byte(block)...), 0o600); err != nil {
+		return err
+	}
+	if err := r.mutate(ctx, s.ID(), "reload postgresql", "systemctl", "reload", "postgresql"); err != nil {
+		// A pg_hba.conf that does not parse leaves PostgreSQL refusing every
+		// connection, so put the original back rather than leave the operator
+		// locked out of a database they could previously reach.
+		if !r.DryRun {
+			_ = os.WriteFile(path, existing, 0o600)
+			r.logf("    reload failed; pg_hba.conf restored to its previous contents")
+		}
+		return err
+	}
+	return nil
+}
+
+// ------------------------------------------------------------- app config
+
+type stepSecretsEnv struct{}
+
+func (stepSecretsEnv) ID() string { return "secrets-env" }
+
+func (stepSecretsEnv) Describe(Plan) string {
+	return "write /etc/openwatch/secrets.env with the database DSN (0640 root:openwatch)"
+}
+
+func (stepSecretsEnv) Status(ctx context.Context, p Plan) StepStatus {
+	b, err := os.ReadFile(secretsEnvPath)
+	if err != nil {
+		return StepStatus{}
+	}
+	if strings.Contains(string(b), "OPENWATCH_DATABASE_DSN=") {
+		return StepStatus{Done: false, Detail: "exists and will be rewritten (previous file backed up)"}
+	}
+	return StepStatus{}
+}
+
+func (s stepSecretsEnv) Apply(ctx context.Context, r *Run) error {
+	// The DSN is assembled by DatabasePlan.DSN, which percent-encodes the
+	// password. Hand-assembling it is how a password containing '@' silently
+	// changes what the URI means.
+	content := fmt.Sprintf("OPENWATCH_DATABASE_DSN=%s\n", r.Plan.Database.DSN(r.DBPassword))
+	if err := os.MkdirAll(filepath.Dir(secretsEnvPath), 0o750); err != nil && !r.DryRun {
+		return fmt.Errorf("%s: %w", s.ID(), err)
+	}
+	if err := r.writeFile(s.ID(), secretsEnvPath, []byte(content), 0o640); err != nil {
+		return err
+	}
+	if r.DryRun {
+		return nil
+	}
+	return r.mutate(ctx, s.ID(), "chown secrets.env", "chown", "root:openwatch", secretsEnvPath)
+}
+
+type stepMigrate struct{}
+
+func (stepMigrate) ID() string { return "migrate" }
+
+func (stepMigrate) Describe(Plan) string { return "apply database migrations" }
+
+func (stepMigrate) Status(ctx context.Context, p Plan) StepStatus {
+	res := psql(ctx, "SELECT max(version_id) FROM goose_db_version")
+	if res.Err == nil && res.Stdout != "" && res.Stdout != "0" {
+		return StepStatus{Detail: "schema at version " + res.Stdout + "; pending migrations will be applied"}
+	}
+	return StepStatus{}
+}
+
+func (s stepMigrate) Apply(ctx context.Context, r *Run) error {
+	return r.mutate(ctx, s.ID(), "openwatch migrate", "sudo", "-u", "openwatch",
+		"env", "OPENWATCH_DATABASE_DSN="+r.Plan.Database.DSN(r.DBPassword),
+		openwatchBin, "migrate")
+}
+
+type stepAdmin struct{}
+
+func (stepAdmin) ID() string { return "admin-user" }
+
+func (stepAdmin) Describe(p Plan) string {
+	return fmt.Sprintf("create the first admin user %q (%s)", p.Admin.Username, p.Admin.Email)
+}
+
+func (stepAdmin) Status(ctx context.Context, p Plan) StepStatus {
+	res := psql(ctx, fmt.Sprintf("SELECT 1 FROM users WHERE username=%s", sqlLiteral(p.Admin.Username)))
+	// A missing users table means migrations have not run yet, which is not
+	// an error at plan time: the migrate step precedes this one.
+	if res.Err == nil && strings.TrimSpace(res.Stdout) == "1" {
+		return StepStatus{Done: true, Detail: "user already exists"}
+	}
+	return StepStatus{}
+}
+
+func (s stepAdmin) Apply(ctx context.Context, r *Run) error {
+	return r.mutate(ctx, s.ID(), "create-admin", "sudo", "-u", "openwatch",
+		"env", "OPENWATCH_DATABASE_DSN="+r.Plan.Database.DSN(r.DBPassword),
+		openwatchBin, "create-admin",
+		"--username", r.Plan.Admin.Username,
+		"--email", r.Plan.Admin.Email,
+		"--password", r.AdminPassword)
+}
+
+type stepService struct{}
+
+func (stepService) ID() string { return "service" }
+
+func (stepService) Describe(p Plan) string {
+	what := "enable openwatch.service"
+	if p.Service.StartNow {
+		what = "enable and start openwatch.service"
+	}
+	if p.Service.BindCapability {
+		what += fmt.Sprintf("; port %d is privileged, so add AmbientCapabilities=CAP_NET_BIND_SERVICE", p.Service.ListenPort)
+	}
+	return what
+}
+
+func (stepService) Status(ctx context.Context, p Plan) StepStatus {
+	if serviceActive("openwatch") {
+		return StepStatus{Done: false, Detail: "already running; will be restarted"}
+	}
+	return StepStatus{}
+}
+
+func (s stepService) Apply(ctx context.Context, r *Run) error {
+	if r.Plan.Service.BindCapability {
+		dir := "/etc/systemd/system/openwatch.service.d"
+		if err := os.MkdirAll(dir, 0o755); err != nil && !r.DryRun {
+			return fmt.Errorf("%s: %w", s.ID(), err)
+		}
+		drop := "[Service]\nAmbientCapabilities=CAP_NET_BIND_SERVICE\n"
+		if err := r.writeFile(s.ID(), filepath.Join(dir, "10-bind-privileged-port.conf"),
+			[]byte(drop), 0o644); err != nil {
+			return err
+		}
+		if err := r.mutate(ctx, s.ID(), "daemon-reload", "systemctl", "daemon-reload"); err != nil {
+			return err
+		}
+	}
+	verb := "enable"
+	args := []string{"enable", "openwatch"}
+	if r.Plan.Service.StartNow {
+		verb = "enable --now"
+		args = []string{"enable", "--now", "openwatch"}
+	}
+	if err := r.mutate(ctx, s.ID(), "systemctl "+verb, "systemctl", args...); err != nil {
+		return err
+	}
+	r.record(s.ID(), verb, "openwatch.service", "")
+	return nil
+}
+
+type stepVerify struct{}
+
+func (stepVerify) ID() string { return "verify" }
+
+func (stepVerify) Describe(p Plan) string {
+	return fmt.Sprintf("confirm the API answers on https://%s:%d/api/v1/health",
+		p.Service.ListenHost, p.Service.ListenPort)
+}
+
+func (stepVerify) Status(context.Context, Plan) StepStatus { return StepStatus{} }
+
+// Apply proves the install rather than declaring it finished. An installer
+// that ends with "done" when the service is not actually serving is worse than
+// one that fails, because the failure surfaces later and further away.
+func (s stepVerify) Apply(ctx context.Context, r *Run) error {
+	if r.DryRun || !r.Plan.Service.StartNow {
+		return nil
+	}
+	url := fmt.Sprintf("https://127.0.0.1:%d/api/v1/health", r.Plan.Service.ListenPort)
+	var last string
+	for i := 0; i < 15; i++ {
+		res := run(ctx, "curl", "-sk", "--max-time", "5", url)
+		if res.Err == nil && strings.Contains(res.Stdout, `"status"`) {
+			r.logf("    %s", firstLine(res.Stdout))
+			if !strings.Contains(res.Stdout, `"db_connected":true`) {
+				return fmt.Errorf("%s: the service is up but reports db_connected=false; "+
+					"check the DSN in %s", s.ID(), secretsEnvPath)
+			}
+			return nil
+		}
+		last = firstLine(res.Stdout + res.Stderr)
+		sleep(ctx, 2)
+	}
+	return fmt.Errorf("%s: %s did not become healthy; last response %q. "+
+		"Check `systemctl status openwatch` and `journalctl -u openwatch -n 50`",
+		s.ID(), url, last)
+}
+
+// -------------------------------------------------------------- detection
+
+const (
+	secretsEnvPath = "/etc/openwatch/secrets.env"
+	openwatchBin   = "/usr/bin/openwatch"
+)
+
+// postgresMajor returns the running server's major version, or 0 when it
+// cannot be determined. Uses server_version_num, which is stable, rather than
+// the version string, which carries vendor suffixes.
+func postgresMajor(ctx context.Context) int {
+	res := psql(ctx, "SELECT current_setting('server_version_num')")
+	if res.Err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(res.Stdout))
+	if err != nil {
+		return 0
+	}
+	return n / 10000
+}
+
+func postgresReachable(ctx context.Context) bool {
+	return psql(ctx, "SELECT 1").Err == nil
+}
+
+// postgresDataDirInitialised reports whether the RHEL data directory already
+// holds a cluster. initdb against a populated directory fails, and running it
+// against one that merely looks empty would destroy nothing but waste time.
+func postgresDataDirInitialised() bool {
+	_, err := os.Stat("/var/lib/pgsql/data/PG_VERSION")
+	return err == nil
+}
+
+// pgHbaPath asks the server where its configuration lives rather than guessing.
+// The path differs by family (RHEL /var/lib/pgsql/data, Debian
+// /etc/postgresql/<major>/main) and Debian can host several clusters at once,
+// so the running server is the only reliable source.
+func pgHbaPath(ctx context.Context) string {
+	if res := psql(ctx, "SHOW hba_file"); res.Err == nil && res.Stdout != "" {
+		return strings.TrimSpace(res.Stdout)
+	}
+	for _, candidate := range []string{"/var/lib/pgsql/data/pg_hba.conf"} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func pgHbaLines(dbName, roleName string) []string {
+	return []string{
+		fmt.Sprintf("host    %-12s %-12s 127.0.0.1/32    scram-sha-256", dbName, roleName),
+		fmt.Sprintf("host    %-12s %-12s ::1/128         scram-sha-256", dbName, roleName),
+	}
+}
+
+// hasOpenWatchHbaRules reports whether both loopback rules are present and
+// uncommented. Deliberately tolerant of whitespace, since an operator may have
+// reformatted them.
+func hasOpenWatchHbaRules(content, dbName, roleName string) bool {
+	var v4, v6 bool
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.Fields(line)
+		if len(f) < 5 || f[0] != "host" {
+			continue
+		}
+		matchesDB := f[1] == dbName || f[1] == "all"
+		matchesRole := f[2] == roleName || f[2] == "all"
+		if !matchesDB || !matchesRole || f[4] != "scram-sha-256" {
+			continue
+		}
+		switch f[3] {
+		case "127.0.0.1/32":
+			v4 = true
+		case "::1/128":
+			v6 = true
+		}
+	}
+	return v4 && v6
+}
