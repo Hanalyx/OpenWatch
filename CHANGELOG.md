@@ -51,6 +51,11 @@ the host.
 
 ### Changed
 
+- **Debian 12, Ubuntu 24.04 and AlmaLinux 10 are now covered by automated
+  testing,** so `openwatch setup` runs on them without `--allow-untested`. Each
+  is installed from scratch in CI on every change, and the installer is re-run
+  to confirm it is safe to repeat. RHEL 10 and Ubuntu 22.04 are recognised but
+  still uncovered, and continue to need the flag.
 - **The paid tier is now OpenWatch Enterprise and the free tier is OpenWatch
   Community.** Wherever the API reports a license tier, the enum is now
   `free | enterprise` rather than `free | openwatch_plus`. Update any client
@@ -105,6 +110,18 @@ the host.
 
 ### Fixed
 
+- **OpenWatch now runs on Debian and Ubuntu. Earlier `.deb` packages could not
+  start at all.** The DEB shipped `/etc/openwatch` owned by `root:root`, and the
+  service runs as the `openwatch` user, so it exited immediately with a
+  permission error reading its own configuration. The RPM was unaffected.
+  v0.7.0 is the first release that works from the `.deb`.
+- **`openwatch setup --yes` always failed.** The default plan reads the
+  administrator password from an interactive prompt, and `--yes` makes the run
+  non-interactive, so the two could never be combined. It now stops in preflight
+  and names the flag that resolves it, rather than failing later after printing
+  the whole plan. The same applies to any run without a terminal, such as
+  `ssh host 'openwatch setup'`. Pass `--admin-password-from` with `generate`,
+  `env:NAME` or `file:PATH` for an unattended install.
 - **Settings > Compliance policies showed an empty "Scan variables" section
   with no explanation** when the Kensa rule corpus could not be loaded. It now
   reports that the corpus is unavailable and names the package and path to
