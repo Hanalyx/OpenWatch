@@ -14,7 +14,7 @@
 //	AC-10  TestSetup_ContainerVerificationIsRecorded
 //	AC-11  TestSetup_LiveVerificationIsRecorded
 //	AC-12  TestSetup_RoleSQLForcesScram
-//	AC-13  TestSetup_NoCredentialInPlanOrReceipt
+//	AC-13  TestSetup_NoCredentialInPlanOrReceipt + TestSetup_ArtifactFileModes
 package setup
 
 import (
@@ -396,6 +396,44 @@ func TestSetup_NoCredentialInPlanOrReceipt(t *testing.T) {
 			if strings.Contains(decl, field) {
 				t.Errorf("Secret declares %q; it must record the source, never the value", field)
 			}
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13 (companion): the modes those two artifacts are written with.
+//
+// Content and permission are the same question asked twice: who can read what
+// the run left behind. The values below were a lint finding before they were a
+// requirement, which is precisely why they are pinned here.
+func TestSetup_ArtifactFileModes(t *testing.T) {
+	t.Run("system-setup/AC-13", func(t *testing.T) {
+		// Root-only. Neither file has a reader that is not root, and setup
+		// writes them as root into paths the operator chooses, so anything
+		// wider is a default nobody asked for.
+		for _, c := range []struct{ file, call string }{
+			{"execute.go", "os.WriteFile(ReceiptPath, append(b, '\\n'), 0o600)"},
+			{"../../cmd/openwatch/setup.go", "os.WriteFile(*savePlan, append([]byte(header), b...), 0o600)"},
+		} {
+			body, err := os.ReadFile(c.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(body), c.call) {
+				t.Errorf("%s no longer writes its artifact 0600; the call this pins is %q",
+					c.file, c.call)
+			}
+		}
+		// secrets.env is the exception, and it is one on purpose: the service
+		// reads the DSN as the openwatch group. Pinned so that a later sweep
+		// toward 0600 everywhere cannot break the service silently.
+		steps, err := os.ReadFile("steps.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(steps), `r.writeFile(s.ID(), secretsEnvPath, []byte(content), 0o640)`) {
+			t.Error("secrets.env is no longer written 0640; the service user must be able " +
+				"to read the DSN, and the file is chowned root:openwatch for that reason")
 		}
 	})
 }

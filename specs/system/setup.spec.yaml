@@ -269,6 +269,10 @@ spec:
     - id: AC-13
       description: >
         Neither the serialised plan nor the receipt contains a credential
-        value, and the Secret type declares no field able to hold one.
+        value, and the Secret type declares no field able to hold one. Both
+        files are written root-only (0600): they are the two artifacts the run
+        leaves behind for a human, setup writes them as root, and neither has a
+        reader that is not root. secrets.env is the deliberate exception at
+        0640, because it is chowned to the service group that must read the DSN.
       priority: critical
       references_constraints: [C-02]
