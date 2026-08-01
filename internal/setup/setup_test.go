@@ -17,6 +17,7 @@
 //	AC-13  TestSetup_NoCredentialInPlanOrReceipt + TestSetup_ArtifactFileModes
 //	AC-14  TestSetup_NonInteractivePromptSourceIsRefused
 //	AC-15  TestSetup_ProvisionedClusterManagesPgHba
+//	AC-16  TestSetup_PostgresFloorExcludesEndOfLife
 package setup
 
 import (
@@ -266,12 +267,14 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 			t.Errorf("minPostgresMajor is %d; the recorded AlmaLinux 8 refusal "+
 				"(PostgreSQL 10) no longer follows from it", minPostgresMajor)
 		}
-		// Rocky 9, Alma 9 and Oracle 9 all ship PostgreSQL 13, which passed
-		// while warning. That depends on 13 sitting between the two floors.
-		if minPostgresMajor > 13 || supportedPostgresMajor <= 13 {
-			t.Errorf("floors are min=%d supported=%d; the recorded RHEL 9 result "+
-				"(PostgreSQL 13 accepted with a warning) no longer follows",
-				minPostgresMajor, supportedPostgresMajor)
+		// The recorded runs accepted the distribution default, PostgreSQL 13,
+		// with a warning. That is no longer the behaviour: 13 is end of life
+		// and now below the floor, and setup enables a supported module stream
+		// rather than installing the default. The rest of the record still
+		// holds; this clause does not, and AC-16 owns the floor.
+		if minPostgresMajor <= 13 {
+			t.Errorf("minPostgresMajor is %d; the floor must exclude the end-of-life 13",
+				minPostgresMajor)
 		}
 		// Every distribution in the matrix except RHEL itself needed
 		// --allow-untested, which is only true while they are untested.
@@ -536,6 +539,51 @@ func TestSetup_ProvisionedClusterManagesPgHba(t *testing.T) {
 		r.record("postgres-cluster", "enable", "postgresql.service", "")
 		if r.provisionedCluster() {
 			t.Error("merely starting an existing cluster must not count as provisioning it")
+		}
+	})
+}
+
+// @ac AC-16
+// AC-16: the floor is a support statement, so it excludes dead versions.
+//
+// The dates are the reason this is pinned rather than left to judgement.
+// PostgreSQL 13 left support in November 2025 and 14 does so in November 2026,
+// so a floor at either ships regulated customers an unsupported database. The
+// distribution default is not an argument: RHEL 9's is still 13.
+func TestSetup_PostgresFloorExcludesEndOfLife(t *testing.T) {
+	t.Run("system-setup/AC-16", func(t *testing.T) {
+		// Upstream end-of-life majors as of this release. Update deliberately,
+		// with the date, when one more falls off.
+		const lastEOLMajor = 14 // 14 reaches EOL 2026-11
+		if minPostgresMajor <= lastEOLMajor {
+			t.Errorf("minPostgresMajor is %d, which is end of life or reaches it "+
+				"within this release's life; the floor must be above %d",
+				minPostgresMajor, lastEOLMajor)
+		}
+		// What setup stands up must not be merely acceptable, or every install
+		// starts one major from needing attention.
+		if preferredPostgresMajor <= minPostgresMajor {
+			t.Errorf("preferred %d is not newer than the floor %d; a fresh install "+
+				"should not land on the oldest still-supported version",
+				preferredPostgresMajor, minPostgresMajor)
+		}
+
+		// The refusal has to tell an operator what to do. A floor that only
+		// says no turns into a support ticket.
+		b, err := os.ReadFile("steps.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(b)
+		for _, want := range []string{"pg_upgrade", "dnf module", "no longer receives security fixes"} {
+			if !strings.Contains(src, want) {
+				t.Errorf("the below-floor refusal does not mention %q", want)
+			}
+		}
+		// Never in place: changing a cluster's major version is the operator's
+		// call, and doing it silently under their data is unrecoverable.
+		if !strings.Contains(src, "setup will not change its major") {
+			t.Error("the refusal must say setup will not change the cluster's major version")
 		}
 	})
 }

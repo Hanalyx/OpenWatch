@@ -190,6 +190,28 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-15
+      description: >
+        The PostgreSQL floor MUST exclude versions that have reached upstream
+        end of life, and setup MUST NOT stand one up. This is a support policy,
+        not a compatibility one: the schema runs on 13, but 13 left support in
+        November 2025 and 14 does so in November 2026. Hanalyx ships
+        third-party software into regulated estates, where installing an
+        unsupported database as part of an install is not defensible whatever
+        the distribution default is. On distributions whose default is
+        end of life, setup MUST select a supported version when it provisions
+        rather than accepting that default, and MUST NOT overrule a version the
+        operator has already selected. An existing cluster below the floor MUST
+        be refused with the commands that move it, never upgraded in place:
+        changing a cluster's major version needs pg_upgrade and is the
+        operator's decision. The floor governs what setup BUILDS, not what
+        OpenWatch tolerates: an existing deployment whose database predates the
+        floor keeps working and keeps upgrading, because refusing to migrate it
+        would strand the operators most in need of the new version. They are
+        told, not blocked.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: >
@@ -295,6 +317,14 @@ spec:
         the ALTER path. The password is a quote-doubled literal.
       priority: critical
       references_constraints: [C-03]
+    - id: AC-16
+      description: >
+        The floor excludes every end-of-life PostgreSQL, and the version setup
+        installs when it provisions is newer still. A server below the floor is
+        refused with a message naming pg_upgrade and the module commands, not
+        upgraded in place. A stream the operator already enabled is left alone.
+      priority: critical
+      references_constraints: [C-15]
     - id: AC-15
       description: >
         A run that installed PostgreSQL or initialised the cluster manages

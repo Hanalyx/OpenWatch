@@ -19,6 +19,16 @@ on:
       - 'packaging/**'
       - '.github/workflows/package-smoke.yml'
       - '.github/scripts/install-rpmbuild.sh'
+      # The installer itself. Without these, a change to how setup provisions
+      # PostgreSQL or edits pg_hba.conf does not run the jobs that prove setup
+      # works, and the regression surfaces only when a candidate is tagged.
+      # This filter was found too narrow by a PR that rewrote the PostgreSQL
+      # install path and ran none of them.
+      - 'internal/setup/**'
+      - 'cmd/openwatch/setup.go'
+      # The upgrade job asserts the schema advances, so a migration change is
+      # a change to what it proves.
+      - 'internal/db/migrations/**'
   workflow_dispatch:
 
 permissions:

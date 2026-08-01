@@ -21,8 +21,17 @@ import (
 // this release's service life). setup checks before installing so the operator
 // finds out at the start rather than at the migration step.
 const (
-	minPostgresMajor       = 13
-	supportedPostgresMajor = 15
+	// minPostgresMajor is a support floor, not a compatibility floor. The
+	// schema runs on 13, but 13 reached end of life in November 2025 and 14
+	// does so in November 2026. Hanalyx ships third-party software into
+	// regulated estates; standing up an unsupported database as part of an
+	// install is not defensible there, whatever the distribution's default is.
+	// 15 is supported until November 2027 and is the lowest stream el9 offers.
+	minPostgresMajor = 15
+	// preferredPostgresMajor is what setup installs when it provisions. Newer
+	// than the floor on purpose: an install done today should not need
+	// revisiting in a year. Supported until November 2028.
+	preferredPostgresMajor = 16
 )
 
 // StepStatus is the result of a step's idempotence check.
@@ -77,7 +86,7 @@ func (stepPostgresInstall) Describe(p Plan) string {
 	if p.Platform.Family == FamilyDebian {
 		return "install PostgreSQL (apt-get install postgresql)"
 	}
-	return "install PostgreSQL (dnf install postgresql-server)"
+	return fmt.Sprintf("install PostgreSQL %d (dnf module enable postgresql:%d, then dnf install postgresql-server)", preferredPostgresMajor, preferredPostgresMajor)
 }
 
 func (stepPostgresInstall) Status(ctx context.Context, p Plan) StepStatus {
@@ -97,6 +106,26 @@ func (s stepPostgresInstall) Apply(ctx context.Context, r *Run) error {
 			return err
 		}
 	} else {
+		// Bare postgresql-server on el9 resolves to the non-modular 13, which
+		// is end of life. The supported versions are module streams, so one
+		// has to be selected before installing or the install quietly lands on
+		// a database nobody upstream supports any more.
+		//
+		// An operator who has already enabled a stream has made a choice, and
+		// setup does not overrule it; the version check afterwards enforces the
+		// floor either way. `module` is absent on distributions without
+		// modularity (and on el10), so a failure here is not fatal: fall
+		// through, install, and let the version check speak.
+		if !postgresStreamEnabled(ctx) {
+			stream := fmt.Sprintf("postgresql:%d", preferredPostgresMajor)
+			if err := r.mutate(ctx, s.ID(), "enable "+stream, "dnf", "module", "enable",
+				"-y", stream); err != nil {
+				r.logf("    could not enable %s (%v); installing the distribution default",
+					stream, err)
+			} else {
+				r.record(s.ID(), "module enable", stream, "")
+			}
+		}
 		if err := r.mutate(ctx, s.ID(), "install postgresql-server", "dnf", "install", "-y",
 			"postgresql-server"); err != nil {
 			return err
@@ -172,7 +201,7 @@ type stepPostgresVersion struct{}
 func (stepPostgresVersion) ID() string { return "postgres-version" }
 
 func (stepPostgresVersion) Describe(Plan) string {
-	return fmt.Sprintf("verify PostgreSQL >= %d (supported >= %d)", minPostgresMajor, supportedPostgresMajor)
+	return fmt.Sprintf("verify PostgreSQL >= %d (%d is end of life)", minPostgresMajor, minPostgresMajor-1)
 }
 
 func (stepPostgresVersion) Status(ctx context.Context, p Plan) StepStatus {
@@ -181,9 +210,9 @@ func (stepPostgresVersion) Status(ctx context.Context, p Plan) StepStatus {
 	case v == 0:
 		return StepStatus{}
 	case v < minPostgresMajor:
-		return StepStatus{Detail: fmt.Sprintf("PostgreSQL %d is BELOW the minimum %d", v, minPostgresMajor)}
-	case v < supportedPostgresMajor:
-		return StepStatus{Done: true, Detail: fmt.Sprintf("PostgreSQL %d (below supported %d, will warn)", v, supportedPostgresMajor)}
+		return StepStatus{Detail: fmt.Sprintf("PostgreSQL %d is BELOW the supported minimum %d (end of life)", v, minPostgresMajor)}
+	case v < minPostgresMajor:
+		return StepStatus{Detail: fmt.Sprintf("PostgreSQL %d is BELOW the supported minimum %d (end of life)", v, minPostgresMajor)}
 	default:
 		return StepStatus{Done: true, Detail: fmt.Sprintf("PostgreSQL %d", v)}
 	}
@@ -196,15 +225,18 @@ func (s stepPostgresVersion) Apply(ctx context.Context, r *Run) error {
 	}
 	if v < minPostgresMajor {
 		return fmt.Errorf(
-			"%s: PostgreSQL %d is too old; OpenWatch requires %d or newer because the "+
-				"schema uses gen_random_uuid as a column default. Upgrade the server, or "+
-				"on RHEL enable a newer module stream (dnf module list postgresql)",
-			s.ID(), v, minPostgresMajor)
-	}
-	if v < supportedPostgresMajor {
-		r.logf("    WARNING: PostgreSQL %d is below the supported minimum %d. It will work, "+
-			"but note that %d defaults password_encryption to md5 where 14+ default to "+
-			"scram-sha-256", v, supportedPostgresMajor, v)
+			"%s: PostgreSQL %d is below the supported minimum of %d.\n"+
+				"    PostgreSQL %d no longer receives security fixes upstream, so OpenWatch "+
+				"will not build an install on it.\n"+
+				"    This cluster already holds data, so setup will not change its major "+
+				"version: switching streams under an existing cluster needs pg_upgrade and "+
+				"is your decision, not the installer's.\n"+
+				"    On RHEL and derivatives:\n"+
+				"      sudo dnf module list postgresql          # see the streams offered\n"+
+				"      sudo dnf module switch-to postgresql:%d  # then pg_upgrade the cluster\n"+
+				"    On Debian and Ubuntu, install the newer server package and migrate with "+
+				"pg_upgradecluster.",
+			s.ID(), v, minPostgresMajor, v, preferredPostgresMajor)
 	}
 	return nil
 }
@@ -834,4 +866,18 @@ func hasOpenWatchHbaRules(content, dbName, roleName string) bool {
 		}
 	}
 	return v4 && v6
+}
+
+// postgresStreamEnabled reports whether a postgresql module stream is already
+// selected on this host.
+//
+// An operator who enabled a stream has chosen a version deliberately, and an
+// installer that overrules that would be changing a decision it did not make.
+// The version check enforces the floor regardless of who chose.
+func postgresStreamEnabled(ctx context.Context) bool {
+	res := run(ctx, "dnf", "module", "list", "--enabled", "postgresql")
+	if res.Err != nil {
+		return false
+	}
+	return strings.Contains(res.Stdout, "postgresql")
 }
