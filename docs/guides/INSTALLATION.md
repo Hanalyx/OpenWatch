@@ -118,7 +118,7 @@ Preflight
   [ok  ] SELinux enforcing
 
 Plan
-   1. install PostgreSQL (dnf install postgresql-server postgresql-contrib)
+   1. install PostgreSQL (dnf install postgresql-server)
    2. initialise the data directory and enable postgresql
    3. verify PostgreSQL >= 13 (supported >= 15)
    4. create role "openwatch" with a generated password, hashed scram-sha-256
@@ -329,7 +329,7 @@ sudo dnf module enable -y postgresql:16
 Then install, initialise, and start:
 
 ```bash
-sudo dnf install -y postgresql-server postgresql-contrib
+sudo dnf install -y postgresql-server
 sudo postgresql-setup --initdb
 sudo systemctl enable --now postgresql
 ```
@@ -568,7 +568,7 @@ The flow is identical to the RPM path; only Steps 1–3 differ.
 
 ```bash
 sudo apt update
-sudo apt install -y postgresql postgresql-contrib
+sudo apt install -y postgresql
 sudo systemctl enable --now postgresql
 ```
 
