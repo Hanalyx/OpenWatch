@@ -37,6 +37,14 @@ connection string, applies migrations, creates your first administrator, opens
 the firewall port, starts the service, and confirms the API answers. It shows
 you the whole plan and waits for confirmation before changing anything.
 
+**You do not need to pick a PostgreSQL version yourself.** On RHEL and its
+derivatives the default is still PostgreSQL 13, which is past end of life, so
+`setup` enables the `postgresql:16` module stream before installing. If you have
+already enabled a stream, it uses that one and does not overrule your choice.
+If PostgreSQL is already installed and older than 15, `setup` refuses and prints
+the commands to move it, because changing a cluster's major version needs
+`pg_upgrade` and is your decision rather than an installer's.
+
 **This is the supported way to install OpenWatch.** The
 [manual procedure](#manual-installation-rhel-family-rpm) documents every step
 `setup` performs, for operators who need to stage the work differently, satisfy
@@ -58,10 +66,13 @@ On a host that already runs PostgreSQL, either takes about five minutes.
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
 - **Disk:** 500 MB for the binary plus database growth sized to your retention.
 - **PostgreSQL:** 15 or newer. The package depends on the PostgreSQL
-  client/server but does **not** create a database. You do that in Step 2.
-  PostgreSQL 14 reaches end of life in November 2026, within this release's
-  service life, so it is not a supported target for a new install. RHEL 9
-  defaults to PostgreSQL 13 and needs a newer module stream enabled: see Step 1.
+  client/server but does **not** create a database. `openwatch setup` creates
+  it; if you are installing by hand, you do that in Step 2.
+  OpenWatch will not stand up a database that is past upstream end of life.
+  PostgreSQL 13 left support in November 2025 and 14 does so in November 2026,
+  within this release's service life, so neither is a supported target for a new
+  install. RHEL 9 still defaults to PostgreSQL 13: `openwatch setup` enables a
+  supported module stream for you, and the manual path covers it in Step 1.
 - **Network:**
   - TCP/8443 inbound for the API and UI.
   - TCP/22 outbound from this host to every managed host (Kensa scans over SSH).
@@ -118,12 +129,12 @@ Preflight
   [ok  ] SELinux enforcing
 
 Plan
-   1. install PostgreSQL (dnf install postgresql-server)
+   1. install PostgreSQL 16 (dnf module enable postgresql:16, then dnf install postgresql-server)
    2. initialise the data directory and enable postgresql
-   3. verify PostgreSQL >= 13 (supported >= 15)
+   3. verify PostgreSQL >= 15 (14 is end of life)
    4. create role "openwatch" with a generated password, hashed scram-sha-256
    5. create database "openwatch" owned by "openwatch"
-   6. check pg_hba.conf for the required host rules
+   6. write the OpenWatch host rules to pg_hba.conf if this run provisions the cluster
    7. write /etc/openwatch/secrets.env with the database DSN
    8. apply database migrations
    9. create the first admin user "admin"
