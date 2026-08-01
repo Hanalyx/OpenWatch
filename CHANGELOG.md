@@ -51,6 +51,27 @@ the host.
 
 ### Changed
 
+- **OpenWatch now requires PostgreSQL 15 or newer, and will not install an
+  older one.** PostgreSQL 13 left upstream support in November 2025 and 14 does
+  so in November 2026, so neither is a supported target for a new install. RHEL
+  9 and its derivatives still default to 13, so `openwatch setup` enables the
+  `postgresql:16` module stream before installing; if you have already enabled a
+  stream, it uses yours. **An existing deployment on an older PostgreSQL keeps
+  working and keeps upgrading** - the requirement governs what a new install
+  builds, not what an existing one may run. If you ask `setup` to configure a
+  database server older than 15 that is already on the host, it refuses and
+  prints the `dnf module switch-to` and `pg_upgrade` commands rather than
+  changing your cluster's major version for you.
+- **`openwatch setup` now writes the `pg_hba.conf` rules itself when it
+  installed PostgreSQL in the same run,** so a fresh host is a single command
+  with no manual step. On a PostgreSQL that was already on the host it still
+  asks: pass `--manage-pg-hba` to let it edit the file, or add the two printed
+  lines yourself. `--no-manage-pg-hba` declines in both cases. Whenever it does
+  edit, it backs the file up, inserts its rules above the existing ones,
+  reloads, and restores the original if the reload fails.
+- **`postgresql-contrib` is no longer installed.** Nothing in OpenWatch used it:
+  no migration creates an extension, and `gen_random_uuid()` has been part of
+  core PostgreSQL since 13. One fewer package on every host.
 - **Debian 12, Ubuntu 24.04 and AlmaLinux 10 are now covered by automated
   testing,** so `openwatch setup` runs on them without `--allow-untested`. Each
   is installed from scratch in CI on every change, and the installer is re-run
