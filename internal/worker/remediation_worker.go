@@ -447,13 +447,27 @@ func (w *RemediationWorker) emitHMACRejected(ctx context.Context, jobID uuid.UUI
 func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 	out := make([]remediation.ExecTxn, 0, len(in))
 	for _, t := range in {
-		out = append(out, remediation.ExecTxn{
+		e := remediation.ExecTxn{
 			TxnID:         t.TxnID,
 			Status:        t.Status,
 			Evidence:      t.Evidence,
 			Err:           t.Err,
 			HostUnchanged: t.HostUnchanged,
-		})
+		}
+		// Serialise here rather than threading Kensa types further in:
+		// internal/remediation deliberately does not import internal/kensa.
+		if len(t.Steps) > 0 {
+			if b, err := json.Marshal(t.Steps); err == nil {
+				e.Steps = b
+			}
+			e.Mechanism = t.Steps[0].Mechanism
+		}
+		if len(t.PreStates) > 0 {
+			if b, err := json.Marshal(t.PreStates); err == nil {
+				e.PreState = b
+			}
+		}
+		out = append(out, e)
 	}
 	return out
 }

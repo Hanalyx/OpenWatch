@@ -18,6 +18,7 @@
 package remediation
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -132,6 +133,26 @@ type Step struct {
 	PhaseResult *string
 	DryRun      bool
 	AppliedAt   *time.Time
+	// Phases is the per-phase Kensa journal for this rule's transaction.
+	// A "step" in this API has always meant one RULE; the Capture, Apply,
+	// Validate and Commit phases an operator wants to see are one level
+	// below it, and this is where they live.
+	Phases []Phase
+	// PreState is the captured pre-change state, verbatim from Kensa. Held
+	// as raw JSON because its shape is the handler's, not ours.
+	PreState json.RawMessage
+}
+
+// Phase is one Capture/Apply/Validate/Commit phase within a rule's
+// transaction.
+type Phase struct {
+	Index      int    `json:"index"`
+	Mechanism  string `json:"mechanism"`
+	Detail     string `json:"detail,omitempty"`
+	Success    bool   `json:"success"`
+	Capturable bool   `json:"capturable"`
+	Staged     bool   `json:"staged"`
+	Stranded   bool   `json:"stranded"`
 }
 
 // ExecTxn is a neutral, kensa-free view of one Kensa remediation transaction
@@ -155,6 +176,17 @@ type ExecTxn struct {
 	// Evidence is the signed evidence envelope (or a summary), stored in the
 	// remediation_transactions.evidence JSONB column.
 	Evidence []byte
+	// Steps is the per-phase journal, serialised, stored in
+	// remediation_transactions.steps. Empty for a transaction that never ran.
+	Steps []byte
+	// PreState is the captured pre-change state, serialised, stored in
+	// remediation_transactions.pre_state. That column has existed since
+	// migration 0037 and was never written until this carried it.
+	PreState []byte
+	// Mechanism is the first step's mechanism, stored in
+	// remediation_transactions.mechanism, another column that existed and was
+	// never populated.
+	Mechanism string
 	// Err is the transaction error string, empty on success.
 	Err string
 	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and

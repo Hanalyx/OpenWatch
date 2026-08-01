@@ -3825,16 +3825,79 @@ export interface components {
             /** @description Optional reviewer note */
             note?: string;
         };
+        /**
+         * @description One rule's Kensa transaction. Note that a "step" here is a RULE, not a
+         *     phase: the Capture/Apply/Validate/Commit phases are in `phases`, one
+         *     level below.
+         */
         RemediationStep: {
             /** Format: uuid */
             id: string;
             rule_id: string;
             mechanism?: string;
-            /** @enum {string|null} */
-            phase_result?: "committed" | "rolled_back" | "skipped" | null;
+            /**
+             * @description Terminal outcome of the rule's transaction. Widened past
+             *     committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
+             * @enum {string|null}
+             */
+            phase_result?: "committed" | "rolled_back" | "skipped" | "staged" | "partially_applied" | "not_applied" | null;
             dry_run: boolean;
             /** Format: date-time */
             applied_at?: string | null;
+            /**
+             * @description The per-phase journal Kensa returned, in execution order. `detail`
+             *     is the engine's own account of what each phase did, and is the
+             *     answer to why a remediation failed.
+             */
+            phases?: components["schemas"]["RemediationPhase"][];
+            /**
+             * @description The state captured before any change, one entry per phase, in phase
+             *     order.
+             */
+            pre_state?: components["schemas"]["RemediationPreState"][];
+        };
+        /**
+         * @description One phase's captured pre-change state.
+         *
+         *     `data` is mechanism-specific and is passed through from Kensa without
+         *     interpretation. OpenWatch has no schema for it and deliberately does
+         *     not decode it: each capturable handler defines its own layout, so
+         *     reading it here would couple this contract to Kensa handler internals.
+         *     Clients should treat it as opaque evidence unless they know the
+         *     mechanism.
+         */
+        RemediationPreState: {
+            index: number;
+            mechanism: string;
+            /** @description False for phases whose mechanism cannot capture pre-state; `data` is then empty. */
+            capturable: boolean;
+            data?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description One Capture/Apply/Validate/Commit phase of a rule's transaction. */
+        RemediationPhase: {
+            index: number;
+            mechanism: string;
+            /** @description Human-readable account of what this phase did, or why it did not. */
+            detail?: string;
+            success: boolean;
+            /**
+             * @description False when this phase's mechanism cannot record pre-state, which is
+             *     what makes a rule non-rollbackable.
+             */
+            capturable: boolean;
+            /**
+             * @description True when the change was written to the persist layer but the
+             *     running host has not converged, so a re-scan still reports the rule
+             *     failing until reboot.
+             */
+            staged: boolean;
+            /**
+             * @description True for a non-capturable phase that succeeded before a later
+             *     failure. Rollback does NOT reverse it.
+             */
+            stranded: boolean;
         };
         RemediationStepList: {
             steps: components["schemas"]["RemediationStep"][];

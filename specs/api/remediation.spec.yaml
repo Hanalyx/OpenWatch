@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -180,6 +180,19 @@ spec:
         reachable from staged: the rollback precondition accepts staged as
         well as executed, and the rollback transaction handle resolves from a
         staged journal row as well as a committed one.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-12
+      description: >
+        The per-phase Kensa journal survives the boundary. Mapping a
+        TransactionResult carries every StepResult field an operator needs to
+        understand the outcome, Detail above all, plus the captured PreStates,
+        and the steps endpoint returns them. Before this the journal was
+        reduced to a step COUNT in an evidence summary, so a rolled-back
+        remediation could report only that the host was unchanged while the
+        engine's own account of why sat unread. PreState data is carried
+        verbatim and not decoded: its layout belongs to the Kensa handler that
+        wrote it.
       priority: critical
       references_constraints: [C-09]
     - id: AC-10
