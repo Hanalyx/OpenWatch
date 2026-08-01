@@ -59,6 +59,11 @@ install_pkgs() {
     fi
 }
 
+# Deliberately the distribution default, even though it is below the floor
+# setup now enforces. That floor governs what setup BUILDS; this test is about
+# what already exists in the field, and v0.6.0 accepted PostgreSQL 13, so real
+# installs are running it. Provisioning a supported version here would test a
+# state few upgrading operators are actually in.
 echo ">> installing PostgreSQL and the previous GA ($OLD_VER)"
 if [ "$PKG_KIND" = deb ]; then
     export DEBIAN_FRONTEND=noninteractive

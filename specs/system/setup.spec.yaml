@@ -204,7 +204,11 @@ spec:
         operator has already selected. An existing cluster below the floor MUST
         be refused with the commands that move it, never upgraded in place:
         changing a cluster's major version needs pg_upgrade and is the
-        operator's decision.
+        operator's decision. The floor governs what setup BUILDS, not what
+        OpenWatch tolerates: an existing deployment whose database predates the
+        floor keeps working and keeps upgrading, because refusing to migrate it
+        would strand the operators most in need of the new version. They are
+        told, not blocked.
       type: technical
       enforcement: error
 
