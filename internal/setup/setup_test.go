@@ -16,6 +16,7 @@
 //	AC-12  TestSetup_RoleSQLForcesScram
 //	AC-13  TestSetup_NoCredentialInPlanOrReceipt + TestSetup_ArtifactFileModes
 //	AC-14  TestSetup_NonInteractivePromptSourceIsRefused
+//	AC-15  TestSetup_ProvisionedClusterManagesPgHba
 package setup
 
 import (
@@ -231,7 +232,7 @@ func TestSetup_PgHbaPausesWhenUnmanaged(t *testing.T) {
 			t.Fatal(err)
 		}
 		src := string(b)
-		i := strings.Index(src, "if !r.Plan.Database.ManagePgHba {")
+		i := strings.Index(src, "if !manage {")
 		if i < 0 {
 			t.Fatal("the unmanaged pg_hba branch has moved; this check is stale")
 		}
@@ -496,6 +497,45 @@ func TestSetup_NonInteractivePromptSourceIsRefused(t *testing.T) {
 		}
 		if !strings.Contains(c.Detail, "--db-password-from") {
 			t.Errorf("the message must name the database flag: %q", c.Detail)
+		}
+	})
+}
+
+// @ac AC-15
+// AC-15: a cluster this run provisioned is managed without being asked.
+//
+// The opt-in default protects a PostgreSQL that predates OpenWatch. It does
+// not reach one setup installed seconds earlier, where the documented
+// one-command install would otherwise stop and ask the operator to paste two
+// lines into a file setup just created.
+func TestSetup_ProvisionedClusterManagesPgHba(t *testing.T) {
+	t.Run("system-setup/AC-15", func(t *testing.T) {
+		// Nothing recorded: the cluster was already there.
+		r := &Run{Plan: DefaultPlan(Platform{ID: "rhel", Major: 9, Family: FamilyRHEL})}
+		if r.provisionedCluster() {
+			t.Error("a run that recorded no postgres work did not provision the cluster")
+		}
+
+		// Installing PostgreSQL counts, and so does initialising the cluster
+		// on a host where the package was already present.
+		for _, c := range []struct{ step, action string }{
+			{"postgres-install", "install"},
+			{"postgres-cluster", "initdb"},
+		} {
+			r := &Run{}
+			r.record(c.step, c.action, "postgresql", "")
+			if !r.provisionedCluster() {
+				t.Errorf("%s/%s must count as provisioning the cluster", c.step, c.action)
+			}
+		}
+
+		// Enabling an existing cluster's service is not provisioning it: the
+		// data directory, and whatever else authenticates against it, predate
+		// this run.
+		r = &Run{}
+		r.record("postgres-cluster", "enable", "postgresql.service", "")
+		if r.provisionedCluster() {
+			t.Error("merely starting an existing cluster must not count as provisioning it")
 		}
 	})
 }

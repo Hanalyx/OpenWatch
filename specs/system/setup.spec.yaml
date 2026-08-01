@@ -80,10 +80,15 @@ spec:
       enforcement: error
     - id: C-05
       description: >
-        pg_hba.conf MUST NOT be modified unless --manage-pg-hba is passed.
-        Editing it is the most effective way to lock an operator out of their
-        own database. When managed, setup MUST back the file up, insert its
-        block ABOVE the first existing authentication rule (pg_hba is
+        pg_hba.conf MUST NOT be modified on a PostgreSQL setup did not install
+        unless --manage-pg-hba is passed. Editing it is the most effective way
+        to lock an operator out of their own database. That risk is about
+        removing access the operator already had, so it does not reach a
+        cluster this same run installed and initialised: nothing else uses it
+        and there is no prior access to lose. On such a cluster setup MUST
+        manage the file without being asked, and --no-manage-pg-hba MUST
+        decline it. When managed, setup MUST back the file up, insert its block
+        ABOVE the first existing authentication rule (pg_hba is
         first-match-wins, and the stock RHEL file matches 127.0.0.1/32 with
         ident before any appended block), validate by reload, and restore the
         original if the reload fails.
@@ -290,6 +295,14 @@ spec:
         the ALTER path. The password is a quote-doubled literal.
       priority: critical
       references_constraints: [C-03]
+    - id: AC-15
+      description: >
+        A run that installed PostgreSQL or initialised the cluster manages
+        pg_hba.conf without --manage-pg-hba, and says so. A run that found the
+        cluster already there still requires the flag and still halts without
+        it. --no-manage-pg-hba declines the edit in both cases.
+      priority: critical
+      references_constraints: [C-05, C-06]
     - id: AC-14
       description: >
         A non-interactive run whose admin or database password is sourced from

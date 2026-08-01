@@ -309,10 +309,17 @@ type stepPgHba struct{}
 func (stepPgHba) ID() string { return "pg-hba" }
 
 func (stepPgHba) Describe(p Plan) string {
-	if !p.Database.ManagePgHba {
-		return "check pg_hba.conf for the required host rules and print them if missing (not editing; pass --manage-pg-hba to write them)"
+	// The plan is what the operator reads before consenting, so it has to
+	// describe the rule rather than guess the outcome: whether this run will
+	// provision the cluster is not known until the earlier steps have run.
+	switch {
+	case p.Database.NoManagePgHba:
+		return "check pg_hba.conf for the required host rules and print them if missing (--no-manage-pg-hba: never editing)"
+	case p.Database.ManagePgHba:
+		return "write the OpenWatch host rules to pg_hba.conf, after backing it up"
+	default:
+		return "write the OpenWatch host rules to pg_hba.conf if this run provisions the cluster, after backing it up; on a PostgreSQL that was already here, print them instead (--manage-pg-hba writes them)"
 	}
-	return "append the OpenWatch host rules to pg_hba.conf, after backing it up"
 }
 
 func (stepPgHba) Status(ctx context.Context, p Plan) StepStatus {
@@ -337,10 +344,29 @@ func (s stepPgHba) Apply(ctx context.Context, r *Run) error {
 	}
 	lines := pgHbaLines(r.Plan.Database.Name, r.Plan.Database.RoleName)
 
-	if !r.Plan.Database.ManagePgHba {
-		// The default. Editing this file by hand is how an operator locks
-		// themselves out of local postgres access, and doing it automatically
-		// carries the same risk, so setup asks rather than assumes.
+	// Manage it without being asked when this run provisioned the cluster.
+	//
+	// The opt-in default protects a PostgreSQL that predates OpenWatch and
+	// serves other things: a bad pg_hba edit removes access the operator
+	// already had. That reasoning does not reach a cluster setup installed and
+	// initialised in this same run, where nothing else uses it and there is no
+	// prior access to lose. Requiring a flag there is friction guarding
+	// against a risk that cannot exist, and it leaves the documented
+	// one-command install needing a manual step on exactly the fresh hosts it
+	// is aimed at. Same argument as C-13 makes for the firewall.
+	//
+	// --no-manage-pg-hba still declines it, and an existing cluster still has
+	// to be opted in explicitly.
+	manage := r.Plan.Database.ManagePgHba
+	if !manage && r.provisionedCluster() && !r.Plan.Database.NoManagePgHba {
+		r.logf("    managing pg_hba.conf: this run provisioned the cluster")
+		manage = true
+	}
+
+	if !manage {
+		// Editing this file by hand is how an operator locks themselves out of
+		// local postgres access, and doing it automatically carries the same
+		// risk, so setup asks rather than assumes.
 		r.logf("    pg_hba.conf needs these lines. Add them ABOVE any catch-all")
 		r.logf("    'host all all' rule (pg_hba is first-match-wins), then reload:")
 		r.logf("")

@@ -68,8 +68,10 @@ grep -q "admin password source" /tmp/refused.log || \
 umask 077
 printf %s "$ADMIN_PW" > /root/admin-pw
 
+# No --manage-pg-hba. Setup provisions the cluster in this run, so it manages
+# pg_hba.conf itself (AC-15); passing the flag would hide a regression in that.
 run_setup() {
-    openwatch setup --yes --manage-pg-hba $EXTRA_ARGS \
+    openwatch setup --yes $EXTRA_ARGS \
         --admin-password-from file:/root/admin-pw \
         --admin-email admin@example.com
 }

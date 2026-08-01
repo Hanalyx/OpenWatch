@@ -75,6 +75,9 @@ type DatabasePlan struct {
 	// way to lock an operator out of their own database, so the default is to
 	// print the required lines and re-check rather than to write them.
 	ManagePgHba bool `yaml:"manage_pg_hba"`
+	// NoManagePgHba declines the edit even when this run provisioned the
+	// cluster, which is otherwise managed without asking.
+	NoManagePgHba bool `yaml:"no_manage_pg_hba,omitempty"`
 }
 
 // ServicePlan covers the unit and how it listens.
