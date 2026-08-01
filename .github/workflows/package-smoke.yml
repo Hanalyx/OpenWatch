@@ -152,9 +152,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { distro: 'ubuntu:24.04', kind: deb }
-          - { distro: 'debian:12', kind: deb }
-          - { distro: 'almalinux:10', kind: rpm }
+          # Rocky is a RHEL 9 rebuild running identical paths, but it reports
+          # ID=rocky and only RHEL 9 itself is SupportTested, so this leg needs
+          # the override. It still proves the clean install and the re-run,
+          # which is what gates I1 and I2 claim. A real RHEL 9 host needs no
+          # flag; no container can be one.
+          - { distro: 'rockylinux:9', kind: rpm, extra: '--allow-untested' }
+          - { distro: 'ubuntu:24.04', kind: deb, extra: '' }
+          - { distro: 'debian:12', kind: deb, extra: '' }
+          - { distro: 'almalinux:10', kind: rpm, extra: '' }
     steps:
       - uses: actions/checkout@v7
 
@@ -171,7 +177,7 @@ jobs:
       - name: openwatch setup clean install and re-run
         run: |
           bash packaging/tests/run-setup-container-test.sh \
-            "${{ matrix.distro }}" "${{ matrix.kind }}"
+            "${{ matrix.distro }}" "${{ matrix.kind }}" ${{ matrix.extra }}
 
   # The REAL previous-GA upgrade (gate U2), as distinct from the synthetic
   # scriptlet test below (U1). Installs the published previous GA, provisions

@@ -37,7 +37,15 @@ method = "container"
 package = "rpm"
 support_tier = "tested"
 blocking = true
+# Proven by containers on rockylinux:9, a RHEL 9 rebuild running identical
+# paths. A container cannot be a licensed RHEL host, so the routine per
+# candidate evidence comes from the rebuild; the attestations in this directory
+# record live RHEL 9.8 runs, which additionally covered SELinux enforcing,
+# fapolicyd and reachability through firewalld. Those are richer but manual,
+# and the gate claims only what the job asserts.
 [platform.checks]
+clean-install = "setup rockylinux:9"
+idempotence = "setup rockylinux:9"
 upgrade-from-ga = "upgrade-from-ga rockylinux:9"
 
 [[platform]]
