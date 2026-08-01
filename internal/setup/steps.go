@@ -75,9 +75,9 @@ func (stepPostgresInstall) ID() string { return "postgres-install" }
 
 func (stepPostgresInstall) Describe(p Plan) string {
 	if p.Platform.Family == FamilyDebian {
-		return "install PostgreSQL (apt-get install postgresql postgresql-contrib)"
+		return "install PostgreSQL (apt-get install postgresql)"
 	}
-	return "install PostgreSQL (dnf install postgresql-server postgresql-contrib)"
+	return "install PostgreSQL (dnf install postgresql-server)"
 }
 
 func (stepPostgresInstall) Status(ctx context.Context, p Plan) StepStatus {
@@ -93,12 +93,12 @@ func (s stepPostgresInstall) Apply(ctx context.Context, r *Run) error {
 			return err
 		}
 		if err := r.mutate(ctx, s.ID(), "install postgresql", "apt-get", "install", "-y",
-			"postgresql", "postgresql-contrib"); err != nil {
+			"postgresql"); err != nil {
 			return err
 		}
 	} else {
 		if err := r.mutate(ctx, s.ID(), "install postgresql-server", "dnf", "install", "-y",
-			"postgresql-server", "postgresql-contrib"); err != nil {
+			"postgresql-server"); err != nil {
 			return err
 		}
 	}
