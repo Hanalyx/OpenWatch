@@ -33,7 +33,8 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 		savePlan      = fs.String("save-plan", "", "write the resolved plan to this path and exit")
 		allowUntested = fs.Bool("allow-untested", false, "proceed on a platform CI does not cover")
 		noFirewall    = fs.Bool("no-firewall", false, "do not open the listen port in the host firewall (the service will only be reachable from this host)")
-		managePgHba   = fs.Bool("manage-pg-hba", false, "let setup edit pg_hba.conf (backed up, validated, rolled back on failure)")
+		managePgHba   = fs.Bool("manage-pg-hba", false, "let setup edit pg_hba.conf on a PostgreSQL it did not install (backed up, validated, rolled back on failure)")
+		noManagePgHba = fs.Bool("no-manage-pg-hba", false, "do not edit pg_hba.conf even when setup provisioned the cluster itself")
 		dbMode        = fs.String("db-mode", "", "provision | existing (default provision)")
 		dbHost        = fs.String("db-host", "", "database host (default 127.0.0.1)")
 		dbPort        = fs.Int("db-port", 0, "database port (default 5432)")
@@ -79,7 +80,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 	}
 
 	applyFlagOverrides(&plan, flagOverrides{
-		managePgHba: *managePgHba, dbMode: *dbMode, dbHost: *dbHost, dbPort: *dbPort,
+		managePgHba: *managePgHba, noManagePgHba: *noManagePgHba, dbMode: *dbMode, dbHost: *dbHost, dbPort: *dbPort,
 		dbName: *dbName, dbRole: *dbRole, listenPort: *listenPort,
 		adminUser: *adminUser, adminEmail: *adminEmail,
 		adminPwFrom: *adminPwFrom, dbPwFrom: *dbPwFrom, noFirewall: *noFirewall,
@@ -188,6 +189,7 @@ func cmdSetup(args []string, stdout, stderr *os.File) int {
 
 type flagOverrides struct {
 	managePgHba            bool
+	noManagePgHba          bool
 	dbMode, dbHost, dbName string
 	dbRole                 string
 	dbPort, listenPort     int
@@ -224,6 +226,9 @@ func applyFlagOverrides(p *setup.Plan, o flagOverrides, fs *flag.FlagSet) {
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if set["manage-pg-hba"] {
 		p.Database.ManagePgHba = o.managePgHba
+	}
+	if set["no-manage-pg-hba"] {
+		p.Database.NoManagePgHba = o.noManagePgHba
 	}
 	if set["db-mode"] {
 		p.Database.Mode = setup.DatabaseMode(o.dbMode)

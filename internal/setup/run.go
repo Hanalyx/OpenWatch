@@ -55,6 +55,22 @@ func (r *Run) record(step, action, target, backup string) {
 	r.Changes = append(r.Changes, Change{Step: step, Action: action, Target: target, Backup: backup})
 }
 
+// provisionedCluster reports whether THIS run brought PostgreSQL up, rather
+// than finding it already there.
+//
+// It decides whether editing pg_hba.conf needs the operator's blessing. The
+// caution exists to protect a cluster that predates OpenWatch and serves other
+// things; a cluster this run installed or initialised seconds ago has no such
+// history and no access to lose.
+func (r *Run) provisionedCluster() bool {
+	for _, c := range r.Changes {
+		if c.Step == "postgres-install" || (c.Step == "postgres-cluster" && c.Action == "initdb") {
+			return true
+		}
+	}
+	return false
+}
+
 // cmdResult is the outcome of one external command.
 type cmdResult struct {
 	Stdout string

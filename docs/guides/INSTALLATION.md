@@ -178,12 +178,20 @@ Re-running does **not** rotate the database password. It is recovered from
 `/etc/openwatch/secrets.env` so the role and the connection string stay in
 agreement.
 
-### It will not edit `pg_hba.conf` unless you ask
+### When it edits `pg_hba.conf`, and when it asks first
 
 PostgreSQL decides who may connect using `pg_hba.conf`, and editing it wrongly
-is the most effective way to lock yourself out of your own database. By default
-`setup` reports what is missing, prints the exact lines, and stops with exit
-code 3:
+is the most effective way to lock yourself out of your own database.
+
+That risk is about removing access you already had, so it depends on whose
+cluster it is:
+
+- **`setup` installed PostgreSQL in this run.** It writes the two rules itself
+  and says so. Nothing else uses that cluster, and there is no prior access to
+  lose. Pass `--no-manage-pg-hba` if you would rather do it by hand.
+- **PostgreSQL was already on the host.** It will not touch the file unless you
+  pass `--manage-pg-hba`. Instead it reports what is missing, prints the exact
+  lines, and stops with exit code 3:
 
 ```
 Setup paused: pg_hba.conf needs the rules above before the database role can
@@ -195,7 +203,7 @@ then run `openwatch setup` again to continue from here.
 Add the lines, reload PostgreSQL, and run `setup` again. It resumes from where
 it stopped.
 
-To have `setup` do it, pass `--manage-pg-hba`. It then backs the file up,
+Whenever `setup` does edit the file, it backs the file up,
 inserts its rules **above** the existing ones, reloads PostgreSQL, and restores
 the original file if the reload fails. The ordering matters: `pg_hba.conf` is
 first-match-wins, and the stock RHEL file matches `127.0.0.1/32` with `ident`
@@ -252,7 +260,8 @@ safe to attach to a ticket.
 | `--plan <file>` | Apply a saved plan; implies non-interactive |
 | `--save-plan <file>` | Write the resolved plan and exit without applying |
 | `--allow-untested` | Proceed on a platform not covered by testing |
-| `--manage-pg-hba` | Let `setup` edit `pg_hba.conf` |
+| `--manage-pg-hba` | Edit `pg_hba.conf` on a PostgreSQL `setup` did not install |
+| `--no-manage-pg-hba` | Never edit `pg_hba.conf`, even on a cluster `setup` provisioned |
 | `--no-firewall` | Do not open the listen port |
 | `--db-mode provision\|existing` | Provision PostgreSQL, or use one that already runs |
 | `--db-host`, `--db-port`, `--db-name`, `--db-role` | Database connection and names |
