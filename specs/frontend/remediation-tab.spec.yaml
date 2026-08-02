@@ -1,7 +1,7 @@
 spec:
   id: frontend-remediation-tab
   title: Host detail Remediation tab + per-rule request/apply affordance
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -108,6 +108,21 @@ spec:
       description: 'Source inspection: the OpenWatch Enterprise upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch Enterprise)"), is DISABLED, and the single-rule "Execute on host (OpenWatch Enterprise)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
       priority: high
       references_constraints: [C-03, C-04]
+    - id: AC-09
+      description: >
+        The tab shows the transaction, not just a diagram of it. Expanding a
+        request renders the per-phase Kensa journal, and each phase shows the
+        engine's own detail, which is the answer to why a fix failed. The three
+        consequences an operator cannot infer from the terminal status are
+        called out in words rather than left implicit: a stranded phase is not
+        reversed by rollback, a staged phase means the running host has not
+        changed until it reboots, and a non-capturable phase cannot be rolled
+        back. Captured pre-state is shown as evidence and NOT decoded, because
+        its layout belongs to the Kensa handler that wrote it and no schema is
+        published (features/KN-OW-016). No em-dash characters appear in the
+        copy.
+      priority: critical
+      references_constraints: [C-04]
     - id: AC-08
       description: >
         Source inspection: the outcome vocabulary is rendered so that colour and
