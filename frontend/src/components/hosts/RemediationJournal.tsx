@@ -269,18 +269,33 @@ function PlanPreview({ hostId, requestId }: { hostId: string; requestId: string 
       ))}
 
       <PlanSection title="What it will change" items={steps} empty="No apply steps." />
-      <PlanSection title="How it will be checked" items={checks} empty="No validators." />
+
+      {/* Stated from what the engine does, not from Plan.Validators, which the
+          planner leaves nil for every rule. Rendering that field's emptiness
+          printed an empty-validator line beside the button that
+          applies the fix, telling the operator nothing verifies it. Untrue: the rule's own check
+          re-runs after apply and a failure restores the capture. Filed as
+          features/KN-OW-017. */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ow-fg-0)', marginBottom: 6 }}>
+          How it will be checked
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ow-fg-1)' }}>
+          After applying, this rule&apos;s own check runs again. If it does not pass, the captured
+          state is restored.
+        </div>
+      </div>
+
+      {checks.length > 0 ? (
+        <PlanSection title="Additional validators" items={checks} empty="" />
+      ) : null}
+
       <PlanSection
         title={`How it can be undone (${plan.reversible_steps} of ${steps.length} reversible)`}
         items={undo}
         empty="This fix cannot be rolled back."
+        dedupe
       />
-
-      {plan.estimated_seconds ? (
-        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>
-          Estimated {Math.round(plan.estimated_seconds)}s.
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -293,26 +308,45 @@ type PlanItem = {
   capturable?: boolean;
 };
 
-function PlanSection({ title, items, empty }: { title: string; items: PlanItem[]; empty: string }) {
+function PlanSection({
+  title,
+  items,
+  empty,
+  dedupe,
+}: {
+  title: string;
+  items: PlanItem[];
+  empty: string;
+  // dedupe collapses consecutive identical lines. Kensa builds each rollback
+  // summary from the mechanism alone, so a rule with two steps of the same
+  // mechanism produces the same sentence twice: two lines carrying one fact.
+  dedupe?: boolean;
+}) {
+  const shown = dedupe
+    ? items.filter((it, i) => i === 0 || it.summary !== items[i - 1]?.summary)
+    : items;
   return (
     <div>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ow-fg-0)', marginBottom: 6 }}>
         {title}
       </div>
-      {items.length === 0 ? (
+      {shown.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>{empty}</div>
       ) : (
         <ol
           style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}
         >
-          {items.map((it, i) => (
+          {shown.map((it, i) => (
             <li key={`${it.mechanism ?? it.name ?? i}-${i}`} style={{ fontSize: 12 }}>
               {/* Kensa's own words. If a handler gave no summary we show the
                   mechanism rather than inventing a description of it. */}
               <span style={{ color: 'var(--ow-fg-1)' }}>
                 {it.summary ?? it.mechanism ?? it.name}
               </span>
-              {it.summary && (it.mechanism || it.name) ? (
+              {/* Only when the summary does not already name it. Kensa's
+                  summaries lead with the mechanism, so this tag was repeating
+                  the first word of the sentence beside it. */}
+              {it.summary && it.mechanism && !it.summary.includes(it.mechanism) ? (
                 <span
                   style={{
                     color: 'var(--ow-fg-3)',
@@ -321,7 +355,7 @@ function PlanSection({ title, items, empty }: { title: string; items: PlanItem[]
                     marginLeft: 8,
                   }}
                 >
-                  {it.mechanism ?? it.name}
+                  {it.mechanism}
                 </span>
               ) : null}
               {it.capturable === false ? (
