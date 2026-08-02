@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Hanalyx/openwatch/internal/version"
 	"log/slog"
 	"time"
 
@@ -467,6 +468,7 @@ func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 				e.PreState = b
 			}
 		}
+		e.KensaVersion = version.Kensa()
 		out = append(out, e)
 	}
 	return out

@@ -1,6 +1,11 @@
 import { AlertTriangle, Check, Clock, X } from 'lucide-react';
 import type { components } from '@/api/schema';
-import { phaseLabel, phaseNote, useRemediationSteps } from '@/hooks/useRemediationSteps';
+import {
+  phaseLabel,
+  phaseNote,
+  useRemediationPlan,
+  useRemediationSteps,
+} from '@/hooks/useRemediationSteps';
 
 type RemediationPhase = components['schemas']['RemediationPhase'];
 type RemediationPreState = components['schemas']['RemediationPreState'];
@@ -31,14 +36,10 @@ export function RemediationJournal({
     return <JournalNote tone="bad">{journal.error ?? 'Could not load the journal.'}</JournalNote>;
   }
   if (journal.steps.length === 0) {
-    // Not an error: a request that was never executed has no journal. Saying
-    // why is better than an empty panel that reads as a failure.
-    return (
-      <JournalNote>
-        No transaction yet. Kensa records the phases when the fix runs, so this fills in once the
-        request is executed.
-      </JournalNote>
-    );
+    // Nothing has run yet, so show what WOULD run. This is the half of the
+    // question the journal cannot answer: an operator deciding whether to
+    // approve a fix needs to know what it will do, not only what it did.
+    return <PlanPreview hostId={hostId} requestId={requestId} />;
   }
 
   return (
@@ -212,6 +213,149 @@ function JournalNote({ children, tone }: { children: React.ReactNode; tone?: 'ba
       }}
     >
       {children}
+    </div>
+  );
+}
+
+// PlanPreview shows what a fix would do, before it does it.
+//
+// Shown in place of the journal when a request has not executed. Kensa plans
+// the rule against the live host and reports the apply steps, the validators
+// and the rollback, all read-only. Every string here is Kensa's own: the
+// summaries are handler-authored, so this describes the actual mechanism
+// rather than a generic restatement of the rule title.
+function PlanPreview({ hostId, requestId }: { hostId: string; requestId: string }) {
+  const { plan, isPending, isError, error } = useRemediationPlan(hostId, requestId, true);
+
+  if (isPending) return <JournalNote>Planning against the host...</JournalNote>;
+  if (isError) {
+    // Planning reaches the host, so a failure here is about the host, not the
+    // fix. Say so, and do not imply the fix itself is broken.
+    return (
+      <JournalNote tone="bad">
+        {error ?? 'Could not plan this fix.'} Nothing was changed on the host.
+      </JournalNote>
+    );
+  }
+  if (!plan) return <JournalNote>No plan available.</JournalNote>;
+
+  const steps = plan.steps ?? [];
+  const checks = plan.checks ?? [];
+  const undo = plan.undo ?? [];
+  const warnings = plan.warnings ?? [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 2px 12px' }}>
+      <div style={{ fontSize: 12, color: 'var(--ow-fg-2)' }}>
+        Nothing has run yet. This is what would happen, planned against the host now.
+      </div>
+
+      {plan.control_channel_sensitive ? (
+        <Callout tone="warn">
+          This fix touches SSH, networking, PAM or firewall state. Kensa arms a timer before
+          applying it, so the change reverts by itself if the host stops answering. That is what
+          stops a hardening fix from locking you out of the host you are hardening.
+        </Callout>
+      ) : null}
+      {plan.transactional === false ? (
+        <Callout tone="warn">
+          This rule is not all-or-nothing. If a later step fails, earlier ones stay applied.
+        </Callout>
+      ) : null}
+      {warnings.map((w) => (
+        <Callout key={w} tone="warn">
+          {w}
+        </Callout>
+      ))}
+
+      <PlanSection title="What it will change" items={steps} empty="No apply steps." />
+      <PlanSection title="How it will be checked" items={checks} empty="No validators." />
+      <PlanSection
+        title={`How it can be undone (${plan.reversible_steps} of ${steps.length} reversible)`}
+        items={undo}
+        empty="This fix cannot be rolled back."
+      />
+
+      {plan.estimated_seconds ? (
+        <div style={{ fontSize: 11, color: 'var(--ow-fg-3)' }}>
+          Estimated {Math.round(plan.estimated_seconds)}s.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type PlanItem = {
+  index?: number;
+  mechanism?: string;
+  name?: string;
+  summary?: string;
+  capturable?: boolean;
+};
+
+function PlanSection({ title, items, empty }: { title: string; items: PlanItem[]; empty: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ow-fg-0)', marginBottom: 6 }}>
+        {title}
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--ow-fg-3)' }}>{empty}</div>
+      ) : (
+        <ol
+          style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}
+        >
+          {items.map((it, i) => (
+            <li key={`${it.mechanism ?? it.name ?? i}-${i}`} style={{ fontSize: 12 }}>
+              {/* Kensa's own words. If a handler gave no summary we show the
+                  mechanism rather than inventing a description of it. */}
+              <span style={{ color: 'var(--ow-fg-1)' }}>
+                {it.summary ?? it.mechanism ?? it.name}
+              </span>
+              {it.summary && (it.mechanism || it.name) ? (
+                <span
+                  style={{
+                    color: 'var(--ow-fg-3)',
+                    fontFamily: 'var(--ow-font-mono)',
+                    fontSize: 11,
+                    marginLeft: 8,
+                  }}
+                >
+                  {it.mechanism ?? it.name}
+                </span>
+              ) : null}
+              {it.capturable === false ? (
+                <span style={{ color: 'var(--ow-warn)', fontSize: 11, marginLeft: 8 }}>
+                  not reversible
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function Callout({ children, tone }: { children: React.ReactNode; tone: 'warn' }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'flex-start',
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: 'var(--ow-fg-1)',
+        background: 'var(--ow-bg-2)',
+        border: '1px solid var(--ow-line)',
+        borderLeft: `3px solid var(--ow-${tone})`,
+        borderRadius: 'var(--ow-radius-sm, 6px)',
+        padding: '8px 10px',
+      }}
+    >
+      <AlertTriangle size={13} style={{ color: `var(--ow-${tone})`, marginTop: 2 }} aria-hidden />
+      <span>{children}</span>
     </div>
   );
 }

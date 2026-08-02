@@ -85,3 +85,48 @@ export function phaseNote(phase: RemediationPhase): string | null {
   }
   return null;
 }
+
+// useRemediationPlan previews what a fix would do, before it does it.
+//
+// Fetched only when a row is expanded AND has no transaction yet, because
+// planning reaches the host over SSH: it is a live call, not a cached read. A
+// remembered plan would describe a host that has since moved on, which is the
+// same staleness Kensa's PlanStaleError exists to prevent on the execute side.
+//
+// Deliberately no retry. A failed plan means the host could not be reached or
+// authenticated, and hammering it on a schedule helps nobody.
+export interface RemediationPlanView {
+  plan: components['schemas']['RemediationPlan'] | null;
+  isPending: boolean;
+  isError: boolean;
+  error: string | null;
+}
+
+export function useRemediationPlan(
+  hostId: string,
+  requestId: string,
+  enabled: boolean,
+): RemediationPlanView {
+  const q = useQuery({
+    queryKey: ['host', hostId, 'remediation', requestId, 'plan'],
+    enabled,
+    retry: false,
+    staleTime: 0,
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/remediation/requests/{rid}/plan', {
+        params: { path: { rid: requestId } },
+      });
+      if (error) {
+        throw new Error(apiErrorMessage(error, `Could not plan this fix (${response.status})`));
+      }
+      return data ?? null;
+    },
+  });
+
+  return {
+    plan: q.data ?? null,
+    isPending: q.isPending,
+    isError: q.isError,
+    error: q.isError ? apiErrorMessage(q.error, 'Could not plan this fix.') : null,
+  };
+}

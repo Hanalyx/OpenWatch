@@ -207,7 +207,9 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	// remediate share one per-host inFlight guard. The apply-enabled Kensa
 	// needs a durable SQLite store for rollback pre-state.
 	remExecutor := executor
-	remFn, rbFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
+	// The worker never serves the plan preview: that is a synchronous API
+	// read, so the closure is discarded here.
+	remFn, rbFn, _, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
 		RulesDir:    rulesDir,

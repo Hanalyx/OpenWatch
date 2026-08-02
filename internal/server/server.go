@@ -150,6 +150,15 @@ func (s *Server) WithRemediation(rm *remediation.Service) *Server {
 	return s
 }
 
+// WithRemediationPlan threads the read-only plan closure into the API handlers
+// so a request can be previewed before it is approved. Nil leaves the endpoint
+// 503, which is the honest answer when the rule corpus is missing: an empty
+// preview would read as "this fix does nothing". Spec api-remediation.
+func (s *Server) WithRemediationPlan(p kensa.PlanFunc) *Server {
+	s.handlers.remediationPlan = p
+	return s
+}
+
 // WithGroups threads the host group service (sites + OS categories)
 // into the API handlers so /api/v1/groups and its sub-routes are
 // routable. Nil makes the group endpoints 503. Spec api-groups.
