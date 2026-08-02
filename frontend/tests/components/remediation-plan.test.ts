@@ -13,6 +13,38 @@ const hooks = read('src/hooks/useRemediationSteps.ts');
 
 describe('frontend-remediation-tab AC-10 - preview before the fix runs', () => {
   // @ac AC-10
+  test('frontend-remediation-tab/AC-10 - never claims a fix is unverified', () => {
+    // Plan.Validators is hardcoded nil in Kensa's planner, so rendering its
+    // emptiness printed "No validators" for EVERY rule, next to the button
+    // that applies the fix. That is false: the rule's own check re-runs after
+    // apply and a failure restores the capture. Filed as KN-OW-017.
+    expect(journal).not.toMatch(/No validators/);
+    expect(journal).toMatch(/own check runs again/i);
+    expect(journal).toMatch(/captured\s*\n?\s*state is restored|captured state is restored/i);
+    // Any real validators Kensa starts returning are shown as an addition,
+    // not as the answer to whether the fix is checked at all.
+    expect(journal).toMatch(/Additional validators/);
+    expect(journal).toMatch(/checks\.length > 0/);
+  });
+
+  // @ac AC-10
+  test('frontend-remediation-tab/AC-10 - does not present a placeholder as an estimate', () => {
+    // EstimatedDuration is len(steps) * 2s in the planner: a constant, not a
+    // measurement. Rendering it as "Estimated 4s." implied precision that
+    // does not exist.
+    expect(journal).not.toMatch(/Estimated \{/);
+    expect(journal).not.toMatch(/estimated_seconds/);
+  });
+
+  // @ac AC-10
+  test('frontend-remediation-tab/AC-10 - identical rollback lines collapse', () => {
+    // Kensa builds each rollback summary from the mechanism alone, so a rule
+    // with two steps of one mechanism yields the same sentence twice.
+    expect(journal).toMatch(/dedupe/);
+    expect(journal).toMatch(/it\.summary !== items\[i - 1\]\?\.summary/);
+  });
+
+  // @ac AC-10
   test('frontend-remediation-tab/AC-10 - an unexecuted request shows the plan, not an empty panel', () => {
     // The old behaviour was a bare "No transaction yet". Deciding whether to
     // approve a fix needs what it WILL do, not only what it did.
