@@ -41,6 +41,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // RemediationWorker processes "remediation" queue jobs. One per process,
@@ -467,6 +468,7 @@ func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 				e.PreState = b
 			}
 		}
+		e.KensaVersion = version.Kensa()
 		out = append(out, e)
 	}
 	return out

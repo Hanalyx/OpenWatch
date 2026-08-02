@@ -1400,6 +1400,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/remediation/requests/{rid}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview what a remediation would do, without changing the host
+         * @description Asks Kensa to plan the request's rule against its host: the apply steps
+         *     that would run, the validators that would check them, and how each
+         *     would be reversed. Read-only. Kensa captures pre-state during planning
+         *     but does not apply anything.
+         *
+         *     This reaches the host over SSH, so it is a live call and fails the way
+         *     a scan does when the host is unreachable. It is not cached: a plan
+         *     describes the host as it is now, and a stale preview is worse than none.
+         *
+         *     Free core, like the single-rule fix it previews. RBAC:
+         *     remediation:read. Spec api-remediation.
+         */
+        get: operations["getRemediationPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/remediation/requests/{rid}:approve": {
         parameters: {
             query?: never;
@@ -3855,6 +3885,53 @@ export interface components {
              *     order.
              */
             pre_state?: components["schemas"]["RemediationPreState"][];
+        };
+        /**
+         * @description What remediating one rule on one host would do. Produced by Kensa
+         *     without mutating the host.
+         */
+        RemediationPlan: {
+            /** Format: uuid */
+            plan_id?: string;
+            rule_id: string;
+            /** @description The apply steps that would run, in order. */
+            steps: components["schemas"]["RemediationPlanStep"][];
+            /** @description The validators that would run after apply. */
+            checks: {
+                name: string;
+                summary?: string;
+            }[];
+            /**
+             * @description How each applied step would be reversed. Rollback runs this in
+             *     reverse order.
+             */
+            undo: components["schemas"]["RemediationPlanStep"][];
+            /**
+             * @description How many steps Kensa actually captured pre-state for, counted from
+             *     the capture rather than from the rule's own claim about itself.
+             */
+            reversible_steps: number;
+            /** @description False when the steps are not all-or-nothing. */
+            transactional: boolean;
+            /**
+             * @description True when a step touches SSH, networking, PAM or firewall state.
+             *     Kensa arms a deadman timer before applying such a transaction, so
+             *     a fix that could lock you out reverts itself if you lose contact.
+             */
+            control_channel_sensitive: boolean;
+            /** @description Kensa's own operator-facing notices about this plan. */
+            warnings?: string[];
+            estimated_seconds?: number;
+            /** Format: date-time */
+            captured_at?: string;
+        };
+        RemediationPlanStep: {
+            index: number;
+            mechanism: string;
+            /** @description Kensa's human-readable description of the action. */
+            summary?: string;
+            /** @description False when this step cannot be reversed. */
+            capturable?: boolean;
         };
         /**
          * @description One phase's captured pre-change state.
@@ -7720,6 +7797,67 @@ export interface operations {
             };
             /** @description Remediation request not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRemediationPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemediationPlan"];
+                };
+            };
+            /** @description Caller lacks remediation:read permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Remediation request not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description The host could not be planned against (unreachable, auth, or sudo).
+             *     The body names which.
+             */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Planning is unavailable because the Kensa rule corpus is not loaded */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

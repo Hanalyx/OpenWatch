@@ -147,11 +147,18 @@ type RemediateFuncDeps struct {
 
 // NewProductionRemediateFunc loads the rule corpus and composes the full Kensa
 // service over our credential-resolved, APPLY-enabled TransportFactory,
-// returning the remediate + rollback closures the worker binds.
-func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (RemediateFunc, RollbackFunc, error) {
+// returning the remediate + rollback closures the worker binds and the plan
+// closure the API serves.
+//
+// The plan closure shares this composition rather than getting its own. It is
+// read-only, so it does not need the apply-enabled transport, but capture reads
+// root-owned state and therefore needs the same credential resolution and sudo
+// policy. One composition with three closures beats two services that must be
+// kept in agreement about how to reach a host.
+func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (RemediateFunc, RollbackFunc, PlanFunc, error) {
 	rules, err := pkgkensa.LoadRules(deps.RulesDir, nil, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("kensa: load rule corpus: %w", err)
+		return nil, nil, nil, fmt.Errorf("kensa: load rule corpus: %w", err)
 	}
 	corpus := &corpusCache{rules: rules, dir: deps.RulesDir}
 	factory := &TransportFactory{
@@ -166,9 +173,10 @@ func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (Re
 	}
 	svc, err := pkgkensa.DefaultWithTransportFactory(ctx, deps.StorePath, factory)
 	if err != nil {
-		return nil, nil, fmt.Errorf("kensa: compose remediation service: %w", err)
+		return nil, nil, nil, fmt.Errorf("kensa: compose remediation service: %w", err)
 	}
-	return makeRemediate(deps, corpus, svc), makeRollback(deps, svc), nil
+	return makeRemediate(deps, corpus, svc), makeRollback(deps, svc),
+		makePlan(deps, corpus, svc), nil
 }
 
 func makeRemediate(deps RemediateFuncDeps, corpus *corpusCache, svc remediateService) RemediateFunc {

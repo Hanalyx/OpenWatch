@@ -617,7 +617,8 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// a durable SQLite store for rollback pre-state — derive a path from the
 	// kensa store env (dev default under the working dir).
 	remExecutor := scanExecutor
-	if remFn, rbFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
+	var remediationPlanFn kensa.PlanFunc
+	if remFn, rbFn, planFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
 		RulesDir:    scanRulesDir,
@@ -638,6 +639,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 			slog.String("error", remErr.Error()))
 	} else {
 		remExecutor = remExecutor.WithRemediateFunc(remFn, rbFn)
+		remediationPlanFn = planFn
 	}
 	remediationWorker := worker.NewRemediationWorker(worker.RemediationConfig{
 		Pool:       pool,
@@ -718,6 +720,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		WithVariableCatalog(varCatalog).
 		WithExceptions(exceptionSvc).
 		WithRemediation(remediationSvc).
+		WithRemediationPlan(remediationPlanFn).
 		WithGroups(group.NewService(pool)).
 		WithReports(reportSvc).
 		WithReportSchedules(reportScheduleSvc).

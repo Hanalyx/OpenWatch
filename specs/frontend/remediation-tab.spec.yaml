@@ -1,7 +1,7 @@
 spec:
   id: frontend-remediation-tab
   title: Host detail Remediation tab + per-rule request/apply affordance
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -136,5 +136,18 @@ spec:
         it as a failure would train operators to distrust the safety net.
         not_applied likewise renders neutral. partially_applied renders
         critical, because that host needs a human.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: >
+        A request that has not executed shows what the fix WOULD do instead of
+        an empty panel: the apply steps, the validators, and how it can be
+        undone, in Kensa's own words. A control-channel-sensitive plan is
+        called out in terms of the consequence, that the change reverts itself
+        if the host stops answering, rather than by naming the flag. A
+        non-transactional rule warns that earlier steps stay applied if a later
+        one fails. A planning failure states that nothing was changed on the
+        host, because the operator's first question on seeing an error next to
+        a fix button is whether it half-ran.
       priority: critical
       references_constraints: [C-04]

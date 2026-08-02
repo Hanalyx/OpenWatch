@@ -170,10 +170,10 @@ func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID stri
 				INSERT INTO remediation_transactions
 					(id, request_id, ordinal, rule_id, kensa_txn_id,
 					 mechanism, phase_result, evidence, steps, pre_state,
-					 dry_run, applied_at)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,false,now())`,
+					 kensa_version, dry_run, applied_at)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,false,now())`,
 				txnID, id, i, ruleID, t.TxnID.String(), nullIfEmpty(t.Mechanism),
-				phase, ev, steps, pre); err != nil {
+				phase, ev, steps, pre, nullIfEmpty(t.KensaVersion)); err != nil {
 				return Request{}, fmt.Errorf("remediation: insert journal: %w", err)
 			}
 		}

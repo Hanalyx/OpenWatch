@@ -187,6 +187,12 @@ type ExecTxn struct {
 	// remediation_transactions.mechanism, another column that existed and was
 	// never populated.
 	Mechanism string
+	// KensaVersion is the engine version that produced this transaction.
+	// Recorded so a re-backfill of derived display strings can be scoped to
+	// the rows a describer change affected: Kensa states plainly that
+	// describer output is not stable across releases, so persisted summaries
+	// go stale silently without it. See features/KN-OW-016.
+	KensaVersion string
 	// Err is the transaction error string, empty on success.
 	Err string
 	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and

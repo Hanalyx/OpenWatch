@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -462,4 +463,126 @@ func (h *handlers) emitRemediationActQueued(ctx context.Context, r *http.Request
 		ResourceID:   rq.ID.String(),
 		Detail:       detail,
 	})
+}
+
+// GetRemediationPlan previews what a request's fix would do, without changing
+// the host.
+//
+// Live and uncached on purpose. A plan describes the host as it is now, and a
+// remembered preview is worse than none: it would show an operator a state the
+// host has since left, which is exactly the mistake Kensa's PlanStaleError
+// exists to prevent on the execute side.
+func (h *handlers) GetRemediationPlan(w http.ResponseWriter, r *http.Request, rid openapitypes.UUID) {
+	if denied := auth.EnforcePermission(w, r, auth.RemediationRead); denied {
+		return
+	}
+	if !h.remediationSvcReady(w) {
+		return
+	}
+	ctx := r.Context()
+	req, err := h.remediationSvc.Get(ctx, uuid.UUID(rid))
+	if mapRemediationErr(w, err) {
+		return
+	}
+	if h.remediationPlan == nil {
+		// Not an empty plan. An empty preview reads as "this fix does
+		// nothing", which is a different and much worse claim than "we cannot
+		// tell you yet".
+		writeError(w, http.StatusServiceUnavailable, "remediation.plan_unavailable", "server",
+			"planning needs the Kensa rule corpus, which is not loaded on this deployment", false)
+		return
+	}
+
+	plan, reason, planErr := h.remediationPlan(ctx, req.HostID, req.RuleID)
+	if planErr != nil {
+		// Planning reaches the host, so its failures are the host's, not the
+		// server's. Name which one rather than returning a bare 502.
+		writeError(w, http.StatusBadGateway, "remediation.plan_failed", "server",
+			planFailureMessage(reason, planErr), true)
+		return
+	}
+	writeJSON(w, http.StatusOK, toAPIPlan(plan))
+}
+
+// planFailureMessage turns a Kensa failure reason into something an operator
+// can act on. The reasons are the same ones a scan reports, because planning
+// takes the same path to the host.
+func planFailureMessage(reason kensa.FailureReason, err error) string {
+	switch reason {
+	case kensa.ReasonHostKeyUnknown:
+		return "the host's SSH key is not trusted yet, so planning could not connect"
+	case kensa.ReasonCredentialDecryptionFailed:
+		return "the stored credential for this host could not be decrypted"
+	case kensa.ReasonHostBusy:
+		return "the host is already running a scan or remediation; try again shortly"
+	case kensa.ReasonTimeout:
+		return "planning timed out reaching the host, so its current state is unknown"
+	default:
+		// Includes ReasonKensaError. Planning reads root-owned state over
+		// SSH, so an unreachable host, a refused login and a refused sudo all
+		// land here; the wrapped error carries which.
+		return "could not plan against the host: " + err.Error()
+	}
+}
+
+func toAPIPlan(p *kensa.RemediationPlan) api.RemediationPlan {
+	out := api.RemediationPlan{
+		RuleId:                  p.RuleID,
+		Transactional:           p.Transactional,
+		ControlChannelSensitive: p.ControlChannelSensitive,
+		ReversibleSteps:         p.CanUndo,
+		Steps:                   []api.RemediationPlanStep{},
+		Undo:                    []api.RemediationPlanStep{},
+		Checks: []struct {
+			Name    string  `json:"name"`
+			Summary *string `json:"summary,omitempty"`
+		}{},
+	}
+	if p.PlanID != uuid.Nil {
+		id := openapitypes.UUID(p.PlanID)
+		out.PlanId = &id
+	}
+	for _, s := range p.Steps {
+		out.Steps = append(out.Steps, planStep(s.Index, s.Mechanism, s.Summary, &s.Capturable))
+	}
+	for _, u := range p.Undo {
+		out.Undo = append(out.Undo, planStep(u.Index, u.Mechanism, u.Summary, nil))
+	}
+	for _, c := range p.Checks {
+		item := struct {
+			Name    string  `json:"name"`
+			Summary *string `json:"summary,omitempty"`
+		}{Name: c.Name}
+		if c.Summary != "" {
+			sum := c.Summary
+			item.Summary = &sum
+		}
+		out.Checks = append(out.Checks, item)
+	}
+	if len(p.Warnings) > 0 {
+		wrn := p.Warnings
+		out.Warnings = &wrn
+	}
+	if p.EstimatedSeconds > 0 {
+		est := float32(p.EstimatedSeconds)
+		out.EstimatedSeconds = &est
+	}
+	if !p.CapturedAt.IsZero() {
+		at := p.CapturedAt
+		out.CapturedAt = &at
+	}
+	return out
+}
+
+func planStep(index int, mechanism, summary string, capturable *bool) api.RemediationPlanStep {
+	step := api.RemediationPlanStep{Index: index, Mechanism: mechanism}
+	if summary != "" {
+		s := summary
+		step.Summary = &s
+	}
+	if capturable != nil {
+		c := *capturable
+		step.Capturable = &c
+	}
+	return step
 }

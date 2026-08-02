@@ -98,6 +98,11 @@ type handlers struct {
 	// projected lift). Set via (*Server).WithRemediation; nil makes the
 	// remediation endpoints 503. Spec api-remediation.
 	remediationSvc *remediation.Service
+	// remediationPlan previews what a fix would do, without changing the host.
+	// Nil when the Kensa rule corpus is unavailable, which makes the plan
+	// endpoint 503 rather than pretending the preview is empty. Spec
+	// api-remediation.
+	remediationPlan kensa.PlanFunc
 
 	// Host group service (sites + OS categories). Set via
 	// (*Server).WithGroups; nil makes the group endpoints 503.
