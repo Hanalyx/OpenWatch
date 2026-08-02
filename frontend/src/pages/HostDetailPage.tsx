@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -28,6 +28,7 @@ import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
+import { RemediationJournal } from '@/components/hosts/RemediationJournal';
 import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { useDefaultLens, resolveLensForHost } from '@/api/useDefaultLens';
@@ -1293,6 +1294,9 @@ function RemediationTab({ hostId }: { hostId: string }) {
   const canApprove = useAuthStore((s) => s.hasPermission('remediation:approve')) || isAdmin;
   const canExecute = useAuthStore((s) => s.hasPermission('remediation:execute')) || isAdmin;
   const canRollback = useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin;
+  // One row open at a time. The journal is a detailed read, and several open
+  // at once turns the table back into a wall rather than an explanation.
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
 
   let body: ReactNode;
   if (rem.isPending) {
@@ -1343,31 +1347,76 @@ function RemediationTab({ hostId }: { hostId: string }) {
         <tbody>
           {rem.items.map((r) => {
             const lift = formatLift(r.projected_lift);
+            const open = expandedRequestId === r.id;
             return (
-              <tr key={r.id} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                <td style={remTd}>
-                  <RemStatusChip status={r.status} />
-                </td>
-                <td style={remTd}>
-                  <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
-                    {r.rule_id}
-                  </span>
-                </td>
-                <td
-                  style={{ ...remTd, color: 'var(--ow-fg-2)', fontVariantNumeric: 'tabular-nums' }}
-                >
-                  {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
-                </td>
-                <td style={remTd}>
-                  <RemediationRowAction
-                    request={r}
-                    hostId={hostId}
-                    canApprove={canApprove}
-                    canExecute={canExecute}
-                    canRollback={canRollback}
-                  />
-                </td>
-              </tr>
+              <Fragment key={r.id}>
+                <tr style={{ borderTop: '1px solid var(--ow-line)' }}>
+                  <td style={remTd}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedRequestId(open ? null : r.id)}
+                      aria-expanded={open}
+                      aria-label={
+                        open
+                          ? `Hide transaction for ${r.rule_id}`
+                          : `Show transaction for ${r.rule_id}`
+                      }
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: 'inherit',
+                        font: 'inherit',
+                      }}
+                    >
+                      <ChevronRight
+                        size={13}
+                        aria-hidden
+                        style={{
+                          color: 'var(--ow-fg-3)',
+                          transform: open ? 'rotate(90deg)' : 'none',
+                          transition: 'transform 120ms',
+                        }}
+                      />
+                      <RemStatusChip status={r.status} />
+                    </button>
+                  </td>
+                  <td style={remTd}>
+                    <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                      {r.rule_id}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...remTd,
+                      color: 'var(--ow-fg-2)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
+                  </td>
+                  <td style={remTd}>
+                    <RemediationRowAction
+                      request={r}
+                      hostId={hostId}
+                      canApprove={canApprove}
+                      canExecute={canExecute}
+                      canRollback={canRollback}
+                    />
+                  </td>
+                </tr>
+                {open ? (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '0 12px', background: 'var(--ow-bg-0)' }}>
+                      <RemediationJournal hostId={hostId} requestId={r.id} expanded />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
         </tbody>
