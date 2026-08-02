@@ -1132,9 +1132,12 @@ func (e RemediationRequestStatus) Valid() bool {
 
 // Defines values for RemediationStepPhaseResult.
 const (
-	RemediationStepPhaseResultCommitted  RemediationStepPhaseResult = "committed"
-	RemediationStepPhaseResultRolledBack RemediationStepPhaseResult = "rolled_back"
-	RemediationStepPhaseResultSkipped    RemediationStepPhaseResult = "skipped"
+	RemediationStepPhaseResultCommitted        RemediationStepPhaseResult = "committed"
+	RemediationStepPhaseResultNotApplied       RemediationStepPhaseResult = "not_applied"
+	RemediationStepPhaseResultPartiallyApplied RemediationStepPhaseResult = "partially_applied"
+	RemediationStepPhaseResultRolledBack       RemediationStepPhaseResult = "rolled_back"
+	RemediationStepPhaseResultSkipped          RemediationStepPhaseResult = "skipped"
+	RemediationStepPhaseResultStaged           RemediationStepPhaseResult = "staged"
 )
 
 // Valid indicates whether the value is a known member of the RemediationStepPhaseResult enum.
@@ -1142,9 +1145,15 @@ func (e RemediationStepPhaseResult) Valid() bool {
 	switch e {
 	case RemediationStepPhaseResultCommitted:
 		return true
+	case RemediationStepPhaseResultNotApplied:
+		return true
+	case RemediationStepPhaseResultPartiallyApplied:
+		return true
 	case RemediationStepPhaseResultRolledBack:
 		return true
 	case RemediationStepPhaseResultSkipped:
+		return true
+	case RemediationStepPhaseResultStaged:
 		return true
 	default:
 		return false
@@ -3175,6 +3184,44 @@ type ProjectedLift struct {
 	Stig *float64 `json:"stig,omitempty"`
 }
 
+// RemediationPhase One Capture/Apply/Validate/Commit phase of a rule's transaction.
+type RemediationPhase struct {
+	// Capturable False when this phase's mechanism cannot record pre-state, which is
+	// what makes a rule non-rollbackable.
+	Capturable bool `json:"capturable"`
+
+	// Detail Human-readable account of what this phase did, or why it did not.
+	Detail    *string `json:"detail,omitempty"`
+	Index     int     `json:"index"`
+	Mechanism string  `json:"mechanism"`
+
+	// Staged True when the change was written to the persist layer but the
+	// running host has not converged, so a re-scan still reports the rule
+	// failing until reboot.
+	Staged bool `json:"staged"`
+
+	// Stranded True for a non-capturable phase that succeeded before a later
+	// failure. Rollback does NOT reverse it.
+	Stranded bool `json:"stranded"`
+	Success  bool `json:"success"`
+}
+
+// RemediationPreState One phase's captured pre-change state.
+//
+// `data` is mechanism-specific and is passed through from Kensa without
+// interpretation. OpenWatch has no schema for it and deliberately does
+// not decode it: each capturable handler defines its own layout, so
+// reading it here would couple this contract to Kensa handler internals.
+// Clients should treat it as opaque evidence unless they know the
+// mechanism.
+type RemediationPreState struct {
+	// Capturable False for phases whose mechanism cannot capture pre-state; `data` is then empty.
+	Capturable bool                    `json:"capturable"`
+	Data       *map[string]interface{} `json:"data,omitempty"`
+	Index      int                     `json:"index"`
+	Mechanism  string                  `json:"mechanism"`
+}
+
 // RemediationRequest defines model for RemediationRequest.
 type RemediationRequest struct {
 	HostId openapi_types.UUID `json:"host_id"`
@@ -3223,17 +3270,32 @@ type RemediationReview struct {
 	Note *string `json:"note,omitempty"`
 }
 
-// RemediationStep defines model for RemediationStep.
+// RemediationStep One rule's Kensa transaction. Note that a "step" here is a RULE, not a
+// phase: the Capture/Apply/Validate/Commit phases are in `phases`, one
+// level below.
 type RemediationStep struct {
-	AppliedAt   *time.Time                  `json:"applied_at,omitempty"`
-	DryRun      bool                        `json:"dry_run"`
-	Id          openapi_types.UUID          `json:"id"`
-	Mechanism   *string                     `json:"mechanism,omitempty"`
+	AppliedAt *time.Time         `json:"applied_at,omitempty"`
+	DryRun    bool               `json:"dry_run"`
+	Id        openapi_types.UUID `json:"id"`
+	Mechanism *string            `json:"mechanism,omitempty"`
+
+	// PhaseResult Terminal outcome of the rule's transaction. Widened past
+	// committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
 	PhaseResult *RemediationStepPhaseResult `json:"phase_result,omitempty"`
-	RuleId      string                      `json:"rule_id"`
+
+	// Phases The per-phase journal Kensa returned, in execution order. `detail`
+	// is the engine's own account of what each phase did, and is the
+	// answer to why a remediation failed.
+	Phases *[]RemediationPhase `json:"phases,omitempty"`
+
+	// PreState The state captured before any change, one entry per phase, in phase
+	// order.
+	PreState *[]RemediationPreState `json:"pre_state,omitempty"`
+	RuleId   string                 `json:"rule_id"`
 }
 
-// RemediationStepPhaseResult defines model for RemediationStep.PhaseResult.
+// RemediationStepPhaseResult Terminal outcome of the rule's transaction. Widened past
+// committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
 type RemediationStepPhaseResult string
 
 // RemediationStepList defines model for RemediationStepList.

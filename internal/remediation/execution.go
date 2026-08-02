@@ -157,13 +157,23 @@ func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID stri
 			if len(ev) == 0 {
 				ev = []byte("{}")
 			}
+			steps := t.Steps
+			if len(steps) == 0 {
+				steps = []byte("[]")
+			}
+			pre := t.PreState
+			if len(pre) == 0 {
+				pre = []byte("[]")
+			}
 			txnID := uuid.Must(uuid.NewV7())
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO remediation_transactions
 					(id, request_id, ordinal, rule_id, kensa_txn_id,
-					 phase_result, evidence, dry_run, applied_at)
-				VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,false,now())`,
-				txnID, id, i, ruleID, t.TxnID.String(), phase, ev); err != nil {
+					 mechanism, phase_result, evidence, steps, pre_state,
+					 dry_run, applied_at)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,false,now())`,
+				txnID, id, i, ruleID, t.TxnID.String(), nullIfEmpty(t.Mechanism),
+				phase, ev, steps, pre); err != nil {
 				return Request{}, fmt.Errorf("remediation: insert journal: %w", err)
 			}
 		}
@@ -351,4 +361,14 @@ func phaseResult(t ExecTxn) string {
 	default:
 		return "skipped"
 	}
+}
+
+// nullIfEmpty keeps mechanism NULL rather than an empty string when a
+// transaction produced no steps, so "we did not record it" stays
+// distinguishable from "it had no mechanism".
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

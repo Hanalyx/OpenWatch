@@ -88,6 +88,33 @@ func toAPIStep(st remediation.Step) api.RemediationStep {
 		m := st.Mechanism
 		out.Mechanism = &m
 	}
+	if len(st.Phases) > 0 {
+		ph := make([]api.RemediationPhase, 0, len(st.Phases))
+		for _, p := range st.Phases {
+			item := api.RemediationPhase{
+				Index:      p.Index,
+				Mechanism:  p.Mechanism,
+				Success:    p.Success,
+				Capturable: p.Capturable,
+				Staged:     p.Staged,
+				Stranded:   p.Stranded,
+			}
+			if p.Detail != "" {
+				d := p.Detail
+				item.Detail = &d
+			}
+			ph = append(ph, item)
+		}
+		out.Phases = &ph
+	}
+	// Passed through without interpretation: the shape belongs to the Kensa
+	// handler that captured it.
+	if len(st.PreState) > 0 {
+		var pre []api.RemediationPreState
+		if err := json.Unmarshal(st.PreState, &pre); err == nil && len(pre) > 0 {
+			out.PreState = &pre
+		}
+	}
 	if st.PhaseResult != nil {
 		pr := api.RemediationStepPhaseResult(*st.PhaseResult)
 		out.PhaseResult = &pr
