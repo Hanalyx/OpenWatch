@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Hanalyx/openwatch/internal/kensa"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -27,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/server/api"

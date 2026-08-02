@@ -29,7 +29,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Hanalyx/openwatch/internal/version"
 	"log/slog"
 	"time"
 
@@ -42,6 +41,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // RemediationWorker processes "remediation" queue jobs. One per process,
