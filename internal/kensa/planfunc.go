@@ -7,6 +7,7 @@ import (
 	"time"
 
 	kensaapi "github.com/Hanalyx/kensa/api"
+	pkgkensa "github.com/Hanalyx/kensa/pkg/kensa"
 	"github.com/google/uuid"
 )
 
@@ -21,13 +22,15 @@ type PlanFunc func(ctx context.Context, hostID uuid.UUID, ruleID string) (*Remed
 
 // RemediationPlan is the OpenWatch-side view of a kensa Plan.
 //
-// Everything here is already human-readable in the Kensa contract:
-// StepPreview.Summary is documented with the example "Set PermitRootLogin=no
-// in sshd_config.d/00-kensa.conf". The one thing that is not is PreStates,
-// whose Data is mechanism-specific and opaque, so the captured values are
-// deliberately absent until pkg/kensa.DescribePreState lands
-// (features/KN-OW-016). Showing which steps captured something is honest;
-// guessing at what it means is not.
+// Everything here is human-readable in the Kensa contract: StepPreview.Summary
+// is documented with the example "Set PermitRootLogin=no in
+// sshd_config.d/00-kensa.conf", and as of Kensa v0.9.0 the captured pre-state
+// renders through DescribePreState, which closes features/KN-OW-016.
+//
+// The Before summaries are computed live and never stored. A plan describes
+// the host as it is now and is discarded after it is read, so the
+// version-stamping obligation that applies to ingested transactions does not
+// apply here.
 type RemediationPlan struct {
 	PlanID  uuid.UUID
 	RuleID  string
@@ -47,6 +50,17 @@ type RemediationPlan struct {
 	ControlChannelSensitive bool
 	EstimatedSeconds        float64
 	CapturedAt              time.Time
+	// Before is what Kensa found on the host while planning, one entry per
+	// capturable step. This is the "what does it look like now" half of the
+	// preview; the apply-step summaries are the "what will it become" half.
+	Before []PlanCapture
+}
+
+// PlanCapture is one captured pre-state, rendered for display.
+type PlanCapture struct {
+	Index     int
+	Mechanism string
+	Summary   string
 }
 
 // PlanStep is one apply step that would run.
@@ -124,11 +138,16 @@ func mapPlan(p *kensaapi.Plan, ruleID string) *RemediationPlan {
 		})
 	}
 	// How much of this fix is reversible, counted from what Kensa captured
-	// rather than from the rule's own claim about itself.
+	// rather than from the rule's own claim about itself. The same pass
+	// renders each capture, so the preview can say what is there now.
 	for _, ps := range p.PreStates {
 		if ps.Capturable {
 			out.CanUndo++
 		}
+		out.Before = append(out.Before, PlanCapture{
+			Index: ps.StepIndex, Mechanism: ps.Mechanism,
+			Summary: pkgkensa.DescribePreState(ps),
+		})
 	}
 	return out
 }

@@ -179,6 +179,23 @@ function CapturedState({ entries }: { entries: RemediationPreState[] }) {
                 <span style={{ color: 'var(--ow-fg-3)' }}> (no pre-state, not restorable)</span>
               )}
             </div>
+            {/* Kensa's rendering of what was on the host. Display text, not
+                evidence: the raw capture stays below, behind the disclosure it
+                has always been behind, because the summary is elided by
+                construction and is not a secret scanner. */}
+            {e.summary ? (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--ow-fg-1)',
+                  fontFamily: 'var(--ow-font-mono)',
+                  marginTop: 2,
+                  wordBreak: 'break-word',
+                }}
+              >
+                before: {e.summary}
+              </div>
+            ) : null}
             {e.capturable && e.data ? (
               <pre
                 style={{
@@ -243,6 +260,7 @@ function PlanPreview({ hostId, requestId }: { hostId: string; requestId: string 
   const checks = plan.checks ?? [];
   const undo = plan.undo ?? [];
   const warnings = plan.warnings ?? [];
+  const before = plan.before ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 2px 12px' }}>
@@ -267,6 +285,29 @@ function PlanPreview({ hostId, requestId }: { hostId: string; requestId: string 
           {w}
         </Callout>
       ))}
+
+      {/* What is there now, before what it becomes. An operator reads the
+          two together: this is the half that was missing until Kensa v0.9.0
+          shipped DescribePreState. */}
+      {before.length > 0 ? (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ow-fg-0)', marginBottom: 6 }}>
+            What is there now
+          </div>
+          <ul
+            style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}
+          >
+            {before.map((b) => (
+              <li
+                key={b.index}
+                style={{ fontSize: 12, color: 'var(--ow-fg-1)', fontFamily: 'var(--ow-font-mono)' }}
+              >
+                {b.summary ?? b.mechanism}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <PlanSection title="What it will change" items={steps} empty="No apply steps." />
 

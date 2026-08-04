@@ -3921,6 +3921,16 @@ export interface components {
             control_channel_sensitive: boolean;
             /** @description Kensa's own operator-facing notices about this plan. */
             warnings?: string[];
+            /**
+             * @description What Kensa found on the host while planning, one entry per step.
+             *     Computed live and never stored, because a plan describes the host
+             *     as it is now.
+             */
+            before?: {
+                index: number;
+                mechanism: string;
+                summary?: string;
+            }[];
             estimated_seconds?: number;
             /** Format: date-time */
             captured_at?: string;
@@ -3948,6 +3958,18 @@ export interface components {
             mechanism: string;
             /** @description False for phases whose mechanism cannot capture pre-state; `data` is then empty. */
             capturable: boolean;
+            /**
+             * @description Kensa's one-line rendering of what was captured, from the handler
+             *     that captured it.
+             *
+             *     Display text, not evidence. It carries no stability guarantee and
+             *     may change between Kensa releases, which is why the transaction
+             *     records the Kensa version that produced it. `data` remains the
+             *     authoritative capture. Elided by construction so no file body
+             *     appears, and a credential named inside a config line is redacted,
+             *     but it is not a secret scanner: treat it as operator-visible text.
+             */
+            summary?: string;
             data?: {
                 [key: string]: unknown;
             };
