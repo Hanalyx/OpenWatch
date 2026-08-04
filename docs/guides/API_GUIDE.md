@@ -1,6 +1,6 @@
 # API guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 Most operators use the web UI for daily work: managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for

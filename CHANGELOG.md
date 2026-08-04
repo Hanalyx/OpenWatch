@@ -10,6 +10,54 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] Eyrie (2026-08-04)
+
+Remediation stops being a black box. v0.7.0 could tell you a fix had been
+reverted and nothing more; this release shows what the engine did, what it
+found on the host first, and what a fix will do before you approve it.
+
+### Added
+
+- **See what a fix will do before approving it.** Expanding a remediation
+  request that has not run shows the plan: the steps that would be applied, how
+  the result will be checked, and how each step can be undone, in the engine's
+  own words rather than a restatement of the rule. It is planned against the
+  host at that moment and nothing is changed. A fix that touches SSH,
+  networking, PAM or firewall state says so, and says that the change reverts
+  itself if the host stops answering, which is what stops a hardening fix from
+  locking you out of the host you are hardening.
+- **See what happened, phase by phase.** An executed request now shows the
+  Capture, Apply, Validate and Commit phases with the engine's account of each.
+  When a fix fails you get the reason instead of only "reverted, host
+  unchanged". Three consequences are stated in words because none can be read
+  off the status: a step that rollback will not reverse, a change written but
+  not live until reboot, and a step that cannot be rolled back at all.
+- **See what was on the host before the change.** Each captured step shows a
+  one-line summary of the state that was recorded before anything was applied,
+  and the plan preview shows the same for the current host. The full captured
+  state is still available and is still what an auditor should read; the
+  summary is for the screen and is not a substitute for it.
+
+### Fixed
+
+- **A rule that was already compliant no longer looks like a fix that ran, and
+  no longer offers to roll back.** When a rule already passed, the engine
+  reported the same result as a successful remediation, so OpenWatch marked the
+  request executed, showed it as fixed, and offered a Roll back for a change
+  that never happened and captured nothing to restore. Such a request now
+  reports that no change was made, explains that the host already satisfied the
+  rule, and offers no rollback.
+- The plan preview no longer reports that a fix has no validators. Every rule
+  showed that, and it was wrong: the rule's own check re-runs after a fix is
+  applied and the captured state is restored if it does not pass. The preview
+  now says so.
+
+### Changed
+
+- **Kensa 0.9.0.** Brings the engine-side surfaces this release is built on.
+  Compliance verdicts are unchanged from 0.8.0, so fleet scores do not move on
+  upgrade.
+
 ## [0.7.0] Eyrie (2026-07-30)
 
 Enforcement and integrity. Authorization and licensing are now guaranteed by the

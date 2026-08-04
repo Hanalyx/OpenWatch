@@ -1,6 +1,6 @@
 # Secret rotation procedures
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide describes how to rotate each secret used by OpenWatch on the current
 single-binary stack: one `/usr/bin/openwatch` process that serves the REST API

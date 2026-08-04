@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
