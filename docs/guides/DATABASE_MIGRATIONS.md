@@ -1,6 +1,6 @@
 # Database migration guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single

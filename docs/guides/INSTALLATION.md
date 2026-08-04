@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-07-31 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-31 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch. Install the packages and run `openwatch setup`, which does
