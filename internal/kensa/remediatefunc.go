@@ -123,6 +123,20 @@ type RemediationPreState struct {
 	Mechanism  string         `json:"mechanism"`
 	Capturable bool           `json:"capturable"`
 	Data       map[string]any `json:"data,omitempty"`
+	// Summary is Kensa's one-line rendering of Data, from the handler that
+	// captured it. Persisted rather than derived on read because the capture
+	// is rendered in the browser, which cannot call into Kensa.
+	//
+	// Not evidence and not stable: Kensa states plainly that describer output
+	// is not semver-frozen, not parseable, and may change in any release
+	// including a patch. Data stays the authoritative capture. That is why
+	// remediation_transactions.kensa_version exists, so a corrected describer
+	// can be re-run over exactly the rows it affects.
+	//
+	// Elided by construction, not scrubbed: no file body reaches it at any
+	// length, and a credential named inside a config line is redacted. It is
+	// not a secret scanner, so treat it as operator-visible text.
+	Summary string `json:"summary,omitempty"`
 }
 
 // RollbackRunResult is the OpenWatch-side view of a kensa RollbackResult.
@@ -365,6 +379,11 @@ func mapPreStates(in []kensaapi.PreState) []RemediationPreState {
 			Mechanism:  p.Mechanism,
 			Capturable: p.Capturable,
 			Data:       p.Data,
+			// Derived here, at ingest, because the handler registry lives in
+			// this binary and the browser that renders it does not. A
+			// non-capturable step gets a fixed marker rather than an empty
+			// string, so the UI can tell "cannot capture" from "no summary".
+			Summary: pkgkensa.DescribePreState(p),
 		})
 	}
 	return out

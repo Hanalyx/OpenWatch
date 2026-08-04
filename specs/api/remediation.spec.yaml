@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 1
 
@@ -246,5 +246,18 @@ spec:
         Kensa leaves it false on the check-only transactions inside a scan
         result, where every passing rule would otherwise look like a real
         remediation.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-15
+      description: >
+        The captured pre-state is rendered, and rendered as display text rather
+        than as evidence. The summary comes from Kensa's DescribePreState,
+        derived at ingest because the browser cannot call into the handler
+        registry, and persisted alongside the Kensa version that produced it so
+        a corrected describer can be re-run over exactly the rows it affects.
+        Raw Data is still returned verbatim and is still the authoritative
+        capture. Plan previews compute the same summaries live and never store
+        them, because a plan describes the host as it is now. OpenWatch decodes
+        no Data key itself, in Go or in TypeScript.
       priority: critical
       references_constraints: [C-09]

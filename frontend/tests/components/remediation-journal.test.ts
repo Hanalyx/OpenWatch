@@ -93,3 +93,36 @@ describe('frontend-remediation-tab AC-09 - pre-state is evidence, not interpreta
     expect(read('src/hooks/useRemediationSteps.ts')).not.toMatch(/—/);
   });
 });
+
+describe('frontend-remediation-tab AC-11 - the capture is shown, still not decoded', () => {
+  const journalSrc = read('src/components/hosts/RemediationJournal.tsx');
+
+  // @ac AC-11
+  test('frontend-remediation-tab/AC-11 - the journal shows what was there before', () => {
+    expect(journalSrc).toMatch(/before: \{e\.summary\}/);
+  });
+
+  // @ac AC-11
+  test('frontend-remediation-tab/AC-11 - the plan shows what is there now', () => {
+    expect(journalSrc).toMatch(/What is there now/);
+    expect(journalSrc).toMatch(/plan\.before/);
+  });
+
+  // @ac AC-11
+  test('frontend-remediation-tab/AC-11 - raw data stays behind its disclosure', () => {
+    // The summary is elided by construction and explicitly not a secret
+    // scanner, so it does not earn the raw capture a promotion out of the
+    // collapsed <details> it has always lived in.
+    expect(journalSrc).toMatch(/<details/);
+    expect(journalSrc).toContain('JSON.stringify(e.data, null, 2)');
+  });
+
+  // @ac AC-11
+  test('frontend-remediation-tab/AC-11 - no mechanism-specific decoding in TypeScript', () => {
+    // A per-mechanism renderer here would drift against 24 private layouts,
+    // one language further from the handlers than a Go one would.
+    for (const key of ['prior_line', 'prior_value', 'immutable_staged', 'find_based']) {
+      expect(journalSrc).not.toContain(key);
+    }
+  });
+});

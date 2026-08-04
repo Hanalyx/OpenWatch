@@ -3209,6 +3209,14 @@ type RemediationPhase struct {
 // RemediationPlan What remediating one rule on one host would do. Produced by Kensa
 // without mutating the host.
 type RemediationPlan struct {
+	// Before What Kensa found on the host while planning, one entry per step.
+	// Computed live and never stored, because a plan describes the host
+	// as it is now.
+	Before *[]struct {
+		Index     int     `json:"index"`
+		Mechanism string  `json:"mechanism"`
+		Summary   *string `json:"summary,omitempty"`
+	} `json:"before,omitempty"`
 	CapturedAt *time.Time `json:"captured_at,omitempty"`
 
 	// Checks The validators that would run after apply.
@@ -3268,6 +3276,17 @@ type RemediationPreState struct {
 	Data       *map[string]interface{} `json:"data,omitempty"`
 	Index      int                     `json:"index"`
 	Mechanism  string                  `json:"mechanism"`
+
+	// Summary Kensa's one-line rendering of what was captured, from the handler
+	// that captured it.
+	//
+	// Display text, not evidence. It carries no stability guarantee and
+	// may change between Kensa releases, which is why the transaction
+	// records the Kensa version that produced it. `data` remains the
+	// authoritative capture. Elided by construction so no file body
+	// appears, and a credential named inside a config line is redacted,
+	// but it is not a secret scanner: treat it as operator-visible text.
+	Summary *string `json:"summary,omitempty"`
 }
 
 // RemediationRequest defines model for RemediationRequest.

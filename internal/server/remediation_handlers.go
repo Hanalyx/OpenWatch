@@ -548,6 +548,26 @@ func toAPIPlan(p *kensa.RemediationPlan) api.RemediationPlan {
 	for _, u := range p.Undo {
 		out.Undo = append(out.Undo, planStep(u.Index, u.Mechanism, u.Summary, nil))
 	}
+	if len(p.Before) > 0 {
+		before := make([]struct {
+			Index     int     `json:"index"`
+			Mechanism string  `json:"mechanism"`
+			Summary   *string `json:"summary,omitempty"`
+		}, 0, len(p.Before))
+		for _, b := range p.Before {
+			item := struct {
+				Index     int     `json:"index"`
+				Mechanism string  `json:"mechanism"`
+				Summary   *string `json:"summary,omitempty"`
+			}{Index: b.Index, Mechanism: b.Mechanism}
+			if b.Summary != "" {
+				sum := b.Summary
+				item.Summary = &sum
+			}
+			before = append(before, item)
+		}
+		out.Before = &before
+	}
 	for _, c := range p.Checks {
 		item := struct {
 			Name    string  `json:"name"`

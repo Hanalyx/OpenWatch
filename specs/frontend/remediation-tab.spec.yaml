@@ -1,7 +1,7 @@
 spec:
   id: frontend-remediation-tab
   title: Host detail Remediation tab + per-rule request/apply affordance
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -149,5 +149,16 @@ spec:
         one fails. A planning failure states that nothing was changed on the
         host, because the operator's first question on seeing an error next to
         a fix button is whether it half-ran.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-11
+      description: >
+        The journal shows what was on the host before the change, and the plan
+        preview shows what is there now, both from Kensa's own rendering. The
+        raw capture stays behind the disclosure it has always been behind
+        rather than being promoted alongside the summary, because the summary
+        is elided by construction and is explicitly not a secret scanner. A
+        non-capturable step still renders its distinction, so "cannot capture"
+        never reads as "nothing found".
       priority: critical
       references_constraints: [C-04]
