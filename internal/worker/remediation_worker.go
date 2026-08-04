@@ -449,11 +449,12 @@ func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 	out := make([]remediation.ExecTxn, 0, len(in))
 	for _, t := range in {
 		e := remediation.ExecTxn{
-			TxnID:         t.TxnID,
-			Status:        t.Status,
-			Evidence:      t.Evidence,
-			Err:           t.Err,
-			HostUnchanged: t.HostUnchanged,
+			TxnID:            t.TxnID,
+			Status:           t.Status,
+			Evidence:         t.Evidence,
+			Err:              t.Err,
+			HostUnchanged:    t.HostUnchanged,
+			AlreadyCompliant: t.AlreadyCompliant,
 		}
 		// Serialise here rather than threading Kensa types further in:
 		// internal/remediation deliberately does not import internal/kensa.

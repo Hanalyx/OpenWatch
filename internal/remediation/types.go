@@ -168,6 +168,13 @@ type ExecTxn struct {
 	// rolled_back | partially_applied | errored | staged. Passed through
 	// verbatim from api.TransactionStatus and mapped by OutcomeOf.
 	Status string
+	// AlreadyCompliant is true when the rule's check passed before any apply,
+	// so Kensa changed nothing. It reports Status=committed regardless, which
+	// is why this must be consulted before treating a commit as a change.
+	//
+	// Only meaningful on the remediation path: Kensa leaves it false on the
+	// check-only transactions inside a scan result.
+	AlreadyCompliant bool
 	// Refused is true when the engine declined to act WITHOUT mutating the
 	// host (Kensa reported Success=false with a detail rather than an error),
 	// e.g. the v0.8.0 duplicate-audit-action guard. Kensa has no distinct
@@ -246,6 +253,20 @@ func OutcomeOf(t ExecTxn) (Status, bool) {
 	// A refusal is not a Kensa status; check it before the status switch.
 	// The engine declined without touching the host.
 	if t.Refused {
+		return StatusNotApplied, true
+	}
+	// Neither is already-compliant, and it is the more dangerous of the two to
+	// miss. Kensa reports committed, so without this the request is marked
+	// executed, the rule is badged as fixed, and the operator is offered a
+	// Roll back for a transaction that mutated nothing and captured no state
+	// to restore. Kensa never persisted such a record, so the rollback would
+	// act against a capture that does not describe a change.
+	//
+	// not_applied is the right outcome rather than a seventh status: the host
+	// is compliant either way, and what an operator can DO about it is
+	// identical to a refusal, which is what the status vocabulary encodes.
+	// The difference is the reason, and rollUpOutcome carries that.
+	if t.AlreadyCompliant && t.Status == kensaCommitted {
 		return StatusNotApplied, true
 	}
 	switch t.Status {
