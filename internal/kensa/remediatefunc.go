@@ -62,6 +62,18 @@ type RemediationTxn struct {
 	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and
 	// only if Kensa can prove the host is in its pre-transaction state.
 	HostUnchanged bool
+	// AlreadyCompliant mirrors api.TransactionResult.AlreadyCompliant: the
+	// rule's check passed BEFORE any apply, so nothing was changed. Kensa
+	// still reports Status=committed, which on its own is indistinguishable
+	// from a real remediation.
+	//
+	// SCOPE, from the field's godoc: this is meaningful on the REMEDIATION
+	// path only. Kensa leaves it false on the check-only entries in
+	// ScanResult.Transactions rather than extending that legacy overload, so
+	// "committed and not AlreadyCompliant" must NEVER be read as "the host was
+	// changed" against a scan result: every passing rule of a read-only check
+	// would satisfy it. mapTxns is called from the remediation path only.
+	AlreadyCompliant bool
 	// Steps is the per-phase journal Kensa returns. Until this existed the
 	// engine's own account of what it did was reduced to a step COUNT, so a
 	// failed remediation could report only "reverted, host unchanged" while
@@ -268,14 +280,15 @@ func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 	out := make([]RemediationTxn, 0, len(in))
 	for _, t := range in {
 		txn := RemediationTxn{
-			TxnID:         t.TransactionID,
-			Status:        string(t.Status),
-			Evidence:      txnEvidence(t),
-			HostUnchanged: t.HostUnchanged,
-			Steps:         mapSteps(t.Steps),
-			PreStates:     mapPreStates(t.PreStates),
-			StartedAt:     t.StartedAt,
-			FinishedAt:    t.FinishedAt,
+			TxnID:            t.TransactionID,
+			Status:           string(t.Status),
+			Evidence:         txnEvidence(t),
+			HostUnchanged:    t.HostUnchanged,
+			AlreadyCompliant: t.AlreadyCompliant,
+			Steps:            mapSteps(t.Steps),
+			PreStates:        mapPreStates(t.PreStates),
+			StartedAt:        t.StartedAt,
+			FinishedAt:       t.FinishedAt,
 		}
 		if t.CommittedAt != nil {
 			txn.CommittedAt = *t.CommittedAt

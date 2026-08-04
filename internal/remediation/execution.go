@@ -283,6 +283,16 @@ func rollUpOutcome(ctx context.Context, txns []ExecTxn) (Status, string) {
 
 	seen := make(map[Status]bool, len(txns))
 	reason := ""
+	// Already-compliant needs its own sentence. It maps to not_applied, which
+	// otherwise reads as "the engine declined" -- true but unhelpful when the
+	// actual news is that the host already satisfied the rule. Without this an
+	// operator sees "Not applied" and cannot tell whether something went wrong.
+	allAlreadyCompliant := true
+	for _, t := range txns {
+		if !t.AlreadyCompliant {
+			allAlreadyCompliant = false
+		}
+	}
 	for _, t := range txns {
 		st, known := OutcomeOf(t)
 		if !known {
@@ -315,7 +325,12 @@ func rollUpOutcome(ctx context.Context, txns []ExecTxn) (Status, string) {
 	}
 
 	if reason == "" {
-		reason = outcomeReason(final)
+		if final == StatusNotApplied && allAlreadyCompliant {
+			reason = "The host already satisfied this rule. Nothing was changed, " +
+				"so there is nothing to roll back."
+		} else {
+			reason = outcomeReason(final)
+		}
 	}
 	return final, reason
 }
