@@ -67,10 +67,10 @@ func (d *Dispatcher) Tick(ctx context.Context) error {
 
 // run generates the scheduled report, renders its PDF face, and emails it.
 //
-// The licence is checked HERE, at fire time, not only when the schedule was
+// The license is checked HERE, at fire time, not only when the schedule was
 // created. A schedule created while licensed would otherwise keep minting the
-// paid attestation artifact on a timer after the licence lapsed, which would
-// make the gate on the HTTP paths theatre. Skipping is deliberate rather than
+// paid attestation artifact on a timer after the license lapsed, which would
+// make the gate on the HTTP paths theater. Skipping is deliberate rather than
 // failing: an unlicensed attestation schedule is inert, not broken, and the
 // operator sees it in the log.
 func (d *Dispatcher) run(ctx context.Context, sch Schedule) error {

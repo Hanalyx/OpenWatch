@@ -83,7 +83,7 @@ the host.
 - **`GET /api/v1/capabilities`** lists every capability with whether this
   deployment can use it, so a client can show a locked or upgradable control
   instead of discovering an entitlement by receiving a `402`. Unauthenticated,
-  and it reports no customer identity or licence detail.
+  and it reports no customer identity or license detail.
 - **Remediation reports what happened, not just success or failure.** Four new
   outcomes appear on remediation requests and in the UI: `staged`, `reverted`,
   `not_applied` and `partially_applied`. A client matching on the remediation
@@ -123,7 +123,7 @@ the host.
 - **Debian 12, Ubuntu 24.04 and AlmaLinux 10 are now covered by automated
   testing,** so `openwatch setup` runs on them without `--allow-untested`. Each
   is installed from scratch in CI on every change, and the installer is re-run
-  to confirm it is safe to repeat. RHEL 10 and Ubuntu 22.04 are recognised but
+  to confirm it is safe to repeat. RHEL 10 and Ubuntu 22.04 are recognized but
   still uncovered, and continue to need the flag.
 - **The paid tier is now OpenWatch Enterprise and the free tier is OpenWatch
   Community.** Wherever the API reports a license tier, the enum is now
@@ -168,7 +168,7 @@ the host.
   server cleared your cookies but could not revoke the session or refresh token,
   which means the credential may stay valid until it expires. Treat any
   non-`204` response as "signed out here, but revoke explicitly": the previous
-  behaviour reported success either way.
+  behavior reported success either way.
 - **The permission `system:config:write` is spelled `system:config_write`** in
   the API contract. The old spelling matched no registered permission. Update
   any client or role definition that used it.

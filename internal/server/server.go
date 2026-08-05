@@ -315,10 +315,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// wire it directly rather than via an optional WithX setter.
 	apiHandlers.apiTokenSvc = apiTokenSvc
 	// The auth-policy service is likewise always available. Prime the
-	// identity session windows from the stored policy so sessions honour
+	// identity session windows from the stored policy so sessions honor
 	// it from the first request. Best-effort: a missing policy row (e.g.
 	// a test pool without the 0033 migration) leaves the identity defaults
-	// in place, which are behaviour-preserving.
+	// in place, which are behavior-preserving.
 	apiHandlers.authPolicySvc = authpolicy.NewService(pool)
 	// SSO (OIDC) is always available; it wraps the pool + the mandated
 	// outbound client. The endpoints 503 only the rare config-less paths.

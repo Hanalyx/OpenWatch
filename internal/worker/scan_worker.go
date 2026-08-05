@@ -188,7 +188,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 	}
 }
 
-// Run is the worker loop. Returns nil on clean shutdown (ctx cancelled
+// Run is the worker loop. Returns nil on clean shutdown (ctx canceled
 // and any in-flight job completed). Returns a non-nil error only if the
 // loop encountered a fatal problem (none today — every per-job error is
 // classified and handled).

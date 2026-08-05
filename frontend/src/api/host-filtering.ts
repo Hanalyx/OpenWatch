@@ -42,7 +42,7 @@ export function statusLabel(band: MonitoringBand): string {
 }
 
 // groupHosts partitions the (already sorted/filtered) host list into
-// labelled sections. group='none' returns a single anonymous group so the
+// labeled sections. group='none' returns a single anonymous group so the
 // renderer can treat both paths uniformly. Empty groups are omitted.
 export function groupHosts(hosts: DevHost[], group: GroupKey): HostGroup[] {
   if (group === 'none') {

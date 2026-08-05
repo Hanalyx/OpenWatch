@@ -218,7 +218,7 @@ export function HostsListPage() {
     });
   }, [visible]);
 
-  // v1.7.0 — partition the sorted list into labelled sections when a Group
+  // v1.7.0 — partition the sorted list into labeled sections when a Group
   // is active (None yields a single anonymous section). Spec C-10.
   const groups = useMemo(() => groupHosts(sorted, group), [sorted, group]);
 

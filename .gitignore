@@ -861,3 +861,6 @@ frontend/.specter-results.json
 
 # Kensa runtime state (SQLite remediation store, created at runtime)
 .kensa/
+
+# Local MCP server config (env-var refs; per-developer, not shared)
+.mcp.json

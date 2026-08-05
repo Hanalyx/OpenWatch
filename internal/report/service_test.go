@@ -188,7 +188,7 @@ func TestExecutiveConstants_Derivation(t *testing.T) {
 // scope_label is derived from the resolved scope: the group name (or "All
 // hosts") optionally suffixed with the framework family. The framework key
 // is shortened to its family token (before the first underscore),
-// uppercased. Pure, so the labelling contract is unit-tested directly.
+// uppercased. Pure, so the labeling contract is unit-tested directly.
 func TestScopeLabel_Derivation(t *testing.T) {
 	t.Run("api-reports/AC-07", func(t *testing.T) {
 		gid := uuid.New()

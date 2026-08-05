@@ -151,7 +151,7 @@ func parseTopics(csv string) []eventbus.EventKind {
 	return out
 }
 
-// writeSSE serialises an event into an SSE-framed JSON line. Format:
+// writeSSE serializes an event into an SSE-framed JSON line. Format:
 //
 //	event: <kind>
 //	data: {"kind":"...","timestamp":"...","payload":{...}}

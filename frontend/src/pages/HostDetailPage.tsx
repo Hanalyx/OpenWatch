@@ -1236,7 +1236,7 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   failed: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Failed' },
 
   // Terminal outcomes added with the outcome vocabulary (api-remediation
-  // v1.2.0). Each colour is chosen from what the operator has to DO, not from
+  // v1.2.0). Each color is chosen from what the operator has to DO, not from
   // whether the word sounds good:
   //
   //   staged      amber. It worked, but the host is not protected yet and
@@ -1713,7 +1713,7 @@ function RemediationRowAction({
     // 'executed' means the runtime converged: the host is protected now.
     // 'staged' means the change is written but takes effect at reboot, so the
     // host is NOT protected yet. Both keep the Roll back action; only the
-    // wording and colour differ, because they call for different next steps.
+    // wording and color differ, because they call for different next steps.
     const isStaged = request.status === 'staged';
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1775,7 +1775,7 @@ function RemediationRowAction({
 
   // Host untouched. Neutral, not red: the engine restored the host itself, or
   // declined to act. Showing these as failures trains operators to ignore the
-  // colour that is supposed to mean "something needs you".
+  // color that is supposed to mean "something needs you".
   if (request.status === 'reverted' || request.status === 'not_applied') {
     return (
       <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>
