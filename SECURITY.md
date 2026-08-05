@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Email **security@hanalyx.com**. Do not open a public issue, pull request, or
-discussion for a suspected vulnerability — that discloses it to everyone before
+discussion for a suspected vulnerability. That discloses it to everyone before
 there is a fix.
 
 If you prefer to report through GitHub, use
@@ -44,7 +44,7 @@ only; there are no long-term support branches yet.
 | Version | Supported |
 |---------|-----------|
 | 0.6.x   | Yes |
-| < 0.6.0 | No — upgrade to the current release |
+| < 0.6.0 | No. Upgrade to the current release |
 
 Upgrade instructions are in [docs/runbooks/](docs/runbooks/). Package upgrades
 migrate the database automatically and take a backup first.
@@ -60,7 +60,7 @@ administrator account to exploit; missing hardening that has no attacker-reachab
 consequence; automated scanner output submitted without a reproduction; denial of
 service by resource exhaustion against your own deployment; and vulnerabilities in
 the [Kensa](https://github.com/Hanalyx/kensa) scanning engine, which has its own
-security policy — report those to the Kensa project.
+security policy. Report those to the Kensa project.
 
 Security-relevant design decisions and past reviews are documented under
 [docs/](docs/README.md).
