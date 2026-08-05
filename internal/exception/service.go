@@ -447,7 +447,7 @@ func (s *Service) ExpiringSoonSweep(ctx context.Context) (int, error) {
 
 // isUniqueViolation reports whether err is a Postgres unique-violation
 // (SQLSTATE 23505) - the partial-unique one-open-per-host+rule index.
-// Same errors.As idiom as internal/host (robust to wrapping).
+// Same errors.As idiom as internal/host (tolerates wrapping).
 func isUniqueViolation(err error) bool {
 	var pgErr interface{ SQLState() string }
 	if errors.As(err, &pgErr) {
