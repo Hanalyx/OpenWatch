@@ -58,7 +58,7 @@ type Executor struct {
 // ScanFunc is the per-Run scan-invocation closure. Production wires
 // this to a Kensa.Scan call; tests inject a controllable function.
 //
-// MUST honor ctx (return ctx.Err() when ctx is cancelled before the
+// MUST honor ctx (return ctx.Err() when ctx is canceled before the
 // scan completes). MUST NOT touch the credential plaintext for any
 // purpose other than passing through to the SSH session via the
 // in-memory ssh.Signer constructed from it.
@@ -263,7 +263,7 @@ func (e *Executor) Run(ctx context.Context, hostID uuid.UUID, policyVersion stri
 	result, reason, scanErr := e.scanFunc(ctx, hostID, policyVersion, plain)
 	if scanErr != nil {
 		// Cancellation passes through without scan.failed (the scan
-		// didn't fail — it was cancelled before completion).
+		// didn't fail — it was canceled before completion).
 		if errors.Is(scanErr, context.Canceled) || errors.Is(scanErr, context.DeadlineExceeded) {
 			return nil, scanErr
 		}

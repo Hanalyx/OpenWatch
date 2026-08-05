@@ -31,7 +31,7 @@ const RedactedPlaceholder = "<REDACTED>"
 // path use bracket notation (e.g., "creds[0].password") so support can
 // find the exact location.
 //
-// Behaviour preserved on malformed input: if the JSON can't be parsed,
+// Behavior preserved on malformed input: if the JSON can't be parsed,
 // it's returned unchanged with an empty redactions slice — the event
 // still writes (audit always wins) but flagged via the dropped metric.
 func Redact(detail json.RawMessage) (json.RawMessage, []string) {

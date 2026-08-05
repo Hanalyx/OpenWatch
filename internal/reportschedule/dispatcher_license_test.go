@@ -32,12 +32,12 @@ func (noopDeliver) SendReportEmail(_ context.Context, _ uuid.UUID, _, _, _ strin
 
 // @ac AC-25
 // AC-25 (behavioural, fire-time half): an attestation schedule does not mint
-// the paid artifact when the licence is absent, and DOES when it is present.
+// the paid artifact when the license is absent, and DOES when it is present.
 //
 // The source-inspection AC proves the check is written. This proves it works,
 // which matters because the fire-time gate is the one an operator cannot see:
 // a schedule created while licensed would otherwise keep producing the artifact
-// on a timer forever after the licence lapsed, with no request to refuse.
+// on a timer forever after the license lapsed, with no request to refuse.
 func TestDispatcher_SkipsUnlicensedAttestation(t *testing.T) {
 	t.Run("api-reports/AC-25", func(t *testing.T) {
 		if err := license.Init(); err != nil {
@@ -66,7 +66,7 @@ func TestDispatcher_SkipsUnlicensedAttestation(t *testing.T) {
 		}
 
 		// And a LICENSED attestation must reach Generate too, so the gate is
-		// proven to be the licence and not the kind alone.
+		// proven to be the license and not the kind alone.
 		restore := license.EnableFeatureForTesting(license.ComplianceAttestation)
 		defer restore()
 		gen3 := &countingGen{}

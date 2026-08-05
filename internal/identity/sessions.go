@@ -28,7 +28,7 @@ var (
 
 // Default inactivity + absolute timeout windows. These are the baseline
 // per spec C-06; a security admin may override them via the auth policy
-// (Settings -> Security). The defaults preserve the historical behaviour
+// (Settings -> Security). The defaults preserve the historical behavior
 // (15-minute idle, 12-hour absolute) until the policy changes them.
 const (
 	DefaultSessionInactivityWindow = 15 * time.Minute

@@ -60,7 +60,7 @@ valid identity.
 `GET /api/v1/capabilities` reports every capability this deployment has, with
 whether it is available here, so a client can present a locked control rather
 than discovering the limit from a `402`. It exposes no customer identity or
-licence detail; `GET /api/v1/license` is the authenticated surface for that.
+license detail; `GET /api/v1/license` is the authenticated surface for that.
 
 ### Log in
 

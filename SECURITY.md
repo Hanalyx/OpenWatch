@@ -28,7 +28,7 @@ channel for it.
 
 | Stage | Target |
 |-------|--------|
-| Acknowledgement that we received the report | 3 business days |
+| Acknowledgment that we received the report | 3 business days |
 | Initial assessment and a severity call | 10 business days |
 | Fix released, or a written plan with dates if it will take longer | 90 days |
 
