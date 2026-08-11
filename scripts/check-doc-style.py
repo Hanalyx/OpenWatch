@@ -4,17 +4,32 @@
 Enforces the prohibited list from the developer documentation style guide (canonical copy:
 Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE):
 
-  1. Em dashes (the U+2014 character).            markdown prose
-  2. AI-speak filler and hype words and phrases.  markdown prose + code comments
-  3. Emojis / decorative pictographs.             markdown AND structured files
-  4. British spelling.                            markdown prose + code comments
-  5. Reading level (Flesch-Kincaid grade).        markdown, per FILE
+  1. Em dashes (the U+2014 character).            markdown prose             per line
+  2. AI-speak filler and hype words and phrases.  markdown prose + comments  per line
+  3. Emojis / decorative pictographs.             markdown AND .yml/.yaml/.json
+  4. British spellings (US English rule).         markdown prose + comments  per line
+  5. Reading level above the gate.                markdown prose             per FILE
 
-Scope. Em dashes are a prose rule and run on Markdown only. The emoji rule is not a prose rule,
-so it also runs on structured files (.yml, .yaml, .json). AI speak and British spelling are
-writing rules rather than document rules, so they also run on COMMENTS in .go, .ts, .tsx and .py,
-per the guide's statement that US English binds "code comments, commit messages, and pull request
-text". Reading level is computed per file over Markdown prose only.
+Document class (v5). The guide scopes itself: founding and strategy documents (mission, vision,
+roadmap) and marketing copy are "out of scope (formatting)" while remaining "bound by the trust
+and clarity principles". So rules 1 and 3, which are punctuation and decoration, do not apply to
+those documents. Rules 2, 4 and 5 do, because voice and clarity are exactly what the guide keeps
+in scope. See formatting_exempt().
+
+v4 reconciles three independently written v3 implementations (kensa, openwatch, website), which
+shared a version number and nothing else. What each contributed, and why v4 is not just one of
+them: openwatch scanned CODE COMMENTS, which the guide requires and the other two lacked. kensa
+documented the ratcheting exemption ledger and set its gate by measuring its own corpus. This
+implementation had the only spelling table free of false positives. All three flagged at least
+one correct US spelling, which is worse than missing a British one, because it teaches writers
+to ignore the check.
+
+The finding label is "us-english". kensa called it "us-spelling" and openwatch called it
+"british"; anything grepping for those needs updating.
+
+Scope (HP-008). Em dashes, AI-speak and US English are prose rules and run on Markdown only. The
+emoji rule is not a prose rule, so it also runs on structured files (.yml, .yaml, .json), where
+emoji in issue templates and workflows are otherwise invisible to the gate.
 
 Matching (HP-003).
 - Single always-hype words match their inflected forms (leverage / leverages / leveraging /
@@ -23,21 +38,28 @@ Matching (HP-003).
   are matched only inside their hype phrase, never as a bare word, so "test harness",
   "unlock_time", and "elevated privileges" are not flagged.
 - Fenced code blocks and inline `code` spans in Markdown are exempt (code is not prose).
-- A line with `<!-- doc-style: allow -->` (or `doc-style: allow` in a code comment) is skipped
-  when a maintainer has cleared the term.
+- A line with `<!-- doc-style: allow -->` is skipped when a maintainer has cleared the term.
 
-Reading level. Grade 10 is the WRITING TARGET; the gate sits above it, because prose can be dense
-without being unclear. The gate was set by measuring this repository's own corpus, per the guide:
-setting it above the observed maximum would prove only that the check ran. Files with fewer than
-MIN_SENTENCES scored sentences are not scored, because Flesch-Kincaid is unstable on short text.
-EXEMPT is a ratcheting ledger: entries may be removed by rewriting prose, never added to raise a
-number, and the gate itself may only go down.
+US English (v3). An explicit British-to-US table, never a blanket "-ise to -ize" rule: advise,
+surprise, exercise and comprise are correct US spellings and a suffix rule would flag all of
+them. Inline code, fenced blocks, URLs and Markdown link targets are stripped before matching,
+so an identifier, a third-party URL, or a proper noun inside a link never trips the check. Keep
+a British spelling inside a quotation, a proper noun, or a standard's own title with the
+per-line allow escape.
+
+Reading level (v3). Flesch-Kincaid grade, computed per file over prose only. Headings, tables,
+fenced and inline code, link targets, HTML comments and front matter are removed first, so terms
+of art and command names never raise the grade: the target constrains sentence construction, not
+vocabulary. Files with fewer than MIN_SENTENCES scored sentences are skipped, because the metric
+is unstable on short files. The writing target is grade 10. The GATE sits above the target,
+because prose can be dense without being unclear, and it is set from a measurement of this
+repo's own corpus (see --grades).
 
 Usage:
   python3 scripts/check-doc-style.py <file> [more ...]   # check specific files
   python3 scripts/check-doc-style.py --changed           # files changed vs origin/main
   python3 scripts/check-doc-style.py --all               # all tracked files
-  python3 scripts/check-doc-style.py --measure           # report grade levels, set no gate
+  python3 scripts/check-doc-style.py --grades            # print each file's grade, no gate
   python3 scripts/check-doc-style.py --version           # print version and self sha256
   python3 scripts/check-doc-style.py --selftest          # run built-in matching tests
 """
@@ -46,8 +68,66 @@ import re
 import subprocess
 import sys
 
-VERSION = "3"
+VERSION = "5"
 
+# --- Reading level ----------------------------------------------------------------------------
+# The writing TARGET from the style guide. Not the gate: it is what an author aims at.
+READING_TARGET = 10.0
+# The failing gate, set by measuring this repo's corpus (--grades) rather than picked to be safe.
+# A gate no file exceeds proves only that the check ran.
+# Set by measuring this repo on 2026-08-06 with --grades, per the adoption notes:
+# 29 files, median 9.2, p75 10.2, p90 11.4, max 14.7. The gate sits one grade clear of p90 and
+# two above the target, which catches the genuine outlier without manufacturing churn. The
+# previous local v3 used 11.0, calibrated on a BROKEN measurement: its extractor terminated every
+# unpunctuated line, so an 80-column wrapped sentence counted as three and the whole corpus read
+# about two grades low. Do not carry that number forward.
+READING_GATE = 12.0
+# Below this many scored sentences, Flesch-Kincaid is noise. The guide sets the floor at 25.
+MIN_SENTENCES = 25
+
+# Per-file reading-level exemptions. This is a RATCHETING LEDGER: entries may be removed by
+# rewriting the prose, never added to raise the gate, and never given a value above the grade the
+# file scored when it was added. Each needs a reason.
+READING_EXEMPT = {
+    # path: (max_grade, reason)
+    "docs/CAPABILITY_STATEMENT.md": (
+        13.7,
+        "Federal buyer-facing document. The style guide gives capability statements formal "
+        "conventions (title-case headings, no contractions) and says not to correct them to "
+        "dev-doc formatting, which raises the grade on its own. Measured 13.7 on 2026-08-05.",
+    ),
+}
+
+# --- Document class ---------------------------------------------------------------------------
+# The style guide scopes itself: "Out of scope (formatting): Founding and strategy documents
+# (mission, vision, roadmap) and marketing copy, which have their own voice. They remain bound by
+# the trust and clarity principles in this guide."
+#
+# So the FORMATTING rules do not bind those documents, while the trust and clarity rules still do:
+#
+#   exempt   em dashes, emojis          punctuation and decoration, nothing else
+#   binding  AI speak, US English       trust and voice, which the guide keeps in scope
+#   binding  reading level              a clarity principle, which the guide keeps in scope
+#
+# Without this, editing one word in a vision document pulled its punctuation into a gate the guide
+# does not apply to it. Detection is by filename token, not substring, so REVISION_HISTORY.md is
+# not mistaken for a vision document.
+FORMATTING_EXEMPT_TOKENS = {"MISSION", "VISION", "ROADMAP", "STRATEGY"}
+FORMATTING_EXEMPT_MARK = re.compile(r"<!--\s*doc-style:\s*formatting-exempt\s*-->")
+
+
+def formatting_exempt(path, text=""):
+    """True when the guide's formatting rules do not bind this document."""
+    stem = path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    if set(re.split(r"[^A-Za-z0-9]+", stem.upper())) & FORMATTING_EXEMPT_TOKENS:
+        return True
+    if "/roadmap/" in "/" + path:
+        return True
+    # A document may also declare itself, for anything the filename does not reveal.
+    return bool(FORMATTING_EXEMPT_MARK.search(text))
+
+
+# --- AI speak ---------------------------------------------------------------------------------
 # Single always-hype words, matched with their inflected forms (verbs and adjectives).
 HYPE_WORDS = [
     "leverage", "utilize", "facilitate", "empower", "supercharge", "streamline",
@@ -78,39 +158,113 @@ CONTRACTION_RES = [
     re.compile(r"it(?:'s| is) worth mentioning", re.I),
 ]
 
-# British to US spelling. Keys are matched with word boundaries and common inflections; the value
-# is the US form to report. Deliberately narrow: only pairs where the British form has no separate
-# US meaning. "modeling" is here; "modeling" is not ambiguous. Words whose British form is also a
-# valid US word with a DIFFERENT meaning are excluded rather than risk a wrong autocorrect
-# suggestion. Collisions created by INFLECTION are handled by NARROW below.
-BRITISH_US = {
-    "behaviour": "behavior", "favour": "favor", "honour": "honor", "labour": "labor",
-    "colour": "color", "flavour": "flavor", "neighbour": "neighbor", "rumour": "rumor",
-    "summarise": "summarize", "generalise": "generalize", "recognise": "recognize",
-    "organise": "organize", "normalise": "normalize", "serialise": "serialize",
-    "initialise": "initialize", "authorise": "authorize", "prioritise": "prioritize",
-    "customise": "customize", "optimise": "optimize", "synchronise": "synchronize",
-    "analyse": "analyze", "paralyse": "paralyze", "catalogue": "catalog",
-    "centre": "center", "metre": "meter", "litre": "liter", "theatre": "theater",
-    "defence": "defense", "offence": "offense", "pretence": "pretense",
-    "judgement": "judgment", "acknowledgement": "acknowledgment",
-    "modelled": "modeled", "modelling": "modeling", "cancelled": "canceled",
-    "cancelling": "canceling", "labelled": "labeled", "labelling": "labeling",
-    "signalled": "signaled", "travelled": "traveled", "fuelled": "fueled",
-    "whilst": "while", "amongst": "among", "learnt": "learned", "spelt": "spelled",
-    "grey": "gray", "artefact": "artifact",
-    "sceptical": "skeptical", "licence": "license", "practise": "practice",
-}
-# Entries whose generic inflections would collide with a correct US word need their own pattern.
-# "program" is the only one: program + d is "programmed", which is the US past tense of
-# "program" and must not be flagged. Only the noun forms are British.
-NARROW = {"programme": ("program", re.compile(r"\bprogrammes?\b", re.I))}
-# Inflections that keep the British stem, so the plural and past forms are caught too.
-# doc-style: allow -- this table names British spellings by definition.
-BRITISH_RES = [
-    (b, us, re.compile(rf"\b{re.escape(b)}(?:s|d|rs|ment|ments)?\b", re.I))
-    for b, us in BRITISH_US.items()
-] + [(b, us, rx) for b, (us, rx) in NARROW.items()]
+# --- US English -------------------------------------------------------------------------------
+# British stem -> US stem, matched with the inflections listed beside it, so the table stays
+# short without missing plurals or -isation forms. Deliberately an explicit table and never a
+# generic rule: a blanket "-ise to -ize" would flag advise, surprise, exercise, comprise,
+# revise and supervise, all correct US English. doc-style: allow
+BRIT_US = [
+    # -our
+    ("behaviour", "behavior", ("s", "al", "ally")),
+    ("colour", "color", ("s", "ed", "ing", "ful")),
+    ("favour", "favor", ("s", "ed", "ing", "able", "ably", "ite", "ites")),
+    ("honour", "honor", ("s", "ed", "ing", "able")),
+    ("labour", "labor", ("s", "ed", "ing")),
+    ("neighbour", "neighbor", ("s", "ing", "hood")),
+    ("rumour", "rumor", ("s", "ed")),
+    ("flavour", "flavor", ("s", "ed", "ing")),
+    ("endeavour", "endeavor", ("s", "ed", "ing")),
+    # -ise / -isation. The stem is truncated before the "e", so one entry covers every
+    # inflected form in the family. A table that kept the "e" misses each -ing and -ation
+    # form, which is how thirteen British spellings escaped the first version of this
+    # check. doc-style: allow
+    ("organis", "organiz", ("e", "es", "ed", "ing", "ation", "ations", "ational", "er", "ers")),
+    ("recognis", "recogniz", ("e", "es", "ed", "ing", "able")),
+    ("summaris", "summariz", ("e", "es", "ed", "ing", "ation")),
+    ("generalis", "generaliz", ("e", "es", "ed", "ing", "ation", "able")),
+    ("initialis", "initializ", ("e", "es", "ed", "ing", "ation", "er", "ers")),
+    ("serialis", "serializ", ("e", "es", "ed", "ing", "ation", "er")),
+    ("normalis", "normaliz", ("e", "es", "ed", "ing", "ation")),
+    ("optimis", "optimiz", ("e", "es", "ed", "ing", "ation", "er")),
+    ("prioritis", "prioritiz", ("e", "es", "ed", "ing", "ation")),
+    ("standardis", "standardiz", ("e", "es", "ed", "ing", "ation")),
+    ("customis", "customiz", ("e", "es", "ed", "ing", "ation")),
+    ("minimis", "minimiz", ("e", "es", "ed", "ing", "ation")),
+    ("maximis", "maximiz", ("e", "es", "ed", "ing", "ation")),
+    ("authoris", "authoriz", ("e", "es", "ed", "ing", "ation", "ations")),
+    ("emphasis", "emphasiz", ("e", "ed", "ing")),
+    ("specialis", "specializ", ("e", "es", "ed", "ing", "ation")),
+    ("synchronis", "synchroniz", ("e", "es", "ed", "ing", "ation")),
+    ("categoris", "categoriz", ("e", "es", "ed", "ing", "ation")),
+    ("realis", "realiz", ("e", "es", "ed", "ing", "ation")),
+    ("apologis", "apologiz", ("e", "es", "ed", "ing")),
+    ("criticis", "criticiz", ("e", "es", "ed", "ing")),
+    ("sanitis", "sanitiz", ("e", "es", "ed", "ing", "ation", "er")),
+    ("virtualis", "virtualiz", ("e", "es", "ed", "ing", "ation")),
+    # -yse. Truncated stem, and deliberately no "es" or "is" suffix: "analyses" and "analysis"
+    # are both correct US English, so matching them would flag correct spelling. Losing the
+    # British third-person form is the right trade. kensa and openwatch both flag "analyses".
+    ("analys", "analyz", ("e", "ed", "ing", "er", "ers")),
+    ("paralys", "paralyz", ("e", "ed", "ing")),
+    # -re
+    # Split out: "center" + "d" is not a word, and the suggestion is built by
+    # concatenation. Every entry must satisfy us_stem + matched_suffix == real word.
+    ("centre", "center", ("s",)),
+    ("centred", "centered", ()),
+    ("centring", "centering", ()),
+    ("metre", "meter", ("s",)),
+    ("fibre", "fiber", ("s",)),
+    ("litre", "liter", ("s",)),
+    ("theatre", "theater", ("s",)),
+    # -ce nouns
+    ("licence", "license", ("s",)),
+    ("defence", "defense", ("s",)),
+    ("offence", "offense", ("s",)),
+    ("pretence", "pretense", ("s",)),
+    ("practise", "practice", ("s", "d")),
+    # doubled consonants
+    ("modelled", "modeled", ()),
+    ("modelling", "modeling", ()),
+    ("cancelled", "canceled", ()),
+    ("cancelling", "canceling", ()),
+    ("labelled", "labeled", ()),
+    ("labelling", "labeling", ()),
+    ("signalled", "signaled", ()),
+    ("signalling", "signaling", ()),
+    ("travelled", "traveled", ()),
+    ("travelling", "traveling", ()),
+    ("fuelled", "fueled", ()),
+    ("marvellous", "marvelous", ()),
+    # misc. Deliberately NOT listed, because each is also correct US English and flagging it
+    # would make the check wrong: burnt (as in burnt-orange), spelt (the grain), dialogue,
+    # acknowledgement, towards. Never flag a correct US spelling. doc-style: allow
+    ("judgement", "judgment", ("s",)),
+    ("catalogue", "catalog", ("s", "d")),
+    ("programme", "program", ("s",)),
+    ("whilst", "while", ()),
+    ("sceptical", "skeptical", ()),
+    ("sceptic", "skeptic", ("s",)),
+    ("amongst", "among", ()),
+    ("artefact", "artifact", ("s",)),
+    ("grey", "gray", ("s", "ed")),
+    ("enquiry", "inquiry", ()),
+    ("fulfil", "fulfill", ("s",)),
+    ("enrol", "enroll", ("s",)),
+    ("instal", "install", ("s",)),
+    ("storey", "story", ("s",)),
+    ("learnt", "learned", ()),
+]
+
+
+def brit_re(stem, suffixes):
+    """One regex per British stem, covering the listed inflections. Word-boundary anchored so an
+    identifier such as `colour_map` is not matched on the bare stem alone."""
+    alts = "|".join(re.escape(s) for s in suffixes if s)
+    tail = f"(?:{alts})?" if alts else ""
+    return re.compile(rf"\b{re.escape(stem)}{tail}\b", re.I)
+
+
+BRIT_RES = [(b, us, brit_re(b, sfx)) for b, us, sfx in BRIT_US]
 
 
 def word_re(w):
@@ -130,37 +284,57 @@ EMOJI = re.compile(
 )
 INLINE_CODE = re.compile(r"`[^`]*`")
 FENCE = re.compile(r"^\s*```")
-ALLOW = re.compile(r"(?:<!--\s*)?doc-style:\s*allow")
-# Link targets and bare URLs are stripped before spelling and reading level, so a third-party URL
-# containing a British spelling, or a long path, never counts.
-MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
-BARE_URL = re.compile(r"https?://\S+")
-HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+ALLOW = re.compile(r"<!--\s*doc-style:\s*allow\s*-->")
+URL = re.compile(r"https?://\S+|\bwww\.\S+")
+LINK_TARGET = re.compile(r"\]\([^)]*\)")
+AUTOLINK = re.compile(r"<[^ >]+>")
 
 PROSE_EXT = (".md",)
 EMOJI_EXT = (".md", ".yml", ".yaml", ".json")
-CODE_EXT = (".go", ".ts", ".tsx", ".py")
-GLOBS = ["*.md", "*.yml", "*.yaml", "*.json", "*.go", "*.ts", "*.tsx", "*.py"]
+# US English and AI speak are WRITING rules, not document rules. The guide binds them to "code
+# comments, commit messages, and pull request text", so they also run on comments in source.
+# Adopted from openwatch's v3, which had this and this repo's v3 did not.
+# .mjs and .cjs are the same JavaScript, only a different module system. Omitting them left the
+# comments in every ES-module script invisible to the check, including this repo's own sync
+# scripts. The same reasoning covers .mts and .cts on the TypeScript side.
+CODE_EXT = (".go", ".ts", ".tsx", ".mts", ".cts", ".py", ".js", ".jsx", ".mjs", ".cjs")
+GLOBS = ["*.md", "*.yml", "*.yaml", "*.json", "*.go", "*.ts", "*.tsx", "*.mts", "*.cts",
+         "*.py", "*.js", "*.jsx", "*.mjs", "*.cjs"]
 
-# Reading level. Grade 10 is the writing TARGET; this gate sits one grade above it, because prose
-# can be dense without being unclear. Set from measuring this repo on 2026-08-04: 28 scoreable
-# files, median 10.1, max 12.1, min 8.4. A gate at 13 would have failed nothing and proved only
-# that the check ran, which is the failure mode the style guide warns about.
-READING_GATE = 11.0
-MIN_SENTENCES = 25
-# Ratcheting ledger of files that were already over the gate when v3 was adopted. It may only
-# SHRINK, and only by rewriting prose. Do not add an entry to silence a new failure and do not
-# raise READING_GATE: either one converts a real gate into a decoration. The grade recorded with
-# each entry is what it measured on adoption day, so progress is visible without rerunning history.
-EXEMPT = {
-    "docs/guides/runbooks/SECURITY_INCIDENT.md": (12.1, "pre-existing at v3 adoption"),
-    ".claude/skills/write-doc.md": (12.1, "pre-existing at v3 adoption"),
-    "docs/guides/MONITORING_SETUP.md": (11.8, "pre-existing at v3 adoption"),
-    "docs/guides/LINUX_DISTRIBUTION_SUPPORT.md": (11.8, "pre-existing at v3 adoption"),
-    "CHANGELOG.md": (11.7, "pre-existing at v3 adoption, 536 sentences of release history"),
-    ".github/BRANCH_MANAGEMENT.md": (11.7, "pre-existing at v3 adoption"),
-    "docs/guides/DATABASE_MIGRATIONS.md": (11.2, "pre-existing at v3 adoption"),
+# Comment extraction, deliberately conservative: only a WHOLE-LINE comment is scanned. A trailing
+# comment after code, or a marker inside a string literal, is skipped rather than guessed at. A
+# false finding in source costs more attention than a missed one in a comment.
+COMMENT_STARTS = {
+    ".go": ("//",), ".ts": ("//",), ".tsx": ("//",), ".mts": ("//",), ".cts": ("//",),
+    ".js": ("//",), ".jsx": ("//",), ".mjs": ("//",), ".cjs": ("//",),
+    ".py": ("#",),
 }
+# The C-family languages, for the block-comment continuation line ( * inside a doc comment).
+C_FAMILY = (".go", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+CODE_ALLOW = re.compile(r"doc-style:\s*allow")
+
+
+def comment_text(path, raw):
+    """Return the prose inside a whole-line comment, or None when the line is not one."""
+    ext = path[path.rfind("."):]
+    stripped = raw.lstrip()
+    for marker in COMMENT_STARTS.get(ext, ()):
+        if stripped.startswith(marker):
+            return stripped[len(marker):].strip()
+    # Block-comment bodies in C-family files: a line whose first token is * inside /* ... */.
+    if ext in C_FAMILY and stripped.startswith("*") \
+            and not stripped.startswith("*/"):
+        return stripped[1:].strip()
+    return None
+
+
+def strip_noncode_targets(line):
+    """Remove the parts of a Markdown line that are not prose a reader reads as English."""
+    line = INLINE_CODE.sub(" ", line)
+    line = LINK_TARGET.sub("] ", line)
+    line = URL.sub(" ", line)
+    line = AUTOLINK.sub(" ", line)
+    return line
 
 
 def git(cmd):
@@ -175,7 +349,7 @@ def resolve_files(argv):
     explicit = [a for a in argv if not a.startswith("--")]
     if explicit:
         return explicit
-    if "--all" in flags or "--measure" in flags:
+    if "--all" in flags or "--grades" in flags:
         out = []
         for g in GLOBS:
             out += [f for f in git(["git", "ls-files", g]).splitlines() if f]
@@ -187,12 +361,7 @@ def resolve_files(argv):
     return [f for f in changed.splitlines() if f]
 
 
-def strip_targets(line):
-    """Remove link targets and bare URLs, keeping visible link text."""
-    return BARE_URL.sub("", MD_LINK.sub(r"\1", line))
-
-
-def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False):
+def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False, skip_formatting=False):
     """Return (list of (label, token), new_in_fence) for one line. Reports every match, not just
     the first, so a heavily affected line can be cleaned in one pass."""
     if is_prose and FENCE.match(raw):
@@ -200,13 +369,16 @@ def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False):
     if in_fence or ALLOW.search(raw):
         return [], in_fence
     out = []
-    if do_emoji:
+    if do_emoji and not skip_formatting:
         m = EMOJI.search(raw)
         if m:
             out.append(("emoji", m.group(0)))
-    if is_prose or is_comment:
-        line = strip_targets(INLINE_CODE.sub("", raw))
-        if is_prose and EM_DASH.search(line):
+    if is_prose:
+        line = INLINE_CODE.sub("", raw)
+        # Em dashes are a DOCUMENT rule, not a writing rule: the style guide prohibits them in
+        # developer docs, and a code comment is not a doc. US English and AI speak do bind
+        # comments, so only this one check is skipped there. Matches openwatch's v3 scope.
+        if not is_comment and not skip_formatting and EM_DASH.search(line):
             out.append(("em-dash", "—"))
         for _term, rx in WORD_RES + PHRASE_RES:
             mm = rx.search(line)
@@ -216,143 +388,129 @@ def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False):
             mm = rx.search(line)
             if mm:
                 out.append(("ai-speak", mm.group(0)))
-        for _b, us, rx in BRITISH_RES:
-            mm = rx.search(line)
+        spell = strip_noncode_targets(raw)
+        for brit, us, rx in BRIT_RES:
+            mm = rx.search(spell)
             if mm:
-                out.append(("british", f"{mm.group(0)} -> {us}"))
+                # Build the suggestion by carrying the matched suffix onto the US stem, so a
+                # truncated stem never leaks into the advice. Every table entry is chosen so
+                # that the US stem plus the matched suffix spells a real word. doc-style: allow
+                matched = mm.group(0)
+                out.append(("us-english", f"{matched} (use US {us + matched[len(brit):].lower()})"))
     return out, in_fence
 
 
-# Comment extraction. Deliberately simple: a line is treated as a comment when it starts with a
-# comment marker, or contains one outside a string. Anything ambiguous is skipped rather than
-# guessed at, because a false finding in source is more annoying than a missed one in a comment.
-COMMENT_STARTS = {
-    ".go": ("//",), ".ts": ("//",), ".tsx": ("//",), ".py": ("#",),
-}
+# --- Reading level ----------------------------------------------------------------------------
+VOWELS = "aeiouy"
+WORD_TOKEN = re.compile(r"[A-Za-z][A-Za-z'’-]*")
+SENT_END = re.compile(r"[.!?]+(?=\s|$)")
+TABLE_ROW = re.compile(r"^\s*\|")
+HEADING = re.compile(r"^\s*#{1,6}\s")
+LIST_MARKER = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
+BLOCKQUOTE = re.compile(r"^\s*>\s?")
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+BOLD_ITALIC = re.compile(r"[*_]{1,3}")
+FRONTMATTER = re.compile(r"\A---\n.*?\n---\n", re.S)
 
 
-def comment_text(path, raw):
-    """Return the prose part of a comment line, or None when the line is not a whole-line comment."""
-    for marker in COMMENT_STARTS.get(path[path.rfind("."):], ()):
-        s = raw.strip()
-        if s.startswith(marker):
-            return s[len(marker):]
-        if s.startswith("*") and path.endswith((".go", ".ts", ".tsx")):
-            return s[1:]
-    return None
-
-
-def count_syllables(word):
-    """Heuristic syllable count. Good enough for a corpus average; exact counts are not needed."""
-    w = re.sub(r"[^a-z]", "", word.lower())
+def syllables(word):
+    """Vowel-group count with a silent trailing e, floored at 1. The standard heuristic; it is
+    approximate by design, and Flesch-Kincaid is only meaningful in aggregate anyway."""
+    w = word.lower().strip("'’-")
     if not w:
         return 0
-    groups = re.findall(r"[aeiouy]+", w)
-    n = len(groups)
-    if w.endswith("e") and not w.endswith(("le", "ee", "ye")) and n > 1:
-        n -= 1
-    return max(1, n)
+    count, prev_vowel = 0, False
+    for ch in w:
+        is_vowel = ch in VOWELS
+        if is_vowel and not prev_vowel:
+            count += 1
+        prev_vowel = is_vowel
+    if w.endswith("e") and not w.endswith(("le", "ee", "ye")) and count > 1:
+        count -= 1
+    return max(count, 1)
 
 
-SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
-
-
-def prose_of(path):
-    """Extract scoreable prose from a Markdown file: no code, tables, headings, links or lists."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError:
-        return ""
+def prose_of(text):
+    """Reduce a Markdown document to the prose a human reads as sentences."""
+    text = FRONTMATTER.sub("", text)
     text = HTML_COMMENT.sub(" ", text)
-    out, in_fence = [], False
+    kept, in_fence = [], False
     for raw in text.split("\n"):
         if FENCE.match(raw):
             in_fence = not in_fence
             continue
         if in_fence:
             continue
-        s = raw.strip()
-        if not s or s.startswith("#") or s.startswith("|") or s.startswith(">"):
-            continue          # headings, tables and quotes are not the author's sentences
-        if s.startswith(("- ", "* ", "+ ")) or re.match(r"^\d+\.\s", s):
-            s = re.sub(r"^([-*+]|\d+\.)\s+", "", s)   # keep list prose, drop the marker
-        s = strip_targets(INLINE_CODE.sub(" ", s))
-        s = re.sub(r"[*_`#]+", "", s)
-        if s.strip():
-            out.append(s.strip())
-    return " ".join(out)
+        if HEADING.match(raw) or TABLE_ROW.match(raw):
+            continue
+        line = BLOCKQUOTE.sub("", raw)
+        line = LIST_MARKER.sub("", line)
+        line = strip_noncode_targets(line)
+        line = BOLD_ITALIC.sub("", line)
+        kept.append(line)
+    return "\n".join(kept)
 
 
-def grade_level(prose):
-    """Flesch-Kincaid grade. Returns (grade, sentences, words) or (None, n, w) when too short."""
-    sentences = [s for s in SENT_SPLIT.split(prose) if len(s.split()) >= 3]
-    words = re.findall(r"[A-Za-z][A-Za-z'-]*", prose)
-    if len(sentences) < MIN_SENTENCES or not words:
-        return None, len(sentences), len(words)
-    syl = sum(count_syllables(w) for w in words)
-    grade = 0.39 * (len(words) / len(sentences)) + 11.8 * (syl / len(words)) - 15.59
-    return round(grade, 1), len(sentences), len(words)
+def grade_of(text):
+    """Flesch-Kincaid grade over the prose of a Markdown document.
+
+    Returns (grade, sentences, words) or (None, sentences, words) when there is too little prose
+    to score. Paragraphs are the unit: a paragraph with no terminal punctuation, such as a bullet
+    fragment, counts as one sentence rather than being merged into its neighbour."""
+    prose = prose_of(text)
+    sentences = words = sylls = 0
+    for para in re.split(r"\n\s*\n", prose):
+        para = para.strip()
+        if not para:
+            continue
+        toks = WORD_TOKEN.findall(para)
+        if not toks:
+            continue
+        words += len(toks)
+        sylls += sum(syllables(t) for t in toks)
+        sentences += max(len(SENT_END.findall(para)), 1)
+    if sentences < MIN_SENTENCES or words == 0:
+        return None, sentences, words
+    grade = 0.39 * (words / sentences) + 11.8 * (sylls / words) - 15.59
+    return round(grade, 1), sentences, words
 
 
 def check_file(path, report):
     is_prose = path.endswith(PROSE_EXT)
     do_emoji = path.endswith(EMOJI_EXT)
     is_code = path.endswith(CODE_EXT)
-    if not (is_prose or do_emoji or is_code):
-        return 0
     try:
         with open(path, encoding="utf-8") as fh:
-            lines = fh.read().split("\n")
+            text = fh.read()
     except OSError:
         return 0
+    # Founding and strategy documents keep their own voice on punctuation and decoration.
+    skip_fmt = is_prose and formatting_exempt(path, text)
     findings = 0
     in_fence = False
-    for n, raw in enumerate(lines, 1):
+    for n, raw in enumerate(text.split("\n"), 1):
         if is_code:
             body = comment_text(path, raw)
-            if body is None:
+            if body is None or CODE_ALLOW.search(raw):
                 continue
-            hits, _ = line_findings(body, False, False, False, is_comment=True)
+            # Comments get the prose rules only. No emoji rule (source may legitimately carry
+            # one in a test fixture) and no fence tracking (a comment is never a fenced block).
+            hits, _ = line_findings(body, True, False, False, is_comment=True)
         else:
-            hits, in_fence = line_findings(raw, is_prose, do_emoji, in_fence)
+            hits, in_fence = line_findings(raw, is_prose, do_emoji, in_fence,
+                                           skip_formatting=skip_fmt)
         for label, token in hits:
             report(path, n, label, token)
             findings += 1
-
     if is_prose:
-        g, sents, _ = grade_level(prose_of(path))
-        if g is not None and g > READING_GATE and path not in EXEMPT:
-            report(path, 0, "reading-level",
-                   f"grade {g} over gate {READING_GATE} ({sents} sentences). Target is 10: "
-                   "split sentences over ~25 words, one idea each")
-            findings += 1
+        grade, sents, _ = grade_of(text)
+        if grade is not None:
+            limit = READING_EXEMPT.get(path, (READING_GATE, ""))[0]
+            if grade > limit:
+                report(path, 0, "reading-level",
+                       f"grade {grade} over {limit} across {sents} sentences (target {READING_TARGET})")
+                findings += 1
     return findings
-
-
-def measure(files):
-    """Report grade levels without gating. Use this to SET the gate, never to raise it."""
-    rows = []
-    for path in files:
-        if not path.endswith(PROSE_EXT):
-            continue
-        g, sents, words = grade_level(prose_of(path))
-        if g is not None:
-            rows.append((g, sents, words, path))
-    if not rows:
-        print("doc-style: no file has enough prose to score")
-        return 0
-    rows.sort(reverse=True)
-    grades = sorted(g for g, _, _, _ in rows)
-    mid = grades[len(grades) // 2]
-    print(f"scored {len(rows)} file(s)   median grade {mid}   max {grades[-1]}   min {grades[0]}")
-    print(f"current gate {READING_GATE}, target 10\n")
-    for g, sents, _w, path in rows[:25]:
-        flag = "  OVER" if g > READING_GATE else ""
-        print(f"  {g:5.1f}  {sents:4d} sentences  {path}{flag}")
-    over = [r for r in rows if r[0] > READING_GATE]
-    print(f"\n{len(over)} file(s) over the gate of {READING_GATE}")
-    return 0
 
 
 def selftest():
@@ -363,29 +521,60 @@ def selftest():
         "It utilizes PostgreSQL.",
         "Kensa empowers operators.",
         "A streamlined workflow.",
+        "This streamlines onboarding.",
         "It facilitates rollback.",
         "It is worth mentioning that scans are queued.",
         "You are all set.",
+        "We have got you covered.",
         "Great question.",
+        "Certainly! Here is the command.",
         "harness the power of X.",
         "unlock the potential of the fleet.",
         "A seamless, robust, powerful platform.",
-        "The rollback behaviour is documented.",
-        "We summarise the findings.",
-        "Whilst the scan runs, the host stays up.",
-        "The licence file is at the repo root.",
+        # US English
+        "The behaviour of the scheduler changed.",
+        "Document the observed behaviours.",
+        "We organise the rules by category.",
+        "The organisation owns the key.",
+        "Analyse the transaction log.",
+        "Set the licence key.",
+        "The control centre is offline.",
+        "The change was cancelled.",
+        "Use your judgement.",
+        "Whilst the scan runs, hosts stay locked.",
+        "Colour tokens come from the theme.",
+        "The catalogue lists 751 rules.",
     ]
     must_pass = [
         "The test harness runs nightly.",
         "Unlock the account.",
         "Run with elevated privileges.",
         "Set unlock_time in the config.",
+        "We foster adoption across teams.",
+        "The scheduler embarked and returned.",
         "It reads the value and returns it.",
-        "The behavior is documented.",
-        "We summarize the findings.",
-        "While the scan runs, the host stays up.",
-        "See https://example.com/en-gb/behaviour for the upstream note.",
-        "The license file is at the repo root.",
+        # US spellings, and -ise words that are correct in US English
+        "The behavior of the scheduler changed.",
+        "We organize the rules by category.",
+        "Analyze the transaction log.",
+        "We advise a dry run first.",
+        "The result may surprise you.",
+        "Exercise the rollback path before shipping.",
+        "The suite comprises 895 tests.",
+        "Revise the spec, then the code.",
+        "A senior engineer supervises the release.",
+        "Otherwise, the host stays unchanged.",
+        "The analyses agree with the measurement.",
+        "The burnt-orange theme was replaced.",
+        "Spelt flour is not a spelling error.",
+        "The dialogue between the agents is logged.",
+        "Send an acknowledgement to the caller.",
+        "The scan works towards a full pass.",
+        "Two paralyses were recorded in the study.",
+        "The crisis analyses are complete.",
+        "Enterprise licensing is handled by legal.",
+        "The `colour_map` identifier stays as it is.",
+        "See [the guide](https://example.com/en-GB/behaviour) for details.",
     ]
     fails = 0
     for text in must_flag:
@@ -398,30 +587,142 @@ def selftest():
         if hits:
             sys.stderr.write(f"  selftest: expected clean, got {hits}: {text!r}\n")
             fails += 1
+    # Extension coverage. A module system is not a language: .mjs and .cjs are JavaScript and
+    # their comments must be read like any other. Asserted per extension so dropping one from
+    # CODE_EXT fails here rather than silently going unchecked.
+    for ext, line, want in (
+        (".mjs", "// we organise the corpus", "organise"),
+        (".cjs", "// we organise the corpus", "organise"),
+        (".mts", "// we organise the corpus", "organise"),
+        (".js",  "// we organise the corpus", "organise"),
+        (".py",  "#  we organise the corpus", "organise"),
+        (".go",  " * we organise the corpus", "organise"),
+    ):
+        body = comment_text("a" + ext, line)
+        if body is None or want not in body:
+            sys.stderr.write(f"  selftest: comment not extracted from {ext}: {body!r}\n")
+            fails += 1
+    if comment_text("a.mjs", "const x = 1; // trailing") is not None:
+        sys.stderr.write("  selftest: a trailing comment was treated as a whole-line comment\n")
+        fails += 1
+
+    # Document class. Founding and strategy documents are exempt from FORMATTING only, so em
+    # dashes and emojis pass while AI speak, US English and reading level still bind. Detection
+    # is by filename token so a name that merely contains the letters does not match.
+    for p_exempt in ("docs/SPECTER_VISION.md", "docs/HANALYX_MISSION_AND_ROADMAP.md",
+                     "docs/roadmap/PHASE-4-versioned-docs-rules-sync.md",
+                     "docs/HANALYX_18_MONTH_STRATEGY.md"):
+        if not formatting_exempt(p_exempt):
+            sys.stderr.write(f"  selftest: {p_exempt} should be formatting-exempt\n")
+            fails += 1
+    for p_bound in ("docs/REVISION_HISTORY.md", "README.md", "docs/THEME_SYSTEM.md",
+                    "content/docs/kensa/quickstart.md"):
+        if formatting_exempt(p_bound):
+            sys.stderr.write(f"  selftest: {p_bound} should NOT be formatting-exempt\n")
+            fails += 1
+    if not formatting_exempt("docs/anything.md", "<!-- doc-style: formatting-exempt -->\n"):
+        sys.stderr.write("  selftest: the self-declaring marker was ignored\n")
+        fails += 1
+    # In an exempt document, punctuation and decoration pass...
+    hits, _ = line_findings("a state \u2014 see the note", True, True, False, skip_formatting=True)
+    if any(l in ("em-dash", "emoji") for l, _ in hits):
+        sys.stderr.write(f"  selftest: formatting flagged in an exempt document: {hits}\n")
+        fails += 1
+    # ...but trust and clarity rules still bind it.
+    hits, _ = line_findings("we organise a seamless rollout", True, True, False, skip_formatting=True)
+    if not any(l == "us-english" for l, _ in hits):
+        sys.stderr.write("  selftest: US English not applied in an exempt document\n")
+        fails += 1
+    if not any(l == "ai-speak" for l, _ in hits):
+        sys.stderr.write("  selftest: AI speak not applied in an exempt document\n")
+        fails += 1
+
+    # Em dashes are a document rule. A comment carrying one is not a finding, but the same
+    # comment must still be checked for US English and AI speak.
+    hits, _ = line_findings("state \u2014 see the note", True, False, False, is_comment=True)
+    if any(l == "em-dash" for l, _ in hits):
+        sys.stderr.write("  selftest: em dash flagged inside a code comment\n")
+        fails += 1
+    hits, _ = line_findings("normalised behaviour", True, False, False, is_comment=True)
+    if not any(l == "us-english" for l, _ in hits):
+        sys.stderr.write("  selftest: US English not applied to a code comment\n")
+        fails += 1
+    hits, _ = line_findings("state \u2014 see the note", True, False, False)
+    if not any(l == "em-dash" for l, _ in hits):
+        sys.stderr.write("  selftest: em dash NOT flagged in markdown prose\n")
+        fails += 1
+
+    # Emoji is caught in a structured file even though the prose rules are not applied.
     hits, _ = line_findings('  title: "Bug report \U0001F41B"', is_prose=False, do_emoji=True, in_fence=False)
     if not any(l == "emoji" for l, _ in hits):
         sys.stderr.write("  selftest: emoji not caught in a structured (.yml) line\n")
         fails += 1
-    # A comment carries the writing rules; the code around it does not.
-    hits, _ = line_findings("// This leverages the pool to summarise results.", False, False, False, is_comment=True)
-    if len([h for h in hits if h[0] in ("ai-speak", "british")]) < 2:
-        sys.stderr.write("  selftest: comment rules did not fire on a code comment\n")
-        fails += 1
-    # Reading level: the guide's own worked example, both halves.
-    plain = ("Kensa captures the file before it changes anything. " * 30)
+
+    # Reading level: the guide's own worked example. Plain prose scores near grade 10 or below;
+    # the padded rewrite of the same content scores far above it. Both are repeated past
+    # MIN_SENTENCES so the scorer runs.
+    plain = ("Kensa captures the file before it changes anything. If validation fails, it "
+             "restores that capture and records the rollback.\n\n") * 14
     dense = ("Prior to the application of any modification, Kensa performs a capture operation "
              "against the target file, which, in the event that subsequent validation is "
-             "unsuccessful, is subsequently utilized to effect a restoration. " * 30)
-    gp, _, _ = grade_level(plain)
-    gd, _, _ = grade_level(dense)
-    if gp is None or gd is None or not gp < gd:
-        sys.stderr.write(f"  selftest: reading level did not separate plain from dense ({gp} vs {gd})\n")
+             "unsuccessful, is subsequently utilized to effect a restoration of the previously "
+             "extant configuration state.\n\n") * 26
+    g_plain, _, _ = grade_of(plain)
+    g_dense, _, _ = grade_of(dense)
+    if g_plain is None or g_plain > READING_TARGET:
+        sys.stderr.write(f"  selftest: plain prose scored {g_plain}, expected <= {READING_TARGET}\n")
         fails += 1
+    if g_dense is None or g_dense <= READING_GATE:
+        sys.stderr.write(f"  selftest: dense prose scored {g_dense}, expected > {READING_GATE}\n")
+        fails += 1
+    # Short files are not scored, because the metric is unstable on them.
+    g_short, _, _ = grade_of("One short line of prose.\n")
+    if g_short is not None:
+        sys.stderr.write(f"  selftest: short file scored {g_short}, expected no score\n")
+        fails += 1
+    # Code and headings must not reach the scorer: a fenced block of long identifiers alone
+    # leaves nothing to score.
+    g_code, _, _ = grade_of("# Heading\n\n```\nAUDIT_NETLINK_SOCKET_CONFIGURATION_PARAMETER\n```\n")
+    if g_code is not None:
+        sys.stderr.write(f"  selftest: code-only file scored {g_code}, expected no score\n")
+        fails += 1
+
     if fails:
         sys.stderr.write(f"\ndoc-style selftest FAILED: {fails} case(s).\n")
     else:
         print("doc-style selftest: all cases pass")
     return fails
+
+
+def print_grades(files):
+    """Measure the corpus. Use this to SET the gate, not to confirm a gate you already picked."""
+    rows = []
+    for path in files:
+        if not path.endswith(PROSE_EXT):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                grade, sents, words = grade_of(fh.read())
+        except OSError:
+            continue
+        if grade is not None:
+            rows.append((grade, sents, words, path))
+    if not rows:
+        print("doc-style: no file has enough prose to score")
+        return 0
+    rows.sort(reverse=True)
+    for grade, sents, words, path in rows:
+        flag = "  OVER" if grade > READING_EXEMPT.get(path, (READING_GATE, ""))[0] else ""
+        print(f"  {grade:5.1f}  {sents:5d} sent  {words:6d} words  {path}{flag}")
+    grades = sorted(g for g, _, _, _ in rows)
+    mid = grades[len(grades) // 2]
+    # Count what the gate would actually fail, exemptions applied, so this line agrees with the
+    # check itself. A summary that disagrees with the gate is the kind of number people quote.
+    over = sum(1 for g, _, _, p in rows if g > READING_EXEMPT.get(p, (READING_GATE, ""))[0])
+    print(f"\n  scored {len(grades)} file(s); median {mid}; "
+          f"min {grades[0]}; max {grades[-1]}; {over} over the gate of {READING_GATE} "
+          f"(target {READING_TARGET})")
+    return 0
 
 
 def main():
@@ -434,8 +735,8 @@ def main():
         return 1 if selftest() else 0
 
     files = resolve_files(argv)
-    if "--measure" in argv:
-        return measure(files)
+    if "--grades" in argv:
+        return print_grades(files)
 
     checkable = [f for f in files if f.endswith(EMOJI_EXT + CODE_EXT)]
     if not checkable:
@@ -455,8 +756,7 @@ def main():
         sys.stderr.write(
             f"\ndoc-style FAILED: {findings} finding(s). "
             "See dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.\n"
-            "Fix the prose. Add `doc-style: allow` to a line a maintainer has cleared. "
-            "Do NOT raise READING_GATE or add to EXEMPT to silence a new failure.\n"
+            "Fix the prose, or add `<!-- doc-style: allow -->` to a line a maintainer has cleared.\n"
         )
         return 1
     print(f"doc-style: {len(checkable)} file(s) clean")
