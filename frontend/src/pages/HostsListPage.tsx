@@ -39,7 +39,7 @@ import { usePreferencesStore } from '@/store/usePreferencesStore';
 
 // HostsListPage — Host Management surface, prototype-faithful.
 //
-// Layout matches app/docs/prototypes/openwatch-v1/Host Management.html
+// Layout matches (archived) docs/prototypes/openwatch-v1/Host Management.html
 // pixel-for-pixel:
 //
 //   • Breadcrumb "Infrastructure / Hosts" (set into TopBar via Zustand)

@@ -31,7 +31,7 @@ func (noopDeliver) SendReportEmail(_ context.Context, _ uuid.UUID, _, _, _ strin
 }
 
 // @ac AC-25
-// AC-25 (behavioural, fire-time half): an attestation schedule does not mint
+// AC-25 (behavioral, fire-time half): an attestation schedule does not mint
 // the paid artifact when the license is absent, and DOES when it is present.
 //
 // The source-inspection AC proves the check is written. This proves it works,

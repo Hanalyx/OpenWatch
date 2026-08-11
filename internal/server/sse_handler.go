@@ -13,7 +13,7 @@
 // (CSV of EventKind values). Empty/missing topics = 400 (matches
 // eventbus.Subscribe semantics — no wildcard).
 //
-// Spec: app/specs/api/events-stream.spec.yaml.
+// Spec: specs/api/events-stream.spec.yaml.
 
 package server
 

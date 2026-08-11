@@ -26,7 +26,7 @@ import (
 //     with the PREVIOUS key, which leaks key-rotation state.
 //   - connectivity:check gated on host:read, but it is not a read: it makes
 //     the server open an SSH or ICMP connection to a managed host on demand.
-//   - GET /license disclosed customer_id, the paying organisation's identity,
+//   - GET /license disclosed customer_id, the paying organization's identity,
 //     to anyone who could reach the port.
 func TestGCluster_AnonymousIsRefusedOnPrivilegedSurfaces(t *testing.T) {
 	t.Run("system-rbac/AC-21", func(t *testing.T) {

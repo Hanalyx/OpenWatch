@@ -104,7 +104,7 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 			t.Errorf("nil compliance_pct = %s, want null", nilMap["compliance_pct"])
 		}
 		// An unset top-failing slice still serializes as [] (never JSON null)
-		// is only guaranteed by the service initialising it; the zero value
+		// is only guaranteed by the service initializing it; the zero value
 		// here is nil and serializes as null, which the service avoids by
 		// assigning an empty slice. Assert the service's contract indirectly:
 		// an explicitly empty slice serializes as [].

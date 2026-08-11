@@ -4,7 +4,7 @@
 // GetCertificate, locked http.Server timeouts. Day 5+ register real
 // endpoints onto the router exposed via the Routes accessor.
 //
-// Spec: app/specs/system/http-server.spec.yaml.
+// Spec: specs/system/http-server.spec.yaml.
 package server
 
 import (
@@ -249,7 +249,7 @@ func (s *Server) WithReportWorker(rp worker.ReportRenderer) *Server {
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from
-// app/api/openapi.yaml registered.
+// api/openapi.yaml registered.
 func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	r := chi.NewRouter()
 
@@ -276,7 +276,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// auth.Identity via the users.Service Lookups adapter. Sets a
 	// non-anonymous Identity on success (anonymous if not). Does NOT
 	// reject on its own — that's the handler's job via EnforcePermission.
-	// Per app/specs/system/auth-identity.spec.yaml AC-17.
+	// Per specs/system/auth-identity.spec.yaml AC-17.
 	usrSvc := users.NewService(pool, identity.DefaultBreachCorpus())
 	// API service-account tokens (owk_) authenticate on the bearer path
 	// via the token service; the same instance backs the /tokens handlers.
@@ -285,7 +285,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	// Idempotency middleware: short-circuits replays of mutating requests
 	// that include an Idempotency-Key header. No-op for GET/HEAD/OPTIONS.
-	// Per app/specs/system/idempotency.spec.yaml.
+	// Per specs/system/idempotency.spec.yaml.
 	r.Use(idempotency.Middleware(pool))
 
 	// chi's default NotFound/MethodNotAllowed handlers short-circuit
@@ -340,7 +340,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// EnforcePermission, so they remain reachable for anonymous
 	// callers — reviewers in air-gapped environments can browse the
 	// docs without first bootstrapping an admin.
-	// Spec: app/specs/api/openapi-docs.spec.yaml.
+	// Spec: specs/api/openapi-docs.spec.yaml.
 	mountOpenAPIDocs(r)
 
 	cm := newCertManager(cfg.Server.TLSCert, cfg.Server.TLSKey)

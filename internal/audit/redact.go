@@ -6,7 +6,7 @@ import (
 )
 
 // SensitiveFields enumerates the JSON keys that get scrubbed pre-write.
-// Per app/docs/audit_event_taxonomy.md §6 and app/specs/system/audit-emission.spec.yaml
+// Per docs/engineering/audit_event_taxonomy.md §6 and specs/system/audit-emission.spec.yaml
 // AC-8, AC-9, AC-10.
 //
 // Lowercase comparison; matches are exact (no partial). Adding a field

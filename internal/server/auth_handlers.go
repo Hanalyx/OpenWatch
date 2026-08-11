@@ -3,7 +3,7 @@
 // Bearer JWT are returned together so cookie and bearer paths share
 // the same users row.
 //
-// Spec: app/specs/api/auth.spec.yaml.
+// Spec: specs/api/auth.spec.yaml.
 
 package server
 

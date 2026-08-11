@@ -21,7 +21,7 @@
 // in-flight executor.Run completes (the executor owns its per-scan timeout);
 // its result is persisted; then Run returns.
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml
+// Spec: specs/system/worker-subcommand.spec.yaml
 package worker
 
 import (

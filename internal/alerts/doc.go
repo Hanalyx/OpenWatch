@@ -3,7 +3,7 @@
 // auto-resolve hook that closes host_unreachable when host_recovered
 // arrives.
 //
-// Spec: app/specs/system/alerts.spec.yaml (status: approved).
+// Spec: specs/system/alerts.spec.yaml (status: approved).
 //
 // Architectural notes:
 //
@@ -24,7 +24,7 @@
 //
 //   - Audit per transition. AlertAcknowledged / AlertSilenced /
 //     AlertResolved / AlertDismissed plus AlertUnsilencedAuto for the
-//     sweeper. The codes exist in app/audit/events.yaml (3 are new in
+//     sweeper. The codes exist in audit/events.yaml (3 are new in
 //     PR 3; alert.acknowledged + alert.resolved already shipped).
 //     Spec C-05.
 //

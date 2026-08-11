@@ -155,7 +155,7 @@ func psqlIn(ctx context.Context, database, sql string) cmdResult {
 	return cmdResult{Stdout: strings.TrimSpace(stdout.String()), Stderr: strings.TrimSpace(stderr.String()), Err: err}
 }
 
-// psqlMutate runs superuser SQL honouring DryRun.
+// psqlMutate runs superuser SQL honoring DryRun.
 func (r *Run) psqlMutate(ctx context.Context, step, what, sql string) error {
 	if r.DryRun {
 		r.logf("    would run SQL: %s", firstLine(sql))
@@ -171,7 +171,7 @@ func (r *Run) psqlMutate(ctx context.Context, step, what, sql string) error {
 	return nil
 }
 
-// writeFile writes a file with an explicit mode, honouring DryRun, backing up
+// writeFile writes a file with an explicit mode, honoring DryRun, backing up
 // any existing content first so a mistake is recoverable.
 func (r *Run) writeFile(step, path string, content []byte, mode os.FileMode) error {
 	if r.DryRun {

@@ -3,7 +3,7 @@
 // Idempotency-Key header is cached for 24 hours; replay with the same
 // key + body returns the cached response without re-running the handler.
 //
-// Spec: app/specs/system/idempotency.spec.yaml
+// Spec: specs/system/idempotency.spec.yaml
 package idempotency
 
 import (
@@ -206,7 +206,7 @@ func replayCached(w http.ResponseWriter, row cachedRow) {
 }
 
 // writeKeyReusedError emits a 409 with the canonical error envelope.
-// Per app/api/error_codes.yaml: idempotency.key_reused, fault=client,
+// Per api/error_codes.yaml: idempotency.key_reused, fault=client,
 // retryable=false. Includes correlation_id from ctx when present, per
 // api_design_principles.md §8.1.
 func writeKeyReusedError(w http.ResponseWriter, ctx context.Context) {

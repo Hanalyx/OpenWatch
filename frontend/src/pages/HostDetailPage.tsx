@@ -60,7 +60,7 @@ import {
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
-// Layout mirrors app/docs/prototypes/openwatch-v1/Host Detail.html:
+// Layout mirrors (archived) docs/prototypes/openwatch-v1/Host Detail.html:
 //
 //   1. Back link (chevron + label) to /hosts
 //   2. Page-head row: hostname (mono) + status badge + sub-line metadata
@@ -78,7 +78,7 @@ import {
 // honest empty states naming the deferred BACKLOG.md item so operators
 // can tell deferred-feature from broken-feature.
 //
-// Spec: app/specs/frontend/host-detail.spec.yaml v1.0.0.
+// Spec: specs/frontend/host-detail.spec.yaml v1.0.0.
 
 interface HostDetailSearch {
   framework?: string;
@@ -1244,7 +1244,7 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   //               host does not have.
   //   reverted    neutral, deliberately NOT red. Validation failed and the
   //               host was restored. That is the atomic model doing its job,
-  //               and colouring it as a failure teaches operators to distrust
+  //               and coloring it as a failure teaches operators to distrust
   //               the thing protecting them.
   //   not_applied neutral. The engine declined and the host is untouched.
   //   partially_applied  red. Some steps cannot be reversed automatically and

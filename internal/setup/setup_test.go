@@ -519,7 +519,7 @@ func TestSetup_ProvisionedClusterManagesPgHba(t *testing.T) {
 			t.Error("a run that recorded no postgres work did not provision the cluster")
 		}
 
-		// Installing PostgreSQL counts, and so does initialising the cluster
+		// Installing PostgreSQL counts, and so does initializing the cluster
 		// on a host where the package was already present.
 		for _, c := range []struct{ step, action string }{
 			{"postgres-install", "install"},

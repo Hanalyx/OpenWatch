@@ -2,7 +2,7 @@
 // collection — the cron-like loop that turns the one-shot
 // collector.Service.RunCycle into a continuous per-host cadence.
 //
-// Spec: app/specs/system/intelligence-scheduler.spec.yaml (status: approved).
+// Spec: specs/system/intelligence-scheduler.spec.yaml (status: approved).
 //
 // Architectural notes:
 //

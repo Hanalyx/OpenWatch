@@ -67,7 +67,7 @@ describe('frontend-foundation — runtime + shell', () => {
   // @ac AC-09
   test('frontend-foundation/AC-09 — ForbiddenPage renders 403 + authz.permission_denied for missing permission', () => {
     const path = resolve(process.cwd(), 'src/pages/ForbiddenPage.tsx');
-    // The page MUST exist to fulfil the 403 region contract.
+    // The page MUST exist to fulfill the 403 region contract.
     expect(existsSync(path)).toBe(true);
     const src = readFileSync(path, 'utf8');
     // Surfaces the canonical envelope code so operators can grep

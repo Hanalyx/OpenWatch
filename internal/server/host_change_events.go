@@ -2,7 +2,7 @@
 // host.changed and fans the event out to operator browsers so list +
 // detail pages refresh in place without polling.
 //
-// Spec: app/specs/api/events-stream.spec.yaml.
+// Spec: specs/api/events-stream.spec.yaml.
 
 package server
 
