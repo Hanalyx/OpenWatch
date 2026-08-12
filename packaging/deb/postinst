@@ -11,6 +11,19 @@ if [ "$1" = "configure" ]; then
         # Enable the daily pre-upgrade-backup cleanup timer (install + upgrade).
         systemctl enable --now openwatch-backup-cleanup.timer >/dev/null 2>&1 || :
     fi
+    # Give the service group read access to its own configuration.
+    #
+    # dpkg-deb records the ownership of the staging tree, which is built as
+    # root, so everything under /etc/openwatch ships root:root. The RPM sets
+    # %attr(0640, root, openwatch) in the spec and has no such problem. Without
+    # this the service, which runs as User=openwatch, cannot read
+    # openwatch.toml and exits immediately with "permission denied" -- and so
+    # does `openwatch migrate`, which setup runs through runuser.
+    #
+    # preinst created the user and group already.
+    chgrp -R openwatch /etc/openwatch
+    chmod 0750 /etc/openwatch /etc/openwatch/keys /etc/openwatch/tls
+
     # Generate-if-absent, so reconfigure/upgrade never clobbers live keys.
     # preinst already created the openwatch user/group. Not guarded: a real
     # failure should abort configure rather than leave an unbootable service.

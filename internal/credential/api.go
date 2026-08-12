@@ -3,7 +3,7 @@
 // private key, passphrase) are NEVER read or returned from this file
 // — only the credential dial path goes through queryOne which decrypts.
 //
-// Spec: app/specs/api/credentials.spec.yaml.
+// Spec: specs/api/credentials.spec.yaml.
 
 package credential
 

@@ -4,7 +4,7 @@ This directory holds the CI/CD workflows for OpenWatch. OpenWatch is a single Go
 module at the repo root (`github.com/Hanalyx/openwatch`, Go 1.26) that builds one
 binary (`/usr/bin/openwatch`) serving the REST API and the embedded React UI over
 HTTPS on port `8443`. There is no separate web tier, no container runtime in
-production, and no Python/Docker-Compose stack — that was archived out of the repo
+production, and no Python/Docker-Compose stack. That was archived out of the repo
 on 2026-06-05.
 
 The workflows below reflect that. Each section describes one file that actually
@@ -42,7 +42,7 @@ container and executes:
 - `make vuln` (govulncheck)
 - a single `go test -race -json -timeout 600s -p 4 ./...` run: the race detector
   plus the full integration suite against PostgreSQL, emitting the JSON that
-  `specter` ingests. This is one pass, not two — it replaced the former separate
+  `specter` ingests. This is one pass, not two. It replaced the former separate
   `make test-race` + non-race `go test -json` runs (which walked the DB-bound
   suite twice)
 - frontend `vitest` (JUnit), also ingested by `specter` for spec AC coverage
@@ -54,7 +54,7 @@ with `GOFLAGS=-mod=readonly`. See `specs/release/ci-gates.spec.yaml`.
 ## Security analysis: `codeql.yml`
 
 Runs CodeQL on push and pull requests to `main`/`develop` and weekly (Mondays). The
-language matrix is `javascript` only — the Python tree was archived, so TypeScript
+language matrix is `javascript` only. The Python tree was archived, so TypeScript
 and JavaScript cover the `frontend/` SPA. Results land in the GitHub Security tab.
 
 Go static analysis is handled by `make lint` and `make vuln` inside `go-ci.yml`
@@ -62,8 +62,8 @@ Go static analysis is handled by `make lint` and `make vuln` inside `go-ci.yml`
 
 ## Release: `release.yml`
 
-Triggers on a `v*` tag or manual dispatch. It builds the four native packages — RPM
-and DEB for amd64 and arm64 — via `make packages`. Each package contains the
+Triggers on a `v*` tag or manual dispatch. It builds the four native packages, RPM
+and DEB for amd64 and arm64, via `make packages`. Each package contains the
 complete API+UI binary (the SPA is embedded with `go:embed`); there is no container
 image to publish.
 
@@ -109,16 +109,16 @@ a real fleet remain a manual RC step (see `docs/runbooks/RELEASING.md`).
 
 ## Repository automation
 
-- **`branch-naming.yml`** — fails a PR whose head branch does not start with an
+- **`branch-naming.yml`**: fails a PR whose head branch does not start with an
   allowed prefix (`feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `perf/`, `test/`,
   `build/`, `ci/`, `revert/`, `release/`, `dependabot/`). See
   `.github/BRANCH_MANAGEMENT.md`.
-- **`issue-management.yml`** — auto-assigns issues by label, auto-labels PRs by
+- **`issue-management.yml`**: auto-assigns issues by label, auto-labels PRs by
   changed paths, applies size labels, marks stale issues/PRs, and welcomes
   first-time contributors.
-- **`automated-triage.yml`** — daily (and on-demand) triage of Dependabot and CodeQL
+- **`automated-triage.yml`**: daily (and on-demand) triage of Dependabot and CodeQL
   alerts.
-- **`claude-code-alerts.yml`** — assists with security alert triage on PRs and on a
+- **`claude-code-alerts.yml`**: assists with security alert triage on PRs and on a
   weekly schedule.
 
 ## Required secrets

@@ -1,6 +1,6 @@
 # User roles and permissions
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide describes the role-based access control (RBAC) system in the Go-era
 OpenWatch. It covers the five built-in roles, the permissions they grant, and how
@@ -39,7 +39,7 @@ read-only to full administration; there is no parallel "compliance officer" or
 | `viewer` | Read-only access across the platform | 16 |
 | `auditor` | Read-only plus exception authority and audit export | 20 |
 | `ops_lead` | Day-to-day operations: hosts, scans, alerts | 32 |
-| `security_admin` | Full security operations including dangerous and license-gated actions | 56 |
+| `security_admin` | Full security operations, including dangerous actions and audit export | 56 |
 | `admin` | Full system administration | All permissions (bare `*` wildcard) |
 
 A user may hold more than one role. Their effective permission set is the union
@@ -59,8 +59,9 @@ Cannot write, execute, export, approve, or administer anything.
 Most of what `viewer` has (one exception: `auditor` does not hold
 `role:read`), plus the exception workflow authority an auditor needs:
 `exception:request`, `exception:comment`, and `exception:approve`. Adds
-`audit:export` (license-gated by the `audit_export` feature) and `auth:write` so
-the auditor can manage their own password, MFA, and sessions.
+`audit:export` and `auth:write` so the auditor can manage their own password,
+MFA, and sessions. Per-host audit export is free; the `audit_export` feature
+covers fleet-scale signed bundles.
 
 Cannot create or modify hosts, run scans, or touch system configuration.
 
@@ -70,7 +71,7 @@ The day-to-day operator. Adds write and execute authority over the operational
 surface: `host:write`, `host:connectivity_check`, `host:intelligence_refresh`,
 `credential:read`, `scan:execute`, `scan:cancel`, `scan_template:write`,
 `baseline:write`, alert `acknowledge`/`resolve`, `notification:test`,
-`remediation:request`, the free-core `remediation:execute`/`remediation:rollback`
+`remediation:request`, the free `remediation:execute`/`remediation:rollback`
 host-mutating verbs, and the exception request/comment verbs.
 
 Cannot delete hosts, manage credentials beyond reading them, approve
@@ -85,9 +86,8 @@ Full security operations. Grants category wildcards (`host:*`, `credential:*`,
 `user:read`, `user:write`, `license:install`, the
 `system:auth_policy_read`/`auth_policy_write` verbs, and the policy
 `reload`/`install` verbs. This includes the dangerous host-mutating actions
-`remediation:execute` and `remediation:rollback` (free-core, not license-gated)
-and the license-gated `audit:export` (via `audit:*`, requires the `audit_export`
-feature at runtime).
+`remediation:execute` and `remediation:rollback`, which are free, and
+`audit:export` via `audit:*`.
 
 Cannot perform the high-privilege `admin:*` bundle: managing other users' roles,
 SSO providers, retention policy, system settings, or `user:delete`.
@@ -104,17 +104,18 @@ the `admin:*` bundle (`user_manage`, `role_manage`, `retention_policy`,
 
 Permissions are named `resource:action`, both lowercase
 (for example `host:read`, `scan:execute`, `remediation:rollback`). The registry
-defines 67 permissions across 20 categories. Two attributes affect enforcement:
+defines 67 permissions across 20 categories. Two attributes carry extra meaning:
 
 - `dangerous: true` marks destructive or high-impact actions (for example
   `host:delete`, `license:install`, `user:delete`). The UI uses this for
   confirmation prompts and the audit middleware records denials at high priority.
-- `license_gated: <feature>` makes a permission inert unless the active license
-  enables that feature. A role may grant the permission, but the combined
-  RBAC-plus-license middleware denies the call with `402` until the license
-  enables it. Today this applies to exactly one permission: `audit:export`
-  (`audit_export`). Remediation (`remediation:execute` / `remediation:rollback`)
-  is free-core and not license-gated; it is marked `dangerous` instead.
+- `license_gated: <feature>` names the license feature that covers a permission's
+  Enterprise scope. It does not narrow the permission itself. Today one
+  permission carries the marker: `audit:export`, tied to `audit_export`. Per-host
+  audit export is free, and `audit_export` covers fleet-scale signed bundles.
+  Remediation (`remediation:execute` / `remediation:rollback`) carries no marker.
+  Single-host, single-rule remediation with rollback is free; it is marked
+  `dangerous` instead.
 
 Enforcement happens centrally for every protected operation, so each endpoint
 checks the caller's permission before running. A request with a missing or
@@ -123,8 +124,9 @@ and emits an `authz.permission_denied` audit event.
 
 ## Permissions matrix
 
-`Y` = granted, `-` = not granted. License-gated permissions are marked `(LG)`;
-they are granted by the role but require the matching license feature at runtime.
+`Y` = granted, `-` = not granted. A permission marked `(LG)` names a license
+feature that covers its fleet-scale use. The role grants the permission either
+way.
 
 | Permission | viewer | auditor | ops_lead | security_admin | admin |
 |------------|:------:|:-------:|:--------:|:--------------:|:-----:|
@@ -197,8 +199,8 @@ they are granted by the role but require the matching license feature at runtime
 | `admin:system_setting` | - | - | - | - | Y |
 
 `security_admin` grants `audit:*`, which includes `audit:export`; the `auditor`
-row grants `audit:export` explicitly. Both depend on the `audit_export` license
-feature at runtime.
+row grants `audit:export` explicitly. For both, per-host export is free and the
+`audit_export` feature covers fleet-scale signed bundles.
 
 ## Creating the first admin
 

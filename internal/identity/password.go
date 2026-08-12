@@ -7,7 +7,7 @@
 // The same users row backs both — drift between the two paths is
 // impossible because they share one Identity surface.
 //
-// Spec: app/specs/system/auth-identity.spec.yaml.
+// Spec: specs/system/auth-identity.spec.yaml.
 package identity
 
 import (

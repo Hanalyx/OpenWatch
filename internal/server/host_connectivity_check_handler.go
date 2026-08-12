@@ -1,6 +1,6 @@
 // On-demand connectivity probe — POST /hosts/{id}/connectivity:check.
 //
-// Spec: app/specs/api/host-connectivity-check.spec.yaml.
+// Spec: specs/api/host-connectivity-check.spec.yaml.
 //
 // The handler delegates to liveness.Service.ProbeHost — same in-process
 // machinery the periodic loop uses. Credential-free (TCP banner on

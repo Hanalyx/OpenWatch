@@ -583,7 +583,7 @@ func TestRun_ContextDeadline_PropagatesAsCtxErr(t *testing.T) {
 }
 
 // @ac AC-04
-// AC-04 (already-cancelled ctx): if ctx is already cancelled when
+// AC-04 (already-canceled ctx): if ctx is already canceled when
 // Run is called, Run propagates ctx.Err() promptly without doing
 // any work that could outlive the cancellation.
 func TestRun_AlreadyCancelledCtx_ReturnsImmediately(t *testing.T) {

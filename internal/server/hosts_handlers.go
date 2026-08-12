@@ -1,5 +1,5 @@
 // Host inventory CRUD admin handlers. Spec:
-// app/specs/api/hosts.spec.yaml.
+// specs/api/hosts.spec.yaml.
 
 package server
 

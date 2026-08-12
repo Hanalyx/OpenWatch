@@ -5,7 +5,7 @@
 // lint rule rejects raw uses of http.DefaultClient and http.NewRequest +
 // stdlib http.Client.Do in foundation/business code.
 //
-// Spec: app/specs/system/correlation.spec.yaml AC-14, AC-15, AC-16.
+// Spec: specs/system/correlation.spec.yaml AC-14, AC-15, AC-16.
 package httpclient
 
 import (

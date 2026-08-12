@@ -5,7 +5,7 @@
 // passed in for the duration of one dial; they never leave this layer
 // in any log, error, or audit row.
 //
-// Spec: app/specs/system/ssh-connectivity.spec.yaml.
+// Spec: specs/system/ssh-connectivity.spec.yaml.
 package ssh
 
 import (

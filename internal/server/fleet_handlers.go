@@ -12,7 +12,7 @@ import (
 
 // Fleet observability endpoints.
 //
-// Spec: app/specs/api/fleet-observability.spec.yaml.
+// Spec: specs/api/fleet-observability.spec.yaml.
 //
 // Every handler is a thin wrapper: RBAC gate, parse/validate, delegate
 // to internal/fleetrollup.Service, JSON-encode. No SQL, no aggregation

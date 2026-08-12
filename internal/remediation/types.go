@@ -18,6 +18,7 @@
 package remediation
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -132,6 +133,26 @@ type Step struct {
 	PhaseResult *string
 	DryRun      bool
 	AppliedAt   *time.Time
+	// Phases is the per-phase Kensa journal for this rule's transaction.
+	// A "step" in this API has always meant one RULE; the Capture, Apply,
+	// Validate and Commit phases an operator wants to see are one level
+	// below it, and this is where they live.
+	Phases []Phase
+	// PreState is the captured pre-change state, verbatim from Kensa. Held
+	// as raw JSON because its shape is the handler's, not ours.
+	PreState json.RawMessage
+}
+
+// Phase is one Capture/Apply/Validate/Commit phase within a rule's
+// transaction.
+type Phase struct {
+	Index      int    `json:"index"`
+	Mechanism  string `json:"mechanism"`
+	Detail     string `json:"detail,omitempty"`
+	Success    bool   `json:"success"`
+	Capturable bool   `json:"capturable"`
+	Staged     bool   `json:"staged"`
+	Stranded   bool   `json:"stranded"`
 }
 
 // ExecTxn is a neutral, kensa-free view of one Kensa remediation transaction
@@ -147,6 +168,13 @@ type ExecTxn struct {
 	// rolled_back | partially_applied | errored | staged. Passed through
 	// verbatim from api.TransactionStatus and mapped by OutcomeOf.
 	Status string
+	// AlreadyCompliant is true when the rule's check passed before any apply,
+	// so Kensa changed nothing. It reports Status=committed regardless, which
+	// is why this must be consulted before treating a commit as a change.
+	//
+	// Only meaningful on the remediation path: Kensa leaves it false on the
+	// check-only transactions inside a scan result.
+	AlreadyCompliant bool
 	// Refused is true when the engine declined to act WITHOUT mutating the
 	// host (Kensa reported Success=false with a detail rather than an error),
 	// e.g. the v0.8.0 duplicate-audit-action guard. Kensa has no distinct
@@ -155,6 +183,23 @@ type ExecTxn struct {
 	// Evidence is the signed evidence envelope (or a summary), stored in the
 	// remediation_transactions.evidence JSONB column.
 	Evidence []byte
+	// Steps is the per-phase journal, serialized, stored in
+	// remediation_transactions.steps. Empty for a transaction that never ran.
+	Steps []byte
+	// PreState is the captured pre-change state, serialized, stored in
+	// remediation_transactions.pre_state. That column has existed since
+	// migration 0037 and was never written until this carried it.
+	PreState []byte
+	// Mechanism is the first step's mechanism, stored in
+	// remediation_transactions.mechanism, another column that existed and was
+	// never populated.
+	Mechanism string
+	// KensaVersion is the engine version that produced this transaction.
+	// Recorded so a re-backfill of derived display strings can be scoped to
+	// the rows a describer change affected: Kensa states plainly that
+	// describer output is not stable across releases, so persisted summaries
+	// go stale silently without it. See features/KN-OW-016.
+	KensaVersion string
 	// Err is the transaction error string, empty on success.
 	Err string
 	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and
@@ -196,7 +241,7 @@ const (
 )
 
 // OutcomeOf maps one Kensa transaction to the request status it implies, and
-// reports whether the status was recognised.
+// reports whether the status was recognized.
 //
 // The bool is the point of this function. api-remediation AC-11 requires that
 // an unrecognised Kensa status is never silently absorbed: the previous code
@@ -208,6 +253,20 @@ func OutcomeOf(t ExecTxn) (Status, bool) {
 	// A refusal is not a Kensa status; check it before the status switch.
 	// The engine declined without touching the host.
 	if t.Refused {
+		return StatusNotApplied, true
+	}
+	// Neither is already-compliant, and it is the more dangerous of the two to
+	// miss. Kensa reports committed, so without this the request is marked
+	// executed, the rule is badged as fixed, and the operator is offered a
+	// Roll back for a transaction that mutated nothing and captured no state
+	// to restore. Kensa never persisted such a record, so the rollback would
+	// act against a capture that does not describe a change.
+	//
+	// not_applied is the right outcome rather than a seventh status: the host
+	// is compliant either way, and what an operator can DO about it is
+	// identical to a refusal, which is what the status vocabulary encodes.
+	// The difference is the reason, and rollUpOutcome carries that.
+	if t.AlreadyCompliant && t.Status == kensaCommitted {
 		return StatusNotApplied, true
 	}
 	switch t.Status {
