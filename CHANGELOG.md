@@ -62,6 +62,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- `GET /api/v1/license` no longer tells an unauthenticated caller who the
+  customer is, when the contract ends, or what this host's clock did. The route
+  stays reachable without credentials, because the sign-in screen needs to lock
+  or unlock controls before anyone logs in, but it now returns only `tier`,
+  `status` and `features` to that caller. `customer_id`, `expires_at`,
+  `using_prev_key`, `in_grace_period` and the new `clock_rollback_detected`
+  require `system:read`. **Every built-in role holds `system:read`, so a
+  signed-in operator sees exactly what they saw before.** Only an anonymous
+  caller loses fields.
+- `POST /api/v1/diagnostics:premium-echo` requires `system:read` and rejects a
+  message over 1024 characters. It previously checked the license and nothing
+  else, so on a licensed deployment any unauthenticated caller could reach it,
+  and there was no length limit on the text it wrote into an audit event and
+  into a stored idempotency record. The permission is checked before the
+  license check, so a caller who fails it gets 403 and cannot use the 402 to
+  discover what the deployment is entitled to.
 - Clock-rollback detection works across a restart. The watermark is now stored
   in the database (migration `0057`) instead of process memory, so the check
   survives a reboot. It also compares the current time against that watermark

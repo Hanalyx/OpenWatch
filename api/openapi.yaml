@@ -376,6 +376,10 @@ paths:
     post:
       operationId: postDiagnosticsPremiumEcho
       summary: License-gated echo; requires premium_diagnostics feature
+      # RBAC resolves before entitlement, so a caller who lacks system:read
+      # gets 401 or 403 and never learns whether this deployment is licensed
+      # for premium_diagnostics. Spec api-license C-05, AC-17.
+      x-required-permission: system:read
       x-required-feature: premium_diagnostics
       parameters:
         - name: Idempotency-Key
@@ -393,8 +397,18 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/EchoResponse'}
+        '401':
+          description: Caller is anonymous
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '402':
           description: License does not include premium_diagnostics feature
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -5426,6 +5440,11 @@ components:
         expires_at: {type: string, format: date-time, nullable: true}
         in_grace_period: {type: boolean}
         using_prev_key: {type: boolean}
+        # True when the host clock ran behind the stored watermark at load
+        # time. A rollback warns, it does not deny, so an operator needs to
+        # be able to read the warning. Requires system:read, like the three
+        # properties above it.
+        clock_rollback_detected: {type: boolean}
 
     LicenseVerifyRequest:
       type: object
