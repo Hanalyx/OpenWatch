@@ -1,7 +1,7 @@
 spec:
   id: api-license
   title: License inspection and dry-run verify endpoints
-  version: "1.1.0"
+  version: "2.0.0"
   status: approved
   tier: 1
 
@@ -9,10 +9,38 @@ spec:
     system: openwatch
     feature: License inspection and verification
     description: >
-      GET /api/v1/license returns the current license state: tier, status,
-      enabled features, expiry, warnings. POST /api/v1/admin/license:verify
+      GET /api/v1/license returns the current license state: tier, status and
+      enabled features to anyone, and the expiry, customer and key detail to a
+      caller holding system:read. POST /api/v1/admin/license:verify
       dry-runs a candidate JWT. POST /api/v1/diagnostics:premium-echo
       demonstrates RequireFeature: 402 with envelope + audit when absent.
+
+      GET /license is deliberately reachable without credentials, because the
+      SPA has to lock or unlock controls before anyone logs in. That makes its
+      body an anonymous disclosure surface. Every field on it sorts into one
+      of two classes, and the class decides the gate.
+
+      A field is anonymous only if a pre-login screen NEEDS it and it is not a
+      customer or infrastructure fact. Three fields pass: tier, status, and
+      features. A login screen uses them to lock or unlock a control, and GET
+      /capabilities already publishes the same information anonymously and on
+      purpose.
+
+      Everything else requires system:read: customer_id, expires_at,
+      using_prev_key, in_grace_period, and clock_rollback_detected. They
+      describe who is paying, when the contract ends, how we sign, and what
+      this host's clock did. in_grace_period is the one gated for a different
+      reason. It is operationally harmless, but status already carries the
+      same fact, so it is redundant surface rather than a disclosure. C-09
+      records that gating it closes nothing.
+
+      The rule is written as a rule, not a field list, because the useful
+      property is that the next person adding a field has a question they can
+      answer. It is enforced as an allowlist, so an unsorted field is private
+      until someone opens it on purpose.
+    related_specs:
+      - system-rbac
+      - system-license-validation
 
   objective:
     summary: >
@@ -29,7 +57,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: GET /license response MUST include tier, status, features, expiry, warnings
+      description: "GET /license response MUST include tier, status and features for every caller, plus expires_at when a license is loaded and the caller holds system:read. It carries no warnings array. The earlier wording required one, and no such field has ever existed on LicenseStateResponse; the warnings live on the verify response instead, and on this route they are the in_grace_period and using_prev_key booleans, both of which now require system:read."
       type: technical
       enforcement: error
     - id: C-02
@@ -45,8 +73,28 @@ spec:
       type: security
       enforcement: error
     - id: C-05
-      description: :premium-echo MUST require premium_diagnostics feature; without license returns 402 license.feature_unavailable
+      description: ":premium-echo MUST enforce RBAC before entitlement. The handler MUST require system:read first and check the premium_diagnostics feature second. A caller who clears RBAC and lacks the feature gets 402 license.feature_unavailable. An anonymous caller gets 401 auth.required and an authenticated caller without the permission gets 403 authz.permission_denied, in both cases before the feature check runs, so the 402 never doubles as an entitlement oracle."
       type: security
+      enforcement: error
+    - id: C-06
+      description: "A field on GET /license MAY be anonymous only if it passes BOTH tests. First, a pre-login screen must NEED it to lock or unlock a control. Second, it must not be a customer or infrastructure fact: not the buyer, the contract, how we sign, or what this host did. Exactly three fields pass: tier, status, features. Everything else requires system:read: customer_id, expires_at, using_prev_key, in_grace_period, clock_rollback_detected. A field that has not been sorted MUST be treated as gated, so an unclassified field is private by default rather than public by accident. The first test is what gates a redundant field: in_grace_period is operationally harmless, but status already carries the same fact, so a pre-login screen does not need it and it does not belong in an anonymous body."
+      type: security
+      enforcement: error
+    - id: C-07
+      description: "Whether a gated field is PRESENT MUST NOT depend on its value. A caller without system:read MUST see the field omitted whether it is true or false, and a caller with system:read MUST see it whether it is true or false. Omitting only the true case would make absence itself the disclosure."
+      type: security
+      enforcement: error
+    - id: C-08
+      description: "License.ClockRollbackDetected MUST be readable through the API by a caller holding system:read. The flag is set on load and emitted to the audit log, and no API field has ever carried it, so an operator running the SPA cannot see the warning at all. Decision record 06 is satisfied by system-license-validation C-14 and AC-22, which require the flag and the audit emit, so gating the API field does not weaken that record."
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: "Grace state MUST stay publicly readable through status, and in_grace_period MUST stay redundant with it. internal/license/validator.go derives both from one inGrace boolean, so status == \"grace\" if and only if in_grace_period is true. in_grace_period is gated as surface minimization ONLY. It closes no disclosure, and no document may record it as closing one, because status still publishes the identical fact anonymously on GET /license AND on GET /capabilities. Grace state is public on two routes deliberately. If someone later wants grace state actually private, gating this boolean is not the change that does it."
+      type: security
+      enforcement: error
+    - id: C-10
+      description: ":premium-echo MUST cap message length at 1024 characters, the same cap :echo already applies. The decoded message is written into an audit event and an idempotency row, and the server sets no global request-body limit, so an uncapped message is unbounded attacker-controlled text in the audit log and unbounded growth in two tables. A compliance reviewer later reads that content as evidence. This is availability and evidence integrity, not disclosure. The cap is INDEPENDENT of the RBAC gate in C-05 and neither one substitutes for the other: RBAC alone leaves the write open to any caller holding system:read, and the cap alone leaves the route anonymous. A change to one MUST NOT be read as covering the other."
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -55,10 +103,10 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: GET /license with valid enterprise license includes tier="enterprise", status="active", features listing every claim, exp populated.
+      description: GET /license with a valid enterprise license includes tier="enterprise", status="active" and features listing every claim, for any caller. exp is populated only for a caller holding system:read; the anonymous body carries the three fields above and nothing else, per AC-11.
       priority: critical
     - id: AC-03
-      description: GET /license MUST NOT return raw JWT, signature, or customer PII (email, name).
+      description: GET /license MUST NOT return raw JWT, signature, or customer PII (email, name) to any caller, including one holding system:read.
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
@@ -73,15 +121,146 @@ spec:
       priority: critical
       references_constraints: [C-04]
     - id: AC-07
-      description: POST /:premium-echo with no license returns 402 with error.code="license.feature_unavailable" and detail.feature="premium_diagnostics".
+      description: POST /:premium-echo by a caller holding system:read, with no license installed, returns 402 with error.code="license.feature_unavailable" and detail.feature="premium_diagnostics". The caller must be authenticated, because RBAC now runs first.
       priority: critical
       references_constraints: [C-05]
     - id: AC-08
       description: license.feature_check_denied audit event recorded after AC-07.
       priority: high
     - id: AC-09
-      description: POST /:premium-echo with license that includes premium_diagnostics returns 200 with echoed message.
+      description: POST /:premium-echo by a caller holding system:read, with a license that includes premium_diagnostics, returns 200 with echoed message.
       priority: critical
     - id: AC-10
       description: Installing license (file drop + SIGHUP) makes GET /license reflect new state without restart.
       priority: high
+    - id: AC-11
+      description: >
+        The anonymous GET /license body is exactly three fields. With an
+        enterprise license loaded and no credentials on the request, the
+        decoded top-level key set is exactly tier, status and features.
+        customer_id, expires_at, using_prev_key, in_grace_period and
+        clock_rollback_detected are all absent. Verified by decoding the body
+        into a generic map and comparing the whole key set, not by asserting
+        five named fields are missing, so a property added to
+        LicenseStateResponse later fails this AC until someone sorts it into a
+        class on purpose. That failure is the point: it is the question C-06
+        wants the next author to answer.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-12
+      description: >
+        A caller holding system:read sees the whole response. With the same
+        enterprise license loaded, GET /license returns customer_id,
+        expires_at, using_prev_key, in_grace_period and
+        clock_rollback_detected alongside tier, status and features.
+        expires_at moves inside the same permission check that already
+        protected customer_id; it was set outside it, which is how a contract
+        end date stayed anonymous while the customer's identity did not. A
+        contract end date lets anyone who can reach the port time renewal
+        pressure and predict the day enterprise features stop, which is
+        customer-specific commercial information.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-13
+      description: >
+        Presence never encodes value. The test runs GET /license twice against
+        two loaded licenses, one where using_prev_key, in_grace_period and
+        clock_rollback_detected are all true and one where all three are
+        false. The anonymous key set is identical across both runs, and the
+        system:read key set is identical across both runs. Only the values
+        differ. Without this, an anonymous caller could read a gated flag from
+        whether the field appeared at all. expires_at is covered by the same
+        rule and is the one gated field that is not a boolean: whenever a
+        license is loaded it MUST be present for system:read and absent
+        anonymously, whatever date it holds.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-14
+      description: >
+        clock_rollback_detected renders License.ClockRollbackDetected, and
+        only for system:read. Load a license with the clock wound back behind
+        the stored watermark, then GET /license as a system:read caller:
+        clock_rollback_detected is true. Load the same license against a clean
+        watermark and it is false. Anonymously it is absent in both cases,
+        which AC-11 and AC-13 already pin. This is the flag's first and only
+        consumer; before it the rollback warning reached the audit log and no
+        further. Gating it does not hide the detection from an adversary with
+        root, who can read the audit log and the watermark row directly. What
+        it denies is the cheap unauthenticated version: with the field
+        exposed, a curl loop can binary-search the tolerance boundary to find
+        the largest rollback that goes unflagged, at no cost and with no
+        session.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-15
+      description: >
+        An anonymous POST /:premium-echo is stopped by RBAC, not by the
+        license. With premium_diagnostics enabled the anonymous call returns
+        401 auth.required, never 200. With no license installed the anonymous
+        call still returns 401, not 402. Both halves matter, and testing only
+        the licensed one would pass even if the handler ran the checks in the
+        wrong order. License state is process-global rather than per-caller,
+        so the feature check alone told the server what the DEPLOYMENT bought
+        and never who was asking; on a licensed instance it let every
+        anonymous caller through.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-16
+      description: >
+        An authenticated caller whose role does not grant system:read gets 403
+        authz.permission_denied from POST /:premium-echo, with the same result
+        whether or not the license grants premium_diagnostics. All five
+        built-in roles hold system:read, so the fixture sessions cannot
+        produce this case. Verify it by putting an auth.Identity on the
+        request context with IsAnonymous false and a RoleID that
+        auth.BuiltInRoles does not resolve. That identity is authenticated and
+        grants nothing, which is exactly the 403 case.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-17
+      description: >
+        The contract declares the permission the handler enforces.
+        api/openapi.yaml carries x-required-permission set to system:read on
+        the postDiagnosticsPremiumEcho operation, next to its existing
+        x-required-feature. The declaration is what puts the route in scope
+        for the per-route enforcement gate in system-rbac AC-18, which then
+        holds the handler to the matching typed constant at build time.
+        Verified by source inspection of the contract.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-18
+      description: >
+        Grace state stays public through status, and gating in_grace_period
+        closes nothing. For a license inside the grace window: the ANONYMOUS
+        GET /license returns status "grace", the ANONYMOUS GET /capabilities
+        returns status "grace" for the same license, and the system:read GET
+        /license returns in_grace_period true. Outside the window all three
+        report the non-grace state. The test asserts all three together rather
+        than any one alone. Both fields come from a single inGrace boolean in
+        internal/license/validator.go, so they are one fact written twice, not
+        two facts that happen to agree. in_grace_period is gated as surface
+        minimization and this AC exists to keep the record honest: an
+        anonymous caller still reads grace state from status on two routes, so
+        nobody may later cite the gate as having made grace state private.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-19
+      description: >
+        POST /:premium-echo with a message longer than 1024 characters returns
+        400 with error.code="validation.field_range", matching what :echo
+        already does for the same input. The test must also confirm the
+        rejected request writes no audit event and is not cached for replay,
+        because the cap exists to keep unbounded attacker-controlled text out
+        of the audit log and the idempotency table. The second half holds
+        because internal/idempotency/middleware.go stores a row only after the
+        handler returns and only for a 2xx, so a 400 must not become a cached
+        success. The server sets no global request-body limit, so this handler
+        is the only place the bound can come from. The test MUST send the
+        oversized message as a caller holding system:read, proving the cap is
+        independent of the RBAC gate. RBAC does not close this: an
+        authenticated caller with system:read can still write unbounded text
+        into the audit log, and a compliance reviewer later reads that content
+        as evidence. Testing the cap only against an anonymous caller would
+        pass on the 401 and prove nothing.
+      priority: critical
+      references_constraints: [C-10]

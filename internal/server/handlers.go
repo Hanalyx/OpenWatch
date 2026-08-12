@@ -265,8 +265,35 @@ func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, p
 	})
 }
 
+// licensePublicFields is the allowlist of LicenseStateResponse properties an
+// anonymous caller may read. GET /license is deliberately reachable without
+// credentials, because the SPA has to lock or unlock controls before anyone
+// logs in.
+//
+// A field belongs here only if it passes both halves of the C-06 rule. A
+// pre-login screen must NEED it to lock or unlock a control, and it must not
+// be a customer or infrastructure fact: not the buyer, not the contract, not
+// how we sign, not what this host's clock did. Three fields pass, and GET
+// /capabilities already publishes the same three anonymously and on purpose.
+//
+// Everything else takes system:read, including in_grace_period. That one is
+// operationally harmless, but status already carries the identical fact, so a
+// pre-login screen does not need it. Gating it minimizes surface and closes
+// no disclosure, because status still publishes grace state anonymously here
+// and on /capabilities. Spec api-license C-06 and C-09.
+//
+// A field that nobody has sorted into a class is gated, because this is an
+// allowlist and not a redaction list. Adding a property to
+// LicenseStateResponse fails AC-11 until someone answers the C-06 question on
+// purpose, which is the point of the rule.
+var licensePublicFields = map[string]struct{}{
+	"tier":     {},
+	"status":   {},
+	"features": {},
+}
+
 // GetLicense returns the current runtime license state.
-// Spec: specs/api/license.spec.yaml AC-1, AC-2, AC-3.
+// Spec: specs/api/license.spec.yaml AC-1, AC-2, AC-3, AC-11 through AC-14.
 func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 	state := license.CurrentState()
 
@@ -281,21 +308,67 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 		resp.Tier = api.LicenseStateResponseTier(lic.Tier)
 		resp.Status = api.LicenseStateResponseStatus(lic.Status)
 		resp.Features = featuresToStrings(lic.Features)
-		// customer_id identifies the paying organization. The tier, status and
-		// feature list are operational facts a UI needs before login, but the
-		// customer identity is not, and this route is reachable anonymously.
-		// Disclose it only to a caller who can already read system config.
-		if auth.FromContext(r.Context()).HasPermission(auth.SystemRead) {
-			resp.CustomerId = &lic.CustomerID
-		}
+		// Every field is populated the same way for every caller, including
+		// the booleans that are false. Whether a field is present must not
+		// depend on its value, or absence becomes the disclosure. The
+		// permission decides what is written out, not what is filled in.
+		// Spec api-license C-07.
+		resp.CustomerId = &lic.CustomerID
 		exp := lic.ExpiresAt
 		resp.ExpiresAt = &exp
 		grace := lic.InGracePeriod
 		resp.InGracePeriod = &grace
 		prev := lic.UsingPrevKey
 		resp.UsingPrevKey = &prev
+		rollback := lic.ClockRollbackDetected
+		resp.ClockRollbackDetected = &rollback
 	}
-	writeJSON(w, http.StatusOK, resp)
+
+	// This body varies by permission, and identity rides on either the session
+	// cookie or a bearer header (internal/identity/binder.go). Say so, so that
+	// a cache in front of the server cannot hand a system:read body to the
+	// next anonymous caller.
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Vary", "Cookie, Authorization")
+
+	if auth.FromContext(r.Context()).HasPermission(auth.SystemRead) {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	public, err := filterToAllowlist(resp, licensePublicFields)
+	if err != nil {
+		// Fail loudly. Returning the empty object here would render as a
+		// license state in the UI, which is the wrong kind of quiet.
+		writeError(w, http.StatusInternalServerError, "server.internal", "server",
+			"failed to encode license state", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, public)
+}
+
+// filterToAllowlist renders v as JSON and keeps only the top-level keys named
+// in allow. It works on the encoded body rather than on the struct, so a field
+// added to the struct is dropped by default whether it is a pointer, a value,
+// or required by the schema.
+//
+// It never inspects a value, only a key, which is what keeps presence from
+// encoding value. Spec api-license C-06 and C-07.
+func filterToAllowlist(v interface{}, allow map[string]struct{}) (map[string]json.RawMessage, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &all); err != nil {
+		return nil, err
+	}
+	out := make(map[string]json.RawMessage, len(allow))
+	for k, val := range all {
+		if _, ok := allow[k]; ok {
+			out[k] = val
+		}
+	}
+	return out, nil
 }
 
 // PostAdminLicenseVerify dry-run validates a JWT without installing.
@@ -346,13 +419,20 @@ func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request
 }
 
 // PostDiagnosticsPremiumEcho is the Stage-0 license-gated demo endpoint.
-// Checks the premium_diagnostics feature gate via license.EnforceFeature
-// (oapi-codegen-mounted routes can't easily take per-route middleware).
+// Both gates run inside the handler, because oapi-codegen-mounted routes
+// can't easily take per-route middleware: auth.EnforcePermission for RBAC,
+// then license.EnforceFeature for the premium_diagnostics entitlement.
 //
-// Spec: specs/api/license.spec.yaml AC-7, AC-9.
+// Spec: specs/api/license.spec.yaml AC-7, AC-9, AC-15, AC-16, AC-19.
 func (h *handlers) PostDiagnosticsPremiumEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsPremiumEchoParams) {
-	// License gate FIRST so we don't burn an audit event for input that
-	// would have been denied anyway.
+	// RBAC first, entitlement second. License state is process-global, so a
+	// feature check alone lets any anonymous caller through on a licensed box.
+	// Running RBAC first also keeps the 402 from doubling as an entitlement
+	// oracle: a caller who fails RBAC gets 401 or 403 and learns nothing about
+	// what this deployment is licensed for. Spec api-license C-05.
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
 	if license.EnforceFeature(w, r, license.PremiumDiagnostics) {
 		return
 	}
@@ -366,6 +446,18 @@ func (h *handlers) PostDiagnosticsPremiumEcho(w http.ResponseWriter, r *http.Req
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
 			"request body must include 'message'", false)
+		return
+	}
+	// Cap the message the way /diagnostics:echo does. The message is copied
+	// into an audit event, and it is echoed back in a response the idempotency
+	// middleware persists as jsonb. Nothing else in the server limits the size
+	// of a request body, so without this cap both stores take whatever the
+	// caller sends, and a compliance reviewer later reads that text as
+	// evidence. The cap is independent of the RBAC gate above: RBAC alone
+	// still lets any system:read caller make the write. Spec api-license C-10.
+	if len(req.Message) > 1024 {
+		writeError(w, http.StatusBadRequest, "validation.field_range", "client",
+			"message exceeds maximum length of 1024 characters", false)
 		return
 	}
 

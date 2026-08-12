@@ -318,6 +318,60 @@ func TestAPI_RBAC_AdminRolesDeniesAnonymous(t *testing.T) {
 	})
 }
 
+// @ac AC-23
+// AC-23: RBAC runs before the feature check inside the handler, not just in
+// the contract. For a route carrying both gates, a caller who lacks the
+// permission is denied whatever the license state, and the status code
+// therefore carries no information about what the deployment bought.
+//
+// Both license states are exercised. Checking only the licensed instance would
+// pass even if the handler ran the checks in the wrong order, because an
+// enabled feature makes the feature check a no-op.
+func TestAPI_RBAC_RBACBeforeFeatureInBothLicenseStates(t *testing.T) {
+	t.Run("system-rbac/AC-23", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		anonymousCall := func(key string) (int, string) {
+			req, _ := http.NewRequest("POST", url+"/api/v1/diagnostics:premium-echo",
+				strings.NewReader(`{"message":"rbac-before-feature"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Idempotency-Key", key)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			b, _ := io.ReadAll(resp.Body)
+			return resp.StatusCode, string(b)
+		}
+
+		// Unlicensed. This is the leg that catches a wrong order: with the
+		// feature check first, the deployment's lack of a license would answer
+		// before the caller's lack of a session, and the caller would get 402.
+		unlicensedCode, unlicensedBody := anonymousCall("rbac-first-unlicensed")
+		if unlicensedCode != http.StatusUnauthorized {
+			t.Errorf("unlicensed anonymous status = %d, want 401; body=%s",
+				unlicensedCode, unlicensedBody)
+		}
+		if unlicensedCode == http.StatusPaymentRequired {
+			t.Error("402 on an unlicensed instance makes the status an entitlement oracle")
+		}
+		if !strings.Contains(unlicensedBody, "auth.required") {
+			t.Errorf("unlicensed anonymous body lacks auth.required: %s", unlicensedBody)
+		}
+
+		// Licensed for premium_diagnostics.
+		installEnterpriseLicense(t, "premium_diagnostics")
+		licensedCode, licensedBody := anonymousCall("rbac-first-licensed")
+		if licensedCode != http.StatusUnauthorized {
+			t.Errorf("licensed anonymous status = %d, want 401; body=%s",
+				licensedCode, licensedBody)
+		}
+		if licensedCode != unlicensedCode {
+			t.Errorf("status differs with license state: %d unlicensed vs %d licensed. "+
+				"The denial must not tell an unauthenticated caller what the deployment bought.",
+				unlicensedCode, licensedCode)
+		}
+	})
+}
+
 // Touch the license import so it's not unused when the AC-10 test happens
 // to skip due to missing DSN.
 var _ = license.PremiumDiagnostics

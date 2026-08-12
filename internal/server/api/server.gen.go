@@ -2969,13 +2969,14 @@ type IntelligenceState struct {
 
 // LicenseStateResponse defines model for LicenseStateResponse.
 type LicenseStateResponse struct {
-	CustomerId    *string                    `json:"customer_id,omitempty"`
-	ExpiresAt     *time.Time                 `json:"expires_at,omitempty"`
-	Features      []string                   `json:"features"`
-	InGracePeriod *bool                      `json:"in_grace_period,omitempty"`
-	Status        LicenseStateResponseStatus `json:"status"`
-	Tier          LicenseStateResponseTier   `json:"tier"`
-	UsingPrevKey  *bool                      `json:"using_prev_key,omitempty"`
+	ClockRollbackDetected *bool                      `json:"clock_rollback_detected,omitempty"`
+	CustomerId            *string                    `json:"customer_id,omitempty"`
+	ExpiresAt             *time.Time                 `json:"expires_at,omitempty"`
+	Features              []string                   `json:"features"`
+	InGracePeriod         *bool                      `json:"in_grace_period,omitempty"`
+	Status                LicenseStateResponseStatus `json:"status"`
+	Tier                  LicenseStateResponseTier   `json:"tier"`
+	UsingPrevKey          *bool                      `json:"using_prev_key,omitempty"`
 }
 
 // LicenseStateResponseStatus defines model for LicenseStateResponse.Status.

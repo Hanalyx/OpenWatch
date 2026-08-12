@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "2.0.0"
+  version: "2.1.0"
   status: approved
   tier: 1
 
@@ -77,6 +77,10 @@ spec:
       enforcement: error
     - id: C-08
       description: Built-in role grants MUST preserve separation of duties for the governed lifecycles. A built-in role that can request remediation MUST NOT also hold remediation:approve; the same requester-is-not-approver rule applies to exceptions. The full built-in-role to governed-permission matrix (remediation:* and exception:*) is fixed and documented in docs/engineering/remediation_exception_governance.md; a permissions.yaml edit that changes it is a deliberate governance decision and MUST update that matrix and this spec together.
+      type: security
+      enforcement: error
+    - id: C-09
+      description: "Entitlement is not authorization. Every operation in api/openapi.yaml that declares x-required-feature MUST also declare x-required-permission and enforce it. License state is process-global, not per-caller, so a feature check alone tells the server what the DEPLOYMENT bought, never who is asking. On a licensed instance a feature-only route is open to anyone who can reach the port."
       type: security
       enforcement: error
 
@@ -196,8 +200,42 @@ spec:
         /hosts/{id}/connectivity:check MUST require host:connectivity_check
         rather than host:read, because it makes the server open an SSH or ICMP
         connection to a managed host on demand; that is a side effect, not a
-        read, and viewer and auditor therefore lose it. GET /license MUST omit
-        customer_id unless the caller holds system:read, since the tier and
-        feature list are operational facts a pre-login UI needs but the paying
-        organisation's identity is not.
+        read, and viewer and auditor therefore lose it. GET /license MUST
+        disclose a field anonymously only when a pre-login screen needs it AND
+        it is not a customer or infrastructure fact. Exactly three qualify:
+        tier, status, features. customer_id, expires_at, using_prev_key,
+        in_grace_period and clock_rollback_detected all require system:read,
+        and a field nobody has sorted defaults to gated. The first fix here
+        gated customer_id alone and left expires_at, a contract end date of
+        the same class, set outside the same permission check. The full rule
+        and its field-level tests live in api-license C-06, AC-11 and AC-12;
+        this AC states only that the route is governed by a rule rather than
+        by a list someone maintains.
       priority: critical
+    - id: AC-22
+      description: >
+        A license feature check is never the only gate on a route. Every
+        operation in api/openapi.yaml that declares x-required-feature also
+        declares x-required-permission, and the per-route enforcement gate in
+        AC-18 then holds its handler to the matching typed constant. Verified
+        by inspecting the contract, so a new paid route that ships with an
+        entitlement gate and no permission fails the build rather than review.
+        POST /diagnostics:premium-echo was the instance: it called
+        license.EnforceFeature and nothing else, so on any instance licensed
+        for premium_diagnostics an anonymous caller reached the handler. Its
+        sibling POST /diagnostics:require-remediation-execute already declared
+        both and was unaffected.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-23
+      description: >
+        RBAC runs before the feature check inside the handler, not just in the
+        contract. For a route carrying both gates, a caller who lacks the
+        permission is denied 401 or 403 whatever the license state, and in
+        particular an anonymous caller on an UNLICENSED instance still gets
+        401 rather than 402. The status code therefore carries no information
+        about what the deployment bought. Testing this needs both license
+        states, since checking only the licensed instance would pass even if
+        the handler ran the checks in the wrong order.
+      priority: critical
+      references_constraints: [C-03, C-09]

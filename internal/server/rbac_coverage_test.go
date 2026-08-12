@@ -70,9 +70,18 @@ func serverSource(t *testing.T) string {
 	return b.String()
 }
 
-// declaredPermissions parses the OpenAPI contract for every operation that
-// declares x-required-permission, returning operationId -> permission.
-func declaredPermissions(t *testing.T) map[string]string {
+// opGates is what one operation declares about the two gates it expects:
+// x-required-permission for RBAC and x-required-feature for entitlement.
+// Either may be empty, and AC-22 is the rule about which combinations are
+// allowed.
+type opGates struct {
+	Permission string
+	Feature    string
+}
+
+// operationGates parses the OpenAPI contract and returns operationId -> the
+// gates it declares. Operations declaring neither gate are omitted.
+func operationGates(t *testing.T) map[string]opGates {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "api", "openapi.yaml"))
 	if err != nil {
@@ -82,12 +91,13 @@ func declaredPermissions(t *testing.T) map[string]string {
 		Paths map[string]map[string]struct {
 			OperationID string `yaml:"operationId"`
 			Permission  string `yaml:"x-required-permission"`
+			Feature     string `yaml:"x-required-feature"`
 		} `yaml:"paths"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("parse openapi.yaml: %v", err)
 	}
-	out := map[string]string{}
+	out := map[string]opGates{}
 	for _, item := range doc.Paths {
 		for method, op := range item {
 			switch method {
@@ -95,9 +105,26 @@ func declaredPermissions(t *testing.T) map[string]string {
 			default:
 				continue
 			}
-			if op.Permission != "" && op.OperationID != "" {
-				out[op.OperationID] = op.Permission
+			if op.OperationID == "" {
+				continue
 			}
+			if op.Permission == "" && op.Feature == "" {
+				continue
+			}
+			out[op.OperationID] = opGates{Permission: op.Permission, Feature: op.Feature}
+		}
+	}
+	return out
+}
+
+// declaredPermissions returns operationId -> permission for every operation
+// that declares x-required-permission.
+func declaredPermissions(t *testing.T) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	for opID, gates := range operationGates(t) {
+		if gates.Permission != "" {
+			out[opID] = gates.Permission
 		}
 	}
 	return out
@@ -219,5 +246,44 @@ func TestRBACCoverage_EveryDeclaredPermissionIsEnforced(t *testing.T) {
 		if len(notEnforced) == 0 && len(unknownPerm) == 0 && len(missingHandler) == 0 {
 			t.Logf("%d routes declare a permission; all enforce it", len(declared))
 		}
+	})
+}
+
+// @ac AC-22
+// AC-22: a license feature check is never the only gate on a route. Every
+// operation declaring x-required-feature also declares x-required-permission,
+// and AC-18 above then holds its handler to the matching typed constant.
+//
+// Verified by inspecting the contract, so a new paid route that ships with an
+// entitlement gate and no permission fails the build rather than review.
+// POST /diagnostics:premium-echo was the instance: it called
+// license.EnforceFeature and nothing else, so on any instance licensed for
+// premium_diagnostics an anonymous caller reached the handler. Its sibling
+// POST /diagnostics:require-remediation-execute already declared both and was
+// unaffected.
+func TestRBACCoverage_EveryFeatureGateAlsoDeclaresAPermission(t *testing.T) {
+	t.Run("system-rbac/AC-22", func(t *testing.T) {
+		gates := operationGates(t)
+		if len(gates) == 0 {
+			t.Fatal("no gate declarations found; the contract or this parser is broken")
+		}
+
+		featureGated := 0
+		for opID, g := range gates {
+			if g.Feature == "" {
+				continue
+			}
+			featureGated++
+			if g.Permission == "" {
+				t.Errorf("%s declares x-required-feature %q and no x-required-permission. "+
+					"Entitlement is not authorization: license state is process-global, so a "+
+					"feature check alone tells the server what the deployment bought, never who "+
+					"is asking.", opID, g.Feature)
+			}
+		}
+		if featureGated == 0 {
+			t.Fatal("no operation declares x-required-feature; this check would pass vacuously")
+		}
+		t.Logf("%d routes declare a feature gate; all also declare a permission", featureGated)
 	})
 }

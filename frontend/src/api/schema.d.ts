@@ -3537,6 +3537,7 @@ export interface components {
             expires_at?: string | null;
             in_grace_period?: boolean;
             using_prev_key?: boolean;
+            clock_rollback_detected?: boolean;
         };
         LicenseVerifyRequest: {
             license_jwt: string;
@@ -5331,8 +5332,26 @@ export interface operations {
                     "application/json": components["schemas"]["EchoResponse"];
                 };
             };
+            /** @description Caller is anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description License does not include premium_diagnostics feature */
             402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks system:read */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
