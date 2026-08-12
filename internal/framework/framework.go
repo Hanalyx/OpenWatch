@@ -40,6 +40,75 @@ const OSSuffixSQL = `_(rhel|ubuntu)[0-9]+$`
 //	stig_rhel9 -> stig ; cis_ubuntu22 -> cis ; nist_800_53 -> nist_800_53
 func FamilyOf(key string) string { return osSuffix.ReplaceAllString(key, "") }
 
+// benchmarkFamily maps a distro ID onto the upstream distro whose benchmarks
+// the host is graded against. An enterprise-Linux rebuild is graded as its
+// upstream: Kensa runs the RHEL 9 rules on an AlmaLinux 9 host, so that host's
+// STIG lens must resolve to stig_rhel9. Deriving the key from the raw distro id
+// asks for stig_almalinux9, which NO rule in the corpus emits, so the lens
+// silently matches nothing and the picker drops it entirely -- the operator is
+// shown a page with no STIG or CIS option and no hint that either exists.
+//
+// This is a STAND-IN for a fact Kensa computes and does not publish. Kensa
+// resolved the host to an EL platform in order to decide which rules to run;
+// features/KN-OW-018 asks it to say so on the scan result. Delete this map when
+// that lands rather than extending it -- every entry here is a second copy of
+// Kensa's platform gate, and the gate is expected to widen.
+//
+// Two families are absent ON PURPOSE, and neither is an oversight:
+//
+//   - Fedora rolls up to the rhel family in host discovery, but it is upstream
+//     of RHEL rather than a rebuild of it and has no EL benchmark. Grading a
+//     Fedora host against the RHEL 9 STIG would manufacture coverage that does
+//     not exist.
+//   - Amazon Linux is EL-adjacent and untested here. A wrong mapping grades a
+//     host against the wrong benchmark, which is worse than offering no lens.
+//
+// A distro absent from this map keeps its own id, so it resolves to a key the
+// corpus does not emit and no OS-specific lens is offered. That is the honest
+// outcome for a platform nobody has verified.
+var benchmarkFamily = map[string]string{
+	"almalinux": "rhel",
+	"centos":    "rhel",
+	"ol":        "rhel",
+	"oracle":    "rhel",
+	"rocky":     "rhel",
+}
+
+// BenchmarkFamily normalizes a hosts.os_family value to the distro whose corpus
+// keys apply to it. Unknown or empty input is returned lower-cased and
+// unchanged.
+func BenchmarkFamily(osFamily string) string {
+	k := strings.ToLower(strings.TrimSpace(osFamily))
+	if up, ok := benchmarkFamily[k]; ok {
+		return up
+	}
+	return k
+}
+
+// benchmarkFamilySQL renders BenchmarkFamily as a SQL CASE over the given
+// column expression. GENERATED from the same map rather than hand-written, so
+// the SQL and Go paths cannot drift -- the drift they replace is exactly how
+// this bug shipped: the frontend already mapped almalinux to RHEL for display
+// while the query did not, so one page labeled a host "RHEL 9.8" and then
+// withheld the RHEL 9 benchmarks from it.
+//
+// osFamilyExpr must be a fixed literal in code (a bind placeholder or a column
+// reference), never user input; the map keys are compile-time constants.
+func benchmarkFamilySQL(osFamilyExpr string) string {
+	keys := make([]string, 0, len(benchmarkFamily))
+	for k := range benchmarkFamily {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // deterministic SQL, so the query text is stable
+	var b strings.Builder
+	b.WriteString("CASE lower(" + osFamilyExpr + ")")
+	for _, k := range keys {
+		b.WriteString(" WHEN '" + k + "' THEN '" + benchmarkFamily[k] + "'")
+	}
+	b.WriteString(" ELSE lower(" + osFamilyExpr + ") END")
+	return b.String()
+}
+
 // MatchSQL returns a SQL boolean fragment (for a WHERE clause on a table
 // with a framework_refs JSONB column) that is TRUE when:
 //   - the bind parameter is NULL (all-rules, no filter), OR
@@ -82,11 +151,16 @@ func MatchSQL(paramRef string) string {
 // famRef, osFamilyExpr, osVersionExpr are SQL expressions (a bind placeholder
 // like "$2", or a column reference like "eff.fam"/"hh.os_family"); they must be
 // fixed literals in code, never user input. The OS token mirrors the corpus key
-// suffix: lower(os_family) concatenated with the major version
+// suffix: the BENCHMARK family concatenated with the major version
 // (split_part(os_version,'.',1)) — e.g. rhel+9 = rhel9, ubuntu+22 = ubuntu22.
+//
+// The family goes through benchmarkFamilySQL rather than a bare lower(), so an
+// EL rebuild resolves to its upstream: an almalinux 9.8 host asks for stig_rhel9
+// (391 of its rules carry that ref) instead of stig_almalinux9 (which no rule
+// carries). See benchmarkFamily for why that mapping is a stand-in.
 func OSResolvedMatchSQL(famRef, osFamilyExpr, osVersionExpr string) string {
 	return `(` + famRef + `::text IS NULL
-			OR framework_refs ? (` + famRef + ` || '_' || lower(` + osFamilyExpr + `) || split_part(` + osVersionExpr + `, '.', 1))
+			OR framework_refs ? (` + famRef + ` || '_' || ` + benchmarkFamilySQL(osFamilyExpr) + ` || split_part(` + osVersionExpr + `, '.', 1))
 			OR framework_refs ? ` + famRef + `)`
 }
 
