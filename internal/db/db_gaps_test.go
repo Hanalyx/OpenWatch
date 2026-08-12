@@ -11,6 +11,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -158,21 +159,25 @@ func TestSchema_AuditEvents(t *testing.T) {
 }
 
 // @ac AC-06
-// AC-06: idempotency_keys schema includes key (TEXT PK), request_hash,
-// response_status, response_body (JSONB), expires_at.
+// AC-06: idempotency_keys schema includes actor_id (TEXT), key (TEXT),
+// request_hash, response_status, response_body (JSONB) and expires_at. Its
+// primary key is the composite (actor_id, key), not key alone.
+//
+// The primary key is asserted directly. Until 2026-08, this test built a
+// column map and then iterated only over its want map, so it never read the
+// primary key at all and no column set could have failed it. The cache being
+// scoped to one caller rests entirely on that key, so it is checked here as
+// an ordered column list.
+//
+// The pool comes from dbtest, which keys its migrated template on the
+// migration set. A run against an older migration set therefore cannot reuse
+// a database that this migration already touched, which matters because
+// goose only moves forward.
 func TestSchema_IdempotencyKeys(t *testing.T) {
 	t.Run("system-db/AC-06", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
 
 		rows, err := pool.Query(ctx, `
 			SELECT column_name, data_type
@@ -191,6 +196,7 @@ func TestSchema_IdempotencyKeys(t *testing.T) {
 			cols[name] = dtype
 		}
 		want := map[string]string{
+			"actor_id":        "text",
 			"key":             "text",
 			"request_hash":    "text",
 			"response_status": "integer",
@@ -206,6 +212,35 @@ func TestSchema_IdempotencyKeys(t *testing.T) {
 			if got != wantType {
 				t.Errorf("idempotency_keys.%s type = %q, want %q", name, got, wantType)
 			}
+		}
+
+		pkRows, err := pool.Query(ctx, `
+			SELECT kcu.column_name
+			FROM information_schema.table_constraints tc
+			JOIN information_schema.key_column_usage kcu
+			  ON kcu.constraint_name = tc.constraint_name
+			 AND kcu.table_schema = tc.table_schema
+			WHERE tc.table_name = 'idempotency_keys'
+			  AND tc.constraint_type = 'PRIMARY KEY'
+			ORDER BY kcu.ordinal_position`)
+		if err != nil {
+			t.Fatalf("primary key columns: %v", err)
+		}
+		defer pkRows.Close()
+		var pk []string
+		for pkRows.Next() {
+			var name string
+			if err := pkRows.Scan(&name); err != nil {
+				t.Fatalf("scan primary key column: %v", err)
+			}
+			pk = append(pk, name)
+		}
+		if err := pkRows.Err(); err != nil {
+			t.Fatalf("read primary key columns: %v", err)
+		}
+		wantPK := []string{"actor_id", "key"}
+		if !reflect.DeepEqual(pk, wantPK) {
+			t.Errorf("idempotency_keys primary key = %v, want %v (the cache is scoped to the caller that created the entry)", pk, wantPK)
 		}
 	})
 }

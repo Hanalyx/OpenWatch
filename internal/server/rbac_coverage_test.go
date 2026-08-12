@@ -704,28 +704,34 @@ func TestRBACCoverage_EchoRequiresSystemRead(t *testing.T) {
 			t.Fatalf("viewer :echo status = %d, want 200; body=%s", code, body)
 		}
 
-		// THE ANONYMOUS REPLAY CASE IS DELIBERATELY NOT ASSERTED HERE.
-		// See bugs/OW-012.
+		// 5. The anonymous replay. This assertion was withdrawn when AC-24 was
+		// written, because it could not hold: internal/idempotency answered a
+		// cache hit before the handler ran, so the auth.EnforcePermission above
+		// never executed and the stored 200 was served to anyone holding the
+		// key. That was bugs/OW-012, and it is now fixed.
 		//
-		// Replaying the key cached at step 4 with no credentials returns that
-		// stored 200, not a 401. I measured it on this branch and coder4
-		// measured it independently, so it is filed rather than overlooked. No
-		// in-handler check can change it: internal/idempotency/middleware.go
-		// answers a cache hit with replayCached and returns before calling the
-		// handler, so the auth.EnforcePermission at the top of
-		// PostDiagnosticsEcho never runs. The cache key is the Idempotency-Key
-		// alone and idempotency_keys has no actor column, so the fix needs a
-		// migration and a middleware change, not a handler change.
+		// The middleware no longer runs at all for an anonymous caller, so the
+		// key cached at step 4 is not even looked up. The request reaches the
+		// handler and the permission check answers it.
 		//
-		// An earlier draft of AC-24 required a 401 here. It was withdrawn
-		// because it is unsatisfiable where it was written, not because the
-		// concern was wrong. A disabled assertion left in place would be worse
-		// than none: dead code reads as coverage, and this gap is exactly the
-		// kind that a reader assumes some test somewhere already holds.
-		//
-		// OW-012 also covers the wider case this route cannot show: nothing
-		// ties a cached row to its creator, so one AUTHENTICATED caller can
-		// replay another's stored response by reusing their key.
+		// Re-enabling this here rather than only in the idempotency package is
+		// deliberate. system-idempotency AC-10 pins the middleware behavior;
+		// this pins the property an operator actually cares about, that a
+		// cached success is never handed to a caller who was never authorized,
+		// through the route where it was first measured.
+		// The key and body MUST match step 4 exactly. A different key is not a
+		// replay at all, it is a fresh anonymous call, and this assertion then
+		// passes against a completely broken cache. That is not hypothetical:
+		// the first version of this step reused a stale key name and survived
+		// three separate mutations of the guard it was supposed to be pinning.
+		code, body = post("ac24-ok-key", "ac24-replay", "authorized", false)
+		if code != http.StatusUnauthorized {
+			t.Errorf("anonymous replay of a used Idempotency-Key: status = %d, want 401. "+
+				"A stored success must not be handed to a caller who was never authorized; body=%s", code, body)
+		}
+		if !strings.Contains(body, "auth.required") {
+			t.Errorf("anonymous replay body lacks auth.required: %s", body)
+		}
 	})
 }
 
