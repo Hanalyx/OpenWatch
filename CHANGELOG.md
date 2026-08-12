@@ -62,6 +62,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- Two diagnostics routes now require a permission. `POST /api/v1/diagnostics:echo`
+  requires `system:read` and `POST /api/v1/diagnostics:evaluate-alert` requires
+  `policy:read`. Both were reachable without any credentials. Every call to
+  `:echo` wrote an audit event and a stored idempotency record, and nothing
+  limits the rate, so anyone who could reach the port could grow two tables
+  without bound. `:evaluate-alert` returned the deployment's alert thresholds
+  one score at a time, so walking the score from 0 to 100 read back the
+  configured policy. **Every built-in role holds both permissions**, so a
+  signed-in operator is unaffected.
 - `GET /api/v1/license` no longer tells an unauthenticated caller who the
   customer is, when the contract ends, or what this host's clock did. The route
   stays reachable without credentials, because the sign-in screen needs to lock

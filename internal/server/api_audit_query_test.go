@@ -104,6 +104,11 @@ func generateEvents(t *testing.T, url string, n int, corrPrefix string) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", corrPrefix+"-key-"+string(rune('A'+i)))
 		req.Header.Set("X-Correlation-Id", corrPrefix+"-"+string(rune('A'+i)))
+		// :echo requires system:read since it was gated. This helper only uses
+		// it to seed integration.plugin.executed rows for the query tests
+		// below, so an anonymous call would seed authz.permission.denied
+		// instead and every filter assertion would fail for the wrong reason.
+		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp := doReq(t, req)
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()

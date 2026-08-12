@@ -1,7 +1,7 @@
 spec:
   id: api-diagnostics-echo
   title: Diagnostics echo endpoint
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 3
 
@@ -15,6 +15,17 @@ spec:
       correlation_id (replays not double-audited). Not a feature; exists
       to prove the toolchain composes.
 
+      The route requires system:read. Every AC below therefore describes an
+      AUTHENTICATED caller who holds it, and a test that sends no credentials
+      gets 401 on a cache MISS, before it reaches any behavior this spec pins.
+
+      A replay is different. The permission check runs in the handler, and a
+      cache hit returns the stored response without calling the handler, so
+      AC-07 still replays for a caller who sends no credentials. That is a gap
+      in the idempotency middleware rather than in this route, it is filed as
+      bugs/OW-012, and system-rbac C-10 and AC-24 carry the rule and the record
+      of what is still open.
+
   objective:
     summary: >
       Demonstrate that the foundation stack (correlation, idempotency,
@@ -26,7 +37,11 @@ spec:
         - Audit emission per unique key
       excludes:
         - Real business logic
-        - Authentication (Stage 2)
+        - >
+          The authorization rule itself, which system-rbac C-10 and AC-24 own.
+          This route requires system:read. It is no longer anonymous, and the
+          old "Authentication (Stage 2)" exclusion here read as license to
+          leave it open.
 
   constraints:
     - id: C-01

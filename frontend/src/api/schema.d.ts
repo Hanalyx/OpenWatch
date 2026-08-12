@@ -5232,6 +5232,24 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description Caller is anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks system:read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             405: components["responses"]["MethodNotAllowed"];
             /** @description Idempotency-Key reused with different body */
             409: {
@@ -5451,6 +5469,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PolicyDecisionResponse"];
+                };
+            };
+            /** @description Caller is anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Caller lacks policy:read */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

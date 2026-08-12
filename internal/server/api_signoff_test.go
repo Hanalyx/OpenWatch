@@ -52,6 +52,11 @@ func TestSignoff_DoD7_Health(t *testing.T) {
 
 // @ac AC-02
 // AC-02 / DoD-8: :echo returns echoed message + matching correlation_id.
+//
+// The caller holds system:read. The route is no longer anonymous, so a
+// version of this step that sends no credentials gets 401 and proves nothing
+// about the request lifecycle. Viewer is the least-privileged built-in role
+// that holds the permission. See system-rbac AC-24.
 func TestSignoff_DoD8_Echo(t *testing.T) {
 	t.Run("release-stage-0-signoff/AC-02", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -60,6 +65,7 @@ func TestSignoff_DoD8_Echo(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", "dod8-key")
 		req.Header.Set("X-Correlation-Id", "dod8-001")
+		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -84,6 +90,7 @@ func TestSignoff_DoD9_AuditQueryable(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Idempotency-Key", "dod9-key")
 		req.Header.Set("X-Correlation-Id", "dod9-001")
+		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp := doReq(t, req)
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
@@ -105,6 +112,10 @@ func TestSignoff_DoD9_AuditQueryable(t *testing.T) {
 
 // @ac AC-04
 // AC-04 / DoD-10: Replay returns cached response; one audit row only.
+//
+// Both calls carry the same viewer session. The replay MUST carry credentials.
+// An anonymous replay is a different case, and system-rbac AC-24 pins it: the
+// stored success must not be handed to a caller who was never authorized.
 func TestSignoff_DoD10_IdempotencyReplay(t *testing.T) {
 	t.Run("release-stage-0-signoff/AC-04", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -114,6 +125,7 @@ func TestSignoff_DoD10_IdempotencyReplay(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Idempotency-Key", "dod10-key")
 			req.Header.Set("X-Correlation-Id", "dod10-001")
+			req.AddCookie(roleCookies[auth.RoleViewer])
 			resp := doReq(t, req)
 			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
@@ -225,6 +237,12 @@ func TestSignoff_DoD13_LicenseGate402(t *testing.T) {
 // AC-08 / DoD-14: :evaluate-alert returns Decision with outcome="high"
 // and policy_version="0.0.0" (built-in default thresholds: <50 critical,
 // <70 high, <85 medium).
+//
+// The route reads back the deployment's alert threshold policy one score at a
+// time, so it requires policy:read. Viewer is the least-privileged built-in
+// role that holds it, which keeps this step about the policy default rather
+// than the caller's rank. system-rbac AC-25 owns the rule and the anonymous
+// 401 case.
 func TestSignoff_DoD14_EvaluateAlert(t *testing.T) {
 	t.Run("release-stage-0-signoff/AC-08", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -235,6 +253,7 @@ func TestSignoff_DoD14_EvaluateAlert(t *testing.T) {
 		body := strings.NewReader(`{"score":65}`)
 		req, _ := http.NewRequest("POST", url+"/api/v1/diagnostics:evaluate-alert", body)
 		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp := doReq(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -258,6 +277,12 @@ func TestSignoff_DoD14_EvaluateAlert(t *testing.T) {
 // @ac AC-09
 // AC-09 / DoD-15: Drop a signed policy v1.0.0; reload; :evaluate-alert
 // reflects the new thresholds.
+//
+// The two calls use DIFFERENT callers, and that is the point of the step.
+// Reloading needs policy:reload, held only by security_admin and admin.
+// Reading the result back needs policy:read, held by all five built-in roles.
+// Running both as admin would still pass and would stop showing that install
+// and read are separate authorities.
 func TestSignoff_DoD15_PolicyReload(t *testing.T) {
 	t.Run("release-stage-0-signoff/AC-09", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -292,10 +317,13 @@ func TestSignoff_DoD15_PolicyReload(t *testing.T) {
 			t.Errorf("outcome = %q, want loaded", reloadResp.Outcomes["alert_thresholds"])
 		}
 
-		// Re-evaluate with the new policy in effect.
+		// Re-evaluate with the new policy in effect, as viewer. Viewer holds
+		// policy:read and not policy:reload, so this second call could not
+		// have performed the install above.
 		body := strings.NewReader(`{"score":65}`)
 		req, _ = http.NewRequest("POST", url+"/api/v1/diagnostics:evaluate-alert", body)
 		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(roleCookies[auth.RoleViewer])
 		resp = doReq(t, req)
 		defer resp.Body.Close()
 		var got struct {

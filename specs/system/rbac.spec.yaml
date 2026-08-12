@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "2.1.0"
+  version: "2.2.0"
   status: approved
   tier: 1
 
@@ -81,6 +81,10 @@ spec:
       enforcement: error
     - id: C-09
       description: "Entitlement is not authorization. Every operation in api/openapi.yaml that declares x-required-feature MUST also declare x-required-permission and enforce it. License state is process-global, not per-caller, so a feature check alone tells the server what the DEPLOYMENT bought, never who is asking. On a licensed instance a feature-only route is open to anyone who can reach the port."
+      type: security
+      enforcement: error
+    - id: C-10
+      description: "A mutating operation is never anonymously open by default. Every POST, PUT, PATCH and DELETE in api/openapi.yaml MUST resolve to exactly one of two states. Either its handler provably enforces the caller (an RBAC check on a typed permission, or an authentication check for a route that needs no specific permission), or its operationId appears on the named anonymous allowlist that api/openapi.yaml carries. An operation that is on neither is a defect, and the rule is written so the next author has a question to answer rather than a list to keep. The allowlist is the small side on purpose: it holds the pre-auth routes such as login and setup, and nothing joins it without a reason recorded next to it. This constraint is about REACHABILITY, not documentation. It does not claim the contract describes the gate: today many operations enforce inside the handler while declaring no x-required-permission, so a rule written against the annotation alone would report a contract gap as if it were an open route. Closing that annotation gap is separate work, and C-09 plus AC-18 govern the declarations that do exist."
       type: security
       enforcement: error
 
@@ -239,3 +243,99 @@ spec:
         the handler ran the checks in the wrong order.
       priority: critical
       references_constraints: [C-03, C-09]
+    - id: AC-24
+      description: >
+        POST /diagnostics:echo requires system:read, the same permission its
+        sibling :premium-echo already requires. A DIRECT anonymous call, one
+        that does not hit the idempotency cache, returns 401 auth.required and
+        writes no idempotency row. internal/idempotency/middleware.go stores
+        only a 2xx, so a denial is never cached and never replayable.
+
+        The gate changes WHAT anonymous traffic writes, not HOW MUCH. It does
+        not stop the audit write: auth.EnforcePermission denies through
+        denyPermission, which emits authz.permission_denied on every denial
+        including an anonymous one, exactly as AC-09 already requires. What
+        changes is the content. The row is now a fixed shape carrying
+        required_permission and actor_role, instead of an event carrying up to
+        1024 characters of the caller's own text that a compliance reviewer
+        later reads as evidence. That is the evidence-integrity half. The row
+        COUNT is still unbounded, and nothing rate-limits the route, because
+        internal/server/server.go throttles login and MFA only. Recorded here
+        as open, not closed by this AC.
+
+        An in-handler permission check does not run on an idempotency cache
+        hit. The middleware returns the stored response without calling the
+        handler, so a caller who supplies a previously used key and its exact
+        body is served the cached 200 whatever their identity. This is
+        route-agnostic: the middleware is mounted globally and keys on the
+        header alone, never on the contract or the caller. Nothing ties a
+        cached row to its creator either, so the same gap lets one
+        AUTHENTICATED caller replay another's cached response by reusing their
+        key. Closing either half needs a change in the idempotency middleware,
+        not here. Both are filed as bugs/OW-012, which needs a migration
+        because idempotency_keys has no actor column. No AC in this spec may be
+        read as having closed them.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-25
+      description: >
+        POST /diagnostics:evaluate-alert requires policy:read. It had no check
+        of any kind, not even authentication. It decodes a score, evaluates the
+        alert_thresholds policy, and returns the outcome with the policy type
+        and version, so an anonymous caller could walk scores 0 to 100, watch
+        where the verdict changes, and read back the deployment's alert
+        thresholds along with which policy version is loaded. policy:read is
+        the permission whose registered scope is viewing active policies, and
+        policy content is what this route discloses. Two alternatives were
+        considered and rejected. alert:read covers alert instances and history,
+        which this route never returns. system:read would match the sibling
+        diagnostics routes, but its registered scope is health, version and
+        non-secret configuration, and a loaded policy is neither: the route
+        answers with policy_type and policy_version, and the sibling write path
+        POST /admin/policies:reload already uses the policy category for the
+        same object. All five built-in roles hold both, so the choice changes
+        nothing for them and decides only what a custom role built to read
+        system health can also read. An anonymous call returns 401
+        auth.required. All five built-in roles hold policy:read, so the 403
+        case needs the technique in api-license AC-16: an
+        auth.Identity on the request context with IsAnonymous false and a
+        RoleID that auth.BuiltInRoles does not resolve.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-26
+      description: >
+        No mutating operation is anonymously open by accident. A test walks
+        every POST, PUT, PATCH and DELETE in api/openapi.yaml and requires each
+        one to resolve to a gate. Either the handler for its operationId
+        provably enforces the caller, or the operationId appears on the named
+        anonymous allowlist that api/openapi.yaml carries. Enforcement is read
+        from the handler source, not from the annotation, and the check follows
+        delegation to a same-receiver helper the way AC-18 already does, since
+        many handlers are thin wrappers. It accepts either class of check: an
+        RBAC check on a typed constant from internal/auth/permissions.gen.go,
+        or an authentication check for a route that needs no specific
+        permission. Reading the source rather than the contract is what keeps
+        this AC honest: the annotation is documentation that a CI gate gives
+        teeth, and the handler check is the only thing that stops a request.
+        The allowlist is a TOP-LEVEL key in api/openapi.yaml named
+        x-anonymous-mutations. It holds a list of maps, each with exactly two
+        keys, operationId and reason. An entry for postAuthLogin, for example,
+        records a reason such as: pre-auth by definition, this is where a
+        caller gets credentials. Top-level, so one place shows the whole
+        anonymous surface, rather than a marker scattered across the file that
+        has to be gathered before it can be reviewed. Keyed by operationId
+        rather than by a path and method pair, because every other structural
+        gate here already keys on operationId, including AC-18 and the parser
+        it shares. Every entry MUST carry a reason and MUST name an operationId
+        that still exists in the contract, so a renamed or deleted route fails
+        this AC instead of leaving a dead entry that quietly widens the rule.
+        An operationId MUST NOT appear twice, since a duplicate hides one of
+        the two entries from review. An operation MUST NOT both appear here and
+        declare x-required-permission, because the two say opposite things: a
+        route that gets gated later and keeps its old entry leaves the
+        inventory advertising an anonymous surface that no longer exists. A new
+        mutating operation with neither a gate nor an allowlist entry fails,
+        and that failure is the point. Both defects this AC closes survived
+        review because a silent contract reads exactly like a safe one.
+      priority: critical
+      references_constraints: [C-10]
