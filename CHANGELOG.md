@@ -10,6 +10,47 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Clock-rollback detection works across a restart. The watermark is now stored
+  in the database (migration `0057`) instead of process memory, so the check
+  survives a reboot. It also compares the current time against that watermark
+  rather than the license's `iat`, which never moved when a clock was wound
+  back. A deployment that has never recorded a watermark skips the check, which
+  is correct on a first boot.
+- A detected rollback warns and still loads the license. It sets a flag, emits
+  `license.clock_rollback_detected`, and every other check still applies. It
+  does not withhold entitlement, because a clock that once jumped forward would
+  otherwise drop a licensed deployment to the free tier until someone deleted a
+  database row.
+
+### Fixed
+
+- License key rotation. The fallback to the previous signing key matched an
+  error that only the HMAC path returns, so it could never run and rotation
+  would have failed the first time a previous key shipped. **Nothing to do:** no
+  release has shipped a previous key yet.
+
+### Changed
+
+- A license carrying a feature id this build does not recognize now stays valid
+  and enables the features it does recognize. It used to be rejected outright,
+  so a license issued against a newer feature list disabled an entitled install
+  completely.
+
+### Removed
+
+- Quotas, which were never enforced and never appeared in any response: the
+  `quota.max_hosts_exceeded`, `quota.max_users_exceeded`,
+  `quota.max_scans_per_day_exceeded` and `quota.concurrent_scan_limit` error
+  codes, and the `license.quota_exceeded` audit event. **If you match on those
+  codes, they will not appear again.** OpenWatch does not cap hosts, scans,
+  users, or retention.
+- The `license_gated` field from `GET /api/v1/rbac`. Entitlement is decided by
+  the route, not the permission, because per-host and fleet-scale use the same
+  permission. **If you read that field, drop it:** it was populated for one
+  permission that no route required, so it never affected a request.
+
 ## [0.7.1] Eyrie (2026-08-04)
 
 Remediation stops being a black box. v0.7.0 could tell you a fix had been
