@@ -1,7 +1,7 @@
 spec:
   id: release-stage-0-signoff
   title: Stage 0 walking-skeleton sign-off
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -16,6 +16,13 @@ spec:
       cover operator-mediated actions (cert hot-reload, binary restart);
       those are annotated honestly as covered-by-companion-spec or
       acceptance-walkthrough rather than as automated Go tests.
+
+      The DoD demo endpoints are no longer anonymous. :echo requires
+      system:read and :evaluate-alert requires policy:read, so the steps that
+      drive them describe an authenticated caller. Both were open to anyone who
+      could reach the port, which is the defect system-rbac C-10 now rules out
+      for every mutating route. A DoD step is a sign-off gate, so it has to
+      exercise the shipped route, not the route as it stood at Stage 0.
     related_specs:
       - api-health
       - api-diagnostics-echo
@@ -60,13 +67,32 @@ spec:
       priority: critical
       references_constraints: [C-03]
     - id: AC-02
-      description: DoD-8 — POST /api/v1/diagnostics:echo with valid Idempotency-Key and X-Correlation-Id returns 200 with echoed message; X-Correlation-Id matches the request.
+      description: >
+        DoD-8: POST /api/v1/diagnostics:echo by a caller holding system:read,
+        with a valid Idempotency-Key and X-Correlation-Id, returns 200 with the
+        echoed message, and X-Correlation-Id matches the request. The route is
+        no longer anonymous, so a version of this step that sends no
+        credentials returns 401 and proves nothing about the request
+        lifecycle. system-rbac C-10 and AC-24 own that rule.
       priority: critical
     - id: AC-03
-      description: DoD-9 — GET /api/v1/audit/events returns the diagnostics.test_job_completed audit row from the prior :echo call within 1s.
+      description: >
+        DoD-9: GET /api/v1/audit/events returns the
+        diagnostics.test_job_completed audit row from the prior authenticated
+        :echo call within 1s.
       priority: critical
     - id: AC-04
-      description: DoD-10 — Replay of :echo with the same Idempotency-Key returns the cached response; only one audit_events row exists for the original call.
+      description: >
+        DoD-10: Replay of :echo by the same caller holding system:read, with
+        the same Idempotency-Key and the same body, returns the cached
+        response, and only one audit_events row exists for the original call.
+        The replay MUST carry credentials, because this step shows the cache
+        serving an AUTHORIZED caller. It does not show the cache refusing an
+        unauthorized one, and it must not be read that way. The permission
+        check runs in the handler, and a cache hit returns the stored response
+        without calling the handler, so an anonymous replay of a known key and
+        body is served the cached 200. That gap belongs to the idempotency
+        middleware, is filed as bugs/OW-012, and system-rbac AC-24 records it.
       priority: critical
     - id: AC-05
       description: DoD-11 — GET /api/v1/auth/me/permissions with X-Stub-Role=viewer returns a list including host:read and excluding host:write.
@@ -79,11 +105,27 @@ spec:
       description: DoD-13 — POST /api/v1/diagnostics:require-remediation-execute with X-Stub-Role=security_admin and no license returns 402 license.feature_unavailable; license.feature_check_denied audit row recorded.
       priority: critical
     - id: AC-08
-      description: DoD-14 — POST /api/v1/diagnostics:evaluate-alert with {"score":65} returns a Decision with outcome="high" and policy_version="0.0.0" (built-in default).
+      description: >
+        DoD-14: POST /api/v1/diagnostics:evaluate-alert by a caller holding
+        policy:read, with {"score":65}, returns a Decision with outcome="high"
+        and policy_version="0.0.0" (the built-in default). The route reads back
+        the deployment's alert threshold policy one score at a time, so it
+        requires policy:read; system-rbac C-10 and AC-25 own that rule and the
+        anonymous 401 case. Use viewer, the least-privileged built-in role that
+        holds policy:read, so the step keeps proving the policy default rather
+        than the caller's rank.
       priority: critical
       references_constraints: [C-01]
     - id: AC-09
-      description: DoD-15 — POST /api/v1/admin/policies:reload against a directory containing a signed alert_thresholds.yaml v1.0.0 returns outcome="loaded"; subsequent :evaluate-alert reflects the new thresholds.
+      description: >
+        DoD-15: POST /api/v1/admin/policies:reload against a directory
+        containing a signed alert_thresholds.yaml v1.0.0 returns
+        outcome="loaded", and the subsequent :evaluate-alert reflects the new
+        thresholds. The two calls need DIFFERENT callers, which is the point of
+        the step. Reloading needs policy:reload, held only by security_admin
+        and admin. Reading the result back needs policy:read, held by all five
+        built-in roles. Doing both as admin would still pass and would stop
+        showing that install and read are separate authorities.
       priority: critical
       references_constraints: [C-01]
     - id: AC-10

@@ -29,6 +29,50 @@ servers:
   - url: https://localhost:8443
     description: Local development
 
+# The anonymous allowlist. Spec system-rbac C-10 and AC-26.
+#
+# Every POST, PUT, PATCH and DELETE below has to resolve to a gate. Either its
+# handler proves who is asking, with an RBAC check on a typed permission or a
+# check that the caller is not anonymous, or its operationId appears here. An
+# operation on neither is a defect, and AC-26 fails the build for it. The point
+# is that the next author has a question to answer rather than a list to keep.
+#
+# This list is the small side on purpose. It holds routes that cannot require a
+# credential, because they are how a caller gets one. Nothing joins it without
+# a reason written next to it, and a reason has to say why the route cannot be
+# gated, not why gating it would be inconvenient.
+#
+# A route that rejects an anonymous caller does NOT belong here, even when its
+# path starts with /auth. POST /auth/mfa:enroll, POST /auth/mfa:verify and POST
+# /auth/password:change all run against an already-authenticated identity and
+# answer 401 without one, so they resolve to a gate on their own. Adding them
+# would be worse than redundant: an entry here exempts an operation from AC-26
+# permanently, so if someone later deleted the check, the test would stay green
+# while the route went open.
+#
+# Each operationId MUST still exist in paths below. A renamed or deleted route
+# fails AC-26 rather than leaving a dead entry that quietly widens the rule.
+x-anonymous-mutations:
+  - operationId: postAuthLogin
+    reason: >
+      No identity exists yet. This route is what creates one, so it cannot
+      require a caller to already have it.
+  - operationId: postAuthLogout
+    reason: >
+      Logout is idempotent and answers 204 for an anonymous caller on purpose.
+      It reads the identity, but only to decide whether there is a session to
+      revoke, and it never rejects. A caller whose session already expired must
+      still be able to clear the cookies.
+  - operationId: postAuthRefresh
+    reason: >
+      The refresh token in the request body IS the credential being presented.
+      Requiring a bound identity first would make the route unusable, since a
+      client refreshes precisely when its access credential has expired.
+  - operationId: postAuthRefreshCookie
+    reason: >
+      Same as postAuthRefresh, with the refresh token arriving in a cookie
+      rather than the body.
+
 paths:
 
   /api/v1/auth/login:
@@ -291,6 +335,12 @@ paths:
     post:
       operationId: postDiagnosticsEcho
       summary: Echo the request message; exercises idempotency + audit
+      # A successful call writes the caller's message into an audit event and
+      # into a stored idempotency record. The message is capped at 1024
+      # characters, so each write is bounded, but the call count is not.
+      # Attacker-supplied text in the audit log is evidence integrity, not a
+      # demo nit.
+      x-required-permission: system:read
       parameters:
         - name: Idempotency-Key
           in: header
@@ -313,6 +363,16 @@ paths:
               schema: {$ref: '#/components/schemas/EchoResponse'}
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Caller is anonymous
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks system:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
         '409':
@@ -471,6 +531,12 @@ paths:
     post:
       operationId: postDiagnosticsEvaluateAlert
       summary: Stage-0 policy demo; evaluates the alert_thresholds policy
+      # The response is this deployment's alert threshold policy, read back one
+      # score at a time. A caller who walks the score from 0 to 100 learns
+      # where each verdict flips, and the body names the loaded policy version.
+      # That is policy content, so policy:read rather than the system:read its
+      # sibling diagnostics routes use. Spec system-rbac AC-25.
+      x-required-permission: policy:read
       requestBody:
         required: true
         content:
@@ -482,6 +548,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/PolicyDecisionResponse'}
+        '401':
+          description: Caller is anonymous
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks policy:read
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
   /api/v1/diagnostics:enqueue-test-job:
     post:

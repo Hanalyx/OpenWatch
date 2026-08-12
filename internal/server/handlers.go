@@ -216,6 +216,20 @@ func (h *handlers) GetVersion(w http.ResponseWriter, _ *http.Request) {
 // PostDiagnosticsEcho implements api.ServerInterface.PostDiagnosticsEcho.
 // Spec: specs/api/diagnostics-echo.spec.yaml.
 func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsEchoParams) {
+	// RBAC first, before the header check and before the body is read. A
+	// successful call copies the caller's message into an audit event and,
+	// via the idempotency middleware, into a stored jsonb response. The
+	// message is capped at 1024 characters below, so each write is bounded,
+	// but nothing bounds how many times an anonymous caller may repeat it.
+	// Unbounded attacker-supplied text in the audit log is evidence
+	// integrity: a compliance reviewer reads that text later as a record of
+	// what happened on this deployment.
+	//
+	// The check has to come first. Anything that runs before it is work an
+	// anonymous caller can still make the server do.
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
 	// Per spec AC-3: Idempotency-Key is required (oapi-codegen enforces
 	// header presence via the params struct).
 	if strings.TrimSpace(params.IdempotencyKey) == "" {
@@ -883,6 +897,21 @@ func buildRoleEntries() []api.RoleEntry {
 // against the supplied score and returns the resulting Decision.
 // Spec release-stage-0-signoff AC-08.
 func (h *handlers) PostDiagnosticsEvaluateAlert(w http.ResponseWriter, r *http.Request) {
+	// The reply is the deployment's own alert threshold policy, read back one
+	// score at a time. An anonymous caller can walk the score from 0 to 100,
+	// watch where the verdict changes, and recover the configured thresholds
+	// without ever reading the policy file. The response also names the
+	// policy type and the loaded version.
+	//
+	// policy:read, not system:read. What this route discloses is policy
+	// content, and policy:read is the permission whose scope is viewing
+	// active policies. system:read covers health, version and non-secret
+	// configuration, and a loaded policy is neither. The sibling write path
+	// POST /admin/policies:reload already uses the policy category for the
+	// same object. Spec system-rbac AC-25.
+	if denied := auth.EnforcePermission(w, r, auth.PolicyRead); denied {
+		return
+	}
 	var req api.EvaluateAlertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
