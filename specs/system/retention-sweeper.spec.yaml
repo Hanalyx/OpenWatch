@@ -1,0 +1,479 @@
+spec:
+  id: system-retention-sweeper
+  # Version 1.0.0. New spec. Nothing in the tree implements any of it today,
+  # so every acceptance criterion below is red on arrival. Tier 1, because a
+  # sweep deletes rows and a delete is not reversible, and because two of the
+  # three swept tables hold security state (SSO auth states and used OTPs).
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: Scheduled data retention
+    description: >
+      One registry of retention policies, one scheduler that walks it.
+      Each table in the schema carries exactly one entry saying what
+      happens to its old rows: swept, never, deferred, or undecided.
+      Every entry carries a reason. undecided is a real answer and the
+      most common one today, because 39 of the 46 tables have never had
+      a retention decision taken. Saying so in the registry is what
+      stops the next reader from mistaking silence for a decision.
+
+      Why this is a spec and not a function. OpenWatch already had two
+      purge functions and no sweeper. internal/sso/store.go
+      PurgeExpiredStates says "Called by a periodic sweeper" and had no
+      caller. internal/identity/mfa.go PurgeStaleOTPs says "Called by a
+      cron tick" and had no caller. Different authors, two months apart,
+      same outcome. Neither was caught, because the repo enforces "the
+      spec is implemented" and "the code compiles", and enforces nothing
+      about "the code runs in production". Both functions are exported,
+      and golangci-lint's unused check does not report an exported
+      identifier in a library package. See bugs/OW-013 in the Context
+      Plane.
+
+      So the criteria that matter here are not the ones that test a
+      delete. They are AC-02 (every table has an explicit entry),
+      AC-10 (the sweeper is reachable from main.go) and AC-11 (nobody
+      runs a second, private sweep). A unit test of a purge function
+      that production never calls is exactly today's state.
+
+      Retention is a security control on one table, not only a capacity
+      control. auth_mfa_otp_uses is the OTP replay ledger, and the
+      replay check is existence-based, so how long a row survives IS the
+      replay-rejection window. See C-10.
+    related_specs:
+      - system-daemon-orchestration
+      - system-idempotency
+      - system-auth-identity
+      - system-sso
+      - api-compliance-exceptions
+      - system-api-tokens
+
+  objective:
+    summary: >
+      Old rows leave the database on a schedule that an operator can
+      read off one list, and a table nobody thought about fails CI
+      rather than growing forever in silence.
+    scope:
+      includes:
+        - A retention registry in internal/retention, one entry per table in the schema
+        - "Three swept tables: idempotency_keys, sso_auth_states, auth_mfa_otp_uses"
+        - "Two never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions"
+        - "Two deferred tables recorded as deferred, with reasons: sessions, refresh_tokens"
+        - Thirty-nine remaining tables recorded as undecided, each with a reason pointing at bugs/OW-013
+        - One sweeper on one cron.Scheduler that walks the registry
+        - A completeness guard over every table the migrations create
+        - A wiring guard proving the sweeper is reached from cmd/openwatch/main.go
+        - Batched, oldest-first deletes under a per-tick deadline
+      excludes:
+        - Sweeping sessions or refresh_tokens (deferred, each needs its own migration and review)
+        - Any change to the compliance_exceptions expiry flip, which is a status transition and stays where it is
+        - Partitioning, archival to cold storage, or export before delete
+        - A size cap on idempotency_keys.response_body or a length cap on its key column (raised by OW-013, still open, not scoped here)
+        - Operator-facing configuration of grace values (the registry is code in this version)
+
+  constraints:
+    - id: C-01
+      description: >
+        A single registry in internal/retention MUST hold one entry per
+        table. Each entry carries Table, TTLColumn, Grace, State, Keep
+        and Reason. State is one of swept, never, deferred, undecided.
+        Reason MUST be non-empty for every entry in every one of the
+        four states, including swept ones: an entry with no reason is
+        invalid and fails AC-01. A swept or deferred entry MUST carry a
+        non-empty TTLColumn and a Grace greater than zero. A never or
+        undecided entry MUST carry neither. Keep is an optional SQL
+        predicate naming rows that MUST survive regardless of age.
+        undecided means no retention decision has been taken for this
+        table. It is not deferred: deferred names work that is designed
+        and blocked, and carries the parameters a promotion would use.
+        Recording zero Grace under the word deferred would make an empty
+        field the carrier of intent, which is the defect this registry
+        exists to remove.
+        A swept or deferred entry's TTLColumn MUST be a column the
+        migrations declare NOT NULL. The delete compares that column
+        against a past bound and a NULL satisfies no comparison, so a
+        nullable TTL column makes a table read as swept while silently
+        keeping every row whose column is NULL. All five entries naming
+        a column satisfy this today. The rule exists so the sixth is
+        caught by CI rather than by review.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >
+        The registry MUST cover the schema in both directions. Every
+        table in the effective set MUST have exactly one entry, and
+        every entry MUST name a table in that set. The table set is the
+        schema the migrations actually produce, not the set of CREATE
+        TABLE statements. Apply the Up sections of
+        internal/db/migrations/*.sql in order: a CREATE TABLE adds a
+        name, an ALTER TABLE ... RENAME TO replaces it. Migration 0042
+        renames reports to report_snapshots and there is no CREATE TABLE
+        report_snapshots, so a parser that only collects CREATE TABLE
+        demands an entry for a table that no longer exists and rejects
+        the entry for the one that does. There is exactly one rename and
+        no DROP TABLE in any Up section today. The rule is stated in
+        terms of the effective set so a second rename needs no spec
+        change. Adding a table without adding an entry
+        MUST fail CI. The guard MUST NOT be keyed on a column name. An
+        earlier survey keyed on expires_at and missed auth_mfa_otp_uses
+        entirely, which keys on used_at. Enumerating tables and
+        demanding an explicit decision is the only version that cannot
+        miss one.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >
+        The registry-driven sweeper MUST be the only scheduled deletion
+        path for any table in the registry. No other package may run its
+        own timed purge of a registry table. This is scoped to deletion
+        on a schedule. It does not touch a single-use consume (the SSO
+        callback deletes its own auth state), a user-initiated delete,
+        or a scheduled status transition such as the compliance
+        exception expiry flip at cmd/openwatch/main.go. There are five
+        cron.New call sites in this tree, each a package owning its own
+        scheduled work. That pattern produced two dead purge functions.
+        Retention does not repeat it.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >
+        cmd/openwatch/main.go MUST construct the sweeper and start it in
+        cmdServe. A sweeper that exists, is tested, and is never started
+        is the defect this spec was written for, not a partial fix of
+        it. Source-inspection enforces (AC-10), on the pattern already
+        set by TestCmdServe_AllServerBuildersWired in
+        cmd/openwatch/source_test.go.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >
+        Deletes MUST be batched, oldest-first, and bounded in time. Each
+        statement MUST carry ORDER BY the entry's TTLColumn ascending
+        and a LIMIT, and the sweeper MUST repeat until a batch comes
+        back short. Oldest-first is not a preference. refresh_tokens
+        carries a self-referencing rotated_to_id with NO ACTION, so a
+        newest-first batch violates the constraint the moment that entry
+        is promoted. Each tick MUST run under its own context deadline,
+        strictly shorter than the tick interval, so a slow sweep cannot
+        overlap the next tick. cron.Scheduler passes no deadline of its
+        own, so the sweeper MUST set one.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >
+        The sweeper MUST delete from exactly the entries whose State is
+        swept. An entry in any state other than swept MUST NOT be
+        touched. The rule is written positively so it cannot rot when a
+        state is added: a filter that lists the states to skip goes
+        wrong the moment a fourth state exists. A Keep
+        predicate MUST be honored by negation in the WHERE clause, so a
+        row matching Keep survives past its grace.
+      type: security
+      enforcement: error
+    - id: C-07
+      description: >
+        The three swept entries in this version MUST be exactly these.
+        idempotency_keys, TTL column expires_at, grace 24h. Lookup
+        already filters on expires_at > now(), so a swept row was
+        already unreadable. sso_auth_states, TTL column expires_at,
+        grace 1h. A state is single-use and already rejected once
+        expired, so the sweep only reclaims abandoned logins.
+        auth_mfa_otp_uses, TTL column used_at, grace 24h. Note the
+        column: this table has no expires_at.
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >
+        Two tables MUST be recorded as never, in code, with reasons.
+        api_tokens, because the operator UI lists expired tokens on
+        purpose (internal/apitoken/apitoken.go filters neither
+        expires_at nor revoked_at), because expires_at is nullable so
+        NULL means permanent, and because the row is a forensic record
+        carrying created_by, last_used_at and revoked_at.
+        compliance_exceptions, because expiry there is already a status
+        transition rather than a deletion, and the table's partial
+        unique index depends on expired rows persisting. That table is
+        the model this spec follows, not a defect it corrects. Recording
+        never in the registry is what stops a future reader from
+        "fixing" either one.
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: >
+        Two tables MUST be recorded as deferred, with reasons naming the
+        work each needs. Deferred is a state the registry expresses, not
+        silence. sessions needs a non-partial index, because the
+        existing idx_sessions_expires_at is WHERE revoked_at IS NULL,
+        and its predicate must use absolute_expires_at rather than
+        expires_at, which slides forward on every request.
+        refresh_tokens has no index on expires_at at all, so a sweep
+        today is a sequential scan; its deletion must be oldest-first
+        because of the rotated_to_id self-FK; and a row with
+        reuse_detected_at set is the only durable artifact of a detected
+        token theft, so the entry MUST carry Keep =
+        "reuse_detected_at IS NOT NULL". That predicate MUST sit on the
+        deferred entry now, not arrive with the promotion. Keep is a
+        promotion parameter exactly like TTLColumn and Grace, which C-01
+        already requires a deferred entry to carry. A safety predicate
+        added at promotion time depends on whoever promotes it
+        remembering; carried now, promotion is a one-word state change,
+        and AC-05 (the right Keep is present) composes with AC-09 (a
+        Keep predicate is honored) into the property. Neither table may
+        be promoted to swept without its migration. Deleting live
+        session history is not reversible.
+      type: security
+      enforcement: error
+    - id: C-10
+      description: >
+        For auth_mfa_otp_uses the registry Grace IS the replay-rejection
+        window, and MUST be treated as a security parameter. The replay
+        check inserts (user_id, otp) with ON CONFLICT DO NOTHING, so a
+        used OTP is rejected exactly as long as its row survives. Grace
+        MUST be greater than or equal to the TOTP acceptance window,
+        which is 90 seconds (period 30s, skew 1, so three steps). A
+        shorter grace reopens a replay hole silently. The registry is
+        the single source of truth: any constant or doc comment stating
+        a different window (today internal/identity/mfa.go
+        OTPReplayWindow = 180s, plus the comments at lines 33 to 36 and
+        88 to 93) MUST be reconciled to it. The 24h grace in C-07 is
+        longer than today's constant, so replay rejection gets stronger,
+        never weaker, and system-auth-identity AC-16 still holds.
+        Read the live state before changing any of this. PurgeStaleOTPs
+        deletes at 180 seconds and has no caller, so rows are kept
+        forever and replay rejection is accidentally unlimited today.
+        Wiring that function up as written would NARROW protection from
+        unlimited to 180 seconds. The obvious fix for OW-013, "just call
+        the purge function that already exists", is therefore a security
+        regression on this one table. Drive the delete from the registry
+        instead.
+      type: security
+      enforcement: error
+    - id: C-11
+      description: >
+        The two orphaned purge functions MUST be resolved, not left
+        beside the new sweeper. internal/sso/store.go PurgeExpiredStates
+        and internal/identity/mfa.go PurgeStaleOTPs MUST each be either
+        called by internal/retention or deleted from the tree. No doc
+        comment may assert a caller that does not exist. Both comments
+        do today, which is how each function read as live for months.
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: >
+        Each tick MUST log one record per swept table naming the table
+        and the number of rows deleted, under the tick's cron-
+        correlation id. A failure on one table MUST NOT stop the
+        remaining tables; the sweeper collects the error, finishes the
+        pass, and returns an error naming the table that failed. The
+        sweeper MUST NOT emit an audit event for its own deletes.
+        audit_events is itself a growing table, so a per-delete or
+        per-tick audit event would trade one unbounded table for
+        another, and routine retention is not an actor's action.
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >
+        The undecided entries MUST be pinned by table name in the test,
+        not counted. Thirty-nine tables carry State undecided today. A
+        count-based guard lets a promotion pay for a new undecided
+        table and hold the total, so a new table can arrive undecided
+        forever without a reviewer seeing it. Pinning the names means
+        adding an undecided table edits a list under review, and
+        promoting one edits it too, which is a record rather than
+        friction. Each undecided entry carries a Reason naming the
+        state of the decision and pointing at bugs/OW-013.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        Registry entries are well formed. Every entry has a non-empty
+        Table, a non-empty Reason, and a State in {swept, never,
+        deferred, undecided}. Every swept or deferred entry has a
+        non-empty TTLColumn and Grace > 0. Every never or undecided
+        entry has an empty TTLColumn and a zero Grace. No table name
+        appears twice. The test names the offending entry. For every
+        swept or deferred entry, assert the migrations declare its
+        TTLColumn NOT NULL. This reads the schema, not the registry, so
+        an entry naming a nullable column fails even though the entry
+        itself is well formed.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >
+        The registry covers the schema, both directions. Build the
+        effective table set: read the Up section of each
+        internal/db/migrations/*.sql in order (the text above the goose
+        Down marker, so the DROP TABLE statements in the Down sections
+        are ignored), where a CREATE TABLE adds a name and an ALTER
+        TABLE ... RENAME TO replaces it. The set is what the migrations
+        produce, not the CREATE TABLE statements: 0042 renames reports
+        to report_snapshots and never creates report_snapshots, so a
+        parser that collects only CREATE TABLE asserts against a dead
+        name and rejects the live one. Assert each name in the effective
+        set appears exactly once in the registry, and that every
+        registry entry names a table in that set. The test fails naming
+        the table that has no entry. No part of this check reads a
+        column name.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >
+        The three swept entries are exactly idempotency_keys
+        (expires_at, 24h), sso_auth_states (expires_at, 1h) and
+        auth_mfa_otp_uses (used_at, 24h). Asserted field by field, so a
+        silent edit of a grace or a TTL column fails. The
+        auth_mfa_otp_uses assertion pins used_at specifically, because
+        that table has no expires_at and a column-name assumption is
+        what missed it before.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-04
+      description: >
+        Never-swept tables survive a sweep. api_tokens and
+        compliance_exceptions are State never with non-empty reasons.
+        Seed an api_tokens row whose expires_at is a year in the past
+        and a compliance_exceptions row whose expires_at is a year in
+        the past, run a full sweep, and assert both rows are still
+        present.
+      priority: critical
+      references_constraints: [C-06, C-08]
+    - id: AC-05
+      description: >
+        Deferred tables survive a sweep and say why. sessions and
+        refresh_tokens are State deferred, each with a non-empty reason.
+        Seed a session past its absolute_expires_at and a refresh token
+        past its expires_at, run a full sweep, and assert both rows are
+        still present. Assert the parameters a promotion would use, not
+        only the state: sessions' TTLColumn is absolute_expires_at, not
+        expires_at, which slides forward on every request; and
+        refresh_tokens carries Keep = "reuse_detected_at IS NOT NULL"
+        today, while it is still deferred. Both are stated in C-09 and
+        neither is checked anywhere else, so without this a wrong column
+        or a missing safety predicate stays green until the day someone
+        flips the state to swept.
+      priority: critical
+      references_constraints: [C-06, C-09]
+    - id: AC-06
+      description: >
+        A sweep deletes past the grace and nothing else. For each swept
+        entry, seed one row whose TTL column is inside the grace and one
+        whose TTL column is past it, run the sweep, and assert exactly
+        the past-grace row is gone. The seeding reads the TTL column
+        from the registry entry, so auth_mfa_otp_uses is exercised on
+        used_at without the test naming it.
+      priority: critical
+      references_constraints: [C-06, C-07]
+    - id: AC-07
+      description: >
+        Deletes are batched and oldest-first. With a batch size of N and
+        2N+1 eligible rows, a single sweep pass removes all 2N+1 and
+        issues more than one statement. The generated SQL contains
+        ORDER BY the entry's TTL column ASC and a LIMIT. Source or
+        generated-statement inspection covers the ORDER BY and LIMIT
+        shape; the row count covers the drain.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-08
+      description: >
+        A tick cannot outrun its interval. The per-tick deadline the
+        sweeper sets is strictly less than the tick interval it is
+        constructed with, asserted directly. A sweep whose context is
+        already canceled returns promptly without panicking and leaves
+        the remaining rows in place.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-09
+      description: >
+        A Keep predicate is honored. Using a test registry entry that
+        carries a Keep predicate, seed two past-grace rows, one matching
+        Keep and one not. The sweep deletes only the non-matching row.
+        This is the criterion that makes the refresh_tokens promotion
+        safe later, so it is tested before that promotion, not with it.
+      priority: critical
+      references_constraints: [C-06, C-09]
+    - id: AC-10
+      description: >
+        Wiring guard. Source-inspection over cmd/openwatch/main.go
+        asserts cmdServe contains retention.NewSweeper( and starts it,
+        matching the house pattern of a Run call taking ctx. A second
+        assertion, over internal/retention, requires the sweep to range
+        over the registry rather than a hard-coded list of tables, so a
+        newly swept entry is executed without a code change at the call
+        site. Same shape as TestCmdServe_AllServerBuildersWired. This is
+        the criterion the two dead purge functions would have failed.
+      priority: critical
+      references_constraints: [C-03, C-04]
+    - id: AC-11
+      description: >
+        No second sweeper. Outside internal/retention and outside
+        _test.go files, no Go source in the tree contains an age-based
+        bulk DELETE from a swept table: a DELETE whose WHERE clause
+        compares that entry's TTL column against a past bound, the
+        "< now()" or "< now() - interval" shape. Enumerate the swept
+        entries from the registry, then scan the tree. Such a delete
+        anywhere else is a private retention policy the registry does
+        not know about, which is how the codebase reached two purge
+        functions and no sweeper. The shape matters, not the table name:
+        a delete keyed on an identifier does not match. The SSO
+        single-use consume (internal/sso/store.go consumeAuthState) is
+        the worked example. It deletes by state = $1 and checks expiry
+        in Go afterward, so it does not match, and it must keep
+        working.
+      priority: critical
+      references_constraints: [C-03, C-11]
+    - id: AC-12
+      description: >
+        The orphaned purges are resolved. For each of
+        internal/sso/store.go PurgeExpiredStates and
+        internal/identity/mfa.go PurgeStaleOTPs, assert the identifier
+        is either absent from the tree or referenced from
+        internal/retention. Also assert no doc comment in those two
+        files claims a periodic sweeper or a cron tick calls it unless
+        that caller is present.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-13
+      description: >
+        The OTP replay window comes from the registry and never drops
+        below the TOTP acceptance window. Assert the auth_mfa_otp_uses
+        grace is at least 90 seconds. Assert that any surviving
+        OTPReplayWindow constant equals that grace. Functionally, verify
+        an OTP, run a full sweep, and verify the same OTP again within
+        the grace: the second attempt still returns ErrOTPReplayed. That
+        ties this spec to system-auth-identity AC-16 rather than
+        silently weakening it.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-14
+      description: >
+        A tick reports what it did. After a pass that deletes rows, one
+        log record exists per swept table carrying the table name and
+        the deleted count, under the tick's cron- correlation id.
+        Asserted against a captured slog handler. The same test passes
+        an audit emit function that fails the test if it is called, so a
+        pass emits no audit event.
+      priority: high
+      references_constraints: [C-12]
+    - id: AC-15
+      description: >
+        One bad table does not end the pass. With a test registry whose
+        first swept entry names a table that does not exist, a pass
+        still deletes the eligible rows from the remaining swept tables
+        and returns an error naming the failing table.
+      priority: high
+      references_constraints: [C-12]
+    - id: AC-16
+      description: >
+        The undecided set is exactly the pinned list of thirty-nine
+        table names, asserted as a set so both a missing and an
+        unexpected name fail. Separately, seed a row in one undecided
+        table with a past timestamp, run a full sweep, and assert it
+        survives. AC-04 and AC-05 cannot catch this: a filter written
+        as "not never and not deferred" sweeps every undecided table
+        while both of them stay green.
+      priority: critical
+      references_constraints: [C-13, C-06]

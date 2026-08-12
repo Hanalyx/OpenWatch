@@ -57,6 +57,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/reportschedule"
+	"github.com/Hanalyx/openwatch/internal/retention"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	compsched "github.com/Hanalyx/openwatch/internal/scheduler"
 	"github.com/Hanalyx/openwatch/internal/secretkey"
@@ -658,6 +659,16 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	// snapshots and raises a re-nag-safe in-app notification for accounts
 	// within the configured warn window (or expired). Boot pass + daily tick.
 	accountpolicy.New(pool, govProjector, cfgStore).Run(ctx, 0)
+
+	// Data retention: one registry of per-table policies, one sweeper
+	// that walks it. Boot pass plus a six-hourly tick. This is the one
+	// scheduled job whose absence is invisible, since nothing 503s and
+	// no page goes blank; the only symptom is a disk that fills months
+	// later. Two purge functions already shipped naming a caller that
+	// did not exist, so the wiring is guarded by a source-inspection
+	// test rather than by memory.
+	// Spec system-retention-sweeper C-04, system-daemon-orchestration C-10.
+	retention.NewSweeper(pool, audit.Emit).Run(ctx, 0)
 
 	// Remediation governance: request/approve/reject + projected lift (free
 	// core), AND the queued single-rule execute/rollback (Tier A free core).

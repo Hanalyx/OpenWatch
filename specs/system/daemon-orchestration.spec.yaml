@@ -1,7 +1,11 @@
 spec:
   id: system-daemon-orchestration
   title: openwatch serve daemon lifecycle and Slice B runtime wiring
-  version: "1.2.0"
+  # Version 1.3.0 (was 1.2.0). Minor: one added constraint and one added
+  # acceptance criterion for the retention sweeper's boot wiring. Nothing
+  # published here changed meaning, so a consumer written against 1.2.0 is
+  # still correct against this file.
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -41,7 +45,15 @@ spec:
 
       audit.Emit is the only EmitFunc threaded through Slice B
       packages — none of them imports audit directly for emission.
+      v1.3.0 additions:
+        - Retention sweeper (retention.NewSweeper) started as a
+          long-lived tick. The registry of retention policies and the
+          sweep behavior belong to system-retention-sweeper; this spec
+          owns only the fact that serve starts it. A sweeper that is
+          built and tested but never started is the defect that spec
+          exists to close, and the boot path is where it closes.
     related_specs:
+      - system-retention-sweeper
       - system-liveness-loop
       - system-event-bus
       - system-alert-router
@@ -106,6 +118,20 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-10
+      description: >
+        v1.3.0 - openwatch serve MUST construct the retention sweeper
+        (retention.NewSweeper) and start it in cmdServe, after the pool
+        and audit are up and alongside the other scheduled services.
+        Retention is the one scheduled job whose absence is invisible:
+        nothing 503s, no page is blank, and the only symptom is a disk
+        that fills months later. Two purge functions already shipped
+        with a doc comment naming a caller that did not exist. Its
+        policies live in system-retention-sweeper; the guard that it
+        actually runs lives here. Source-inspection enforces (AC-12)
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: openwatch serve binary builds cleanly with the Slice B imports — alertrouter, alertrouter/channels/stdout, eventbus, liveness — present in cmd/openwatch/main.go's import block.
@@ -151,3 +177,15 @@ spec:
       description: 'v1.2.0 - Source-inspection: enumerate every "func (s *Server) WithX" builder declared in internal/server/*.go (excluding _test files) and assert each WithX token appears in cmd/openwatch/main.go. Fails if any builder is unwired - the generic regression guard that the per-service AC-08/AC-09 checks specialize. Catches the alerts-service class of gap for every current and future builder'
       priority: critical
       references_constraints: [C-09]
+    - id: AC-12
+      description: >
+        v1.3.0 - Source-inspection: cmd/openwatch/main.go contains
+        retention.NewSweeper( inside cmdServe, and the constructed
+        sweeper is started with a Run call taking ctx, on the same
+        pattern as the exception and account-policy sweeps. Fails if the
+        sweeper is constructed and never started, or imported and never
+        constructed. system-retention-sweeper AC-10 asserts the other
+        half, that the sweeper walks the registry rather than a
+        hard-coded table list.
+      priority: critical
+      references_constraints: [C-10]

@@ -12,6 +12,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- OpenWatch deletes expired rows from three tables on a schedule:
+  `idempotency_keys` after 24 hours, `sso_auth_states` after 1 hour, and
+  `auth_mfa_otp_uses` after 24 hours. Nothing removed them before, so on a
+  long-running install these tables can be large. **The first sweep after you
+  upgrade may delete a big backlog.** It runs in bounded batches, oldest rows
+  first, so it does not hold a long lock. Deleting rows frees space for
+  PostgreSQL to reuse but does not return it to the filesystem. **If you
+  upgraded to reclaim disk, run `VACUUM FULL` or `pg_repack` on those tables
+  after the first sweep.** `VACUUM FULL` takes an exclusive lock.
+- A used one-time MFA code is now rejected for 24 hours rather than
+  indefinitely. **Nothing to do.** OpenWatch accepts a TOTP code only within 90
+  seconds of its own time step, so this does not change which codes it accepts.
 - A license carrying a feature id this build does not recognize now stays valid
   and enables the features it does recognize. It used to be rejected outright,
   so a license issued against a newer feature list disabled an entitled install
