@@ -176,3 +176,7 @@ spec:
       description: A detected rollback warns and still loads. The license installs, License.ClockRollbackDetected is true, and license.clock_rollback_detected is emitted. Every other check still gates. The conforming test proves an expired or wrong-issuer license is still refused while the rollback flag is set.
       priority: critical
       references_constraints: [C-14]
+    - id: AC-23
+      description: Reloading a license does not clear a rollback warning. The load ratchets against the watermark it was GIVEN, not only the one already in process, so a rollback load cannot store a time behind the persisted watermark. The conforming test loads with a wound-back clock against a watermark of T, then reloads with empty options the way SIGHUP does, and asserts ClockRollbackDetected is still true and the stored watermark is still T. Without this, reloading makes the alert go away with nothing fixed.
+      priority: critical
+      references_constraints: [C-13, C-14]

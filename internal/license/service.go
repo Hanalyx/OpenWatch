@@ -129,7 +129,15 @@ func LoadJWT(jwtBlob string, opts VerifyOptions) (VerifyResult, error) {
 		// watermark by 59 minutes. Repeat and the watermark follows the clock
 		// down without a single check ever failing, which defeats the whole
 		// mechanism. Taking the max makes each step a no-op instead.
-		LastKnownGood: laterOf(nowFn(), prevLKG),
+		//
+		// Ratchet against BOTH baselines, not just the in-process one. On a
+		// fresh boot prevLKG is zero while opts.LastKnownGood holds the value
+		// read from the database, so measuring only prevLKG lets a rollback
+		// load store a time behind the persisted watermark. The next SIGHUP
+		// then reloads with empty options, sees the lowered in-memory value,
+		// finds no rollback, and the warning disappears: reloading the license
+		// would clear the alert without anything being fixed.
+		LastKnownGood: laterOf(nowFn(), laterOf(prevLKG, opts.LastKnownGood)),
 	})
 	return VerifyValid, nil
 }

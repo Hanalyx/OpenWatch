@@ -648,8 +648,12 @@ func (h *handlers) PostDiagnosticsRequireHostWrite(w http.ResponseWriter, r *htt
 
 // PostDiagnosticsRequireRemediationExecute is the Stage-0 demo combining
 // RBAC + license: x-required-permission: remediation:execute,
-// x-required-feature: remediation_execution. RBAC fails first (403),
+// x-required-feature: premium_diagnostics. RBAC fails first (403),
 // license fails second (402). Spec system-rbac AC-09, AC-10.
+//
+// The feature is premium_diagnostics, not remediation_execution: single-rule
+// manual remediation is free, so gating this demo on it would never reach the
+// 402 arm. The route declares the same (api/openapi.yaml).
 func (h *handlers) PostDiagnosticsRequireRemediationExecute(w http.ResponseWriter, r *http.Request, _ api.PostDiagnosticsRequireRemediationExecuteParams) {
 	if denied := auth.EnforcePermission(w, r, auth.RemediationExecute); denied {
 		return

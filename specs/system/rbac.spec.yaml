@@ -15,11 +15,15 @@ spec:
       middleware checks RBAC and nothing else. A permission carries no
       entitlement: tiering is by scope, so one host is free and the same
       vocabulary at fleet scale is paid, and both use the SAME permission.
-      Only the route can tell them apart, so an operation that needs an
-      entitlement declares x-required-feature in api/openapi.yaml and its
-      handler calls license.EnforceFeature. RBAC still resolves first,
-      because the handler cannot run until the middleware passes. See
-      decision record 05.
+      Only the route can tell them apart. Entitlement is therefore two
+      separate things, and neither is a permission flag. The route DECLARES
+      x-required-feature in api/openapi.yaml, which is a contract annotation
+      that a CI gate checks, not runtime code. The handler ENFORCES by
+      calling license.EnforceFeature, which is the only thing that returns
+      402 at runtime. LicenseGate was a third mechanism that duplicated the
+      second one and could not express scope, so it was removed rather than
+      moved. RBAC still resolves first, because the handler cannot run until
+      the middleware passes. See decision record 05.
     related_specs:
       - system-license-features
       - system-audit-emission
@@ -52,7 +56,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: "RBAC MUST resolve before entitlement for the same request, so 403 wins over 402. The middleware enforces RBAC only; a route that needs an entitlement calls license.EnforceFeature inside the handler, which the middleware guards. A caller who lacks the permission MUST NOT learn the entitlement state of the deployment."
+      description: "RBAC MUST resolve before entitlement for the same request, so 403 wins over 402. The middleware enforces RBAC only. Entitlement MUST be enforced by the handler calling license.EnforceFeature, which the middleware guards; declaring x-required-feature alone enforces nothing at runtime. A caller who lacks the permission MUST NOT learn the entitlement state of the deployment."
       type: security
       enforcement: error
     - id: C-04
@@ -109,7 +113,7 @@ spec:
       priority: critical
       references_constraints: [C-03, C-04]
     - id: AC-10
-      description: "A route that declares x-required-feature denies with 402 license.feature_unavailable when RBAC passes but the feature is not enabled. The 402 is produced by license.EnforceFeature inside the handler, not by the RBAC middleware. The ordering still holds: a caller who lacks the permission is stopped at 401 or 403 and never reaches the feature check, so 403 wins over 402 for the same request."
+      description: "A paid route denies with 402 license.feature_unavailable when RBAC passes but the feature is not enabled. The 402 is produced at runtime by license.EnforceFeature inside the handler. x-required-feature does not enforce anything at runtime; it is the contract declaration that a CI gate holds the handler to. The ordering still holds: a caller who lacks the permission is stopped at 401 or 403 and never reaches the feature check, so 403 wins over 402 for the same request."
       priority: critical
       references_constraints: [C-03, C-05]
     - id: AC-11

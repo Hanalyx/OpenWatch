@@ -2,8 +2,11 @@
 //
 // API integration tests for the RBAC demo endpoints. Verifies the
 // full middleware chain: correlation → identity binder → idempotency →
-// handler-level EnforcePermission → license gate. Skipped without
-// OPENWATCH_TEST_DSN since the audit writer needs Postgres.
+// handler-level EnforcePermission. The middleware checks RBAC only; a
+// route that needs an entitlement calls license.EnforceFeature inside the
+// handler, which is why the 402 case here goes through the handler rather
+// than the middleware. Skipped without OPENWATCH_TEST_DSN since the audit
+// writer needs Postgres.
 
 package server
 
@@ -41,8 +44,8 @@ func TestAPI_RBAC_AllowsWithPermission(t *testing.T) {
 }
 
 // @ac AC-09
-// AC-09: anonymous caller gets 403 authz.permission_denied (RBAC check
-// fires before license).
+// AC-09: an anonymous caller gets 401 auth.required, and an authenticated
+// caller whose role lacks the permission gets 403 authz.permission_denied.
 func TestAPI_RBAC_DeniesWithoutPermission(t *testing.T) {
 	t.Run("system-rbac/AC-09", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -226,7 +229,7 @@ func TestAPI_RBAC_GetPermissionsRegistry(t *testing.T) {
 				Description string `json:"description"`
 			} `json:"categories"`
 			Permissions []map[string]any `json:"permissions"`
-			Roles []struct {
+			Roles       []struct {
 				ID          string   `json:"id"`
 				Permissions []string `json:"permissions"`
 			} `json:"roles"`
