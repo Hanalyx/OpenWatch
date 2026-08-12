@@ -11,7 +11,7 @@
 //     rather than a version and leaves the schema half-applied.
 //
 //  2. Between the hard floor and the supported floor the schema builds, but
-//     the version is old enough to carry behaviour the install guide does not
+//     the version is old enough to carry behavior the install guide does not
 //     account for. PostgreSQL 13 defaults password_encryption to md5 where 14
 //     and later default to scram-sha-256, so a role created by following the
 //     guide could not authenticate against the pg_hba.conf rules the same
