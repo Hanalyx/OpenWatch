@@ -5,6 +5,7 @@
 //
 //	AC-05  TestAPI_Remediation_LifecycleAndRBAC
 //	AC-06  TestAPI_Remediation_ExecuteFreeCore
+//	AC-09  TestAPI_Remediation_RollbackAcceptsStaged
 package server
 
 import (
@@ -162,8 +163,9 @@ func TestAPI_Remediation_LifecycleAndRBAC(t *testing.T) {
 // AC-06: execute/rollback are FREE core (no license). A holder of
 // remediation:execute executing an APPROVED request gets 202 and enqueues a
 // remediation job; a caller lacking remediation:execute is 403; executing a
-// non-approved (pending) request is 409; rolling back a non-executed request
-// is 409. No act endpoint returns 402.
+// non-approved (pending) request is 409; rolling back a request that is not
+// rollback-eligible is 409 (see AC-09 for the staged case). No act endpoint
+// returns 402.
 func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 	t.Run("api-remediation/AC-06", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
@@ -223,6 +225,70 @@ func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 			t.Errorf("rollback-before-execute status = %d, want 409", rb.StatusCode)
 		}
 	})
+}
+
+// @ac AC-09
+// AC-09: the :rollback PRECONDITION accepts staged, not just executed.
+//
+// WHY THIS EXISTS, at the HTTP layer specifically. AC-09 was already annotated
+// on internal/remediation.TestOutcome_Staged, which asserts
+// Status("staged").RollbackEligible() == true. That is the enum in isolation.
+// The handler did not call RollbackEligible; it compared `rq.Status !=
+// StatusExecuted` literally, so every staged rollback 409'd while the type
+// test, the worker, and the UI all agreed it should be allowed. Coverage was
+// 100% and the AC was still unmet, because the annotation sat on a unit test of
+// a predicate rather than on the precondition the AC describes.
+//
+// Found by running the release verification against a real immutable-audit host
+// (auditctl `enabled 2`), where the Roll back button the UI offers on a staged
+// remediation failed and stranded the change on the host.
+func TestAPI_Remediation_RollbackAcceptsStaged(t *testing.T) {
+	t.Run("api-remediation/AC-09", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		hostID := seedHostForIntel(t, pool)
+		base := url + "/api/v1/remediation/requests"
+
+		// A staged request: the persist layer is written and the host HAS
+		// changed, so the change is reversible and rollback must be reachable.
+		stagedID := seedRemediationInStatus(t, pool, hostID,
+			roleUserIDs[auth.RoleOpsLead], "rule-staged", "staged")
+		rb := doReq(t, asRole(t, "POST", base+"/"+stagedID.String()+":rollback",
+			auth.RoleSecurityAdmin, map[string]any{}))
+		rb.Body.Close()
+		if rb.StatusCode != http.StatusAccepted {
+			t.Errorf("rollback of a staged request = %d, want 202; the handler "+
+				"must use Status.RollbackEligible, not a literal StatusExecuted "+
+				"comparison", rb.StatusCode)
+		}
+
+		// The negative direction still holds: an outcome that mutated nothing
+		// has nothing to reverse.
+		for _, st := range []string{"not_applied", "reverted", "failed"} {
+			id := seedRemediationInStatus(t, pool, hostID,
+				roleUserIDs[auth.RoleOpsLead], "rule-"+st, st)
+			r := doReq(t, asRole(t, "POST", base+"/"+id.String()+":rollback",
+				auth.RoleSecurityAdmin, map[string]any{}))
+			r.Body.Close()
+			if r.StatusCode != http.StatusConflict {
+				t.Errorf("rollback of a %s request = %d, want 409", st, r.StatusCode)
+			}
+		}
+	})
+}
+
+// seedRemediationInStatus inserts a remediation request already in a terminal
+// status, so the HTTP preconditions can be exercised without driving a real
+// Kensa transaction.
+func seedRemediationInStatus(t *testing.T, pool *pgxpool.Pool, hostID, requestedBy uuid.UUID, ruleID, status string) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO remediation_requests (id, host_id, rule_id, status, requested_by)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		id, hostID, ruleID, status, requestedBy); err != nil {
+		t.Fatalf("seed %s remediation: %v", status, err)
+	}
+	return id
 }
 
 // seedPendingRemediation inserts a pending_approval remediation request

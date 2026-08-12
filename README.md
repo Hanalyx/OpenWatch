@@ -1,6 +1,6 @@
 # OpenWatch
 
-**The Compliance Operating System — See Everything, Continuously.**
+**The Compliance Operating System. See Everything, Continuously.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml)
@@ -11,18 +11,18 @@
 
 An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
 
-With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query — executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
+With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query: executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
 
-OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 630 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture — not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
+OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 630 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture: not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
 
-> **Project status — Go rebuild, generally available.** OpenWatch is a single Go
+> **Project status: Go rebuild, generally available.** OpenWatch is a single Go
 > binary that serves both the REST API and the embedded React UI (the original
 > Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
 > Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
-> version is `0.4.0`, on the general-availability line that opened with `0.2.0`.
+> version is `0.7.1`, on the general-availability line that opened with `0.2.0`.
 
-![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against 748 Kensa rules](docs/images/host-management.png)
+![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against the 769-rule Kensa corpus](docs/images/host-management.png)
 
 ## The Problem with Point-in-Time Compliance
 
@@ -48,11 +48,11 @@ Ask "What was our STIG compliance on February 1st?" and get an answer backed by 
 
 ### Compliance Drift Detection
 
-When a rule that was passing starts failing, OpenWatch raises an alert automatically. Track drift events through acknowledgment to resolution. Know the moment your posture degrades — not weeks later when an assessor tells you.
+When a rule that was passing starts failing, OpenWatch raises an alert automatically. Track drift events through acknowledgment to resolution. Know the moment your posture degrades: not weeks later when an assessor tells you.
 
 ### Governance and Exception Management
 
-Some controls require approved exceptions. OpenWatch provides structured exception workflows: request, approve, reject, time-limit, revoke — all with an audit trail. No more tracking waivers in spreadsheets.
+Some controls require approved exceptions. OpenWatch provides structured exception workflows: request, approve, reject, time-limit, revoke: all with an audit trail. No more tracking waivers in spreadsheets.
 
 ### Audit-Ready Evidence and Exports
 
@@ -64,7 +64,7 @@ One scan maps findings to STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP simultane
 
 ## How It Compares
 
-OpenWatch is a compliance *platform* — it manages the lifecycle of compliance across a fleet, not just the scan itself. This table compares approaches to managing ongoing compliance posture:
+OpenWatch is a compliance *platform*. It manages the lifecycle of compliance across a fleet, not just the scan itself. This table compares approaches to managing ongoing compliance posture:
 
 | | OpenWatch | Manual Processes | Point-in-Time Scanners | Enterprise Platforms (Tenable, etc.) |
 |---|---|---|---|---|
@@ -100,11 +100,11 @@ Open **https://localhost:8443** and sign in with the admin user you created.
 
 ### Run your first scan
 
-1. **Add credentials** — Settings > System Credentials > add your SSH user/key
-2. **Add a host** — Hosts > Add Host > enter IP, select credentials
-3. **Scan** — Click **Scan** on the host card
+1. **Add credentials**: Settings > System Credentials > add your SSH user/key
+2. **Add a host**: Hosts > Add Host > enter IP, select credentials
+3. **Scan**: Click **Scan** on the host card
 
-Results appear in under a minute. OpenWatch ships with 630 built-in [Kensa](https://github.com/Hanalyx/kensa) rules — human-readable YAML, not XML — ready to go.
+Results appear in under a minute. OpenWatch ships with 630 built-in [Kensa](https://github.com/Hanalyx/kensa) rules: human-readable YAML, not XML: ready to go.
 
 ## Architecture
 
@@ -150,9 +150,10 @@ OpenWatch is built for environments where security is the requirement, not an af
 | Audit logging | All authentication, authorization, and compliance events logged |
 | Rate limiting | Per-IP sliding window on the auth endpoints (login, MFA verify): 20 attempts/min, then 429 |
 | Transport | TLS 1.2+ with FIPS cipher suites in production |
-| Target security | No agents — scans over SSH, nothing installed on targets |
+| Target security | No agents: scans over SSH, nothing installed on targets |
 
-Report vulnerabilities to security@hanalyx.com.
+Report vulnerabilities to security@hanalyx.com. See [SECURITY.md](SECURITY.md)
+for supported versions and what to expect after you report.
 
 ## API-First Design
 
@@ -239,7 +240,7 @@ Prometheus `/metrics` endpoint is on the roadmap, not in the current build.)
 
 ## Part of the Hanalyx Compliance Platform
 
-OpenWatch is the compliance operating system — the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath — 630 rules, 27 remediation mechanisms, automatic rollback, all over SSH.
+OpenWatch is the compliance operating system: the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath: 630 rules, 27 remediation mechanisms, automatic rollback, all over SSH.
 
 If you want a CLI that integrates into scripts and pipelines, start with Kensa. If you want a platform for your team with a dashboard, scheduling, and audit workflows, start here.
 
@@ -249,9 +250,9 @@ Have a question, idea, or want to share how you're using OpenWatch?
 
 **[Join the Discussion](https://github.com/Hanalyx/OpenWatch/discussions)**
 
-- **Q&A** — Get help with setup, scanning, and configuration
-- **Ideas** — Propose features and integrations
-- **Show and Tell** — Share your compliance workflows
+- **Q&A**: Get help with setup, scanning, and configuration
+- **Ideas**: Propose features and integrations
+- **Show and Tell**: Share your compliance workflows
 
 Found a bug? [Open an issue](https://github.com/Hanalyx/OpenWatch/issues/new).
 

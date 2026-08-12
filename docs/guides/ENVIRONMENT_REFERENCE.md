@@ -1,6 +1,6 @@
 # Configuration and environment reference
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This document is the field reference for how you configure the OpenWatch
 binary: the TOML file, the environment-variable overrides, and the on-disk paths
@@ -60,7 +60,7 @@ variable that overrides each one:
 
 These are the TOML-mapped configuration keys the binary reads through the
 layering above; the values are validated at load time. A handful of other
-environment variables are read directly at startup outside this layering—see
+environment variables are read directly at startup outside this layering: see
 [Other environment variables read at runtime](#other-environment-variables-read-at-runtime)
 below.
 
@@ -104,7 +104,7 @@ Each variable maps to exactly one TOML key (see the table above). The format is
 | `OPENWATCH_LOGGING_LEVEL` | `[logging].level` | One of `debug`, `info`, `warn`, `error`. |
 | `OPENWATCH_LOGGING_FORMAT` | `[logging].format` | One of `json`, `text`. |
 | `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` | `[identity].jwt_private_key` | PEM RSA private key; ships mode `0640`, owner `root:openwatch` (not permission-checked at boot). Tightening to `0600` owned by `openwatch` is a valid hardening step. |
-| `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` | `[identity].credential_key_file` | 32-byte AES-256 key, mode `0600`, owner `openwatch:openwatch`—boot refuses to start if the mode has any group/other bits set. |
+| `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` | `[identity].credential_key_file` | 32-byte AES-256 key, mode `0600`, owner `openwatch:openwatch`. Boot refuses to start if the mode has any group/other bits set. |
 | `OPENWATCH_REPORTS_SIGNING_KEY_FILE` | `[reports].signing_key_file` | 32-byte raw Ed25519 seed, mode `0600`. Optional: when unset, `serve` runs with an ephemeral per-boot key (development only); production should set a durable key so report signatures verify across restarts. |
 
 The canonical place to set the database secret is `/etc/openwatch/secrets.env`,
@@ -123,7 +123,7 @@ sudo chmod 0640 /etc/openwatch/secrets.env
 
 | Variable | Default | Read by | Purpose |
 |----------|---------|---------|---------|
-| `OPENWATCH_LICENSE_FILE` | `/etc/openwatch/license.lic` | `serve`, `worker` | Path to the OpenWatch+ license file. A missing file is not fatal; the service runs at the free tier. |
+| `OPENWATCH_LICENSE_FILE` | `/etc/openwatch/license.lic` | `serve`, `worker` | Path to the OpenWatch Enterprise license file. A missing file is not fatal; the service runs at the free tier. |
 | `OPENWATCH_POLICIES_DIR` | `/etc/openwatch/policies` | `serve` | Directory scanned when an admin triggers a policy reload through the API. |
 | `OPENWATCH_DEV_MODE` | unset | `serve` | When set to `true`, accepts unsigned policy envelopes. Development only; never set in production. |
 | `OPENWATCH_KENSA_STORE_PATH` | `.kensa/remediation.db` under the working directory (dev only, logs a warning) | `serve` | Durable path for Kensa's remediation rollback pre-state store. The packaged systemd unit sets this to `/var/lib/openwatch/kensa/remediation.db`. Production installs must set it to a persistent path or remediation rollback does not survive a restart. |
@@ -144,8 +144,8 @@ DSN. Prefer encoding connection options in the DSN query string
 | `/etc/openwatch/tls/cert.pem` | readable by `openwatch` | TLS server certificate. |
 | `/etc/openwatch/tls/key.pem` | `openwatch`, `0600` | TLS server private key. |
 | `/etc/openwatch/keys/jwt_private.pem` | `root:openwatch`, `0640` (shipped; not permission-checked at boot) | RSA key that signs access and refresh JWTs. |
-| `/etc/openwatch/keys/credential.key` | `openwatch:openwatch`, `0600` (enforced—boot refuses any other mode) | AES-256 key encrypting MFA secrets and stored SSH credentials. |
-| `/etc/openwatch/license.lic` | readable by `openwatch` | Optional OpenWatch+ license. |
+| `/etc/openwatch/keys/credential.key` | `openwatch:openwatch`, `0600` (enforced: boot refuses any other mode) | AES-256 key encrypting MFA secrets and stored SSH credentials. |
+| `/etc/openwatch/license.lic` | readable by `openwatch` | Optional OpenWatch Enterprise license. |
 | `/var/lib/openwatch` | `openwatch` | Service state directory (`ReadWritePaths` in the unit). |
 | `/var/log/openwatch` | `openwatch` | Log directory; journald remains the primary log sink. |
 
@@ -329,7 +329,7 @@ A full disk most often manifests as failed writes to `/var/lib/openwatch`,
 3. Rotate credentials. If key material may be exposed, rotate the database
    password (update `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`), and
    rotate the JWT signing key and credential key only with a planned
-   procedure—replacing `credential.key` makes previously encrypted SSH
+   procedure: replacing `credential.key` makes previously encrypted SSH
    credentials and MFA
    secrets unreadable, so re-enrollment is required.
 

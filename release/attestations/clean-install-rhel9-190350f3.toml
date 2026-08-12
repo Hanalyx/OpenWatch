@@ -1,0 +1,62 @@
+# Attestation: clean install on the RHEL 9 family.
+#
+# Scoped to the artifact digest, not to the tag. A later candidate that ships
+# the identical package inherits this evidence; one that rebuilds the binary
+# does not, and the checker will report the gate unmet again.
+#
+# artifact_sha256 needs a `pragma: allowlist secret` comment. detect-secrets
+# reads any 64-character hex string as a possible credential; this one is a
+# published checksum, byte-identical to the line in the release's SHA256SUMS.
+
+kind = "clean-install"
+platform = "rhel9"
+tag = "v0.7.0-rc.3"
+artifact = "openwatch-0.7.0-1.x86_64.rpm"
+artifact_sha256 = "190350f3fb4ca52d3bc9d75854156d6cb25f4514d0dff9f64b89581516a4714b"  # pragma: allowlist secret
+
+method = "vm"
+performed_by = "openwatch-agent"
+performed_at = "2026-07-31"
+host = "owas-rhlowserv01, RHEL 9.8 (Plow), x86_64, SELinux enforcing, fapolicyd active, firewalld active"
+
+observed = """
+Preconditions verified clean: no openwatch, kensa-rules or postgresql-server
+package; no /var/lib/pgsql, /etc/openwatch or /var/lib/openwatch; nothing
+listening but sshd.
+
+Artifacts verified before install: gpg --verify SHA256SUMS.asc reported a good
+signature from the release key, and rpm -Kv reported "Header V4 RSA/SHA256
+Signature, key ID ff7e515e: OK" with all digests OK.
+
+Both packages installed in one dnf transaction, which also pulled
+postgresql-server 13.23. Setup detected rhel 9.8 amd64 as tested and required
+no --allow-untested.
+
+Run without --manage-pg-hba halted at the pg-hba step with exit 3, printing the
+two required rules, the reload command and both remedies, and recorded progress
+to the receipt. Re-run resumed with postgres-install, postgres-cluster,
+postgres-version and database all skipped.
+
+Run with --manage-pg-hba completed exit 0. The verify step reported
+{"db_connected":true,"status":"healthy","version":"0.7.0"}. pg_hba.conf was
+backed up to pg_hba.conf.bak-20260731T110227Z before being edited.
+
+Reachability confirmed from a separate machine, not loopback: HTTP 200 on
+/api/v1/health and on the UI root. POST /api/v1/auth/login returned 200 with a
+token; /api/v1/auth/me reported role admin; /api/v1/capabilities returned 200.
+
+File modes on disk: setup-receipt.json 0600 root:root, secrets.env 0640
+root:openwatch. The receipt recorded the database password as
+{"Source":"generate","Length":32} with no value.
+"""
+
+caveats = """
+The interactive path was not exercised. Prompts need a TTY, so this ran with
+--yes and --admin-password-from file:. The plain `sudo openwatch setup` that
+the install guide leads with remains unverified end to end.
+
+PostgreSQL 13 came from the RHEL 9 default stream, below the supported minimum
+of 15. That is the path where the server default password_encryption is md5,
+so this run does exercise the scram-sha-256 SET, but it does not cover a
+PostgreSQL 15+ host.
+"""

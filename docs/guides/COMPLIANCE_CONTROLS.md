@@ -1,6 +1,6 @@
 # Compliance control mapping
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This document maps OpenWatch's security controls to industry frameworks, providing evidence for compliance audits.
 
@@ -41,7 +41,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
-| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (748 rules, Kensa v0.7.6); scan results |
+| CM-2 | Baseline Configuration | Kensa YAML rules define expected configurations | Kensa rules (769 rules in the corpus, Kensa v0.8.0); scan results |
 | CM-3 | Configuration Change Control | Database migration tracking, version control | Migration version reported by `openwatch migrate` |
 | CM-6 | Configuration Settings | Configuration validation at startup | Output of `openwatch check-config` |
 | CM-8 | System Component Inventory | Host management with discovery and metadata | Host list and collected system info from the API |
@@ -89,7 +89,7 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 | 1.1 | Enterprise Asset Inventory | Host management with system info collection |
 | 2.1 | Software Inventory | Server intelligence (package collection) |
 | 3.3 | Data Encryption | AES-256-GCM at rest, TLS 1.2+ in transit |
-| 4.1 | Secure Configuration | Kensa compliance scanning (748 rules, Kensa v0.7.6) |
+| 4.1 | Secure Configuration | Kensa compliance scanning (769 rules in the corpus, Kensa v0.8.0) |
 | 4.2 | Baseline Network Configuration | Network discovery and topology mapping |
 | 5.2 | Unique Passwords | Argon2id hashing, 8-char minimum (15 for admin), breached-password screening |
 | 5.4 | MFA | TOTP-based MFA (no backup/recovery codes) |

@@ -9,14 +9,14 @@ Generate or regenerate an operator-facing document from the documentation spec.
 ```
 
 Where `<doc-name>` is one of:
-- `docs-readme` — docs/README.md (documentation index)
-- `intro` — docs/INTRODUCTION.md
-- `installation` — docs/guides/INSTALLATION.md
-- `quickstart` — docs/guides/QUICKSTART.md
-- `user-roles` — docs/guides/USER_ROLES.md
-- `api-guide` — docs/guides/API_GUIDE.md
-- `scanning` — docs/guides/SCANNING_AND_COMPLIANCE.md
-- `hosts-remediation` — docs/guides/HOSTS_AND_REMEDIATION.md
+- `docs-readme`: docs/README.md (documentation index)
+- `intro`: docs/INTRODUCTION.md
+- `installation`: docs/guides/INSTALLATION.md
+- `quickstart`: docs/guides/QUICKSTART.md
+- `user-roles`: docs/guides/USER_ROLES.md
+- `api-guide`: docs/guides/API_GUIDE.md
+- `scanning`: docs/guides/SCANNING_AND_COMPLIANCE.md
+- `hosts-remediation`: docs/guides/HOSTS_AND_REMEDIATION.md
 
 ## Instructions
 
@@ -26,12 +26,12 @@ When this skill is invoked:
 
 Read the authoritative engineering docs and behavioral specs to ground the content:
 
-- `docs/engineering/BACKEND_FUNCTIONALITY.md` — backend behavior and service topology
-- `docs/engineering/rbac_registry.md` and `specs/system/rbac.spec.yaml` — RBAC roles and permissions
-- `specs/system/http-server.spec.yaml` — the single Go binary that serves the REST API and the embedded React UI over HTTPS on port `8443`
-- `specs/system/kensa-executor.spec.yaml` — the Kensa compliance engine (Go, SSH-based, native YAML rules)
-- `specs/system/job-queue.spec.yaml` — the PostgreSQL-native background job queue (`SKIP LOCKED`)
-- `api/openapi.yaml` — the API contract source of truth (routes, request/response schemas)
+- `docs/engineering/ARCHITECTURE.md`: per-package backend map and service topology
+- `docs/engineering/rbac_registry.md` and `specs/system/rbac.spec.yaml`: RBAC roles and permissions
+- `specs/system/http-server.spec.yaml`: the single Go binary that serves the REST API and the embedded React UI over HTTPS on port `8443`
+- `specs/system/kensa-executor.spec.yaml`: the Kensa compliance engine (Go, SSH-based, native YAML rules)
+- `specs/system/job-queue.spec.yaml`: the PostgreSQL-native background job queue (`SKIP LOCKED`)
+- `api/openapi.yaml`: the API contract source of truth (routes, request/response schemas)
 
 OpenWatch is a single Go module at the repo root. There is no `app/` or `backend/` directory, no Docker Compose, and no Redis, Celery, or MongoDB. Data lives in PostgreSQL only.
 
@@ -58,7 +58,8 @@ Follow these rules from the spec constraints:
 - **Tone**: Procedural and direct. Write for operators who deploy and maintain, not developers who extend.
 - **Accuracy**: All file paths, API endpoints, environment variables, and role names MUST be verified against the codebase before inclusion. Never state a feature exists without verifying the route/service/model exists in code.
 - **Scope**: Daily/weekly/monthly tasks only. No edge cases, no developer internals.
-- **Format**: GitHub-flavored Markdown. No emojis. Tables for structured data. Code blocks for commands.
+- **Format**: GitHub-flavored Markdown. Tables for structured data. Code blocks for commands.
+- **Style guide**: Generated prose MUST satisfy the Hanalyx developer documentation style guide (Context Plane `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`). The three CI-enforced gates are no em dashes, no emojis, and no AI speak (hype adjectives, filler openers, and padding verbs such as `leverage`, `utilize`, `facilitate`, `harness`). Also: sentence-case headings, active voice, present tense, second person, ISO 8601 dates, versions written `v0.6.0`, and no `simply`, `just`, `easy`, or `please`. Run `make docs-style` on the generated file before finishing; CI's "Doc Style" job fails the build otherwise.
 - **Cross-references**: Link between docs using relative paths. Every doc should link to at least 2 others.
 - **Role names**: `admin`, `security_admin`, `ops_lead`, `auditor`, `viewer` (built-in roles from `internal/users/roles.go` / `internal/auth/roles.gen.go`; admins may also create custom roles)
 - **Framework data**: Use framework IDs and rule counts verified against `internal/kensa/` and `specs/system/kensa-executor.spec.yaml`

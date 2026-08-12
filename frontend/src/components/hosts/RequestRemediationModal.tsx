@@ -3,7 +3,7 @@
 // rule_id}. The created row carries the projected compliance lift, so
 // the modal previews the lift the host's compliance score should gain
 // once the fix is approved and applied (the apply step itself is the
-// OpenWatch+ track and is not driven from here).
+// OpenWatch Enterprise track and is not driven from here).
 //
 // The host-detail remediations query is refreshed by the parent on
 // success. A 409 (an open remediation already exists for this rule)
@@ -109,8 +109,8 @@ export function RequestRemediationModal({
 
         <p style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5, margin: '0 0 14px' }}>
           This files a remediation request for review. An approver decides whether the fix is
-          applied. Applying the fix on the host is an OpenWatch+ feature: the free tier governs the
-          request and approval only.
+          applied. Applying a single rule on the host, and rolling it back, are included in
+          OpenWatch Community. Bulk and automated remediation are OpenWatch Enterprise features.
         </p>
 
         {mutation.error && (

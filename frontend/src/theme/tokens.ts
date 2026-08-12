@@ -1,6 +1,6 @@
-// Design tokens for app/frontend/.
+// Design tokens for frontend/.
 //
-// SSOT: app/docs/frontend_design_tokens.md. If a token here disagrees
+// SSOT: docs/engineering/frontend_design_tokens.md. If a token here disagrees
 // with the doc, the doc wins — update this file to match.
 //
 // Each token is namespaced under --ow-* via MUI v7's cssVarPrefix: 'ow'.

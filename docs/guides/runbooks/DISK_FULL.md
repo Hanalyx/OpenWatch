@@ -7,7 +7,7 @@
 
 This runbook covers a full or nearly full disk on a host running OpenWatch as a
 native package (single Go binary on systemd) with a PostgreSQL database. There is
-no container runtime, no Redis, and no Celery—OpenWatch is one binary,
+no container runtime, no Redis, and no Celery. OpenWatch is one binary,
 `/usr/bin/openwatch`, that serves the REST API and the embedded UI over HTTPS on
 port `8443`. Background jobs run through a PostgreSQL-native queue, so a full disk
 manifests as PostgreSQL write failures and a failing health probe rather than
@@ -141,7 +141,7 @@ To make the cap permanent, set `SystemMaxUse=` in
 
 `VACUUM` reclaims space from dead rows for reuse within the database. `VACUUM
 FULL` returns space to the operating system but takes an exclusive lock on the
-table—run it only in a maintenance window.
+table. Run it only in a maintenance window.
 
 ```bash
 # Reuse space within the database (no exclusive lock)
@@ -149,7 +149,7 @@ psql -U openwatch -d openwatch -c "VACUUM (VERBOSE, ANALYZE);"
 ```
 
 If a specific large table needs to return space to the OS (maintenance window
-only—confirm the table exists first):
+only, and confirm the table exists first):
 
 ```bash
 psql -U openwatch -d openwatch -c "VACUUM FULL VERBOSE audit_events;"
@@ -263,7 +263,7 @@ Restart `systemd-journald` after changing it.
 
 Use your existing host monitoring (for example a `node_exporter` filesystem
 alert or a cron check on `df`) to alert before the disk fills. OpenWatch does not
-expose its own filesystem metrics endpoint—see below.
+expose its own filesystem metrics endpoint. See below.
 
 ### Plan database growth
 

@@ -41,6 +41,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/remediation"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // RemediationWorker processes "remediation" queue jobs. One per process,
@@ -228,7 +229,7 @@ func (w *RemediationWorker) processExecute(ctx context.Context, j *queue.Job, p 
 	}
 
 	txns := mapExecTxns(result.Transactions)
-	committed := anyCommitted(txns)
+	committed := anyConverged(txns)
 	w.finishExecute(ctx, j, rq, p, txns, committed)
 }
 
@@ -288,7 +289,13 @@ func (w *RemediationWorker) finishExecute(ctx context.Context, j *queue.Job,
 		RuleFlipped: committed,
 		CompletedAt: w.clock().UTC(),
 	})
-	if final.Status == remediation.StatusFailed {
+	// Alert only on outcomes that actually need someone. 'reverted' is the
+	// atomic model working (validation failed, host restored, nothing left
+	// changed) and 'not_applied' is the engine declining without touching the
+	// host; paging on either trains operators to ignore the alert. 'staged' is
+	// not an alert either: it succeeded, it just needs a reboot.
+	// api-remediation AC-10.
+	if final.Status == remediation.StatusFailed || final.Status == remediation.StatusPartiallyApplied {
 		w.notifyRemediationFailed(ctx, final.HostID, final.RuleID, RemediationActionExecute)
 	}
 
@@ -310,8 +317,13 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 		_ = queue.Fail(ctx, w.pool, j.ID, "rollback precondition: "+err.Error())
 		return
 	}
-	if rq.Status != remediation.StatusExecuted {
-		_ = queue.Fail(ctx, w.pool, j.ID, "rollback precondition: request not in executed state")
+	// Rollback is reachable from any rollback-eligible status, which means
+	// 'executed' OR 'staged'. A staged change is a real host mutation with
+	// captured pre-state; refusing it here stranded the change with no route
+	// back through the UI (api-remediation AC-09).
+	if !rq.Status.RollbackEligible() {
+		_ = queue.Fail(ctx, w.pool, j.ID,
+			"rollback precondition: request is "+string(rq.Status)+", which is not rollback-eligible")
 		return
 	}
 
@@ -326,9 +338,9 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 	// committed transaction recorded for the request.
 	txnID := p.TxnID
 	if txnID == uuid.Nil {
-		resolved, ok, ferr := w.svc.FirstCommittedTxn(ctx, p.RequestID)
+		resolved, ok, ferr := w.svc.FirstReversibleTxn(ctx, p.RequestID)
 		if ferr != nil || !ok {
-			_ = queue.Fail(ctx, w.pool, j.ID, "rollback: no committed transaction to revert")
+			_ = queue.Fail(ctx, w.pool, j.ID, "rollback: no reversible transaction to revert")
 			return
 		}
 		txnID = resolved
@@ -436,17 +448,43 @@ func (w *RemediationWorker) emitHMACRejected(ctx context.Context, jobID uuid.UUI
 func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 	out := make([]remediation.ExecTxn, 0, len(in))
 	for _, t := range in {
-		out = append(out, remediation.ExecTxn{
-			TxnID:    t.TxnID,
-			Status:   t.Status,
-			Evidence: t.Evidence,
-			Err:      t.Err,
-		})
+		e := remediation.ExecTxn{
+			TxnID:            t.TxnID,
+			Status:           t.Status,
+			Evidence:         t.Evidence,
+			Err:              t.Err,
+			HostUnchanged:    t.HostUnchanged,
+			AlreadyCompliant: t.AlreadyCompliant,
+		}
+		// Serialize here rather than threading Kensa types further in:
+		// internal/remediation deliberately does not import internal/kensa.
+		if len(t.Steps) > 0 {
+			if b, err := json.Marshal(t.Steps); err == nil {
+				e.Steps = b
+			}
+			e.Mechanism = t.Steps[0].Mechanism
+		}
+		if len(t.PreStates) > 0 {
+			if b, err := json.Marshal(t.PreStates); err == nil {
+				e.PreState = b
+			}
+		}
+		e.KensaVersion = version.Kensa()
+		out = append(out, e)
 	}
 	return out
 }
 
-func anyCommitted(txns []remediation.ExecTxn) bool {
+// anyConverged reports whether any transaction left the host in the target
+// RUNTIME state, which is the only condition under which the rule may be
+// flipped to pass in host_rule_state.
+//
+// A staged transaction is deliberately NOT converged. It wrote the persist
+// layer, so the host changed, but the kernel has not loaded the change and a
+// re-scan correctly still reports the rule failing until reboot. Flipping it to
+// pass would make the compliance score claim a protection the host does not yet
+// have (api-remediation AC-09).
+func anyConverged(txns []remediation.ExecTxn) bool {
 	for _, t := range txns {
 		if t.Committed() {
 			return true

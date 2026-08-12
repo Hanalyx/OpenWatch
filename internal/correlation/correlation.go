@@ -1,8 +1,8 @@
 // Package correlation propagates a request-scoped correlation ID across
 // HTTP entry, audit emission, log lines, and outbound calls.
 //
-// One ID per top-level intent. See app/docs/correlation_id_propagation.md
-// for the full design and app/specs/system/correlation.spec.yaml for the
+// One ID per top-level intent. See docs/engineering/correlation_id_propagation.md
+// for the full design and specs/system/correlation.spec.yaml for the
 // behavioral contract.
 //
 // IDs are formatted as "<prefix>-<16 hex chars>", where the hex portion is

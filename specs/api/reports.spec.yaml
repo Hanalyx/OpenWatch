@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.14.0"
+  version: "1.15.0"
   status: approved
   tier: 2
 
@@ -404,6 +404,18 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-19
+      description: >
+        Report tiering gates on the report KIND, never on scope. An absent
+        scope body means all hosts and all frameworks, so a scope-based gate
+        would gate the default executive summary, which is the everyday free
+        artifact. Only kind `attestation` is licensed
+        (`compliance_attestation`); it is the sole producer of the fleet OSCAL
+        SAR face. The gate is enforced at generation, at export (on the stored
+        kind), at schedule creation, and at scheduled fire time.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: >-
@@ -666,3 +678,21 @@ spec:
         oscal_sar is ErrInvalidFace for the remediation kind.
       priority: high
       references_constraints: [C-18]
+    - id: AC-25
+      description: >
+        The auditor-facing compliance artifact is licensed; observing your own
+        posture is not. Generating a report of kind `attestation` requires the
+        `compliance_attestation` feature and returns 402 without it. Exporting
+        an existing attestation report is gated on the STORED report's kind, so
+        a report generated while licensed does not stay exportable afterwards;
+        this matters because report.FaceOSCALSAR is attestation-only, making
+        that face the exact artifact being monetized. Creating a report
+        schedule of kind `attestation` is gated, and the dispatcher re-checks
+        the licence at FIRE time and skips rather than generating, so a lapsed
+        licence stops the timer instead of minting the paid artifact
+        indefinitely. Everything else stays free at every scope: the
+        `executive` kind, per-scan and per-host OSCAL
+        (`/scans/{id}/oscal`, `/scans/{id}/rules/{ruleId}/oscal`), the signing
+        key, report listing, and report read.
+      priority: critical
+      references_constraints: [C-19]

@@ -9,8 +9,8 @@
 // is one atomic pointer load + one map read (~20ns).
 //
 // Spec:
-//   - app/specs/system/license-validation.spec.yaml
-//   - app/specs/system/license-features.spec.yaml
+//   - specs/system/license-validation.spec.yaml
+//   - specs/system/license-features.spec.yaml
 package license
 
 import "time"
@@ -84,7 +84,7 @@ type State struct {
 // Free-tier features are always enabled; non-free features require a
 // license that explicitly grants them.
 //
-// p99 < 50ns per app/specs/system/license-features.spec.yaml AC-8.
+// p99 < 50ns per specs/system/license-features.spec.yaml AC-8.
 func (s *State) IsEnabled(f Feature) bool {
 	if s == nil {
 		// No state loaded yet — treat as no_license. Free features are

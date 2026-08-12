@@ -201,7 +201,7 @@ func (s *Service) MarkResult(ctx context.Context, id uuid.UUID, status string) e
 }
 
 // ComputeNextRun returns the next scheduled run strictly after `from`, at the
-// configured hour (UTC), honouring the cadence (weekday for weekly, day of
+// configured hour (UTC), honoring the cadence (weekday for weekly, day of
 // month for monthly; day_of_month is capped at 28 so every month has it).
 func ComputeNextRun(freq Frequency, hour int, weekday, dom *int, from time.Time) time.Time {
 	from = from.UTC()

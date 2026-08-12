@@ -12,7 +12,7 @@
 //   AC-05  Executed row: Fixed status + Roll back gated on
 //          remediation:rollback||isAdmin POSTing :rollback
 //   AC-06  Lifecycle status rendering + executing poll
-//   AC-07  Bulk/automated OpenWatch+ upsell replaces the single-rule one
+//   AC-07  Bulk/automated OpenWatch Enterprise upsell replaces the single-rule one
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -118,7 +118,11 @@ describe('frontend-remediation-tab — source inspection', () => {
     expect(PAGE).toContain(
       "useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin",
     );
-    expect(PAGE).toContain("request.status === 'executed'");
+    // Rollback eligibility is a SET, not a single status: 'executed' and
+    // 'staged' both leave a real change on the host, so both keep Roll back.
+    expect(PAGE).toContain('ROLLBACK_ELIGIBLE');
+    expect(PAGE).toContain('ROLLBACK_ELIGIBLE.has(request.status)');
+    expect(PAGE).toContain("new Set(['executed', 'staged'])");
     expect(TAB_REGION).toContain('Fixed');
     expect(TAB_REGION).toContain('Roll back');
     expect(PAGE).toContain('canRollback');
@@ -146,12 +150,38 @@ describe('frontend-remediation-tab — source inspection', () => {
   // @ac AC-07
   test('frontend-remediation-tab/AC-07 — bulk/auto upsell replaces single-rule upsell, no em-dash', () => {
     expect(PAGE).toContain('RemediationUpsell');
-    expect(PAGE).toContain('Bulk and automated remediation (OpenWatch+)');
+    expect(PAGE).toContain('Bulk and automated remediation (OpenWatch Enterprise)');
     // The old single-rule execute upsell copy is gone.
-    expect(PAGE).not.toContain('Execute on host (OpenWatch+)');
+    expect(PAGE).not.toContain('Execute on host (OpenWatch Enterprise)');
     // No em-dashes in the user-facing prose (project hard rule). The bare
     // em-dash placeholder glyph in table cells is a separate convention.
     expect(EXPLAINER).not.toContain('—');
     expect(UPSELL).not.toContain('—');
+  });
+
+  // @ac AC-08
+  test('frontend-remediation-tab/AC-08 — outcome vocabulary: colour follows required action', () => {
+    // Staged: warning, never success. The host is NOT protected until reboot,
+    // so a green "Fixed" chip would claim a protection it does not have.
+    expect(TAB_REGION).toContain('Staged, reboot required');
+    expect(PAGE).toContain("isStaged ? 'var(--ow-warn)' : 'var(--ow-ok)'");
+    expect(PAGE).toContain("staged: { fg: 'var(--ow-warn)'");
+
+    // Staged keeps Roll back: it is a real host mutation with captured
+    // pre-state, so the operator must be able to undo it.
+    expect(PAGE).toContain("new Set(['executed', 'staged'])");
+
+    // Reverted: NEUTRAL, deliberately not critical. Kensa restored the host
+    // itself; coloring that red teaches operators to ignore red.
+    expect(TAB_REGION).toContain('Reverted, host unchanged');
+    expect(PAGE).toContain("reverted: { fg: 'var(--ow-fg-2)'");
+    expect(PAGE).not.toContain("reverted: { fg: 'var(--ow-crit)'");
+
+    // Not applied is neutral too; partially applied is the one that needs a human.
+    expect(PAGE).toContain("not_applied: { fg: 'var(--ow-fg-2)'");
+    expect(PAGE).toContain("partially_applied: { fg: 'var(--ow-crit)'");
+
+    // The old lie must not come back anywhere in the tab copy.
+    expect(TAB_REGION).not.toContain('No host change was committed');
   });
 });

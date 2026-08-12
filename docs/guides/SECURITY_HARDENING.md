@@ -1,6 +1,6 @@
 # OpenWatch security hardening guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary build)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 **Audience:** System administrators, security engineers, compliance officers
 
 This guide covers the security controls you operate when you deploy OpenWatch
@@ -144,8 +144,7 @@ Hardening steps:
   requirement; do not change it.
 - `jwt_private.pem` ships `0640` owned `root:openwatch` and is not
   permission-checked at boot. Tightening it to `0600` owned by `openwatch`
-  is a valid stricter-than-shipped hardening step, not a shipped control —
-  do not represent it as enforced.
+  is a valid stricter-than-shipped hardening step, not a shipped control:   do not represent it as enforced.
 - Keep the database password out of the world-readable config: put
   `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (mode `0640`, owner
   `root:openwatch`), which the `systemd` unit loads via `EnvironmentFile=`.
@@ -164,7 +163,7 @@ Hardening steps:
 | Refresh-token lifetime | 7 days, rotated on use (reuse is detected and revokes the chain) |
 | Session inactivity timeout | 15 minutes |
 | Session absolute timeout | 12 hours |
-| Password policy | Length only—8 chars (regular), 15 chars (admin), max 128; NIST SP 800-63B |
+| Password policy | Length only: 8 chars (regular), 15 chars (admin), max 128; NIST SP 800-63B |
 | Breach check | Always-on in production: new passwords are screened against an embedded common/breached corpus (airgap-safe) |
 | MFA | TOTP enrollment and verification |
 
@@ -197,8 +196,8 @@ Built-in roles, least to most privileged:
 |---------|---------|
 | `viewer` | Read-only across the platform |
 | `auditor` | Read-only plus exception authority and audit export |
-| `ops_lead` | Day-to-day operations—hosts, scans, alerts |
-| `security_admin` | Full security operations, including dangerous and license-gated actions |
+| `ops_lead` | Day-to-day operations: hosts, scans, alerts |
+| `security_admin` | Full security operations, including dangerous actions and audit export |
 | `admin` | Full system administration (user/role/SSO/system-setting management) |
 
 
@@ -210,8 +209,9 @@ Hardening steps:
 - Keep `admin` accounts to the minimum. Only `admin` holds the
   `admin:user_manage`, `admin:role_manage`, `admin:sso_provider`, and
   `admin:system_setting` permissions.
-- License-gated permissions (for example `remediation:execute`) are enforced in
-  the same middleware pass as RBAC; you cannot use them without the entitlement.
+- Remediation on one host is free, so treat `remediation:execute` and
+  `remediation:rollback` as dangerous permissions rather than gated ones. Grant
+  them only to operators who should change host state.
 
 ---
 
@@ -315,7 +315,7 @@ edge proxy, so the perimeter controls run in the application itself:
 | Security headers | Every response carries HSTS (>=1 year, includeSubDomains), a Content-Security-Policy that denies framing (`frame-ancestors 'none'`, `default-src 'self'`; `/docs` relaxes script/style for Swagger but still denies framing), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer`. |
 
 > Scope notes: auth rate limiting covers the credential-guessing surface, not
-> every route—there is still no general per-route HTTP limiter, and no request
+> every route. There is still no general per-route HTTP limiter, and no request
 > body-size cap (`http.MaxBytesReader`) on JSON endpoints. If you expose 8443
 > publicly, an upstream reverse proxy is still useful for global rate limiting
 > and body-size enforcement. The scheduler rate-limit settings are unrelated
@@ -326,8 +326,8 @@ edge proxy, so the perimeter controls run in the application itself:
 
 ## 11. Database and backups
 
-OpenWatch stores all persistent state—hosts, credentials (AES-256-GCM
-encrypted), scans, transactions, the job queue, and the audit trail—in
+OpenWatch stores all persistent state: hosts, credentials (AES-256-GCM
+encrypted), scans, transactions, the job queue, and the audit trail: in
 PostgreSQL. The package does not manage PostgreSQL and does not implement an
 in-product backup tool.
 
@@ -358,7 +358,7 @@ Hardening steps:
 These are first-response procedures for the single binary on `systemd` with
 PostgreSQL. They assume you have shell access on the OpenWatch host.
 
-### SERVICE_DOWN—the service is not responding
+### SERVICE_DOWN: the service is not responding
 
 ```bash
 sudo systemctl status openwatch
@@ -376,14 +376,14 @@ curl -k https://localhost:8443/api/v1/health
    sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
    ```
 
-3. If `/api/v1/health` returns 503, the database ping failed—check
+3. If `/api/v1/health` returns 503, the database ping failed: check
    PostgreSQL: `sudo systemctl status postgresql`.
 4. Restart once the cause is fixed: `sudo systemctl restart openwatch`. The unit
    uses `Restart=on-failure` with a 5 s delay, so transient crashes self-heal.
 
 
 
-### DISK_FULL—the host is out of disk
+### DISK_FULL: the host is out of disk
 
 ```bash
 df -h
@@ -401,14 +401,14 @@ sudo journalctl --disk-usage
    ```
 
 3. If PostgreSQL's data directory is the consumer, reclaim space there (vacuum,
-   prune old backups)—do not delete files under PostgreSQL's data directory by
+   prune old backups). Do not delete files under PostgreSQL's data directory by
    hand.
 4. A full disk can wedge the audit writer and database. After reclaiming space,
    confirm health with the `SERVICE_DOWN` check.
 
 
 
-### HIGH_CPU—sustained high CPU
+### HIGH_CPU: sustained high CPU
 
 ```bash
 top -b -n1 | head -20
@@ -428,14 +428,14 @@ sudo journalctl -u openwatch --since '10 min ago' | jq -r 'select(.level=="ERROR
 3. Background scan/intelligence/discovery load is operator-tunable. Reduce the
    scheduler rate or pause it via the system-config API
    (`PUT /api/v1/system/intelligence/config`,
-   `PUT /api/v1/system/discovery/config`)—the boot logs name these knobs when a
+   `PUT /api/v1/system/discovery/config`): the boot logs name these knobs when a
    scheduler is paused.
 4. If the API process itself is hot with no DB pressure, capture logs and
    restart as a containment step: `sudo systemctl restart openwatch`.
 
 
 
-### SECURITY_INCIDENT—suspected compromise or credential exposure
+### SECURITY_INCIDENT: suspected compromise or credential exposure
 
 1. **Contain.** Block inbound 8443 at the host firewall, or stop the service if
    you must take it offline:
@@ -452,8 +452,7 @@ sudo journalctl -u openwatch --since '10 min ago' | jq -r 'select(.level=="ERROR
    sudo -u postgres pg_dump -Fc openwatch > /tmp/openwatch-evidence.dump
    ```
 
-3. **Review authentication and authorization events** in the audit trail—
-   `auth.login.success`, `auth.login.failure`, role and user changes—for the
+3. **Review authentication and authorization events** in the audit trail:    `auth.login.success`, `auth.login.failure`, role and user changes, for the
    incident window. Query the audit tables directly with `psql` or via the audit
    API.
 4. **Rotate secrets.** Rotate the database password (update

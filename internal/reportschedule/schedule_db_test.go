@@ -1,7 +1,7 @@
 // @spec system-report-schedule
 //
 // AC traceability:
-//   AC-01  ComputeNextRun honours daily/weekly/monthly cadence at the hour
+//   AC-01  ComputeNextRun honors daily/weekly/monthly cadence at the hour
 //   AC-02  Create computes a future next_run; Due returns past-due enabled
 //          schedules; the dispatcher generates + renders + delivers + advances
 
@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
 )
 
@@ -161,7 +162,15 @@ func TestClaimDue_NoDoubleClaim(t *testing.T) {
 // @ac AC-02
 func TestDispatcher_RunsDueSchedule(t *testing.T) {
 	t.Run("system-report-schedule/AC-02", func(t *testing.T) {
+		// This suite uses the `attestation` kind as its fixture because it has
+		// the richest content, and that kind is licensed
+		// (compliance_attestation). It is testing schedule mechanics, not
+		// licensing, so it runs as a licensed deployment would. The refusal
+		// path has its own test below.
 		pool := freshPool(t)
+		// Enable AFTER the fixture setup: helpers that call license.Init()
+		// reset state and would wipe an earlier enablement.
+		defer license.EnableFeatureForTesting(license.ComplianceAttestation)()
 		ctx := context.Background()
 		svc := NewService(pool)
 		ch := seedChannel(t, pool)

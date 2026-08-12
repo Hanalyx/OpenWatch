@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -28,6 +28,7 @@ import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
+import { RemediationJournal } from '@/components/hosts/RemediationJournal';
 import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { useDefaultLens, resolveLensForHost } from '@/api/useDefaultLens';
@@ -59,7 +60,7 @@ import {
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
-// Layout mirrors app/docs/prototypes/openwatch-v1/Host Detail.html:
+// Layout mirrors (archived) docs/prototypes/openwatch-v1/Host Detail.html:
 //
 //   1. Back link (chevron + label) to /hosts
 //   2. Page-head row: hostname (mono) + status badge + sub-line metadata
@@ -77,7 +78,7 @@ import {
 // honest empty states naming the deferred BACKLOG.md item so operators
 // can tell deferred-feature from broken-feature.
 //
-// Spec: app/specs/frontend/host-detail.spec.yaml v1.0.0.
+// Spec: specs/frontend/host-detail.spec.yaml v1.0.0.
 
 interface HostDetailSearch {
   framework?: string;
@@ -1217,7 +1218,7 @@ function TabStub({ tab, subsystem }: { tab: TabId; subsystem: string }) {
 //   executing        -> "Applying..." (polled to executed | failed)
 //   executed         -> Roll back / :rollback (remediation:rollback)
 // Act permissions also pass with the 'admin' permission (|| isAdmin).
-// The remaining OpenWatch+ paywall is BULK and AUTOMATED remediation
+// The remaining OpenWatch Enterprise paywall is BULK and AUTOMATED remediation
 // (apply many rules / fleet-wide, scheduled auto-remediation), rendered
 // as a DISABLED upsell never wired to any endpoint.
 //
@@ -1233,7 +1234,32 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   executed: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Executed' },
   rolled_back: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Rolled back' },
   failed: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Failed' },
+
+  // Terminal outcomes added with the outcome vocabulary (api-remediation
+  // v1.2.0). Each color is chosen from what the operator has to DO, not from
+  // whether the word sounds good:
+  //
+  //   staged      amber. It worked, but the host is not protected yet and
+  //               someone has to reboot. Green would claim a protection the
+  //               host does not have.
+  //   reverted    neutral, deliberately NOT red. Validation failed and the
+  //               host was restored. That is the atomic model doing its job,
+  //               and coloring it as a failure teaches operators to distrust
+  //               the thing protecting them.
+  //   not_applied neutral. The engine declined and the host is untouched.
+  //   partially_applied  red. Some steps cannot be reversed automatically and
+  //               the host needs a human.
+  staged: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Staged, reboot required' },
+  reverted: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Reverted, host unchanged' },
+  not_applied: { fg: 'var(--ow-fg-2)', bg: 'var(--ow-bg-2)', label: 'Not applied' },
+  partially_applied: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Partially applied' },
 };
+
+// Statuses a rollback can be started from. Mirrors Status.RollbackEligible in
+// internal/remediation: 'staged' is included because a staged change is a real
+// host mutation with captured pre-state, so the operator must be able to undo
+// it. Omitting it here was half of why a staged change was unreversible.
+const ROLLBACK_ELIGIBLE = new Set(['executed', 'staged']);
 
 function RemStatusChip({ status }: { status: string }) {
   const s = REM_STATUS_STYLE[status] ?? {
@@ -1268,6 +1294,9 @@ function RemediationTab({ hostId }: { hostId: string }) {
   const canApprove = useAuthStore((s) => s.hasPermission('remediation:approve')) || isAdmin;
   const canExecute = useAuthStore((s) => s.hasPermission('remediation:execute')) || isAdmin;
   const canRollback = useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin;
+  // One row open at a time. The journal is a detailed read, and several open
+  // at once turns the table back into a wall rather than an explanation.
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
 
   let body: ReactNode;
   if (rem.isPending) {
@@ -1318,31 +1347,76 @@ function RemediationTab({ hostId }: { hostId: string }) {
         <tbody>
           {rem.items.map((r) => {
             const lift = formatLift(r.projected_lift);
+            const open = expandedRequestId === r.id;
             return (
-              <tr key={r.id} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                <td style={remTd}>
-                  <RemStatusChip status={r.status} />
-                </td>
-                <td style={remTd}>
-                  <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
-                    {r.rule_id}
-                  </span>
-                </td>
-                <td
-                  style={{ ...remTd, color: 'var(--ow-fg-2)', fontVariantNumeric: 'tabular-nums' }}
-                >
-                  {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
-                </td>
-                <td style={remTd}>
-                  <RemediationRowAction
-                    request={r}
-                    hostId={hostId}
-                    canApprove={canApprove}
-                    canExecute={canExecute}
-                    canRollback={canRollback}
-                  />
-                </td>
-              </tr>
+              <Fragment key={r.id}>
+                <tr style={{ borderTop: '1px solid var(--ow-line)' }}>
+                  <td style={remTd}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedRequestId(open ? null : r.id)}
+                      aria-expanded={open}
+                      aria-label={
+                        open
+                          ? `Hide transaction for ${r.rule_id}`
+                          : `Show transaction for ${r.rule_id}`
+                      }
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: 'inherit',
+                        font: 'inherit',
+                      }}
+                    >
+                      <ChevronRight
+                        size={13}
+                        aria-hidden
+                        style={{
+                          color: 'var(--ow-fg-3)',
+                          transform: open ? 'rotate(90deg)' : 'none',
+                          transition: 'transform 120ms',
+                        }}
+                      />
+                      <RemStatusChip status={r.status} />
+                    </button>
+                  </td>
+                  <td style={remTd}>
+                    <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                      {r.rule_id}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...remTd,
+                      color: 'var(--ow-fg-2)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
+                  </td>
+                  <td style={remTd}>
+                    <RemediationRowAction
+                      request={r}
+                      hostId={hostId}
+                      canApprove={canApprove}
+                      canExecute={canExecute}
+                      canRollback={canRollback}
+                    />
+                  </td>
+                </tr>
+                {open ? (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '0 12px', background: 'var(--ow-bg-0)' }}>
+                      <RemediationJournal hostId={hostId} requestId={r.id} expanded />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
         </tbody>
@@ -1375,7 +1449,7 @@ function RemediationTab({ hostId }: { hostId: string }) {
 }
 
 // RemediationExplainer states the atomic transaction model as static
-// copy (the model the OpenWatch+ apply step follows): Capture, Apply,
+// copy (the model the OpenWatch Enterprise apply step follows): Capture, Apply,
 // Validate, Commit, with a rollback to the captured state on failure.
 function RemediationExplainer() {
   const phases = ['Capture', 'Apply', 'Validate', 'Commit'];
@@ -1422,7 +1496,7 @@ function RemediationExplainer() {
         Each approved fix captures the current host state, applies the change, validates the result,
         then commits. A failed validation rolls back to the captured state, so a host is never left
         half-fixed. Applying a single approved fix on the host (and rolling it back) is part of
-        core. Bulk and automated remediation are OpenWatch+ features.
+        core. Bulk and automated remediation are OpenWatch Enterprise features.
       </div>
     </div>
   );
@@ -1635,24 +1709,39 @@ function RemediationRowAction({
     );
   }
 
-  if (request.status === 'executed') {
+  if (ROLLBACK_ELIGIBLE.has(request.status)) {
+    // 'executed' means the runtime converged: the host is protected now.
+    // 'staged' means the change is written but takes effect at reboot, so the
+    // host is NOT protected yet. Both keep the Roll back action; only the
+    // wording and color differ, because they call for different next steps.
+    const isStaged = request.status === 'staged';
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span
+          title={
+            isStaged
+              ? 'The change is written to the host but the running system has not picked it up. A re-scan still reports this rule as failing until the host reboots.'
+              : undefined
+          }
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
             fontSize: 11,
             fontWeight: 600,
-            color: 'var(--ow-ok)',
+            color: isStaged ? 'var(--ow-warn)' : 'var(--ow-ok)',
           }}
         >
           <span
             aria-hidden
-            style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ow-ok)' }}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: isStaged ? 'var(--ow-warn)' : 'var(--ow-ok)',
+            }}
           />
-          Fixed
+          {isStaged ? 'Staged, reboot required' : 'Fixed'}
         </span>
         {canRollback && (
           <button
@@ -1684,6 +1773,18 @@ function RemediationRowAction({
     return <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>Rolled back</span>;
   }
 
+  // Host untouched. Neutral, not red: the engine restored the host itself, or
+  // declined to act. Showing these as failures trains operators to ignore the
+  // color that is supposed to mean "something needs you".
+  if (request.status === 'reverted' || request.status === 'not_applied') {
+    return (
+      <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>
+        {request.status === 'reverted' ? 'Reverted, host unchanged' : 'Not applied'}
+        {inlineNote}
+      </span>
+    );
+  }
+
   if (request.status === 'failed') {
     return (
       <span
@@ -1707,7 +1808,7 @@ function RemediationRowAction({
   return <span style={{ color: 'var(--ow-fg-3)', fontSize: 11 }}>—</span>;
 }
 
-// RemediationUpsell renders the ACTUAL OpenWatch+ boundary as a DISABLED
+// RemediationUpsell renders the ACTUAL OpenWatch Enterprise boundary as a DISABLED
 // upsell. Single-rule manual execute and rollback moved into free core,
 // so the paywall is now bulk and automated remediation: applying many
 // rules at once (fleet-wide) and scheduled auto-remediation. This control
@@ -1729,19 +1830,19 @@ function RemediationUpsell() {
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ow-fg-0)', marginBottom: 4 }}>
-          Bulk and automated remediation (OpenWatch+)
+          Bulk and automated remediation (OpenWatch Enterprise)
         </div>
         <div style={{ color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
           Applying a single approved fix (and rolling it back) is part of core. Applying many rules
           at once across the fleet, and scheduling auto-remediation so approved fixes apply without
-          a per-rule click, are OpenWatch+ features.
+          a per-rule click, are OpenWatch Enterprise features.
         </div>
       </div>
       <button
         type="button"
         disabled
         aria-disabled="true"
-        title="Bulk and automated remediation is an OpenWatch+ feature"
+        title="Bulk and automated remediation is an OpenWatch Enterprise feature"
         style={{
           height: 32,
           padding: '0 16px',
@@ -1755,7 +1856,7 @@ function RemediationUpsell() {
           flexShrink: 0,
         }}
       >
-        Bulk remediation (OpenWatch+)
+        Bulk remediation (OpenWatch Enterprise)
       </button>
     </div>
   );

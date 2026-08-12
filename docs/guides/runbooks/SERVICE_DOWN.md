@@ -22,8 +22,8 @@ For install and configuration layout, see the
 
 | Component | What it is | How it runs |
 |-----------|------------|-------------|
-| API + UI server | `openwatch serve`—HTTPS on `8443`, REST under `/api/v1`, embedded SPA | systemd unit `openwatch.service` (`ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml`) |
-| Scan worker | `openwatch worker`—drains the PostgreSQL job queue and runs Kensa scans | Separate process; not shipped as a packaged unit (see "Scan worker" below) |
+| API + UI server | `openwatch serve`: HTTPS on `8443`, REST under `/api/v1`, embedded SPA | systemd unit `openwatch.service` (`ExecStart=/usr/bin/openwatch serve --config /etc/openwatch/openwatch.toml`) |
+| Scan worker | `openwatch worker`: drains the PostgreSQL job queue and runs Kensa scans | Separate process; not shipped as a packaged unit (see "Scan worker" below) |
 | Database | PostgreSQL | Separate service (`postgresql.service`); the unit declares `After=`/`Wants=postgresql.service` |
 
 The `serve` process also runs in-process schedulers (host liveness, OS
@@ -50,15 +50,15 @@ Configuration lives under `/etc/openwatch`:
   `inactive (dead)`.
 - `journalctl -u openwatch` shows a fatal boot error (config invalid, TLS key
   missing, JWT key missing, or DB pool open failure).
-- Logins fail or writes error while the process is up—usually PostgreSQL is
+- Logins fail or writes error while the process is up. Usually PostgreSQL is
   unreachable; the health probe returns `503`.
 
 The health endpoint is anonymous and returns a small JSON body. A healthy
 response is HTTP `200` with `{"status":"healthy","db_connected":true,"version":"..."}`
-(the `HealthResponse` contract: `status`, `db_connected`, `version` only—there
+(the `HealthResponse` contract: `status`, `db_connected`, `version` only. There
 is no `redis` field; earlier Python-era runbooks that reference one are
 obsolete). When the database is unreachable, the endpoint does **not** return
-a degraded `HealthResponse` body—it returns HTTP `503` with the standard
+a degraded `HealthResponse` body. It returns HTTP `503` with the standard
 `ErrorEnvelope` (`"code": "server.unavailable"`) instead.
 
 ---
@@ -85,7 +85,7 @@ curl -sk https://localhost:8443/api/v1/health
 |--------|--------------|
 | HTTP `200`, `db_connected: true` | Server is up; the problem is upstream (TLS trust, reverse proxy, network, DNS) |
 | HTTP `503` (`ErrorEnvelope`, code `server.unavailable`) | Server is up but PostgreSQL is unreachable (see path B) |
-| Connection refused / no response | Process is not listening—it failed to start or crashed (see path A) |
+| Connection refused / no response | Process is not listening. It failed to start or crashed (see path A) |
 | TLS error | TLS cert/key problem (see path C) |
 
 The `-k` flag skips certificate verification so the probe works with the
@@ -149,7 +149,7 @@ If it exited cleanly (operator stop, host reboot), start it:
 sudo systemctl start openwatch
 ```
 
-If it is crash-looping, do not restart it blindly—it will fail again. Identify the
+If it is crash-looping, do not restart it blindly. It will fail again. Identify the
 fatal log line from Step 3 and follow the matching path (B for database, C for
 config/keys/TLS). After fixing the root cause:
 

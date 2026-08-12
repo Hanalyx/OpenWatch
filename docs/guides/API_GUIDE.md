@@ -1,8 +1,8 @@
 # API guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
-Most operators use the web UI for daily work—managing hosts, viewing fleet
+Most operators use the web UI for daily work: managing hosts, viewing fleet
 health, reading compliance state, and triaging alerts. This guide is for
 automation: scripting repetitive tasks, integrating with CI/CD, or building
 tooling on top of OpenWatch.
@@ -53,8 +53,14 @@ permission set:
   rotation and the on-401 refresh flow are UI concerns and are not covered here.
 
 Anonymous endpoints (`GET /api/v1/health`, `GET /api/v1/version`,
-`POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`) require no credential.
-Everything else requires a valid identity.
+`GET /api/v1/capabilities`, `POST /api/v1/auth/login`,
+`POST /api/v1/auth/refresh`) require no credential. Everything else requires a
+valid identity.
+
+`GET /api/v1/capabilities` reports every capability this deployment has, with
+whether it is available here, so a client can present a locked control rather
+than discovering the gate from a `402`. It exposes no customer identity or
+license detail; `GET /api/v1/license` is the authenticated surface for that.
 
 ### Log in
 
@@ -247,8 +253,13 @@ API; see [Operations](#operations-the-cli-and-systemd).
 
 ## License
 
-OpenWatch has a tiered license model (`free`, `openwatch_plus`, `enterprise`).
-Premium-gated endpoints return `402` when the active tier lacks the feature.
+OpenWatch has two tiers: Community, which reports `free`, and Enterprise, which
+reports `enterprise`. Community needs no license file, and a deployment without
+one reports `tier: free` with `status: no_license`. The tiers differ in the scope
+of an action, not in capability: what one host can do is Community, and the same
+vocabulary across a fleet is Enterprise. There are no quotas or caps on hosts,
+scans, users, or retention. An Enterprise-scoped endpoint returns `402` when the
+active tier lacks the feature.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -286,7 +297,7 @@ curl -s --cacert /etc/openwatch/tls/cert.pem https://localhost:8443/api/v1/healt
 
 A healthy response is always `status: "healthy"`, `db_connected: true`. When
 the database is unreachable, the endpoint does not return a `degraded` status
-body—it returns `503` with the standard `ErrorEnvelope` (code
+body. It returns `503` with the standard `ErrorEnvelope` (code
 `server.unavailable`) instead. `GET /api/v1/version` returns build metadata
 (`openwatch`, `kensa`, `go`, `commit`, `build_time`).
 
@@ -313,21 +324,21 @@ will encounter:
 
 | Code | Meaning |
 |------|---------|
-| `400` | Bad request—invalid input or a violated business rule |
-| `401` | Unauthorized—missing, expired, or invalid credential |
-| `402` | Payment required—the license tier lacks this feature |
-| `403` | Forbidden—the caller lacks the required permission |
+| `400` | Bad request: invalid input or a violated business rule |
+| `401` | Unauthorized: missing, expired, or invalid credential |
+| `402` | Payment required: the license tier lacks this feature |
+| `403` | Forbidden: the caller lacks the required permission |
 | `404` | Not found |
 | `405` | Method not allowed |
-| `409` | Conflict—duplicate resource, or a reused `Idempotency-Key` with a different body |
-| `429` | Too many requests—`/auth/login` or `/auth/mfa:verify` rate limit exceeded; retry after `Retry-After` seconds |
-| `502` | Bad gateway—an external dependency failed |
-| `503` | Service unavailable—the service is degraded |
+| `409` | Conflict: duplicate resource, or a reused `Idempotency-Key` with a different body |
+| `429` | Too many requests: `/auth/login` or `/auth/mfa:verify` rate limit exceeded; retry after `Retry-After` seconds |
+| `502` | Bad gateway: an external dependency failed |
+| `503` | Service unavailable: the service is degraded |
 
 There is no general per-route API rate limiting in this release. `POST
 /api/v1/auth/login` and `/api/v1/auth/mfa:verify` are the exceptions: they are
 rate-limited per client IP and return `429` with a `Retry-After` header over
-the limit. There is no `422` validation status—validation failures return
+the limit. There is no `422` validation status: validation failures return
 `400` with the envelope above.
 
 ---
@@ -385,7 +396,7 @@ longer worker-internal only):
 
 ## What is genuinely not in the API yet
 
-- A Prometheus `/metrics` endpoint and a `/security-info` endpoint—both are
+- A Prometheus `/metrics` endpoint and a `/security-info` endpoint: both are
   roadmap items (use `GET /api/v1/health` for liveness today). Do not script
   against them until they appear in the served OpenAPI document.
 
@@ -397,7 +408,7 @@ integrates.
 
 ## What's next
 
-- [Install guide](INSTALLATION.md)—install, configure, and run the service.
-- [User roles](USER_ROLES.md)—permission and role reference.
-- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)—how scanning works.
-- The served OpenAPI document—the authoritative, always-current API contract.
+- [Install guide](INSTALLATION.md): install, configure, and run the service.
+- [User roles](USER_ROLES.md): permission and role reference.
+- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md): how scanning works.
+- The served OpenAPI document: the authoritative, always-current API contract.

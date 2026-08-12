@@ -14,7 +14,7 @@ const HeaderName = "X-Correlation-Id"
 //
 // It MUST be mounted before any other middleware that emits logs or audit
 // events. Per correlation.spec.yaml AC-9..AC-11 and the design in
-// app/docs/correlation_id_propagation.md §5.1.
+// docs/engineering/correlation_id_propagation.md §5.1.
 //
 // Rejected client headers (charset/length/reserved-prefix violations) are
 // replaced with a freshly-generated req- ID; a warn-level log records the

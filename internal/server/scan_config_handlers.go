@@ -190,6 +190,19 @@ func (h *handlers) GetSystemScanVariables(w http.ResponseWriter, r *http.Request
 	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
 		return
 	}
+	// The catalog is nil when the Kensa rule corpus could not be loaded at
+	// boot, which on a packaged install means the kensa-rules package is not
+	// installed at /usr/share/kensa/rules. Say so, rather than returning an
+	// empty list: an empty list is indistinguishable from "this deployment
+	// genuinely has no variables", and the Settings card then renders a
+	// heading with nothing under it. The operator sees a blank panel and no
+	// reason, while the explanation sits in a boot log nobody reads to explain
+	// a settings screen.
+	if h.varCatalog == nil {
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server",
+			"the Kensa rule corpus is not available, so scan variables cannot be listed. On a packaged install, verify the kensa-rules package is installed at /usr/share/kensa/rules and matches the openwatch version.", true)
+		return
+	}
 	overrides := systemconfig.ScanVariables{}
 	if h.sysCfg != nil {
 		loaded, err := h.sysCfg.LoadScanVars(r.Context())

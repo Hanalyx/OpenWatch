@@ -1,6 +1,6 @@
 # OpenWatch monitoring and operations guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide describes how you monitor a running OpenWatch deployment and how you
 respond to common operational incidents. OpenWatch ships as a single Go binary
@@ -356,15 +356,14 @@ The following observability capabilities described in earlier (Python-era)
 documentation do not exist in the current Go build. They are recorded here so
 operators do not look for them:
 
-- **Prometheus `/metrics` endpoint**—not exposed. The only health signal is
+- **Prometheus `/metrics` endpoint**: not exposed. The only health signal is
   `GET /api/v1/health`.
 - **Bundled monitoring stack** (Prometheus, Grafana, Jaeger, Alertmanager,
-  node/redis/postgres exporters, cAdvisor)—not shipped. There is no
+  node/redis/postgres exporters, cAdvisor): not shipped. There is no
   `monitoring/` Compose stack and no container runtime in this architecture.
-- **Distributed tracing**—not implemented. Correlation IDs in the JSON logs
+- **Distributed tracing**: not implemented. Correlation IDs in the JSON logs
   are the current mechanism for following a request across log lines.
-- **Detailed authenticated health endpoints** (per-service, content, history)—
-  not implemented. The current health contract is a single `200`
+- **Detailed authenticated health endpoints** (per-service, content, history):   not implemented. The current health contract is a single `200`
   (`status: healthy`) or `503` (error envelope) signal driven by database
   reachability.
 

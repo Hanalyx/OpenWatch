@@ -11,6 +11,7 @@ domains:
         description: Default domain for OpenWatch. Specs are the .spec.yaml files under specs/ (indexed below); coverage is gated in CI via specter ingest + sync (strictness threshold).
         specs:
             - api-audit-events-query
+            - api-capabilities
             - api-diagnostics-echo
             - api-health
             - api-license
@@ -22,6 +23,7 @@ domains:
             - system-idempotency
             - system-license-features
             - system-license-validation
+            - system-setup
             - system-rbac
             - system-job-queue
             - system-policy

@@ -9,7 +9,7 @@
 // AC-08 (200 happy path) requires a real SSH dial path that the API
 // test stack can't easily fake (the Discovery service holds a real
 // credential resolver + SSH transport). Spec AC-08 is covered by the
-// service-level tests in app/internal/intelligence/discovery/.
+// service-level tests in internal/intelligence/discovery/.
 
 package server
 

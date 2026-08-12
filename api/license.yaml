@@ -84,7 +84,7 @@ components:
             installed license file.
         tier:
           type: string
-          enum: [free, openwatch_plus]
+          enum: [free, enterprise]
         status:
           type: string
           enum: [active, grace, expired, invalid, no_license]
@@ -173,7 +173,7 @@ components:
             required: [id, tier, description, active]
             properties:
               id: {type: string}
-              tier: {type: string, enum: [free, openwatch_plus]}
+              tier: {type: string, enum: [free, enterprise]}
               description: {type: string}
               introduced: {type: string, description: Semver}
               deprecated_in: {type: string, description: Semver, nullable: true}
@@ -362,7 +362,7 @@ paths:
       summary: List previously-installed licenses
       description: |
         Returns the audit trail of license installs. Useful for compliance
-        ("when did we upgrade to OpenWatch+?") and forensic review.
+        ("when did we upgrade to OpenWatch Enterprise?") and forensic review.
       x-required-permission: AUDIT_READ
       parameters:
         - {name: limit, in: query, schema: {type: integer, default: 50, maximum: 500}}

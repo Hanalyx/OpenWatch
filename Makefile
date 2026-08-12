@@ -206,14 +206,58 @@ spec-check:
 	specter check --test
 	specter coverage --strictness annotation
 
+# release-status: render release/gates.toml for a candidate and return a
+# go/no-go verdict. Needs `gh` authenticated to read check runs and assets.
+#
+# The script exits 0 for GO, 1 for NO-GO and 2 for a lookup error. make
+# collapses any recipe failure to its own status, so anything automated should
+# call scripts/release-status.py directly to tell a NO-GO from a broken lookup.
+#
+#   make release-status                  # most recent tag
+#   make release-status TAG=v0.7.0-rc.3
+.PHONY: release-status
+release-status:
+	python3 scripts/release-status.py $(if $(TAG),--tag $(TAG),)
+
+# release-status-test: the checker's own guards. Stdlib only, no network,
+# runs in milliseconds. CI runs this in the Quality gates job.
+.PHONY: release-status-test
+release-status-test:
+	python3 scripts/test_release_status.py
+
+# docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
+# speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
+# dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
+# Use DOC_STYLE_ARGS=--all to sweep the whole tree instead of changed files.
+.PHONY: docs-style
+docs-style:
+	python3 scripts/check-doc-style.py $(or $(DOC_STYLE_ARGS),--changed)
+
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone
 # omits the generated-code, spec, and frontend gates — this target is the
 # full mirror.
 .PHONY: ci-local
-ci-local: check-generated vet lint vuln spec-check test-race
+ci-local: check-generated vet lint vuln spec-check test-race docs-style
 	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
+	@if [ -z "$$OPENWATCH_TEST_DSN" ]; then \
+	  echo ""; \
+	  echo "ci-local WARNING: OPENWATCH_TEST_DSN is unset, so every DB-gated suite was SKIPPED."; \
+	  echo "  CI runs them. A change can pass here and fail there; that happened three times"; \
+	  echo "  on the v0.7 branches. Start the local test database and re-run:"; \
+	  echo "      make test-db && eval \"\$$(scripts/test-db.sh dsn)\" && make ci-local"; \
+	  echo ""; \
+	fi
 	@echo "ci-local: all gates passed — safe to push"
+
+## test-db: start the local test database (mirrors the CI service container)
+.PHONY: test-db test-db-down
+test-db:
+	@scripts/test-db.sh up
+	@echo "eval \"\$$(scripts/test-db.sh dsn)\"  # to point tests at it"
+
+test-db-down:
+	@scripts/test-db.sh down
 
 .PHONY: clean
 clean:

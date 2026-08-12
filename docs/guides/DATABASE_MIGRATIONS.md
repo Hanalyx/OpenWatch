@@ -1,11 +1,11 @@
 # Database migration guide
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
 Go binary (`/usr/bin/openwatch`) that serves the REST API and the embedded React
-UI over HTTPS on port 8443. It uses PostgreSQL only—there is no MongoDB, Redis,
+UI over HTTPS on port 8443. It uses PostgreSQL only. There is no MongoDB, Redis,
 Celery, Alembic, or container runtime involved in migrations.
 
 For end-to-end install and configuration, see the
@@ -69,7 +69,7 @@ When the schema is already current it reports that no migrations were pending
 
 Run `openwatch migrate` after every package upgrade and before starting (or
 restarting) the service, so the schema matches the binary. The systemd unit runs
-`openwatch serve` and does not run migrations on boot—`serve` and `migrate` are
+`openwatch serve` and does not run migrations on boot: `serve` and `migrate` are
 separate subcommands.
 
 A typical upgrade sequence:
@@ -105,8 +105,8 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
 ## Adding a new migration
 
 1. Create a new migration file named with the next ascending
-   integer, for example `0052_add_scan_findings.sql` (the current highest
-   applied migration is `0051`; use the next free number, not this example
+   integer, for example `0055_add_scan_findings.sql` (the current highest
+   applied migration is `0054`; use the next free number, not this example
    literally). Migration order is driven by the filename prefix, not by
    dates.
 
@@ -205,7 +205,7 @@ pg_restore --clean --if-exists --dbname "$OPENWATCH_DATABASE_DSN" \
 ```
 
 Run `pg_dump`/`pg_restore`/`psql` from the host (or a PostgreSQL client
-package)—there is no container to `exec` into.
+package). There is no container to `exec` into.
 
 ## Troubleshooting
 

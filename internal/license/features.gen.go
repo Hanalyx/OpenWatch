@@ -10,9 +10,8 @@ type Feature string
 type Tier string
 
 const (
-	TierFree          Tier = "free"
-	TierOpenWatchPlus Tier = "openwatch_plus"
-	TierEnterprise    Tier = "enterprise"
+	TierFree       Tier = "free"
+	TierEnterprise Tier = "enterprise"
 )
 
 // Feature constants. Hand-typed feature-string literals are forbidden by lint;
@@ -26,12 +25,16 @@ const (
 	AuditExport Feature = "audit_export"
 	// Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log
 	TemporalQueries Feature = "temporal_queries"
-	// Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)
+	// Bulk / fleet-wide manual remediation - apply many rules at once across a host selection (single-rule manual remediation is free core)
 	RemediationExecution Feature = "remediation_execution"
+	// Policy-driven and scheduled auto-remediation across the fleet (severity routing, canary, guardrails, circuit breaker)
+	RemediationAuto Feature = "remediation_auto"
 	// Multi-stage exception approval workflow with policy enforcement
 	StructuredExceptions Feature = "structured_exceptions"
 	// Early access to Kensa rule updates and framework mappings
 	PriorityUpdates Feature = "priority_updates"
+	// Fleet-wide signed attestation reports and the fleet OSCAL SAR export
+	ComplianceAttestation Feature = "compliance_attestation"
 	// SAML 2.0 single sign-on integration
 	SsoSaml Feature = "sso_saml"
 	// FIDO2 / WebAuthn second factor for user authentication
@@ -58,55 +61,67 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	},
 	AuditQuery: {
 		ID:          AuditQuery,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Saved and ad-hoc audit query DSL via POST /audit/events:query`,
 		Introduced:  "1.0.0",
 	},
 	AuditExport: {
 		ID:          AuditExport,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Export audit data as JSON/CSV with signed bundles`,
 		Introduced:  "1.0.0",
 	},
 	TemporalQueries: {
 		ID:          TemporalQueries,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log`,
 		Introduced:  "1.0.0",
 	},
 	RemediationExecution: {
 		ID:          RemediationExecution,
-		Tier:        TierOpenWatchPlus,
-		Description: `Bulk and automated remediation - apply many rules / fleet-wide and policy-driven auto-remediation (single-rule manual remediation is free core)`,
+		Tier:        TierEnterprise,
+		Description: `Bulk / fleet-wide manual remediation - apply many rules at once across a host selection (single-rule manual remediation is free core)`,
+		Introduced:  "1.0.0",
+	},
+	RemediationAuto: {
+		ID:          RemediationAuto,
+		Tier:        TierEnterprise,
+		Description: `Policy-driven and scheduled auto-remediation across the fleet (severity routing, canary, guardrails, circuit breaker)`,
 		Introduced:  "1.0.0",
 	},
 	StructuredExceptions: {
 		ID:          StructuredExceptions,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Multi-stage exception approval workflow with policy enforcement`,
 		Introduced:  "1.0.0",
 	},
 	PriorityUpdates: {
 		ID:          PriorityUpdates,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Early access to Kensa rule updates and framework mappings`,
+		Introduced:  "1.0.0",
+	},
+	ComplianceAttestation: {
+		ID:          ComplianceAttestation,
+		Tier:        TierEnterprise,
+		Description: `Fleet-wide signed attestation reports and the fleet OSCAL SAR export`,
 		Introduced:  "1.0.0",
 	},
 	SsoSaml: {
 		ID:          SsoSaml,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierFree,
 		Description: `SAML 2.0 single sign-on integration`,
 		Introduced:  "1.0.0",
 	},
 	Fido2Mfa: {
 		ID:          Fido2Mfa,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierFree,
 		Description: `FIDO2 / WebAuthn second factor for user authentication`,
 		Introduced:  "1.0.0",
 	},
 	PremiumDiagnostics: {
 		ID:          PremiumDiagnostics,
-		Tier:        TierOpenWatchPlus,
+		Tier:        TierEnterprise,
 		Description: `Premium diagnostic endpoints (Stage 0 demo and future operator tooling)`,
 		Introduced:  "1.0.0",
 	},
@@ -125,8 +140,10 @@ var featureOrder = []Feature{
 	AuditExport,
 	TemporalQueries,
 	RemediationExecution,
+	RemediationAuto,
 	StructuredExceptions,
 	PriorityUpdates,
+	ComplianceAttestation,
 	SsoSaml,
 	Fido2Mfa,
 	PremiumDiagnostics,

@@ -1,13 +1,13 @@
 spec:
   id: frontend-remediation-tab
   title: Host detail Remediation tab + per-rule request/apply affordance
-  version: "1.1.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
   context:
     system: openwatch
-    feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch+ upsell.
+    feature: The remediation governance + single-rule apply frontend - a per-failing-rule Request-remediation affordance on the Compliance tab plus a Remediation tab that drives the request -> approve | reject -> execute | rollback lifecycle and renders BULK and AUTOMATED remediation as an OpenWatch Enterprise upsell.
     description: >
       The frontend half of the remediation feature. The backend exposes
       /api/v1/remediation/* (api-remediation):
@@ -22,7 +22,7 @@ spec:
       :execute requires remediation:execute and returns 202 (queued), or
       409 if the request is not in 'approved' state. :rollback requires
       remediation:rollback, returns 202, or 409 if not 'executed'. The
-      remaining OpenWatch+ paywall is BULK and AUTOMATED remediation
+      remaining OpenWatch Enterprise paywall is BULK and AUTOMATED remediation
       (apply many rules / fleet-wide, scheduled auto-remediation),
       rendered as a DISABLED upsell never wired to any endpoint.
 
@@ -45,7 +45,7 @@ spec:
     summary: >
       A usable free-tier remediation surface: request a fix from a
       failing rule, see this host's requests, approve or reject within
-      the caller's authority, and a clear OpenWatch+ upsell for the
+      the caller's authority, and a clear OpenWatch Enterprise upsell for the
       host-mutating apply step that is never wired to the act endpoints.
     scope:
       includes:
@@ -54,10 +54,10 @@ spec:
         - RemediationTab panel on host detail with approve/reject gating and the atomic-model explainer
         - Per-rule Fix (:execute) gated on remediation:execute||isAdmin and Roll back (:rollback) gated on remediation:rollback||isAdmin
         - Lifecycle status rendering (executing "Applying...", executed "Fixed", rolled_back, failed)
-        - The OpenWatch+ upsell for BULK and AUTOMATED remediation (disabled, never calls any endpoint)
+        - The OpenWatch Enterprise upsell for BULK and AUTOMATED remediation (disabled, never calls any endpoint)
       excludes:
-        - Calling :dry-run (OpenWatch+ licensed track)
-        - Bulk / fleet-wide apply and scheduled auto-remediation (OpenWatch+, upsell only)
+        - Calling :dry-run (OpenWatch Enterprise licensed track)
+        - Bulk / fleet-wide apply and scheduled auto-remediation (OpenWatch Enterprise, upsell only)
         - The transaction journal (steps) view
         - A fleet-wide remediation queue (host-scoped only here)
 
@@ -71,7 +71,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'The Remediation tab lists this host''s requests (status chip, rule_id, projected lift) newest first. On a pending_approval row, a caller with remediation:approve (|| isAdmin) gets Approve / Reject (POST :approve / :reject, invalidate on success, 409 inline); without it, "Awaiting approval". BULK and AUTOMATED remediation render as a DISABLED OpenWatch+ upsell that is never wired to any endpoint'
+      description: 'The Remediation tab lists this host''s requests (status chip, rule_id, projected lift) newest first. On a pending_approval row, a caller with remediation:approve (|| isAdmin) gets Approve / Reject (POST :approve / :reject, invalidate on success, 409 inline); without it, "Awaiting approval". BULK and AUTOMATED remediation render as a DISABLED OpenWatch Enterprise upsell that is never wired to any endpoint'
       type: security
       enforcement: error
     - id: C-04
@@ -105,6 +105,60 @@ spec:
       priority: high
       references_constraints: [C-04]
     - id: AC-07
-      description: 'Source inspection: the OpenWatch+ upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch+)"), is DISABLED, and the single-rule "Execute on host (OpenWatch+)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
+      description: 'Source inspection: the OpenWatch Enterprise upsell now describes BULK and AUTOMATED remediation (RemediationUpsell, "Bulk and automated remediation (OpenWatch Enterprise)"), is DISABLED, and the single-rule "Execute on host (OpenWatch Enterprise)" upsell copy is gone. No em-dash characters appear in the RemediationTab copy'
       priority: high
       references_constraints: [C-03, C-04]
+    - id: AC-09
+      description: >
+        The tab shows the transaction, not just a diagram of it. Expanding a
+        request renders the per-phase Kensa journal, and each phase shows the
+        engine's own detail, which is the answer to why a fix failed. The three
+        consequences an operator cannot infer from the terminal status are
+        called out in words rather than left implicit: a stranded phase is not
+        reversed by rollback, a staged phase means the running host has not
+        changed until it reboots, and a non-capturable phase cannot be rolled
+        back. Captured pre-state is shown as evidence and NOT decoded, because
+        its layout belongs to the Kensa handler that wrote it and no schema is
+        published (features/KN-OW-016). No em-dash characters appear in the
+        copy.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-08
+      description: >
+        Source inspection: the outcome vocabulary is rendered so that colour and
+        wording follow what the operator must DO. Rollback eligibility is a set
+        (ROLLBACK_ELIGIBLE = new Set(['executed', 'staged'])) rather than a
+        single status, so a staged change keeps its Roll back action. A staged
+        row renders "Staged, reboot required" in the warning colour and NEVER in
+        the success colour, because the host is not protected until it reboots.
+        A reverted row renders "Reverted, host unchanged" in a NEUTRAL colour,
+        not the critical colour: Kensa restored the host itself, so presenting
+        it as a failure would train operators to distrust the safety net.
+        not_applied likewise renders neutral. partially_applied renders
+        critical, because that host needs a human.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: >
+        A request that has not executed shows what the fix WOULD do instead of
+        an empty panel: the apply steps, the validators, and how it can be
+        undone, in Kensa's own words. A control-channel-sensitive plan is
+        called out in terms of the consequence, that the change reverts itself
+        if the host stops answering, rather than by naming the flag. A
+        non-transactional rule warns that earlier steps stay applied if a later
+        one fails. A planning failure states that nothing was changed on the
+        host, because the operator's first question on seeing an error next to
+        a fix button is whether it half-ran.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-11
+      description: >
+        The journal shows what was on the host before the change, and the plan
+        preview shows what is there now, both from Kensa's own rendering. The
+        raw capture stays behind the disclosure it has always been behind
+        rather than being promoted alongside the summary, because the summary
+        is elided by construction and is explicitly not a secret scanner. A
+        non-capturable step still renders its distinction, so "cannot capture"
+        never reads as "nothing found".
+      priority: critical
+      references_constraints: [C-04]

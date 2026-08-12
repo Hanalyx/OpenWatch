@@ -1,6 +1,6 @@
 // On-demand connectivity probe — POST /hosts/{id}/connectivity:check.
 //
-// Spec: app/specs/api/host-connectivity-check.spec.yaml.
+// Spec: specs/api/host-connectivity-check.spec.yaml.
 //
 // The handler delegates to liveness.Service.ProbeHost — same in-process
 // machinery the periodic loop uses. Credential-free (TCP banner on
@@ -32,7 +32,13 @@ func (h *handlers) PostHostConnectivityCheck(
 	id openapitypes.UUID,
 	_ api.PostHostConnectivityCheckParams,
 ) {
-	if denied := auth.EnforcePermission(w, r, auth.HostRead); denied {
+	// This is not a read. It makes the server open an SSH or ICMP connection
+	// to a managed host on demand, so it is a side effect a viewer should not
+	// be able to trigger. A dedicated permission already existed in the
+	// registry and was never wired to anything; wire it. Viewer and auditor
+	// lose this (they hold host:read but not host:connectivity_check);
+	// ops_lead, security_admin and admin keep it.
+	if denied := auth.EnforcePermission(w, r, auth.HostConnectivityCheck); denied {
 		return
 	}
 	if h.liveSvc == nil {

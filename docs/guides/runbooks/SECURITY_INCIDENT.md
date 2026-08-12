@@ -199,7 +199,7 @@ LIMIT 20;
 "
 ```
 
-A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated—treat the owning account as compromised.
+A non-null `reuse_detected_at` means a refresh token was presented after it had already been rotated: treat the owning account as compromised.
 
 ### Credential access
 
@@ -278,7 +278,7 @@ sudo chmod 0640 /etc/openwatch/keys/jwt_private.pem
 sudo systemctl restart openwatch
 ```
 
-Confirm the configured path before generating a new key—`openwatch check-config` prints the resolved configuration with secrets redacted:
+Confirm the configured path before generating a new key: `openwatch check-config` prints the resolved configuration with secrets redacted:
 
 ```bash
 sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
@@ -419,7 +419,7 @@ Escalate immediately for any of:
 ## Prevention
 
 - **Audit review**: Periodically query `audit_events` for `auth.login.failure` spikes, `authz.permission.denied` clusters, and unexpected `authz.role.assigned` events. The `idx_audit_occurred_at` and `idx_audit_severity` indexes keep these queries fast.
-- **MFA**: Enrol all administrative accounts in TOTP MFA (`POST /api/v1/auth/mfa:enroll`).
+- **MFA**: Enroll all administrative accounts in TOTP MFA (`POST /api/v1/auth/mfa:enroll`).
 - **Least privilege**: Grant the narrowest built-in role that fits each user; reserve `admin` for break-glass. Review role grants quarterly using the `user_roles` query above.
 - **Session limits**: Sessions enforce a 15-minute inactivity timeout and a 12-hour absolute cap by default; refresh-token rotation flags reuse automatically.
 - **Secret hygiene**: Keep `/etc/openwatch/secrets.env`, the JWT key, the credential DEK, and `/etc/openwatch/tls/key.pem` owned by `root`/`openwatch` with restrictive modes. Rotate the JWT and database credentials on a schedule.

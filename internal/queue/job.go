@@ -5,9 +5,9 @@
 // Correlation propagation is built in: Enqueue extracts correlation_id
 // from the caller's context (and errors if none is set); Dequeue
 // restores the row's correlation_id onto a fresh worker context. See
-// app/docs/correlation_id_propagation.md.
+// docs/engineering/correlation_id_propagation.md.
 //
-// Spec: app/specs/system/job-queue.spec.yaml.
+// Spec: specs/system/job-queue.spec.yaml.
 package queue
 
 import (

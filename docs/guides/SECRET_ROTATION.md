@@ -1,6 +1,6 @@
 # Secret rotation procedures
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide describes how to rotate each secret used by OpenWatch on the current
 single-binary stack: one `/usr/bin/openwatch` process that serves the REST API
@@ -135,7 +135,7 @@ re-login.
    ```
 
    If the key is missing, unparseable, or under 2048 bits, the service logs
-   `load jwt key failed` and exits—`journalctl -u openwatch` shows the reason.
+   `load jwt key failed` and exits: `journalctl -u openwatch` shows the reason.
 
 4. Confirm users can sign in. Existing tokens are no longer accepted.
 
@@ -152,13 +152,13 @@ makes those secrets permanently unreadable.
 
 > **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
 > command. The CLI subcommands are `serve`, `worker`, `migrate`,
-> `create-admin`, and `check-config`—none re-wraps stored secrets. Rotating
+> `create-admin`, and `check-config`: none re-wraps stored secrets. Rotating
 > the DEK in place therefore requires either
 > re-entering the affected secrets by hand or a one-off migration written for
 > your deployment. An online rotation command is roadmap work; until it lands,
 > treat DEK rotation as a manual, planned operation.
 
-### Option A—re-enter secrets (no custom tooling)
+### Option A: re-enter secrets (no custom tooling)
 
 This is the supported path when you have a manageable number of credentials.
 
@@ -183,7 +183,7 @@ This is the supported path when you have a manageable number of credentials.
    be replaced. Keep the old key file until you have confirmed every secret is
    re-entered, in case you need to roll back.
 
-### Option B—offline re-encryption (custom)
+### Option B: offline re-encryption (custom)
 
 For a large credential set, write a one-off program that opens the database,
 decrypts each ciphertext column with the old DEK, re-encrypts it with the new

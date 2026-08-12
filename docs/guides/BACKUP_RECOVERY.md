@@ -1,6 +1,6 @@
 # Backup and recovery
 
-**Last updated:** 2026-07-14 · **Applies to:** OpenWatch v0.5.0 (Eyrie, Go single-binary)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers backup, restore, and disaster recovery for an OpenWatch
 deployment. OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves
@@ -73,7 +73,7 @@ The timestamp uses UTC (ISO 8601). For a plain-text dump you can inspect, drop
 ### Configuration and keys
 
 Back up the encryption keys and secrets alongside the database dump. These are
-secrets—store them encrypted and restrict access.
+secrets: store them encrypted and restrict access.
 
 ```bash
 tar czf - \
@@ -212,7 +212,7 @@ on database size and your storage.
 These cover the common operational alarms for the single binary on `systemd`
 with PostgreSQL.
 
-### SERVICE_DOWN—the API is unreachable
+### SERVICE_DOWN: the API is unreachable
 
 ```bash
 sudo systemctl status openwatch
@@ -235,7 +235,7 @@ Common causes and checks:
 After fixing the cause: `sudo systemctl restart openwatch`, then
 `curl -k https://localhost:8443/api/v1/health`.
 
-### DISK_FULL—a filesystem is out of space
+### DISK_FULL: a filesystem is out of space
 
 ```bash
 df -h
@@ -254,12 +254,12 @@ Likely sources and actions:
   OpenWatch uses a write-on-change transaction model (one row per host×rule plus
   change records), so steady-state growth is bounded; sudden growth usually
   means the audit-event or job-queue tables. Investigate before deleting
-  rows—do not hand-edit OpenWatch tables.
+  rows. Do not hand-edit OpenWatch tables.
 
 If the service stopped because the disk filled, restart it after freeing space:
 `sudo systemctl restart openwatch`.
 
-### HIGH_CPU—the host is CPU-saturated
+### HIGH_CPU: the host is CPU-saturated
 
 ```bash
 top -b -n1 | head -20
@@ -280,7 +280,7 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 - As a last resort, `sudo systemctl restart openwatch` clears any runaway
   in-process loop without losing data (queued jobs resume).
 
-### SECURITY_INCIDENT—suspected compromise
+### SECURITY_INCIDENT: suspected compromise
 
 1. **Preserve evidence first.** Capture the journal and audit trail before
    changing anything:
@@ -304,7 +304,7 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
    - Rotating the JWT signing key (`/etc/openwatch/keys/jwt_private.pem`)
      invalidates all existing sessions and forces re-login.
    - The credential DEK (`/etc/openwatch/keys/credential.key`) cannot be rotated
-     by swapping the file alone—stored credentials are encrypted under it. Do
+     by swapping the file alone: stored credentials are encrypted under it. Do
      not replace it without a migration path, or stored host credentials become
      undecryptable.
 

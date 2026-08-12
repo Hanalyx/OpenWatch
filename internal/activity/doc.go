@@ -2,7 +2,7 @@
 // + audit_events into a single time-ordered feed, with per-source
 // RBAC and seek-cursor pagination.
 //
-// Spec: app/specs/system/activity.spec.yaml (status: approved).
+// Spec: specs/system/activity.spec.yaml (status: approved).
 //
 // Architectural notes:
 //

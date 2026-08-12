@@ -98,6 +98,11 @@ type handlers struct {
 	// projected lift). Set via (*Server).WithRemediation; nil makes the
 	// remediation endpoints 503. Spec api-remediation.
 	remediationSvc *remediation.Service
+	// remediationPlan previews what a fix would do, without changing the host.
+	// Nil when the Kensa rule corpus is unavailable, which makes the plan
+	// endpoint 503 rather than pretending the preview is empty. Spec
+	// api-remediation.
+	remediationPlan kensa.PlanFunc
 
 	// Host group service (sites + OS categories). Set via
 	// (*Server).WithGroups; nil makes the group endpoints 503.
@@ -173,7 +178,7 @@ func newHandlers(pool *pgxpool.Pool) *handlers {
 }
 
 // GetHealth implements api.ServerInterface.GetHealth.
-// Spec: app/specs/api/health.spec.yaml.
+// Spec: specs/api/health.spec.yaml.
 func (h *handlers) GetHealth(w http.ResponseWriter, r *http.Request) {
 	// 2-second timeout per spec constraint.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -209,7 +214,7 @@ func (h *handlers) GetVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 // PostDiagnosticsEcho implements api.ServerInterface.PostDiagnosticsEcho.
-// Spec: app/specs/api/diagnostics-echo.spec.yaml.
+// Spec: specs/api/diagnostics-echo.spec.yaml.
 func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsEchoParams) {
 	// Per spec AC-3: Idempotency-Key is required (oapi-codegen enforces
 	// header presence via the params struct).
@@ -261,7 +266,7 @@ func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, p
 }
 
 // GetLicense returns the current runtime license state.
-// Spec: app/specs/api/license.spec.yaml AC-1, AC-2, AC-3.
+// Spec: specs/api/license.spec.yaml AC-1, AC-2, AC-3.
 func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 	state := license.CurrentState()
 
@@ -276,7 +281,13 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 		resp.Tier = api.LicenseStateResponseTier(lic.Tier)
 		resp.Status = api.LicenseStateResponseStatus(lic.Status)
 		resp.Features = featuresToStrings(lic.Features)
-		resp.CustomerId = &lic.CustomerID
+		// customer_id identifies the paying organization. The tier, status and
+		// feature list are operational facts a UI needs before login, but the
+		// customer identity is not, and this route is reachable anonymously.
+		// Disclose it only to a caller who can already read system config.
+		if auth.FromContext(r.Context()).HasPermission(auth.SystemRead) {
+			resp.CustomerId = &lic.CustomerID
+		}
 		exp := lic.ExpiresAt
 		resp.ExpiresAt = &exp
 		grace := lic.InGracePeriod
@@ -288,8 +299,15 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostAdminLicenseVerify dry-run validates a JWT without installing.
-// Spec: app/specs/api/license.spec.yaml AC-4, AC-5, AC-6.
+// Spec: specs/api/license.spec.yaml AC-4, AC-5, AC-6.
 func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request) {
+	// Anonymous, this is a signature and entitlement oracle on an /admin/
+	// path: submit any JWT and learn whether it verifies, which tier and
+	// features it carries, when it expires, and whether it was signed with the
+	// previous key. That last one leaks key-rotation state. Admin read.
+	if denied := auth.EnforcePermission(w, r, auth.SystemRead); denied {
+		return
+	}
 	var req api.LicenseVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
@@ -331,7 +349,7 @@ func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request
 // Checks the premium_diagnostics feature gate via license.EnforceFeature
 // (oapi-codegen-mounted routes can't easily take per-route middleware).
 //
-// Spec: app/specs/api/license.spec.yaml AC-7, AC-9.
+// Spec: specs/api/license.spec.yaml AC-7, AC-9.
 func (h *handlers) PostDiagnosticsPremiumEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsPremiumEchoParams) {
 	// License gate FIRST so we don't burn an audit event for input that
 	// would have been denied anyway.
@@ -394,7 +412,7 @@ func stageZeroFreeFeatures() []string {
 }
 
 // GetAuditEvents implements api.ServerInterface.GetAuditEvents.
-// Spec: app/specs/api/audit-events-query.spec.yaml.
+// Spec: specs/api/audit-events-query.spec.yaml.
 func (h *handlers) GetAuditEvents(w http.ResponseWriter, r *http.Request, params api.GetAuditEventsParams) {
 	// The audit trail is security-sensitive (actor ids, IPs, resource ids,
 	// action detail). Require audit:read; an anonymous/unauthorized caller
@@ -578,7 +596,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	_, _ = w.Write(body)
 }
 
-// writeError emits the canonical error envelope per app/api/error_codes.yaml.
+// writeError emits the canonical error envelope per api/error_codes.yaml.
 func writeError(w http.ResponseWriter, status int, code, fault, msg string, retryable bool) {
 	env := api.ErrorEnvelope{}
 	env.Error.Code = code
@@ -807,6 +825,14 @@ func (h *handlers) PostDiagnosticsEvaluateAlert(w http.ResponseWriter, r *http.R
 // carrying the request's correlation_id.
 // Spec release-stage-0-signoff AC-10.
 func (h *handlers) PostDiagnosticsEnqueueTestJob(w http.ResponseWriter, r *http.Request) {
+	// This writes to the REAL job queue. Unauthenticated it is a denial-of-
+	// service primitive and a source of unbounded table growth: anyone who can
+	// reach the port can enqueue without limit. It is a Stage-0 walking-
+	// skeleton demo, so gate it behind the same permission as any other
+	// system-mutating operation.
+	if denied := auth.EnforcePermission(w, r, auth.SystemConfigWrite); denied {
+		return
+	}
 	jobID, err := queue.Enqueue(r.Context(), h.pool, "diagnostics.test_job", nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "queue.enqueue_failed", "server",

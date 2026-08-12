@@ -708,7 +708,7 @@ paths:
     post:
       summary: Apply remediation to failed findings
       description: |
-        **MAYBE feature in Phase 1 triage.** License-gated (OpenWatch+).
+        **MAYBE feature in Phase 1 triage.** License-gated (OpenWatch Enterprise).
         Creates a remediation request from this scan's failed findings.
       x-required-permission: REMEDIATION_WRITE
       x-required-feature: remediation_execution

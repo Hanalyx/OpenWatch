@@ -321,6 +321,30 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      summary: What this deployment is entitled to use
+      description: |
+        The paywall, made visible. Returns every registered capability with
+        whether THIS deployment can use it, so the interface can lock or
+        upsell a control instead of letting a Community user click it and
+        collect a 402.
+
+        Deliberately unauthenticated, like GET /license: a pre-login screen
+        needs to know what the deployment offers. It exposes no customer
+        identity and no license key material, only capability ids, their tier,
+        and whether each is available here.
+
+        There are no quotas. Tiering is by capability alone: OpenWatch does not
+        cap hosts, scans, or users.
+      responses:
+        '200':
+          description: Capability set for this deployment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CapabilitiesResponse'}
+
   /api/v1/license:
     get:
       operationId: getLicense
@@ -1475,7 +1499,7 @@ paths:
               schema: {$ref: '#/components/schemas/IntelligenceConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1524,7 +1548,7 @@ paths:
               schema: {$ref: '#/components/schemas/DiscoveryConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1548,7 +1572,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/DiscoverySweepResponse'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1603,7 +1627,7 @@ paths:
     put:
       operationId: putSystemComplianceConfig
       summary: Set the default compliance lens (framework family, or empty for All rules)
-      x-required-permission: system:config:write
+      x-required-permission: system:config_write
       requestBody:
         required: true
         content:
@@ -1621,7 +1645,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '403':
-          description: Caller lacks system:config:write
+          description: Caller lacks system:config_write
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1671,7 +1695,7 @@ paths:
               schema: {$ref: '#/components/schemas/ScanConfig'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -1769,7 +1793,7 @@ paths:
               schema: {$ref: '#/components/schemas/ScanVariableOverrides'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '403':
-          description: Caller lacks system:config:write permission
+          description: Caller lacks system:config_write permission
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -2042,7 +2066,7 @@ paths:
   # ===========================================================================
   # Remediation (Phase 7). Free core: request -> approve | reject + projected
   # lift (see-and-govern). The act verbs (:dry-run, :execute, :rollback) are
-  # OpenWatch+ licensed (remediation_execution) and return 402 on the free
+  # OpenWatch Enterprise licensed (remediation_execution) and return 402 on the free
   # tier. Spec api-remediation; plan docs/engineering/remediation_core_plan.md.
   # ===========================================================================
   /api/v1/remediation/requests:
@@ -2060,7 +2084,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+            enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed, staged, reverted, not_applied, partially_applied]
         - name: host_id
           in: query
           required: false
@@ -2158,7 +2182,7 @@ paths:
       description: |
         Per-step Kensa transaction journal (Capture/Apply/Validate/Commit
         outcomes). Empty until the request is executed (executing is the
-        OpenWatch+ licensed track). RBAC: remediation:read. Spec
+        OpenWatch Enterprise licensed track). RBAC: remediation:read. Spec
         api-remediation.
       x-required-permission: remediation:read
       parameters:
@@ -2179,6 +2203,57 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '403':
           description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
+  /api/v1/remediation/requests/{rid}/plan:
+    get:
+      operationId: getRemediationPlan
+      summary: Preview what a remediation would do, without changing the host
+      description: |
+        Asks Kensa to plan the request's rule against its host: the apply steps
+        that would run, the validators that would check them, and how each
+        would be reversed. Read-only. Kensa captures pre-state during planning
+        but does not apply anything.
+
+        This reaches the host over SSH, so it is a live call and fails the way
+        a scan does when the host is unreachable. It is not cached: a plan
+        describes the host as it is now, and a stale preview is worse than none.
+
+        Free core, like the single-rule fix it previews. RBAC:
+        remediation:read. Spec api-remediation.
+      x-required-permission: remediation:read
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationPlan'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '502':
+          description: |
+            The host could not be planned against (unreachable, auth, or sudo).
+            The body names which.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: Planning is unavailable because the Kensa rule corpus is not loaded
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -2680,6 +2755,10 @@ paths:
   /api/v1/reports:generate:
     post:
       operationId: postReportGenerate
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Generate a Fleet Compliance Executive Summary
       description: |
         Computes a point-in-time posture snapshot from current data
@@ -2767,6 +2846,10 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
       operationId: createReportSchedule
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Create a report delivery schedule
       description: |
         Schedules a report to generate on a daily/weekly/monthly cadence and
@@ -2934,6 +3017,10 @@ paths:
   /api/v1/reports/{id}/export:
     get:
       operationId: getReportExport
+      # Gated on the REQUEST, not the route: only report kind `attestation`
+      # requires the entitlement. The rest of this route is free, so a
+      # route-level x-required-feature would be a false claim.
+      x-conditional-feature: compliance_attestation
       summary: Download a rendered face of a report (PDF, JSON, CSV, or OSCAL SAR)
       description: |
         Streams a rendered face of the report as a downloadable
@@ -5309,11 +5396,30 @@ components:
         correlation_id: {type: string}
         audit_event_id: {type: string, format: uuid}
 
+    CapabilitiesResponse:
+      type: object
+      required: [tier, status, capabilities]
+      properties:
+        tier: {type: string, enum: [free, enterprise]}
+        status: {type: string, enum: [active, grace, expired, no_license, invalid]}
+        capabilities:
+          type: array
+          items: {$ref: '#/components/schemas/Capability'}
+
+    Capability:
+      type: object
+      required: [id, tier, available, description]
+      properties:
+        id:          {type: string, description: 'Registry id, e.g. remediation_execution'}
+        tier:        {type: string, enum: [free, enterprise]}
+        available:   {type: boolean, description: 'Whether THIS deployment may use it now'}
+        description: {type: string}
+
     LicenseStateResponse:
       type: object
       required: [tier, status, features]
       properties:
-        tier: {type: string, enum: [free, openwatch_plus, enterprise]}
+        tier: {type: string, enum: [free, enterprise]}
         status: {type: string, enum: [active, grace, expired, no_license, invalid]}
         features: {type: array, items: {type: string}}
         customer_id: {type: string}
@@ -5744,7 +5850,7 @@ components:
         rule_id:      {type: string}
         status:
           type: string
-          enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed]
+          enum: [pending_approval, approved, rejected, dry_run_complete, executing, executed, rolled_back, failed, staged, reverted, not_applied, partially_applied]
         requested_by: {type: string, format: uuid}
         reviewed_by:  {type: string, format: uuid, nullable: true}
         review_note:  {type: string}
@@ -5784,6 +5890,10 @@ components:
         note: {type: string, description: Optional reviewer note}
 
     RemediationStep:
+      description: |
+        One rule's Kensa transaction. Note that a "step" here is a RULE, not a
+        phase: the Capture/Apply/Validate/Commit phases are in `phases`, one
+        level below.
       type: object
       required: [id, rule_id, dry_run]
       properties:
@@ -5791,11 +5901,164 @@ components:
         rule_id:   {type: string}
         mechanism: {type: string}
         phase_result:
+          description: |
+            Terminal outcome of the rule's transaction. Widened past
+            committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
           type: string
           nullable: true
-          enum: [committed, rolled_back, skipped]
+          enum: [committed, rolled_back, skipped, staged, partially_applied, not_applied]
         dry_run:    {type: boolean}
         applied_at: {type: string, format: date-time, nullable: true}
+        phases:
+          description: |
+            The per-phase journal Kensa returned, in execution order. `detail`
+            is the engine's own account of what each phase did, and is the
+            answer to why a remediation failed.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPhase'}
+        pre_state:
+          description: |
+            The state captured before any change, one entry per phase, in phase
+            order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPreState'}
+
+    RemediationPlan:
+      description: |
+        What remediating one rule on one host would do. Produced by Kensa
+        without mutating the host.
+      type: object
+      required: [rule_id, steps, checks, undo, transactional, control_channel_sensitive, reversible_steps]
+      properties:
+        plan_id: {type: string, format: uuid}
+        rule_id: {type: string}
+        steps:
+          description: The apply steps that would run, in order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPlanStep'}
+        checks:
+          description: The validators that would run after apply.
+          type: array
+          items:
+            type: object
+            required: [name]
+            properties:
+              name:    {type: string}
+              summary: {type: string}
+        undo:
+          description: |
+            How each applied step would be reversed. Rollback runs this in
+            reverse order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPlanStep'}
+        reversible_steps:
+          description: |
+            How many steps Kensa actually captured pre-state for, counted from
+            the capture rather than from the rule's own claim about itself.
+          type: integer
+        transactional:
+          description: False when the steps are not all-or-nothing.
+          type: boolean
+        control_channel_sensitive:
+          description: |
+            True when a step touches SSH, networking, PAM or firewall state.
+            Kensa arms a deadman timer before applying such a transaction, so
+            a fix that could lock you out reverts itself if you lose contact.
+          type: boolean
+        warnings:
+          description: Kensa's own operator-facing notices about this plan.
+          type: array
+          items: {type: string}
+        before:
+          description: |
+            What Kensa found on the host while planning, one entry per step.
+            Computed live and never stored, because a plan describes the host
+            as it is now.
+          type: array
+          items:
+            type: object
+            required: [index, mechanism]
+            properties:
+              index:     {type: integer}
+              mechanism: {type: string}
+              summary:   {type: string}
+        estimated_seconds: {type: number}
+        captured_at:       {type: string, format: date-time}
+
+    RemediationPlanStep:
+      type: object
+      required: [index, mechanism]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        summary:
+          description: Kensa's human-readable description of the action.
+          type: string
+        capturable:
+          description: False when this step cannot be reversed.
+          type: boolean
+
+    RemediationPreState:
+      description: |
+        One phase's captured pre-change state.
+
+        `data` is mechanism-specific and is passed through from Kensa without
+        interpretation. OpenWatch has no schema for it and deliberately does
+        not decode it: each capturable handler defines its own layout, so
+        reading it here would couple this contract to Kensa handler internals.
+        Clients should treat it as opaque evidence unless they know the
+        mechanism.
+      type: object
+      required: [index, mechanism, capturable]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        capturable:
+          description: False for phases whose mechanism cannot capture pre-state; `data` is then empty.
+          type: boolean
+        summary:
+          description: |
+            Kensa's one-line rendering of what was captured, from the handler
+            that captured it.
+
+            Display text, not evidence. It carries no stability guarantee and
+            may change between Kensa releases, which is why the transaction
+            records the Kensa version that produced it. `data` remains the
+            authoritative capture. Elided by construction so no file body
+            appears, and a credential named inside a config line is redacted,
+            but it is not a secret scanner: treat it as operator-visible text.
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    RemediationPhase:
+      description: One Capture/Apply/Validate/Commit phase of a rule's transaction.
+      type: object
+      required: [index, mechanism, success, capturable, staged, stranded]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        detail:
+          description: Human-readable account of what this phase did, or why it did not.
+          type: string
+        success:   {type: boolean}
+        capturable:
+          description: |
+            False when this phase's mechanism cannot record pre-state, which is
+            what makes a rule non-rollbackable.
+          type: boolean
+        staged:
+          description: |
+            True when the change was written to the persist layer but the
+            running host has not converged, so a re-scan still reports the rule
+            failing until reboot.
+          type: boolean
+        stranded:
+          description: |
+            True for a non-capturable phase that succeeded before a later
+            failure. Rollback does NOT reverse it.
+          type: boolean
 
     RemediationStepList:
       type: object

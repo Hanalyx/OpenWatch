@@ -107,9 +107,8 @@ export function IntegrationsPage() {
 
 // ── About ───────────────────────────────────────────────────────────────
 const LICENSE_TIER_LABEL: Record<string, string> = {
-  free: 'Open-core',
-  openwatch_plus: 'OpenWatch+',
-  enterprise: 'Enterprise',
+  free: 'OpenWatch Community',
+  enterprise: 'OpenWatch Enterprise',
 };
 const LICENSE_STATUS: Record<string, { label: string; tier: 'ok' | 'warn' | 'crit' }> = {
   active: { label: 'Active', tier: 'ok' },

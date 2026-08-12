@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "1.0.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -132,3 +132,64 @@ spec:
       description: "Built-in role grants match the remediation/exception governance matrix, locking separation of duties against drift. Remediation: ops_lead grants request/execute/rollback but NOT approve; remediation:approve is held only by security_admin and admin; viewer/auditor cannot request remediation. Exceptions: auditor grants request/approve, ops_lead grants request but NOT approve, revoke is security_admin/admin only. viewer holds only remediation:read/exception:read of the governed categories; admin holds all. Verified against BuiltInRoles so a permissions.yaml edit that breaks the matrix fails the build."
       priority: critical
       references_constraints: [C-08]
+    - id: AC-18
+      description: >
+        Per-route enforcement is structurally guaranteed, not remembered. Every
+        operation in api/openapi.yaml that declares x-required-permission MUST
+        have a handler that enforces the matching codegen-typed constant from
+        internal/auth/permissions.gen.go, and the declared permission MUST exist
+        in the registry. A handler that omits the check, or a contract that
+        names a permission the registry does not have, fails the build. The
+        check follows delegation to a same-receiver helper (several handlers are
+        thin wrappers whose enforcement lives one call down), so a false
+        positive cannot be "fixed" by weakening it. Before this AC the
+        x-required-permission declarations were decorative: nothing linked the
+        contract to the code, and the link was maintained by review alone.
+      priority: critical
+    - id: AC-19
+      description: >
+        The anti-escalation guard fails CLOSED on any role it cannot resolve.
+        RoleGrantsWithin previously returned true (allow) for every role absent
+        from the built-in registry, on the reasoning that an unknown role
+        confers nothing. That reasoning does not hold for a CUSTOM role: it
+        exists, it is not built in, and the downstream existence check accepts
+        it, so the guard passed for every custom role on both the role-assign
+        and the API-token-mint paths. The guard MUST now distinguish three
+        states and treat them differently. A role that RESOLVES is evaluated
+        against its actual permission set, whether built in or custom. A role
+        that is INDETERMINATE (no resolver, or the lookup failed) is DENIED,
+        because the guard cannot show the grant is within the caller's
+        authority and a database fault must not open it. A role that is
+        PROVABLY ABSENT passes the guard, because it confers nothing and the
+        downstream existence check rejects it as bad input; denying there would
+        turn a client typo into an authorization error and change the
+        documented 400 for an unknown role id into a 403.
+      priority: critical
+    - id: AC-20
+      description: >
+        A caller MUST NOT author a custom role granting a permission they do
+        not themselves hold. Validating that a permission is registered is not
+        the same as validating the author may confer it: authoring an
+        over-broad role and then having it assigned is a two-step escalation
+        that neither step catches alone. CreateCustomRole rejects with
+        ErrRoleExceedsGrant and names the offending permissions so the API can
+        return them.
+      priority: critical
+    - id: AC-21
+      description: >
+        Privileged surfaces are not reachable anonymously, and identity is not
+        disclosed to a caller who has none. POST /diagnostics:enqueue-test-job
+        writes to the real job queue and MUST require an admin-mutating
+        permission: unauthenticated it is a denial-of-service primitive and a
+        source of unbounded table growth. POST /admin/license:verify MUST
+        require an admin read: anonymously it answers whether any submitted JWT
+        verifies and reports its tier, features, expiry, and whether it was
+        signed with the previous key, which leaks key-rotation state. POST
+        /hosts/{id}/connectivity:check MUST require host:connectivity_check
+        rather than host:read, because it makes the server open an SSH or ICMP
+        connection to a managed host on demand; that is a side effect, not a
+        read, and viewer and auditor therefore lose it. GET /license MUST omit
+        customer_id unless the caller holds system:read, since the tier and
+        feature list are operational facts a pre-login UI needs but the paying
+        organisation's identity is not.
+      priority: critical
