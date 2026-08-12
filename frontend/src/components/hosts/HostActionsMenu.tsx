@@ -20,7 +20,7 @@ import { EditHostModal } from '@/components/hosts/EditHostModal';
 // is self-contained so it fetches there too. After a delete, the detail
 // variant navigates back to /hosts; the list variant just invalidates.
 //
-// Dropdown behaviour (Escape + click-outside to close) mirrors the shell
+// Dropdown behavior (Escape + click-outside to close) mirrors the shell
 // AccountMenu.
 
 interface FullHost {

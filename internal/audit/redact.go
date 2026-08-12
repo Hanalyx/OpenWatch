@@ -6,7 +6,7 @@ import (
 )
 
 // SensitiveFields enumerates the JSON keys that get scrubbed pre-write.
-// Per app/docs/audit_event_taxonomy.md §6 and app/specs/system/audit-emission.spec.yaml
+// Per docs/engineering/audit_event_taxonomy.md §6 and specs/system/audit-emission.spec.yaml
 // AC-8, AC-9, AC-10.
 //
 // Lowercase comparison; matches are exact (no partial). Adding a field
@@ -31,7 +31,7 @@ const RedactedPlaceholder = "<REDACTED>"
 // path use bracket notation (e.g., "creds[0].password") so support can
 // find the exact location.
 //
-// Behaviour preserved on malformed input: if the JSON can't be parsed,
+// Behavior preserved on malformed input: if the JSON can't be parsed,
 // it's returned unchanged with an empty redactions slice — the event
 // still writes (audit always wins) but flagged via the dropped metric.
 func Redact(detail json.RawMessage) (json.RawMessage, []string) {

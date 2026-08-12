@@ -172,7 +172,7 @@ describe('frontend-remediation-tab — source inspection', () => {
     expect(PAGE).toContain("new Set(['executed', 'staged'])");
 
     // Reverted: NEUTRAL, deliberately not critical. Kensa restored the host
-    // itself; colouring that red teaches operators to ignore red.
+    // itself; coloring that red teaches operators to ignore red.
     expect(TAB_REGION).toContain('Reverted, host unchanged');
     expect(PAGE).toContain("reverted: { fg: 'var(--ow-fg-2)'");
     expect(PAGE).not.toContain("reverted: { fg: 'var(--ow-crit)'");

@@ -988,7 +988,7 @@ func TestExport_FleetOSCALSAR(t *testing.T) {
 // The attestation kind also renders a bounded PDF cover face (face 'pdf',
 // kind-dispatched): a one-page A4 document driven by an aggregate rollup
 // (pass/fail/total counts + a sampled top-failing list) computed from the
-// frozen scans, never the per-(host, rule) rows. The rollup honours the
+// frozen scans, never the per-(host, rule) rows. The rollup honors the
 // framework lens; the PDF is cached and re-served from report_faces.
 func TestExport_AttestationPDF(t *testing.T) {
 	t.Run("api-reports/AC-21", func(t *testing.T) {

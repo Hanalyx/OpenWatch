@@ -39,7 +39,7 @@ import { usePreferencesStore } from '@/store/usePreferencesStore';
 
 // HostsListPage — Host Management surface, prototype-faithful.
 //
-// Layout matches app/docs/prototypes/openwatch-v1/Host Management.html
+// Layout matches (archived) docs/prototypes/openwatch-v1/Host Management.html
 // pixel-for-pixel:
 //
 //   • Breadcrumb "Infrastructure / Hosts" (set into TopBar via Zustand)
@@ -218,7 +218,7 @@ export function HostsListPage() {
     });
   }, [visible]);
 
-  // v1.7.0 — partition the sorted list into labelled sections when a Group
+  // v1.7.0 — partition the sorted list into labeled sections when a Group
   // is active (None yields a single anonymous section). Spec C-10.
   const groups = useMemo(() => groupHosts(sorted, group), [sorted, group]);
 

@@ -80,7 +80,7 @@ export interface TargetField {
 }
 
 // Maps onto HostCreateRequest in the Go API. Stays in sync with
-// app/api/openapi.yaml § HostCreateRequest.
+// api/openapi.yaml § HostCreateRequest.
 export const TARGET_FIELDS: TargetField[] = [
   { value: 'hostname', label: 'Hostname', required: true, description: 'System hostname or name' },
   { value: 'ip_address', label: 'IP Address', required: true, description: 'IPv4 or IPv6 address' },

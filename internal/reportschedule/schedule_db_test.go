@@ -1,7 +1,7 @@
 // @spec system-report-schedule
 //
 // AC traceability:
-//   AC-01  ComputeNextRun honours daily/weekly/monthly cadence at the hour
+//   AC-01  ComputeNextRun honors daily/weekly/monthly cadence at the hour
 //   AC-02  Create computes a future next_run; Due returns past-due enabled
 //          schedules; the dispatcher generates + renders + delivers + advances
 

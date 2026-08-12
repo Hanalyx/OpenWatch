@@ -4,7 +4,7 @@
 // host.discovery jobs through internal/queue so the worker pool
 // picks them up and runs discovery.Service.Discover on them.
 //
-// Spec: app/specs/system/discovery-scheduler.spec.yaml (status: approved).
+// Spec: specs/system/discovery-scheduler.spec.yaml (status: approved).
 //
 // Architectural notes:
 //

@@ -12,7 +12,7 @@ import (
 type WriterOptions struct {
 	// ChannelBuffer is the size of the in-flight queue. Overflow drops
 	// events (Emit returns immediately) and increments pkgDropped.
-	// Default: 1024 per app/specs/system/audit-emission.spec.yaml.
+	// Default: 1024 per specs/system/audit-emission.spec.yaml.
 	ChannelBuffer int
 
 	// BatchSize caps how many events the writer flushes in one DB INSERT

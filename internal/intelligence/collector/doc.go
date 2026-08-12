@@ -1,7 +1,7 @@
 // Package collector implements OS Intelligence — the recurring,
 // write-on-change counterpart to OS Discovery.
 //
-// Spec: app/specs/system/os-intelligence.spec.yaml (status: approved).
+// Spec: specs/system/os-intelligence.spec.yaml (status: approved).
 //
 // Architectural notes:
 //

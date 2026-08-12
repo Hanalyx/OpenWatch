@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 // Auth store — identity cache and session lifecycle hooks.
 //
-// Per app/docs/frontend_architecture_adr.md D-08, the browser
+// Per docs/engineering/frontend_architecture_adr.md D-08, the browser
 // frontend uses session-cookie auth. The session cookie itself is
 // HttpOnly and not readable from JS; this store mirrors the identity
 // returned by GET /api/v1/auth/me so components can render

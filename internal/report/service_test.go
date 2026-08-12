@@ -104,7 +104,7 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 			t.Errorf("nil compliance_pct = %s, want null", nilMap["compliance_pct"])
 		}
 		// An unset top-failing slice still serializes as [] (never JSON null)
-		// is only guaranteed by the service initialising it; the zero value
+		// is only guaranteed by the service initializing it; the zero value
 		// here is nil and serializes as null, which the service avoids by
 		// assigning an empty slice. Assert the service's contract indirectly:
 		// an explicitly empty slice serializes as [].
@@ -188,7 +188,7 @@ func TestExecutiveConstants_Derivation(t *testing.T) {
 // scope_label is derived from the resolved scope: the group name (or "All
 // hosts") optionally suffixed with the framework family. The framework key
 // is shortened to its family token (before the first underscore),
-// uppercased. Pure, so the labelling contract is unit-tested directly.
+// uppercased. Pure, so the labeling contract is unit-tested directly.
 func TestScopeLabel_Derivation(t *testing.T) {
 	t.Run("api-reports/AC-07", func(t *testing.T) {
 		gid := uuid.New()

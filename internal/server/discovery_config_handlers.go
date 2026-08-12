@@ -1,6 +1,6 @@
 // OS discovery scheduler HTTP config + sweep surface.
 //
-// Spec: app/specs/api/system-discovery-config.spec.yaml
+// Spec: specs/api/system-discovery-config.spec.yaml
 //
 // Mirrors intelligence_config_handlers.go verbatim — same shape, same
 // validation/audit pattern. The sweep handler is the only divergence:

@@ -17,7 +17,7 @@ import (
 // the generated handler (the codegen wrapper makes it awkward to inject
 // per-route middleware after HandlerFromMux runs).
 //
-// Spec: app/specs/system/license-features.spec.yaml AC-10, AC-11.
+// Spec: specs/system/license-features.spec.yaml AC-10, AC-11.
 func RequireFeature(f Feature) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -46,7 +46,7 @@ describe('frontend-remediation-tab AC-10 - preview before the fix runs', () => {
 
   // @ac AC-10
   test('frontend-remediation-tab/AC-10 - an unexecuted request shows the plan, not an empty panel', () => {
-    // The old behaviour was a bare "No transaction yet". Deciding whether to
+    // The old behavior was a bare "No transaction yet". Deciding whether to
     // approve a fix needs what it WILL do, not only what it did.
     expect(journal).toContain('<PlanPreview');
     expect(journal).toMatch(/What it will change/);

@@ -110,7 +110,7 @@ func TestOpenAPIDocs_AssetsAreSameOrigin(t *testing.T) {
 }
 
 // @ac AC-04
-// AC-04: the embedded spec is byte-identical to app/api/openapi.yaml.
+// AC-04: the embedded spec is byte-identical to api/openapi.yaml.
 // Build-time copy must stay in sync.
 func TestOpenAPIDocs_EmbeddedMatchesSource(t *testing.T) {
 	t.Run("api-openapi-docs/AC-04", func(t *testing.T) {
