@@ -203,7 +203,7 @@ func TestEventsStream_NoBearerTokenViaQueryString(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: cancelling the request context drains the handler within
+// AC-07: canceling the request context drains the handler within
 // 500ms and leaves no subscribers behind on the bus.
 func TestEventsStream_DisconnectsOnContextCancel(t *testing.T) {
 	t.Run("api-events-stream/AC-07", func(t *testing.T) {

@@ -1,6 +1,6 @@
 // OS Intelligence read API — GET /intelligence/events + /intelligence/state.
 //
-// Spec: app/specs/api/os-intelligence.spec.yaml.
+// Spec: specs/api/os-intelligence.spec.yaml.
 
 package server
 

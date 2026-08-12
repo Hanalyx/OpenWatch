@@ -5,7 +5,7 @@
 // no event bus, no alert router, no liveness probe. The worker is
 // HTTP-free (system-worker-subcommand C-11 / AC-17).
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml
+// Spec: specs/system/worker-subcommand.spec.yaml
 
 package main
 
@@ -46,7 +46,7 @@ import (
 // loop exits cleanly (SIGTERM received and any in-flight job applied)
 // or fatally (config / DB / boot prerequisite failure).
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml AC-13, AC-16, AC-17.
+// Spec: specs/system/worker-subcommand.spec.yaml AC-13, AC-16, AC-17.
 func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("worker", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -207,7 +207,9 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	// remediate share one per-host inFlight guard. The apply-enabled Kensa
 	// needs a durable SQLite store for rollback pre-state.
 	remExecutor := executor
-	remFn, rbFn, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
+	// The worker never serves the plan preview: that is a synchronous API
+	// read, so the closure is discarded here.
+	remFn, rbFn, _, remErr := kensa.NewProductionRemediateFunc(bootCtx, kensa.RemediateFuncDeps{
 		Pool:        pool,
 		Credentials: credSvc,
 		RulesDir:    rulesDir,

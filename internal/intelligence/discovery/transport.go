@@ -83,7 +83,7 @@ func dialReal(ctx context.Context, host string, port int, cred *credential.Crede
 // WithProfiles enables per-host SSH auth-method learning: the transport
 // leads the dial with the host's recorded method and records which method
 // authenticated. The host id comes from connprofile.WithHostID on the ctx.
-// nil (the default) keeps the historical key-first, no-learning behaviour.
+// nil (the default) keeps the historical key-first, no-learning behavior.
 func (t *SSHTransportProd) WithProfiles(p ConnProfileStore) *SSHTransportProd {
 	t.profiles = p
 	return t

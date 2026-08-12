@@ -1,6 +1,6 @@
 # Host management and remediation
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers adding and managing hosts, organizing them into groups,
 understanding server intelligence data, and using automated remediation to fix
@@ -216,14 +216,15 @@ installed on target hosts.
 5. Select **Start Remediation** to confirm.
 
 
-In the free-core edition, a single-rule remediation request auto-approves on
-submission. There is no separate approval step, and no per-organization toggle
-to require one. The request is still recorded and audited (with a note that
-it was auto-approved), and a user with `remediation:execute` applies it.
+Fixing one rule on one host, with rollback, is free. A single-rule remediation
+request auto-approves on submission. There is no separate approval step, and no
+per-organization toggle to require one. The request is still recorded and audited
+(with a note that it was auto-approved), and a user with `remediation:execute`
+applies it.
 
-**Roadmap (licensed tier).** A request/approve/reject workflow with
-separation of duties is planned for the licensed bulk/automated remediation
-track, not yet available today:
+**Roadmap (Enterprise).** A request/approve/reject workflow with separation of
+duties is planned for the Enterprise bulk and automated remediation track, not
+yet available today:
 
 1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
    selects findings, chooses **Request Remediation**, and enters a justification.
@@ -243,12 +244,40 @@ After starting a remediation, track its progress on the host detail page
 under the **Remediation** tab.
 
 
-The progress view shows:
+Each request is one rule on one host. Expanding a row shows either what the
+fix will do, or what it did.
 
-- **Job status**: pending, running, completed, failed, partial, cancelled
-- **Progress percentage**: how many rules have been processed
-- **Per-rule results**: which fixes succeeded, failed, or were skipped
-- **Execution log**: timestamps and details for each step
+**Before it runs.** Expanding an approved request plans the fix against the
+host and shows the result without changing anything:
+
+- **What is there now**: the state the engine found on the host.
+- **What it will change**: the steps that would be applied.
+- **How it will be checked**: after applying, the rule's own check runs again,
+  and the captured state is restored if it does not pass.
+- **How it can be undone**, including how many steps can be reversed. That
+  count comes from what was actually captured, not from what the rule claims.
+
+A fix that touches SSH, networking, PAM or firewall state is called out. The
+engine arms a timer before applying such a change, so it reverts by itself if
+the host stops answering.
+
+Planning contacts the host, so it fails the way a scan does if the host is
+unreachable. When that happens the panel says nothing was changed.
+
+**After it runs.** Expanding an executed request shows the transaction the
+engine performed, phase by phase, with its own account of each:
+
+- **Capture**, **Apply**, **Validate**, **Commit** or **Rollback**, each with
+  the detail the engine recorded. When a fix fails, this is where the reason
+  is.
+- **Before**: a one-line summary of the state captured for each step, with the
+  full captured state available beneath it. The summary is for reading; the
+  full capture is the evidence.
+
+Three things are called out in words, because none can be inferred from the
+status alone: a step that rollback will not reverse, a change that was written
+but is not live until the host reboots, and a step that cannot be rolled back
+at all.
 
 ---
 
@@ -256,6 +285,12 @@ The progress view shows:
 
 Pre-state snapshots are captured automatically before any remediation changes.
 If a remediation causes problems, you can roll back to the pre-change state.
+
+Not every request offers a rollback, and the absence of the control is
+meaningful. A request that reports no change was made because the host already
+satisfied the rule has nothing to restore, so no rollback is offered. Steps
+whose mechanism cannot capture pre-state are named in the transaction view for
+the same reason.
 
 ### From the UI
 
@@ -358,8 +393,8 @@ group also needs `match_family`). Add a host to a manual group via
 ### Request and execute remediation
 
 Remediation is a request lifecycle, not a single call: request a fix for a
-failing rule on a host, then execute it (free-core single-rule fixes
-auto-approve on request; the licensed bulk track keeps the approve/reject step).
+failing rule on a host, then execute it. Single-rule fixes are free and
+auto-approve on request. The Enterprise bulk track keeps the approve/reject step.
 
 ```bash
 # 1. Request a fix for one failing rule on one host.

@@ -135,7 +135,7 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (Policy, error) {
 }
 
 // Prime loads the persisted policy and installs its windows into the
-// identity package. Called once at server startup so sessions honour the
+// identity package. Called once at server startup so sessions honor the
 // stored policy from the first request, not just after the first Update.
 //
 // Spec system-auth-policy AC-06.

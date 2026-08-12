@@ -4,7 +4,7 @@
 // GetCertificate, locked http.Server timeouts. Day 5+ register real
 // endpoints onto the router exposed via the Routes accessor.
 //
-// Spec: app/specs/system/http-server.spec.yaml.
+// Spec: specs/system/http-server.spec.yaml.
 package server
 
 import (
@@ -150,6 +150,15 @@ func (s *Server) WithRemediation(rm *remediation.Service) *Server {
 	return s
 }
 
+// WithRemediationPlan threads the read-only plan closure into the API handlers
+// so a request can be previewed before it is approved. Nil leaves the endpoint
+// 503, which is the honest answer when the rule corpus is missing: an empty
+// preview would read as "this fix does nothing". Spec api-remediation.
+func (s *Server) WithRemediationPlan(p kensa.PlanFunc) *Server {
+	s.handlers.remediationPlan = p
+	return s
+}
+
 // WithGroups threads the host group service (sites + OS categories)
 // into the API handlers so /api/v1/groups and its sub-routes are
 // routable. Nil makes the group endpoints 503. Spec api-groups.
@@ -240,7 +249,7 @@ func (s *Server) WithReportWorker(rp worker.ReportRenderer) *Server {
 // New constructs a Server from validated config and DB pool. The returned
 // Server has the foundation middleware chain mounted (correlation first,
 // then idempotency) and the Stage-0 API routes generated from
-// app/api/openapi.yaml registered.
+// api/openapi.yaml registered.
 func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	r := chi.NewRouter()
 
@@ -267,7 +276,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// auth.Identity via the users.Service Lookups adapter. Sets a
 	// non-anonymous Identity on success (anonymous if not). Does NOT
 	// reject on its own — that's the handler's job via EnforcePermission.
-	// Per app/specs/system/auth-identity.spec.yaml AC-17.
+	// Per specs/system/auth-identity.spec.yaml AC-17.
 	usrSvc := users.NewService(pool, identity.DefaultBreachCorpus())
 	// API service-account tokens (owk_) authenticate on the bearer path
 	// via the token service; the same instance backs the /tokens handlers.
@@ -276,7 +285,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 
 	// Idempotency middleware: short-circuits replays of mutating requests
 	// that include an Idempotency-Key header. No-op for GET/HEAD/OPTIONS.
-	// Per app/specs/system/idempotency.spec.yaml.
+	// Per specs/system/idempotency.spec.yaml.
 	r.Use(idempotency.Middleware(pool))
 
 	// chi's default NotFound/MethodNotAllowed handlers short-circuit
@@ -306,10 +315,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// wire it directly rather than via an optional WithX setter.
 	apiHandlers.apiTokenSvc = apiTokenSvc
 	// The auth-policy service is likewise always available. Prime the
-	// identity session windows from the stored policy so sessions honour
+	// identity session windows from the stored policy so sessions honor
 	// it from the first request. Best-effort: a missing policy row (e.g.
 	// a test pool without the 0033 migration) leaves the identity defaults
-	// in place, which are behaviour-preserving.
+	// in place, which are behavior-preserving.
 	apiHandlers.authPolicySvc = authpolicy.NewService(pool)
 	// SSO (OIDC) is always available; it wraps the pool + the mandated
 	// outbound client. The endpoints 503 only the rare config-less paths.
@@ -331,7 +340,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// EnforcePermission, so they remain reachable for anonymous
 	// callers — reviewers in air-gapped environments can browse the
 	// docs without first bootstrapping an admin.
-	// Spec: app/specs/api/openapi-docs.spec.yaml.
+	// Spec: specs/api/openapi-docs.spec.yaml.
 	mountOpenAPIDocs(r)
 
 	cm := newCertManager(cfg.Server.TLSCert, cfg.Server.TLSKey)

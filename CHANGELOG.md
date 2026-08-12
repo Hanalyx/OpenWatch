@@ -10,6 +10,54 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] Eyrie (2026-08-04)
+
+Remediation stops being a black box. v0.7.0 could tell you a fix had been
+reverted and nothing more; this release shows what the engine did, what it
+found on the host first, and what a fix will do before you approve it.
+
+### Added
+
+- **See what a fix will do before approving it.** Expanding a remediation
+  request that has not run shows the plan: the steps that would be applied, how
+  the result will be checked, and how each step can be undone, in the engine's
+  own words rather than a restatement of the rule. It is planned against the
+  host at that moment and nothing is changed. A fix that touches SSH,
+  networking, PAM or firewall state says so, and says that the change reverts
+  itself if the host stops answering, which is what stops a hardening fix from
+  locking you out of the host you are hardening.
+- **See what happened, phase by phase.** An executed request now shows the
+  Capture, Apply, Validate and Commit phases with the engine's account of each.
+  When a fix fails you get the reason instead of only "reverted, host
+  unchanged". Three consequences are stated in words because none can be read
+  off the status: a step that rollback will not reverse, a change written but
+  not live until reboot, and a step that cannot be rolled back at all.
+- **See what was on the host before the change.** Each captured step shows a
+  one-line summary of the state that was recorded before anything was applied,
+  and the plan preview shows the same for the current host. The full captured
+  state is still available and is still what an auditor should read; the
+  summary is for the screen and is not a substitute for it.
+
+### Fixed
+
+- **A rule that was already compliant no longer looks like a fix that ran, and
+  no longer offers to roll back.** When a rule already passed, the engine
+  reported the same result as a successful remediation, so OpenWatch marked the
+  request executed, showed it as fixed, and offered a Roll back for a change
+  that never happened and captured nothing to restore. Such a request now
+  reports that no change was made, explains that the host already satisfied the
+  rule, and offers no rollback.
+- The plan preview no longer reports that a fix has no validators. Every rule
+  showed that, and it was wrong: the rule's own check re-runs after a fix is
+  applied and the captured state is restored if it does not pass. The preview
+  now says so.
+
+### Changed
+
+- **Kensa 0.9.0.** Brings the engine-side surfaces this release is built on.
+  Compliance verdicts are unchanged from 0.8.0, so fleet scores do not move on
+  upgrade.
+
 ## [0.7.0] Eyrie (2026-07-30)
 
 Enforcement and integrity. Authorization and licensing are now guaranteed by the
@@ -18,10 +66,24 @@ the host.
 
 ### Added
 
+- **`openwatch setup` installs and configures a deployment in one command.**
+  After installing the packages, run `openwatch setup` as root: it detects the
+  distribution, PostgreSQL, SELinux, FIPS and fapolicyd, shows a plan marking
+  what is already done, asks before it changes anything, then provisions
+  PostgreSQL, creates the role and database, writes the DSN, migrates, creates
+  the first administrator, opens the listen port, starts the service, and
+  confirms the API answers with `db_connected`. Every change lands in a receipt
+  at `/var/lib/openwatch/setup-receipt.json`. It is safe to re-run after a
+  part-way failure: each step reports whether it is already satisfied before it
+  acts. `--yes` runs unattended, `--save-plan` and `--plan` capture and replay a
+  configuration across a fleet, and no credential value is written to either the
+  plan or the receipt. `pg_hba.conf` is only edited with `--manage-pg-hba`, and
+  `--no-firewall` declines the port. The manual database and configuration steps
+  remain documented in the installation guide for anyone who prefers them.
 - **`GET /api/v1/capabilities`** lists every capability with whether this
   deployment can use it, so a client can show a locked or upgradable control
   instead of discovering an entitlement by receiving a `402`. Unauthenticated,
-  and it reports no customer identity or licence detail.
+  and it reports no customer identity or license detail.
 - **Remediation reports what happened, not just success or failure.** Four new
   outcomes appear on remediation requests and in the UI: `staged`, `reverted`,
   `not_applied` and `partially_applied`. A client matching on the remediation
@@ -37,6 +99,32 @@ the host.
 
 ### Changed
 
+- **OpenWatch now requires PostgreSQL 15 or newer, and will not install an
+  older one.** PostgreSQL 13 left upstream support in November 2025 and 14 does
+  so in November 2026, so neither is a supported target for a new install. RHEL
+  9 and its derivatives still default to 13, so `openwatch setup` enables the
+  `postgresql:16` module stream before installing; if you have already enabled a
+  stream, it uses yours. **An existing deployment on an older PostgreSQL keeps
+  working and keeps upgrading** - the requirement governs what a new install
+  builds, not what an existing one may run. If you ask `setup` to configure a
+  database server older than 15 that is already on the host, it refuses and
+  prints the `dnf module switch-to` and `pg_upgrade` commands rather than
+  changing your cluster's major version for you.
+- **`openwatch setup` now writes the `pg_hba.conf` rules itself when it
+  installed PostgreSQL in the same run,** so a fresh host is a single command
+  with no manual step. On a PostgreSQL that was already on the host it still
+  asks: pass `--manage-pg-hba` to let it edit the file, or add the two printed
+  lines yourself. `--no-manage-pg-hba` declines in both cases. Whenever it does
+  edit, it backs the file up, inserts its rules above the existing ones,
+  reloads, and restores the original if the reload fails.
+- **`postgresql-contrib` is no longer installed.** Nothing in OpenWatch used it:
+  no migration creates an extension, and `gen_random_uuid()` has been part of
+  core PostgreSQL since 13. One fewer package on every host.
+- **Debian 12, Ubuntu 24.04 and AlmaLinux 10 are now covered by automated
+  testing,** so `openwatch setup` runs on them without `--allow-untested`. Each
+  is installed from scratch in CI on every change, and the installer is re-run
+  to confirm it is safe to repeat. RHEL 10 and Ubuntu 22.04 are recognized but
+  still uncovered, and continue to need the flag.
 - **The paid tier is now OpenWatch Enterprise and the free tier is OpenWatch
   Community.** Wherever the API reports a license tier, the enum is now
   `free | enterprise` rather than `free | openwatch_plus`. Update any client
@@ -80,7 +168,7 @@ the host.
   server cleared your cookies but could not revoke the session or refresh token,
   which means the credential may stay valid until it expires. Treat any
   non-`204` response as "signed out here, but revoke explicitly": the previous
-  behaviour reported success either way.
+  behavior reported success either way.
 - **The permission `system:config:write` is spelled `system:config_write`** in
   the API contract. The old spelling matched no registered permission. Update
   any client or role definition that used it.
@@ -91,6 +179,18 @@ the host.
 
 ### Fixed
 
+- **OpenWatch now runs on Debian and Ubuntu. Earlier `.deb` packages could not
+  start at all.** The DEB shipped `/etc/openwatch` owned by `root:root`, and the
+  service runs as the `openwatch` user, so it exited immediately with a
+  permission error reading its own configuration. The RPM was unaffected.
+  v0.7.0 is the first release that works from the `.deb`.
+- **`openwatch setup --yes` always failed.** The default plan reads the
+  administrator password from an interactive prompt, and `--yes` makes the run
+  non-interactive, so the two could never be combined. It now stops in preflight
+  and names the flag that resolves it, rather than failing later after printing
+  the whole plan. The same applies to any run without a terminal, such as
+  `ssh host 'openwatch setup'`. Pass `--admin-password-from` with `generate`,
+  `env:NAME` or `file:PATH` for an unattended install.
 - **Settings > Compliance policies showed an empty "Scan variables" section
   with no explanation** when the Kensa rule corpus could not be loaded. It now
   reports that the corpus is unavailable and names the package and path to

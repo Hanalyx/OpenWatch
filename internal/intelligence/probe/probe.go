@@ -2,7 +2,7 @@
 // Discovery service runs over SSH. Each parser takes the raw stdout bytes
 // of a single command and returns a typed fact struct.
 //
-// Spec: app/specs/system/host-discovery.spec.yaml (C-01).
+// Spec: specs/system/host-discovery.spec.yaml (C-01).
 //
 // Pure: no SSH dial, no database, no HTTP, no time.Now. Parsers are
 // trivially testable with bytes fixtures (see probe_test.go).

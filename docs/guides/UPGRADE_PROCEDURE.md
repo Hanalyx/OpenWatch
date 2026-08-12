@@ -1,6 +1,6 @@
 # Upgrade procedure
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers upgrading an OpenWatch deployment to a newer version. OpenWatch
 ships as a single Go binary (`/usr/bin/openwatch`) that serves both the REST API

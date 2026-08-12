@@ -1,6 +1,6 @@
 # Scaling guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 This guide covers how OpenWatch behaves as you add hosts, run more scans, and
 push more concurrent API traffic, and what you can tune today. It describes the

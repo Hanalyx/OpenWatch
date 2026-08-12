@@ -1132,9 +1132,12 @@ func (e RemediationRequestStatus) Valid() bool {
 
 // Defines values for RemediationStepPhaseResult.
 const (
-	RemediationStepPhaseResultCommitted  RemediationStepPhaseResult = "committed"
-	RemediationStepPhaseResultRolledBack RemediationStepPhaseResult = "rolled_back"
-	RemediationStepPhaseResultSkipped    RemediationStepPhaseResult = "skipped"
+	RemediationStepPhaseResultCommitted        RemediationStepPhaseResult = "committed"
+	RemediationStepPhaseResultNotApplied       RemediationStepPhaseResult = "not_applied"
+	RemediationStepPhaseResultPartiallyApplied RemediationStepPhaseResult = "partially_applied"
+	RemediationStepPhaseResultRolledBack       RemediationStepPhaseResult = "rolled_back"
+	RemediationStepPhaseResultSkipped          RemediationStepPhaseResult = "skipped"
+	RemediationStepPhaseResultStaged           RemediationStepPhaseResult = "staged"
 )
 
 // Valid indicates whether the value is a known member of the RemediationStepPhaseResult enum.
@@ -1142,9 +1145,15 @@ func (e RemediationStepPhaseResult) Valid() bool {
 	switch e {
 	case RemediationStepPhaseResultCommitted:
 		return true
+	case RemediationStepPhaseResultNotApplied:
+		return true
+	case RemediationStepPhaseResultPartiallyApplied:
+		return true
 	case RemediationStepPhaseResultRolledBack:
 		return true
 	case RemediationStepPhaseResultSkipped:
+		return true
+	case RemediationStepPhaseResultStaged:
 		return true
 	default:
 		return false
@@ -3175,6 +3184,111 @@ type ProjectedLift struct {
 	Stig *float64 `json:"stig,omitempty"`
 }
 
+// RemediationPhase One Capture/Apply/Validate/Commit phase of a rule's transaction.
+type RemediationPhase struct {
+	// Capturable False when this phase's mechanism cannot record pre-state, which is
+	// what makes a rule non-rollbackable.
+	Capturable bool `json:"capturable"`
+
+	// Detail Human-readable account of what this phase did, or why it did not.
+	Detail    *string `json:"detail,omitempty"`
+	Index     int     `json:"index"`
+	Mechanism string  `json:"mechanism"`
+
+	// Staged True when the change was written to the persist layer but the
+	// running host has not converged, so a re-scan still reports the rule
+	// failing until reboot.
+	Staged bool `json:"staged"`
+
+	// Stranded True for a non-capturable phase that succeeded before a later
+	// failure. Rollback does NOT reverse it.
+	Stranded bool `json:"stranded"`
+	Success  bool `json:"success"`
+}
+
+// RemediationPlan What remediating one rule on one host would do. Produced by Kensa
+// without mutating the host.
+type RemediationPlan struct {
+	// Before What Kensa found on the host while planning, one entry per step.
+	// Computed live and never stored, because a plan describes the host
+	// as it is now.
+	Before *[]struct {
+		Index     int     `json:"index"`
+		Mechanism string  `json:"mechanism"`
+		Summary   *string `json:"summary,omitempty"`
+	} `json:"before,omitempty"`
+	CapturedAt *time.Time `json:"captured_at,omitempty"`
+
+	// Checks The validators that would run after apply.
+	Checks []struct {
+		Name    string  `json:"name"`
+		Summary *string `json:"summary,omitempty"`
+	} `json:"checks"`
+
+	// ControlChannelSensitive True when a step touches SSH, networking, PAM or firewall state.
+	// Kensa arms a deadman timer before applying such a transaction, so
+	// a fix that could lock you out reverts itself if you lose contact.
+	ControlChannelSensitive bool                `json:"control_channel_sensitive"`
+	EstimatedSeconds        *float32            `json:"estimated_seconds,omitempty"`
+	PlanId                  *openapi_types.UUID `json:"plan_id,omitempty"`
+
+	// ReversibleSteps How many steps Kensa actually captured pre-state for, counted from
+	// the capture rather than from the rule's own claim about itself.
+	ReversibleSteps int    `json:"reversible_steps"`
+	RuleId          string `json:"rule_id"`
+
+	// Steps The apply steps that would run, in order.
+	Steps []RemediationPlanStep `json:"steps"`
+
+	// Transactional False when the steps are not all-or-nothing.
+	Transactional bool `json:"transactional"`
+
+	// Undo How each applied step would be reversed. Rollback runs this in
+	// reverse order.
+	Undo []RemediationPlanStep `json:"undo"`
+
+	// Warnings Kensa's own operator-facing notices about this plan.
+	Warnings *[]string `json:"warnings,omitempty"`
+}
+
+// RemediationPlanStep defines model for RemediationPlanStep.
+type RemediationPlanStep struct {
+	// Capturable False when this step cannot be reversed.
+	Capturable *bool  `json:"capturable,omitempty"`
+	Index      int    `json:"index"`
+	Mechanism  string `json:"mechanism"`
+
+	// Summary Kensa's human-readable description of the action.
+	Summary *string `json:"summary,omitempty"`
+}
+
+// RemediationPreState One phase's captured pre-change state.
+//
+// `data` is mechanism-specific and is passed through from Kensa without
+// interpretation. OpenWatch has no schema for it and deliberately does
+// not decode it: each capturable handler defines its own layout, so
+// reading it here would couple this contract to Kensa handler internals.
+// Clients should treat it as opaque evidence unless they know the
+// mechanism.
+type RemediationPreState struct {
+	// Capturable False for phases whose mechanism cannot capture pre-state; `data` is then empty.
+	Capturable bool                    `json:"capturable"`
+	Data       *map[string]interface{} `json:"data,omitempty"`
+	Index      int                     `json:"index"`
+	Mechanism  string                  `json:"mechanism"`
+
+	// Summary Kensa's one-line rendering of what was captured, from the handler
+	// that captured it.
+	//
+	// Display text, not evidence. It carries no stability guarantee and
+	// may change between Kensa releases, which is why the transaction
+	// records the Kensa version that produced it. `data` remains the
+	// authoritative capture. Elided by construction so no file body
+	// appears, and a credential named inside a config line is redacted,
+	// but it is not a secret scanner: treat it as operator-visible text.
+	Summary *string `json:"summary,omitempty"`
+}
+
 // RemediationRequest defines model for RemediationRequest.
 type RemediationRequest struct {
 	HostId openapi_types.UUID `json:"host_id"`
@@ -3223,17 +3337,32 @@ type RemediationReview struct {
 	Note *string `json:"note,omitempty"`
 }
 
-// RemediationStep defines model for RemediationStep.
+// RemediationStep One rule's Kensa transaction. Note that a "step" here is a RULE, not a
+// phase: the Capture/Apply/Validate/Commit phases are in `phases`, one
+// level below.
 type RemediationStep struct {
-	AppliedAt   *time.Time                  `json:"applied_at,omitempty"`
-	DryRun      bool                        `json:"dry_run"`
-	Id          openapi_types.UUID          `json:"id"`
-	Mechanism   *string                     `json:"mechanism,omitempty"`
+	AppliedAt *time.Time         `json:"applied_at,omitempty"`
+	DryRun    bool               `json:"dry_run"`
+	Id        openapi_types.UUID `json:"id"`
+	Mechanism *string            `json:"mechanism,omitempty"`
+
+	// PhaseResult Terminal outcome of the rule's transaction. Widened past
+	// committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
 	PhaseResult *RemediationStepPhaseResult `json:"phase_result,omitempty"`
-	RuleId      string                      `json:"rule_id"`
+
+	// Phases The per-phase journal Kensa returned, in execution order. `detail`
+	// is the engine's own account of what each phase did, and is the
+	// answer to why a remediation failed.
+	Phases *[]RemediationPhase `json:"phases,omitempty"`
+
+	// PreState The state captured before any change, one entry per phase, in phase
+	// order.
+	PreState *[]RemediationPreState `json:"pre_state,omitempty"`
+	RuleId   string                 `json:"rule_id"`
 }
 
-// RemediationStepPhaseResult defines model for RemediationStep.PhaseResult.
+// RemediationStepPhaseResult Terminal outcome of the rule's transaction. Widened past
+// committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
 type RemediationStepPhaseResult string
 
 // RemediationStepList defines model for RemediationStepList.
@@ -4522,6 +4651,9 @@ type ServerInterface interface {
 	// Get a remediation request
 	// (GET /api/v1/remediation/requests/{rid})
 	GetRemediationRequest(w http.ResponseWriter, r *http.Request, rid openapi_types.UUID)
+	// Preview what a remediation would do, without changing the host
+	// (GET /api/v1/remediation/requests/{rid}/plan)
+	GetRemediationPlan(w http.ResponseWriter, r *http.Request, rid openapi_types.UUID)
 	// List a remediation request's transaction journal (steps)
 	// (GET /api/v1/remediation/requests/{rid}/steps)
 	ListRemediationSteps(w http.ResponseWriter, r *http.Request, rid openapi_types.UUID)
@@ -5293,6 +5425,12 @@ func (_ Unimplemented) RequestRemediation(w http.ResponseWriter, r *http.Request
 // Get a remediation request
 // (GET /api/v1/remediation/requests/{rid})
 func (_ Unimplemented) GetRemediationRequest(w http.ResponseWriter, r *http.Request, rid openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Preview what a remediation would do, without changing the host
+// (GET /api/v1/remediation/requests/{rid}/plan)
+func (_ Unimplemented) GetRemediationPlan(w http.ResponseWriter, r *http.Request, rid openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -8855,6 +8993,32 @@ func (siw *ServerInterfaceWrapper) GetRemediationRequest(w http.ResponseWriter, 
 	handler.ServeHTTP(w, r)
 }
 
+// GetRemediationPlan operation middleware
+func (siw *ServerInterfaceWrapper) GetRemediationPlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "rid" -------------
+	var rid openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "rid", chi.URLParam(r, "rid"), &rid, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rid", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRemediationPlan(w, r, rid)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListRemediationSteps operation middleware
 func (siw *ServerInterfaceWrapper) ListRemediationSteps(w http.ResponseWriter, r *http.Request) {
 
@@ -10480,6 +10644,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/remediation/requests/{rid}", wrapper.GetRemediationRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/remediation/requests/{rid}/plan", wrapper.GetRemediationPlan)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/remediation/requests/{rid}/steps", wrapper.ListRemediationSteps)

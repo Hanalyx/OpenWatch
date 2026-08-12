@@ -218,7 +218,7 @@ func (h HostDiscovered) Timestamp() time.Time { return h.DiscoveredAt }
 
 // IntelligenceEvent is fired by the OS Intelligence collector per
 // detected change. Detail mirrors the taxonomy entry's detail_schema
-// in app/audit/events.yaml.
+// in audit/events.yaml.
 type IntelligenceEvent struct {
 	HostID     uuid.UUID
 	Code       string         // taxonomy code, e.g. "system.package.updated"

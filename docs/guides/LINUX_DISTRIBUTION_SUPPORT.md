@@ -7,7 +7,7 @@
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed/scanned host.
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.0 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
 **Last verified:** 2026-07-28 against Kensa rule corpus **v0.8.0** (769 rules in the corpus).
 Per-OS counts below are read from each rule's `platforms:` declarations in the
@@ -104,7 +104,7 @@ unverified support; **Not supported** means no coverage for that phase.
 
 ## 3. Why a Fedora or Debian host scans nothing
 
-This is the behaviour you see and it is **working as designed**, not a
+This is the behavior you see and it is **working as designed**, not a
 crash:
 
 1. **Discovery succeeds.** OpenWatch reads `/etc/os-release` and stores the

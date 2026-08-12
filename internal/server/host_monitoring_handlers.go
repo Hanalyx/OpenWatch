@@ -1,5 +1,5 @@
 // Per-host maintenance toggle + monitoring-history tail (v1.3.0).
-// Spec: app/specs/api/hosts/host-monitoring.spec.yaml.
+// Spec: specs/api/hosts/host-monitoring.spec.yaml.
 //
 // Maintenance: PUT /hosts/{id}/maintenance flips the hosts.maintenance_mode
 // boolean. listProbeTargets skips maintenance hosts on every subsequent

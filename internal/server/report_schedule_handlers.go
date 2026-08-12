@@ -121,7 +121,7 @@ func (h *handlers) CreateReportSchedule(w http.ResponseWriter, r *http.Request) 
 	// A scheduled attestation would otherwise mint the paid artifact on a
 	// timer without ever touching the gated generate endpoint. Gate it here
 	// too. Update cannot change the kind, so it needs no gate; the dispatcher
-	// re-checks at fire time so a lapsed licence stops the timer.
+	// re-checks at fire time so a lapsed license stops the timer.
 	if enforceAttestationLicense(w, r, report.Kind(body.Kind)) {
 		return
 	}
