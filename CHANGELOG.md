@@ -10,6 +10,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Enterprise Linux rebuilds are graded against the benchmark they actually run.
+  An AlmaLinux or Rocky host asked for a lens keyed to its own distro id, which
+  no rule in the corpus emits, so the host got no compliance score at all. It is
+  now graded as its upstream, which is what Kensa was already scanning it with.
+  **After upgrading, rebuild hosts gain a score where they previously showed
+  none.** Confirmed on a live AlmaLinux 9.8 host that had 769 rules evaluated
+  and no lens.
+- `openwatch migrate` refuses to run against a PostgreSQL version the schema
+  cannot build on, instead of failing partway through and leaving the schema
+  half applied. Between the hard floor and the supported floor it warns and
+  continues. **If you are below the floor, migrate now stops before touching the
+  database** rather than after.
+
+### Changed
+
+- `openwatch --version` reports FIPS state measured from the running binary
+  rather than from a build flag. A binary built with the flag set but without
+  the FIPS module no longer claims to be in FIPS mode, and a mismatch between
+  the two is reported.
+- Running with `GODEBUG=fips140=only` now prints a warning. That mode refuses
+  algorithms the SSH library needs, so every scan and remediation fails against
+  every host. Use `fips140=on`.
+- A release build fails when the git tag disagrees with `packaging/version.env`.
+  Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
+  upgrade` between two candidates reported nothing to do and `rpm -q` could not
+  tell them apart. **Release candidates now carry distinct package versions.**
+
 ## [0.7.1] Eyrie (2026-08-04)
 
 Remediation stops being a black box. v0.7.0 could tell you a fix had been
