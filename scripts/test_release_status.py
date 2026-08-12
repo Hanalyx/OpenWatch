@@ -109,6 +109,30 @@ class HumanRequired(unittest.TestCase):
         self.assertEqual(status, rs.STALE)
 
 
+class PendingIsNotFailure(unittest.TestCase):
+    """A run that has not finished must not be reported as a failure.
+
+    Found on the v0.7.1 tag: the release build was tagged while the main-branch
+    Quality gate was still running, and the checker read the empty conclusion
+    GitHub returns for an in-progress run as a non-success. It printed FAIL,
+    which says the candidate is broken when it is merely early. That is the
+    same class of error as rendering an unpopulated field as a fact.
+    """
+
+    def test_pending_is_its_own_status_and_still_blocks(self):
+        # It must block, so nobody ships on an unfinished build, but it must
+        # not accuse. Those are different claims.
+        self.assertIn(rs.PENDING, rs.BAD)
+        self.assertNotEqual(rs.PENDING, rs.FAIL)
+
+    def test_a_finished_result_outranks_a_pending_one(self):
+        # Re-runs produce several entries for one name. A completed success or
+        # failure is what the tree is at; a stale queued entry is not.
+        for finished in ("success", "failure"):
+            with self.subTest(finished=finished):
+                self.assertNotEqual(finished, rs.PENDING)
+
+
 class PlatformCheckWiring(unittest.TestCase):
     """A platform proven by a CI job names a check run, and that name has to
     match a job the workflow actually produces. A typo here reads as MISSING
