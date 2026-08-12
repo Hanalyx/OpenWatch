@@ -1,7 +1,13 @@
 spec:
   id: system-idempotency
   title: Idempotency middleware
-  version: "1.0.0"
+  # Version 2.0.0 (was 1.0.0). Major, because the cache key changed shape and
+  # two published acceptance criteria changed meaning. The key was `key`; it is
+  # now `(actor_id, key)`. The request hash covered the body alone; it now
+  # covers method, path, query and body. AC-01 and AC-03 assert different
+  # things than they did, and an anonymous caller no longer touches the cache
+  # at all. A consumer written against 1.0.0 is wrong against this file.
+  version: "2.0.0"
   status: approved
   tier: 2
 
@@ -9,23 +15,34 @@ spec:
     system: openwatch
     feature: Idempotency replay caching
     description: >
-      Caches the full response (status + body) for mutating requests
-      arriving with an Idempotency-Key header. Replay within 24h returns
-      the cached response byte-identically without re-running the handler.
-      Same key + different body = 409 idempotency.key_reused.
+      Caches the full response (status + body) for mutating requests that
+      arrive with an Idempotency-Key header from an authenticated caller.
+      The cache entry belongs to the caller who created it. Replay within
+      24h by that same caller returns the cached response without
+      re-running the handler. Same caller, same key, different request
+      returns 409 idempotency.key_reused. A different caller gets a plain
+      cache miss, so their own authorization runs.
+
+      An anonymous caller does not use this cache in either direction.
+      Nothing is looked up for them and nothing is stored for them.
 
   objective:
     summary: >
-      Make POST/PUT/PATCH/DELETE safely retryable. A client that times
-      out and replays must see exactly-one effect plus the same response.
+      Make POST/PUT/PATCH/DELETE safely retryable by the caller that made
+      the original call. A client that times out and replays must see
+      exactly-one effect plus the same response. No caller may be served
+      a response produced under another caller's authorization.
     scope:
       includes:
-        - Body-hash + key cache key
+        - Cache key of (actor_id, Idempotency-Key)
+        - Request hash over method, path, query and body
         - 24h TTL persisted in PostgreSQL
         - 2xx caching only
+        - Pass-through for anonymous callers
       excludes:
         - Distributed locking
         - Client-side replay logic
+        - Any caching of anonymous traffic
 
   constraints:
     - id: C-01
@@ -37,7 +54,11 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: Key + body-hash MUST be the cache key (replay with same body returns cached; different body returns 409)
+      description: >
+        The cache key MUST be the pair (actor_id, Idempotency-Key). An entry
+        is a hit only when both match and the row has not expired. A hit whose
+        stored request_hash differs from the current request hash MUST return
+        409 idempotency.key_reused.
       type: technical
       enforcement: error
     - id: C-04
@@ -46,37 +67,86 @@ spec:
       enforcement: error
     - id: C-05
       description: >
-        Cache hit MUST short-circuit the handler entirely — no audit, no
-        DB write, no downstream call. Returned body MUST be
+        Cache hit MUST short-circuit the handler entirely, with no audit, no
+        DB write and no downstream call. The returned body MUST be
         semantically-equivalent JSON to the cached value (whitespace
         normalization by JSONB storage is acceptable).
       type: technical
       enforcement: error
     - id: C-06
-      description: Captured body MUST be persisted only on 2xx responses
+      description: >
+        Captured body MUST be persisted only on 2xx responses. A denial
+        therefore never becomes a replayable entry, so a 401 or a 403 MUST
+        NOT be written to the cache.
       type: technical
       enforcement: error
     - id: C-07
-      description: Body hash MUST be SHA-256
+      description: >
+        The request hash MUST be SHA-256 over the canonical string
+        method + "\n" + escaped_path + "\n" + raw_query + "\n" + body.
+        The path is the URL path with no scheme, host or fragment. The three
+        separators are unambiguous because a method, an escaped path and a
+        raw query cannot contain a newline, and the body comes last. The body
+        alone is not enough: two different endpoints called with the same key
+        and the same body would otherwise share one entry, and an empty body
+        is common on action routes.
+      type: security
+      enforcement: error
+    - id: C-08
+      description: >
+        The middleware MUST be a pure pass-through when the bound identity is
+        anonymous. It MUST NOT read the body, look up an entry, return 409, or
+        store a response. The check belongs immediately after the empty-key
+        check and before the body read. This closes an unauthenticated write
+        primitive, since anonymous routes such as POST /auth/logout are
+        CSRF-exempt and unthrottled and nothing reaps rows. It also keeps live
+        credentials out of the cache, since the login and refresh responses
+        carry access and refresh tokens in the body and the cache stores
+        plaintext JSONB for 24 hours.
+      type: security
+      enforcement: error
+    - id: C-09
+      description: >
+        The stored row MUST carry actor_id TEXT NOT NULL, taken from the bound
+        identity's ID. The table's primary key MUST be the composite
+        (actor_id, key), so two callers can hold the same key at the same time.
+        The lookup MUST filter on actor_id and key together.
+      type: security
+      enforcement: error
+    - id: C-10
+      description: >
+        A key held by a different actor MUST read as a plain cache miss. It
+        MUST NOT return 409 and MUST NOT read the other actor's row. A 409
+        would be an existence oracle across tenants, because the key-reused
+        response is written before any authorization runs.
       type: security
       enforcement: error
 
   acceptance_criteria:
     - id: AC-01
-      description: POST with Idempotency-Key K and body B writes idempotency_keys row with key=K, request_hash=sha256(B), expires_at=now()+24h.
+      description: >
+        Authenticated actor A sends POST to path P with Idempotency-Key K and
+        body B. A row is written with actor_id = A's identity ID, key = K,
+        request_hash = sha256("POST\n" + P + "\n" + query + "\n" + B), and
+        expires_at = now() + 24h.
       priority: critical
-      references_constraints: [C-01, C-03, C-04, C-07]
+      references_constraints: [C-01, C-03, C-04, C-07, C-09]
     - id: AC-02
       description: >
-        Replay with same K and same B returns the cached response_status
-        and a semantically-equivalent response_body (JSON-equal); handler
-        NOT invoked. (Byte-for-byte equality is not asserted because
-        PostgreSQL's JSONB storage normalizes whitespace; the user-
-        observable effect is identical.)
+        Actor A replays the same key, method, path, query and body. The
+        response carries the cached response_status and a
+        semantically-equivalent response_body (JSON-equal), and the handler is
+        NOT invoked. Byte-for-byte equality is not asserted because
+        PostgreSQL's JSONB storage normalizes whitespace, and the
+        user-observable effect is identical.
       priority: critical
       references_constraints: [C-05]
     - id: AC-03
-      description: Replay with same K and different B returns 409 with error.code = "idempotency.key_reused".
+      description: >
+        Actor A replays the same key K with a different request hash, produced
+        by changing the body. The response is 409 with
+        error.code = "idempotency.key_reused" and the first response is not
+        replayed.
       priority: critical
       references_constraints: [C-03]
     - id: AC-04
@@ -94,8 +164,56 @@ spec:
       description: Cache lookup latency p99 < 5ms against local DB.
       priority: medium
     - id: AC-08
-      description: Expired cache entry (now() > expires_at) is treated as cache miss; handler runs and overwrites.
+      description: Expired cache entry (now() > expires_at) is treated as cache miss; handler runs and overwrites the row for that same actor and key.
       priority: high
+      references_constraints: [C-03, C-09]
     - id: AC-09
-      description: Two concurrent requests with same Key + body race cleanly; one runs handler+caches, the other reads cached (no duplicate side effects).
+      description: >
+        Two concurrent requests from the SAME actor with the same key and the
+        same request hash race cleanly. One runs the handler and caches, the
+        other reads the cached row, and there are no duplicate side effects.
       priority: high
+      references_constraints: [C-09]
+    - id: AC-10
+      description: >
+        An anonymous caller does not touch the cache in either direction. Two
+        assertions. First, an anonymous request carrying Idempotency-Key K runs
+        the handler and writes no idempotency_keys row for K. Second, with a
+        row already seeded at (some actor, K) whose request_hash matches, the
+        anonymous request is still not served from cache. The handler runs and
+        the seeded row is unchanged.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-11
+      description: >
+        A cross-actor replay is a plain miss, not a 409. Actor A caches a
+        response at (A, K). Actor B sends the same key, method, path and body.
+        B's request runs the handler, so B's own authorization applies. The
+        status is not 409, the response is the one produced for B, a row now
+        exists at (B, K), and A's row is unchanged.
+      priority: critical
+      references_constraints: [C-09, C-10]
+    - id: AC-12
+      description: >
+        The hash covers the route, not only the body. Actor A calls path P1
+        with key K and body B, then calls path P2 with the same key K and the
+        same body B. The second call returns 409
+        error.code = "idempotency.key_reused" and does not replay the P1
+        response. The same holds when only the method changes.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-13
+      description: >
+        A denial is never cached. Actor B lacks the permission the route
+        requires and calls it with key K, receiving 403. No row exists at
+        (B, K). After B is granted the permission, the same key runs the
+        handler rather than replaying the denial. The same holds for a 401.
+      priority: critical
+      references_constraints: [C-06, C-08]
+    - id: AC-14
+      description: >
+        The primary key is the composite (actor_id, key). Two rows with the
+        same key and different actor_id coexist, and writing one does not
+        overwrite or conflict with the other.
+      priority: critical
+      references_constraints: [C-09]

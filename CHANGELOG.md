@@ -62,6 +62,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- An idempotent request is now cached per caller, and an unauthenticated
+  request is never cached at all. Before this, a stored response was looked up
+  by the `Idempotency-Key` header alone, and the cache answered before the
+  handler ran. So anyone who knew a used key and its exact body was served the
+  stored response, whatever their identity, and no permission check applied.
+  **If two of your clients share an Idempotency-Key, they now each get their own
+  cached response instead of one seeing the other's.** Existing cached entries
+  are dropped on upgrade; a client mid-retry re-executes once, the same as when
+  an entry expires.
+- Skipping the cache for unauthenticated requests also closes two things it was
+  doing quietly. `POST /api/v1/auth/logout` accepts no credentials, is not rate
+  limited, and returned a cacheable 204, so anyone who could reach the port
+  could write rows without limit and nothing ever removed them. And a login or
+  refresh call carrying an `Idempotency-Key` stored its response body, which
+  contains a live access token and refresh token, as readable JSON for 24 hours.
+- The cache identity now includes the method, path and query, not the request
+  body alone. Two different endpoints called with the same key and the same body
+  used to share one entry, so one route could answer with another's stored
+  response. That now returns 409 `idempotency.key_reused` instead.
 - Two diagnostics routes now require a permission. `POST /api/v1/diagnostics:echo`
   requires `system:read` and `POST /api/v1/diagnostics:evaluate-alert` requires
   `policy:read`. Both were reachable without any credentials. Every call to

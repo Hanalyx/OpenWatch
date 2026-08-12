@@ -1,7 +1,10 @@
 spec:
   id: system-db
   title: PostgreSQL pool and audit queries
-  version: "1.0.0"
+  # Version 1.1.0 (was 1.0.0). Minor, because only AC-06 changed and it
+  # describes one table's column set. The idempotency_keys primary key becomes
+  # the composite (actor_id, key). No other AC in this file is affected.
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -70,7 +73,12 @@ spec:
       priority: critical
       references_constraints: [C-03]
     - id: AC-06
-      description: idempotency_keys schema includes key (TEXT PK), request_hash, response_status, response_body (JSONB), expires_at.
+      description: >
+        idempotency_keys schema includes actor_id (TEXT NOT NULL), key (TEXT
+        NOT NULL), request_hash, response_status, response_body (JSONB) and
+        expires_at. Its primary key is the composite (actor_id, key), not key
+        alone, so the cache is scoped to the caller that created the entry.
+        See system-idempotency C-09.
       priority: critical
     - id: AC-07
       description: InsertAuditEvent persists row with supplied parameters and returns same row with occurred_at populated.
