@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -111,6 +111,29 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-07
+      description: >
+        OS-resolution MUST normalize an enterprise-Linux REBUILD to the upstream
+        distro whose corpus keys apply to it, in exactly one place
+        (framework.BenchmarkFamily), used by BOTH the SQL match
+        (OSResolvedMatchSQL) and the lens-offer filter
+        (frameworkCompatibleWithOS). Rationale: the corpus authors OS keys for
+        rhel and ubuntu only, so deriving the key from the raw distro id asks an
+        almalinux 9 host for stig_almalinux9, which no rule emits. Because
+        frameworkCompatibleWithOS decides which lenses are OFFERED, the failure
+        is not an empty score but an ABSENT lens: the operator sees a coherent
+        page with no STIG or CIS option and no indication that either exists.
+        Fedora and Amazon Linux MUST NOT be normalized -- Fedora is upstream of
+        RHEL rather than a rebuild and has no EL benchmark, and grading against
+        a benchmark the host was never assessed under manufactures coverage. A
+        distro absent from the map keeps its own id and is offered no
+        OS-specific lens, which is the honest outcome for an unverified
+        platform. This normalization is a STAND-IN for a fact Kensa computes and
+        does not publish (features/KN-OW-018) and MUST be deleted, not extended,
+        when that lands.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: ComplianceConfig defaults DefaultFramework to "" (All rules); Validate accepts empty and a short lowercase family token and rejects an over-long or invalid-character value. SetCompliance persists and LoadCompliance round-trips the value; a fresh store with no row returns the empty (All rules) default.
@@ -193,3 +216,25 @@ spec:
         default and no group/host target, both revert to all-rules.
       priority: high
       references_constraints: [C-06]
+    - id: AC-12
+      description: >
+        BenchmarkFamily normalizes the EL rebuilds and ONLY those:
+        almalinux/centos/ol/oracle/rocky -> "rhel"; rhel -> "rhel";
+        ubuntu -> "ubuntu"; case and surrounding whitespace folded. Fedora
+        MUST return "fedora" (NOT "rhel") and amzn MUST return "amzn", so
+        neither is graded against an EL benchmark. An unknown family is
+        returned lower-cased and unchanged rather than guessed at.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-13
+      description: >
+        Both OS-resolution paths consume BenchmarkFamily, verified so the SQL
+        and Go halves cannot drift apart: OSResolvedMatchSQL emits a CASE
+        mapping the rebuild families to their upstream (not a bare lower()),
+        and frameworkCompatibleWithOS("stig_rhel9", "almalinux", "9.8") is
+        TRUE while frameworkCompatibleWithOS("stig_rhel9", "fedora", "41") is
+        FALSE. The negative case is the load-bearing one: it proves the fix
+        widened resolution to rebuilds WITHOUT silently widening it to every
+        distro that rolls up to the rhel family in discovery.
+      priority: critical
+      references_constraints: [C-07]
