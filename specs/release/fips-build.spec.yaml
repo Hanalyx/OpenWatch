@@ -43,7 +43,13 @@ spec:
       type: security
       enforcement: error
     - id: C-02
-      description: make build-fips MUST inject FIPS=true via -ldflags so the binary reports fips=true at --version
+      description: >
+        make build-fips MUST inject FIPS=true via -ldflags, and --version MUST
+        report the RUNTIME state (crypto/fips140.Enabled) rather than that flag.
+        The flag is retained only as a cross-check: -ldflags alone, without
+        GOFIPS140 set, produces a binary carrying no FIPS module that would
+        otherwise advertise one. When flag and runtime disagree --version MUST
+        say so.
       type: technical
       enforcement: error
     - id: C-03
@@ -95,3 +101,26 @@ spec:
     - id: AC-08
       description: The two binaries report the same Version, Commit, and BuildTime when built from the same source tree at the same time.
       priority: medium
+    - id: AC-09
+      description: >
+        --version reports FIPS from the runtime, not from the ldflag.
+        FIPSEnabled mirrors crypto/fips140.Enabled; FIPSModule returns the
+        linked module tag (for example "fips140v1.0") and empty on a non-FIPS
+        build; FIPSMode returns off, on, or only, with a GODEBUG environment
+        setting taking precedence over the DefaultGODEBUG baked in at link
+        time. FIPSClaimMismatch is true when the ldflag and the runtime
+        disagree, which is the case a mislabelled build produces.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-10
+      description: >
+        fips140=only is called out as operationally unsafe. In that mode the Go
+        crypto runtime refuses algorithms golang.org/x/crypto/ssh requires and
+        every SSH handshake fails with "use of GCM with arbitrary IVs is not
+        allowed in FIPS 140-only mode", so scanning and remediation stop
+        working against every host. The FIPS binary is therefore NOT
+        functionally identical across modes (see C-05, which covers the
+        diagnostic echo path only), and --version MUST warn when it detects
+        mode "only". The supported FIPS configuration is fips140=on, which is
+        what GOFIPS140 bakes in as DefaultGODEBUG.
+      priority: critical
