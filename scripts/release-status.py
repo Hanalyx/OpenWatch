@@ -37,10 +37,14 @@ GATES = REPO / "release" / "gates.toml"
 ATTEST_DIR = REPO / "release" / "attestations"
 
 PASS, FAIL, MISSING, STALE, ERROR = "PASS", "FAIL", "MISSING", "STALE", "ERROR"
+# A run that has not finished is not a failure. Reporting one as FAIL says a
+# candidate is broken when it is merely early, which is the same class of error
+# as calling an empty field a fact about the host.
+PENDING = "PENDING"
 # N/A is not a pass and not a failure: the claim cannot apply to this platform,
 # and the manifest has to carry the reason so nobody re-opens it as a gap.
 NA = "N/A"
-BAD = {FAIL, MISSING, STALE, ERROR}
+BAD = {FAIL, MISSING, STALE, ERROR, PENDING}
 
 
 def sh(*args, check=False):
@@ -77,12 +81,23 @@ def check_runs(commit):
         return None
     runs = {}
     for line in out.splitlines():
-        if "\t" in line:
-            name, conclusion = line.split("\t", 1)
-            # A name can appear more than once across re-runs; success wins,
-            # because a passing re-run is what the tree is at.
-            if runs.get(name) != "success":
-                runs[name] = conclusion
+        if "\t" not in line:
+            continue
+        name, conclusion = line.split("\t", 1)
+        # GitHub leaves conclusion empty while a run is in progress. Treat that
+        # as pending rather than as a non-success, or a candidate tagged before
+        # its main-branch build finishes reads as broken.
+        if conclusion == "":
+            conclusion = PENDING
+        # A name can appear more than once across re-runs; success wins,
+        # because a passing re-run is what the tree is at. A finished result
+        # also outranks a pending one.
+        prev = runs.get(name)
+        if prev == "success":
+            continue
+        if prev is not None and prev != PENDING and conclusion == PENDING:
+            continue
+        runs[name] = conclusion
     return runs
 
 
@@ -177,6 +192,8 @@ def evaluate(gates, tag, commit):
                 yield gid, g["title"], MISSING, f"no check run named {name!r}"
             elif runs[name] == "success":
                 yield gid, g["title"], PASS, f"{name} on {commit[:8]}"
+            elif runs[name] == PENDING:
+                yield gid, g["title"], PENDING, f"{name} is still running"
             else:
                 yield gid, g["title"], FAIL, f"{name}: {runs[name]}"
 
@@ -189,12 +206,15 @@ def evaluate(gates, tag, commit):
                 yield gid, g["title"], ERROR, "could not read check runs (gh auth?)"
                 continue
             absent = [c for c in g["checks"] if c not in runs]
+            pending = [c for c in g["checks"] if runs.get(c) == PENDING]
             failed = [c for c in g["checks"]
-                      if c in runs and runs[c] != "success"]
+                      if c in runs and runs[c] not in ("success", PENDING)]
             if absent:
                 yield gid, g["title"], MISSING, "no run for: " + ", ".join(absent)
             elif failed:
                 yield gid, g["title"], FAIL, "failed: " + ", ".join(failed)
+            elif pending:
+                yield gid, g["title"], PENDING, "still running: " + ", ".join(pending)
             else:
                 yield (gid, g["title"], PASS,
                        f"{len(g['checks'])}/{len(g['checks'])} legs on {commit[:8]}")
@@ -242,6 +262,8 @@ def evaluate(gates, tag, commit):
                                f"no run for {pcheck!r} on this commit")
                     elif runs[pcheck] == "success":
                         yield gid, label, PASS, f"{pcheck} on {commit[:8]}"
+                    elif runs[pcheck] == PENDING:
+                        yield gid, label, PENDING, f"{pcheck} is still running"
                     else:
                         yield gid, label, FAIL, f"{pcheck}: {runs[pcheck]}"
                     continue

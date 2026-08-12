@@ -106,12 +106,40 @@ The TOML file has five sections:
 | `[database]` | `max_connections` | `25` | Connection-pool ceiling |
 | `[logging]` | `level` | `info` | `debug` / `info` / `warn` / `error` |
 | `[logging]` | `format` | `json` | `json` / `text` |
-| `[reports]` | `signing_key_file` | unset (ephemeral per-boot key, dev only) | Ed25519 seed that signs report snapshots; production should set a durable key |
+| `[reports]` | `signing_key_file` | unset (ephemeral per-boot key, dev only) | Ed25519 seed that signs report snapshots. **Set this before issuing any report an auditor will keep.** See below |
 
 Two more values come from `[identity]` and must be set for `serve`/`worker` to
 boot: the JWT signing key (`jwt_private_key`) and the credential DEK file
 (`credential_key_file`). Without them the process exits at startup rather than
 running with a silent fallback.
+
+### Set the report signing key before issuing evidence
+
+`[reports].signing_key_file` behaves differently from those two, and the
+difference matters if anyone outside your organisation will verify a report.
+
+Leave it unset and the service does not refuse to start. It generates a fresh
+key each boot, logs a warning, and carries on signing reports normally. Nothing
+on any screen looks wrong. But the key changes on every restart, so **every
+report signed before a restart stops verifying against the key the service
+serves afterwards.**
+
+A report already handed to an assessor does not change; what changes is that
+its signature can no longer be checked. That is discovered by the person
+checking it, not by you.
+
+Set a durable key before the first report anyone keeps:
+
+```bash
+sudo install -d -m 0750 -o root -g openwatch /etc/openwatch/keys
+sudo openssl genpkey -algorithm ed25519 -out /etc/openwatch/keys/report_signing.pem
+sudo chown root:openwatch /etc/openwatch/keys/report_signing.pem
+sudo chmod 0640 /etc/openwatch/keys/report_signing.pem
+```
+
+Then set `signing_key_file = "/etc/openwatch/keys/report_signing.pem"` under
+`[reports]` and restart. Back the key up with your other secrets: losing it has
+the same effect as never having set one.
 
 Keep the database password out of the world-readable TOML by putting the DSN in
 `/etc/openwatch/secrets.env`, which the `systemd` unit loads via
