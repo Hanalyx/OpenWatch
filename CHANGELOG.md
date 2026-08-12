@@ -10,33 +10,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Security
-
-- Clock-rollback detection works across a restart. The watermark is now stored
-  in the database (migration `0057`) instead of process memory, so the check
-  survives a reboot. It also compares the current time against that watermark
-  rather than the license's `iat`, which never moved when a clock was wound
-  back. A deployment that has never recorded a watermark skips the check, which
-  is correct on a first boot.
-- A detected rollback warns and still loads the license. It sets a flag, emits
-  `license.clock_rollback_detected`, and every other check still applies. It
-  does not withhold entitlement, because a clock that once jumped forward would
-  otherwise drop a licensed deployment to the free tier until someone deleted a
-  database row.
-
-### Fixed
-
-- License key rotation. The fallback to the previous signing key matched an
-  error that only the HMAC path returns, so it could never run and rotation
-  would have failed the first time a previous key shipped. **Nothing to do:** no
-  release has shipped a previous key yet.
-
 ### Changed
 
 - A license carrying a feature id this build does not recognize now stays valid
   and enables the features it does recognize. It used to be rejected outright,
   so a license issued against a newer feature list disabled an entitled install
   completely.
+- `openwatch --version` reports FIPS state measured from the running binary
+  rather than from a build flag. A binary built with the flag set but without
+  the FIPS module no longer claims to be in FIPS mode, and a mismatch between
+  the two is reported.
+- Running with `GODEBUG=fips140=only` now prints a warning. That mode refuses
+  algorithms the SSH library needs, so every scan and remediation fails against
+  every host. Use `fips140=on`.
+- A release build fails when the git tag disagrees with `packaging/version.env`.
+  Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
+  upgrade` between two candidates reported nothing to do and `rpm -q` could not
+  tell them apart. **Release candidates now carry distinct package versions.**
 
 ### Removed
 
@@ -50,6 +40,39 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the route, not the permission, because per-host and fleet-scale use the same
   permission. **If you read that field, drop it:** it was populated for one
   permission that no route required, so it never affected a request.
+
+### Fixed
+
+- License key rotation. The fallback to the previous signing key matched an
+  error that only the HMAC path returns, so it could never run and rotation
+  would have failed the first time a previous key shipped. **Nothing to do:** no
+  release has shipped a previous key yet.
+- Enterprise Linux rebuilds are graded against the benchmark they actually run.
+  An AlmaLinux or Rocky host asked for a lens keyed to its own distro id, which
+  no rule in the corpus emits, so the host got no compliance score at all. It is
+  now graded as its upstream, which is what Kensa was already scanning it with.
+  **After upgrading, rebuild hosts gain a score where they previously showed
+  none.** Confirmed on a live AlmaLinux 9.8 host that had 769 rules evaluated
+  and no lens.
+- `openwatch migrate` refuses to run against a PostgreSQL version the schema
+  cannot build on, instead of failing partway through and leaving the schema
+  half applied. Between the hard floor and the supported floor it warns and
+  continues. **If you are below the floor, migrate now stops before touching the
+  database** rather than after.
+
+### Security
+
+- Clock-rollback detection works across a restart. The watermark is now stored
+  in the database (migration `0057`) instead of process memory, so the check
+  survives a reboot. It also compares the current time against that watermark
+  rather than the license's `iat`, which never moved when a clock was wound
+  back. A deployment that has never recorded a watermark skips the check, which
+  is correct on a first boot.
+- A detected rollback warns and still loads the license. It sets a flag, emits
+  `license.clock_rollback_detected`, and every other check still applies. It
+  does not withhold entitlement, because a clock that once jumped forward would
+  otherwise drop a licensed deployment to the free tier until someone deleted a
+  database row.
 
 ## [0.7.1] Eyrie (2026-08-04)
 
