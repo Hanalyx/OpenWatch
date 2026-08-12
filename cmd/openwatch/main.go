@@ -992,7 +992,24 @@ func printVersion(out *os.File) {
 	fmt.Fprintf(out, "openwatch %s\n", version.Version)
 	fmt.Fprintf(out, "  commit:    %s\n", version.Commit)
 	fmt.Fprintf(out, "  built:     %s\n", version.BuildTime)
-	fmt.Fprintf(out, "  fips:      %s\n", version.FIPS)
+	// Runtime truth, not the build flag: a binary can carry -X FIPS=true
+	// without GOFIPS140 and would otherwise advertise a module it does not
+	// have. An auditor reads this off the box, so it has to be measured.
+	fmt.Fprintf(out, "  fips:      %t\n", version.FIPSEnabled())
+	if version.FIPSEnabled() {
+		fmt.Fprintf(out, "  fips_module: %s\n", version.FIPSModule())
+		fmt.Fprintf(out, "  fips_mode:   %s\n", version.FIPSMode())
+		if version.FIPSMode() == "only" {
+			fmt.Fprintf(out, "  WARNING: fips140=only refuses algorithms that "+
+				"golang.org/x/crypto/ssh requires; SSH scanning and remediation "+
+				"will fail against every host. Use fips140=on.\n")
+		}
+	}
+	if version.FIPSClaimMismatch() {
+		fmt.Fprintf(out, "  WARNING: this binary was built with -ldflags FIPS=%s "+
+			"but the runtime reports FIPS %t. The build is misconfigured; do not "+
+			"rely on its FIPS status.\n", version.FIPS, version.FIPSEnabled())
+	}
 	fmt.Fprintf(out, "  goversion: %s\n", runtime.Version())
 	fmt.Fprintf(out, "  os/arch:   %s/%s\n", runtime.GOOS, runtime.GOARCH)
 }
