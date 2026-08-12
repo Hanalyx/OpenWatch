@@ -57,6 +57,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/identity"
+	"github.com/Hanalyx/openwatch/internal/secretkey"
 )
 
 // ---------------------------------------------------------------------
@@ -1469,8 +1470,8 @@ func TestOTPReplayWindowComesFromTheRegistry(t *testing.T) {
 
 		// Functional: verify once, sweep, verify again.
 		pool := freshPool(t)
-		if err := identity.SetEphemeralMFAKey(); err != nil {
-			t.Fatalf("ephemeral mfa key: %v", err)
+		if err := secretkey.SetEphemeral(); err != nil {
+			t.Fatalf("SetEphemeral: %v", err)
 		}
 		userID := seedUser(t, pool)
 		ctx := context.Background()
