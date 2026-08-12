@@ -3148,11 +3148,10 @@ type OscalDocument map[string]interface{}
 
 // PermissionEntry defines model for PermissionEntry.
 type PermissionEntry struct {
-	Category     string  `json:"category"`
-	Dangerous    bool    `json:"dangerous"`
-	Description  string  `json:"description"`
-	Id           string  `json:"id"`
-	LicenseGated *string `json:"license_gated,omitempty"`
+	Category    string `json:"category"`
+	Dangerous   bool   `json:"dangerous"`
+	Description string `json:"description"`
+	Id          string `json:"id"`
 }
 
 // PermissionsRegistryResponse defines model for PermissionsRegistryResponse.
@@ -4612,7 +4611,7 @@ type ServerInterface interface {
 	// Last full Intelligence snapshot for one host
 	// (GET /api/v1/intelligence/state/{host_id})
 	GetIntelligenceState(w http.ResponseWriter, r *http.Request, hostId openapi_types.UUID)
-	// Get the current license state (tier, features, quotas, status)
+	// Get the current license state (tier, status, features, expiry)
 	// (GET /api/v1/license)
 	GetLicense(w http.ResponseWriter, r *http.Request)
 	// List notification channels (secrets redacted)
@@ -5350,7 +5349,7 @@ func (_ Unimplemented) GetIntelligenceState(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get the current license state (tier, features, quotas, status)
+// Get the current license state (tier, status, features, expiry)
 // (GET /api/v1/license)
 func (_ Unimplemented) GetLicense(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)

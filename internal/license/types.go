@@ -36,13 +36,17 @@ const (
 	VerifyIssuerInvalid       VerifyResult = "issuer_invalid"
 	VerifyAudienceInvalid     VerifyResult = "audience_invalid"
 	VerifyExpired             VerifyResult = "expired"
-	VerifyClockSkew           VerifyResult = "clock_skew"
 	VerifyNotYetValid         VerifyResult = "not_yet_valid"
 	VerifyFingerprintMismatch VerifyResult = "fingerprint_mismatch"
 	VerifyClockRollback       VerifyResult = "clock_rollback"
 	VerifyMalformedJWT        VerifyResult = "malformed_jwt"
-	VerifyUnknownFeature      VerifyResult = "unknown_feature"
 )
+
+// Two results were removed because nothing produced them. "unknown_feature"
+// went when an unknown id stopped invalidating a license (decision record 04).
+// "clock_skew" never had a producer at all: an iat beyond the skew budget
+// returns not_yet_valid. The contract types verify_result as a plain string,
+// not an enum, so neither removal changes the wire.
 
 // License is the parsed and validated license claims. Sensitive material
 // (raw JWT, signature) is NOT persisted here — only the operational shape.
@@ -50,7 +54,6 @@ type License struct {
 	Tier            Tier
 	Status          Status
 	Features        []Feature
-	Quotas          Quotas
 	Issuer          string
 	Audience        string
 	CustomerID      string // opaque tenant identifier
@@ -60,15 +63,6 @@ type License struct {
 	UsingPrevKey    bool   // signed with the previous key (warning surface)
 	InGracePeriod   bool   // expired but within 30-day grace
 	UnknownFeatures []string
-}
-
-// Quotas are the numeric limits encoded in the license JWT.
-type Quotas struct {
-	MaxHosts           int
-	MaxScansPerDay     int
-	MaxUsers           int
-	MaxConcurrentScans int
-	MaxCustomRoles     int
 }
 
 // State is the runtime snapshot kept under an atomic.Pointer. Lock-free

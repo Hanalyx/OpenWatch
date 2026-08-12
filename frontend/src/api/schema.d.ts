@@ -260,7 +260,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get the current license state (tier, features, quotas, status) */
+        /** Get the current license state (tier, status, features, expiry) */
         get: operations["getLicense"];
         put?: never;
         post?: never;
@@ -4704,7 +4704,6 @@ export interface components {
             category: string;
             description: string;
             dangerous: boolean;
-            license_gated?: string;
         };
         CategoryEntry: {
             id: string;

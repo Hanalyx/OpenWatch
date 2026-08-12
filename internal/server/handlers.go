@@ -741,17 +741,12 @@ func (h *handlers) GetAuthPermissionsRegistry(w http.ResponseWriter, _ *http.Req
 	perms := make([]api.PermissionEntry, 0, len(auth.Permissions))
 	for _, p := range auth.AllPermissions() {
 		meta := auth.Permissions[p]
-		gated := meta.LicenseGated
-		entry := api.PermissionEntry{
+		perms = append(perms, api.PermissionEntry{
 			Id:          string(p),
 			Category:    meta.Category,
 			Description: meta.Description,
 			Dangerous:   meta.Dangerous,
-		}
-		if gated != "" {
-			entry.LicenseGated = &gated
-		}
-		perms = append(perms, entry)
+		})
 	}
 	roles := buildRoleEntries()
 	writeJSON(w, http.StatusOK, api.PermissionsRegistryResponse{

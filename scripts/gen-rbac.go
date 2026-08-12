@@ -42,11 +42,10 @@ type category struct {
 }
 
 type permission struct {
-	ID           string `yaml:"id"`
-	Category     string `yaml:"category"`
-	Description  string `yaml:"description"`
-	Dangerous    bool   `yaml:"dangerous"`
-	LicenseGated string `yaml:"license_gated"`
+	ID          string `yaml:"id"`
+	Category    string `yaml:"category"`
+	Description string `yaml:"description"`
+	Dangerous   bool   `yaml:"dangerous"`
 }
 
 type role struct {
@@ -73,23 +72,27 @@ const (
 )
 
 // PermissionMeta is the per-permission metadata from the registry.
+//
+// There is no license-gate field. An operation that needs an entitlement
+// carries x-required-feature on its route in api/openapi.yaml, and the
+// handler enforces it with license.EnforceFeature. Tiering is by scope:
+// one host is free, the same vocabulary at fleet scale is paid, and both
+// use the same permission. Only the route can tell them apart.
 type PermissionMeta struct {
-	ID           Permission
-	Category     string
-	Description  string
-	Dangerous    bool
-	LicenseGated string // feature id from license/features.yaml; "" if not gated
+	ID          Permission
+	Category    string
+	Description string
+	Dangerous   bool
 }
 
 // Permissions maps every active permission id to its registry entry.
 var Permissions = map[Permission]PermissionMeta{
 {{- range .Permissions }}
 	{{ .GoConst }}: {
-		ID:           {{ .GoConst }},
-		Category:     "{{ .Category }}",
-		Description:  ` + "`" + `{{ .Description }}` + "`" + `,
-		Dangerous:    {{ .Dangerous }},
-		LicenseGated: "{{ .LicenseGated }}",
+		ID:          {{ .GoConst }},
+		Category:    "{{ .Category }}",
+		Description: ` + "`" + `{{ .Description }}` + "`" + `,
+		Dangerous:   {{ .Dangerous }},
 	},
 {{- end }}
 }
@@ -120,15 +123,6 @@ func IsDangerous(p Permission) bool {
 		return m.Dangerous
 	}
 	return false
-}
-
-// LicenseGate returns the feature id required for p, or "" if p is not
-// license-gated. Empty string for unknown permissions.
-func LicenseGate(p Permission) string {
-	if m, ok := Permissions[p]; ok {
-		return m.LicenseGated
-	}
-	return ""
 }
 
 // Categories returns the registered category ids in declaration order.
@@ -217,12 +211,11 @@ type permsCtx struct {
 }
 
 type emitPerm struct {
-	ID           string
-	GoConst      string
-	Category     string
-	Description  string
-	Dangerous    bool
-	LicenseGated string
+	ID          string
+	GoConst     string
+	Category    string
+	Description string
+	Dangerous   bool
 }
 
 type rolesCtx struct {
@@ -265,12 +258,11 @@ func main() {
 	}
 	for _, p := range reg.Permissions {
 		pCtx.Permissions = append(pCtx.Permissions, emitPerm{
-			ID:           p.ID,
-			GoConst:      toPascal(p.ID),
-			Category:     p.Category,
-			Description:  cleanDescription(p.Description),
-			Dangerous:    p.Dangerous,
-			LicenseGated: p.LicenseGated,
+			ID:          p.ID,
+			GoConst:     toPascal(p.ID),
+			Category:    p.Category,
+			Description: cleanDescription(p.Description),
+			Dangerous:   p.Dangerous,
 		})
 	}
 	writeFile(permissionsPath, permsTpl, pCtx, len(pCtx.Permissions), "permissions")

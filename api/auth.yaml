@@ -200,9 +200,9 @@ paths:
       description: |
         Returns the union of permissions across all roles assigned to the
         calling user, with category wildcards expanded against the current
-        RBAC registry. Includes `license_gated_unavailable` listing
-        permissions the user technically has but the license currently denies
-        (helps frontends hide buttons that would always 402).
+        RBAC registry. Permissions carry no entitlement state: a paid
+        operation is gated on its route by x-required-feature, so ask
+        GET /capabilities which features this deployment can use.
       x-required-permission: auth:read
       responses:
         '200': {description: Effective permission set.}
@@ -251,9 +251,9 @@ paths:
       operationId: getPermissionsRegistry
       summary: Return the full RBAC registry (permissions + built-in roles).
       description: |
-        Returns categories, permissions (with dangerous/license_gated metadata),
-        and built-in role definitions. Frontends use this to render permission
-        selectors and role editors. Non-secret — any authenticated user can read.
+        Returns categories, permissions (with the dangerous marker), and
+        built-in role definitions. Frontends use this to render permission
+        selectors and role editors. Non-secret: any authenticated user can read.
       x-required-permission: auth:read
       responses:
         '200': {description: Full registry.}

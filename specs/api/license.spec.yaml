@@ -1,7 +1,7 @@
 spec:
   id: api-license
   title: License inspection and dry-run verify endpoints
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -10,7 +10,7 @@ spec:
     feature: License inspection and verification
     description: >
       GET /api/v1/license returns the current license state: tier, status,
-      enabled features, quotas, expiry, warnings. POST /api/v1/admin/license:verify
+      enabled features, expiry, warnings. POST /api/v1/admin/license:verify
       dry-runs a candidate JWT. POST /api/v1/diagnostics:premium-echo
       demonstrates RequireFeature: 402 with envelope + audit when absent.
 
@@ -26,11 +26,10 @@ spec:
         - License-gated demo endpoint
       excludes:
         - Install endpoints (operator drops file + SIGHUP for Stage 0)
-        - Quota query API
 
   constraints:
     - id: C-01
-      description: GET /license response MUST include tier, status, features, quotas, expiry, warnings
+      description: GET /license response MUST include tier, status, features, expiry, warnings
       type: technical
       enforcement: error
     - id: C-02

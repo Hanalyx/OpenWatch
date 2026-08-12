@@ -72,32 +72,51 @@ func LoadJWT(jwtBlob string, opts VerifyOptions) (VerifyResult, error) {
 		return VerifyMalformedJWT, err
 	}
 
-	// Carry forward the LastKnownGood from current state if caller didn't
-	// override (so clock-rollback detection works across reloads).
+	// Carry forward the watermark from current state if the caller did not
+	// override it, so rollback detection survives a reload.
+	prevLKG := time.Time{}
+	if cur := current.Load(); cur != nil {
+		prevLKG = cur.LastKnownGood
+	}
 	if opts.LastKnownGood.IsZero() {
-		if cur := current.Load(); cur != nil {
-			opts.LastKnownGood = cur.LastKnownGood
-		}
+		opts.LastKnownGood = prevLKG
 	}
 
 	lic, result, err := Verify(jwtBlob, activeKeyring(), opts)
 	if result != VerifyValid {
-		// Don't replace the active state on failure — keep the previous
+		// Don't replace the active state on failure: keep the previous
 		// license active (or free tier). Audit emission is the caller's
 		// responsibility (audit.go helpers).
 		return result, err
 	}
 
-	newLKG := opts.Now
-	if newLKG == nil {
-		newLKG = time.Now
+	nowFn := opts.Now
+	if nowFn == nil {
+		nowFn = time.Now
 	}
 	setState(&State{
-		License:       lic,
-		LoadedAt:      time.Now(),
-		LastKnownGood: newLKG(),
+		License:  lic,
+		LoadedAt: time.Now(),
+		// The watermark is a RATCHET: it only ever moves forward.
+		//
+		// Stamping it to `now` unconditionally would let an attacker lower it.
+		// Verify tolerates an hour of backwards drift, so a clock walked back
+		// 59 minutes verifies, and writing that reading back would drop the
+		// watermark by 59 minutes. Repeat and the watermark follows the clock
+		// down without a single check ever failing, which defeats the whole
+		// mechanism. Taking the max makes each step a no-op instead.
+		LastKnownGood: laterOf(nowFn(), prevLKG),
 	})
 	return VerifyValid, nil
+}
+
+// laterOf returns whichever time is not earlier. Used to advance the
+// clock-rollback watermark without ever moving it backwards.
+func laterOf(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return b
+	}
+	return a
 }
 
 // VerifyOnly parses + validates without installing. Used by

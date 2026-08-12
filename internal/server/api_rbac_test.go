@@ -21,8 +21,8 @@ import (
 )
 
 // @ac AC-08
-// AC-08: caller with the permission and (when gated) a valid license
-// reaches the handler.
+// AC-08: a caller whose role grants the permission reaches the handler.
+// RBAC is the only stage the middleware runs.
 func TestAPI_RBAC_AllowsWithPermission(t *testing.T) {
 	t.Run("system-rbac/AC-08", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -81,9 +81,12 @@ func TestAPI_RBAC_DeniesWithoutPermission(t *testing.T) {
 }
 
 // @ac AC-10
-// AC-10: RBAC passes (security_admin has remediation:execute), but no
-// license is installed → 402 license.feature_unavailable. Confirms RBAC
-// fails first ordering — anonymous would have gotten 403 instead.
+// AC-10: RBAC passes (security_admin has remediation:execute), then the
+// route-level feature gate fails because no license is installed → 402
+// license.feature_unavailable. The 402 comes from license.EnforceFeature
+// inside the handler, not from the RBAC middleware. Confirms the ordering
+// holds: an anonymous caller would have been stopped at 401/403 first and
+// never reached the feature check.
 func TestAPI_RBAC_RBACPassesLicenseFails(t *testing.T) {
 	t.Run("system-rbac/AC-10", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -106,7 +109,8 @@ func TestAPI_RBAC_RBACPassesLicenseFails(t *testing.T) {
 }
 
 // AC-10 corollary: viewer + no license on the same endpoint → 403, NOT
-// 402. RBAC fails first.
+// 402. RBAC fails first, because the handler that runs the feature check
+// cannot be reached until the permission check passes.
 func TestAPI_RBAC_RBACFirstWhenBothFail(t *testing.T) {
 	t.Run("system-rbac/AC-10/rbac-first", func(t *testing.T) {
 		url, _ := freshAPIServer(t)
@@ -221,12 +225,7 @@ func TestAPI_RBAC_GetPermissionsRegistry(t *testing.T) {
 				ID          string `json:"id"`
 				Description string `json:"description"`
 			} `json:"categories"`
-			Permissions []struct {
-				ID           string  `json:"id"`
-				Category     string  `json:"category"`
-				Dangerous    bool    `json:"dangerous"`
-				LicenseGated *string `json:"license_gated"`
-			} `json:"permissions"`
+			Permissions []map[string]any `json:"permissions"`
 			Roles []struct {
 				ID          string   `json:"id"`
 				Permissions []string `json:"permissions"`
@@ -242,27 +241,24 @@ func TestAPI_RBAC_GetPermissionsRegistry(t *testing.T) {
 		if len(got.Roles) != 5 {
 			t.Errorf("roles = %d, want 5", len(got.Roles))
 		}
-		// Spot-check: audit:export is license-gated to audit_export. (
-		// remediation:execute used to be the spot-check, but single-rule
-		// execute is now FREE core and carries no license gate.)
+		// The registry surfaces the permission and its dangerous marker, and
+		// NO entitlement state. Decoding into a map rather than a struct is
+		// deliberate: a struct would silently drop a reintroduced field, so
+		// the map is what makes the negative assertion real.
 		found := false
 		for _, p := range got.Permissions {
-			if p.ID == "audit:export" {
+			if _, bad := p["license_gated"]; bad {
+				t.Errorf("permission %v carries license_gated; entitlement is gated on the route (x-required-feature), not the permission", p["id"])
+			}
+			if _, ok := p["dangerous"]; !ok {
+				t.Errorf("permission %v is missing the dangerous marker", p["id"])
+			}
+			if p["id"] == "audit:export" {
 				found = true
-				if p.LicenseGated == nil || *p.LicenseGated != "audit_export" {
-					t.Errorf("audit:export license_gated = %v, want audit_export", p.LicenseGated)
-				}
 			}
 		}
 		if !found {
 			t.Error("audit:export not surfaced via registry endpoint")
-		}
-		// And confirm the free-core ungating: remediation:execute carries NO
-		// license gate now.
-		for _, p := range got.Permissions {
-			if p.ID == "remediation:execute" && p.LicenseGated != nil {
-				t.Errorf("remediation:execute license_gated = %v, want nil (free core)", *p.LicenseGated)
-			}
 		}
 	})
 }

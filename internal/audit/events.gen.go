@@ -226,8 +226,6 @@ const (
 	//
 	LicenseFeatureCheckDenied Code = "license.feature_check_denied"
 	//
-	LicenseQuotaExceeded Code = "license.quota_exceeded"
-	//
 	LicenseClockRollbackDetected Code = "license.clock_rollback_detected"
 	//
 	LicenseTampered Code = "license.tampered"
@@ -1041,13 +1039,6 @@ var Metadata = map[Code]EventMeta{
 		Description: ``,
 		ActorTypes:  nil,
 	},
-	LicenseQuotaExceeded: {
-		Code:        LicenseQuotaExceeded,
-		Category:    "license",
-		Severity:    SeverityWarning,
-		Description: ``,
-		ActorTypes:  nil,
-	},
 	LicenseClockRollbackDetected: {
 		Code:        LicenseClockRollbackDetected,
 		Category:    "license",
@@ -1488,7 +1479,6 @@ var codeOrder = []Code{
 	LicenseExpiringSoon,
 	LicenseExpired,
 	LicenseFeatureCheckDenied,
-	LicenseQuotaExceeded,
 	LicenseClockRollbackDetected,
 	LicenseTampered,
 	PolicyLoaded,

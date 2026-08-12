@@ -56,8 +56,6 @@ categories:
     description: Policy validation and application (Principle 2)
   - id: license
     description: License JWT validation, expiry, fingerprint
-  - id: quota
-    description: License-driven quota limits
   - id: audit
     description: Audit query and export errors
   - id: rate_limit
@@ -516,54 +514,6 @@ errors:
       properties:
         last_known_good: {type: string, format: date-time}
         current_time: {type: string, format: date-time}
-
-  # =========================================================================
-  # quota - license-driven quotas
-  # =========================================================================
-  - code: quota.max_hosts_exceeded
-    http_status: 402
-    fault: policy
-    retryable: false
-    description: Adding this host would exceed the licensed host limit
-    detail_schema:
-      type: object
-      properties:
-        limit: {type: integer}
-        current: {type: integer}
-
-  - code: quota.max_users_exceeded
-    http_status: 402
-    fault: policy
-    retryable: false
-    description: Adding this user would exceed the licensed user limit
-    detail_schema:
-      type: object
-      properties:
-        limit: {type: integer}
-        current: {type: integer}
-
-  - code: quota.max_scans_per_day_exceeded
-    http_status: 402
-    fault: policy
-    retryable: true
-    description: Daily scan limit reached; resets at UTC midnight
-    detail_schema:
-      type: object
-      properties:
-        limit: {type: integer}
-        current: {type: integer}
-        resets_at: {type: string, format: date-time}
-
-  - code: quota.concurrent_scan_limit
-    http_status: 503
-    fault: policy
-    retryable: true
-    description: Concurrent scan slots exhausted; scan deferred (not failed)
-    detail_schema:
-      type: object
-      properties:
-        limit: {type: integer}
-        in_flight: {type: integer}
 
   # =========================================================================
   # audit - audit query/export errors

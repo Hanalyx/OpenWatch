@@ -1,7 +1,7 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "1.3.0"
+  version: "2.0.0"
   status: approved
   tier: 1
 
@@ -12,10 +12,14 @@ spec:
       Permissions are a registry, not a vocabulary. The permissions.yaml
       file is the single source of truth; codegen produces typed Permission
       and RoleID constants plus metadata maps. The RequirePermission
-      middleware combines RBAC and license-gate checks in one pass:
-      RBAC fails first (403), license fails second (402). Stage 0 ships
-      with an X-Stub-Role header for demo purposes; real identity binds
-      in Stage 2.
+      middleware checks RBAC and nothing else. A permission carries no
+      entitlement: tiering is by scope, so one host is free and the same
+      vocabulary at fleet scale is paid, and both use the SAME permission.
+      Only the route can tell them apart, so an operation that needs an
+      entitlement declares x-required-feature in api/openapi.yaml and its
+      handler calls license.EnforceFeature. RBAC still resolves first,
+      because the handler cannot run until the middleware passes. See
+      decision record 05.
     related_specs:
       - system-license-features
       - system-audit-emission
@@ -30,8 +34,8 @@ spec:
       includes:
         - Codegen-typed Permission constants from permissions.yaml
         - Codegen-typed RoleID constants + BuiltInRoles map with wildcards expanded
-        - RequirePermission middleware (RBAC + license combined)
-        - Runtime lookup helpers (HasPermission, LicenseGate, IsDangerous)
+        - RequirePermission middleware (RBAC only)
+        - Runtime lookup helpers (HasPermission, IsDangerous)
         - Stub identity via X-Stub-Role header (Stage 0)
       excludes:
         - Real identity binding (Stage 2)
@@ -48,7 +52,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: RequirePermission MUST check RBAC first and license second (403 wins over 402 for the same request)
+      description: "RBAC MUST resolve before entitlement for the same request, so 403 wins over 402. The middleware enforces RBAC only; a route that needs an entitlement calls license.EnforceFeature inside the handler, which the middleware guards. A caller who lacks the permission MUST NOT learn the entitlement state of the deployment."
       type: security
       enforcement: error
     - id: C-04
@@ -56,7 +60,7 @@ spec:
       type: security
       enforcement: error
     - id: C-05
-      description: License-gated permission denial MUST emit license.feature_check_denied (not authz.permission_denied) when RBAC passes
+      description: An entitlement denial MUST emit license.feature_check_denied (not authz.permission_denied) when RBAC passes. The two denial classes stay distinct, so an operator can tell "your role is wrong" from "your license does not cover this".
       type: security
       enforcement: error
     - id: C-06
@@ -78,7 +82,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: Codegen produces Permissions map with Category, Description, Dangerous, LicenseGated per id.
+      description: Codegen produces Permissions map with Category, Description and Dangerous per id. There is no entitlement field.
       priority: critical
     - id: AC-03
       description: Codegen produces roles.gen.go with one RoleID constant per entry in permissions.yaml roles section.
@@ -95,17 +99,17 @@ spec:
       description: IsDangerous(perm) returns the registry's dangerous flag for perm.
       priority: high
     - id: AC-07
-      description: LicenseGate(perm) returns the feature id for license-gated perms, "" otherwise.
+      description: "The registry carries no license gate, and neither does the RBAC middleware. permissions.yaml declares no license_gated key, permissions.gen.go emits no LicenseGated field and no LicenseGate helper, and internal/auth/middleware.go does not import internal/license. A permission cannot express an entitlement because per-host and fleet-scale use the same permission; the route tells them apart. Pinned by source inspection, since a reintroduced field would still compile."
       priority: high
     - id: AC-08
-      description: RequirePermission middleware allows the request when the identity grants the permission and the license gate passes.
+      description: RequirePermission middleware allows the request when the calling identity grants the permission. RBAC is the only check it makes.
       priority: critical
     - id: AC-09
       description: "RequirePermission / EnforcePermission distinguishes the two denial classes by HTTP status. An ANONYMOUS caller (no credentials, or a session cookie that expired in the browser and is no longer sent) is denied 401 auth.required so the SPA redirects to login. An AUTHENTICATED caller whose role lacks the permission is denied 403 authz.permission_denied. The authz.permission.denied audit event is emitted in both cases."
       priority: critical
       references_constraints: [C-03, C-04]
     - id: AC-10
-      description: RequirePermission middleware denies with 402 license.feature_unavailable when RBAC passes but the license-gated feature is not enabled.
+      description: "A route that declares x-required-feature denies with 402 license.feature_unavailable when RBAC passes but the feature is not enabled. The 402 is produced by license.EnforceFeature inside the handler, not by the RBAC middleware. The ordering still holds: a caller who lacks the permission is stopped at 401 or 403 and never reaches the feature check, so 403 wins over 402 for the same request."
       priority: critical
       references_constraints: [C-03, C-05]
     - id: AC-11

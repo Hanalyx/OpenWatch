@@ -3,14 +3,14 @@ openapi: 3.1.0
 # ============================================================================
 # License & Feature Gating API
 # ============================================================================
-# Surface for license state inspection, feature/quota discovery, and operator
+# Surface for license state inspection, feature discovery, and operator
 # license management.
 #
 # Design source: app/docs/licensing_foundation.md
 #
 # Endpoints in this spec:
 #   - GET  /license                       # current license info (sanitized)
-#   - GET  /license/features              # active feature set + quotas
+#   - GET  /license/features              # active feature set
 #   - POST /admin/license:verify          # validate a license file (no install)
 #   - POST /admin/license:install         # install a license file (with reload)
 #   - GET  /admin/license/history         # past licenses (superseded log)
@@ -74,7 +74,7 @@ components:
     # ----------------------------------------------------------------
     License:
       type: object
-      required: [tier, status, features, quotas]
+      required: [tier, status, features]
       properties:
         license_id:
           type: string
@@ -106,8 +106,6 @@ components:
           type: array
           items: {type: string}
           description: Active feature IDs.
-        quotas:
-          $ref: '#/components/schemas/Quotas'
         deployment_fingerprint_bound:
           type: boolean
           description: True if license includes a deployment fingerprint binding.
@@ -126,32 +124,6 @@ components:
             properties:
               code: {type: string, examples: [license.using_deprecated_key, license.expiring_soon]}
               human_message: {type: string}
-
-    Quotas:
-      type: object
-      properties:
-        max_hosts:
-          type: object
-          properties:
-            limit: {type: [integer, 'null'], description: Null = unlimited}
-            current_usage: {type: integer}
-            remaining: {type: [integer, 'null']}
-        max_scans_per_day:
-          type: object
-          properties:
-            limit: {type: [integer, 'null']}
-            current_usage: {type: integer}
-            window_resets_at: {type: string, format: date-time}
-        max_users:
-          type: object
-          properties:
-            limit: {type: [integer, 'null']}
-            current_usage: {type: integer}
-        max_concurrent_scans:
-          type: object
-          properties:
-            limit: {type: [integer, 'null']}
-            current_usage: {type: integer}
 
     FeatureCatalog:
       type: object
@@ -381,4 +353,4 @@ paths:
                   next_cursor: {type: [string, 'null']}
 
 # Error codes for this domain are registered in app/api/error_codes.yaml under
-# categories `license` and `quota`. The registry is the source of truth.
+# the `license` category. The registry is the source of truth.
