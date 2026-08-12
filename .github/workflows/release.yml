@@ -35,6 +35,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The tag is the only place a pre-release identity exists on the way in,
+      # and packaging/version.env is the only place it exists on the way out.
+      # Nothing compared them, so tagging v0.7.0-rc.1 and v0.7.0-rc.2 against a
+      # version.env of "0.7.0" produced two byte-different builds sharing one
+      # NEVRA (openwatch-1:0.7.0-1.x86_64). `dnf upgrade` between them reports
+      # "Nothing to do", and `rpm -q` cannot tell them apart, so a tester can
+      # verify an RC they never actually installed. The build scripts already
+      # tilde-encode a pre-release correctly; the suffix simply never reached
+      # them. This gate makes that impossible to repeat.
+      - name: Verify the tag matches packaging/version.env
+        run: bash packaging/check-tag-version.sh
+        env:
+          RELEASE_REF: ${{ github.event.inputs.version || github.ref_name }}
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

@@ -152,6 +152,20 @@ spec:
         not land on the read-only root.
       type: technical
       enforcement: error
+    - id: C-14
+      description: >
+        The release ref MUST equal "v" + packaging/version.env VERSION, verified
+        before any package is built. C-12 governs how a pre-release VERSION is
+        encoded, but presupposes that VERSION carries the suffix at all. In the
+        v0.7.0 cycle it did not: v0.7.0-rc.1 and v0.7.0-rc.2 were tagged against
+        VERSION="0.7.0", so the tilde encoding C-12 requires had nothing to act
+        on and both RCs published as openwatch-1:0.7.0-1.x86_64. The pre-release
+        identity exists in the tag on the way in and in version.env on the way
+        out, and only the second reaches package metadata, so the two MUST be
+        compared rather than assumed to agree. Two builds sharing one NEVRA make
+        "dnf upgrade" a silent no-op.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -272,3 +286,17 @@ spec:
         remediation/rollback returned "not wired" while scans worked.
       priority: critical
       references_constraints: [C-13]
+    - id: AC-24
+      description: >-
+        The release ref and packaging/version.env must agree before anything is
+        built. packaging/check-tag-version.sh exits 0 when RELEASE_REF equals
+        "v" + VERSION and non-zero otherwise, and .github/workflows/release.yml
+        invokes it before the package build step. Backstops the v0.7.0 defect
+        where v0.7.0-rc.1 and v0.7.0-rc.2 were both tagged against
+        VERSION="0.7.0": AC-21's tilde encoding was present and correct, but the
+        pre-release suffix never reached it, so both RCs published as
+        openwatch-1:0.7.0-1.x86_64. Two byte-different builds under one identity
+        make "dnf upgrade" a no-op and leave "rpm -q" unable to tell them apart,
+        so an operator can verify one RC believing it is the other.
+      priority: critical
+      references_constraints: [C-12, C-14]
