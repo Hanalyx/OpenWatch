@@ -13,7 +13,7 @@ import (
 // disk and the next handshake (after the cache expiry) presents the new
 // certificate.
 //
-// Spec: app/specs/system/http-server.spec.yaml AC-4, AC-5, AC-6, AC-7.
+// Spec: specs/system/http-server.spec.yaml AC-4, AC-5, AC-6, AC-7.
 type certManager struct {
 	certPath, keyPath string
 	cacheTTL          time.Duration

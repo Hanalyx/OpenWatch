@@ -367,9 +367,10 @@ jobs:
   # Hanalyx documentation style gate. Runs as its own job on purpose: the
   # "gates" job above short-circuits to success on doc-only changes, so a
   # step inside it would be skipped exactly when documentation is what
-  # changed. Enforces the prohibited list (em dashes, emojis, AI speak)
-  # from the Context Plane at dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
-  # Shared implementation: dev/tools/doc-style-check.
+  # changed. Enforces the prohibited list from the Context Plane at
+  # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
+  # US English spelling, and a per-file reading level.
+  # Shared implementation: dev/tools/doc-style-check (this repo runs v3).
   doc-style:
     name: Doc Style
     runs-on: ubuntu-latest
@@ -377,7 +378,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Check changed Markdown against the style guide
+      # The selftest runs first so a broken checker fails as a broken checker
+      # rather than as a clean run. A gate nobody has watched fail is not
+      # known to work.
+      - name: Checker selftest
+        run: python3 scripts/check-doc-style.py --selftest
+      - name: Check changed files against the style guide
         run: |
           git fetch origin main --depth=1 2>/dev/null || true
           python3 scripts/check-doc-style.py --changed

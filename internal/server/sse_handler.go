@@ -13,7 +13,7 @@
 // (CSV of EventKind values). Empty/missing topics = 400 (matches
 // eventbus.Subscribe semantics — no wildcard).
 //
-// Spec: app/specs/api/events-stream.spec.yaml.
+// Spec: specs/api/events-stream.spec.yaml.
 
 package server
 
@@ -151,7 +151,7 @@ func parseTopics(csv string) []eventbus.EventKind {
 	return out
 }
 
-// writeSSE serialises an event into an SSE-framed JSON line. Format:
+// writeSSE serializes an event into an SSE-framed JSON line. Format:
 //
 //	event: <kind>
 //	data: {"kind":"...","timestamp":"...","payload":{...}}

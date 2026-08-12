@@ -75,7 +75,7 @@ var (
 // (cloned from a freshly-migrated template). It skips the test when
 // OPENWATCH_TEST_DSN is unset. Each call returns a NEW pool (closed via
 // t.Cleanup) against the same per-package database, matching the historical
-// "new pool per freshPool call" behaviour. The database is provisioned once
+// "new pool per freshPool call" behavior. The database is provisioned once
 // per process.
 func Pool(t testing.TB) *pgxpool.Pool {
 	t.Helper()

@@ -48,7 +48,7 @@ func TestCodes_AtLeast20CrossCategoryAndDottedHierarchy(t *testing.T) {
 
 // @ac AC-02
 // AC-02: every code in Codes() has a matching entry in
-// app/audit/events.yaml. Source inspection: parse events.yaml and
+// audit/events.yaml. Source inspection: parse events.yaml and
 // assert the union covers Codes().
 func TestCodes_AllCoveredByAuditEventsYAML(t *testing.T) {
 	t.Run("system-os-intelligence/AC-02", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestCodes_AllCoveredByAuditEventsYAML(t *testing.T) {
 			dir = filepath.Dir(dir)
 		}
 		if yamlPath == "" {
-			t.Fatalf("could not locate app/audit/events.yaml from %s", file)
+			t.Fatalf("could not locate audit/events.yaml from %s", file)
 		}
 		raw, err := os.ReadFile(yamlPath)
 		if err != nil {
@@ -85,7 +85,7 @@ func TestCodes_AllCoveredByAuditEventsYAML(t *testing.T) {
 		}
 		for _, c := range Codes() {
 			if !yamlCodes[string(c)] {
-				t.Errorf("taxonomy code %q has no entry in app/audit/events.yaml", c)
+				t.Errorf("taxonomy code %q has no entry in audit/events.yaml", c)
 			}
 		}
 	})

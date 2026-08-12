@@ -2,7 +2,7 @@
 // unauthenticated reference material and MUST be mounted before the
 // identity binder + permission middleware.
 //
-// Spec: app/specs/api/openapi-docs.spec.yaml.
+// Spec: specs/api/openapi-docs.spec.yaml.
 
 package server
 

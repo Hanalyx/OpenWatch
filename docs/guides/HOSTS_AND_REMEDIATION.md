@@ -216,14 +216,15 @@ installed on target hosts.
 5. Select **Start Remediation** to confirm.
 
 
-In the free-core edition, a single-rule remediation request auto-approves on
-submission. There is no separate approval step, and no per-organization toggle
-to require one. The request is still recorded and audited (with a note that
-it was auto-approved), and a user with `remediation:execute` applies it.
+Fixing one rule on one host, with rollback, is free. A single-rule remediation
+request auto-approves on submission. There is no separate approval step, and no
+per-organization toggle to require one. The request is still recorded and audited
+(with a note that it was auto-approved), and a user with `remediation:execute`
+applies it.
 
-**Roadmap (licensed tier).** A request/approve/reject workflow with
-separation of duties is planned for the licensed bulk/automated remediation
-track, not yet available today:
+**Roadmap (Enterprise).** A request/approve/reject workflow with separation of
+duties is planned for the Enterprise bulk and automated remediation track, not
+yet available today:
 
 1. A user with `remediation:request` (`ops_lead`, `security_admin`, or `admin`)
    selects findings, chooses **Request Remediation**, and enters a justification.
@@ -392,8 +393,8 @@ group also needs `match_family`). Add a host to a manual group via
 ### Request and execute remediation
 
 Remediation is a request lifecycle, not a single call: request a fix for a
-failing rule on a host, then execute it (free-core single-rule fixes
-auto-approve on request; the licensed bulk track keeps the approve/reject step).
+failing rule on a host, then execute it. Single-rule fixes are free and
+auto-approve on request. The Enterprise bulk track keeps the approve/reject step.
 
 ```bash
 # 1. Request a fix for one failing rule on one host.
