@@ -411,9 +411,16 @@ var osPinnedSegment = regexp.MustCompile(`^([a-z]+)(\d+)$`)
 //
 //   - ids with no OS-pinned segment are OS-neutral -> always true
 //   - an undiscovered host (empty family) cannot be judged -> true
-//   - otherwise the pinned family must equal the host family, and the
-//     pinned digits must equal the host's major version (or the
+//   - otherwise the pinned family must equal the host's BENCHMARK family, and
+//     the pinned digits must equal the host's major version (or the
 //     major+minor concatenation, covering ubuntu2404 vs "24.04")
+//
+// The host family is normalized through framework.BenchmarkFamily so an EL
+// rebuild is judged against its upstream. Comparing the raw distro id rejected
+// stig_rhel9 for an almalinux host, and because this function decides which
+// lenses are OFFERED, the effect was not an empty STIG score but no STIG option
+// at all -- a page that looks complete while withholding two thirds of the
+// host's compliance signal.
 func frameworkCompatibleWithOS(frameworkID, osFamily, osVersion string) bool {
 	pinFamily, pinVersion := "", ""
 	for _, seg := range strings.Split(strings.ToLower(frameworkID), "_") {
@@ -429,7 +436,7 @@ func frameworkCompatibleWithOS(frameworkID, osFamily, osVersion string) bool {
 	if osFamily == "" {
 		return true // host OS unknown; cannot judge, do not hide
 	}
-	if pinFamily != strings.ToLower(osFamily) {
+	if pinFamily != framework.BenchmarkFamily(osFamily) {
 		return false
 	}
 	if osVersion == "" {
