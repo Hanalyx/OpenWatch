@@ -866,3 +866,72 @@ func TestPackaging_PreReleaseVersioning(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-24
+// AC-24: the release ref and packaging/version.env must agree before anything
+// is built.
+//
+// AC-21 already asserts the tilde encoding is present in the build scripts,
+// and it was present and correct throughout the v0.7.0 cycle. It still shipped
+// v0.7.0-rc.1 and v0.7.0-rc.2 as the same package, because both were tagged
+// against VERSION="0.7.0" and the pre-release suffix never reached the code
+// AC-21 guards. A source-inspection test on the encoder cannot see that its
+// input was wrong, so this one runs the gate instead of reading it.
+func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
+	t.Run("release-package-build/AC-24", func(t *testing.T) {
+		dir := appDir(t)
+		script := filepath.Join(dir, "packaging", "check-tag-version.sh")
+		if _, err := os.Stat(script); err != nil {
+			t.Fatalf("packaging/check-tag-version.sh is missing: %v", err)
+		}
+
+		// The gate must be wired into the release workflow BEFORE the build,
+		// or it protects nothing.
+		wf, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "release.yml"))
+		if err != nil {
+			t.Fatalf("read release.yml: %v", err)
+		}
+		flow := string(wf)
+		gateAt := strings.Index(flow, "packaging/check-tag-version.sh")
+		buildAt := strings.Index(flow, "make packages")
+		switch {
+		case gateAt < 0:
+			t.Error("release.yml does not invoke packaging/check-tag-version.sh; " +
+				"the tag and version.env would go uncompared")
+		case buildAt < 0:
+			t.Error("release.yml no longer runs `make packages`; this test's ordering " +
+				"check is stale")
+		case gateAt > buildAt:
+			t.Error("release.yml runs check-tag-version.sh AFTER `make packages`; " +
+				"the gate must precede the build so a mismatched tag never produces " +
+				"an artifact")
+		}
+
+		// Behavior, against the real version.env in the tree.
+		version := versionEnvVersion(t)
+		run := func(ref string) error {
+			cmd := exec.Command("bash", script)
+			cmd.Env = append(os.Environ(), "RELEASE_REF="+ref)
+			return cmd.Run()
+		}
+		if err := run("v" + version); err != nil {
+			t.Errorf("gate rejected the matching tag v%s: %v", version, err)
+		}
+		for _, bad := range []string{
+			"v" + version + "-rc.2", // the exact v0.7.0 defect
+			"v0.0.1-rc.1",
+			"v99.99.99",
+		} {
+			if err := run(bad); err == nil {
+				t.Errorf("gate ACCEPTED tag %q against VERSION=%q; it must refuse, "+
+					"because VERSION is what reaches the package metadata", bad, version)
+			}
+		}
+		// An empty ref is a misconfigured workflow, not a pass.
+		cmd := exec.Command("bash", script)
+		cmd.Env = append(os.Environ(), "RELEASE_REF=")
+		if err := cmd.Run(); err == nil {
+			t.Error("gate accepted an empty RELEASE_REF; a missing ref must fail loudly")
+		}
+	})
+}
