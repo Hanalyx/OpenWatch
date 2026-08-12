@@ -58,7 +58,7 @@ spec:
       type: security
       enforcement: error
     - id: C-07
-      description: Loader MUST persist the last_known_good watermark; Verify MUST reject when now sits behind that watermark. The comparison uses now, not the license iat (decision record 03)
+      description: Loader MUST persist the last_known_good watermark; Verify MUST report ClockRollback when now sits behind that watermark. The comparison uses now, not the license iat (decision record 03). Verify reports, the loader decides what it costs (C-14)
       type: security
       enforcement: error
     - id: C-08
@@ -83,6 +83,10 @@ spec:
       enforcement: error
     - id: C-13
       description: The last_known_good watermark MUST be monotonic; a successful load MUST NOT move it earlier. Verify tolerates an hour of backwards drift, so writing an accepted-but-earlier reading back would let repeated loads walk the watermark down with no check ever failing
+      type: security
+      enforcement: error
+    - id: C-14
+      description: A detected clock rollback MUST warn, not deny. The loader MUST still install the license, MUST mark it, and MUST emit license.clock_rollback_detected. The watermark row lives in the customer's own database and the adversary has root there, so denial is evadable by deleting the row while a false positive silently drops a paying deployment to free tier (decision record 06)
       type: security
       enforcement: error
 
@@ -156,3 +160,19 @@ spec:
       description: A load whose now sits earlier than the stored watermark, but inside the tolerance, leaves the watermark unchanged. The conforming test loads once at T, loads again at T minus 59 minutes, and asserts the stored last_known_good is still T.
       priority: critical
       references_constraints: [C-13]
+    - id: AC-19
+      description: Reading the persisted watermark when no row exists returns the zero time and a nil error. A first boot has no watermark, and zero is what makes Verify skip the check.
+      priority: high
+      references_constraints: [C-07, C-11]
+    - id: AC-20
+      description: The persisted watermark is monotonic in SQL, not in a read-then-write in Go. An advance to an earlier time is a no-op, an advance to a later time moves it, and concurrent advances settle on the maximum. Doing it in Go would let two processes lose an update between the read and the write.
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-21
+      description: The watermark table cannot hold a second row. Both escape paths are closed. A duplicate at the default id hits the primary key, and an insert at the other boolean value hits the singleton CHECK.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-22
+      description: A detected rollback warns and still loads. The license installs, License.ClockRollbackDetected is true, and license.clock_rollback_detected is emitted. Every other check still gates. The conforming test proves an expired or wrong-issuer license is still refused while the rollback flag is set.
+      priority: critical
+      references_constraints: [C-14]

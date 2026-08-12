@@ -63,6 +63,10 @@ type License struct {
 	UsingPrevKey    bool   // signed with the previous key (warning surface)
 	InGracePeriod   bool   // expired but within 30-day grace
 	UnknownFeatures []string
+	// ClockRollbackDetected reports that this deployment's clock sits behind
+	// the recorded watermark by more than the tolerance. It is a WARNING, not
+	// a denial: the license still loads. See decision record 06.
+	ClockRollbackDetected bool
 }
 
 // State is the runtime snapshot kept under an atomic.Pointer. Lock-free

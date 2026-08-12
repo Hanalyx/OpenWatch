@@ -83,6 +83,30 @@ func LoadJWT(jwtBlob string, opts VerifyOptions) (VerifyResult, error) {
 	}
 
 	lic, result, err := Verify(jwtBlob, activeKeyring(), opts)
+
+	// Policy split: Verify reports what it found, the loader decides what to
+	// do about it. A clock rollback WARNS and still loads (decision record 06).
+	//
+	// Withholding entitlement here would buy almost nothing. The watermark
+	// lives in the customer's own PostgreSQL and the adversary has root on
+	// that host, so anyone willing to move the clock can delete the row and
+	// reset the check. What failing closed reliably produces instead is a
+	// paying customer silently dropped to free tier after one clock-forward
+	// accident, with a cause weeks in the past and a database row to delete
+	// before it recovers.
+	//
+	// Re-verify with the watermark cleared rather than waving the license
+	// through: every other check (signature, issuer, audience, iat skew, nbf,
+	// expiry, fingerprint) must still pass on its own.
+	if result == VerifyClockRollback {
+		rollbackOpts := opts
+		rollbackOpts.LastKnownGood = time.Time{}
+		lic, result, err = Verify(jwtBlob, activeKeyring(), rollbackOpts)
+		if result == VerifyValid && lic != nil {
+			lic.ClockRollbackDetected = true
+		}
+	}
+
 	if result != VerifyValid {
 		// Don't replace the active state on failure: keep the previous
 		// license active (or free tier). Audit emission is the caller's
