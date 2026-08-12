@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	expectedIssuer   = "hanalyx-openwatch-licensing"
+	expectedIssuer   = "licensing@hanalyx.com"
 	expectedAudience = "openwatch"
 	gracePeriod      = 30 * 24 * time.Hour
 	clockSkewBudget  = 10 * time.Second
@@ -41,7 +41,7 @@ type VerifyOptions struct {
 // validates claims, and returns either a populated License (when Valid)
 // or a typed VerifyResult on failure.
 //
-// Spec: app/specs/system/license-validation.spec.yaml.
+// Spec: specs/system/license-validation.spec.yaml.
 func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, VerifyResult, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now

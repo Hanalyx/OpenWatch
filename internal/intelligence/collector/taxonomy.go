@@ -3,12 +3,12 @@ package collector
 // Code is a single OS Intelligence event code in the closed taxonomy.
 // Three-segment dotted: category.subcategory.action.
 //
-// Spec: app/specs/system/os-intelligence.spec.yaml C-05.
+// Spec: specs/system/os-intelligence.spec.yaml C-05.
 //
 // Adding a new code requires:
 //
 //  1. Add the const here AND append to taxonomyCodes.
-//  2. Add the matching entry to app/audit/events.yaml + regenerate
+//  2. Add the matching entry to audit/events.yaml + regenerate
 //     internal/audit/events.gen.go.
 //  3. Add the literal to the CHECK constraint in
 //     internal/db/migrations/0018_host_intelligence.sql via a follow-up

@@ -456,7 +456,7 @@ func mapExecTxns(in []kensa.RemediationTxn) []remediation.ExecTxn {
 			HostUnchanged:    t.HostUnchanged,
 			AlreadyCompliant: t.AlreadyCompliant,
 		}
-		// Serialise here rather than threading Kensa types further in:
+		// Serialize here rather than threading Kensa types further in:
 		// internal/remediation deliberately does not import internal/kensa.
 		if len(t.Steps) > 0 {
 			if b, err := json.Marshal(t.Steps); err == nil {

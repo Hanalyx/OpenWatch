@@ -59,8 +59,8 @@ valid identity.
 
 `GET /api/v1/capabilities` reports every capability this deployment has, with
 whether it is available here, so a client can present a locked control rather
-than discovering the limit from a `402`. It exposes no customer identity or
-licence detail; `GET /api/v1/license` is the authenticated surface for that.
+than discovering the gate from a `402`. It exposes no customer identity or
+license detail; `GET /api/v1/license` is the authenticated surface for that.
 
 ### Log in
 
@@ -253,8 +253,13 @@ API; see [Operations](#operations-the-cli-and-systemd).
 
 ## License
 
-OpenWatch has a tiered license model (`free`, `enterprise`, `enterprise`).
-Premium-gated endpoints return `402` when the active tier lacks the feature.
+OpenWatch has two tiers: Community, which reports `free`, and Enterprise, which
+reports `enterprise`. Community needs no license file, and a deployment without
+one reports `tier: free` with `status: no_license`. The tiers differ in the scope
+of an action, not in capability: what one host can do is Community, and the same
+vocabulary across a fleet is Enterprise. There are no quotas or caps on hosts,
+scans, users, or retention. An Enterprise-scoped endpoint returns `402` when the
+active tier lacks the feature.
 
 | Method | Path | Purpose |
 |--------|------|---------|

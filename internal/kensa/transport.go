@@ -299,7 +299,7 @@ func (t *sshTransport) Run(ctx context.Context, cmd string) (*kensaapi.CommandRe
 //     unlike the single-shot liveness/discovery probes, which `-k` to fail
 //     a stale wrong password fast.
 //   - otherwise (nopasswd / unknown): `sudo -n sh -c '<cmd>'`. On unknown
-//     this is the historical degrade-gracefully behaviour.
+//     this is the historical degrade-gracefully behavior.
 func (t *sshTransport) wrap(cmd string) (line string, stdin []byte) {
 	if !t.sudo {
 		return cmd, nil

@@ -6,7 +6,7 @@
 // slog.InfoContext(ctx, ...) call carries the correlation_id without the
 // caller having to add it manually.
 //
-// Spec: app/specs/system/correlation.spec.yaml AC-12, AC-13.
+// Spec: specs/system/correlation.spec.yaml AC-12, AC-13.
 package log
 
 import (

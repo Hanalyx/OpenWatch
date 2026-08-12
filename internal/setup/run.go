@@ -35,7 +35,7 @@ type Run struct {
 	Plan Plan
 	// DryRun performs detection and planning but no writes.
 	DryRun bool
-	// Secrets resolved at apply time. Never serialised anywhere.
+	// Secrets resolved at apply time. Never serialized anywhere.
 	DBPassword    string
 	AdminPassword string
 
@@ -60,7 +60,7 @@ func (r *Run) record(step, action, target, backup string) {
 //
 // It decides whether editing pg_hba.conf needs the operator's blessing. The
 // caution exists to protect a cluster that predates OpenWatch and serves other
-// things; a cluster this run installed or initialised seconds ago has no such
+// things; a cluster this run installed or initialized seconds ago has no such
 // history and no access to lose.
 func (r *Run) provisionedCluster() bool {
 	for _, c := range r.Changes {
@@ -155,7 +155,7 @@ func psqlIn(ctx context.Context, database, sql string) cmdResult {
 	return cmdResult{Stdout: strings.TrimSpace(stdout.String()), Stderr: strings.TrimSpace(stderr.String()), Err: err}
 }
 
-// psqlMutate runs superuser SQL honouring DryRun.
+// psqlMutate runs superuser SQL honoring DryRun.
 func (r *Run) psqlMutate(ctx context.Context, step, what, sql string) error {
 	if r.DryRun {
 		r.logf("    would run SQL: %s", firstLine(sql))
@@ -171,7 +171,7 @@ func (r *Run) psqlMutate(ctx context.Context, step, what, sql string) error {
 	return nil
 }
 
-// writeFile writes a file with an explicit mode, honouring DryRun, backing up
+// writeFile writes a file with an explicit mode, honoring DryRun, backing up
 // any existing content first so a mistake is recoverable.
 func (r *Run) writeFile(step, path string, content []byte, mode os.FileMode) error {
 	if r.DryRun {
@@ -238,7 +238,7 @@ func sqlLiteral(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
-// sleep waits, but returns early if the context is cancelled so a Ctrl-C
+// sleep waits, but returns early if the context is canceled so a Ctrl-C
 // during the verify poll is responsive.
 func sleep(ctx context.Context, seconds int) {
 	t := time.NewTimer(time.Duration(seconds) * time.Second)

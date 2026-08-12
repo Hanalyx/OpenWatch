@@ -233,14 +233,14 @@ itself.
 
 ### Platforms it will run on
 
-| Platform | Behaviour |
+| Platform | Behavior |
 |---|---|
 | RHEL 9, AlmaLinux 10, Debian 12, Ubuntu 24.04 | Runs. Covered by testing. |
 | Rocky, Oracle Linux 8-10, AlmaLinux 8-9, RHEL 10 | Requires `--allow-untested` |
 | Ubuntu 22.04, other Debian releases | Requires `--allow-untested` |
 | Anything else | Refused |
 
-`untested` means the code recognises the layout and is expected to work, but it
+`untested` means the code recognizes the layout and is expected to work, but it
 is not covered by automated testing. It runs with `--allow-untested`; please
 report the result.
 
@@ -292,7 +292,7 @@ sudo openwatch setup --db-mode existing --db-host db.internal --db-port 5432
 
 `setup` then validates rather than provisions: it checks the server is
 reachable and supported, and creates the role and database only if they are
-missing. It never installs or initialises a remote PostgreSQL.
+missing. It never installs or initializes a remote PostgreSQL.
 
 A non-loopback host requires TLS. `sslmode` is raised off `disable`
 automatically, and a plan that sets it back is rejected.
@@ -337,7 +337,7 @@ Substitute the highest stream your release offers:
 sudo dnf module enable -y postgresql:16
 ```
 
-Then install, initialise, and start:
+Then install, initialize, and start:
 
 ```bash
 sudo dnf install -y postgresql-server
@@ -585,7 +585,7 @@ sudo systemctl enable --now postgresql
 
 Ubuntu 24.04 ships PostgreSQL 16 and Debian 12 ships 15, so the default package
 is already at or above the supported minimum and no pinning is needed. Confirm
-anyway, since this is the check that catches an older or customised base image:
+anyway, since this is the check that catches an older or customized base image:
 
 ```bash
 psql --version
@@ -758,7 +758,7 @@ is 3.
 
 ### `setup` says the platform is not covered by testing
 
-The distribution is recognised and expected to work, but is not covered by
+The distribution is recognized and expected to work, but is not covered by
 automated testing. Re-run with `--allow-untested`. If it reports the platform
 as unsupported instead, `setup` does not know that distribution's PostgreSQL
 layout and will not guess; use the manual procedure.

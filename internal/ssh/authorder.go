@@ -100,7 +100,7 @@ func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObs
 		return out, nil
 	}
 	// Default order (prefer == "key" or unset): key first, then the password
-	// family. Matches the historical pre-learning behaviour.
+	// family. Matches the historical pre-learning behavior.
 	if keyM != nil {
 		out = append(out, keyM)
 	}

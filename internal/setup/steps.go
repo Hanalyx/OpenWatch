@@ -154,7 +154,7 @@ func (stepPostgresCluster) Status(ctx context.Context, p Plan) StepStatus {
 }
 
 func (s stepPostgresCluster) Apply(ctx context.Context, r *Run) error {
-	// RHEL ships an uninitialised data directory; Debian initialises on
+	// RHEL ships an uninitialised data directory; Debian initializes on
 	// install. initdb is only safe when the directory is genuinely empty, so
 	// this checks rather than relying on the family alone.
 	if r.Plan.Platform.Family == FamilyRHEL && !postgresDataDirInitialised() {
@@ -381,7 +381,7 @@ func (s stepPgHba) Apply(ctx context.Context, r *Run) error {
 	// The opt-in default protects a PostgreSQL that predates OpenWatch and
 	// serves other things: a bad pg_hba edit removes access the operator
 	// already had. That reasoning does not reach a cluster setup installed and
-	// initialised in this same run, where nothing else uses it and there is no
+	// initialized in this same run, where nothing else uses it and there is no
 	// prior access to lose. Requiring a flag there is friction guarding
 	// against a risk that cannot exist, and it leaves the documented
 	// one-command install needing a manual step on exactly the fresh hosts it

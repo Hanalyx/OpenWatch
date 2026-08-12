@@ -21,7 +21,7 @@
 // in-flight executor.Run completes (the executor owns its per-scan timeout);
 // its result is persisted; then Run returns.
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml
+// Spec: specs/system/worker-subcommand.spec.yaml
 package worker
 
 import (
@@ -188,7 +188,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 	}
 }
 
-// Run is the worker loop. Returns nil on clean shutdown (ctx cancelled
+// Run is the worker loop. Returns nil on clean shutdown (ctx canceled
 // and any in-flight job completed). Returns a non-nil error only if the
 // loop encountered a fatal problem (none today — every per-job error is
 // classified and handled).
