@@ -91,7 +91,7 @@ func fips140Setting(godebug string) string {
 }
 
 // FIPSClaimMismatch reports whether the build-time FIPS ldflag disagrees with
-// the runtime. True means the binary was labelled FIPS but has no active
+// the runtime. True means the binary was labeled FIPS but has no active
 // module, or the reverse. Callers surface this loudly: a mislabelled binary is
 // worse than an unlabelled one, because it is trusted.
 func FIPSClaimMismatch() bool {

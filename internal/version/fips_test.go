@@ -80,7 +80,7 @@ func TestFIPS_GodebugParsing(t *testing.T) {
 }
 
 // @ac AC-10
-// AC-10: "only" is a recognised mode and is treated as unsafe rather than as
+// AC-10: "only" is a recognized mode and is treated as unsafe rather than as
 // the strictest good option.
 //
 // The empirical basis: a FIPS-built SSH client connecting to a real host
