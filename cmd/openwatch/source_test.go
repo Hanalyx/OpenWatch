@@ -11,6 +11,7 @@
 //   AC-09  TestCmdServe_IntelligenceSchedulerWired
 //   AC-10  TestCmdServe_MaintenancePauseWarnLog
 //   AC-11  TestCmdServe_AllServerBuildersWired
+//   AC-12  TestCmdServe_RetentionSweeperWired
 //
 // These tests are source-inspection — they read cmd/openwatch/main.go
 // and the Slice B package directories and assert structural invariants.
@@ -20,6 +21,7 @@
 package main
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -339,6 +341,136 @@ func TestCmdServe_AllServerBuildersWired(t *testing.T) {
 			if !regexp.MustCompile(`\b` + b + `\(`).MatchString(main) {
 				t.Errorf("server builder %s is defined but never called in main.go — its handler field stays nil and the guarded endpoints 503 in production (the alerts-service gap)", b)
 			}
+		}
+	})
+}
+
+// cmdServeBody parses main.go and returns the body of cmdServe. The
+// retention guard has to be scoped to that function: constructing the
+// sweeper anywhere else in the file, or in a helper nothing calls, is the
+// same dead code this spec exists to prevent.
+func cmdServeBody(t *testing.T) (*ast.BlockStmt, *token.FileSet) {
+	t.Helper()
+	_, file, _, _ := runtime.Caller(0)
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filepath.Join(filepath.Dir(file), "main.go"), nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+	for _, d := range f.Decls {
+		fn, ok := d.(*ast.FuncDecl)
+		if ok && fn.Recv == nil && fn.Name.Name == "cmdServe" {
+			return fn.Body, fset
+		}
+	}
+	t.Fatal("main.go has no top-level cmdServe function")
+	return nil, nil
+}
+
+// pkgCall reports whether n is a call to pkg.name(...).
+func pkgCall(n ast.Node, pkg, name string) bool {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg
+}
+
+// @ac AC-12
+// AC-12: cmdServe constructs the retention sweeper AND starts it with a
+// Run call taking ctx, on the pattern of exceptionSvc.Run(ctx, 0) and
+// accountpolicy.New(...).Run(ctx, 0).
+//
+// This is an AST check, not a text match, because the failure it guards
+// is precise. internal/sso PurgeExpiredStates and internal/identity
+// PurgeStaleOTPs were each written, tested and left with no caller for
+// months. A sweeper that is constructed and never started reproduces
+// that exactly, so "constructed" alone must not pass. The check follows
+// the value: either the constructor is chained straight into .Run, or it
+// is bound to a name and that name is what gets run.
+//
+// system-retention-sweeper AC-10 asserts the other half, that the sweep
+// walks the registry instead of a hard-coded table list.
+func TestCmdServe_RetentionSweeperWired(t *testing.T) {
+	t.Run("system-daemon-orchestration/AC-12", func(t *testing.T) {
+		body, fset := cmdServeBody(t)
+
+		// Pass 1: find retention.NewSweeper( and record how its result is
+		// bound. sweeperVars holds the names it was assigned to;
+		// a chained retention.NewSweeper(...).Run(ctx) is accepted too.
+		sweeperVars := map[string]bool{}
+		construct := token.NoPos
+
+		ast.Inspect(body, func(n ast.Node) bool {
+			if pkgCall(n, "retention", "NewSweeper") {
+				construct = n.(*ast.CallExpr).Lparen
+			}
+			// name := retention.NewSweeper(...) or name = ...
+			var lhs, rhs []ast.Expr
+			switch s := n.(type) {
+			case *ast.AssignStmt:
+				lhs, rhs = s.Lhs, s.Rhs
+			default:
+				return true
+			}
+			for i, r := range rhs {
+				if !pkgCall(r, "retention", "NewSweeper") || i >= len(lhs) {
+					continue
+				}
+				if id, ok := lhs[i].(*ast.Ident); ok && id.Name != "_" {
+					sweeperVars[id.Name] = true
+				}
+			}
+			return true
+		})
+
+		if !construct.IsValid() {
+			t.Fatal("cmdServe never calls retention.NewSweeper( — the retention sweeper is not wired, so no table is ever swept in production. This is the defect system-retention-sweeper was written for (see bugs/OW-013)")
+		}
+
+		// Pass 2: find the Run call that starts it.
+		ranAt := token.NoPos
+		ast.Inspect(body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Run" {
+				return true
+			}
+			// The receiver is either the constructor call itself
+			// (chained) or a name bound to it.
+			switch recv := sel.X.(type) {
+			case *ast.CallExpr:
+				if !pkgCall(recv, "retention", "NewSweeper") {
+					return true
+				}
+			case *ast.Ident:
+				if !sweeperVars[recv.Name] {
+					return true
+				}
+			default:
+				return true
+			}
+			// First argument must be ctx.
+			if len(call.Args) == 0 {
+				return true
+			}
+			if id, ok := call.Args[0].(*ast.Ident); !ok || id.Name != "ctx" {
+				return true
+			}
+			ranAt = call.Lparen
+			return true
+		})
+
+		if !ranAt.IsValid() {
+			t.Errorf("cmdServe constructs the retention sweeper at %s but never starts it with a Run call taking ctx. A sweeper that is built and not run deletes nothing, which is the state this spec corrects, not a partial fix of it", fset.Position(construct))
 		}
 	})
 }

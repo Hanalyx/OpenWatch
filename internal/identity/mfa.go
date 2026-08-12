@@ -30,10 +30,14 @@ const TOTPIssuer = "OpenWatch"
 // requires ≥80 bits; NIST SP 800-63B requires ≥128. Spec C-09 sets 160.
 const TOTPSecretBytes = 20 // 160 bits
 
-// OTPReplayWindow is how long a used OTP value remains in the replay-
-// prevention table. Set to twice the validation window (±1 step = 90s
-// validation, so 180s replay protection covers the boundary).
-const OTPReplayWindow = 180 * time.Second
+// The replay window used to be a constant here, OTPReplayWindow = 180s.
+// It is gone. How long a used OTP is rejected is how long its row in
+// auth_mfa_otp_uses survives, and that is now the Grace on the
+// auth_mfa_otp_uses entry in internal/retention's registry. One number,
+// in one place. A constant here would be a second source of truth that
+// drifts from the sweeper that actually does the deleting.
+//
+// Spec: specs/system/retention-sweeper.spec.yaml C-10.
 
 // SetEphemeralMFAKey installs a random key. Tests and dev mode only.
 // Wrapper over secretkey.SetEphemeral.
@@ -85,16 +89,22 @@ func EnrollMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, userna
 
 // VerifyMFA validates an OTP against the user's enrolled secret. Returns:
 //   - ErrMFANotEnrolled if no secret exists for the user
-//   - ErrOTPReplayed if the same OTP was used within OTPReplayWindow
+//   - ErrOTPReplayed if the same OTP was used inside the replay window
 //   - ErrMFAInvalidOTP if the OTP is outside the ±1 step window
 //   - nil on success
 //
-// Replay protection: each successful verify stores (user_id, otp) in
-// auth_mfa_otp_uses for OTPReplayWindow seconds. A second use within
-// that window fails — even if the OTP is still inside the ±1 step
-// validation window.
+// Replay protection: each successful verify inserts (user_id, otp) into
+// auth_mfa_otp_uses with ON CONFLICT DO NOTHING, so the check is purely
+// whether the row is there. A second use fails even if the OTP is still
+// inside the ±1 step validation window.
 //
-// Spec AC-15, AC-16, C-10.
+// The window is therefore the row's lifetime, and the row's lifetime is
+// set by one place: the auth_mfa_otp_uses Grace in internal/retention's
+// registry. Shortening that Grace shortens replay rejection. Its floor
+// is the TOTP acceptance window, 90 seconds.
+//
+// Spec system-auth-identity AC-15, AC-16, C-10.
+// Spec system-retention-sweeper C-10.
 func VerifyMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, otpValue string) error {
 	dek, err := secretkey.Active()
 	if err != nil {
@@ -152,13 +162,9 @@ func VerifyMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, otpVal
 	return nil
 }
 
-// PurgeStaleOTPs deletes OTP-use rows older than OTPReplayWindow. Called
-// by a cron tick.
-func PurgeStaleOTPs(ctx context.Context, pool *pgxpool.Pool) (int64, error) {
-	tag, err := pool.Exec(ctx,
-		`DELETE FROM auth_mfa_otp_uses WHERE used_at < now() - interval '180 seconds'`)
-	if err != nil {
-		return 0, fmt.Errorf("identity: purge otps: %w", err)
-	}
-	return tag.RowsAffected(), nil
-}
+// PurgeStaleOTPs used to live here. It deleted at 180 seconds, it said
+// "Called by a cron tick", and no cron tick called it. Rows were kept
+// forever, which made replay rejection accidentally unlimited, so
+// wiring the function up as written would have narrowed protection
+// rather than added it. internal/retention deletes this table now, on
+// the registry's grace.

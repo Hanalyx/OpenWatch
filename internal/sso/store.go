@@ -254,15 +254,11 @@ func (s *Service) link(ctx context.Context, providerID uuid.UUID, subject string
 	return nil
 }
 
-// PurgeExpiredStates deletes auth-state rows past their TTL. Called by a
-// periodic sweeper.
-func (s *Service) PurgeExpiredStates(ctx context.Context) (int64, error) {
-	ct, err := s.pool.Exec(ctx, `DELETE FROM sso_auth_states WHERE expires_at < now()`)
-	if err != nil {
-		return 0, fmt.Errorf("sso: purge states: %w", err)
-	}
-	return ct.RowsAffected(), nil
-}
+// PurgeExpiredStates used to live here. Its doc comment said "Called by
+// a periodic sweeper" and there was no periodic sweeper. sso_auth_states
+// is swept from internal/retention now. The single-use consume in
+// consumeAuthState is unaffected: it deletes the one row it matched, and
+// that is not retention.
 
 func encryptSecret(plain string) ([]byte, error) {
 	dek, err := secretkey.Active()
