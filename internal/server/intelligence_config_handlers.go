@@ -1,6 +1,6 @@
 // OS Intelligence scheduler HTTP config surface.
 //
-// Spec: app/specs/api/system-intelligence-config.spec.yaml
+// Spec: specs/api/system-intelligence-config.spec.yaml
 //
 // Mirrors systemconfig_handlers.go (connectivity) verbatim — same shape,
 // same validation/audit pattern. The two could share helpers in a

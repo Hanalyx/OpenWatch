@@ -300,7 +300,7 @@ Re-run after a few minutes; the `pending` count should be flat or falling.
 
 Escalate if any of the following hold:
 
-- CPU stays saturated after cancelling long-running queries and pausing schedulers.
+- CPU stays saturated after canceling long-running queries and pausing schedulers.
 - The host itself is CPU-saturated across all cores (not a single process).
 - The load matches a suspected denial-of-service or anomalous traffic pattern.
 - The worker makes no progress while showing high CPU (possible stuck job).

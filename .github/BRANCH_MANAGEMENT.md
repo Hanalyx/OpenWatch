@@ -57,7 +57,7 @@ They are not subject to the prefixes above. See `.github/dependabot.yml`.
 
 ### Release branches
 
-`release/<version>` — branch from `main`, only bug fixes and doc updates
+`release/<version>`: branch from `main`, only bug fixes and doc updates
 allowed, tag on merge.
 
 ## Main branch protection
@@ -66,7 +66,7 @@ The `main` branch is the only long-lived branch (no `develop`). It is
 protected with:
 
 - **Required status checks** (strict, branch must be up-to-date):
-  - `Quality + security gates` — Go pipeline (`go-ci.yml`)
+  - `Quality + security gates`: Go pipeline (`go-ci.yml`)
 - **Required reviews**: 0 approvals (small team), but enforced via the
   `enforce_admins` flag so even admins go through PRs
 - **Dismiss stale reviews** on new commits
@@ -75,7 +75,7 @@ protected with:
 
 If you need to add a check (e.g., when a new pipeline lands), update the
 required-status-checks list via the GitHub UI or `gh api`. Do not remove
-checks to work around failing CI — fix the underlying issue.
+checks to work around failing CI. Fix the underlying issue.
 
 ## Automated branch management
 
@@ -83,14 +83,14 @@ checks to work around failing CI — fix the underlying issue.
 
 `.github/dependabot.yml` covers three ecosystems today:
 
-- `gomod` (`/`) — Go module deps, weekly Monday (patch/minor groups). Every
+- `gomod` (`/`): Go module deps, weekly Monday (patch/minor groups). Every
   accepted update must keep the depguard allowlist in `.golangci.yml` in sync.
-- `npm` (`/frontend`) — JS/TS deps, weekly Monday, plus a daily security-only lane
-- `github-actions` (`/`) — workflow action versions
+- `npm` (`/frontend`): JS/TS deps, weekly Monday, plus a daily security-only lane
+- `github-actions` (`/`): workflow action versions
 
 ### Auto-merge eligibility
 
-Auto-merge respects branch protection — it queues, then merges when checks
+Auto-merge respects branch protection. It queues, then merges when checks
 pass. Set via `gh pr merge <N> --squash --auto`.
 
 **Generally eligible**:
@@ -127,7 +127,7 @@ git remote prune origin
 git fetch origin
 git checkout -b feat/short-description origin/main
 
-# Update branch with latest main (rebase preferred — keeps linear history)
+# Update branch with latest main (rebase preferred, keeps linear history)
 git fetch origin
 git rebase origin/main
 
@@ -191,7 +191,7 @@ git push -u origin recovered-branch
 - We do **not** disable branch protection to land a "must-go" change.
   If protection blocks a legitimate merge, fix the failing check or
   update the protection rules through the GitHub UI as a deliberate,
-  reviewed change — not a transient bypass.
+  reviewed change, not a transient bypass.
 - We do **not** push directly to `main`. All changes go through PRs.
 - We do **not** use `--admin` to bypass required status checks.
 - We do **not** skip pre-commit hooks (`--no-verify`) or commit signing
@@ -206,15 +206,15 @@ These are durable rules; treat them as load-bearing.
 Enforced by the root `Makefile` and `go-ci.yml`. All of these must pass for the
 single required check (`Quality + security gates`) to go green:
 
-- `make vet` — `go vet ./...`
-- `make lint` — `golangci-lint` (vet, ineffassign, staticcheck, unused,
+- `make vet`: `go vet ./...`
+- `make lint`: `golangci-lint` (vet, ineffassign, staticcheck, unused,
   gofmt, goimports, misspell, errcheck, revive, gosec, forbidigo)
-- `make vuln` — `govulncheck ./...`
-- `make test-race` — full test suite under `-race`, against a Postgres
+- `make vuln`: `govulncheck ./...`
+- `make test-race`: full test suite under `-race`, against a Postgres
   service container (DSN from `OPENWATCH_TEST_DSN`)
-- frontend Vitest — `go-ci.yml` runs the `frontend/` Vitest suite and feeds the
+- frontend Vitest: `go-ci.yml` runs the `frontend/` Vitest suite and feeds the
   JUnit results into specter so `specs/frontend/` ACs report real coverage
-- `specter sync --tests '**/*'` — spec validation + 100% AC coverage gate for
+- `specter sync --tests '**/*'`: spec validation + 100% AC coverage gate for
   every `status: approved` spec under `specs/`
 
 `forbidigo` enforces the foundation-doc contracts: typed RBAC constants,
@@ -261,31 +261,31 @@ Track via GitHub Insights and the weekly `BACKLOG.md` sweep:
 
 ## Troubleshooting
 
-**CI failing on a feature branch with errors unrelated to your changes** —
+**CI failing on a feature branch with errors unrelated to your changes**:
 likely a flaky test or a stdlib CVE bump landed on main. Rebase onto
 latest main, re-run failed jobs, and check `go-ci.yml` Go version against
 the latest `govulncheck` advisory list.
 
-**Dependabot PR has merge conflicts** — close and let Dependabot recreate.
+**Dependabot PR has merge conflicts**: close and let Dependabot recreate.
 For repeated conflicts on the same dep, manually rebase locally and
 force-push.
 
-**Auto-merge queued but never fires** — the most common cause is
+**Auto-merge queued but never fires**: the most common cause is
 required-status-check drift (a check name was renamed but protection
 still requires the old name). Fix the required-checks list to match the
 workflow output, do not bypass protection.
 
-**`mergeStateStatus: BLOCKED` despite green CI** — same root cause: a
+**`mergeStateStatus: BLOCKED` despite green CI**. Same root cause: a
 required check is not reporting. Inspect via
 `gh pr view <N> --json statusCheckRollup` and compare against branch
 protection's `required_status_checks.contexts`.
 
 ## References
 
-- [GitHub Flow](https://guides.github.com/introduction/flow/) — trunk-based workflow
+- [GitHub Flow](https://guides.github.com/introduction/flow/): trunk-based workflow
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
 - [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)
-- `specter.yaml` and `specs/` — spec-driven development discipline
-- `.golangci.yml` — Go linter configuration with drift-prevention rules
-- `CLAUDE.md` — repository-wide AI-collaboration rules (also applies to humans)
+- `specter.yaml` and `specs/`: spec-driven development discipline
+- `.golangci.yml`: Go linter configuration with drift-prevention rules
+- `CLAUDE.md`: repository-wide AI-collaboration rules (also applies to humans)

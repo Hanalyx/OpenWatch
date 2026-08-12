@@ -77,7 +77,7 @@ func TestWrap_BySudoMode(t *testing.T) {
 		if strings.Contains(line, "p@ss") {
 			t.Error("password must not appear in the command line")
 		}
-		// unknown mode degrades to sudo -n (historical behaviour).
+		// unknown mode degrades to sudo -n (historical behavior).
 		if line, _ := (&sshTransport{sudo: true, mode: connprofile.SudoUnknown}).wrap("id"); line != `sudo -n sh -c 'id'` {
 			t.Errorf("unknown-mode wrap = %q, want sudo -n", line)
 		}

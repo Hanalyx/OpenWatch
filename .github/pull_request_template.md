@@ -1,28 +1,28 @@
 # Pull Request
 
-## 📋 Description
+## Description
 <!-- Provide a clear and concise description of your changes -->
 
-## 🔗 Related Issues
+## Related Issues
 <!-- Link to related issues using #issue_number -->
 Closes #
 Related to #
 
-## 🎯 Type of Change
+## Type of Change
 <!-- Mark the relevant option with an "x" -->
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📚 Documentation update
-- [ ] 🎨 Style/formatting changes (non-functional)
-- [ ] ♻️ Code refactoring (no functional changes)
-- [ ] ⚡ Performance improvements
-- [ ] 🔒 Security improvements
-- [ ] 🧪 Tests (adding or updating tests)
-- [ ] 🔧 Build/CI changes
-- [ ] 🧹 Chore (maintenance, dependencies, etc.)
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
+- [ ] Style/formatting changes (non-functional)
+- [ ] Code refactoring (no functional changes)
+- [ ] Performance improvements
+- [ ] Security improvements
+- [ ] Tests (adding or updating tests)
+- [ ] Build/CI changes
+- [ ] Chore (maintenance, dependencies, etc.)
 
-## 🧪 Testing
+## Testing
 <!-- Describe the tests you ran and how to reproduce them -->
 - [ ] Unit tests pass (`go test ./...` / `npm test`)
 - [ ] Integration tests pass
@@ -40,22 +40,22 @@ Related to #
 2.
 3.
 
-## 📸 Screenshots/Videos
+## Screenshots/Videos
 <!-- If applicable, add screenshots or videos to demonstrate the changes -->
 
-## ⚡ Performance Impact
+## Performance Impact
 <!-- Describe any performance implications -->
 - [ ] No performance impact expected
 - [ ] Performance improvements included
 - [ ] Potential performance impact (explain below)
 
-## 🔒 Security Considerations
+## Security Considerations
 <!-- Address any security implications -->
 - [ ] No security impact
 - [ ] Security improvements included
 - [ ] Security review required (explain below)
 
-## 📖 Documentation Updates
+## Documentation Updates
 <!-- List any documentation that needs to be updated -->
 - [ ] Code comments updated
 - [ ] API documentation updated
@@ -63,7 +63,7 @@ Related to #
 - [ ] README updated
 - [ ] No documentation updates needed
 
-## ✅ Checklist
+## Checklist
 <!-- Mark completed items with an "x" -->
 ### Code Quality
 - [ ] Code follows the project's style guidelines
@@ -96,17 +96,17 @@ Related to #
 - [ ] Deployment notes provided (if special steps needed)
 - [ ] Rollback plan considered
 
-## 🚀 Deployment Notes
+## Deployment Notes
 <!-- Any special instructions for deployment -->
 
-## 🔄 Migration Required
+## Migration Required
 <!-- If this PR requires migration steps -->
 - [ ] Database migration required
 - [ ] Configuration changes required
 - [ ] Data migration required
 - [ ] No migration required
 
-## 📝 Additional Notes
+## Additional Notes
 <!-- Any additional information that reviewers should know -->
 
 ---

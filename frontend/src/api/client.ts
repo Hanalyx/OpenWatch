@@ -2,9 +2,9 @@ import createClient from 'openapi-fetch';
 import type { paths } from './schema';
 import { useAuthStore } from '@/store/useAuthStore';
 
-// API client — typed against app/api/openapi.yaml.
+// API client — typed against api/openapi.yaml.
 //
-// Per app/docs/frontend_architecture_adr.md D-07/D-08:
+// Per docs/engineering/frontend_architecture_adr.md D-07/D-08:
 //   - openapi-typescript generates `schema.d.ts` from openapi.yaml.
 //   - openapi-fetch is a 4 KB typed fetch wrapper.
 //   - credentials: 'include' carries the openwatch_session cookie

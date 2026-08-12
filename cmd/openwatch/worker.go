@@ -5,7 +5,7 @@
 // no event bus, no alert router, no liveness probe. The worker is
 // HTTP-free (system-worker-subcommand C-11 / AC-17).
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml
+// Spec: specs/system/worker-subcommand.spec.yaml
 
 package main
 
@@ -46,7 +46,7 @@ import (
 // loop exits cleanly (SIGTERM received and any in-flight job applied)
 // or fatally (config / DB / boot prerequisite failure).
 //
-// Spec: app/specs/system/worker-subcommand.spec.yaml AC-13, AC-16, AC-17.
+// Spec: specs/system/worker-subcommand.spec.yaml AC-13, AC-16, AC-17.
 func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	fs := flag.NewFlagSet("worker", flag.ContinueOnError)
 	fs.SetOutput(stderr)

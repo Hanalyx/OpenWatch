@@ -181,7 +181,7 @@ func TestOutcome_UnknownStatusFailsClosed(t *testing.T) {
 		}
 
 		// Every status the CURRENT Kensa api package can produce must be
-		// recognised. Read them out of the MODULE SOURCE, not from our own
+		// recognized. Read them out of the MODULE SOURCE, not from our own
 		// constants.
 		//
 		// The first version of this loop iterated the kensa* constants

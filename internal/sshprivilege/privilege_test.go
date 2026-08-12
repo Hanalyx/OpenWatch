@@ -124,7 +124,7 @@ func (p stubPolicy) LoadSecurity(_ context.Context) (systemconfig.SecurityConfig
 
 // stubDialer returns a programmed stubExec without touching real SSH.
 // gotPrefer records the auth-method hint the probe passed, so tests can
-// assert the learning lead-with behaviour; observed is the method the
+// assert the learning lead-with behavior; observed is the method the
 // stub reports as having authenticated.
 type stubDialer struct {
 	exec      *stubExec

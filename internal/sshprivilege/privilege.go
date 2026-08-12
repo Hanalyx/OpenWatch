@@ -228,7 +228,7 @@ func Probe(resolver Resolver, opts ...ProbeOption) liveness.PrivilegeProbeFunc {
 //
 // Returns ok (sudo usable), the mode CONFIRMED to work (SudoUnknown when
 // neither did), and on failure the same diagnostic error the pre-learning
-// probe returned (preserving spec AC-18/AC-19/AC-21 behaviour). Spec
+// probe returned (preserving spec AC-18/AC-19/AC-21 behavior). Spec
 // system-connection-profile v1.2.0 C-07.
 func probeSudo(
 	ctx context.Context,

@@ -157,7 +157,7 @@ func run(args []string, stdout, stderr *os.File) int {
 // correlation handler, opens the DB pool, inits the audit writer,
 // emits system.startup synchronously, and hands off to server.Run.
 //
-// Spec: app/specs/system/http-server.spec.yaml AC-1.
+// Spec: specs/system/http-server.spec.yaml AC-1.
 func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(stderr, "openwatch serve: invalid config:\n%v\n", err)

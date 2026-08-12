@@ -7,7 +7,7 @@
 // loop here exists only to demonstrate the queue + correlation contract
 // end-to-end (DoD step 16).
 //
-// Spec: app/specs/release/stage-0-signoff.spec.yaml AC-10, C-02.
+// Spec: specs/release/stage-0-signoff.spec.yaml AC-10, C-02.
 package worker
 
 import (

@@ -178,7 +178,7 @@ func newHandlers(pool *pgxpool.Pool) *handlers {
 }
 
 // GetHealth implements api.ServerInterface.GetHealth.
-// Spec: app/specs/api/health.spec.yaml.
+// Spec: specs/api/health.spec.yaml.
 func (h *handlers) GetHealth(w http.ResponseWriter, r *http.Request) {
 	// 2-second timeout per spec constraint.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -214,7 +214,7 @@ func (h *handlers) GetVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 // PostDiagnosticsEcho implements api.ServerInterface.PostDiagnosticsEcho.
-// Spec: app/specs/api/diagnostics-echo.spec.yaml.
+// Spec: specs/api/diagnostics-echo.spec.yaml.
 func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsEchoParams) {
 	// Per spec AC-3: Idempotency-Key is required (oapi-codegen enforces
 	// header presence via the params struct).
@@ -266,7 +266,7 @@ func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, p
 }
 
 // GetLicense returns the current runtime license state.
-// Spec: app/specs/api/license.spec.yaml AC-1, AC-2, AC-3.
+// Spec: specs/api/license.spec.yaml AC-1, AC-2, AC-3.
 func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 	state := license.CurrentState()
 
@@ -281,7 +281,7 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 		resp.Tier = api.LicenseStateResponseTier(lic.Tier)
 		resp.Status = api.LicenseStateResponseStatus(lic.Status)
 		resp.Features = featuresToStrings(lic.Features)
-		// customer_id identifies the paying organisation. The tier, status and
+		// customer_id identifies the paying organization. The tier, status and
 		// feature list are operational facts a UI needs before login, but the
 		// customer identity is not, and this route is reachable anonymously.
 		// Disclose it only to a caller who can already read system config.
@@ -299,7 +299,7 @@ func (h *handlers) GetLicense(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostAdminLicenseVerify dry-run validates a JWT without installing.
-// Spec: app/specs/api/license.spec.yaml AC-4, AC-5, AC-6.
+// Spec: specs/api/license.spec.yaml AC-4, AC-5, AC-6.
 func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request) {
 	// Anonymous, this is a signature and entitlement oracle on an /admin/
 	// path: submit any JWT and learn whether it verifies, which tier and
@@ -349,7 +349,7 @@ func (h *handlers) PostAdminLicenseVerify(w http.ResponseWriter, r *http.Request
 // Checks the premium_diagnostics feature gate via license.EnforceFeature
 // (oapi-codegen-mounted routes can't easily take per-route middleware).
 //
-// Spec: app/specs/api/license.spec.yaml AC-7, AC-9.
+// Spec: specs/api/license.spec.yaml AC-7, AC-9.
 func (h *handlers) PostDiagnosticsPremiumEcho(w http.ResponseWriter, r *http.Request, params api.PostDiagnosticsPremiumEchoParams) {
 	// License gate FIRST so we don't burn an audit event for input that
 	// would have been denied anyway.
@@ -412,7 +412,7 @@ func stageZeroFreeFeatures() []string {
 }
 
 // GetAuditEvents implements api.ServerInterface.GetAuditEvents.
-// Spec: app/specs/api/audit-events-query.spec.yaml.
+// Spec: specs/api/audit-events-query.spec.yaml.
 func (h *handlers) GetAuditEvents(w http.ResponseWriter, r *http.Request, params api.GetAuditEventsParams) {
 	// The audit trail is security-sensitive (actor ids, IPs, resource ids,
 	// action detail). Require audit:read; an anonymous/unauthorized caller
@@ -596,7 +596,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	_, _ = w.Write(body)
 }
 
-// writeError emits the canonical error envelope per app/api/error_codes.yaml.
+// writeError emits the canonical error envelope per api/error_codes.yaml.
 func writeError(w http.ResponseWriter, status int, code, fault, msg string, retryable bool) {
 	env := api.ErrorEnvelope{}
 	env.Error.Code = code

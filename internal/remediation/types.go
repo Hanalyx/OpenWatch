@@ -183,10 +183,10 @@ type ExecTxn struct {
 	// Evidence is the signed evidence envelope (or a summary), stored in the
 	// remediation_transactions.evidence JSONB column.
 	Evidence []byte
-	// Steps is the per-phase journal, serialised, stored in
+	// Steps is the per-phase journal, serialized, stored in
 	// remediation_transactions.steps. Empty for a transaction that never ran.
 	Steps []byte
-	// PreState is the captured pre-change state, serialised, stored in
+	// PreState is the captured pre-change state, serialized, stored in
 	// remediation_transactions.pre_state. That column has existed since
 	// migration 0037 and was never written until this carried it.
 	PreState []byte
@@ -241,7 +241,7 @@ const (
 )
 
 // OutcomeOf maps one Kensa transaction to the request status it implies, and
-// reports whether the status was recognised.
+// reports whether the status was recognized.
 //
 // The bool is the point of this function. api-remediation AC-11 requires that
 // an unrecognised Kensa status is never silently absorbed: the previous code

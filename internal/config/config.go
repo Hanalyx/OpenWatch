@@ -6,7 +6,7 @@
 //  3. TOML file (--config, default /etc/openwatch/openwatch.toml)
 //  4. Built-in defaults (Defaults())
 //
-// See app/docs/stage_0_walking_skeleton.md Day 2 for the spec; Day 2 ships
+// See (archived) docs/stage_0_walking_skeleton.md Day 2 for the spec; Day 2 ships
 // the layering machinery + check-config subcommand. Day 4 wires Server, Day
 // 3 wires Database, Day 4 wires Logging.
 package config

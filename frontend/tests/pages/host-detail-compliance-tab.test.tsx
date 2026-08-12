@@ -450,7 +450,7 @@ describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
     // ScanContextStrip forwards scan_context.scan_state to RescanButton.
     expect(TAB_SRC).toMatch(/scanState=\{lensQuery\.data\?\.scan_context\.scan_state/);
     expect(TAB_SRC).toMatch(/<RescanButton hostId=\{hostId\} scanState=\{scanState\}/);
-    // RescanButton stays disabled + labelled while a scan is in flight.
+    // RescanButton stays disabled + labeled while a scan is in flight.
     expect(TAB_SRC).toMatch(/const active = scanState === 'running' \|\| scanState === 'queued'/);
     expect(TAB_SRC).toMatch(/disabled=\{busy \|\| active\}/);
     expect(TAB_SRC).toMatch(/scanState === 'running'\s*\?\s*'Running…'/);

@@ -197,7 +197,7 @@ Built-in roles, least to most privileged:
 | `viewer` | Read-only across the platform |
 | `auditor` | Read-only plus exception authority and audit export |
 | `ops_lead` | Day-to-day operations: hosts, scans, alerts |
-| `security_admin` | Full security operations, including dangerous and license-gated actions |
+| `security_admin` | Full security operations, including dangerous actions and audit export |
 | `admin` | Full system administration (user/role/SSO/system-setting management) |
 
 
@@ -209,8 +209,9 @@ Hardening steps:
 - Keep `admin` accounts to the minimum. Only `admin` holds the
   `admin:user_manage`, `admin:role_manage`, `admin:sso_provider`, and
   `admin:system_setting` permissions.
-- License-gated permissions (for example `remediation:execute`) are enforced in
-  the same middleware pass as RBAC; you cannot use them without the entitlement.
+- Remediation on one host is free, so treat `remediation:execute` and
+  `remediation:rollback` as dangerous permissions rather than gated ones. Grant
+  them only to operators who should change host state.
 
 ---
 

@@ -28,7 +28,7 @@ type Support string
 const (
 	// SupportTested means CI exercises this platform. v0.7.0: RHEL 9 only.
 	SupportTested Support = "tested"
-	// SupportUntested means the family is recognised and the paths are
+	// SupportUntested means the family is recognized and the paths are
 	// believed correct, but nothing proves it. Requires --allow-untested.
 	SupportUntested Support = "untested"
 	// SupportUnsupported means setup will not run: unknown family, or a
