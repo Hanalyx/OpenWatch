@@ -10,6 +10,7 @@ package license
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -34,15 +35,40 @@ func installTestKeyring(t *testing.T) {
 // can assert an emission without a database behind it. EmitSync writes straight
 // through to storage, which is what the license.* events use.
 type auditRecorder struct {
-	mu     sync.Mutex
-	events []audit.Code
+	mu      sync.Mutex
+	events  []audit.Code
+	details []json.RawMessage // parallel to events
 }
 
 func (r *auditRecorder) InsertEvent(_ audit.Ctx, ev *audit.Event) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.events = append(r.events, ev.Action)
+	r.details = append(r.details, ev.Detail)
 	return nil
+}
+
+// detailFor returns the decoded detail map of the first event with this code,
+// and whether such an event was recorded. Assertions read the emitted detail
+// rather than the License struct, so they measure what an auditor can see.
+func (r *auditRecorder) detailFor(t *testing.T, code audit.Code) (map[string]any, bool) {
+	t.Helper()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, c := range r.events {
+		if c != code {
+			continue
+		}
+		var m map[string]any
+		if len(r.details[i]) == 0 {
+			return nil, true
+		}
+		if err := json.Unmarshal(r.details[i], &m); err != nil {
+			t.Fatalf("decode %s detail %q: %v", code, r.details[i], err)
+		}
+		return m, true
+	}
+	return nil, false
 }
 
 func (r *auditRecorder) saw(code audit.Code) bool {

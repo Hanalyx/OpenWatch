@@ -1,7 +1,7 @@
 spec:
   id: system-license-validation
   title: License JWT validation
-  version: "2.0.0"
+  version: "2.1.0"
   status: approved
   tier: 1
 
@@ -14,7 +14,10 @@ spec:
       verifies signature against embedded keys (current/prev/deprecated),
       validates iss/aud/exp/iat/nbf, checks fingerprint binding, and
       detects clock rollback by comparing now against a persisted
-      last_known_good watermark.
+      last_known_good watermark. The JWT kid header, when present, picks
+      which slot of that ring to try. It is a thumbprint of the key
+      itself, so it only narrows the search the verifier would run
+      anyway.
 
   objective:
     summary: >
@@ -25,6 +28,7 @@ spec:
     scope:
       includes:
         - EdDSA signature verification
+        - kid-based key selection inside the embedded key ring
         - All standard JWT claim checks (iss, aud, exp, iat, nbf)
         - 30-day grace period
         - Fingerprint and clock-rollback detection
@@ -87,6 +91,26 @@ spec:
       enforcement: error
     - id: C-14
       description: A detected clock rollback MUST warn, not deny. The loader MUST still install the license, MUST mark it, and MUST emit license.clock_rollback_detected. The watermark row lives in the customer's own database and the adversary has root there, so denial is evadable by deleting the row while a false positive silently drops a paying deployment to free tier (decision record 06)
+      type: security
+      enforcement: error
+    - id: C-15
+      description: A kid header MAY only narrow the key search. It MUST NOT widen it and it MUST NOT skip a policy gate. kid changes which slot of the ring is tried, and nothing else. It MUST NOT admit a key the trial order (C-02) would refuse, MUST NOT bypass AllowDeprecatedKey, and MUST NOT change what the result reports. License.UsingPrevKey MUST reflect the slot that verified, however that slot was reached
+      type: security
+      enforcement: error
+    - id: C-16
+      description: kid MUST be the base64url SHA-256 of the key's SPKI DER, with no padding. It MUST be a pure function of the key bytes, so the offline issuer and the verifier derive the same value with no shared registry. Slot names MUST NOT be used as kid values. A license signed while key A held the current slot would carry kid=current forever, and after rotation that label points at the wrong key
+      type: security
+      enforcement: error
+    - id: C-17
+      description: kid MUST be optional in both directions. A license with no kid MUST verify exactly as it does today, by walking current, then prev, then deprecated under AllowDeprecatedKey. A kid that matches no slot, or that matches a slot whose key does not verify the signature, MUST fall back to that same trial order instead of being refused. Every key in the ring is already a trusted anchor, so kid is a hint about which one, not an extra trust decision. Falling back still satisfies C-15, because the set of keys tried is the set the no-kid path would try
+      type: technical
+      enforcement: error
+    - id: C-18
+      description: The permissive direction is deliberate, and MUST NOT be hardened into a hard failure. kid sits in the JWS protected header, so it is inside the signed input. Re-encoding the header with a swapped kid breaks the signature. That was measured, and the result is signature_invalid with an ed25519 verification error. An attacker therefore cannot alter kid. A kid that disagrees with the key that verified is an issuer mislabel, minted with one key and stamped with another key's thumbprint. Failing hard would brick every affected install until the licenses are reissued. Falling back costs one extra parse and still accepts only tokens a ring key signed, under the same slot policy the no-kid path applies
+      type: security
+      enforcement: error
+    - id: C-19
+      description: A fallback MUST NOT be silent. When the token carries a kid that did not select the key that verified, Verify MUST record that kid on the returned License so the caller can audit the mislabel. It MUST NOT reject the token and it MUST NOT drop the value. This follows C-12, where an unknown feature id rides on License.UnknownFeatures instead of invalidating the license or vanishing. The struct field is not the destination, only the route to it. The mislabel MUST reach the audit trail, in the license.installed detail map that emitInstalled already builds, next to using_prev_key and in_grace_period. A field a Go caller can read but no auditor ever sees leaves an issuer that mislabels every license it mints invisible, which is the outcome this constraint exists to prevent. A value that exists and a value something reads are different claims, and only the second one is worth writing down
       type: security
       enforcement: error
 
@@ -180,3 +204,39 @@ spec:
       description: Reloading a license does not clear a rollback warning. The load ratchets against the watermark it was GIVEN, not only the one already in process, so a rollback load cannot store a time behind the persisted watermark. The conforming test loads with a wound-back clock against a watermark of T, then reloads with empty options the way SIGHUP does, and asserts ClockRollbackDetected is still true and the stored watermark is still T. Without this, reloading makes the alert go away with nothing fixed.
       priority: critical
       references_constraints: [C-13, C-14]
+    - id: AC-24
+      description: A kid naming the deprecated slot does not open that slot. The conforming test builds a ring whose deprecated slot holds a real key, signs a license with that key's private half, and stamps the matching kid. With AllowDeprecatedKey false the result is SignatureInvalid, the same result the trial order gives. With AllowDeprecatedKey true the license validates as Valid. A thumbprint-to-key map that returns any ring member on a kid match fails this criterion.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-25
+      description: A prev-key license selected by kid still sets License.UsingPrevKey. The conforming test builds a ring whose current and prev slots hold different keys, signs with the prev private half, and stamps the prev kid. The result is Valid and UsingPrevKey is true. Today that flag is set only by the failed-current-then-retry sequence in AC-03, which direct selection never runs, so a kid path can leave the declared using_prev_key field reporting the opposite of the truth.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-26
+      description: A license with no kid header behaves exactly as it does today. The conforming test re-runs the AC-01 and AC-03 cases with no kid header present and expects the same results, from the same trial order. The ring MUST hold three real, distinct keys, one per slot. A nil-slot ring cannot tell a working trial order apart from a ring that only ever had one key, and every test in this package today uses a nil-slot ring. This is the regression pin on the compatible direction.
+      priority: critical
+      references_constraints: [C-17]
+    - id: AC-27
+      description: A kid the verifier cannot use falls back to the trial order. The ring MUST hold three real, distinct keys. The conforming test covers three cases and expects Valid in each. First, a current-key-signed license stamped with a kid no slot derives. Second, a current-key-signed license stamped with the prev key's kid, which names a real slot that does not verify the signature. Third, a kid of the literal string current, which is a slot name and so derives from nothing. A verifier that hard-rejects any of these breaks the issuer's ability to stamp kid before any verifier reads it, and would brick installs over an issuer mislabel that no attacker can forge.
+      priority: high
+      references_constraints: [C-16, C-17, C-18]
+    - id: AC-28
+      description: KeyID derives the base64url SHA-256 of the key's SPKI DER, with no padding. The conforming test computes the expected string itself, with x509.MarshalPKIXPublicKey and crypto/sha256, and compares. Calling KeyID twice is not enough. A derivation can be stable and distinct and still be wrong, by using hex, by keeping the padding, or by hashing the raw key bytes instead of the SPKI DER. Each of those passes a self-comparison and then disagrees with the offline issuer.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-29
+      description: KeyID is stable for a given key and distinct for different keys. The same public key gives the same string on every call, and two different keys give different strings.
+      priority: high
+      references_constraints: [C-16]
+    - id: AC-30
+      description: A kid naming the current key verifies as Valid with License.UsingPrevKey false. The ring MUST hold three real, distinct keys, so the result proves the named slot was used rather than the only slot that existed. Direct selection is not observable from outside Verify, because a miss falls back (C-17) and reaches the same outcome. This criterion pins the outcome, which is what a caller can see.
+      priority: high
+      references_constraints: [C-15]
+    - id: AC-31
+      description: A kid that did not select the verifying key is recorded on the returned License, at License.MismatchedKeyID. The conforming test asserts the field holds the kid the token presented, in all three AC-27 cases. It also asserts the field is empty in two negative cases. One is a kid that did select the verifying key (AC-30). The other is a token with no kid at all (AC-26). Without the negative cases a field hardcoded to the presented kid would pass. Silent recovery is the defect this criterion exists to catch.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-32
+      description: The mismatched kid reaches the audit trail. A load whose token carries a kid that did not select the verifying key emits license.installed with mismatched_key_id in the detail map, holding the presented kid. The conforming test reads the emitted event, not the License struct, because AC-31 already covers the struct. It also asserts the key is absent or empty when the kid did select the verifying key, so the detail does not report a mislabel that did not happen. No new audit code is added. license.installed already means a license was loaded and here is what it was.
+      priority: critical
+      references_constraints: [C-19]

@@ -63,6 +63,20 @@ type License struct {
 	UsingPrevKey    bool   // signed with the previous key (warning surface)
 	InGracePeriod   bool   // expired but within 30-day grace
 	UnknownFeatures []string
+	// MismatchedKeyID holds the `kid` the token presented when that kid did not
+	// name the key that verified it. Empty when the kid named the verifying key,
+	// and empty when the token carried no kid at all.
+	//
+	// The license is valid either way. A kid is inside the signed header, so an
+	// attacker cannot change one without breaking the signature, which makes a
+	// wrong kid an issuer mislabel rather than an attack. The verifier recovers
+	// by trying the rest of the ring, and this field is how that recovery stops
+	// being silent. An issuer stamping the wrong thumbprint on every license it
+	// mints is a defect somebody has to be able to see.
+	//
+	// Same treatment as UnknownFeatures: do not reject, do not ignore, record it
+	// for a consumer to read.
+	MismatchedKeyID string
 	// ClockRollbackDetected reports that this deployment's clock sits behind
 	// the recorded watermark by more than the tolerance. It is a WARNING, not
 	// a denial: the license still loads. See decision record 06.
