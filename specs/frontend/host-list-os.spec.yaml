@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-list-os
   title: Host list OS column — sourced from real os_family (no hostname heuristic)
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -20,18 +20,40 @@ spec:
 
       Mapping table (Kensa families → display label):
 
-        rhel, centos, rocky, almalinux  ->  'RHEL'
-        ubuntu                          ->  'Ubuntu'
-        debian                          ->  'Debian'
-        opensuse, sles                  ->  'SUSE'
-        anything else (incl. null)      ->  'Unknown'
+        rhel, centos, rocky, almalinux, ol, oracle  ->  'RHEL'
+        fedora                                      ->  'Fedora'
+        ubuntu                                      ->  'Ubuntu'
+        debian                                      ->  'Debian'
+        opensuse, sles                              ->  'SUSE'
+        anything else (incl. null)                  ->  'Unknown'
 
-      The mapping is intentionally narrow. Fedora is excluded from the
-      'RHEL' bucket because Fedora is a development stream, not an
-      enterprise-tracked target; lumping it in would distort the
-      group-by-OS rollup that the prototype's filterbar drives. New
-      families MUST be added explicitly — the default branch returns
-      'Unknown', not a silent best-effort guess.
+      The mapping is intentionally narrow. New families MUST be added
+      explicitly — the default branch returns 'Unknown', not a silent
+      best-effort guess.
+
+      v1.1.0 (2026-08-04) makes two changes, both about not lying to the
+      operator.
+
+      Fedora now gets its OWN label rather than 'Unknown'. v1.0.0 excluded
+      it from the 'RHEL' bucket for a sound reason (it is a development
+      stream, not an enterprise-tracked target, and lumping it in would
+      distort the group-by-OS rollup) but then let it fall through to
+      'Unknown', which reads as "OpenWatch could not determine this host's
+      OS" when in fact Discovery determined it exactly. 'Fedora' keeps it
+      out of the RHEL rollup, which was the actual requirement, while
+      saying what the host is.
+
+      Oracle Linux (ol, oracle) joins the RHEL bucket. It is an enterprise
+      Linux rebuild in the same class as Rocky and AlmaLinux, and its
+      absence was an omission rather than a decision.
+
+      IMPORTANT — this table is a DISPLAY mapping and MUST NOT be read as
+      a benchmark-equivalence claim. The two coincide for the EL rebuilds
+      and diverge for Fedora: Fedora displays as itself AND has no EL
+      benchmark, so it is deliberately absent from framework.BenchmarkFamily
+      on the backend. Grading a Fedora host against the RHEL 9 STIG would
+      manufacture coverage that does not exist. Benchmark equivalence has
+      exactly one home (framework.BenchmarkFamily) and it is not this file.
 
     related_specs:
       - api-hosts
@@ -74,7 +96,7 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: 'osDisplayLabel("rhel"), osDisplayLabel("centos"), osDisplayLabel("rocky"), osDisplayLabel("almalinux") each return "RHEL". Case folding: osDisplayLabel("RHEL") and osDisplayLabel("Rhel") also return "RHEL"'
+      description: 'osDisplayLabel("rhel"), osDisplayLabel("centos"), osDisplayLabel("rocky"), osDisplayLabel("almalinux"), osDisplayLabel("ol"), osDisplayLabel("oracle") each return "RHEL". Case folding: osDisplayLabel("RHEL") and osDisplayLabel("Rhel") also return "RHEL"'
       priority: critical
       references_constraints: [C-02]
     - id: AC-02
@@ -82,7 +104,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
-      description: 'osDisplayLabel(null), osDisplayLabel(undefined), osDisplayLabel(""), osDisplayLabel("fedora"), osDisplayLabel("arch") all return "Unknown". The mapping is closed; unrecognized families MUST NOT pass through unchanged'
+      description: 'osDisplayLabel(null), osDisplayLabel(undefined), osDisplayLabel(""), osDisplayLabel("arch") all return "Unknown". The mapping is closed; unrecognized families MUST NOT pass through unchanged. NOTE: fedora moved OUT of this AC in v1.1.0 and is asserted by AC-08'
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
@@ -101,3 +123,7 @@ spec:
       description: 'Source inspection: HostsListPage.tsx declares an OS_COLOR_FALLBACK constant referenced by OSChip via the "?? OS_COLOR_FALLBACK" lookup pattern. Proves the neutral-fallback wiring is in place — OS_COLOR is typed Record<string, string> (open map) and the bracket access is guarded against the unmapped/undefined case'
       priority: high
       references_constraints: [C-03]
+    - id: AC-08
+      description: 'osDisplayLabel("fedora") returns "Fedora", NOT "Unknown" and NOT "RHEL". A Fedora host is identified as Fedora (Discovery knows what it is, so "Unknown" would be a lie) and is kept out of the RHEL rollup (it is not an enterprise-tracked target). Source inspection of frontend/src/utils/osLabel.ts: the file MUST carry a comment stating the table is a display mapping and NOT a benchmark-equivalence claim, so the next author does not copy fedora into framework.BenchmarkFamily on the backend'
+      priority: critical
+      references_constraints: [C-02]
