@@ -1,0 +1,257 @@
+# Release readiness gates.
+#
+# This file is the single list of what must be true before a candidate is
+# promoted to GA. `make release-status TAG=vX.Y.Z` renders it and returns a
+# verdict; a NO-GO names every unmet gate.
+#
+# The rule this file exists to enforce: every gate has either a machine
+# checkable evidence source or a dated human attestation tied to a specific
+# artifact. No gate may be satisfied by someone's recollection.
+#
+# Evidence kinds:
+#   github-check  a named check run on the candidate tag's commit
+#   release-asset an asset published by release.yml for the tag
+#   per-platform  expands over [[platform]] below; satisfied by a container
+#                 job or a human attestation, either scoped to the artifact
+#   attestation   a file in release/attestations/ naming what was observed
+#
+# Adding a platform here without adding it to release.yml's build matrix is a
+# configuration error the checker reports, not a silent pass.
+
+version = 1
+
+# ---------------------------------------------------------------- platforms
+
+# The install matrix. `method` records how the evidence is meant to be
+# produced; an attestation from a real VM also satisfies a container gate,
+# because both prove the same claim. What is never allowed is no evidence.
+#
+# Keep this list and internal/setup/platform.go's supportOf() in agreement.
+# A platform that is blocking here and passing is what justifies
+# SupportTested there; anything else is a support claim CI does not back.
+
+[[platform]]
+id = "rhel9"
+title = "RHEL 9 family (RHEL, Rocky, AlmaLinux, Oracle Linux 9)"
+method = "container"
+package = "rpm"
+support_tier = "tested"
+blocking = true
+# Proven by containers on rockylinux:9, a RHEL 9 rebuild running identical
+# paths. A container cannot be a licensed RHEL host, so the routine per
+# candidate evidence comes from the rebuild; the attestations in this directory
+# record live RHEL 9.8 runs, which additionally covered SELinux enforcing,
+# fapolicyd and reachability through firewalld. Those are richer but manual,
+# and the gate claims only what the job asserts.
+[platform.checks]
+clean-install = "setup rockylinux:9"
+idempotence = "setup rockylinux:9"
+upgrade-from-ga = "upgrade-from-ga rockylinux:9"
+
+[[platform]]
+id = "el10"
+# AlmaLinux 10 specifically. RHEL 10 shares the major but has no image in the
+# matrix, so it is not covered and internal/setup/platform.go does not claim it.
+title = "AlmaLinux 10"
+method = "container"
+package = "rpm"
+support_tier = "tested"
+blocking = true
+[platform.checks]
+clean-install = "setup almalinux:10"
+idempotence = "setup almalinux:10"
+upgrade-from-ga = "upgrade-from-ga almalinux:10"
+
+[[platform]]
+id = "ubuntu2404"
+title = "Ubuntu 24.04 LTS"
+method = "container"
+package = "deb"
+support_tier = "tested"
+blocking = true
+# Which CI job proves which gate kind. Scoped per kind on purpose: the
+# setup-install job asserts a clean install AND a re-run, so it proves both
+# I1 and I2, but it never touches the previous GA, so it must not be allowed
+# to satisfy U2. A gate kind absent here falls back to an attestation.
+[platform.checks]
+clean-install = "setup ubuntu:24.04"
+idempotence = "setup ubuntu:24.04"
+[platform.not_applicable]
+upgrade-from-ga = "v0.6.0 could not run on this platform at all: its DEB shipped /etc/openwatch as root:root, so the service user could not read its own config. There is no working previous GA here to upgrade from, and v0.7.0 is the first release that runs on the Debian family."
+
+[[platform]]
+id = "debian12"
+title = "Debian 12"
+method = "container"
+package = "deb"
+support_tier = "tested"
+blocking = true
+[platform.checks]
+clean-install = "setup debian:12"
+idempotence = "setup debian:12"
+[platform.not_applicable]
+upgrade-from-ga = "v0.6.0 could not run on this platform at all: its DEB shipped /etc/openwatch as root:root, so the service user could not read its own config. There is no working previous GA here to upgrade from, and v0.7.0 is the first release that runs on the Debian family."
+
+# -------------------------------------------------------------------- gates
+
+# Quality. These already run in CI; the checker collects them rather than
+# re-running them, so a green pipeline populates this section for free.
+
+[[gate]]
+id = "Q1"
+title = "Quality and security gates"
+proves = "gofmt, vet, golangci-lint incl. gosec, govulncheck, race tests, frontend build"
+evidence = "github-check"
+check = "Quality + security gates"
+blocking = true
+
+[[gate]]
+id = "Q2"
+title = "CodeQL static analysis"
+proves = "No new CodeQL findings on the candidate commit"
+evidence = "github-check"
+check = "Analyze Code (javascript)"
+blocking = true
+
+[[gate]]
+id = "Q3"
+title = "Documentation style"
+proves = "Changed Markdown is free of em dashes, emojis and AI speak"
+evidence = "github-check"
+check = "Doc Style"
+blocking = true
+
+# Package installability, per distro. Already automated by
+# package-smoke.yml. Note what this does NOT prove: the job never runs
+# `openwatch setup`, never stands up PostgreSQL and never starts the service.
+# It asserts files, the system user, a >=500 rule corpus, valid identity keys,
+# and that the binary runs check-config. The setup path is gate I1.
+
+[[gate]]
+id = "P1"
+title = "Packages install cleanly, per distro"
+proves = "Both packages install in one transaction; files, system user, rule corpus and identity keys are correct; the binary runs check-config"
+evidence = "github-check-all"
+checks = [
+  "rockylinux:9",
+  "almalinux:9",
+  "oraclelinux:9",
+  "fedora:41",
+  "ubuntu:24.04",
+  "debian:12",
+  "almalinux:10",
+]
+blocking = true
+
+# Release integrity.
+
+[[gate]]
+id = "R1"
+title = "Signed artifacts published"
+proves = "release.yml produced RPM and DEB for both arches with SBOMs"
+evidence = "release-asset"
+assets = [
+  "openwatch-*.x86_64.rpm",
+  "openwatch-*.aarch64.rpm",
+  "openwatch_*_amd64.deb",
+  "openwatch_*_arm64.deb",
+  "kensa-rules-*.noarch.rpm",
+  "kensa-rules_*_all.deb",
+]
+blocking = true
+
+[[gate]]
+id = "R2"
+title = "Checksums and signature published"
+proves = "SHA256SUMS is present and detached-signed with the release key"
+evidence = "release-asset"
+assets = ["SHA256SUMS", "SHA256SUMS.asc", "KEYS"]
+blocking = true
+
+[[gate]]
+id = "R3"
+title = "Tag is GPG signed"
+proves = "The candidate tag carries a good signature from the release key"
+evidence = "signed-tag"
+blocking = true
+
+# Install and upgrade. These expand over [[platform]].
+
+[[gate]]
+id = "I1"
+title = "Clean install via `openwatch setup`"
+proves = "From a host with no OpenWatch and no PostgreSQL, setup reaches a running service whose /health reports db_connected"
+evidence = "per-platform"
+kind = "clean-install"
+blocking = true
+
+[[gate]]
+id = "I2"
+title = "Second setup run is idempotent"
+proves = "Re-running setup on a completed install exits 0 and changes nothing that breaks it"
+evidence = "per-platform"
+kind = "idempotence"
+blocking = true
+
+[[gate]]
+id = "U1"
+title = "Package upgrade scriptlet auto-migrates"
+proves = "rpm -U runs the %post scriptlet: pre-upgrade backup taken, schema migrated to head, service stop/started"
+evidence = "github-check"
+check = "Package upgrade (rpm -U auto-migrate)"
+blocking = true
+
+# U1 covers the mechanism on rockylinux:9 with RPM, between two synthetic
+# builds of the same version. It does not cover DEB, other distros, or the
+# real previous-GA-to-candidate jump, which is what an operator actually does.
+# That is U2, and no automation produces it yet.
+
+[[gate]]
+id = "U2"
+title = "Upgrade from the previous GA release"
+proves = "The previous GA installed and running, then upgraded to the candidate with both packages in one transaction; migrations apply and the service returns healthy"
+evidence = "per-platform"
+kind = "upgrade-from-ga"
+blocking = true
+
+# Functional. Container jobs cannot prove these; they need real managed hosts.
+# Each names the surface it checks, because "functional walkthrough" is not
+# falsifiable and this has to be refusable by a person in a few minutes.
+
+[[gate]]
+id = "F1"
+title = "Scan a real host end to end"
+proves = "A scan against a live fleet host completes and reports per-rule results"
+evidence = "attestation"
+kind = "fleet-scan"
+human_required = true
+blocking = true
+
+[[gate]]
+id = "F2"
+title = "Staged remediation renders correctly"
+proves = "On a host whose `auditctl -s` reports `enabled 2`, remediating an audit_rule_set rule shows amber 'Staged, reboot required' with a working Roll back, not a red failure"
+evidence = "attestation"
+kind = "fleet-staged-remediation"
+human_required = true
+blocking = true
+
+[[gate]]
+id = "F3"
+title = "Scan variables populate on a packaged install"
+proves = "Settings > Compliance policies lists scan variables; a blank panel means the rule corpus did not resolve"
+evidence = "attestation"
+kind = "fleet-scan-variables"
+human_required = true
+blocking = true
+
+# Sign off.
+
+[[gate]]
+id = "H1"
+title = "Release captain signature"
+proves = "A named human accepts the release against the release-admin-signoff DoD"
+evidence = "attestation"
+kind = "release-captain"
+human_required = true
+blocking = true

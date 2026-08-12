@@ -1,5 +1,5 @@
 // Credential CRUD + resolver admin handlers. Spec:
-// app/specs/api/credentials.spec.yaml.
+// specs/api/credentials.spec.yaml.
 //
 // All read endpoints return metadata-only — no plaintext or ciphertext
 // for password / private_key / passphrase ever crosses this layer.

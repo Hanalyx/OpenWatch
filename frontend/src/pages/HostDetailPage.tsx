@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Activity as ActivityIcon,
   AlertTriangle,
@@ -28,6 +28,7 @@ import type { LucideIcon } from 'lucide-react';
 import api from '@/api/client';
 import { useHostExceptions } from '@/hooks/useHostExceptions';
 import { useHostRemediations } from '@/hooks/useHostRemediations';
+import { RemediationJournal } from '@/components/hosts/RemediationJournal';
 import { formatLift } from '@/components/hosts/RequestRemediationModal';
 import { apiErrorCode, apiErrorMessage } from '@/api/errors';
 import { useDefaultLens, resolveLensForHost } from '@/api/useDefaultLens';
@@ -59,7 +60,7 @@ import {
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
-// Layout mirrors app/docs/prototypes/openwatch-v1/Host Detail.html:
+// Layout mirrors (archived) docs/prototypes/openwatch-v1/Host Detail.html:
 //
 //   1. Back link (chevron + label) to /hosts
 //   2. Page-head row: hostname (mono) + status badge + sub-line metadata
@@ -77,7 +78,7 @@ import {
 // honest empty states naming the deferred BACKLOG.md item so operators
 // can tell deferred-feature from broken-feature.
 //
-// Spec: app/specs/frontend/host-detail.spec.yaml v1.0.0.
+// Spec: specs/frontend/host-detail.spec.yaml v1.0.0.
 
 interface HostDetailSearch {
   framework?: string;
@@ -1235,7 +1236,7 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   failed: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Failed' },
 
   // Terminal outcomes added with the outcome vocabulary (api-remediation
-  // v1.2.0). Each colour is chosen from what the operator has to DO, not from
+  // v1.2.0). Each color is chosen from what the operator has to DO, not from
   // whether the word sounds good:
   //
   //   staged      amber. It worked, but the host is not protected yet and
@@ -1243,7 +1244,7 @@ const REM_STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }
   //               host does not have.
   //   reverted    neutral, deliberately NOT red. Validation failed and the
   //               host was restored. That is the atomic model doing its job,
-  //               and colouring it as a failure teaches operators to distrust
+  //               and coloring it as a failure teaches operators to distrust
   //               the thing protecting them.
   //   not_applied neutral. The engine declined and the host is untouched.
   //   partially_applied  red. Some steps cannot be reversed automatically and
@@ -1293,6 +1294,9 @@ function RemediationTab({ hostId }: { hostId: string }) {
   const canApprove = useAuthStore((s) => s.hasPermission('remediation:approve')) || isAdmin;
   const canExecute = useAuthStore((s) => s.hasPermission('remediation:execute')) || isAdmin;
   const canRollback = useAuthStore((s) => s.hasPermission('remediation:rollback')) || isAdmin;
+  // One row open at a time. The journal is a detailed read, and several open
+  // at once turns the table back into a wall rather than an explanation.
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
 
   let body: ReactNode;
   if (rem.isPending) {
@@ -1343,31 +1347,76 @@ function RemediationTab({ hostId }: { hostId: string }) {
         <tbody>
           {rem.items.map((r) => {
             const lift = formatLift(r.projected_lift);
+            const open = expandedRequestId === r.id;
             return (
-              <tr key={r.id} style={{ borderTop: '1px solid var(--ow-line)' }}>
-                <td style={remTd}>
-                  <RemStatusChip status={r.status} />
-                </td>
-                <td style={remTd}>
-                  <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
-                    {r.rule_id}
-                  </span>
-                </td>
-                <td
-                  style={{ ...remTd, color: 'var(--ow-fg-2)', fontVariantNumeric: 'tabular-nums' }}
-                >
-                  {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
-                </td>
-                <td style={remTd}>
-                  <RemediationRowAction
-                    request={r}
-                    hostId={hostId}
-                    canApprove={canApprove}
-                    canExecute={canExecute}
-                    canRollback={canRollback}
-                  />
-                </td>
-              </tr>
+              <Fragment key={r.id}>
+                <tr style={{ borderTop: '1px solid var(--ow-line)' }}>
+                  <td style={remTd}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedRequestId(open ? null : r.id)}
+                      aria-expanded={open}
+                      aria-label={
+                        open
+                          ? `Hide transaction for ${r.rule_id}`
+                          : `Show transaction for ${r.rule_id}`
+                      }
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        color: 'inherit',
+                        font: 'inherit',
+                      }}
+                    >
+                      <ChevronRight
+                        size={13}
+                        aria-hidden
+                        style={{
+                          color: 'var(--ow-fg-3)',
+                          transform: open ? 'rotate(90deg)' : 'none',
+                          transition: 'transform 120ms',
+                        }}
+                      />
+                      <RemStatusChip status={r.status} />
+                    </button>
+                  </td>
+                  <td style={remTd}>
+                    <span style={{ fontFamily: 'var(--ow-font-mono)', color: 'var(--ow-fg-0)' }}>
+                      {r.rule_id}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...remTd,
+                      color: 'var(--ow-fg-2)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {lift ?? <span style={{ color: 'var(--ow-fg-3)' }}>—</span>}
+                  </td>
+                  <td style={remTd}>
+                    <RemediationRowAction
+                      request={r}
+                      hostId={hostId}
+                      canApprove={canApprove}
+                      canExecute={canExecute}
+                      canRollback={canRollback}
+                    />
+                  </td>
+                </tr>
+                {open ? (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '0 12px', background: 'var(--ow-bg-0)' }}>
+                      <RemediationJournal hostId={hostId} requestId={r.id} expanded />
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
         </tbody>
@@ -1664,7 +1713,7 @@ function RemediationRowAction({
     // 'executed' means the runtime converged: the host is protected now.
     // 'staged' means the change is written but takes effect at reboot, so the
     // host is NOT protected yet. Both keep the Roll back action; only the
-    // wording and colour differ, because they call for different next steps.
+    // wording and color differ, because they call for different next steps.
     const isStaged = request.status === 'staged';
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1726,7 +1775,7 @@ function RemediationRowAction({
 
   // Host untouched. Neutral, not red: the engine restored the host itself, or
   // declined to act. Showing these as failures trains operators to ignore the
-  // colour that is supposed to mean "something needs you".
+  // color that is supposed to mean "something needs you".
   if (request.status === 'reverted' || request.status === 'not_applied') {
     return (
       <span style={{ color: 'var(--ow-fg-2)', fontSize: 11 }}>

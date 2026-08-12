@@ -2,7 +2,7 @@
 // platform can talk to. CRUD only; OS discovery and monitoring state
 // land in later slices when their producers exist.
 //
-// Spec: app/specs/system/host-inventory.spec.yaml.
+// Spec: specs/system/host-inventory.spec.yaml.
 package host
 
 import (

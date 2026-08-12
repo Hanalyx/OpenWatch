@@ -3,7 +3,7 @@
 // is the single entry point for connectivity code — never query the
 // table directly.
 //
-// Spec: app/specs/system/credential-store.spec.yaml.
+// Spec: specs/system/credential-store.spec.yaml.
 package credential
 
 import (

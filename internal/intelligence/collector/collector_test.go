@@ -91,7 +91,7 @@ func TestPersist_OnConflictDoesNotDuplicate(t *testing.T) {
 func TestMigration_HasClosedEnumCheckOnEventCode(t *testing.T) {
 	t.Run("system-os-intelligence/AC-15", func(t *testing.T) {
 		_, file, _, _ := runtime.Caller(0)
-		// Walk up to app/internal/db/migrations.
+		// Walk up to internal/db/migrations.
 		dir := filepath.Dir(file)
 		var migPath string
 		for i := 0; i < 8; i++ {

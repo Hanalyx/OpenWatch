@@ -2,7 +2,7 @@
 // values land here as one row per key in the system_config table,
 // with JSONB values typed by per-config-domain structs.
 //
-// Spec: app/specs/services/connectivity-config.spec.yaml (the first
+// Spec: specs/services/connectivity-config.spec.yaml (the first
 // consumer). Future config domains (compliance scheduler, retention,
 // alert thresholds) land alongside without schema changes.
 //

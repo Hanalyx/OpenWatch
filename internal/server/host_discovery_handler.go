@@ -1,6 +1,6 @@
 // On-demand OS fingerprint Discovery — POST /hosts/{id}/discovery:run.
 //
-// Spec: app/specs/system/host-discovery.spec.yaml AC-08, AC-09, AC-10.
+// Spec: specs/system/host-discovery.spec.yaml AC-08, AC-09, AC-10.
 //
 // The handler delegates to discovery.Service.Discover, which opens one
 // SSH session, runs the closed probe batch, persists host_system_info +
