@@ -4,7 +4,7 @@
 // Implements identity.Lookups via PrimaryRoleFor so the identity binder
 // can translate a session into auth.Identity.
 //
-// Spec: app/specs/system/user-management.spec.yaml.
+// Spec: specs/system/user-management.spec.yaml.
 package users
 
 import (

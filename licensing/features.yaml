@@ -1,25 +1,7 @@
-# OpenWatch — License Feature Registry
+# OpenWatch License Feature Registry
 #
-# Source of truth for license feature IDs. Codegen produces:
-#   - internal/license/features.gen.go (typed Go constants and Feature -> metadata map)
-#   - documentation rendered for /license/features endpoint
-#
-# Build invariants enforced by scripts/validate-features.go:
-#   - Every feature id matches ^[a-z][a-z0-9_]*$
-#   - Every tier is one of: free | enterprise
-#   - Every introduced version is valid semver
-#   - permissions.yaml license_gated values resolve to a feature here
-#   - OpenAPI specs: every x-required-feature value matches an active feature id
-#   - No duplicates between features and deprecated_features
-#
-# Adding a feature: registry-first workflow.
-#   1. Add entry here.
-#   2. `go generate ./internal/license/...`.
-#   3. Reference from permissions.yaml `license_gated:` and/or OpenAPI
-#      `x-required-feature:`.
-#   4. CI fails if a handler emits a string literal that isn't a registered id.
-#
-# Design: docs/engineering/licensing_foundation.md §3 (feature registry).
+# Source of truth for license feature ids. `go generate ./internal/license/...`
+# produces internal/license/features.gen.go from this file.
 
 version: 1
 
@@ -36,7 +18,7 @@ features:
 
   - id: audit_export
     tier: enterprise
-    description: Export audit data as JSON/CSV with signed bundles
+    description: Fleet-scale audit export as signed bundles. Per-host audit export is free core
     introduced: "1.0.0"
 
   - id: temporal_queries
@@ -49,12 +31,6 @@ features:
     description: Bulk / fleet-wide manual remediation - apply many rules at once across a host selection (single-rule manual remediation is free core)
     introduced: "1.0.0"
 
-  # Policy-driven / scheduled auto-remediation (the flagship automation surface:
-  # severity-routed auto-fix, canary, max-changes-per-run, circuit breaker,
-  # scheduled playbooks). Split out from remediation_execution so the higher-
-  # blast-radius unattended posture gates independently of manual bulk apply.
-  # PLANNED — registered ahead of the build (registry-first); not yet enforced.
-  # See docs/engineering/roadmap/enterprise/ROADMAP.md and remediation_licensed_plan.md.
   - id: remediation_auto
     tier: enterprise
     description: Policy-driven and scheduled auto-remediation across the fleet (severity routing, canary, guardrails, circuit breaker)
@@ -62,7 +38,7 @@ features:
 
   - id: structured_exceptions
     tier: enterprise
-    description: Multi-stage exception approval workflow with policy enforcement
+    description: Fleet-scale exception workflow with multi-stage approval and policy enforcement. Per-host exceptions are free core
     introduced: "1.0.0"
 
   - id: priority_updates
@@ -70,19 +46,6 @@ features:
     description: Early access to Kensa rule updates and framework mappings
     introduced: "1.0.0"
 
-  # Enterprise authentication is FREE CORE. OIDC SSO and TOTP MFA already ship
-  # free, and gating their SAML/FIDO2 siblings behind a paid tier would put an
-  # authentication-strength ceiling on the free tier. Security posture is not a
-  # paywall. Both ids stay in the registry (rather than being deleted) so that
-  # any already-minted license naming them still resolves, and so a future
-  # managed/hosted SSO service has an id to hang off.
-  # The auditor-facing compliance artifact. OpenWatch monetizes the evidence a
-  # compliance officer files, not the ability to see your own posture. The
-  # `executive` report kind, every per-scan and per-host OSCAL export, the
-  # signing key, and report listing all stay FREE: a Community user can see
-  # their compliance state and prove it per scan. What is paid is the
-  # fleet-wide signed attestation package (report kind `attestation`, which is
-  # the only producer of the fleet OSCAL SAR face).
   - id: compliance_attestation
     tier: enterprise
     description: Fleet-wide signed attestation reports and the fleet OSCAL SAR export
@@ -98,10 +61,6 @@ features:
     description: FIDO2 / WebAuthn second factor for user authentication
     introduced: "1.0.0"
 
-  # Stage 0 demo feature — used by the walking skeleton's
-  # POST /diagnostics:premium-echo endpoint to exercise the license gate
-  # end-to-end. Retained post-Stage-0 only if a genuine premium diagnostic
-  # surface emerges; otherwise marked deprecated and removed.
   - id: premium_diagnostics
     tier: enterprise
     description: Premium diagnostic endpoints (Stage 0 demo and future operator tooling)

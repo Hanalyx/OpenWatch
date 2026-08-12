@@ -3,7 +3,7 @@
 // OS display label used by HostsListPage and HostDetailPage. The
 // mapping is intentionally closed; unrecognized families fall through
 // to "Unknown" so a pre-Discovery host or an unsupported distro never
-// gets silently labelled with a confidently-wrong guess.
+// gets silently labeled with a confidently-wrong guess.
 //
 // Spec: frontend-host-list-os C-02 + AC-01..AC-03.
 

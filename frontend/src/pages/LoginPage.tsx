@@ -11,7 +11,7 @@ import owIcon from '@/assets/openwatch-icon.png';
 
 // Login page — frontend-auth-login spec.
 //
-// Per app/docs/frontend_architecture_adr.md D-08, login uses session
+// Per docs/engineering/frontend_architecture_adr.md D-08, login uses session
 // cookies, not localStorage tokens. The body's access_token /
 // refresh_token are IGNORED. On success we re-fetch /auth/me to
 // populate the identity store, then redirect to return_to (or

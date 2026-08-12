@@ -742,6 +742,9 @@ test-*.json
 test-screenshots/
 test-reports/
 test-results.json
+# Playwright writes frontend/test-results/. The pre-commit prettier hook checks
+# the whole frontend dir, so leaving this untracked blocks every commit.
+test-results/
 
 # Documentation that shouldn't be in git
 docs/ADAPTIVE_SCHEDULER*.md
@@ -861,3 +864,6 @@ frontend/.specter-results.json
 
 # Kensa runtime state (SQLite remediation store, created at runtime)
 .kensa/
+
+# Local MCP server config (env-var refs; per-developer, not shared)
+.mcp.json

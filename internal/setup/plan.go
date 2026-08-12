@@ -52,7 +52,7 @@ type Secret struct {
 type DatabaseMode string
 
 const (
-	// DBProvision installs PostgreSQL if absent, initialises the cluster,
+	// DBProvision installs PostgreSQL if absent, initializes the cluster,
 	// starts it, and creates the role and database.
 	DBProvision DatabaseMode = "provision"
 	// DBExisting connects to a PostgreSQL that already runs, creating only

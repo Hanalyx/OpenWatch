@@ -1,6 +1,6 @@
 // @spec system-setup
 //
-// Unit coverage for the installer. The end-to-end behaviour these back up was
+// Unit coverage for the installer. The end-to-end behavior these back up was
 // verified in systemd containers across the RHEL family; see AC-10 for what
 // that run proved and TestSetup_ContainerVerificationIsRecorded for why it is
 // recorded rather than executed here.
@@ -56,7 +56,7 @@ func TestSetup_PlatformSupportTiers(t *testing.T) {
 			{"navylinux", "rhel", "9.4", FamilyRHEL, SupportUntested},
 			{"plan9", "", "4", FamilyUnknown, SupportUnsupported},
 			{"rhel", "fedora", "notaversion", FamilyRHEL, SupportUnsupported},
-			// Outside the modelled majors: the layout is not known to be the same.
+			// Outside the modeled majors: the layout is not known to be the same.
 			{"rocky", "rhel", "7.9", FamilyRHEL, SupportUnsupported},
 		}
 		for _, c := range cases {
@@ -255,7 +255,7 @@ func TestSetup_PgHbaPausesWhenUnmanaged(t *testing.T) {
 // AC-10: the end-to-end matrix, recorded because it cannot run here.
 //
 // Unit tests cannot install PostgreSQL, drive systemd, or bind a port. The
-// behaviour was verified in privileged systemd containers using the shipped
+// behavior was verified in privileged systemd containers using the shipped
 // RPM, and this test pins the claim so the recorded result and the code cannot
 // drift apart silently: the constants it asserts are the ones the run depended
 // on.
@@ -268,7 +268,7 @@ func TestSetup_ContainerVerificationIsRecorded(t *testing.T) {
 				"(PostgreSQL 10) no longer follows from it", minPostgresMajor)
 		}
 		// The recorded runs accepted the distribution default, PostgreSQL 13,
-		// with a warning. That is no longer the behaviour: 13 is end of life
+		// with a warning. That is no longer the behavior: 13 is end of life
 		// and now below the floor, and setup enables a supported module stream
 		// rather than installing the default. The rest of the record still
 		// holds; this clause does not, and AC-16 owns the floor.
@@ -519,7 +519,7 @@ func TestSetup_ProvisionedClusterManagesPgHba(t *testing.T) {
 			t.Error("a run that recorded no postgres work did not provision the cluster")
 		}
 
-		// Installing PostgreSQL counts, and so does initialising the cluster
+		// Installing PostgreSQL counts, and so does initializing the cluster
 		// on a host where the package was already present.
 		for _, c := range []struct{ step, action string }{
 			{"postgres-install", "install"},
@@ -546,7 +546,7 @@ func TestSetup_ProvisionedClusterManagesPgHba(t *testing.T) {
 // @ac AC-16
 // AC-16: the floor is a support statement, so it excludes dead versions.
 //
-// The dates are the reason this is pinned rather than left to judgement.
+// The dates are the reason this is pinned rather than left to judgment.
 // PostgreSQL 13 left support in November 2025 and 14 does so in November 2026,
 // so a floor at either ships regulated customers an unsupported database. The
 // distribution default is not an argument: RHEL 9's is still 13.

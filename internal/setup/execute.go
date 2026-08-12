@@ -73,7 +73,7 @@ func credentialSourceCheck(p Plan, interactive bool) (Check, bool) {
 
 // Preflight inspects the host before anything is planned. It never mutates.
 //
-// AllowUntested lets a recognised-but-unverified distro proceed: refusing
+// AllowUntested lets a recognized-but-unverified distro proceed: refusing
 // outright would block Rocky and Alma users running identical paths, while
 // claiming to support them would be a promise CI does not keep.
 //

@@ -2,8 +2,11 @@
  *
  * MUI v7's extendTheme handles its own palette variables
  * (--ow-palette-*), but the design-token contract documented in
- * app/docs/frontend_design_tokens.md uses short names like --ow-bg-0,
- * --ow-info, --ow-crit. This file is the canonical SSOT for those.
+ * docs/engineering/frontend_design_tokens.md uses short names like --ow-bg-0,
+ * --ow-info, --ow-crit. This file DECLARES those; it does not define them.
+ * The document is the contract: if a value here disagrees with the table
+ * there, this file is wrong. tokens.ts states the same. Corrected 2026-08-06,
+ * when this comment claimed to be "the canonical SSOT" and contradicted both.
  *
  * Spec: frontend-foundation C-04 (every documented token is present),
  *       C-05 (components reference --ow-* only).

@@ -1,7 +1,7 @@
 spec:
   id: system-license-validation
   title: License JWT validation
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -41,7 +41,7 @@ spec:
       type: security
       enforcement: error
     - id: C-03
-      description: iss MUST equal 'hanalyx-openwatch-licensing'
+      description: iss MUST equal 'licensing@hanalyx.com'
       type: security
       enforcement: error
     - id: C-04

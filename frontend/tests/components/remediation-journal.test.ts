@@ -32,7 +32,7 @@ describe('frontend-remediation-tab AC-09 - the journal is shown, not described',
 
   // @ac AC-09
   test('frontend-remediation-tab/AC-09 - a transaction that is not four phases falls back to the mechanism', () => {
-    // Inventing a phase name for a shape we do not recognise would be a
+    // Inventing a phase name for a shape we do not recognize would be a
     // confident guess presented as fact. The mechanism is at least true.
     expect(phaseLabel(phase({ index: 4, mechanism: 'audit_ruleset' }), 6)).toBe('audit_ruleset');
   });

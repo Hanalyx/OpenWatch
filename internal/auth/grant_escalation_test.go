@@ -1,6 +1,6 @@
 // @spec system-rbac
 //
-// Anti-escalation guard, custom-role behaviour.
+// Anti-escalation guard, custom-role behavior.
 //
 //	AC-19  TestRoleGrantsWithin_FailsClosedOnUnresolvableRole
 package auth

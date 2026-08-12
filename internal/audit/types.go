@@ -1,5 +1,5 @@
 // Package audit emits and stores audit events per the contract in
-// app/docs/audit_event_taxonomy.md and app/specs/system/audit-emission.spec.yaml.
+// docs/engineering/audit_event_taxonomy.md and specs/system/audit-emission.spec.yaml.
 //
 // Two emission paths:
 //   - Emit  (async): channel + batched insert. ~5µs per call on the

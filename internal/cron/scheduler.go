@@ -5,7 +5,7 @@
 // Real distributed scheduling (leader election, missed-tick recovery)
 // lands in Stage 2 when the first real scheduled consumer arrives.
 //
-// Spec: app/specs/system/job-queue.spec.yaml AC-09.
+// Spec: specs/system/job-queue.spec.yaml AC-09.
 package cron
 
 import (
