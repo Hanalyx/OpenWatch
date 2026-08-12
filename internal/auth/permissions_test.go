@@ -7,6 +7,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -52,8 +53,8 @@ func TestCodegen_PermissionConstants(t *testing.T) {
 }
 
 // @ac AC-02
-// AC-02: Permissions map has Category, Description, Dangerous, LicenseGated
-// per entry. Category must match one of the registered categories.
+// AC-02: Permissions map has Category, Description and Dangerous per entry.
+// Category must match one of the registered categories.
 func TestCodegen_PermissionMetadata(t *testing.T) {
 	t.Run("system-rbac/AC-02", func(t *testing.T) {
 		cats := map[string]bool{}
@@ -177,21 +178,48 @@ func TestIsDangerous(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: LicenseGate returns the feature id for gated perms, "" otherwise.
-func TestLicenseGate(t *testing.T) {
+// AC-07: the registry carries no license gate. A permission cannot express
+// an entitlement, because tiering is by scope: one host is free and the same
+// vocabulary at fleet scale is paid, and both use the SAME permission. Only
+// the route can tell them apart, so the gate lives on the route
+// (x-required-feature) and the handler enforces it with
+// license.EnforceFeature. See decision record 05.
+//
+// This is a negative invariant, so it is pinned by source inspection the same
+// way AC-12 pins the identity-bypass removal. A regenerated permissions.gen.go
+// that reintroduced the field would compile fine; only this test would catch it.
+func TestRegistryHasNoLicenseGate(t *testing.T) {
 	t.Run("system-rbac/AC-07", func(t *testing.T) {
-		// remediation:execute is FREE CORE (single-rule manual execute) and is
-		// therefore NOT license-gated; only bulk/auto remediation is licensed,
-		// gated at the handler via license.EnforceFeature(remediation_execution).
-		if got := LicenseGate(RemediationExecute); got != "" {
-			t.Errorf("LicenseGate(remediation:execute) = %q, want \"\" (single-rule execute is free core)", got)
+		// The registry source must not declare a gate on any permission.
+		reg, err := os.ReadFile(filepath.Join("..", "..", "auth", "permissions.yaml"))
+		if err != nil {
+			t.Fatalf("read permissions.yaml: %v", err)
 		}
-		if got := LicenseGate(HostRead); got != "" {
-			t.Errorf("LicenseGate(host:read) = %q, want \"\"", got)
+		if bytes.Contains(reg, []byte("license_gated:")) {
+			t.Error("permissions.yaml declares license_gated:; gating belongs on the route (x-required-feature), not the permission")
 		}
-		// audit:export is the gated case — LicenseGate returns its feature id.
-		if got := LicenseGate(AuditExport); got != "audit_export" {
-			t.Errorf("LicenseGate(audit:export) = %q, want audit_export", got)
+
+		// The generated registry must expose neither the field nor the helper.
+		gen, err := os.ReadFile("permissions.gen.go")
+		if err != nil {
+			t.Fatalf("read permissions.gen.go: %v", err)
+		}
+		if bytes.Contains(gen, []byte("LicenseGated")) {
+			t.Error("permissions.gen.go still emits a LicenseGated field")
+		}
+		if bytes.Contains(gen, []byte("func LicenseGate(")) {
+			t.Error("permissions.gen.go still emits the LicenseGate helper")
+		}
+
+		// The RBAC middleware must not consult the license package at all.
+		// EnforcePermission and RequirePermission are RBAC-only now; the 402
+		// is produced by license.EnforceFeature inside the handler instead.
+		mw, err := os.ReadFile("middleware.go")
+		if err != nil {
+			t.Fatalf("read middleware.go: %v", err)
+		}
+		if bytes.Contains(mw, []byte("internal/license")) {
+			t.Error("middleware.go still imports internal/license; the RBAC middleware must not gate on entitlement")
 		}
 	})
 }

@@ -9,7 +9,9 @@
 #   - Every permission id matches ^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$
 #       (or, for category wildcards: ^[a-z][a-z0-9_]*:\*$)
 #   - Every permission's prefix references a defined category
-#   - dangerous is bool; license_gated (if present) references a feature in app/license/features.yaml
+#   - dangerous is bool. License gating is not a permission field: an operation
+#       that needs an entitlement carries x-required-feature on its route in
+#       api/openapi.yaml (see docs/engineering/decision/05)
 #   - Every built-in role's permissions are either defined permission ids OR registered category wildcards
 #   - The bare wildcard "*" is only permitted on the built-in `admin` role
 #   - No duplicates between permissions and deprecated_permissions
@@ -268,7 +270,7 @@ permissions:
   # =========================================================================
   - id: license:read
     category: license
-    description: View license status, features, quotas, and history
+    description: View license status, features, and history
 
   - id: license:install
     category: license
@@ -297,7 +299,7 @@ permissions:
     dangerous: true
 
   # =========================================================================
-  # remediation - license-gated execution
+  # remediation - single-host execution is free core, and dangerous
   # =========================================================================
   - id: remediation:read
     category: remediation
@@ -346,7 +348,6 @@ permissions:
   - id: audit:export
     category: audit
     description: Export the audit log to file (large extracts)
-    license_gated: audit_export
 
   # =========================================================================
   # system

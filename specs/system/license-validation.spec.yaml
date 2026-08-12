@@ -1,7 +1,7 @@
 spec:
   id: system-license-validation
   title: License JWT validation
-  version: "1.2.0"
+  version: "2.0.0"
   status: approved
   tier: 1
 
@@ -13,7 +13,8 @@ spec:
       binary embeds public keys at build time. Validation parses the JWT,
       verifies signature against embedded keys (current/prev/deprecated),
       validates iss/aud/exp/iat/nbf, checks fingerprint binding, and
-      detects clock rollback against last_known_good.
+      detects clock rollback by comparing now against a persisted
+      last_known_good watermark.
 
   objective:
     summary: >
@@ -53,11 +54,11 @@ spec:
       type: security
       enforcement: error
     - id: C-06
-      description: iat MUST be present and not in the future (clock-rollback guard)
+      description: iat MUST be present and MUST NOT be later than now plus the 10-second clock-skew budget
       type: security
       enforcement: error
     - id: C-07
-      description: Loader MUST persist last_known_good timestamp; reject loads with iat < last_known_good
+      description: Loader MUST persist the last_known_good watermark; Verify MUST report ClockRollback when now sits behind that watermark. The comparison uses now, not the license iat (decision record 03). Verify reports, the loader decides what it costs (C-14)
       type: security
       enforcement: error
     - id: C-08
@@ -66,6 +67,26 @@ spec:
       enforcement: error
     - id: C-09
       description: The embedded current public key (license-pubkey-current.pem) MUST NOT be the testdata signing key; a build embedding the test trust anchor is forgeable and MUST fail (SEC-H1)
+      type: security
+      enforcement: error
+    - id: C-10
+      description: The clock-rollback tolerance MUST be one hour; now MUST sit more than one hour behind last_known_good before Verify reports a rollback
+      type: security
+      enforcement: error
+    - id: C-11
+      description: A zero last_known_good MUST skip the clock-rollback check; a first boot has no watermark to sit behind
+      type: security
+      enforcement: error
+    - id: C-12
+      description: An unknown feature id MUST NOT invalidate a license; unknown ids MUST be carried on License.UnknownFeatures so the caller can audit them (decision record 04)
+      type: security
+      enforcement: error
+    - id: C-13
+      description: The last_known_good watermark MUST be monotonic; a successful load MUST NOT move it earlier. Verify tolerates an hour of backwards drift, so writing an accepted-but-earlier reading back would let repeated loads walk the watermark down with no check ever failing
+      type: security
+      enforcement: error
+    - id: C-14
+      description: A detected clock rollback MUST warn, not deny. The loader MUST still install the license, MUST mark it, and MUST emit license.clock_rollback_detected. The watermark row lives in the customer's own database and the adversary has root there, so denial is evadable by deleting the row while a false positive silently drops a paying deployment to free tier (decision record 06)
       type: security
       enforcement: error
 
@@ -79,8 +100,9 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-03
-      description: JWT signed with prev key validates as Valid but VerifyResult.UsingPrevKey is true.
+      description: JWT signed with the prev key validates as Valid and sets License.UsingPrevKey to true. The enforcing test MUST build a key ring whose prev slot holds a real key, then verify a JWT signed with that key's private half. A test that skips when ring.prev is nil does not satisfy this AC.
       priority: high
+      references_constraints: [C-02]
     - id: AC-04
       description: JWT with wrong iss claim returns IssuerInvalid.
       priority: critical
@@ -101,16 +123,17 @@ spec:
       priority: high
       references_constraints: [C-06]
     - id: AC-09
-      description: Fresh load with iat < last_known_good emits license.clock_rollback_detected audit (sync) and returns ClockRollback.
+      description: Verify returns ClockRollback when now sits more than one hour behind last_known_good. The load path then emits license.clock_rollback_detected as a sync audit event.
       priority: critical
-      references_constraints: [C-07]
+      references_constraints: [C-07, C-10]
     - id: AC-10
       description: Mismatched fingerprint returns FingerprintMismatch and emits license.tampered audit event.
       priority: critical
       references_constraints: [C-08]
     - id: AC-11
-      description: Each feature ID in claims MUST exist in features.yaml; unknown returns UnknownFeature.
+      description: A license carrying a feature id this binary does not know stays Valid. Known ids land on License.Features and unknown ids land on License.UnknownFeatures, where the caller can audit them (decision record 04).
       priority: high
+      references_constraints: [C-12]
     - id: AC-12
       description: Malformed JWT (not three dot-separated base64 segments) returns MalformedJWT; no panic.
       priority: critical
@@ -121,3 +144,39 @@ spec:
       description: The embedded license-pubkey-current.pem MUST NOT equal the public half of the testdata test key; a regression to the test trust anchor fails the build (SEC-H1 guard).
       priority: critical
       references_constraints: [C-09]
+    - id: AC-15
+      description: Now behind last_known_good by less than the one-hour tolerance still validates as Valid. A conforming test injects Now inside the tolerance window, then repeats outside it and expects ClockRollback.
+      priority: high
+      references_constraints: [C-10]
+    - id: AC-16
+      description: A zero last_known_good never returns ClockRollback. The conforming test injects Now well before the real wall clock, and mints iat and exp around that injected time. Otherwise the iat skew check fires first and the test proves nothing.
+      priority: high
+      references_constraints: [C-11]
+    - id: AC-17
+      description: A license whose iat predates last_known_good validates as Valid when now is at or after the watermark. Installing an older license is not a rollback.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-18
+      description: A load whose now sits earlier than the stored watermark, but inside the tolerance, leaves the watermark unchanged. The conforming test loads once at T, loads again at T minus 59 minutes, and asserts the stored last_known_good is still T.
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-19
+      description: Reading the persisted watermark when no row exists returns the zero time and a nil error. A first boot has no watermark, and zero is what makes Verify skip the check.
+      priority: high
+      references_constraints: [C-07, C-11]
+    - id: AC-20
+      description: The persisted watermark is monotonic in SQL, not in a read-then-write in Go. An advance to an earlier time is a no-op, an advance to a later time moves it, and concurrent advances settle on the maximum. Doing it in Go would let two processes lose an update between the read and the write.
+      priority: critical
+      references_constraints: [C-13]
+    - id: AC-21
+      description: The watermark table cannot hold a second row. Both escape paths are closed. A duplicate at the default id hits the primary key, and an insert at the other boolean value hits the singleton CHECK.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-22
+      description: A detected rollback warns and still loads. The license installs, License.ClockRollbackDetected is true, and license.clock_rollback_detected is emitted. Every other check still gates. The conforming test proves an expired or wrong-issuer license is still refused while the rollback flag is set.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-23
+      description: Reloading a license does not clear a rollback warning. The load ratchets against the watermark it was GIVEN, not only the one already in process, so a rollback load cannot store a time behind the persisted watermark. The conforming test loads with a wound-back clock against a watermark of T, then reloads with empty options the way SIGHUP does, and asserts ClockRollbackDetected is still true and the stored watermark is still T. Without this, reloading makes the alert go away with nothing fixed.
+      priority: critical
+      references_constraints: [C-13, C-14]

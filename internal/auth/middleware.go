@@ -6,37 +6,38 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/correlation"
-	"github.com/Hanalyx/openwatch/internal/license"
 )
 
-// EnforcePermission performs the same RBAC + license-gate check as
-// RequirePermission but as a function callable inside an oapi-codegen-
-// generated handler. Returns true if the response is already written
-// (the handler should return immediately).
+// EnforcePermission performs the same RBAC check as RequirePermission but
+// as a function callable inside an oapi-codegen-generated handler. Returns
+// true if the response is already written (the handler should return
+// immediately).
+//
+// This checks RBAC only. Entitlement is a separate, later check: a handler
+// that also needs a paid feature calls license.EnforceFeature after this
+// returns false. Keeping the two apart is what lets one permission cover
+// both a free per-host route and a paid fleet-scale route.
 func EnforcePermission(w http.ResponseWriter, r *http.Request, p Permission) (denied bool) {
 	id := FromContext(r.Context())
 	if !id.HasPermission(p) {
 		denyPermission(w, r, p, id)
 		return true
 	}
-	if feature := LicenseGate(p); feature != "" {
-		if !license.IsEnabled(license.Feature(feature)) {
-			denyLicense(w, r, license.Feature(feature))
-			return true
-		}
-	}
 	return false
 }
 
-// RequirePermission returns a chi middleware that enforces both RBAC and
-// the license gate for the given permission in one pass. The check order is:
+// RequirePermission returns a chi middleware that enforces RBAC for the
+// given permission. The check order is:
 //
-//  1. Identity has p? If not → 403 authz.permission_denied. RBAC always
-//     fails first; never leak the license gate to a caller who lacks the
-//     permission anyway.
-//  2. p is license-gated and the feature is not enabled? → 402
-//     license.feature_unavailable.
-//  3. Otherwise the inner handler runs.
+//  1. Identity has p? If not → 401 auth.required for an anonymous caller,
+//     403 authz.permission_denied for an authenticated one.
+//  2. Otherwise the inner handler runs.
+//
+// There is no license stage here. A route that needs an entitlement declares
+// x-required-feature in api/openapi.yaml and its handler calls
+// license.EnforceFeature, which produces the 402. RBAC still fails first,
+// because the handler cannot run until this middleware passes. Never leak
+// the entitlement state to a caller who lacks the permission anyway.
 //
 // Spec system-rbac AC-08, AC-09, AC-10, AC-11.
 func RequirePermission(p Permission) func(http.Handler) http.Handler {
@@ -46,14 +47,6 @@ func RequirePermission(p Permission) func(http.Handler) http.Handler {
 			if !id.HasPermission(p) {
 				denyPermission(w, r, p, id)
 				return
-			}
-			// License gate (if applicable). The feature id comes from the
-			// registry; runtime lookup is O(1).
-			if feature := LicenseGate(p); feature != "" {
-				if !license.IsEnabled(license.Feature(feature)) {
-					denyLicense(w, r, license.Feature(feature))
-					return
-				}
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -111,13 +104,4 @@ func denyPermission(w http.ResponseWriter, r *http.Request, p Permission, id Ide
 		ActorID:   actorID,
 		Detail:    detail,
 	})
-}
-
-// denyLicense reuses the license package's deny path so the envelope is
-// produced once. Audit emission is handled inside the license package.
-//
-// Per system-rbac AC-10 + C-05: the audit code is license.feature_check_denied,
-// NOT authz.permission_denied — RBAC passed; this is a separate denial class.
-func denyLicense(w http.ResponseWriter, r *http.Request, f license.Feature) {
-	license.DenyFeature(w, r, f)
 }

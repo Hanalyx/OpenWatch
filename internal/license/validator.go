@@ -22,7 +22,6 @@ type claims struct {
 	jwt.RegisteredClaims
 	Tier        Tier     `json:"tier,omitempty"`
 	Features    []string `json:"features,omitempty"`
-	Quotas      Quotas   `json:"quotas,omitempty"`
 	CustomerID  string   `json:"customer_id,omitempty"`
 	Fingerprint string   `json:"fingerprint,omitempty"`
 }
@@ -31,11 +30,26 @@ type claims struct {
 // defaults; tests inject Now() to simulate time travel and Fingerprint
 // to test binding.
 type VerifyOptions struct {
-	Now                func() time.Time
-	Fingerprint        string    // deployment fingerprint; "" skips the check
-	LastKnownGood      time.Time // for clock-rollback detection; zero skips
-	AllowDeprecatedKey bool      // true only in OPENWATCH_DEV_MODE
+	Now         func() time.Time
+	Fingerprint string // deployment fingerprint; "" skips the check
+	// LastKnownGood is the latest wall-clock time this deployment has been
+	// observed at, persisted across restarts. Verify refuses when `now` is
+	// meaningfully behind it. Zero skips the check, which is correct on a
+	// first boot: there is nothing yet to be behind.
+	//
+	// This is compared against `now`, NOT against the license's iat. A
+	// rolled-back clock does not move iat, so an iat comparison detects
+	// installing an older license instead, which is a different thing and
+	// not a threat here. See decision record 03.
+	LastKnownGood      time.Time
+	AllowDeprecatedKey bool // true only in OPENWATCH_DEV_MODE
 }
+
+// clockRollbackTolerance is how far behind the watermark `now` may sit before
+// Verify calls it a rollback. NTP correcting a drifted clock backwards is
+// normal and must not trip a tamper-grade audit event; winding back far enough
+// to matter against a 30-day grace period is not.
+const clockRollbackTolerance = time.Hour
 
 // Verify parses a JWT license, checks the signature against the keyring,
 // validates claims, and returns either a populated License (when Valid)
@@ -65,8 +79,16 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 	)
 	parsed, err := parser.ParseWithClaims(jwtBlob, &claims{}, keyFunc)
 	if err != nil {
-		// Try the prev key if signature failed against current.
-		if ring.prev != nil && errors.Is(err, jwt.ErrSignatureInvalid) {
+		// Try the prev key if the signature failed against current.
+		//
+		// Match on ErrTokenSignatureInvalid, which is what jwt v5 wraps every
+		// verification failure in. Do NOT match ErrSignatureInvalid: that
+		// sentinel is defined and returned only by the HMAC path (hmac.go), so
+		// an Ed25519 mismatch (ErrEd25519Verification, ed25519.go) never
+		// carries it. Matching it made this branch unreachable, which meant key
+		// rotation would have failed in the field the first release a prev key
+		// shipped, and only then.
+		if ring.prev != nil && errors.Is(err, jwt.ErrTokenSignatureInvalid) {
 			parsed, err = parser.ParseWithClaims(jwtBlob, &claims{}, func(*jwt.Token) (interface{}, error) {
 				return ring.prev, nil
 			})
@@ -109,8 +131,11 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		return nil, VerifyNotYetValid, nil
 	}
 
-	// Clock rollback: iat must not predate LastKnownGood.
-	if !opts.LastKnownGood.IsZero() && iat.Before(opts.LastKnownGood) {
+	// Clock rollback: now must not sit behind the watermark by more than the
+	// tolerance. Expiry is the only control a license has once it is issued,
+	// because verification is offline and nothing phones home, so winding the
+	// clock back is the one way left to keep running past exp.
+	if !opts.LastKnownGood.IsZero() && now.Before(opts.LastKnownGood.Add(-clockRollbackTolerance)) {
 		return nil, VerifyClockRollback, nil
 	}
 
@@ -139,11 +164,13 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		return nil, VerifyFingerprintMismatch, nil
 	}
 
-	// Feature claims: each must exist in the registry.
+	// Feature claims. An id this binary does not know is carried, not fatal.
+	//
+	// Licenses are minted from a registry that moves faster than customer
+	// upgrades, so rejecting the whole token would turn shipping a new flag
+	// into a total outage for an install that is otherwise entitled. The
+	// install degrades to the features it understands. See decision record 04.
 	features, unknown := translateFeatures(c.Features)
-	if len(unknown) > 0 {
-		return nil, VerifyUnknownFeature, fmt.Errorf("unknown features: %s", strings.Join(unknown, ", "))
-	}
 
 	tier := c.Tier
 	if tier == "" {
@@ -159,7 +186,6 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		Tier:          tier,
 		Status:        status,
 		Features:      features,
-		Quotas:        c.Quotas,
 		Issuer:        c.Issuer,
 		Audience:      audienceString(c.Audience),
 		CustomerID:    c.CustomerID,
@@ -168,6 +194,8 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		Fingerprint:   c.Fingerprint,
 		UsingPrevKey:  usingPrev,
 		InGracePeriod: inGrace,
+		// The caller audits these; the verifier only reports them.
+		UnknownFeatures: unknown,
 	}, VerifyValid, nil
 }
 
@@ -212,7 +240,8 @@ func audienceString(aud jwt.ClaimStrings) string {
 }
 
 // translateFeatures maps the JWT's string feature claims to typed Feature
-// constants. Unknown IDs are collected for the VerifyUnknownFeature result.
+// constants. Unknown ids are returned separately so the caller can record and
+// audit them; they do not invalidate the license.
 func translateFeatures(claims []string) (known []Feature, unknown []string) {
 	for _, s := range claims {
 		f := Feature(s)

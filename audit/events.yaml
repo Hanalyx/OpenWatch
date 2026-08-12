@@ -684,7 +684,7 @@ events:
     severity: warning
 
   # =========================================================================
-  # license — install, expiry, feature gating, quotas
+  # license: install, expiry, feature gating
   # =========================================================================
   - code: license.installed
     severity: info
@@ -705,15 +705,6 @@ events:
       properties:
         feature: {type: string}
         suppressed_count: {type: integer, description: Events deduped within 1-min window}
-
-  - code: license.quota_exceeded
-    severity: warning
-    detail_schema:
-      type: object
-      properties:
-        quota: {type: string}
-        limit: {type: integer}
-        current: {type: integer}
 
   - code: license.clock_rollback_detected
     severity: critical

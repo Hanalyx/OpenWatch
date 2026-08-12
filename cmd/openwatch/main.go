@@ -246,7 +246,22 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	if envPath := os.Getenv("OPENWATCH_LICENSE_FILE"); envPath != "" {
 		licensePath = envPath
 	}
-	if result, err := license.LoadFile(licensePath, license.VerifyOptions{}); err != nil || result != license.VerifyValid {
+	// Load the persisted clock-rollback watermark before verifying. Without
+	// it every boot starts at zero, the check skips, and the guard only ever
+	// works inside one process lifetime, which leaves the reboot-with-a-
+	// wound-back-clock case undetectable. That is the practical attack.
+	//
+	// A read failure must not block startup. The database is reachable here
+	// (the pool is built above), but a degraded read should cost the rollback
+	// check, not the service.
+	licOpts := license.VerifyOptions{}
+	if wm, wmErr := license.Watermark(bootCtx, pool); wmErr != nil {
+		slog.WarnContext(bootCtx, "license watermark unreadable, clock-rollback check disabled this boot",
+			slog.String("error", wmErr.Error()))
+	} else {
+		licOpts.LastKnownGood = wm
+	}
+	if result, err := license.LoadFile(licensePath, licOpts); err != nil || result != license.VerifyValid {
 		// LoadFile returns Valid for missing-file (free tier baseline).
 		if _, statErr := os.Stat(licensePath); statErr == nil {
 			// File exists but failed validation.
@@ -269,9 +284,48 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		)
 	}
 
+	// Advance the watermark once the clock has been accepted, whatever the
+	// license outcome was. The watermark records the highest wall clock this
+	// DEPLOYMENT has seen, not the state of any license, so a free-tier or
+	// unlicensed boot still moves it forward. Doing it only on a valid license
+	// would let an operator clear the watermark by removing the file.
+	//
+	// The write is a ratchet in SQL (GREATEST), so it cannot move backwards
+	// and two processes cannot lose an update between them.
+	if err := license.AdvanceWatermark(bootCtx, pool, time.Now()); err != nil {
+		slog.WarnContext(bootCtx, "could not advance license watermark",
+			slog.String("error", err.Error()))
+	}
+
 	// Wire shutdown on SIGINT/SIGTERM; SIGHUP triggers license reload.
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Keep the watermark near real time, not merely at last-boot time.
+	//
+	// Advancing only at boot leaves the interval between boots unguarded: a
+	// deployment that runs for a year stores a year-old watermark, so a reboot
+	// with the clock set just after that boot verifies cleanly and buys back
+	// the whole year against expiry. Ticking hourly bounds what a rollback can
+	// recover to roughly the tolerance itself.
+	//
+	// One UPDATE an hour. The write is a SQL ratchet, so a tick that fires
+	// while the clock is behind is a no-op rather than a regression.
+	go func() {
+		t := time.NewTicker(time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if err := license.AdvanceWatermark(ctx, pool, time.Now()); err != nil {
+					slog.WarnContext(ctx, "could not advance license watermark",
+						slog.String("error", err.Error()))
+				}
+			}
+		}
+	}()
 
 	// SIGHUP: reload license without restart.
 	hupCh := make(chan os.Signal, 1)

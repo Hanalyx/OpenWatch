@@ -11,10 +11,20 @@ import (
 // attempt. Critical events (install, signature failure, clock rollback)
 // use EmitSync so they're durable before the load function returns.
 func EmitLoadResult(ctx context.Context, source string, result VerifyResult, lic *License, err error) {
+	// A rollback is a warning, not a denial (decision record 06), so the load
+	// reports Valid and the switch below would never reach the rollback arm.
+	// Emit it here, before and in addition to license.installed, or the one
+	// signal an operator has that their clock moved would vanish exactly when
+	// the fail-open policy makes it the only signal left.
+	if lic != nil && lic.ClockRollbackDetected {
+		emitClockRollback(ctx, source, err)
+	}
+
 	switch result {
 	case VerifyValid:
 		emitInstalled(ctx, source, lic)
 	case VerifyClockRollback:
+		// Still reachable via VerifyOnly, which applies no policy.
 		emitClockRollback(ctx, source, err)
 	case VerifyFingerprintMismatch:
 		emitTampered(ctx, source, "fingerprint_mismatch")

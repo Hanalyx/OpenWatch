@@ -147,13 +147,29 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 	if envPath := os.Getenv("OPENWATCH_LICENSE_FILE"); envPath != "" {
 		licensePath = envPath
 	}
-	if result, err := license.LoadFile(licensePath, license.VerifyOptions{}); err != nil || result != license.VerifyValid {
+	// Same watermark handling as serve. A standalone worker verifies licenses
+	// too, so it must see the same clock-rollback watermark; otherwise the
+	// weaker of the two processes sets the bar. A read failure costs the
+	// check, not the process.
+	licOpts := license.VerifyOptions{}
+	if wm, wmErr := license.Watermark(bootCtx, pool); wmErr != nil {
+		slog.WarnContext(bootCtx, "license watermark unreadable, clock-rollback check disabled this boot",
+			slog.String("error", wmErr.Error()))
+	} else {
+		licOpts.LastKnownGood = wm
+	}
+	if result, err := license.LoadFile(licensePath, licOpts); err != nil || result != license.VerifyValid {
 		if _, statErr := os.Stat(licensePath); statErr == nil {
 			slog.WarnContext(bootCtx, "license file rejected",
 				slog.String("path", licensePath),
 				slog.String("result", string(result)),
 			)
+			license.EmitLoadResult(bootCtx, "boot", result, nil, err)
 		}
+	}
+	if err := license.AdvanceWatermark(bootCtx, pool, time.Now()); err != nil {
+		slog.WarnContext(bootCtx, "could not advance license watermark",
+			slog.String("error", err.Error()))
 	}
 
 	// Wire the scan-job execution chain. The production ScanFunc loads

@@ -348,7 +348,7 @@ paths:
   /api/v1/license:
     get:
       operationId: getLicense
-      summary: Get the current license state (tier, features, quotas, status)
+      summary: Get the current license state (tier, status, features, expiry)
       responses:
         '200':
           description: License state
@@ -6962,7 +6962,6 @@ components:
         category: {type: string}
         description: {type: string}
         dangerous: {type: boolean}
-        license_gated: {type: string}
 
     CategoryEntry:
       type: object
