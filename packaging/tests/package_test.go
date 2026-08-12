@@ -907,7 +907,7 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 				"an artifact")
 		}
 
-		// Behaviour, against the real version.env in the tree.
+		// Behavior, against the real version.env in the tree.
 		version := versionEnvVersion(t)
 		run := func(ref string) error {
 			cmd := exec.Command("bash", script)
