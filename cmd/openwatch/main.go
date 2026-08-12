@@ -855,6 +855,20 @@ func cmdMigrate(cfg *config.Config, args []string, stdout, stderr *os.File) int 
 	}
 	defer pool.Close()
 
+	// Preflight the server version before touching the schema. Below the hard
+	// floor a migration run fails partway through naming a missing function
+	// rather than a version, leaving the schema half-applied; refusing here
+	// keeps the database untouched. Runs for --status too, so the check is
+	// reachable without committing to a migration.
+	advisory, err := db.CheckServerVersion(ctx, pool)
+	if err != nil {
+		fmt.Fprintf(stderr, "openwatch migrate: %v\n", err)
+		return 1
+	}
+	if advisory != "" {
+		fmt.Fprintf(stderr, "openwatch migrate: WARNING: %s\n", advisory)
+	}
+
 	curr, files, err := migrations.Status(ctx, pool)
 	if err != nil {
 		fmt.Fprintf(stderr, "openwatch migrate: status: %v\n", err)
