@@ -1,6 +1,7 @@
 dist
 node_modules
 coverage
+test-results
 src/api/schema.d.ts
 *.tsbuildinfo
 package-lock.json

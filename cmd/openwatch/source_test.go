@@ -12,7 +12,7 @@
 //   AC-10  TestCmdServe_MaintenancePauseWarnLog
 //   AC-11  TestCmdServe_AllServerBuildersWired
 //
-// These tests are source-inspection — they read app/cmd/openwatch/main.go
+// These tests are source-inspection — they read cmd/openwatch/main.go
 // and the Slice B package directories and assert structural invariants.
 // A runtime ordering test would need to refactor cmdServe to accept
 // injected NewX wrappers; that lands when the spec next bumps to v1.1.0.

@@ -271,7 +271,8 @@ func (s *Service) ListRequests(ctx context.Context, f ListFilter) ([]Request, er
 // steps).
 func (s *Service) ListSteps(ctx context.Context, requestID uuid.UUID) ([]Step, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, rule_id, COALESCE(mechanism, ''), phase_result, dry_run, applied_at
+		SELECT id, rule_id, COALESCE(mechanism, ''), phase_result, dry_run,
+		       applied_at, steps, pre_state
 		  FROM remediation_transactions
 		 WHERE request_id = $1
 		 ORDER BY ordinal ASC, created_at ASC`, requestID)
@@ -282,9 +283,15 @@ func (s *Service) ListSteps(ctx context.Context, requestID uuid.UUID) ([]Step, e
 	out := []Step{}
 	for rows.Next() {
 		var st Step
+		var phases []byte
 		if err := rows.Scan(&st.ID, &st.RuleID, &st.Mechanism, &st.PhaseResult,
-			&st.DryRun, &st.AppliedAt); err != nil {
+			&st.DryRun, &st.AppliedAt, &phases, &st.PreState); err != nil {
 			return nil, fmt.Errorf("remediation: scan step: %w", err)
+		}
+		// A journal that will not parse is reported as absent rather than
+		// failing the read: the rest of the request is still worth showing.
+		if len(phases) > 0 {
+			_ = json.Unmarshal(phases, &st.Phases)
 		}
 		out = append(out, st)
 	}

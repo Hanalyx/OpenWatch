@@ -123,7 +123,7 @@ jobs:
           echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
           echo "can_auto_fix=$CAN_AUTO_FIX" >> $GITHUB_OUTPUT
 
-          echo "🎯 Risk Assessment Complete:"
+          echo "Risk Assessment Complete:"
           echo "  Alert ID: $ALERT_ID"
           echo "  Risk Level: $RISK_LEVEL"
           echo "  Can Auto-Fix: $CAN_AUTO_FIX"
@@ -143,19 +143,19 @@ jobs:
       - name: Auto-Approve Dependabot PR
         if: github.actor == 'dependabot[bot]'
         run: |
-          echo "✅ Auto-approving LOW risk Dependabot PR"
+          echo "Auto-approving LOW risk Dependabot PR"
           gh pr review ${{ github.event.pull_request.number }} \
             --approve \
-            --body "✅ **Auto-approved by Risk Assessment**
+            --body "**Auto-approved by Risk Assessment**
 
           **Risk Level:** LOW
           **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
 
           This is a low-risk dependency update that passed all risk assessment checks:
-          - ✅ Patch/minor version update
-          - ✅ Low/moderate severity
-          - ✅ Non-critical package
-          - ✅ Backward compatible
+          - Patch/minor version update
+          - Low/moderate severity
+          - Non-critical package
+          - Backward compatible
 
           Enabling auto-merge."
 
@@ -220,18 +220,18 @@ jobs:
           - [ ] PR created with review request
           EOF
 
-          echo "📝 Claude task created"
+          echo "Claude task created"
           cat /tmp/claude_task.md
 
       - name: Run Claude Code (Headless)
         run: |
-          echo "🤖 Running Claude Code in headless mode..."
+          echo "Running Claude Code in headless mode..."
 
           # Note: This requires Claude Code CLI to be installed
           # For now, we'll use the GitHub Action instead
           # Install instructions: https://docs.claude.com/docs/claude-code/headless
 
-          echo "⚠️ Claude Code headless execution placeholder"
+          echo "Claude Code headless execution placeholder"
           echo "To enable: Install Claude Code CLI and uncomment the command below"
 
           # claude -p "$(cat /tmp/claude_task.md)" \
@@ -246,7 +246,7 @@ jobs:
       - name: Fallback - Create Manual Review Issue
         run: |
           gh issue create \
-            --title "🔧 MEDIUM RISK: Fix Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --title "MEDIUM RISK: Fix Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
             --label "security" \
             --label "medium-risk" \
             --label "claude-review" \
@@ -289,12 +289,12 @@ jobs:
       - name: Create High-Priority Issue
         run: |
           gh issue create \
-            --title "🚨 HIGH RISK: Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --title "HIGH RISK: Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
             --label "security" \
             --label "high-risk" \
             --label "urgent" \
             --assignee "${{ github.repository_owner }}" \
-            --body "## ⚠️ High Risk Security Alert
+            --body "## High Risk Security Alert
 
           **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
           **Description:** ${{ needs.risk-assessment.outputs.description }}
@@ -305,7 +305,7 @@ jobs:
           - Critical security vulnerability, OR
           - Potential for service disruption
 
-          ## ⚠️ DO NOT USE AUTO-FIX
+          ## DO NOT USE AUTO-FIX
 
           This requires careful human assessment and planning.
 

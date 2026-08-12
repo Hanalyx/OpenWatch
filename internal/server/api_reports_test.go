@@ -132,7 +132,7 @@ func TestAPI_ReportFrameworks(t *testing.T) {
 // stored attestation, scheduling one, and the dispatcher firing one. A gate on
 // generation alone would leave every already-stored attestation freely
 // exportable, and a gate on the HTTP paths alone would let a schedule created
-// while licensed keep minting the artifact after the licence lapsed.
+// while licensed keep minting the artifact after the license lapsed.
 func TestReports_AttestationIsLicensed(t *testing.T) {
 	t.Run("api-reports/AC-25", func(t *testing.T) {
 		read := func(rel string) string {

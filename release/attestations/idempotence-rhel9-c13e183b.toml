@@ -1,0 +1,45 @@
+# Attestation: re-running setup on a completed install, v0.7.0-rc.4.
+#
+# artifact_sha256 needs a `pragma: allowlist secret` comment; see the
+# clean-install attestation for the same artifact.
+
+kind = "idempotence"
+platform = "rhel9"
+tag = "v0.7.0-rc.4"
+artifact = "openwatch-0.7.0-1.x86_64.rpm"
+artifact_sha256 = "c13e183b83fb3dc397def1f6f9751835e0e621f84bdb1ab2ca97a8b8033a3af1"  # pragma: allowlist secret
+
+method = "vm"
+performed_by = "openwatch-agent"
+performed_at = "2026-07-31"
+host = "owas-rhlowserv01, RHEL 9.8 (Plow), x86_64"
+
+observed = """
+Immediately after the completed install recorded in
+clean-install-rhel9-c13e183b.toml, the identical command was run again:
+
+  openwatch setup --yes --manage-pg-hba \\
+    --admin-password-from file:/root/.ow-admin-pw \\
+    --admin-email admin@hanalyx.local
+
+It exited 0 and the verify step again reported
+{"db_connected":true,"status":"healthy","version":"0.7.0"}, so the service was
+still serving after the re-run rather than merely still installed.
+
+The steps that report themselves already satisfied skipped: postgres-install,
+postgres-cluster, postgres-version, database, pg-hba, admin-user and firewall.
+The steps that converge deliberately re-ran: database-role, which never reports
+Done because the role password and the DSN must be set together (C-04),
+secrets-env, migrate and service.
+
+Re-entrancy from a partial state was also observed on this artifact: the run
+that halted at pg-hba was resumed by a later invocation, which skipped
+everything before that step rather than repeating it.
+"""
+
+caveats = """
+Idempotence was checked twice in a row on one host, not across a reboot, and
+not after an external change to the database or configuration. A re-run that
+follows someone else editing pg_hba.conf or rotating the role password is not
+covered here.
+"""

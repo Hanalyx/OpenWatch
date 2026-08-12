@@ -19,6 +19,16 @@ on:
       - 'packaging/**'
       - '.github/workflows/package-smoke.yml'
       - '.github/scripts/install-rpmbuild.sh'
+      # The installer itself. Without these, a change to how setup provisions
+      # PostgreSQL or edits pg_hba.conf does not run the jobs that prove setup
+      # works, and the regression surfaces only when a candidate is tagged.
+      # This filter was found too narrow by a PR that rewrote the PostgreSQL
+      # install path and ran none of them.
+      - 'internal/setup/**'
+      - 'cmd/openwatch/setup.go'
+      # The upgrade job asserts the schema advances, so a migration change is
+      # a change to what it proves.
+      - 'internal/db/migrations/**'
   workflow_dispatch:
 
 permissions:
@@ -67,6 +77,7 @@ jobs:
           - { distro: 'oraclelinux:9', kind: rpm }
           - { distro: 'ubuntu:24.04', kind: deb }
           - { distro: 'debian:12', kind: deb }
+          - { distro: 'almalinux:10', kind: rpm }
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -121,10 +132,86 @@ jobs:
   # then in a rockylinux:9 container install the old one, stand up Postgres,
   # roll the schema back one migration, and `rpm -U` the new one — asserting
   # the %post scriptlet migrates the DB to head, takes a pre-upgrade backup,
-  # and stop/starts the service. This is the half the per-distro `smoke` job
-  # (a fresh install) does not cover. The driver script builds both RPMs and
-  # runs the container; it uses --network host (so the container's dnf reaches
-  # mirrors) and a throwaway Postgres on port 55432.
+  # `openwatch setup` end to end, per distro. This is the gate evidence for
+  # release/gates.toml I1 (clean install) and I2 (idempotence).
+  #
+  # It exists because the `smoke` job above cannot prove what it looks like it
+  # proves: smoke installs the packages and runs `openwatch check-config` as
+  # ROOT, never starting the service and never running as the openwatch user.
+  # That blind spot hid a defect where the DEB shipped /etc/openwatch as
+  # root:root, so the service user could not read its own config and no Debian
+  # install could ever have worked.
+  #
+  # Needs a real init, because setup drives systemctl for both PostgreSQL and
+  # its own unit, so this runs docker itself rather than using `container:`.
+  setup-install:
+    name: setup ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Rocky is a RHEL 9 rebuild running identical paths, but it reports
+          # ID=rocky and only RHEL 9 itself is SupportTested, so this leg needs
+          # the override. It still proves the clean install and the re-run,
+          # which is what gates I1 and I2 claim. A real RHEL 9 host needs no
+          # flag; no container can be one.
+          - { distro: 'rockylinux:9', kind: rpm, extra: '--allow-untested' }
+          - { distro: 'ubuntu:24.04', kind: deb, extra: '' }
+          - { distro: 'debian:12', kind: deb, extra: '' }
+          - { distro: 'almalinux:10', kind: rpm, extra: '' }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+
+      # No --allow-untested: these platforms are SupportTested in
+      # internal/setup/platform.go precisely because this job runs. Passing no
+      # flag is also what an operator does, so the job exercises the real
+      # invocation. If someone demotes a platform, this fails loudly rather
+      # than quietly testing a different code path.
+      - name: openwatch setup clean install and re-run
+        run: |
+          bash packaging/tests/run-setup-container-test.sh \
+            "${{ matrix.distro }}" "${{ matrix.kind }}" ${{ matrix.extra }}
+
+  # The REAL previous-GA upgrade (gate U2), as distinct from the synthetic
+  # scriptlet test below (U1). Installs the published previous GA, provisions
+  # it by hand because `openwatch setup` did not exist then, and upgrades to
+  # the candidate with both packages in one transaction under real systemd.
+  #
+  # RHEL family only, on purpose. v0.6.0's DEB shipped /etc/openwatch as
+  # root:root, so the service user could not read its config and no Debian
+  # install of it could ever have run. There is no working previous GA on that
+  # family to upgrade from; v0.7.0 is the first. release/gates.toml records
+  # that as not-applicable rather than pretending the coverage exists.
+  upgrade-from-ga:
+    name: upgrade-from-ga ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'rockylinux:9', kind: rpm }
+          - { distro: 'almalinux:10', kind: rpm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+      - name: upgrade the previous GA to the candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash packaging/tests/run-upgrade-from-ga-test.sh \
+            "${{ matrix.distro }}" "${{ matrix.kind }}" v0.6.0
+
   upgrade:
     name: Package upgrade (rpm -U auto-migrate)
     runs-on: ubuntu-latest

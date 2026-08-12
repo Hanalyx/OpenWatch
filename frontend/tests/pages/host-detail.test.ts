@@ -194,7 +194,7 @@ describe('frontend-host-detail — structural', () => {
     expect(PAGE_SRC).toMatch(/scanState=\{detailQuery\.data\.scan_state/);
     // Hero shows a Running/Queued badge instead of LAST SCAN when active.
     expect(PAGE_SRC).toMatch(/scanState === 'running' \? 'Running' : 'Queued'/);
-    // Run scan button stays disabled + labelled while active.
+    // Run scan button stays disabled + labeled while active.
     expect(PAGE_SRC).toMatch(/const active = scanState === 'running' \|\| scanState === 'queued'/);
     expect(PAGE_SRC).toMatch(/disabled=\{busy \|\| active\}/);
     expect(PAGE_SRC).toMatch(/scanState === 'running'\s*\?\s*'Running…'/);

@@ -1,8 +1,8 @@
 // Connectivity-monitor HTTP surface.
 //
 // Specs:
-//   - app/specs/api/system-connectivity.spec.yaml
-//   - app/specs/api/fleet-connectivity-breakdown.spec.yaml
+//   - specs/api/system-connectivity.spec.yaml
+//   - specs/api/fleet-connectivity-breakdown.spec.yaml
 //
 // All handlers delegate to internal/systemconfig (persistence) and
 // internal/liveness (in-process probe loop). No SQL lives here.

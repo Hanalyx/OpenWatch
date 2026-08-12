@@ -46,7 +46,7 @@ func mintTestLicenseJWT(t *testing.T, features []string) string {
 	t.Cleanup(license.SetVerificationKeyForTesting(priv.Public().(ed25519.PublicKey)))
 	now := time.Now().Add(-1 * time.Minute)
 	mc := jwt.MapClaims{
-		"iss":         "hanalyx-openwatch-licensing",
+		"iss":         "licensing@hanalyx.com",
 		"aud":         "openwatch",
 		"iat":         now.Unix(),
 		"exp":         now.Add(365 * 24 * time.Hour).Unix(),

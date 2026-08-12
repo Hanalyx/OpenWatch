@@ -58,7 +58,7 @@ func goSourceFiles(t *testing.T, dir string) []string {
 
 // @ac AC-10
 // AC-10 (runtime side): the package-level KensaModuleVersion constant
-// matches the version that appears in app/go.mod's require block.
+// matches the version that appears in go.mod's require block.
 // Source-inspection of go.mod for an exact match.
 func TestKensaModuleVersion_MatchesGoMod(t *testing.T) {
 	t.Run("system-kensa-executor/AC-10", func(t *testing.T) {

@@ -7,9 +7,9 @@
 // bytes, mode 0600, owner openwatch. Configurable via the
 // OPENWATCH_CREDENTIAL_KEY_FILE env var.
 //
-// Spec: app/specs/system/credential-store.spec.yaml C-01;
+// Spec: specs/system/credential-store.spec.yaml C-01;
 //
-//	app/specs/system/auth-identity.spec.yaml C-09.
+//	specs/system/auth-identity.spec.yaml C-09.
 package secretkey
 
 import (

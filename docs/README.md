@@ -4,11 +4,11 @@ Production documentation for deploying, operating, and maintaining OpenWatch.
 
 Start here: Introduction | [Quickstart](guides/QUICKSTART.md)
 
-> **⚠️ Migration note (2026-06-05).** OpenWatch is being rebuilt on Go (the Go tree
+> **Migration note (2026-06-05).** OpenWatch is being rebuilt on Go (the Go tree
 > now lives at the repo root); the Python implementation was archived to
 > `~/hanalyx/OWAR/openwatch-python/`. Many operator guides and the design docs below
 > were written for the Python/FastAPI container stack and reference `docker-compose`,
-> `start-openwatch.sh`, Alembic, and Redis — these describe the **archived** stack and
+> `start-openwatch.sh`, Alembic, and Redis. These describe the **archived** stack and
 > are pending a Go-era rewrite. The authoritative engineering docs for the active tree
 > are under **`docs/engineering/`** and the specs under **`specs/`**.
 
@@ -69,7 +69,7 @@ For installing OpenWatch from the native RPM/DEB, see
 install guide and the earlier owadm-based "Native RPM Installation Plan" were
 superseded by the single-`openwatch`-binary model and archived out of the repo.)
 
-> **Design documents** — the Python-era `openwatchos/` planning sketches and other
+> **Design documents**: the Python-era `openwatchos/` planning sketches and other
 > dated planning/review docs were archived to `~/hanalyx/OWAR/openwatch-python/docs-archive/`.
 > Current design direction lives in `docs/engineering/openwatch_roadmap.md` and the Go-era
 > vision/plan docs (`OPENWATCH_VISION*.md`, `OPENWATCH_Q*_PLAN.md`) in this directory.

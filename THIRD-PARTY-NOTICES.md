@@ -1,4 +1,4 @@
-# Third-Party Notices — OpenWatch
+# Third-Party Notices for OpenWatch
 
 This file enumerates the third-party open-source components distributed with
 OpenWatch and their licenses. It is generated; see "Regeneration" below.
@@ -79,7 +79,7 @@ OpenWatch and their licenses. It is generated; see "Regeneration" below.
 | `github.com/vearutop/statigz` | v1.4.0 | MIT |
 | `go.uber.org/multierr` | v1.11.0 | MIT |
 
-## Frontend dependencies (npm — full installed set)
+## Frontend dependencies (npm, full installed set)
 
 License tally: MIT 276 · ISC 11 · Apache-2.0 10 · BSD-2-Clause 8 · BSD-3-Clause 6 · MPL-2.0 3 · 0BSD 1 · Unlicense 1 · Python-2.0 1 · (MIT OR CC0-1.0) 1
 

@@ -1,4 +1,4 @@
-// User CRUD + custom-role admin handlers. Spec: app/specs/api/users.spec.yaml.
+// User CRUD + custom-role admin handlers. Spec: specs/api/users.spec.yaml.
 
 package server
 

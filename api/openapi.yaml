@@ -2207,6 +2207,57 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
 
+  /api/v1/remediation/requests/{rid}/plan:
+    get:
+      operationId: getRemediationPlan
+      summary: Preview what a remediation would do, without changing the host
+      description: |
+        Asks Kensa to plan the request's rule against its host: the apply steps
+        that would run, the validators that would check them, and how each
+        would be reversed. Read-only. Kensa captures pre-state during planning
+        but does not apply anything.
+
+        This reaches the host over SSH, so it is a live call and fails the way
+        a scan does when the host is unreachable. It is not cached: a plan
+        describes the host as it is now, and a stale preview is worse than none.
+
+        Free core, like the single-rule fix it previews. RBAC:
+        remediation:read. Spec api-remediation.
+      x-required-permission: remediation:read
+      parameters:
+        - name: rid
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RemediationPlan'}
+        '404':
+          description: Remediation request not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '403':
+          description: Caller lacks remediation:read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '502':
+          description: |
+            The host could not be planned against (unreachable, auth, or sudo).
+            The body names which.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: Planning is unavailable because the Kensa rule corpus is not loaded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+
   /api/v1/remediation/requests/{rid}:approve:
     post:
       operationId: approveRemediation
@@ -5839,6 +5890,10 @@ components:
         note: {type: string, description: Optional reviewer note}
 
     RemediationStep:
+      description: |
+        One rule's Kensa transaction. Note that a "step" here is a RULE, not a
+        phase: the Capture/Apply/Validate/Commit phases are in `phases`, one
+        level below.
       type: object
       required: [id, rule_id, dry_run]
       properties:
@@ -5846,11 +5901,164 @@ components:
         rule_id:   {type: string}
         mechanism: {type: string}
         phase_result:
+          description: |
+            Terminal outcome of the rule's transaction. Widened past
+            committed/rolled_back/skipped by the v0.7.0 outcome vocabulary.
           type: string
           nullable: true
-          enum: [committed, rolled_back, skipped]
+          enum: [committed, rolled_back, skipped, staged, partially_applied, not_applied]
         dry_run:    {type: boolean}
         applied_at: {type: string, format: date-time, nullable: true}
+        phases:
+          description: |
+            The per-phase journal Kensa returned, in execution order. `detail`
+            is the engine's own account of what each phase did, and is the
+            answer to why a remediation failed.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPhase'}
+        pre_state:
+          description: |
+            The state captured before any change, one entry per phase, in phase
+            order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPreState'}
+
+    RemediationPlan:
+      description: |
+        What remediating one rule on one host would do. Produced by Kensa
+        without mutating the host.
+      type: object
+      required: [rule_id, steps, checks, undo, transactional, control_channel_sensitive, reversible_steps]
+      properties:
+        plan_id: {type: string, format: uuid}
+        rule_id: {type: string}
+        steps:
+          description: The apply steps that would run, in order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPlanStep'}
+        checks:
+          description: The validators that would run after apply.
+          type: array
+          items:
+            type: object
+            required: [name]
+            properties:
+              name:    {type: string}
+              summary: {type: string}
+        undo:
+          description: |
+            How each applied step would be reversed. Rollback runs this in
+            reverse order.
+          type: array
+          items: {$ref: '#/components/schemas/RemediationPlanStep'}
+        reversible_steps:
+          description: |
+            How many steps Kensa actually captured pre-state for, counted from
+            the capture rather than from the rule's own claim about itself.
+          type: integer
+        transactional:
+          description: False when the steps are not all-or-nothing.
+          type: boolean
+        control_channel_sensitive:
+          description: |
+            True when a step touches SSH, networking, PAM or firewall state.
+            Kensa arms a deadman timer before applying such a transaction, so
+            a fix that could lock you out reverts itself if you lose contact.
+          type: boolean
+        warnings:
+          description: Kensa's own operator-facing notices about this plan.
+          type: array
+          items: {type: string}
+        before:
+          description: |
+            What Kensa found on the host while planning, one entry per step.
+            Computed live and never stored, because a plan describes the host
+            as it is now.
+          type: array
+          items:
+            type: object
+            required: [index, mechanism]
+            properties:
+              index:     {type: integer}
+              mechanism: {type: string}
+              summary:   {type: string}
+        estimated_seconds: {type: number}
+        captured_at:       {type: string, format: date-time}
+
+    RemediationPlanStep:
+      type: object
+      required: [index, mechanism]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        summary:
+          description: Kensa's human-readable description of the action.
+          type: string
+        capturable:
+          description: False when this step cannot be reversed.
+          type: boolean
+
+    RemediationPreState:
+      description: |
+        One phase's captured pre-change state.
+
+        `data` is mechanism-specific and is passed through from Kensa without
+        interpretation. OpenWatch has no schema for it and deliberately does
+        not decode it: each capturable handler defines its own layout, so
+        reading it here would couple this contract to Kensa handler internals.
+        Clients should treat it as opaque evidence unless they know the
+        mechanism.
+      type: object
+      required: [index, mechanism, capturable]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        capturable:
+          description: False for phases whose mechanism cannot capture pre-state; `data` is then empty.
+          type: boolean
+        summary:
+          description: |
+            Kensa's one-line rendering of what was captured, from the handler
+            that captured it.
+
+            Display text, not evidence. It carries no stability guarantee and
+            may change between Kensa releases, which is why the transaction
+            records the Kensa version that produced it. `data` remains the
+            authoritative capture. Elided by construction so no file body
+            appears, and a credential named inside a config line is redacted,
+            but it is not a secret scanner: treat it as operator-visible text.
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    RemediationPhase:
+      description: One Capture/Apply/Validate/Commit phase of a rule's transaction.
+      type: object
+      required: [index, mechanism, success, capturable, staged, stranded]
+      properties:
+        index:     {type: integer}
+        mechanism: {type: string}
+        detail:
+          description: Human-readable account of what this phase did, or why it did not.
+          type: string
+        success:   {type: boolean}
+        capturable:
+          description: |
+            False when this phase's mechanism cannot record pre-state, which is
+            what makes a rule non-rollbackable.
+          type: boolean
+        staged:
+          description: |
+            True when the change was written to the persist layer but the
+            running host has not converged, so a re-scan still reports the rule
+            failing until reboot.
+          type: boolean
+        stranded:
+          description: |
+            True for a non-capturable phase that succeeded before a later
+            failure. Rollback does NOT reverse it.
+          type: boolean
 
     RemediationStepList:
       type: object

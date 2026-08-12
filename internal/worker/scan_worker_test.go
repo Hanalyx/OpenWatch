@@ -768,7 +768,7 @@ func TestScanWorker_EmptyQueue_PollIntervalSleep(t *testing.T) {
 func TestWorkerLoopTickPayload_Shape(t *testing.T) {
 	// Construct the JSON directly using the same shape emitTick would
 	// produce. Asserts the key names match the audit registration in
-	// app/audit/events.yaml. (A runtime test of emitTick would need to
+	// audit/events.yaml. (A runtime test of emitTick would need to
 	// wait 60s; this shape test runs in microseconds.)
 	detail, _ := json.Marshal(map[string]int64{
 		"idle_count":                0,

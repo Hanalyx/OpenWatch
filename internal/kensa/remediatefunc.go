@@ -62,6 +62,81 @@ type RemediationTxn struct {
 	// HostUnchanged mirrors api.TransactionResult.HostUnchanged: true if and
 	// only if Kensa can prove the host is in its pre-transaction state.
 	HostUnchanged bool
+	// AlreadyCompliant mirrors api.TransactionResult.AlreadyCompliant: the
+	// rule's check passed BEFORE any apply, so nothing was changed. Kensa
+	// still reports Status=committed, which on its own is indistinguishable
+	// from a real remediation.
+	//
+	// SCOPE, from the field's godoc: this is meaningful on the REMEDIATION
+	// path only. Kensa leaves it false on the check-only entries in
+	// ScanResult.Transactions rather than extending that legacy overload, so
+	// "committed and not AlreadyCompliant" must NEVER be read as "the host was
+	// changed" against a scan result: every passing rule of a read-only check
+	// would satisfy it. mapTxns is called from the remediation path only.
+	AlreadyCompliant bool
+	// Steps is the per-phase journal Kensa returns. Until this existed the
+	// engine's own account of what it did was reduced to a step COUNT, so a
+	// failed remediation could report only "reverted, host unchanged" while
+	// the reason sat unread in StepResult.Detail.
+	Steps []RemediationStep
+	// PreStates is the captured pre-change state, one entry per step. This is
+	// the "what was captured" half of the transaction; the remediation_
+	// transactions.pre_state column has existed since migration 0037 and has
+	// never been written.
+	PreStates []RemediationPreState
+	// StartedAt and FinishedAt bound the transaction; CommittedAt is non-zero
+	// only for a committed one.
+	StartedAt   time.Time
+	FinishedAt  time.Time
+	CommittedAt time.Time
+}
+
+// RemediationStep is one phase of a Kensa transaction, as OpenWatch stores it.
+// Field-for-field from api.StepResult, whose Detail is documented as "suitable
+// for logs and UI" and is the answer to "why did this fail".
+type RemediationStep struct {
+	Index     int    `json:"index"`
+	Mechanism string `json:"mechanism"`
+	Detail    string `json:"detail,omitempty"`
+	Success   bool   `json:"success"`
+	// Capturable is false when this step's mechanism cannot record pre-state,
+	// which is what makes a rule non-rollbackable.
+	Capturable bool `json:"capturable"`
+	// Staged marks a reboot-deferred write: the persist layer changed but the
+	// running host has not, so a re-scan still reports the rule failing.
+	Staged bool `json:"staged"`
+	// Stranded marks a non-capturable step that succeeded before a later
+	// failure. Rollback does NOT reverse it, so an operator has to know.
+	Stranded bool `json:"stranded"`
+}
+
+// RemediationPreState is one step's captured pre-change state.
+//
+// Data is mechanism-specific and opaque to OpenWatch: each capturable handler
+// defines its own layout, and Kensa exposes no schema or display projection
+// for it. It is stored verbatim so the evidence is not lost, but rendering it
+// as "the prior config line" means either decoding per mechanism here, which
+// couples this repo to Kensa handler internals, or Kensa growing a
+// display-ready form.
+type RemediationPreState struct {
+	Index      int            `json:"index"`
+	Mechanism  string         `json:"mechanism"`
+	Capturable bool           `json:"capturable"`
+	Data       map[string]any `json:"data,omitempty"`
+	// Summary is Kensa's one-line rendering of Data, from the handler that
+	// captured it. Persisted rather than derived on read because the capture
+	// is rendered in the browser, which cannot call into Kensa.
+	//
+	// Not evidence and not stable: Kensa states plainly that describer output
+	// is not semver-frozen, not parseable, and may change in any release
+	// including a patch. Data stays the authoritative capture. That is why
+	// remediation_transactions.kensa_version exists, so a corrected describer
+	// can be re-run over exactly the rows it affects.
+	//
+	// Elided by construction, not scrubbed: no file body reaches it at any
+	// length, and a credential named inside a config line is redacted. It is
+	// not a secret scanner, so treat it as operator-visible text.
+	Summary string `json:"summary,omitempty"`
 }
 
 // RollbackRunResult is the OpenWatch-side view of a kensa RollbackResult.
@@ -98,11 +173,18 @@ type RemediateFuncDeps struct {
 
 // NewProductionRemediateFunc loads the rule corpus and composes the full Kensa
 // service over our credential-resolved, APPLY-enabled TransportFactory,
-// returning the remediate + rollback closures the worker binds.
-func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (RemediateFunc, RollbackFunc, error) {
+// returning the remediate + rollback closures the worker binds and the plan
+// closure the API serves.
+//
+// The plan closure shares this composition rather than getting its own. It is
+// read-only, so it does not need the apply-enabled transport, but capture reads
+// root-owned state and therefore needs the same credential resolution and sudo
+// policy. One composition with three closures beats two services that must be
+// kept in agreement about how to reach a host.
+func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (RemediateFunc, RollbackFunc, PlanFunc, error) {
 	rules, err := pkgkensa.LoadRules(deps.RulesDir, nil, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("kensa: load rule corpus: %w", err)
+		return nil, nil, nil, fmt.Errorf("kensa: load rule corpus: %w", err)
 	}
 	corpus := &corpusCache{rules: rules, dir: deps.RulesDir}
 	factory := &TransportFactory{
@@ -117,9 +199,10 @@ func NewProductionRemediateFunc(ctx context.Context, deps RemediateFuncDeps) (Re
 	}
 	svc, err := pkgkensa.DefaultWithTransportFactory(ctx, deps.StorePath, factory)
 	if err != nil {
-		return nil, nil, fmt.Errorf("kensa: compose remediation service: %w", err)
+		return nil, nil, nil, fmt.Errorf("kensa: compose remediation service: %w", err)
 	}
-	return makeRemediate(deps, corpus, svc), makeRollback(deps, svc), nil
+	return makeRemediate(deps, corpus, svc), makeRollback(deps, svc),
+		makePlan(deps, corpus, svc), nil
 }
 
 func makeRemediate(deps RemediateFuncDeps, corpus *corpusCache, svc remediateService) RemediateFunc {
@@ -211,10 +294,18 @@ func mapTxns(in []kensaapi.TransactionResult) []RemediationTxn {
 	out := make([]RemediationTxn, 0, len(in))
 	for _, t := range in {
 		txn := RemediationTxn{
-			TxnID:         t.TransactionID,
-			Status:        string(t.Status),
-			Evidence:      txnEvidence(t),
-			HostUnchanged: t.HostUnchanged,
+			TxnID:            t.TransactionID,
+			Status:           string(t.Status),
+			Evidence:         txnEvidence(t),
+			HostUnchanged:    t.HostUnchanged,
+			AlreadyCompliant: t.AlreadyCompliant,
+			Steps:            mapSteps(t.Steps),
+			PreStates:        mapPreStates(t.PreStates),
+			StartedAt:        t.StartedAt,
+			FinishedAt:       t.FinishedAt,
+		}
+		if t.CommittedAt != nil {
+			txn.CommittedAt = *t.CommittedAt
 		}
 		if t.Error != nil {
 			txn.Err = friendlyTxnErr(t.Error.Error())
@@ -252,4 +343,48 @@ func txnEvidence(t kensaapi.TransactionResult) json.RawMessage {
 		"steps":          len(t.Steps),
 	})
 	return b
+}
+
+// mapSteps carries Kensa's per-phase journal across the package boundary.
+func mapSteps(in []kensaapi.StepResult) []RemediationStep {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]RemediationStep, 0, len(in))
+	for _, s := range in {
+		out = append(out, RemediationStep{
+			Index:      s.StepIndex,
+			Mechanism:  s.Mechanism,
+			Detail:     s.Detail,
+			Success:    s.Success,
+			Capturable: s.Capturable,
+			Staged:     s.Staged,
+			Stranded:   s.Stranded,
+		})
+	}
+	return out
+}
+
+// mapPreStates carries the capture across. Data is copied verbatim: its shape
+// is the handler's, not ours, and guessing at it here would break whenever a
+// handler changed its layout.
+func mapPreStates(in []kensaapi.PreState) []RemediationPreState {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]RemediationPreState, 0, len(in))
+	for _, p := range in {
+		out = append(out, RemediationPreState{
+			Index:      p.StepIndex,
+			Mechanism:  p.Mechanism,
+			Capturable: p.Capturable,
+			Data:       p.Data,
+			// Derived here, at ingest, because the handler registry lives in
+			// this binary and the browser that renders it does not. A
+			// non-capturable step gets a fixed marker rather than an empty
+			// string, so the UI can tell "cannot capture" from "no summary".
+			Summary: pkgkensa.DescribePreState(p),
+		})
+	}
+	return out
 }

@@ -23,6 +23,7 @@ domains:
             - system-idempotency
             - system-license-features
             - system-license-validation
+            - system-setup
             - system-rbac
             - system-job-queue
             - system-policy

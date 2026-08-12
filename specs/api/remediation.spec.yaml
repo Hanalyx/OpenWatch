@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.2.0"
+  version: "1.6.0"
   status: approved
   tier: 1
 
@@ -182,6 +182,19 @@ spec:
         staged journal row as well as a committed one.
       priority: critical
       references_constraints: [C-09]
+    - id: AC-12
+      description: >
+        The per-phase Kensa journal survives the boundary. Mapping a
+        TransactionResult carries every StepResult field an operator needs to
+        understand the outcome, Detail above all, plus the captured PreStates,
+        and the steps endpoint returns them. Before this the journal was
+        reduced to a step COUNT in an evidence summary, so a rolled-back
+        remediation could report only that the host was unchanged while the
+        engine's own account of why sat unread. PreState data is carried
+        verbatim and not decoded: its layout belongs to the Kensa handler that
+        wrote it.
+      priority: critical
+      references_constraints: [C-09]
     - id: AC-10
       description: >
         The remaining Kensa outcomes map one-to-one and are individually
@@ -203,5 +216,48 @@ spec:
         never to a success-shaped outcome). This is the guard that the Kensa
         v0.8.0 staged status defeated: a default branch absorbed a new
         terminal state and reported a mutated host as unchanged.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-13
+      description: >
+        The plan endpoint previews a fix without changing the host, and fails
+        honestly. It is live and uncached, because a remembered plan describes
+        a host that has since moved on. When the rule corpus is absent it
+        returns 503 rather than an empty plan, since an empty preview reads as
+        "this fix does nothing", which is a different and worse claim than "we
+        cannot tell you yet". When the host cannot be planned against it
+        returns 502 naming the cause rather than a bare failure. The response
+        carries Kensa's own step, validator and rollback summaries verbatim,
+        the count of steps that actually captured pre-state, and the
+        control-channel-sensitive flag.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: >
+        An already-compliant run is never reported as a change. Kensa returns
+        Status=committed with AlreadyCompliant=true when the rule's check
+        passed before any apply, and OutcomeOf maps that to not_applied rather
+        than executed. That removes the Roll back affordance, which is the
+        sharp edge: the transaction mutated nothing and captured no state, and
+        Kensa never persisted it, so a rollback would act against a capture
+        describing no change. The reason names the actual news, that the host
+        already satisfied the rule, because "not applied" alone reads as an
+        engine refusal. The field is consulted on the remediation path only:
+        Kensa leaves it false on the check-only transactions inside a scan
+        result, where every passing rule would otherwise look like a real
+        remediation.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-15
+      description: >
+        The captured pre-state is rendered, and rendered as display text rather
+        than as evidence. The summary comes from Kensa's DescribePreState,
+        derived at ingest because the browser cannot call into the handler
+        registry, and persisted alongside the Kensa version that produced it so
+        a corrected describer can be re-run over exactly the rows it affects.
+        Raw Data is still returned verbatim and is still the authoritative
+        capture. Plan previews compute the same summaries live and never store
+        them, because a plan describes the host as it is now. OpenWatch decodes
+        no Data key itself, in Go or in TypeScript.
       priority: critical
       references_constraints: [C-09]

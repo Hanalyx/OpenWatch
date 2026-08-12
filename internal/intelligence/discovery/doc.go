@@ -3,7 +3,7 @@
 // SELinux + AppArmor + firewall posture, and a hardware summary for
 // each host on first contact + on-demand.
 //
-// Spec: app/specs/system/host-discovery.spec.yaml (status: approved).
+// Spec: specs/system/host-discovery.spec.yaml (status: approved).
 //
 // Architectural notes:
 //

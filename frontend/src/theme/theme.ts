@@ -4,7 +4,7 @@ import { darkTokens, lightTokens, structural, type ModeColorTokens } from './tok
 // MUI v7 theme — CSS-variables mode.
 //
 // cssVarPrefix: 'ow' emits all theme tokens as --ow-* variables so the
-// design-token contract from app/docs/frontend_design_tokens.md is
+// design-token contract from docs/engineering/frontend_design_tokens.md is
 // realized at runtime.
 //
 // Spec: frontend-foundation AC-06, AC-16.

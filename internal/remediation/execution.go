@@ -157,13 +157,23 @@ func (s *Service) RecordExecution(ctx context.Context, id uuid.UUID, ruleID stri
 			if len(ev) == 0 {
 				ev = []byte("{}")
 			}
+			steps := t.Steps
+			if len(steps) == 0 {
+				steps = []byte("[]")
+			}
+			pre := t.PreState
+			if len(pre) == 0 {
+				pre = []byte("[]")
+			}
 			txnID := uuid.Must(uuid.NewV7())
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO remediation_transactions
 					(id, request_id, ordinal, rule_id, kensa_txn_id,
-					 phase_result, evidence, dry_run, applied_at)
-				VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,false,now())`,
-				txnID, id, i, ruleID, t.TxnID.String(), phase, ev); err != nil {
+					 mechanism, phase_result, evidence, steps, pre_state,
+					 kensa_version, dry_run, applied_at)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,false,now())`,
+				txnID, id, i, ruleID, t.TxnID.String(), nullIfEmpty(t.Mechanism),
+				phase, ev, steps, pre, nullIfEmpty(t.KensaVersion)); err != nil {
 				return Request{}, fmt.Errorf("remediation: insert journal: %w", err)
 			}
 		}
@@ -273,6 +283,16 @@ func rollUpOutcome(ctx context.Context, txns []ExecTxn) (Status, string) {
 
 	seen := make(map[Status]bool, len(txns))
 	reason := ""
+	// Already-compliant needs its own sentence. It maps to not_applied, which
+	// otherwise reads as "the engine declined" -- true but unhelpful when the
+	// actual news is that the host already satisfied the rule. Without this an
+	// operator sees "Not applied" and cannot tell whether something went wrong.
+	allAlreadyCompliant := true
+	for _, t := range txns {
+		if !t.AlreadyCompliant {
+			allAlreadyCompliant = false
+		}
+	}
 	for _, t := range txns {
 		st, known := OutcomeOf(t)
 		if !known {
@@ -305,7 +325,12 @@ func rollUpOutcome(ctx context.Context, txns []ExecTxn) (Status, string) {
 	}
 
 	if reason == "" {
-		reason = outcomeReason(final)
+		if final == StatusNotApplied && allAlreadyCompliant {
+			reason = "The host already satisfied this rule. Nothing was changed, " +
+				"so there is nothing to roll back."
+		} else {
+			reason = outcomeReason(final)
+		}
 	}
 	return final, reason
 }
@@ -351,4 +376,14 @@ func phaseResult(t ExecTxn) string {
 	default:
 		return "skipped"
 	}
+}
+
+// nullIfEmpty keeps mechanism NULL rather than an empty string when a
+// transaction produced no steps, so "we did not record it" stays
+// distinguishable from "it had no mechanism".
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

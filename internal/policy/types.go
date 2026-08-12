@@ -6,7 +6,7 @@
 // as the demo. Other types (exceptions, approvals, schedules, remediation)
 // land alongside their Stage-2 consumers.
 //
-// Spec: app/specs/system/policy.spec.yaml.
+// Spec: specs/system/policy.spec.yaml.
 package policy
 
 import (
