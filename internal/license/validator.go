@@ -42,8 +42,12 @@ type VerifyOptions struct {
 	// rolled-back clock does not move iat, so an iat comparison detects
 	// installing an older license instead, which is a different thing and
 	// not a threat here. See decision record 03.
-	LastKnownGood      time.Time
-	AllowDeprecatedKey bool // true only in OPENWATCH_DEV_MODE
+	LastKnownGood time.Time
+	// AllowDeprecatedKey admits the reserved deprecated slot. Nothing sets it
+	// outside tests, dev mode included, so the slot never enters the candidate
+	// list in production. It is the only policy gate in slot selection, which
+	// is what AC-24 tests: a kid naming that slot must not open it.
+	AllowDeprecatedKey bool
 }
 
 // clockRollbackTolerance is how far behind the watermark `now` may sit before
@@ -79,8 +83,9 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 	// to the list.
 	//
 	// The header is matched against the allowed slots built above, not against
-	// the whole ring, so a header naming the deprecated key outside dev mode
-	// matches nothing. That is what separates this from a thumbprint-to-key
+	// the whole ring, so a header naming the deprecated key matches nothing
+	// unless AllowDeprecatedKey put that slot in the list, which nothing in
+	// production does. That is what separates this from a thumbprint-to-key
 	// map. A map hands back any ring member whose thumbprint matches, which
 	// would open the deprecated slot to anyone able to read a public key and
 	// stamp a header.

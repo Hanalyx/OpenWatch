@@ -1,7 +1,7 @@
 spec:
   id: system-license-validation
   title: License JWT validation
-  version: "2.1.0"
+  version: "2.2.0"
   status: approved
   tier: 1
 
@@ -240,3 +240,15 @@ spec:
       description: The mismatched kid reaches the audit trail. A load whose token carries a kid that did not select the verifying key emits license.installed with mismatched_key_id in the detail map, holding the presented kid. The conforming test reads the emitted event, not the License struct, because AC-31 already covers the struct. It also asserts the key is absent or empty when the kid did select the verifying key, so the detail does not report a mislabel that did not happen. No new audit code is added. license.installed already means a license was loaded and here is what it was.
       priority: critical
       references_constraints: [C-19]
+    - id: AC-33
+      description: >
+        No production code opens the deprecated slot. Source inspection over
+        every non-test .go file in the tree asserts that none assigns
+        AllowDeprecatedKey a true value. The option exists, the gate works and
+        AC-24 proves it, but nothing guarded the claim that production never
+        opens it. That claim sits in four code comments, and a comment asserting
+        a property nothing checks is how the "still validates but emits warning"
+        line survived for months against code that did neither. The test names
+        the offending file.
+      priority: high
+      references_constraints: [C-15]

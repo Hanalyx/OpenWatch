@@ -118,11 +118,11 @@ components:
         support_contact: {type: string}
         warnings:
           type: array
-          description: Non-fatal observations (e.g., "deprecated key", "expiring soon")
+          description: Non-fatal observations (e.g., "expiring soon")
           items:
             type: object
             properties:
-              code: {type: string, examples: [license.using_deprecated_key, license.expiring_soon]}
+              code: {type: string, examples: [license.expiring_soon]}
               human_message: {type: string}
 
     FeatureCatalog:
@@ -237,8 +237,7 @@ paths:
             Warning:
               schema: {type: string}
               description: |
-                Set during grace period or when using a deprecated signing key.
-                RFC 7234 Warning header.
+                Set during the grace period. RFC 7234 Warning header.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/License'}
