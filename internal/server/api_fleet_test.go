@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -65,7 +67,7 @@ func seedFleetRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, rule
 func seedFleetRuleStateWithFrameworks(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status string, frameworks map[string]string) {
 	t.Helper()
 	now := time.Now().UTC()
-	scanID, _ := uuid.NewV7()
+	scanID := corpustest.CurrentRun(t, pool, hostID)
 	refsJSON := []byte("{}")
 	if len(frameworks) > 0 {
 		var err error

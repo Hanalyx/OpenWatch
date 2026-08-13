@@ -1,0 +1,842 @@
+spec:
+  id: system-current-corpus
+  title: Current-corpus scoping for compliance scores
+  # Version 1.0.0. New spec. Nothing in the tree implements any of it
+  # today, so every acceptance criterion below is red on arrival. Tier 1,
+  # because it amends the transaction-log write path (itself tier 1) and
+  # because one of the reads it corrects decides whether an operator is
+  # offered a remediation that touches a host.
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: Scoping compliance scores to the rules the last scan actually evaluated
+    description: >
+      host_rule_state holds one row per (host, rule) and is only ever
+      UPSERTed. Nothing prunes it. When a rule leaves the corpus, because
+      it was merged, renamed, dropped, or because the host moved to a
+      curated corpus, its last verdict stays in the table forever and
+      keeps counting toward every compliance score.
+
+      A rule that was failing when it left stays failing forever. No scan
+      clears it, because it is never evaluated again. No remediation
+      fixes it, because Kensa has no handler for a rule it no longer
+      ships. The row is unreachable by every mechanism that could change
+      it, and it still votes.
+
+      Measured in the development database, ahead of the Kensa v0.10.0
+      bump that merges two rules into one. shell-timeout-600 has rows on
+      17 hosts and the merge removes it. shell-idle-timeout-tmout has
+      rows on 17 hosts and the merge removes it. shell-timeout, the
+      merged replacement, has rows on 18 hosts. So 34 rows freeze at
+      their final verdicts and keep voting. Each affected host is then
+      scored on the merged rule and on both dead predecessors, so one
+      control counts three times, permanently.
+
+      Decision DEC-2 defines the compliance score as a signal of work
+      remaining. That makes this more than a wrong number. It puts items
+      on a work list that can never be completed, and two of the read
+      sites turn those items into offered actions.
+
+      Why one shared mechanism and not eleven patches. Eleven files
+      across eight packages read host_rule_state today, and the plan that
+      raised this defect named five of them. Patching a list of sites one
+      at a time is how the twelfth site gets missed. The completeness has
+      to be structural, on the pattern system-retention-sweeper already
+      set for a different problem.
+    related_specs:
+      - system-transaction-log-writer
+      - system-scan-runs
+      - system-retention-sweeper
+      - system-compliance-lens
+      - system-drift-detector
+      - system-posture-snapshots
+      - system-fleet-rollup
+      - api-remediation
+      - api-host-compliance
+      - api-hosts
+
+  objective:
+    summary: >
+      A rule absent from a host's most recent completed scan contributes
+      to no current score, on every surface, and a read that forgets to
+      scope fails CI rather than review. Historical records are
+      untouched.
+    scope:
+      includes:
+        - A definition of "the host's current corpus" that exists exactly once, as a database view
+        - Every current-score read moving to that view
+        - The reads that scope to a named scan instead, and the window in which they are the only safe form
+        - An exception registry plus a guard that fails CI on an unregistered read of the bare table
+        - A write-path rule that keeps a synthetic write from moving last_scan_id or erasing what a scan recorded
+        - A one-time repair of the rows an earlier synthetic write damaged, recovering framework_refs and severity from the audit memory
+        - The rendering rule for a host whose current corpus is empty
+      excludes:
+        - Deleting anything from host_rule_state, transactions, or scan_results
+        - Any change to what a scan runs (the corpus scoped here is a read-time set)
+        - Historical browsing and OSCAL export, which read scan_results and stay complete (system-scan-results-store)
+        - Retention of host_rule_state rows, which C-09 records as never
+        - A migration repairing the last_scan_id of rows an earlier remediation already stamped (C-07 records why it is not needed; the framework_refs repair in C-17 is a different case with a different hazard)
+        - Recovering a framework mapping that changed after the rule's last scan, which no table holds (C-17 records this as the repair's one residual limit)
+        - Bulk or licensed remediation, and any change to remediation eligibility beyond the corpus filter
+
+  constraints:
+    - id: C-01
+      description: >
+        A host's CURRENT CORPUS is the set of host_rule_state rows whose
+        last_scan_id equals the id of that host's most recent COMPLETED
+        scan_runs row. The definition MUST exist exactly once, as a
+        database view named host_rule_state_current, created by a
+        migration. No package may restate the predicate in its own SQL.
+        The join is exact rather than approximate: scan_worker.go passes
+        ScanID equal to the job id to the writer, and scanruns.MarkRunning
+        keys the scan_runs row on that same job id, so every row a scan
+        writes carries an id that names a real run.
+        The view MUST expose the same column set as host_rule_state, so
+        moving a read is a one-word change to the FROM clause and nothing
+        else. That also removes two hazards a SQL-fragment helper would
+        carry: report.computeExecutive numbers its placeholders
+        dynamically, and group.rollup reuses one join string across three
+        subselects, so a fragment taking a bind parameter would break
+        both. A view created with SELECT * expands its column list once,
+        at creation, so a later migration that adds a column to the table
+        MUST recreate the view. AC-01 asserts the column sets match, which
+        is what catches a migration that forgets.
+        The view MUST NOT filter soft-deleted hosts. Several callers
+        already join hosts for that and one of them would then filter
+        twice, and folding a second concern into the view is how a
+        one-line read starts carrying a policy nobody asked it to carry.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >
+        Every CURRENT-SCORE read MUST read host_rule_state_current, not
+        host_rule_state. A current-score read is any read presented to a
+        user as the host's present compliance state. That includes counts
+        and ratios, a percentage, a list of failing or passing rules, a
+        per-framework denominator, the set of framework keys offered as a
+        lens, and the "last checked" timestamp on a host. The population
+        is not a fixed list of packages, and it is not intended to be one.
+        Anything that reads the view is correct by construction, which is
+        why C-05 registers only the exceptions.
+        Two of these reads are worse than a wrong number and are called
+        out separately. remediation.ProjectLift would otherwise offer to
+        remediate a retired rule and estimate the score gain, and the
+        failed-rules handler would list that rule as an actionable
+        failure. Those two are the literal work list DEC-2 describes.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >
+        A read that scopes to a NAMED scan is a second, allowed form of
+        scoping, and it MUST scope by comparing last_scan_id to that scan
+        id. Written literally or emitted by a shared helper such as
+        corpus.AtScanSQL, the comparison MUST be present in the query the
+        function builds.
+        drift.DetectForScan is the one such reader. It takes the scan id
+        as an argument and analyzes that scan, so the named-scan form is
+        the right one for it whatever else changes. It is NOT wired to
+        the worker yet: cmd/openwatch/main.go records that a follow-up
+        does it. When that lands it will run inside the window C-04
+        describes, where the latest-completed form is not merely
+        imprecise but inverted.
+        Scoping drift this way is also strictly more correct than what it
+        does now, because a retired rule then leaves its current counts
+        as well.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >
+        Any read invoked BETWEEN writer.Apply AND scanruns.MarkCompleted
+        MUST scope by explicit scan id, never by latest-completed. This
+        is a trap, not a preference, and the failure is silent.
+        The worker's sequence is writer.Apply, then scanResults.Persist,
+        then scanruns.MarkCompleted. Inside that window host_rule_state
+        already holds the NEW scan id on every rule the scan evaluated,
+        while the latest completed run is still the PREVIOUS one. So the
+        rows matching the latest-completed id are exactly the rules the
+        new scan did NOT evaluate. A read using the view there does not
+        get a slightly stale answer. It gets the retired set and nothing
+        else, and it reports it as the host's current state.
+        Nothing in the shape of the code announces this. The next person
+        wiring a post-scan hook will reach for the obvious helper and get
+        an answer that looks plausible, which is why the rule is written
+        here rather than left to the reviewer of that pull request.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >
+        Completeness MUST be structural. A registry in internal/corpus
+        lists every function permitted to name the bare host_rule_state
+        table in SQL. Each entry carries Package, File, Function, State
+        and Reason. State is one of raw or scan_scoped. Reason MUST be
+        non-empty for every entry. There is no state meaning "not looked
+        at yet": a read either uses the view, which needs no entry, or it
+        is an exception a reviewer has agreed to.
+        A guard MUST walk every non-test Go source in the tree, parse it,
+        and inspect string literals only. Each literal naming the bare
+        table must sit inside a registered function; the guard reports any
+        that does not, by file and by function. The guard MUST also run
+        the other way and report an entry whose function no longer
+        contains such a literal, so a stale exemption cannot outlive the
+        code it excused. Test sources are outside the population, and
+        internal/transactionlog/writer.go is inside it but registered raw
+        (C-06).
+        Three details are load-bearing. The match MUST be on a word
+        boundary, or host_rule_state_current matches as a substring and
+        every corrected read looks like a violation. The population MUST
+        be string literals rather than file text, or the fifteen or so
+        doc comments that mention the table by name fill the registry
+        with noise and hide the real entries. And the name MUST sit in a
+        SQL TABLE POSITION, meaning directly after FROM, JOIN, INTO,
+        UPDATE or DELETE FROM. internal/retention/policy.go is the worked
+        example: its registry entry holds "host_rule_state" as a bare
+        string literal, that literal is not a query, and a guard keyed on
+        the token alone would demand an exception entry for a line that
+        reads nothing.
+        Narrowing to a table position leaves one hole, and the guard MUST
+        NOT close it by going quiet. A query assembled so the clause
+        keyword and the table name land in DIFFERENT literals names the
+        table with nothing in front of it. The guard MUST report that
+        occurrence as UNCLASSIFIABLE rather than dropping it, and a
+        registry entry MUST NOT silence it. An author who cannot show the
+        guard which clause the table sits in should not be excused by a
+        reviewer looking at the same ambiguity. Splitting a query then
+        costs something visible, which is the right price for the one
+        construction a read could hide behind.
+        A scan_scoped entry MUST additionally be checked for the
+        last_scan_id comparison C-03 requires, in the literal or in a
+        corpus.AtScanSQL call in the same function, so the state cannot
+        become a rubber stamp. Accepting the helper is required rather
+        than tolerated: moving the comparison into one function is the
+        same define-once principle the view applies, and a rule demanding
+        the comparison in the literal would forbid the better
+        implementation. The obligation moves with it. A separate
+        assertion MUST prove corpus.AtScanSQL actually emits a
+        last_scan_id comparison, or accepting a call to it becomes
+        exactly the rubber stamp this rule exists to prevent.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >
+        The WRITE path MUST stay on the bare table and MUST be registered
+        raw. transactionlog.Writer.Apply reads the prior row to decide
+        change_kind and then UPSERTs. Both statements name the bare table
+        and both must keep naming it. A scoped prior-state read would find
+        no row for a rule outside the current corpus, call the result
+        first_seen, and append a false transactions row on every scan of
+        every rule that was skipped by one run. The write path decides
+        what the corpus IS; it cannot be scoped by it.
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: >
+        A SYNTHETIC write MUST NOT move last_scan_id. The column keeps the
+        last REAL scan that evaluated the rule.
+        worker.flipRuleToPass applies a remediation result with ScanID set
+        to the request id, a value used as a synthetic scan id so the
+        writer's idempotency makes a re-delivered job a no-op. The UPSERT
+        today sets last_scan_id to EXCLUDED.last_scan_id unconditionally.
+        Left that way, a remediated rule would stop matching the latest
+        scan and DROP OUT of the score the moment an operator fixed it,
+        which is the original defect with the sign reversed. A request id
+        is not a scan_runs id, so it can never be mistaken for the latest
+        scan; the transactions row keeps it, so idempotency is unaffected,
+        and remediation provenance stays in evidence (source set to
+        remediation, plus request_id).
+        ApplyBatch MUST carry an explicit origin, and Apply MUST REJECT an
+        unset origin with a typed error before writing anything. Neither
+        default is safe. If the zero value means scan, a future synthetic
+        caller that forgets the field silently reintroduces this defect.
+        If it means preserve, a scan that forgets it stops advancing the
+        corpus. Refusing to guess is the only version that cannot be
+        wrong quietly.
+        On the INSERT path a synthetic write carries the synthetic id,
+        because there is no prior value to preserve. A rule whose only row
+        was ever written by a remediation is therefore outside every
+        current corpus, which is the honest answer: no scan has evaluated
+        it.
+        Rows an earlier remediation already stamped are NOT repaired by a
+        migration. They self-heal on the host's next completed scan, which
+        restamps them with a real scan id. Until then such a rule sits
+        outside the corpus and does not count. The transient is bounded by
+        one scan interval and affects only previously remediated rules,
+        which is a smaller risk than a migration that restamps the wrong
+        rows. Expect it rather than diagnose it twice.
+      type: security
+      enforcement: error
+    - id: C-08
+      description: >
+        A SYNTHETIC write MUST NOT destroy what a scan recorded. It
+        changes current_status, evidence, last_checked_at and
+        check_count. It PRESERVES framework_refs and severity, on the
+        same rule and for the same reason as last_scan_id: the writer
+        that produced them is the only one that knows them.
+        Measured on a real worker run. flipRuleToPass builds a Result
+        carrying only RuleID, Status and Evidence, so FrameworkRefs is a
+        nil map. writer.go marshals a nil map to the JSON scalar null,
+        and the UPSERT assigns framework_refs from EXCLUDED
+        unconditionally. The non-obvious part is that JSON null is not
+        SQL NULL, so the column's NOT NULL DEFAULT '{}' does not stop it.
+        severity goes the same way, to empty.
+        Two consequences, both live today. posture.Rollup calls
+        jsonb_object_keys over every live host in ONE statement, so a
+        single scalar row aborts it and NO host gets a snapshot for that
+        day. And a rule with no framework refs falls out of every
+        framework-scoped score, so fixing a rule removes it from the lens
+        score even once C-07 keeps it in the corpus. That is C-07's defect
+        arriving through a different column, which is why the rule is
+        written to cover attributes generally rather than to name one
+        more column.
+      type: security
+      enforcement: error
+    - id: C-09
+      description: >
+        NOTHING is deleted. Not from host_rule_state, not from
+        transactions, not from scan_results. Rows stay; only current-score
+        reads are scoped. scan_results is the audit memory and holds every
+        rule's verdict for every scan, so a historical scan stays fully
+        browsable and OSCAL-exportable no matter what left the corpus.
+        This spec TAKES the retention decision for host_rule_state, so the
+        retention registry MUST record it. internal/retention/policy.go
+        carries that table as State undecided today, which means no
+        decision has been taken. After this spec the entry MUST be State
+        never, with a reason naming this spec. Leaving it undecided after
+        deciding is exactly the rot that registry exists to prevent. The
+        change is coupled: system-retention-sweeper C-08 then names three
+        never tables rather than two, and its pinned undecided list in
+        C-13 and AC-16 drops from thirty-nine names to thirty-eight.
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >
+        An EMPTY current corpus MUST render exactly as a never-scanned
+        host renders, on every surface, and MUST NOT render as zero
+        percent. The existing contracts already describe that shape: the
+        single-host compliance summary returns zero counts (api-hosts),
+        the list item returns null (api-hosts), a group average returns
+        nil when nothing was evaluated (api-groups), and a family with no
+        matching rules scores not-applicable rather than zero
+        (system-compliance-lens). A host with an empty corpus MUST be
+        EXCLUDED from a fleet or group denominator, never averaged in as a
+        zero, because averaging it in reports an absence of data as a
+        total failure.
+        Those specs describe the same shape in terms of "host_rule_state
+        rows", written when the table and the corpus were the same set.
+        In api-hosts, api-host-compliance, api-groups,
+        api-fleet-observability, api-reports, system-fleet-rollup and
+        system-posture-snapshots, that phrase MUST now be read as "rows
+        in the host's current corpus". The substitution is recorded once,
+        here, rather than copied into seven specs. None of their
+        acceptance tests changes meaning, because a host seeded with no
+        rows still has no corpus.
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >
+        Only a COMPLETED run defines a corpus. A queued, running, or
+        failed run MUST NOT change any score. This gives two properties
+        worth stating. A scan in flight cannot make scores flicker: the
+        writer lands rows while the run is still running, and they become
+        current only when MarkCompleted lands. And a failed run's partial
+        rows never define the corpus, so a scan that died halfway cannot
+        shrink a host's score to whatever it managed to write.
+        The cost is stated rather than hidden. If writer.Apply succeeds
+        and MarkCompleted then fails, that scan's rows are persisted but
+        do not become current, and the host keeps the previous run's score
+        until the next scan completes. That is the correct trade: the
+        alternative admits partial and failed runs to the corpus.
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: >
+        There MUST be ONE ordering rule for "most recent completed run",
+        and the view MUST use it. scanruns.LatestCompletedForHost already
+        orders by finished_at DESC NULLS LAST, and api-hosts surfaces the
+        run it picks as latest_scan_id. The view MUST order by
+        finished_at DESC NULLS LAST, then id DESC for determinism.
+        Ordering by queued_at instead would be a second definition and
+        would be wrong in a real case. Two runs against one host can
+        finish out of queue order, and the rows in host_rule_state carry
+        the id of whichever wrote LAST. A view ordering by queued_at would
+        then name a run that matches no rows, and the host would show an
+        EMPTY corpus while holding a complete set of fresh results. That
+        is the characteristic OpenWatch defect: a declared surface
+        silently carrying nothing.
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >
+        Kensa's handling of a GATED rule differs across the two versions
+        this lands beside, and neither version produces a fake pass. Under
+        Kensa v0.9.0 a gated rule VANISHES from scan output, so its row
+        keeps the previous scan id and leaves the corpus silently. Under
+        v0.10.0 the same rule is reported as SKIPPED, so it gets a row
+        carrying the current scan id and stays in the corpus, visibly
+        needing configuration. The behavior improves with the bump. The
+        v0.9.0 behavior MUST NOT be read as a defect of this spec.
+        A skipped rule counts as evaluated. Skipping is a verdict, and the
+        writer records it like any other, so a skipped rule is in the
+        corpus by construction and needs no special case anywhere.
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: >
+        The shared DB test helper that seeds host_rule_state rows MUST
+        also insert a completed scan_runs row for the host and stamp the
+        seeded rows with its id. It is a real package, on the model of
+        internal/db/dbtest, not a copied local function. Nearly every
+        compliance test in the tree seeds rows directly, bypassing the
+        writer, and therefore has no scan_runs row at all. Without this,
+        those tests read an EMPTY corpus and a whole suite goes green by
+        asserting nothing against nothing. A test that means to exercise
+        an unscanned host asks for it explicitly.
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: >
+        The view, the writer rules and the guard MUST land as ONE unit.
+        Half of this change is worse than none of it. Scoping the reads
+        without C-07 makes a remediated rule vanish from the score the
+        moment it is fixed, so the surface that is supposed to reward the
+        operator punishes them instead. Adding the view without the guard
+        leaves the twelfth read site unfound, which is the failure this
+        spec exists to prevent.
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: >
+        The scoping MUST NOT turn a per-host read into a fleet-wide scan.
+        The migration MUST create an index on scan_runs serving the
+        lookup, keyed (host_id, finished_at DESC NULLS LAST, id DESC) and
+        partial on status equal to completed, so the C-12 tiebreak is
+        part of the probe rather than a sort on top of it. The existing
+        scan_runs_host_recent index is keyed on queued_at and carries no
+        status, so it does not serve this predicate. scan_runs grows one
+        row per host per scan forever, so the lookup has to be an index
+        probe.
+        NULLS LAST is written out because Postgres does not default to
+        it. ASC implies NULLS LAST and DESC implies NULLS FIRST, so an
+        index declared (host_id, finished_at DESC, id DESC) does NOT
+        match the C-12 ordering, which is finished_at DESC NULLS LAST.
+        The planner then reads the index and adds a Sort on top, which is
+        the exact cost this constraint exists to remove. That was
+        verified by reading the plan both ways, not by reasoning about
+        it. An index whose ordering silently disagrees with the query it
+        was built for still looks correct in the catalog, so the clause
+        MUST NOT be dropped as noise.
+      type: technical
+      enforcement: error
+    - id: C-17
+      description: >
+        The migration that creates the view MUST also repair the rows an
+        earlier synthetic write damaged. Every damaged row is identified
+        by framework_refs holding the JSON scalar null, and the predicate
+        cannot catch a row by mistake: the writer marshals a map, so a
+        real value is an object, and only a nil map produces the scalar.
+        This is the repair half of C-08, which stops new damage and
+        leaves every row already written.
+        The repair is TWO statements, in this order.
+        First, RECOVER from the audit memory. scan_results keeps
+        framework_refs and severity per (scan_id, rule_id) for every rule
+        of every scan, indexed on (host_id, rule_id), and no remediation
+        path writes to it, so the values a scan recorded are still there.
+        Join scan_results to scan_runs on scan_id and take, per
+        (host_id, rule_id), the most recent row by finished_at DESC NULLS
+        LAST, then id DESC. That is the C-12 ordering, matching
+        scanruns.LatestCompletedForHost: this change has one ordering
+        rule, not two. Copy back BOTH framework_refs and severity, since
+        they come from the same row at no extra cost. The recovery does
+        not filter on run status, because a mapping a scan recorded is
+        usable whether or not its run was later marked completed, and
+        filtering would shrink recovery for no gain. Scoping the whole
+        statement to rows whose framework_refs is the JSON scalar null is
+        what keeps severity recovery safe: an undamaged row is never
+        considered, so a rule whose severity is legitimately empty keeps
+        it.
+        Second, FALL BACK. Any row still holding the scalar null gets
+        framework_refs = '{}'::jsonb. Rows written before migration 0029
+        have no scan_results row at all, so the flat statement is not the
+        repair, it is the floor under it. Their severity stays as the
+        synthetic write left it, which is the honest outcome when no
+        table holds the value.
+        Why this repair happens where the one C-07 declines does not.
+        The two look alike, since both pick a row by a conditional, but
+        the HAZARD is the reason and the hazards are not comparable.
+        Getting the last_scan_id conditional wrong resurrects a retired
+        rule as a permanent pass: a wrong verdict, silent, forever.
+        Getting this one wrong copies a slightly stale framework mapping
+        onto a row that the next scan overwrites. A matching shape is not
+        an argument when the consequences differ that much.
+        The urgency is not comparable either. The last_scan_id case
+        self-heals within one scan interval and hurts one rule. One
+        damaged framework_refs row aborts posture.Rollup for the ENTIRE
+        fleet on every attempt, so a single remediated rule on a single
+        host costs every host its daily snapshot until that rule is
+        rescanned.
+        The residual limit, stated because it is real. A rule whose
+        framework mapping CHANGED since its last scan is recovered to the
+        mapping that scan recorded, not to today's. No table holds
+        today's mapping for a rule the host has not been scanned against
+        since the change, and the next scan of that rule corrects it.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >
+        The view exists and matches the table. host_rule_state_current is
+        created by a migration, and its column set read from the catalog
+        equals host_rule_state's column set, name for name and type for
+        type. That second half is what fails when a later migration adds a
+        column to the table and forgets to recreate the view. Assert also
+        that the view does not filter on hosts.deleted_at, by seeding a
+        soft-deleted host with current rows and finding them present in
+        the view.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >
+        The view selects the most recent completed run, by the one
+        ordering rule. Seed a host with two completed runs, A finished
+        earlier and B finished later, and rows from each; only B's rows
+        appear. Then seed the out-of-order case that separates the two
+        candidate rules: run A queued FIRST and finished LAST, run B
+        queued second and finished first, with the host's rows carrying
+        A's id. The view MUST return A's rows, and
+        scanruns.LatestCompletedForHost MUST return A, asserted in the
+        same test so the two definitions cannot drift. An ordering on
+        queued_at returns B here, matches no rows, and shows an empty
+        corpus for a fully scanned host.
+      priority: critical
+      references_constraints: [C-01, C-12]
+    - id: AC-03
+      description: >
+        Only a completed run counts. For a host with one completed run
+        plus a newer run in each of the queued, running and failed states,
+        the corpus stays the completed run's rows in all three cases. The
+        running case is asserted with rows already written under the
+        running run's id, which is the real mid-scan state: those rows are
+        present in the table and absent from the view until the run is
+        marked completed. Marking it completed then moves the corpus in
+        one step.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-04
+      description: >
+        A host with rows but no completed run has an EMPTY corpus. Seed
+        host_rule_state rows whose last_scan_id names no scan_runs row at
+        all, and assert the view returns nothing for that host while the
+        base table still holds every row.
+      priority: critical
+      references_constraints: [C-01, C-10]
+    - id: AC-05
+      description: >
+        The measured case, end to end. Seed a host scanned under the old
+        corpus with shell-timeout-600 failing and shell-idle-timeout-tmout
+        failing, then scan it again under a corpus where both are replaced
+        by shell-timeout passing. After the second scan the host's
+        compliance summary counts ONE control, not three; the two retired
+        rows are still present in host_rule_state; and the score is the
+        score of the current corpus alone. Repeat the assertion through
+        the fleet score and a group average so the same host reports one
+        number on every surface.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-06
+      description: >
+        The work list drops the retired rule. With the AC-05 seed, GET
+        /hosts/{id}/compliance/failed-rules does NOT list
+        shell-timeout-600, and its total_failing count excludes it. This
+        is the criterion that stops the product offering an operator an
+        item that no scan can clear and no remediation can fix.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-07
+      description: >
+        Projected lift is corpus-scoped in both halves. ProjectLift for a
+        retired failing rule returns an EMPTY projection, so nothing
+        offers to remediate it. For a rule that is still current, the
+        per-framework denominators count only current-corpus rules on that
+        host, so the estimated gain is computed against the rules that
+        exist. Assert the denominator directly with retired rows present,
+        because a projection that merely looks plausible hides a
+        denominator inflated by dead rules.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-08
+      description: >
+        Drift scopes to the scan under evaluation. DetectForScan called
+        with a scan id computes its current counts from that scan's rows,
+        asserted with retired rows present on the host that appear in
+        neither the counts nor the total. Assert also that the query it
+        builds carries a last_scan_id comparison, whether written
+        literally or emitted by corpus.AtScanSQL, so a later refactor
+        onto the view is caught by a test rather than by a silent run of
+        stable reports.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-09
+      description: >
+        The post-Apply window inverts the latest-completed answer, and a
+        test pins it. Drive a host to the exact state the worker produces
+        between writer.Apply and scanruns.MarkCompleted: rows for the
+        rules the new scan evaluated carrying the new scan id, rows for
+        the rules it did not carrying the previous one, and the previous
+        run still the latest completed. In that state the view returns
+        EXACTLY the rules the new scan did not evaluate, asserted by rule
+        id, while the named-scan form returns exactly the rules it did.
+        Marking the run completed swaps the two. This is the criterion
+        that makes C-04 checkable, and it is written as an observation
+        about the data rather than about a caller, so it holds for the
+        post-scan hook nobody has written yet.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-10
+      description: >
+        The exception registry is well formed and pinned. Every entry has
+        a non-empty Package, File, Function and Reason, and a State of raw
+        or scan_scoped. No (File, Function) pair appears twice. The
+        registry's contents are then asserted as an exact SET, because
+        these are the only reads permitted to see retired rows and the
+        list must move under review. Four entries:
+        transactionlog.Writer.Apply and corpustest.SeedRules are raw, and
+        the two drift reads are scan_scoped. The number is not the
+        property being pinned. A FIFTH entry MUST fail this test until a
+        reviewer agrees to it, and that is what the exact set buys.
+        SeedRules belongs in the set rather than in an exclusion.
+        C-14 requires the seed helper to be a package, because a test
+        file is not importable, so the guard correctly sees it as
+        production source. And it INSERTs the very last_scan_id values
+        that decide corpus membership, so it cannot read through the view
+        that membership defines. It is a write, and the only one outside
+        the writer.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-11
+      description: >
+        The guard covers the real tree, both directions. Run over the
+        module, every string literal in a non-test Go source that names
+        the bare table in a SQL table position sits inside a registered
+        function, and every registered function still contains such a
+        literal. The test names the offending file and function. Assert
+        three exclusions explicitly, because each one would otherwise
+        produce a false finding: a literal naming
+        host_rule_state_current does not count, the doc comments naming
+        the table produce nothing because the population is string
+        literals, and the bare "host_rule_state" literal in
+        internal/retention/policy.go produces nothing because it is not
+        in a table position.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-12
+      description: >
+        The guard fails when it should. Run the guard function against
+        fixture sources rather than the tree, so the negative cases are
+        real. A fixture holding an unregistered query over the bare table
+        yields exactly one finding, naming that fixture's file and
+        function. A fixture whose query reads the view yields none. A
+        fixture registered scan_scoped whose query carries no last_scan_id
+        comparison yields a finding, so the state cannot be claimed
+        without the scoping it names. A fixture with an entry whose
+        function contains no such literal yields a finding for the stale
+        entry. Without this criterion the guard could return nothing at
+        all and every other test here would still pass.
+        Two more fixtures, both aimed at a guard that goes quiet rather
+        than wrong. A fixture whose query splits the clause keyword and
+        the table name across two literals yields an UNCLASSIFIABLE
+        finding, and the SAME fixture with a registry entry added still
+        yields it, so an ambiguity cannot be excused into silence.
+        Separately, assert that corpus.AtScanSQL really does emit a
+        last_scan_id comparison, because every scan_scoped entry that
+        leans on the helper is worth exactly as much as that assertion.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-13
+      description: >
+        The write path still sees everything. With a host whose corpus
+        excludes a rule that has an existing row, a scan that evaluates
+        that rule again finds the prior row, classifies the result as
+        state_changed or as no change, and does NOT write a first_seen
+        transaction. That is the concrete damage a scoped prior-state read
+        would do, so it is asserted rather than described.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-14
+      description: >
+        A synthetic write preserves last_scan_id and rejects an unset
+        origin. Apply a remediation-origin batch for a rule already in the
+        corpus: the row flips to pass, last_scan_id is UNCHANGED, the rule
+        is still in the current corpus, and the score moves up. Re-apply
+        the same batch and confirm idempotency survives the change,
+        stated the way the writer actually behaves: no second
+        transactions row, and status and last_scan_id both unchanged.
+        Apply a batch with no origin set and confirm a typed error and
+        zero rows written or updated across host_rule_state and
+        transactions.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-15
+      description: >
+        A synthetic write with no prior row lands outside the corpus. A
+        remediation-origin batch for a rule with no existing row inserts
+        the row carrying the synthetic id, and the view does not return
+        it. No scan has evaluated that rule, so it scores nothing.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-16
+      description: >
+        A synthetic write preserves framework_refs and severity. Seed a
+        rule whose row carries real framework refs and a severity, apply a
+        remediation-origin batch built the way flipRuleToPass builds one
+        (RuleID, Status and Evidence only, so FrameworkRefs is a nil map),
+        and assert framework_refs is UNCHANGED and still a JSON object,
+        severity is unchanged, and current_status, evidence,
+        last_checked_at and check_count did move. Assert the jsonb type
+        directly, because the failure writes the JSON scalar null, which
+        satisfies the column's NOT NULL and reads as present. Then run
+        posture.Rollup over a fleet containing that host and assert it
+        completes and writes a snapshot for every live host: the
+        pre-existing behavior aborts the whole statement on
+        jsonb_object_keys over a scalar, so one bad row costs every host
+        its snapshot. Finally, assert the rule still counts in a
+        framework-scoped score, which is the half that makes fixing a
+        rule stop removing it from the lens.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-17
+      description: >
+        Nothing is deleted, and the retention registry says so. The
+        internal/retention entry for host_rule_state is State never with a
+        non-empty reason naming this spec. Seed a host_rule_state row a
+        year old and outside every current corpus, run a full retention
+        sweep, and assert the row is still present. Assert the historical
+        record separately and positively: after a rule leaves the corpus,
+        scan_results still returns the earlier scan's FULL verdict set
+        including that rule, so the old scan stays browsable and
+        exportable. Assert also, over the whole tree rather than a chosen
+        package, that no non-test Go source issues a DELETE against
+        host_rule_state, transactions or scan_results.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-18
+      description: >
+        An empty corpus reads as never scanned, never as zero percent.
+        For a host with rows but no completed run: the single-host
+        compliance summary returns zero counts, the list item's summary is
+        null, and no surface returns a zero percentage for it. In a group
+        holding that host plus one scored host, the group average equals
+        the scored host's score, because the empty host is excluded from
+        the denominator rather than averaged in as a zero. The same host
+        contributes nothing to the fleet score's numerator or denominator.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-19
+      description: >
+        Kensa's two gating behaviors both stay honest. Given a scan output
+        shaped like Kensa v0.9.0, where a gated rule is simply ABSENT, the
+        rule's existing row keeps its old scan id, leaves the corpus, and
+        no pass is recorded for it anywhere. Given an output shaped like
+        v0.10.0, where the same rule is reported SKIPPED, the row carries
+        the current scan id, sits in the corpus with status skipped, and
+        is counted as evaluated but not as passing. Neither path produces
+        a pass for a rule Kensa did not check.
+      priority: high
+      references_constraints: [C-13]
+    - id: AC-20
+      description: >
+        The seed helper produces a real corpus. A DB test that seeds
+        host_rule_state rows through the shared helper reads a NON-EMPTY
+        current corpus for that host, asserted directly. A helper call
+        that asks for an unscanned host produces rows with no completed
+        run and an empty corpus. Without this assertion a suite can go
+        green by reading nothing everywhere, which is the most likely way
+        this whole change lands broken and unnoticed.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-21
+      description: >
+        The change cannot land half-applied. One test asserts the three
+        halves together: the migrations create host_rule_state_current,
+        transactionlog.ApplyBatch carries an origin field, and the UPSERT
+        source preserves last_scan_id, framework_refs and severity for a
+        non-scan origin. If the view exists and any of the others is
+        missing, the test fails and names which. This is the criterion
+        that stops the reads being scoped in one pull request and the
+        writer being fixed in the next, with a release in between where
+        fixing a rule removes it from the score.
+      priority: high
+      references_constraints: [C-15]
+    - id: AC-22
+      description: >
+        The lookup is an index probe and the read stays per-host. The
+        migration creates the partial index on scan_runs keyed (host_id,
+        finished_at DESC NULLS LAST, id DESC) for completed runs,
+        asserted from the catalog INCLUDING its null ordering, since an
+        index carrying the default NULLS FIRST reads as correct in a
+        catalog check that only compares column names and directions.
+        For a single-host compliance summary over a seeded fleet, the
+        query plan for the corpus lookup uses that index, contains NO
+        Sort node above it, and does not scan scan_runs for other hosts.
+        The absent Sort is the load-bearing assertion, and the reason is
+        that it is the ONLY symptom present at every table size. The
+        observed plan varies with scale and both shapes are the same
+        fault. At production scale the planner keeps the mismatched index
+        and adds a Sort above it, which is what makes the fault
+        dangerous, because the plan looks healthy. At fixture scale it
+        abandons the index and sequential-scans scan_runs under the same
+        Sort. Neither is a second defect, and a plan that does not match
+        one of these two shapes is not evidence that this criterion is
+        wrong.
+        Because the planner's choice is cost-based, the index-USE half of
+        this criterion MUST be asserted with the sequential-scan
+        alternative disabled for the session. A tiny fixture table can
+        make the planner decline a perfectly correct index, so asserted
+        naively that half goes red on a correct implementation, and a
+        criterion that fails for the wrong reason gets muted. Pinning the
+        planner removes the cost choice and leaves both halves
+        deterministic at any size.
+        Be exact about what the pinned assertion then proves. It proves
+        the index is USABLE for this query, meaning its ordering matches
+        and the planner can satisfy the lookup from it. It does NOT prove
+        the planner will CHOOSE it at production scale, which is a cost
+        decision against real table statistics that no fixture can
+        exercise. A green AC-22 is therefore evidence that the index
+        fits the query, not a performance guarantee. Read as the latter
+        it promises something this criterion never measured.
+        The criterion is the plan shape, not a wall-clock number: a
+        timing threshold on a shared runner flakes, and a suite people
+        learn to ignore protects nothing.
+      priority: high
+      references_constraints: [C-16]
+    - id: AC-23
+      description: >
+        The repair recovers what a scan recorded, falls back where
+        nothing did, and touches nothing else. Seed five rows.
+        (a) A damaged row with a scan_results row holding real framework
+        refs and a severity: both are RECOVERED to those values, not to
+        an empty object.
+        (b) A damaged row with TWO scan_results rows from runs that
+        finished out of order: the values come from the run that finished
+        LAST, which pins the C-12 ordering rather than a rowid accident.
+        (c) A damaged row with no scan_results row at all, the pre-0029
+        case: framework_refs falls back to an empty object and severity
+        stays as the synthetic write left it.
+        (d) An undamaged row holding a real object and a real severity:
+        unchanged, asserted by value.
+        (e) An undamaged row holding a real object and a LEGITIMATELY
+        empty severity, with a scan_results row carrying a non-empty
+        severity: unchanged. This is the one that fails a recovery
+        written to key on an empty severity instead of on the damaged
+        framework_refs, which would overwrite a real value from history.
+        Then the before-and-after pair, which is the criterion that
+        matters most: run posture.Rollup over a fleet containing the
+        damaged host and assert it ABORTS and writes no snapshot before
+        the repair, and completes writing a snapshot for every live host
+        after it. That proves the repair fixes a fleet-wide outage rather
+        than tidying a column. Assert both statements are idempotent by
+        applying them twice.
+      priority: critical
+      references_constraints: [C-17]

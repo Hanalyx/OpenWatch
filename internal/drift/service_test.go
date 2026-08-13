@@ -327,3 +327,122 @@ func TestDetectForScan_Stable_EmitsNoAudit(t *testing.T) {
 		}
 	})
 }
+
+// @spec system-current-corpus
+// @ac AC-08
+// AC-08: drift scopes to the scan it was HANDED, not to the host's
+// latest completed run, and retired rows appear in neither its counts
+// nor its total.
+//
+// WHY THIS IS THE SHARP ONE. DetectForScan runs inside the scan job,
+// after writer.Apply and before scanruns.MarkCompleted. In that window
+// host_rule_state already carries the new scan id on every rule the scan
+// evaluated, while the latest COMPLETED run is still the previous one.
+// A current-corpus read there does not return a slightly stale answer:
+// it returns exactly the rules this scan did NOT evaluate.
+//
+// The consequence is silent. Drift would compute its "current" counts
+// from the retired set, find them unchanged scan after scan, and report
+// stable forever. Nothing errors, nothing logs, and a compliance
+// regression that should page someone simply never fires. This test is
+// what makes that visible, and it is written so the retired rows would
+// have to change the numbers if they leaked in.
+func TestDetectForScan_ScopedToTheScanNotTheCorpus(t *testing.T) {
+	t.Run("system-current-corpus/AC-08", func(t *testing.T) {
+		pool := freshPool(t)
+		ctx := context.Background()
+		user := seedUser(t, pool)
+		hostID := seedHost(t, pool, user)
+
+		// A previous run, COMPLETED, carrying rules the new scan no
+		// longer ships. These are the retired rows, and they are all
+		// failing, so leaking them in moves every number.
+		previousScanID, _ := uuid.NewV7()
+		seedCompletedRun(t, pool, hostID, previousScanID, time.Now().Add(-3*time.Hour))
+		for i := 0; i < 5; i++ {
+			seedRuleState(t, pool, hostID, previousScanID,
+				"retired."+uuid.NewString()[:8], "fail", "critical")
+		}
+
+		// The new run: rows written, NOT yet marked completed. This is
+		// the exact state the worker produces when it calls drift.
+		currentScanID, _ := uuid.NewV7()
+		seedRunningRun(t, pool, hostID, currentScanID, time.Now().Add(-time.Minute))
+		for i := 0; i < 6; i++ {
+			r := "now.fail." + uuid.NewString()[:8]
+			seedRuleState(t, pool, hostID, currentScanID, r, "fail", "high")
+			seedTransaction(t, pool, hostID, currentScanID, r, "fail", "high", "state_changed")
+		}
+		for i := 0; i < 2; i++ {
+			seedRuleState(t, pool, hostID, currentScanID,
+				"now.pass."+uuid.NewString()[:8], "pass", "high")
+		}
+
+		var mu sync.Mutex
+		var calls []emitCall
+		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)
+		report, err := svc.DetectForScan(ctx, hostID, currentScanID)
+		if err != nil {
+			t.Fatalf("DetectForScan: %v", err)
+		}
+
+		// The numbers are computed over THIS scan's eight rules: 2 of 8
+		// passing now, 8 of 8 before the six flips. Both are asserted,
+		// because a read that fell back to the corpus would produce a
+		// current score of 0 (five retired rows, all failing) and the
+		// prior reconstruction would then have nothing to flip.
+		if report.CurrentScore != 25 {
+			t.Errorf("CurrentScore = %v, want 25 (2 passing of the 8 rules THIS scan evaluated).\n"+
+				"A score of 0 means the read fell back to the host's latest COMPLETED run, which "+
+				"in this window is the previous one, so it counted the 5 retired failing rules and "+
+				"none of the 8 this scan actually evaluated.", report.CurrentScore)
+		}
+		if report.PriorScore != 100 {
+			t.Errorf("PriorScore = %v, want 100 (all 8 were passing before the flips)", report.PriorScore)
+		}
+		if !report.HasPriorBaseline {
+			t.Error("HasPriorBaseline = false; this is a rescan of rules the host already carried, " +
+				"so a baseline exists. Reading it as a first-ever scan forces Kind to stable and " +
+				"silences the regression")
+		}
+		if report.Kind != DriftMajorWorsening {
+			t.Errorf("Kind = %q, want major_worsening. A 75-point drop that reports stable is the "+
+				"failure mode this AC exists to catch, and it is silent: nothing errors and nothing logs",
+				report.Kind)
+		}
+		// The severity transitions come from the same scan-scoped read.
+		// The retired rows are critical; if any leaked in they would land
+		// here as critical transitions.
+		if report.HighBecameFailing != 6 {
+			t.Errorf("HighBecameFailing = %d, want 6", report.HighBecameFailing)
+		}
+		if report.CriticalBecameFailing != 0 {
+			t.Errorf("CriticalBecameFailing = %d, want 0. The only critical rows on this host are "+
+				"the retired ones, so any count here is those rows leaking into a scan-scoped read",
+				report.CriticalBecameFailing)
+		}
+	})
+}
+
+// seedCompletedRun inserts a completed scan_runs row.
+func seedCompletedRun(t *testing.T, pool *pgxpool.Pool, hostID, runID uuid.UUID, finishedAt time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO scan_runs (id, host_id, trigger_source, status, queued_at, started_at, finished_at)
+		VALUES ($1, $2, 'scheduled', 'completed', $3, $3, $3)`, runID, hostID, finishedAt)
+	if err != nil {
+		t.Fatalf("seed completed run: %v", err)
+	}
+}
+
+// seedRunningRun inserts a scan_runs row that has started and not
+// finished, which is the state drift runs in.
+func seedRunningRun(t *testing.T, pool *pgxpool.Pool, hostID, runID uuid.UUID, startedAt time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO scan_runs (id, host_id, trigger_source, status, queued_at, started_at)
+		VALUES ($1, $2, 'scheduled', 'running', $3, $3)`, runID, hostID, startedAt)
+	if err != nil {
+		t.Fatalf("seed running run: %v", err)
+	}
+}

@@ -1,0 +1,17 @@
+// Guard fixture: the concatenation hole.
+//
+// Narrowing the population to "the table after FROM, JOIN, INTO or
+// UPDATE" is what keeps a retention policy key out of the registry. It
+// also opens a hiding place: split the clause keyword and the table name
+// into different literals and the table is named with nothing before it.
+//
+// The guard reports this rather than dropping it. A guard that silently
+// ignores what it cannot parse is exactly the hiding place it was built
+// to remove.
+
+package fixture
+
+// SplitQuery assembles the FROM clause across two literals.
+func SplitQuery(hostID string) string {
+	return `SELECT count(*) FROM ` + `host_rule_state WHERE host_id = $1`
+}

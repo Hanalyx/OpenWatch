@@ -107,6 +107,13 @@ func emissionsByCode(mu *sync.Mutex, calls *[]emitCall, code audit.Code) int {
 }
 
 // makeResults returns N pass-status results with the given rule prefix.
+// Every fixture in this file carries Origin: OriginScan, because every
+// one of them stands for a real scan. C-06 gives ApplyBatch.Origin no
+// valid zero value, so a batch that omits it is refused rather than
+// guessed at, and these fixtures had to say which they were. The
+// synthetic side is covered where it actually happens, in
+// internal/worker/remediation_corpus_test.go.
+
 func makeResults(n int, rulePrefix string) []Result {
 	out := make([]Result, n)
 	for i := 0; i < n; i++ {
@@ -158,7 +165,7 @@ func TestApply_SingleTransaction_RegardlessOfN(t *testing.T) {
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
 		scanID, _ := uuid.NewV7()
-		batch := ApplyBatch{ScanID: scanID, HostID: hostID, Results: makeResults(50, "r")}
+		batch := ApplyBatch{ScanID: scanID, Origin: OriginScan, HostID: hostID, Results: makeResults(50, "r")}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -208,7 +215,7 @@ func TestApply_FirstScan_InsertsAllFirstSeen(t *testing.T) {
 
 		const N = 10
 		scanID, _ := uuid.NewV7()
-		batch := ApplyBatch{ScanID: scanID, HostID: hostID, Results: makeResults(N, "r")}
+		batch := ApplyBatch{ScanID: scanID, Origin: OriginScan, HostID: hostID, Results: makeResults(N, "r")}
 
 		if err := w.Apply(context.Background(), batch); err != nil {
 			t.Fatalf("Apply: %v", err)
@@ -250,7 +257,7 @@ func TestApply_IdenticalRescan_ZeroTransactions(t *testing.T) {
 
 		// First scan.
 		scan1, _ := uuid.NewV7()
-		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan1, HostID: hostID, Results: results}); err != nil {
+		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan1, Origin: OriginScan, HostID: hostID, Results: results}); err != nil {
 			t.Fatalf("first Apply: %v", err)
 		}
 		txnsAfterFirst := countRows(t, pool, "transactions")
@@ -260,7 +267,7 @@ func TestApply_IdenticalRescan_ZeroTransactions(t *testing.T) {
 
 		// Second scan: identical results, different scan_id.
 		scan2, _ := uuid.NewV7()
-		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan2, HostID: hostID, Results: results}); err != nil {
+		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan2, Origin: OriginScan, HostID: hostID, Results: results}); err != nil {
 			t.Fatalf("second Apply: %v", err)
 		}
 
@@ -297,7 +304,7 @@ func TestApply_OneStateChange_InsertsOneTransaction(t *testing.T) {
 
 		// First scan.
 		scan1, _ := uuid.NewV7()
-		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan1, HostID: hostID, Results: results}); err != nil {
+		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan1, Origin: OriginScan, HostID: hostID, Results: results}); err != nil {
 			t.Fatalf("first: %v", err)
 		}
 		if got := countRows(t, pool, "transactions"); got != 3 {
@@ -307,7 +314,7 @@ func TestApply_OneStateChange_InsertsOneTransaction(t *testing.T) {
 		// Second scan: same rules, but rule 1 flipped to fail.
 		results[1].Status = StatusFail
 		scan2, _ := uuid.NewV7()
-		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan2, HostID: hostID, Results: results}); err != nil {
+		if err := w.Apply(context.Background(), ApplyBatch{ScanID: scan2, Origin: OriginScan, HostID: hostID, Results: results}); err != nil {
 			t.Fatalf("second: %v", err)
 		}
 
@@ -338,7 +345,7 @@ func TestApply_SameScanID_Idempotent(t *testing.T) {
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
 		const N = 5
-		batch := ApplyBatch{HostID: hostID, Results: makeResults(N, "r")}
+		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: makeResults(N, "r")}
 		batch.ScanID, _ = uuid.NewV7()
 
 		if err := w.Apply(context.Background(), batch); err != nil {
@@ -374,7 +381,7 @@ func TestApply_FKViolation_RollsBackEntireBatch(t *testing.T) {
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
 		nonExistentHost, _ := uuid.NewV7()
-		batch := ApplyBatch{HostID: nonExistentHost, Results: makeResults(20, "r")}
+		batch := ApplyBatch{Origin: OriginScan, HostID: nonExistentHost, Results: makeResults(20, "r")}
 		batch.ScanID, _ = uuid.NewV7()
 
 		err := w.Apply(context.Background(), batch)
@@ -405,7 +412,7 @@ func TestDeleteHosts_WithExtantTransactions_Fails(t *testing.T) {
 		var calls []emitCall
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
-		batch := ApplyBatch{HostID: hostID, Results: makeResults(2, "r")}
+		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: makeResults(2, "r")}
 		batch.ScanID, _ = uuid.NewV7()
 		if err := w.Apply(context.Background(), batch); err != nil {
 			t.Fatalf("Apply: %v", err)
@@ -432,7 +439,7 @@ func TestApply_FindingPersistedCount_EqualsTransactionsRowCount(t *testing.T) {
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
 		// First scan: 4 first_seen rows → 4 audit events.
-		batch1 := ApplyBatch{HostID: hostID, Results: makeResults(4, "r")}
+		batch1 := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: makeResults(4, "r")}
 		batch1.ScanID, _ = uuid.NewV7()
 		if err := w.Apply(context.Background(), batch1); err != nil {
 			t.Fatalf("first: %v", err)
@@ -442,7 +449,7 @@ func TestApply_FindingPersistedCount_EqualsTransactionsRowCount(t *testing.T) {
 		}
 
 		// Second scan, identical results: zero new transactions, zero new audits.
-		batch2 := ApplyBatch{HostID: hostID, Results: batch1.Results}
+		batch2 := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: batch1.Results}
 		batch2.ScanID, _ = uuid.NewV7()
 		if err := w.Apply(context.Background(), batch2); err != nil {
 			t.Fatalf("second: %v", err)
@@ -466,7 +473,7 @@ func TestApply_1000Rules_Under2Seconds(t *testing.T) {
 		var calls []emitCall
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
-		batch := ApplyBatch{HostID: hostID, Results: makeResults(1000, "r")}
+		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: makeResults(1000, "r")}
 		batch.ScanID, _ = uuid.NewV7()
 
 		start := time.Now()
@@ -517,7 +524,7 @@ func TestApply_ConcurrentDistinctScans_NoDeadlock(t *testing.T) {
 			wg.Add(1)
 			go func(host uuid.UUID) {
 				defer wg.Done()
-				batch := ApplyBatch{HostID: host, Results: makeResults(10, "r")}
+				batch := ApplyBatch{Origin: OriginScan, HostID: host, Results: makeResults(10, "r")}
 				batch.ScanID, _ = uuid.NewV7()
 				if err := w.Apply(ctx, batch); err != nil {
 					errs <- err
@@ -554,7 +561,7 @@ func TestApply_OversizeEvidence_RejectedBeforeInsert(t *testing.T) {
 		results := makeResults(10, "r")
 		results[5].Evidence = make([]byte, MaxEvidenceBytes+1)
 
-		batch := ApplyBatch{HostID: hostID, Results: results}
+		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: results}
 		batch.ScanID, _ = uuid.NewV7()
 
 		err := w.Apply(context.Background(), batch)
@@ -584,7 +591,7 @@ func TestApply_FKViolation_EmitsWriterApplyFailedAudit(t *testing.T) {
 		w := NewWriter(pool, fakeEmitter(&mu, &calls))
 
 		nonExistentHost, _ := uuid.NewV7()
-		batch := ApplyBatch{HostID: nonExistentHost, Results: makeResults(3, "r")}
+		batch := ApplyBatch{Origin: OriginScan, HostID: nonExistentHost, Results: makeResults(3, "r")}
 		batch.ScanID, _ = uuid.NewV7()
 
 		_ = w.Apply(context.Background(), batch)
@@ -626,7 +633,7 @@ func TestApply_OversizeEvidence_EmitsAuditWithReason(t *testing.T) {
 
 		results := makeResults(3, "r")
 		results[0].Evidence = make([]byte, MaxEvidenceBytes+1)
-		batch := ApplyBatch{HostID: hostID, Results: results}
+		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: results}
 		batch.ScanID, _ = uuid.NewV7()
 
 		_ = w.Apply(context.Background(), batch)
@@ -674,7 +681,7 @@ func TestApply_NonJSONEvidence_RejectedBeforeInsert(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				results := makeResults(3, "r")
 				results[1].Evidence = c.evidence
-				batch := ApplyBatch{HostID: hostID, Results: results}
+				batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: results}
 				batch.ScanID, _ = uuid.NewV7()
 
 				err := w.Apply(context.Background(), batch)

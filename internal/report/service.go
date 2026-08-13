@@ -261,10 +261,15 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 // Frameworks returns the distinct framework_refs keys present anywhere in
 // the fleet, each with the count of distinct rules mapped to it,
 // most-populated first. Backs the report scope picker's framework lens.
+//
+// Scoped to current corpora (internal/corpus), so the picker offers only
+// frameworks some host is still scanned against. A framework that exists
+// on retired rows alone would otherwise stay on the menu and produce a
+// report whose every rule is frozen.
 func (s *Service) Frameworks(ctx context.Context) ([]FrameworkCount, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT k AS framework, count(DISTINCT rule_id)::int AS rule_count
-		  FROM host_rule_state, jsonb_object_keys(framework_refs) AS k
+		  FROM host_rule_state_current, jsonb_object_keys(framework_refs) AS k
 		 GROUP BY k
 		 ORDER BY rule_count DESC, k ASC`)
 	if err != nil {
@@ -495,6 +500,7 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 
 	// Shared host_rule_state filters, parameterized so the scoped and
 	// unscoped paths are one query each.
+	//
 	var hrsWhere strings.Builder
 	args := []any{}
 	addArg := func(v any) string {
@@ -515,7 +521,7 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 		  count(*) FILTER (WHERE current_status = 'fail'),
 		  count(*) FILTER (WHERE current_status = 'fail' AND severity ILIKE 'critical'),
 		  count(*) FILTER (WHERE current_status IN ('pass','fail'))
-		FROM host_rule_state
+		FROM host_rule_state_current
 		WHERE true`+hrsWhere.String(), args...).Scan(&passing, &failing, &critical, &evaluated)
 	if err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: posture counts: %w", err)
@@ -541,7 +547,7 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 	topArgs := append(append([]any{}, args...), topFailingLimit)
 	rows, err := s.pool.Query(ctx, `
 		SELECT rule_id, count(*)::int AS failing_host_count
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE current_status = 'fail'`+hrsWhere.String()+`
 		 GROUP BY rule_id
 		 ORDER BY failing_host_count DESC, rule_id ASC
@@ -579,6 +585,11 @@ const freshnessWindow = 24 * time.Hour
 // freshnessWindow (fresh) versus stale-or-never-scanned, and how many are
 // currently unreachable per host_liveness. A host with no liveness row
 // counts as neither reachable nor unreachable (unknown != unreachable).
+//
+// latest_check reads the host's current corpus (internal/corpus), so a
+// host with no completed scan reads as never-scanned. Retired rows carry
+// a stale last_checked_at and would otherwise date a host by a check it
+// has not had in months.
 func (s *Service) computeCoverage(ctx context.Context, hostIDs []uuid.UUID) (Coverage, error) {
 	cutoff := time.Now().Add(-freshnessWindow)
 	args := []any{cutoff}
@@ -592,7 +603,8 @@ func (s *Service) computeCoverage(ctx context.Context, hostIDs []uuid.UUID) (Cov
 	err := s.pool.QueryRow(ctx, `
 		WITH scoped AS (
 		  SELECT h.id,
-		         (SELECT max(hrs.last_checked_at) FROM host_rule_state hrs WHERE hrs.host_id = h.id) AS latest_check,
+		         (SELECT max(hrs.last_checked_at) FROM host_rule_state_current hrs
+		           WHERE hrs.host_id = h.id) AS latest_check,
 		         hl.reachability_status AS reach
 		    FROM hosts h
 		    LEFT JOIN host_liveness hl ON hl.host_id = h.id

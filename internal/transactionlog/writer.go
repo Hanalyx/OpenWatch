@@ -69,6 +69,15 @@ func NewWriter(pool *pgxpool.Pool, emit EmitFunc) *Writer {
 //   - AC-14 (C-10): per-rule evidence > 256 KB rejected before INSERT
 //   - AC-15 (C-01): DB error during Apply emits writer.apply.failed audit
 func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
+	// Origin has no valid zero value, so an unset field is a caller bug
+	// and not a default. Rejecting before any write is the whole point:
+	// a silent fallback to scan semantics is the defect this guards.
+	// Spec system-current-corpus C-07.
+	if !batch.Origin.Valid() {
+		w.emitFailure(ctx, batch, ReasonMissingOrigin, "")
+		return fmt.Errorf("%w: got %q", ErrMissingOrigin, string(batch.Origin))
+	}
+
 	// Spec AC-14: pre-flight validation. Reject the whole batch if any
 	// rule has oversize evidence (atomicity per C-01).
 	for _, r := range batch.Results {
@@ -139,12 +148,23 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 		}
 
 		// Decide change_kind.
+		//
+		// The synthetic arm is what keeps the log honest. A synthetic
+		// batch carries no severity, so once status is ruled unchanged the
+		// severity comparison below would read "" against the scan's real
+		// value and append a severity_changed row for a reclassification
+		// that never happened. The UPSERT preserves severity on that same
+		// batch, so the log would be claiming a change the table does not
+		// show. Reachable whenever a rule is remediated after a concurrent
+		// scan already recorded it passing.
 		var changeKind ChangeKind
 		switch {
 		case !hasPrior:
 			changeKind = ChangeFirstSeen
 		case *priorStatus != string(r.Status):
 			changeKind = ChangeStateChanged
+		case batch.Origin.Synthetic():
+			changeKind = "" // observed status only, and status did not change
 		case stringValue(priorSeverity) != r.Severity:
 			changeKind = ChangeSeverityChanged
 		default:
@@ -154,7 +174,7 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 		// Spec C-03: INSERT transactions ONLY on change.
 		if changeKind != "" {
 			txnID, _ := uuid.NewV7()
-			frameworkRefsJSON, _ := json.Marshal(r.FrameworkRefs)
+			frameworkRefsJSON := marshalRefs(r.FrameworkRefs)
 			if _, err = tx.Exec(ctx, `
 				INSERT INTO transactions
 					(id, host_id, rule_id, scan_id, status, severity,
@@ -187,7 +207,36 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 		// guard below preserves the prior last_changed_at via a
 		// COALESCE-style expression; the lastChangedAt local is only
 		// applied for new/changed states.
-		frameworkRefsJSON, _ := json.Marshal(r.FrameworkRefs)
+		//
+		// A synthetic batch ($11) reports one thing: this rule now passes.
+		// It observed nothing else, so it overwrites nothing else that the
+		// scan recorded.
+		//
+		// last_scan_id holds the last REAL scan that evaluated the rule,
+		// which is what internal/corpus reads to decide whether the row
+		// still counts. On the INSERT arm there is no prior value to keep,
+		// so a synthetic first-seen row takes the synthetic id and lands
+		// out of corpus: correct, because nothing ever scanned that rule
+		// on that host.
+		//
+		// severity and framework_refs are held for a blunter reason. A
+		// remediation carries neither, so writing them through erases the
+		// scan's values: severity goes NULL and framework_refs takes the
+		// JSON scalar null, which drops the rule out of every
+		// framework-scoped score and aborts the fleet-wide posture rollup
+		// (one statement, so one bad row costs every host its snapshot).
+		//
+		// evidence is deliberately NOT held. Overwriting it is how the
+		// remediation records its own provenance (source, request_id).
+		//
+		// Known asymmetry, accepted. On a synthetic flip that DOES change
+		// status, the transactions row records severity NULL while this
+		// row keeps the scan's severity. The two tables disagree on that
+		// one column. It is the honest record either way: the log says
+		// what the remediation observed, which was a status and nothing
+		// else, and the state table says what is known about the rule.
+		// Nothing reads a synthetic scan id for severity.
+		frameworkRefsJSON := marshalRefs(r.FrameworkRefs)
 		lastChangedAt := now
 		if _, err = tx.Exec(ctx, `
 			INSERT INTO host_rule_state
@@ -198,12 +247,21 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 			VALUES ($1,$2,$3,$4,$5,1,$6,$7::jsonb,$8::jsonb,$9,$5,$10)
 			ON CONFLICT (host_id, rule_id) DO UPDATE SET
 				current_status   = EXCLUDED.current_status,
-				severity         = EXCLUDED.severity,
+				severity         = CASE WHEN $11::boolean
+					THEN host_rule_state.severity
+					ELSE EXCLUDED.severity
+				END,
 				last_checked_at  = EXCLUDED.last_checked_at,
 				check_count      = host_rule_state.check_count + 1,
-				last_scan_id     = EXCLUDED.last_scan_id,
+				last_scan_id     = CASE WHEN $11::boolean
+					THEN host_rule_state.last_scan_id
+					ELSE EXCLUDED.last_scan_id
+				END,
 				evidence         = EXCLUDED.evidence,
-				framework_refs   = EXCLUDED.framework_refs,
+				framework_refs   = CASE WHEN $11::boolean
+					THEN host_rule_state.framework_refs
+					ELSE EXCLUDED.framework_refs
+				END,
 				skip_reason      = EXCLUDED.skip_reason,
 				last_changed_at  = CASE
 					WHEN host_rule_state.current_status <> EXCLUDED.current_status
@@ -214,7 +272,7 @@ func (w *Writer) Apply(ctx context.Context, batch ApplyBatch) error {
 			batch.HostID, r.RuleID, string(r.Status),
 			nullableString(r.Severity), now, batch.ScanID,
 			r.Evidence, frameworkRefsJSON, nullableString(r.SkipReason),
-			lastChangedAt,
+			lastChangedAt, batch.Origin.Synthetic(),
 		); err != nil {
 			_ = tx.Rollback(ctx)
 			rolledBack = true
@@ -319,6 +377,27 @@ func classifyDBError(err error) FailureReason {
 		return ReasonEvidenceOversize
 	}
 	return ReasonSQLCError
+}
+
+// marshalRefs renders framework refs as a JSON OBJECT, always.
+//
+// A NIL map marshals to the scalar null, which is not SQL NULL. It
+// therefore passes the column's NOT NULL constraint, its DEFAULT '{}'
+// never applies, and the row lands holding a scalar. Every read calling
+// jsonb_object_keys over the column then fails on it, including
+// posture.Rollup, which is one statement across the whole fleet.
+//
+// An empty non-nil map already marshals to '{}' and is folded in here
+// only so both empty cases take one path.
+func marshalRefs(refs map[string][]string) []byte {
+	if len(refs) == 0 {
+		return []byte(`{}`)
+	}
+	b, err := json.Marshal(refs)
+	if err != nil {
+		return []byte(`{}`)
+	}
+	return b
 }
 
 // nullableString converts an empty string to nil (for NULL in DB).

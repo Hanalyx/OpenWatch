@@ -177,6 +177,13 @@ func LatestForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 // runs. Backs the compliance lens scan_context: queued, running, and
 // failed runs never qualify, even when newer.
 // Spec api-host-compliance AC-10.
+//
+// The ORDER BY is shared with corpus.CurrentSQL, which decides which
+// host_rule_state rows the score is computed over. This function names
+// the scan an operator is told that score describes. The two must pick
+// the SAME run or the score and its label are about different scans.
+// The id tiebreaker exists so two runs with an identical finished_at
+// cannot be resolved differently by the two query plans.
 func LatestCompletedForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*Run, error) {
 	row := pool.QueryRow(ctx, `
 		SELECT id, host_id, trigger_source, requested_by, status,
@@ -186,7 +193,7 @@ func LatestCompletedForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid
 		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
 		FROM scan_runs
 		WHERE host_id = $1 AND status = 'completed'
-		ORDER BY finished_at DESC NULLS LAST LIMIT 1`, hostID)
+		ORDER BY finished_at DESC NULLS LAST, id DESC LIMIT 1`, hostID)
 	return scanRun(row)
 }
 

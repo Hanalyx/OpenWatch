@@ -1,7 +1,10 @@
 // Per-host failing-rule listing — GET /hosts/{id}/compliance/failed-rules.
 //
 // Reads host_rule_state rows with current_status='fail' for the host,
-// severity-ordered (critical > high > medium > low > unset, then
+// scoped to its current corpus (internal/corpus) so a retired rule is
+// not listed as an actionable failure. It is not actionable: the scan
+// engine no longer ships a handler for it, so no fix can clear it.
+// Severity-ordered (critical > high > medium > low > unset, then
 // last_checked_at DESC), with titles/categories resolved from the
 // in-memory kensa RuleCatalog. SECURITY: the query projects an explicit
 // column list — the stored per-rule check output (which may contain
@@ -87,7 +90,7 @@ func (h *handlers) GetHostFailedRules(
 		            ELSE COALESCE(framework_refs -> $2, '[]'::jsonb)
 		       END AS control_ids,
 		       COUNT(*) OVER ()::bigint AS total_failing
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE host_id = $1
 		   AND current_status = 'fail'
 		   AND ($2::text IS NULL OR framework_refs ? $2)
