@@ -166,6 +166,22 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 			)
 			license.EmitLoadResult(bootCtx, "boot", result, nil, err)
 		}
+	} else if state := license.CurrentState(); state != nil && state.License != nil {
+		// Mirrors cmdServe. The worker used to emit only on rejection, so a
+		// standalone worker running a valid license left no audit record that
+		// it had loaded one, while serve recorded both outcomes. An auditor
+		// reconstructing which processes held which entitlement saw half the
+		// fleet.
+		slog.InfoContext(bootCtx, "license loaded",
+			slog.String("tier", string(state.License.Tier)),
+			slog.String("status", string(state.License.Status)),
+			slog.Int("features", len(state.License.Features)),
+		)
+		license.EmitLoadResult(bootCtx, "boot", license.VerifyValid, state.License, nil)
+	} else {
+		slog.InfoContext(bootCtx, "no license file; running in free tier",
+			slog.String("expected_path", licensePath),
+		)
 	}
 	if err := license.AdvanceWatermark(bootCtx, pool, time.Now()); err != nil {
 		slog.WarnContext(bootCtx, "could not advance license watermark",
