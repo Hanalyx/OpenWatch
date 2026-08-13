@@ -2,8 +2,10 @@ package license
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"crypto/x509"
 	"embed"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 )
@@ -14,9 +16,10 @@ import (
 //go:embed keys/*.pem
 var embeddedKeys embed.FS
 
-// publicKeys holds the parsed keys at package init. Mismatches against
-// every slot fail validation; matches against prev or deprecated emit
-// warnings (UsingPrevKey flag).
+// publicKeys holds the parsed keys at package init. A token that matches no
+// slot fails validation. A token that matches the prev slot verifies and sets
+// the UsingPrevKey warning flag. The deprecated slot verifies only in dev mode
+// and sets no flag.
 type publicKeyRing struct {
 	current    ed25519.PublicKey
 	prev       ed25519.PublicKey // may be nil in Stage 0
@@ -67,6 +70,32 @@ func parsePEMPublicKey(path string) (ed25519.PublicKey, error) {
 		return nil, fmt.Errorf("%s is not an Ed25519 public key", path)
 	}
 	return ed, nil
+}
+
+// KeyID returns the JWT `kid` value for a license-signing public key. It is the
+// SHA-256 of the key's SPKI DER encoding, in base64url with no padding.
+//
+// The value is a pure function of the key bytes. The issuer and the verifier
+// each derive it on their own, so no name-to-key registry has to be kept in
+// sync between them.
+//
+// A slot name such as "current" could not do that job. A license signed while a
+// key sat in the current slot would still carry the label "current" after
+// rotation moved that key to the prev slot. The label would then name the wrong
+// key, and the license would never be minted again to correct it.
+//
+// An input that is not a valid Ed25519 public key returns "". An empty key ID
+// matches no `kid` header, so it selects nothing.
+func KeyID(pub ed25519.PublicKey) string {
+	if len(pub) != ed25519.PublicKeySize {
+		return ""
+	}
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(der)
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // SetVerificationKeyForTesting installs pub as the sole active license

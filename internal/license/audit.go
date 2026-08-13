@@ -45,6 +45,15 @@ func emitInstalled(ctx context.Context, source string, lic *License) {
 		detail["features_count"] = len(lic.Features)
 		detail["using_prev_key"] = lic.UsingPrevKey
 		detail["in_grace_period"] = lic.InGracePeriod
+		// The kid the token presented, when it did not name the key that
+		// verified. Only set when there is something to report, so a normal
+		// load carries no extra field and the presence of the key is the
+		// signal. The consumer is Hanalyx, not the operator: a mislabel means
+		// the issuer stamped the wrong thumbprint, and says nothing about
+		// whether this deployment's license is good.
+		if lic.MismatchedKeyID != "" {
+			detail["mismatched_key_id"] = lic.MismatchedKeyID
+		}
 	}
 	if err := audit.EmitSync(ctx, audit.LicenseInstalled, audit.Event{
 		ActorType: "system",

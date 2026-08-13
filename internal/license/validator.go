@@ -1,6 +1,7 @@
 package license
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"strings"
@@ -61,15 +62,6 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		opts.Now = time.Now
 	}
 
-	usingPrev := false
-	keyFunc := func(token *jwt.Token) (interface{}, error) {
-		// We accept only EdDSA. JWT v5 maps Ed25519 to EdDSA.
-		if _, ok := token.Method.(*jwt.SigningMethodEd25519); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return ring.current, nil
-	}
-
 	// WithoutClaimsValidation: we do exp/iat/nbf checks manually below so we
 	// can implement the 30-day grace period (jwt v5's default validator
 	// rejects expired tokens before our custom logic runs).
@@ -77,9 +69,48 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		jwt.WithValidMethods([]string{"EdDSA"}),
 		jwt.WithoutClaimsValidation(),
 	)
-	parsed, err := parser.ParseWithClaims(jwtBlob, &claims{}, keyFunc)
-	if err != nil {
-		// Try the prev key if the signature failed against current.
+
+	// Which ring slots this call may verify against, in the order they are
+	// tried. Slot policy is applied here and nowhere else, so the `kid` header
+	// below cannot route around it.
+	candidates := trialKeys(ring, opts)
+
+	// `kid` reorders that list so the named slot is tried first. It never adds
+	// to the list.
+	//
+	// The header is matched against the allowed slots built above, not against
+	// the whole ring, so a header naming the deprecated key outside dev mode
+	// matches nothing. That is what separates this from a thumbprint-to-key
+	// map. A map hands back any ring member whose thumbprint matches, which
+	// would open the deprecated slot to anyone able to read a public key and
+	// stamp a header.
+	kid := keyIDFromJWT(jwtBlob)
+	if kid != "" {
+		candidates = preferKeyID(candidates, kid)
+	}
+
+	var (
+		parsed   *jwt.Token
+		err      error
+		verified keyCandidate
+	)
+	for _, cand := range candidates {
+		key := cand.key
+		parsed, err = parser.ParseWithClaims(jwtBlob, &claims{}, func(token *jwt.Token) (interface{}, error) {
+			// We accept only EdDSA. JWT v5 maps Ed25519 to EdDSA.
+			if _, ok := token.Method.(*jwt.SigningMethodEd25519); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return key, nil
+		})
+		if err == nil {
+			// Keep the slot that verified, not the code path that ran. A kid
+			// header can put any allowed slot first, so anything inferred from
+			// the sequence of attempts would be wrong.
+			verified = cand
+			break
+		}
+		// Only a signature mismatch justifies reaching for another key.
 		//
 		// Match on ErrTokenSignatureInvalid, which is what jwt v5 wraps every
 		// verification failure in. Do NOT match ErrSignatureInvalid: that
@@ -88,23 +119,31 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		// carries it. Matching it made this branch unreachable, which meant key
 		// rotation would have failed in the field the first release a prev key
 		// shipped, and only then.
-		if ring.prev != nil && errors.Is(err, jwt.ErrTokenSignatureInvalid) {
-			parsed, err = parser.ParseWithClaims(jwtBlob, &claims{}, func(*jwt.Token) (interface{}, error) {
-				return ring.prev, nil
-			})
-			if err == nil {
-				usingPrev = true
-			}
+		//
+		// Every other parse error is decided before the signature is checked,
+		// so it does not depend on which key is in hand. Stopping early on one
+		// costs nothing: another slot would return the same class of error.
+		if !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+			break
 		}
-		// Try the deprecated key in dev mode.
-		if err != nil && opts.AllowDeprecatedKey && ring.deprecated != nil {
-			parsed, err = parser.ParseWithClaims(jwtBlob, &claims{}, func(*jwt.Token) (interface{}, error) {
-				return ring.deprecated, nil
-			})
-		}
-		if err != nil {
-			return nil, classifyParseError(err), err
-		}
+	}
+	if err != nil {
+		return nil, classifyParseError(err), err
+	}
+
+	// UsingPrevKey is read off the slot that verified. It is the one place the
+	// flag is set, so a candidate that loses its slot identity on the way here
+	// would leave using_prev_key reporting the opposite of the truth.
+	usingPrev := verified.isPrev
+
+	// Did the kid name the key that actually verified? Compare thumbprints
+	// rather than asking whether preferKeyID reordered anything. A kid like the
+	// literal string "current" names no slot, so it reorders nothing and the
+	// current key still verifies. That kid did not select the key either, and a
+	// reorder check would call it a match.
+	mismatchedKeyID := ""
+	if kid != "" && KeyID(verified.key) != kid {
+		mismatchedKeyID = kid
 	}
 
 	c, ok := parsed.Claims.(*claims)
@@ -194,9 +233,83 @@ func Verify(jwtBlob string, ring *publicKeyRing, opts VerifyOptions) (*License, 
 		Fingerprint:   c.Fingerprint,
 		UsingPrevKey:  usingPrev,
 		InGracePeriod: inGrace,
+		// A kid that did not name the verifying key. Empty is the normal case.
+		MismatchedKeyID: mismatchedKeyID,
 		// The caller audits these; the verifier only reports them.
 		UnknownFeatures: unknown,
 	}, VerifyValid, nil
+}
+
+// keyCandidate is one ring slot the verifier is allowed to try, paired with
+// what the caller has to be told about it.
+type keyCandidate struct {
+	key ed25519.PublicKey
+	// isPrev drives License.UsingPrevKey, which the API surfaces as
+	// using_prev_key. The deprecated slot deliberately leaves it false.
+	isPrev bool
+}
+
+// trialKeys returns the ring slots this call may verify against, in the order
+// they are tried.
+//
+// The deprecated slot is admitted only when the caller allows it, so the
+// dev-mode gate lives in this one place. The current slot is always listed,
+// even when it holds nothing, so the returned list is never empty and a ring
+// with no usable key still fails through the normal signature path.
+func trialKeys(ring *publicKeyRing, opts VerifyOptions) []keyCandidate {
+	cands := []keyCandidate{{key: ring.current}}
+	if ring.prev != nil {
+		cands = append(cands, keyCandidate{key: ring.prev, isPrev: true})
+	}
+	if opts.AllowDeprecatedKey && ring.deprecated != nil {
+		cands = append(cands, keyCandidate{key: ring.deprecated})
+	}
+	return cands
+}
+
+// preferKeyID moves the candidate whose key ID equals kid to the front, keeping
+// the rest in trial order. A kid that matches nothing leaves the order alone.
+//
+// The result is always a permutation of what came in. Nothing is dropped, so a
+// mislabeled token still reaches the key that signed it, and nothing is added,
+// so the slot policy the caller applied still holds.
+//
+// Dropping the other slots would be the tempting read of "select the key", and
+// it is wrong. The issuer stamps kid before any verifier reads it, so a stale
+// or mistyped kid is an issuer mislabel, not an attack: the signature still has
+// to verify against a key this build already trusts. Refusing to look further
+// would brick a paying install over a header no attacker can turn into a forged
+// license.
+func preferKeyID(cands []keyCandidate, kid string) []keyCandidate {
+	for i, c := range cands {
+		if KeyID(c.key) != kid {
+			continue
+		}
+		reordered := make([]keyCandidate, 0, len(cands))
+		reordered = append(reordered, c)
+		reordered = append(reordered, cands[:i]...)
+		reordered = append(reordered, cands[i+1:]...)
+		return reordered
+	}
+	return cands
+}
+
+// keyIDFromJWT reads the `kid` header out of an unverified token. It returns ""
+// when the header is absent, is not a string, or cannot be decoded at all.
+//
+// Nothing here is trusted. The value only picks which already-trusted key to
+// try, and a token that lies about its kid still has to pass the signature
+// check against that key. A "" result takes the plain trial order, which is the
+// path every license took before kid was read.
+func keyIDFromJWT(jwtBlob string) string {
+	// Errors are ignored on purpose. A token too broken to yield a header is
+	// also too broken to verify, and the parse below reports that properly.
+	token, _, _ := jwt.NewParser().ParseUnverified(jwtBlob, jwt.MapClaims{})
+	if token == nil {
+		return ""
+	}
+	kid, _ := token.Header["kid"].(string)
+	return kid
 }
 
 // classifyParseError maps jwt parser errors to typed VerifyResults so
