@@ -429,6 +429,57 @@ func TestBuiltInRolesSeeded(t *testing.T) {
 	})
 }
 
+// @ac AC-12
+// AC-12: every seeded built-in role's description matches auth.BuiltInRoles.
+//
+// Counting the rows, which is all this AC used to do, says they exist. It says
+// nothing about whether they say the right thing. ops_lead's seeded
+// description carried an em dash for the life of migration 0006 while
+// auth/permissions.yaml, the generated roles.gen.go and both guides were
+// corrected around it. Nothing noticed, because nothing reads the column:
+// GetRoles answers from auth.BuiltInRoles, and the only other read of
+// roles.description is the RETURNING clause that echoes back a custom role the
+// caller just supplied.
+//
+// A stored value with no consumer is where a divergence sits undetected, so
+// pin it to the registry that generates it. See CP bugs/OW-020 and migration
+// 0059.
+func TestBuiltInRoleDescriptionsMatchRegistry(t *testing.T) {
+	t.Run("system-user-management/AC-12", func(t *testing.T) {
+		_, pool := freshService(t, nil)
+		rows, err := pool.Query(context.Background(),
+			`SELECT id, description FROM roles WHERE is_built_in = true`)
+		if err != nil {
+			t.Fatalf("read seeded roles: %v", err)
+		}
+		defer rows.Close()
+
+		seen := 0
+		for rows.Next() {
+			var id, desc string
+			if err := rows.Scan(&id, &desc); err != nil {
+				t.Fatalf("scan seeded role: %v", err)
+			}
+			seen++
+			def, ok := auth.BuiltInRoles[auth.RoleID(id)]
+			if !ok {
+				t.Errorf("role %q is seeded is_built_in but is not in auth.BuiltInRoles", id)
+				continue
+			}
+			if desc != def.Description {
+				t.Errorf("roles.description for %q = %q, registry says %q", id, desc, def.Description)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate seeded roles: %v", err)
+		}
+		// A loop over zero rows would pass every assertion above it.
+		if seen != 5 {
+			t.Errorf("iterated %d seeded roles, want 5", seen)
+		}
+	})
+}
+
 // @ac AC-13
 // AC-13: ListUsers aggregates each user's role ids into User.Roles
 // (non-nil empty slice when none); soft-deleted users are excluded.
