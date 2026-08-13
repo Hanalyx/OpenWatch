@@ -79,13 +79,42 @@ var (
 // per process.
 func Pool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
+	pool, err := pgxpool.New(context.Background(), provisioned(t, 2))
+	if err != nil {
+		t.Fatalf("dbtest: connect isolated DB: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// DSN returns the connection string for this package's isolated database,
+// provisioned exactly as Pool provisions it.
+//
+// Use it only when a test must open the connection itself, which in practice
+// means a test that closes a pool and reopens it to stand in for a process
+// restart. Everywhere else, call Pool: a test that holds a DSN can reach the
+// server, and the point of this package is that it cannot reach another
+// package's data.
+//
+// Like Pool, it must be called DIRECTLY from the package's own test code.
+func DSN(t testing.TB) string {
+	t.Helper()
+	return provisioned(t, 2)
+}
+
+// provisioned skips when no base DSN is set, then returns this package's
+// isolated database DSN, provisioning it on the first call in the process.
+// skip is the runtime.Caller depth at which the package's own test file sits,
+// which is what names the database.
+func provisioned(t testing.TB, skip int) string {
+	t.Helper()
 	base := os.Getenv(EnvDSN)
 	if base == "" {
 		t.Skipf("set %s to run DB integration tests", EnvDSN)
 	}
 
 	// Derive the per-package database name from the caller's source dir.
-	_, file, _, ok := runtime.Caller(1)
+	_, file, _, ok := runtime.Caller(skip)
 	if !ok {
 		t.Fatal("dbtest: cannot resolve caller for per-package DB name")
 	}
@@ -95,13 +124,7 @@ func Pool(t testing.TB) *pgxpool.Pool {
 	if initErr != nil {
 		t.Fatalf("dbtest: provision %q: %v", dbName, initErr)
 	}
-
-	pool, err := pgxpool.New(context.Background(), pkgDSN)
-	if err != nil {
-		t.Fatalf("dbtest: connect isolated DB: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return pkgDSN
 }
 
 // databaseName builds a valid, stable, per-package PostgreSQL identifier:
