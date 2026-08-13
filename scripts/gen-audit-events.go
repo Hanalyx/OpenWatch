@@ -83,6 +83,12 @@ type EventMeta struct {
 	Severity    Severity
 	Description string
 	ActorTypes  []string
+
+	// DetailKeys is the sorted property set of the event's detail_schema in
+	// audit/events.yaml, empty when it declares none. Emit checks a detail
+	// map against it. Before this existed the schema was parsed and dropped,
+	// so 80 events declared a detail contract that nothing read.
+	DetailKeys []string
 }
 
 // Metadata maps every active event code to its registry entry.
@@ -94,6 +100,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    Severity{{ .GoSeverity }},
 		Description: ` + "`" + `{{ .Description }}` + "`" + `,
 		ActorTypes:  {{ .GoActorTypes }},
+		DetailKeys:  {{ .GoDetailKeys }},
 	},
 {{- end }}
 }
@@ -127,6 +134,7 @@ type emitEvent struct {
 	Description  string
 	ActorTypes   []string
 	GoActorTypes string // Go source: nil or []string{"..."}
+	GoDetailKeys string // Go source: nil or []string{"..."}
 }
 
 func main() {
@@ -181,6 +189,7 @@ func enrich(e event) emitEvent {
 		Description:  cleanDescription(e.Description),
 		ActorTypes:   e.ActorTypes,
 		GoActorTypes: actorTypesLiteral(e.ActorTypes),
+		GoDetailKeys: detailKeysLiteral(e.DetailSchema),
 	}
 }
 
@@ -223,6 +232,28 @@ func cleanDescription(s string) string {
 }
 
 // actorTypesLiteral renders []string{"user","system"} as a Go literal.
+// detailKeysLiteral renders the property names of an event's detail_schema as
+// Go source. Returns "nil" when the event declares no schema or declares one
+// with no properties, so an empty declaration and an absent one are the same
+// thing to Emit: nothing to check against.
+//
+// Only the top-level property names are taken. A nested type or an enum is a
+// finer claim than Emit can act on, since it sees a marshalled detail map, and
+// a check that half-enforces a schema is worse than one that enforces the key
+// set honestly.
+func detailKeysLiteral(schema map[string]interface{}) string {
+	props, ok := schema["properties"].(map[string]interface{})
+	if !ok || len(props) == 0 {
+		return "nil"
+	}
+	quoted := make([]string, 0, len(props))
+	for k := range props {
+		quoted = append(quoted, `"`+k+`"`)
+	}
+	sort.Strings(quoted)
+	return "[]string{" + strings.Join(quoted, ", ") + "}"
+}
+
 func actorTypesLiteral(at []string) string {
 	if len(at) == 0 {
 		return "nil"
