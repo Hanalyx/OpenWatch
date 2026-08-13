@@ -741,6 +741,16 @@ docs/HOST_STATUS*.md
 # OpenWatch internal SDD documents (do not commit)
 internal/sdd/
 
+# The context-plane skill is a LOCAL ADAPTATION of a canonical document, not a
+# source of truth. CLAUDE.md says so plainly: the canonical copy lives in the
+# Context Plane at dev/skills/context-plane/SKILL, and when the two disagree the
+# CP copy wins and this one gets re-fetched. Tracking a mirror invites the
+# failure OW-015 already produced once, where a local restatement of a canonical
+# rule rotted and two readers took the copy as authority.
+#
+# .claude/skills/write-doc.md stays tracked. It has no canonical copy elsewhere.
+.claude/skills/context-plane/
+
 # OpenWatch internal documentation (do not commit)
 CLAUDE.md
 backend/CLAUDE.md
