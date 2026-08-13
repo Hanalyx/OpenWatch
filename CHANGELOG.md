@@ -48,10 +48,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   codes, and the `license.quota_exceeded` audit event. **If you match on those
   codes, they will not appear again.** OpenWatch does not cap hosts, scans,
   users, or retention.
-- The `license_gated` field from `GET /api/v1/rbac`. Entitlement is decided by
-  the route, not the permission, because per-host and fleet-scale use the same
-  permission. **If you read that field, drop it:** it was populated for one
-  permission that no route required, so it never affected a request.
+- The `license_gated` field from `GET /api/v1/auth/permissions:registry`.
+  Entitlement is decided by the route, not the permission, because per-host and
+  fleet-scale use the same permission. **If you read that field, drop it:** it
+  was populated for one permission that no route required, so it never affected
+  a request.
 
 ### Fixed
 
