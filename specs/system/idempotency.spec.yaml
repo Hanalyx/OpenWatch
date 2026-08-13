@@ -7,7 +7,7 @@ spec:
   # covers method, path, query and body. AC-01 and AC-03 assert different
   # things than they did, and an anonymous caller no longer touches the cache
   # at all. A consumer written against 1.0.0 is wrong against this file.
-  version: "2.0.0"
+  version: "2.1.0"
   status: approved
   tier: 2
 
@@ -121,6 +121,15 @@ spec:
         response is written before any authorization runs.
       type: security
       enforcement: error
+    - id: C-11
+      description: >
+        A replay writes the stored status, Content-Type and body, and nothing
+        else. Every other response header the handler set is dropped. A route
+        that declares Idempotency-Key therefore MUST NOT carry meaning in a
+        response header, because the replayed call returns the success status
+        and body without it. Set-Cookie MUST never be captured or replayed.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -217,3 +226,13 @@ spec:
         overwrite or conflict with the other.
       priority: critical
       references_constraints: [C-09]
+    - id: AC-15
+      description: >
+        No operation that declares the Idempotency-Key parameter in
+        api/openapi.yaml declares a response header on a 2xx response, and
+        none declares Set-Cookie on any response. A replay returns the stored
+        status, Content-Type and body only, so such a route would answer a
+        repeat call with a success the client cannot use. No route does this
+        today, and the check fails the build on the day one is added.
+      priority: critical
+      references_constraints: [C-11]

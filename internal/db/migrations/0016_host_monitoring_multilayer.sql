@@ -20,7 +20,7 @@ ALTER TABLE host_liveness
     CHECK (monitoring_state IN
       ('online','degraded','critical','down','maintenance','unknown'));
 
--- Index lets the operator dashboard summarise band distribution.
+-- Index lets the operator dashboard summarize band distribution.
 CREATE INDEX idx_host_liveness_monitoring_state
   ON host_liveness (monitoring_state);
 

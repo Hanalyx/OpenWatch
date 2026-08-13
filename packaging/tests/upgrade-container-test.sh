@@ -23,8 +23,28 @@ set -euo pipefail
 : "${HEAD_DOWN:?HEAD_DOWN must be passed in (head migration -- +goose Down SQL)}"
 PREV_VER=$((HEAD_VER - 1))
 
+# See OW-019. Provisioning reaches the distribution mirrors, which fail
+# transiently, and a silenced package manager reports its own cleanup rather
+# than what it could not reach. Retry, and keep the output for the failure.
+retry_fetch() {
+    local what="$1"; shift
+    local attempt
+    for attempt in 1 2 3; do
+        if "$@" > /tmp/provision.log 2>&1; then
+            return 0
+        fi
+        echo "   $what failed, attempt $attempt of 3" >&2
+        sleep $(( attempt * 10 ))
+    done
+    echo "--- output of the last attempt ---" >&2
+    cat /tmp/provision.log >&2
+    echo "FAIL: $what failed after 3 attempts" >&2
+    exit 1
+}
+
 echo "### prerequisites"
-dnf install -y -q postgresql-server postgresql openssl findutils >/dev/null
+retry_fetch "prerequisite install" \
+    dnf install -y postgresql-server postgresql openssl findutils
 
 echo "### start postgres (no systemd)"
 PGDATA=/var/lib/pgsql/data
