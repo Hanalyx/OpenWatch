@@ -10,6 +10,7 @@
 // @ac AC-29  (TestKeyID_StableAndDistinct)
 // @ac AC-31  (TestVerify_MismatchedKidIsRecorded)
 // @ac AC-32  (TestLoadJWT_MismatchedKidReachesTheAuditTrail)
+// @ac AC-33  (TestNoProductionCodeOpensTheDeprecatedSlot)
 
 package license
 
@@ -23,6 +24,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -212,7 +214,9 @@ func TestVerify_KidDoesNotOpenDeprecatedSlot(t *testing.T) {
 			t.Errorf("AllowDeprecatedKey false: license = %+v, want nil", lic)
 		}
 
-		// Dev mode: the same token, now permitted.
+		// With the gate opened explicitly, the same token is permitted. Only a
+		// caller passing this option reaches the slot; nothing in production
+		// does, dev mode included.
 		lic, result, err := Verify(jwtBlob, fr.ring, VerifyOptions{AllowDeprecatedKey: true})
 		if err != nil {
 			t.Fatalf("AllowDeprecatedKey true: Verify: %v", err)
@@ -640,5 +644,55 @@ func TestKeyID_StableAndDistinct(t *testing.T) {
 				t.Errorf("two different keys share a key id: %q", idA)
 			}
 		})
+	})
+}
+
+// @ac AC-33
+// AC-33: no production code opens the deprecated slot.
+//
+// The option exists and the gate works; AC-24 proves that. What was never
+// guarded is the claim, repeated in four comments, that nothing in production
+// sets it. A comment asserting a property nothing checks is exactly how "still
+// validates but emits warning" survived for months against code that did
+// neither.
+func TestNoProductionCodeOpensTheDeprecatedSlot(t *testing.T) {
+	t.Run("system-license-validation/AC-33", func(t *testing.T) {
+		// Tests run from internal/license/, so the tree root is two up.
+		root, err := filepath.Abs(filepath.Join("..", ".."))
+		if err != nil {
+			t.Fatalf("resolve repo root: %v", err)
+		}
+		// Assignment in a composite literal or a plain assignment, set to true.
+		setter := regexp.MustCompile(`AllowDeprecatedKey\s*[:=]\s*true`)
+
+		walkErr := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				if name := info.Name(); name == ".git" || name == "node_modules" || name == "frontend" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			b, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			if setter.Match(b) {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s sets AllowDeprecatedKey true. The deprecated slot is "+
+					"reserved, not a rotation step: nothing in production may open it. "+
+					"If this is deliberate, the comments in keys.go and validator.go "+
+					"and spec C-15 have to change with it", rel)
+			}
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("walk: %v", walkErr)
+		}
 	})
 }

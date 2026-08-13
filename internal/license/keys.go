@@ -10,20 +10,29 @@ import (
 	"fmt"
 )
 
-// Embedded license-signing public keys. The current slot is required;
-// prev and deprecated slots are added when key rotation lands (post Stage 0).
+// Embedded license-signing public keys. Only the current slot is required.
 //
 //go:embed keys/*.pem
 var embeddedKeys embed.FS
 
-// publicKeys holds the parsed keys at package init. A token that matches no
-// slot fails validation. A token that matches the prev slot verifies and sets
-// the UsingPrevKey warning flag. The deprecated slot verifies only in dev mode
-// and sets no flag.
+// publicKeyRing holds the parsed keys at package init. A token matching no slot
+// fails validation. A token matching the prev slot verifies and sets the
+// UsingPrevKey warning flag.
+//
+// Rotation is two-stage: current, then prev, then retired. Hold prev for at
+// least the license term plus the grace period, about 13 months at the issuer's
+// typical 365-day term, and no license signed with that key can still be valid
+// when it is retired.
+//
+// The deprecated slot is reserved and is NOT a third rotation stage. Nothing
+// enables it: no production VerifyOptions sets AllowDeprecatedKey, dev mode
+// included. It is retained because it is the only policy gate in slot
+// selection, which is what the kid contract tests against
+// (system-license-validation AC-24: a kid naming this slot must not open it).
 type publicKeyRing struct {
 	current    ed25519.PublicKey
-	prev       ed25519.PublicKey // may be nil in Stage 0
-	deprecated ed25519.PublicKey // may be nil in Stage 0
+	prev       ed25519.PublicKey // nil unless a rotation has shipped one
+	deprecated ed25519.PublicKey // nil; reserved, see above
 }
 
 // loadEmbeddedKeys parses the PEM files baked into the binary. Called
@@ -37,9 +46,9 @@ func loadEmbeddedKeys() (*publicKeyRing, error) {
 	}
 	ring.current = cur
 
-	// Prev/deprecated are optional in Stage 0. When the rotation pattern
-	// arrives, drop license-pubkey-prev.pem / license-pubkey-deprecated.pem
-	// into internal/license/keys/ and they're picked up automatically.
+	// Both are optional. To rotate, drop license-pubkey-prev.pem into
+	// internal/license/keys/ and it is picked up automatically. The deprecated
+	// slot is reserved rather than part of rotation; see publicKeyRing.
 	if prev, err := parsePEMPublicKey("keys/license-pubkey-prev.pem"); err == nil {
 		ring.prev = prev
 	}
