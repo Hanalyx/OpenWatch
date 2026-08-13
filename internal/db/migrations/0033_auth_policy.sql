@@ -10,7 +10,7 @@
 -- one row can ever exist. Reads and writes always target id = TRUE.
 --
 -- Defaults match the historical constants (15-minute idle, 12-hour
--- absolute) so promoting to data is behaviour-preserving until an admin
+-- absolute) so promoting to data is behavior-preserving until an admin
 -- changes it.
 
 -- +goose Up
@@ -36,7 +36,7 @@ CREATE TABLE auth_policy (
     updated_by                      UUID        REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Seed the singleton row with the behaviour-preserving defaults.
+-- Seed the singleton row with the behavior-preserving defaults.
 INSERT INTO auth_policy (id) VALUES (TRUE);
 
 -- +goose Down

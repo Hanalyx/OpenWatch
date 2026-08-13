@@ -1,6 +1,6 @@
 -- Slice A — custom-role permission storage.
 --
--- Permission catalogue stays in code (auth.Permissions in
+-- Permission catalog stays in code (auth.Permissions in
 -- internal/auth/permissions.gen.go). Roles' grant lists live in the
 -- DB as TEXT[] so admins can mint custom roles at runtime.
 --

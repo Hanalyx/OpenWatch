@@ -2,9 +2,12 @@
 //
 // Coverage closers for AC-02 (unreachable host), AC-03/04 (Apply runs +
 // idempotent), AC-05/06 (schema shape), AC-08 (round-trip JSON-equivalent),
-// AC-12 (data survives pool close/reopen). All require OPENWATCH_TEST_DSN
-// for the migrate+query path; AC-02 deliberately points at an unreachable
-// DSN and must NOT require a real DB.
+// AC-12 (data survives pool close/reopen).
+//
+// Every test that touches a database goes through dbtest, which skips when
+// OPENWATCH_TEST_DSN is unset and otherwise hands back this package's own
+// clone of a freshly-migrated template. AC-02 deliberately points at an
+// unreachable address and must NOT require a real DB.
 
 package db
 
@@ -68,14 +71,9 @@ func TestApply_RunsAllMigrations(t *testing.T) {
 // AC-04: Apply() against an already-migrated DB is a no-op and returns nil.
 func TestApply_IsIdempotent(t *testing.T) {
 	t.Run("system-db/AC-04", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
 		if err := migrations.Apply(ctx, pool); err != nil {
 			t.Fatalf("first Apply: %v", err)
 		}
@@ -100,17 +98,9 @@ func TestApply_IsIdempotent(t *testing.T) {
 // NULL), actor_type (NOT NULL), action (NOT NULL), occurred_at.
 func TestSchema_AuditEvents(t *testing.T) {
 	t.Run("system-db/AC-05", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
 
 		rows, err := pool.Query(ctx, `
 			SELECT column_name, is_nullable, data_type
@@ -250,17 +240,9 @@ func TestSchema_IdempotencyKeys(t *testing.T) {
 // (JSON-equal after JSONB normalization).
 func TestRoundTrip_DetailJSON(t *testing.T) {
 	t.Run("system-db/AC-08", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		id := uuid.Must(uuid.NewV7())
@@ -268,7 +250,7 @@ func TestRoundTrip_DetailJSON(t *testing.T) {
 			"nested": map[string]any{"k": "v", "n": 42},
 			"list":   []int{1, 2, 3},
 		})
-		_, err = InsertAuditEvent(ctx, pool, InsertAuditEventParams{
+		_, err := InsertAuditEvent(ctx, pool, InsertAuditEventParams{
 			ID:            id,
 			CorrelationID: "roundtrip-test",
 			ActorType:     "system",
@@ -298,7 +280,11 @@ func TestRoundTrip_DetailJSON(t *testing.T) {
 // Stage-0 acceptance walkthrough.
 func TestPersistsAcrossPoolReopen(t *testing.T) {
 	t.Run("system-db/AC-12", func(t *testing.T) {
-		dsn := testDSN(t)
+		// The one test here that opens its own connections: it closes a pool
+		// and reopens it, which is the restart this AC is about. dbtest.DSN
+		// gives it this package's isolated database rather than the shared
+		// one the base DSN points at.
+		dsn := dbtest.DSN(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

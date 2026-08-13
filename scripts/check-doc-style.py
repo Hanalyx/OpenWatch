@@ -297,9 +297,13 @@ EMOJI_EXT = (".md", ".yml", ".yaml", ".json")
 # .mjs and .cjs are the same JavaScript, only a different module system. Omitting them left the
 # comments in every ES-module script invisible to the check, including this repo's own sync
 # scripts. The same reasoning covers .mts and .cts on the TypeScript side.
-CODE_EXT = (".go", ".ts", ".tsx", ".mts", ".cts", ".py", ".js", ".jsx", ".mjs", ".cjs")
+# .sql carries prose too. A migration's header comment is where the reason for a schema change is
+# written, and those comments were invisible here until 2026-08-13: .sql was in neither tuple, so
+# every check returned without reading the file. Four US English defects had accumulated behind
+# that gap.
+CODE_EXT = (".go", ".ts", ".tsx", ".mts", ".cts", ".py", ".js", ".jsx", ".mjs", ".cjs", ".sql")
 GLOBS = ["*.md", "*.yml", "*.yaml", "*.json", "*.go", "*.ts", "*.tsx", "*.mts", "*.cts",
-         "*.py", "*.js", "*.jsx", "*.mjs", "*.cjs"]
+         "*.py", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.sql"]
 
 # Comment extraction, deliberately conservative: only a WHOLE-LINE comment is scanned. A trailing
 # comment after code, or a marker inside a string literal, is skipped rather than guessed at. A
@@ -308,6 +312,7 @@ COMMENT_STARTS = {
     ".go": ("//",), ".ts": ("//",), ".tsx": ("//",), ".mts": ("//",), ".cts": ("//",),
     ".js": ("//",), ".jsx": ("//",), ".mjs": ("//",), ".cjs": ("//",),
     ".py": ("#",),
+    ".sql": ("--",),
 }
 # The C-family languages, for the block-comment continuation line ( * inside a doc comment).
 C_FAMILY = (".go", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
@@ -377,7 +382,14 @@ def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False, skip_form
         line = INLINE_CODE.sub("", raw)
         # Em dashes are a DOCUMENT rule, not a writing rule: the style guide prohibits them in
         # developer docs, and a code comment is not a doc. US English and AI speak do bind
-        # comments, so only this one check is skipped there. Matches openwatch's v3 scope.
+        # comments. Matches openwatch's v3 scope.
+        #
+        # Two checks are skipped in a comment, not one. This is the em dash; the emoji check is
+        # the other, and check_file skips it by passing do_emoji=False for every CODE_EXT file.
+        #
+        # Settled by founder direction 2026-08-13: an em dash is a document rule, so it binds
+        # documentation and not code comments. This line is correct and stays. The repo guidance
+        # that claimed otherwise was the defect and has been corrected. See CP bugs/OW-015.
         if not is_comment and not skip_formatting and EM_DASH.search(line):
             out.append(("em-dash", "—"))
         for _term, rx in WORD_RES + PHRASE_RES:
@@ -597,6 +609,7 @@ def selftest():
         (".js",  "// we organise the corpus", "organise"),
         (".py",  "#  we organise the corpus", "organise"),
         (".go",  " * we organise the corpus", "organise"),
+        (".sql", "-- we organise the corpus", "organise"),
     ):
         body = comment_text("a" + ext, line)
         if body is None or want not in body:
