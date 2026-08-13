@@ -29,22 +29,48 @@ import (
 // it, which is the wider blast radius of the two.
 type openAPIDoc struct {
 	Paths map[string]map[string]struct {
-		OperationID string `yaml:"operationId"`
-		Parameters  []struct {
-			Name string `yaml:"name"`
-			In   string `yaml:"in"`
-			Ref  string `yaml:"$ref"`
-		} `yaml:"parameters"`
-		Responses map[string]responseNode `yaml:"responses"`
+		OperationID string                  `yaml:"operationId"`
+		Parameters  []parameterNode         `yaml:"parameters"`
+		Responses   map[string]responseNode `yaml:"responses"`
 	} `yaml:"paths"`
 	Components struct {
-		Responses map[string]responseNode `yaml:"responses"`
+		Responses  map[string]responseNode  `yaml:"responses"`
+		Parameters map[string]parameterNode `yaml:"parameters"`
 	} `yaml:"components"`
+}
+
+type parameterNode struct {
+	Name string `yaml:"name"`
+	In   string `yaml:"in"`
+	Ref  string `yaml:"$ref"`
 }
 
 type responseNode struct {
 	Ref     string         `yaml:"$ref"`
 	Headers map[string]any `yaml:"headers"`
+}
+
+// declaresIdempotencyKey reports whether an operation takes the header,
+// following a $ref into components/parameters and reading the resolved
+// parameter's own name rather than the key it is filed under.
+//
+// Matching the ref string instead would tie this check to what the component
+// happens to be called. A shared parameter named IdempotencyKeyHeader would
+// then make every route using it invisible here, and the vacuity guard would
+// stay quiet because other routes still declare it inline. That is the same
+// defect this file exists to catch: a check that still runs, still passes, and
+// no longer covers what it names.
+func declaresIdempotencyKey(doc openAPIDoc, params []parameterNode) bool {
+	const prefix = "#/components/parameters/"
+	for _, p := range params {
+		if p.Ref != "" && strings.HasPrefix(p.Ref, prefix) {
+			p = doc.Components.Parameters[strings.TrimPrefix(p.Ref, prefix)]
+		}
+		if p.In == "header" && p.Name == HeaderName {
+			return true
+		}
+	}
+	return false
 }
 
 // headersOf returns the headers a response declares, following one level of
@@ -95,17 +121,7 @@ func TestIdempotency_NoCachedRouteDependsOnAResponseHeader(t *testing.T) {
 					// GET, HEAD and OPTIONS never reach the cache (C-02).
 					continue
 				}
-				declaresKey := false
-				for _, p := range op.Parameters {
-					// A $ref to the shared parameter counts the same as an
-					// inline declaration; matching the ref by name keeps this
-					// from missing a route that reuses the component.
-					if (p.In == "header" && p.Name == HeaderName) ||
-						strings.HasSuffix(p.Ref, "/"+HeaderName) {
-						declaresKey = true
-					}
-				}
-				if !declaresKey {
+				if !declaresIdempotencyKey(doc, op.Parameters) {
 					continue
 				}
 				cached = append(cached, method+" "+path)
