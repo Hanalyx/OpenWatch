@@ -497,35 +497,18 @@ cache/
 *api_key*
 *private_key*
 
-# Exception: Allow alembic migration files (they describe schemas, not actual credentials)
-!backend/alembic/versions/*credential*.py
+# Exception: spec files that reference credentials or api_keys in their names
+# describe schemas, not secrets.
+!specs/**/*credential*.yaml
+!specs/**/*api_key*.yaml
 
-# Exception: Allow spec and test files that reference credentials/api_keys in their names
-!specs/api/admin/credentials.spec.yaml
-!tests/backend/unit/api/test_api_keys_spec.py
-!tests/backend/unit/api/test_credentials_spec.py
-!backend/app/routes/admin/credentials.py
-!backend/app/routes/auth/api_keys.py
-!backend/app/services/auth/credential_service.py
-!backend/app/services/auth/credential_handler.py
-
-# Exception: Go-rebuild source under app/ — the "safety net" patterns
-# above (*credential*, *secret*, *password*, *_credential*.sql, etc.)
-# were written for the legacy Python project's runtime files. The Go
-# rebuild has packages whose names legitimately include those words
-# (internal/credential, internal/secretkey, identity/password*,
-# migrations/*_credentials.sql) — they are source code, not secrets.
-# Re-include all files under app/ here; the app/.gitignore still
-# applies for genuine build artifacts (dist/, openapi_embed.yaml).
-!app/**
-
-# The Go tree was promoted from app/ to the repo root (2026-06-05), so the
-# !app/** negation above no longer reaches it. The safety-net name patterns
-# (*credential*, *secret*) wrongly catch these Go source package directories —
-# they are source code, not secrets. Genuine build artifacts under internal/
-# are ignored by their own explicit rules further down (internal/server/
-# openapi_embed.yaml, internal/server/spa/), so this negation does not expose
-# them.
+# The safety-net name patterns above (*credential*, *secret*, *password*,
+# *_credential*.sql) were written for the legacy Python project's runtime
+# files. The Go tree has package directories whose names legitimately match
+# them, and those are source code, not secrets. Genuine build artifacts under
+# internal/ are ignored by their own explicit rules further down
+# (internal/server/openapi_embed.yaml, internal/server/spa/), so these
+# negations do not expose them.
 !internal/credential/
 !internal/credential/**
 !internal/secretkey/
@@ -663,13 +646,11 @@ migrate_*.sql
 *_credential*.sql
 system_credentials_backup.sql
 
-# Temporary credential files
-create_test_credential.py
-
-# Exception (again, for the patterns above): re-include the Go
-# rebuild's migration files. The 0007_credentials.sql migration
-# describes the credentials table schema; it's source, not data.
-!app/internal/db/migrations/*.sql
+# Exception (again, for the patterns above): re-include the migration files.
+# 0007_credentials.sql describes the credentials table schema; it is source,
+# not data. Without this, a new migration whose name matches *credential*,
+# *secret* or *password* is silently refused by git add.
+!internal/db/migrations/*.sql
 
 # ======================================
 # VIRTUAL ENVIRONMENTS AND SCRIPTS
