@@ -22,6 +22,24 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+# See OW-019. Provisioning reaches the distribution mirrors, which fail
+# transiently, and a silenced package manager reports its own cleanup rather
+# than what it could not reach. Retry, and keep the output for the failure.
+retry_fetch() {
+    local what="$1"; shift
+    local attempt
+    for attempt in 1 2 3; do
+        if "$@" > /tmp/provision.log 2>&1; then
+            return 0
+        fi
+        echo "   $what failed, attempt $attempt of 3" >&2
+        sleep $(( attempt * 10 ))
+    done
+    echo "--- output of the last attempt ---" >&2
+    cat /tmp/provision.log >&2
+    fail "$what failed after 3 attempts"
+}
+
 echo ">> waiting for systemd to finish booting"
 for _ in $(seq 1 60); do
     state="$(systemctl is-system-running 2>/dev/null || true)"
@@ -40,8 +58,8 @@ systemctl is-system-running >/dev/null 2>&1 || \
 echo ">> installing packages"
 if [ "$PKG_KIND" = deb ]; then
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq
-    apt-get install -y -qq curl ca-certificates >/dev/null
+    retry_fetch "apt-get update" apt-get update
+    retry_fetch "curl install" apt-get install -y curl ca-certificates
     apt-get install -y "$PKG_DIR"/openwatch_*.deb "$PKG_DIR"/kensa-rules_*.deb
 else
     dnf install -y -q "$PKG_DIR"/openwatch-*.rpm "$PKG_DIR"/kensa-rules-*.rpm

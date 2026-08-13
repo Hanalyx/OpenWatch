@@ -35,6 +35,30 @@ diagnose() {
 }
 fail() { echo "FAIL: $*" >&2; diagnose; exit 1; }
 
+# Provisioning reaches the distribution mirrors, and mirrors fail transiently.
+# With no retry, one bad minute upstream turns a PR red while every other gate
+# is green, and the failure looks like the branch under test.
+#
+# The output is captured and printed only when the last attempt fails, for the
+# same reason install_pkgs below is deliberately not quiet: when a silenced
+# package manager dies, the one line that survives describes its own cleanup
+# rather than what it could not reach. That is how this was filed as OW-019,
+# reading `[Errno 2] ... download_lock.pid` and nothing else.
+retry_fetch() {
+    local what="$1"; shift
+    local attempt
+    for attempt in 1 2 3; do
+        if "$@" > /tmp/provision.log 2>&1; then
+            return 0
+        fi
+        echo "   $what failed, attempt $attempt of 3" >&2
+        sleep $(( attempt * 10 ))
+    done
+    echo "--- output of the last attempt ---" >&2
+    cat /tmp/provision.log >&2
+    fail "$what failed after 3 attempts"
+}
+
 # curl exits non-zero when nothing is listening, and under set -e that kills
 # the script with curl's status before any assertion runs, which reads as a
 # harness crash rather than a product failure. Capture, then judge.
@@ -67,13 +91,14 @@ install_pkgs() {
 echo ">> installing PostgreSQL and the previous GA ($OLD_VER)"
 if [ "$PKG_KIND" = deb ]; then
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq
-    apt-get install -y -qq curl ca-certificates postgresql postgresql-contrib >/dev/null
+    retry_fetch "apt-get update" apt-get update
+    retry_fetch "postgresql install" \
+        apt-get install -y curl ca-certificates postgresql postgresql-contrib
 else
     # Not curl: the RHEL-family images ship curl-minimal, which provides the
     # binary and conflicts with the full package.
-    command -v curl >/dev/null || dnf install -y -q curl >/dev/null
-    dnf install -y -q postgresql-server postgresql-contrib >/dev/null
+    command -v curl >/dev/null || retry_fetch "curl install" dnf install -y curl
+    retry_fetch "postgresql install" dnf install -y postgresql-server postgresql-contrib
     [ -f /var/lib/pgsql/data/PG_VERSION ] || postgresql-setup --initdb >/dev/null
 fi
 systemctl enable --now postgresql >/dev/null 2>&1 || fail "postgresql did not start"

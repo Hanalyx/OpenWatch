@@ -26,7 +26,7 @@ CREATE TABLE roles (
 INSERT INTO roles (id, description, is_built_in) VALUES
     ('viewer',         'Read-only access across the platform',                              true),
     ('auditor',        'Read-only plus exception authority and audit export',               true),
-    ('ops_lead',       'Day-to-day operations — hosts, scans, alerts',                       true),
+    ('ops_lead',       'Day-to-day operations - hosts, scans, alerts',                       true),
     ('security_admin', 'Full security operations including dangerous and license-gated actions', true),
     ('admin',          'Full system administration',                                        true);
 

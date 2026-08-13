@@ -1,6 +1,7 @@
 // @spec system-db
 //
-// AC traceability (DB integration tests; skipped without OPENWATCH_TEST_DSN):
+// AC traceability (DB integration tests; dbtest skips them when
+// OPENWATCH_TEST_DSN is unset):
 // @ac AC-01  (TestInsertAndGetAuditEvent: pool + migrate idempotent)
 // @ac AC-07  (TestInsertAndGetAuditEvent: insert returns row, round-trip)
 // @ac AC-09  (TestListAuditEvents: newest-first ordering, cursor)
@@ -15,25 +16,21 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
-	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/google/uuid"
 )
 
-// testDSN returns the integration-test DSN or skips the test. CI is
-// expected to set OPENWATCH_TEST_DSN; local dev runs without it.
-func testDSN(t *testing.T) string {
-	t.Helper()
-	dsn := os.Getenv("OPENWATCH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set OPENWATCH_TEST_DSN to run db integration tests")
-	}
-	return dsn
-}
+// There is deliberately no testDSN helper here. Handing a test the raw
+// OPENWATCH_TEST_DSN pointed it at the one shared database that every other
+// package also migrates and truncates, so a schema assertion could read a
+// column an earlier run had left behind rather than one this checkout's
+// migrations create. dbtest.Pool clones a template keyed on a hash of the
+// migration files, so a checkout without the migration gets a database
+// without the column. Use dbtest.Pool, or dbtest.DSN when the test must open
+// the connection itself.
 
 // @ac AC-01  (pool ping; migrate apply + idempotent re-run)
 // insert returns row, round-trip via GetAuditEventByID.
@@ -106,17 +103,9 @@ func TestInsertAndGetAuditEvent(t *testing.T) {
 	// @ac AC-07
 	// AC-07: InsertAuditEvent returns the same row with occurred_at populated.
 	t.Run("system-db/AC-07", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		id := uuid.Must(uuid.NewV7())
@@ -142,19 +131,9 @@ func TestInsertAndGetAuditEvent(t *testing.T) {
 func TestListAuditEvents(t *testing.T) {
 	t.Run("system-db/AC-09", func(t *testing.T) {
 
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("migrations.Apply: %v", err)
-		}
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		// Insert three events.
@@ -191,17 +170,9 @@ func TestListAuditEvents(t *testing.T) {
 // @ac AC-10  (Cursor returns only rows strictly older than Before.)
 func TestListAuditEvents_CursorWithBefore(t *testing.T) {
 	t.Run("system-db/AC-10", func(t *testing.T) {
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("Apply: %v", err)
-		}
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		for i := 0; i < 3; i++ {
@@ -243,19 +214,9 @@ func TestListAuditEvents_CursorWithBefore(t *testing.T) {
 func TestCountAuditEvents(t *testing.T) {
 	t.Run("system-db/AC-11", func(t *testing.T) {
 
-		dsn := testDSN(t)
+		pool := dbtest.Pool(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-
-		pool, err := NewPool(ctx, dsn, 5)
-		if err != nil {
-			t.Fatalf("NewPool: %v", err)
-		}
-		defer pool.Close()
-
-		if err := migrations.Apply(ctx, pool); err != nil {
-			t.Fatalf("migrations.Apply: %v", err)
-		}
 		_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 
 		n0, err := CountAuditEvents(ctx, pool)
