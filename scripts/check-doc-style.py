@@ -386,9 +386,10 @@ def line_findings(raw, is_prose, do_emoji, in_fence, is_comment=False, skip_form
         #
         # Two checks are skipped in a comment, not one. This is the em dash; the emoji check is
         # the other, and check_file skips it by passing do_emoji=False for every CODE_EXT file.
-        # Note that CLAUDE.md states the no-em-dash rule binds code comments, which is not what
-        # this line does. The scope question is open and belongs to the founder, so this comment
-        # records the disagreement rather than settling it.
+        #
+        # Settled by founder direction 2026-08-13: an em dash is a document rule, so it binds
+        # documentation and not code comments. This line is correct and stays. The repo guidance
+        # that claimed otherwise was the defect and has been corrected. See CP bugs/OW-015.
         if not is_comment and not skip_formatting and EM_DASH.search(line):
             out.append(("em-dash", "—"))
         for _term, rx in WORD_RES + PHRASE_RES:
