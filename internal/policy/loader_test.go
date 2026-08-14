@@ -28,6 +28,37 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// waitForAuditCount polls for an audit row instead of sleeping a fixed
+// interval. The write is asynchronous: audit.Emit hands the event to a writer
+// goroutine and returns, so a fixed sleep is a bet on how long that goroutine
+// takes to flush.
+//
+// The bet lost. TestLoad_VersionRegression failed in CI on PR #821, a branch
+// that touches no file in this package, and passed on a rerun. Under -race on
+// a loaded runner, 150ms is not reliably enough. Polling returns as soon as the
+// row lands, which is usually immediately, and gives the slow case two seconds
+// before it gives up.
+//
+// It returns whatever count it last read, so the caller keeps its own
+// assertion: two of the three call sites want exactly 1 and would hide a
+// duplicate if this asserted for them.
+func waitForAuditCount(t *testing.T, pool *pgxpool.Pool, action, correlationID string) int64 {
+	t.Helper()
+	var count int64
+	for i := 0; i < 100; i++ {
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM audit_events WHERE action = $1 AND correlation_id = $2`,
+			action, correlationID).Scan(&count); err != nil {
+			t.Fatalf("query audit_events: %v", err)
+		}
+		if count > 0 {
+			return count
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return count
+}
+
 func freshPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := dbtest.Pool(t)
@@ -161,15 +192,7 @@ func TestLoad_ValidSignedFile(t *testing.T) {
 			t.Errorf("CriticalBelow = %d, want 40", s.AlertThresholds.CriticalBelow)
 		}
 		// Wait for audit flush then check.
-		time.Sleep(150 * time.Millisecond)
-		var count int64
-		err = pool.QueryRow(context.Background(),
-			`SELECT count(*) FROM audit_events
-			   WHERE action = 'policy.loaded' AND correlation_id = 'policy-test-ac02'`,
-		).Scan(&count)
-		if err != nil {
-			t.Fatalf("query audit: %v", err)
-		}
+		count := waitForAuditCount(t, pool, "policy.loaded", "policy-test-ac02")
 		if count != 1 {
 			t.Errorf("policy.loaded count = %d, want 1", count)
 		}
@@ -238,12 +261,7 @@ func TestLoad_VersionRegression(t *testing.T) {
 			t.Error("AlertThresholds reverted/changed; prior state must be retained")
 		}
 		// Confirm a policy.invalid audit was emitted.
-		time.Sleep(150 * time.Millisecond)
-		var count int64
-		_ = pool.QueryRow(context.Background(),
-			`SELECT count(*) FROM audit_events
-			   WHERE action = 'policy.invalid' AND correlation_id = 'policy-test-ac04'`,
-		).Scan(&count)
+		count := waitForAuditCount(t, pool, "policy.invalid", "policy-test-ac04")
 		if count < 1 {
 			t.Errorf("policy.invalid audit count = %d, want >= 1", count)
 		}
@@ -343,12 +361,7 @@ func TestEvaluate_AlertOutcome(t *testing.T) {
 			t.Errorf("PolicyVersion = %q, want 0.0.0", d.PolicyVersion)
 		}
 		// Audit emitted?
-		time.Sleep(150 * time.Millisecond)
-		var count int64
-		_ = pool.QueryRow(context.Background(),
-			`SELECT count(*) FROM audit_events
-			   WHERE action = 'policy.applied' AND correlation_id = 'policy-test-ac08'`,
-		).Scan(&count)
+		count := waitForAuditCount(t, pool, "policy.applied", "policy-test-ac08")
 		if count != 1 {
 			t.Errorf("policy.applied count = %d, want 1", count)
 		}
