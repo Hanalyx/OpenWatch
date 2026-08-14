@@ -42,6 +42,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1721,8 +1722,15 @@ func TestOneBadTableDoesNotEndThePass(t *testing.T) {
 // AC-16: the undecided set is pinned by name
 // ---------------------------------------------------------------------
 
-// undecidedTables is the thirty-nine tables that carry no retention
+// undecidedTables is the thirty-eight tables that carry no retention
 // decision yet, pinned by name rather than counted.
+//
+// host_rule_state left this list when system-current-corpus took its
+// retention decision. That spec scopes current-score READS to the
+// latest completed scan and deletes nothing, so the rows an older scan
+// wrote stay forever as the record of what a host used to be measured
+// against. The registry now carries it as State never, and the promotion
+// is visible here because both halves had to be edited.
 //
 // A count would let a promotion pay for a new undecided table and hold
 // the total, so a table could arrive undecided and stay that way without
@@ -1744,7 +1752,6 @@ var undecidedTables = []string{
 	"host_intelligence_state",
 	"host_liveness",
 	"host_monitoring_history",
-	"host_rule_state",
 	"host_system_info",
 	"hosts",
 	"job_queue",
@@ -1779,7 +1786,7 @@ var undecidedTables = []string{
 // version of the reasoning is wrong today.
 //
 // The worry is a sweep filter written as "not never and not deferred",
-// which would take in all thirty-nine undecided tables. Sweeper.Eligible
+// which would take in all thirty-eight undecided tables. Sweeper.Eligible
 // is written positively (State == StateSwept) so this does not happen,
 // and neither AC-04 nor AC-05 would notice if it did: each looks only at
 // the two tables it names.
@@ -1853,6 +1860,190 @@ func TestUndecidedTablesArePinnedAndUntouched(t *testing.T) {
 		}
 		if !rowExists(t, pool, "hosts", "id = $1", fx.host) {
 			t.Error("a five-year-old hosts row was deleted. hosts is undecided, which means no retention decision has been taken for it, so a sweep must leave it alone. A filter written as \"not never and not deferred\" would do exactly this")
+		}
+	})
+}
+
+// @spec system-current-corpus
+// @ac AC-17
+// AC-17: nothing is deleted, and the retention registry says so.
+//
+// system-current-corpus takes the retention decision for host_rule_state
+// rather than leaving it undecided. Scoping current-score READS to the
+// latest completed scan is only defensible because the rows an older
+// scan wrote stay on disk: they are the record of what a host used to be
+// measured against, and an assessor may ask for exactly that.
+//
+// The three assertions are deliberately different in kind. The registry
+// entry is a stated decision. The surviving row is the behavior. The
+// tree-wide DELETE check is the thing that would silently make both of
+// the first two false, and it runs over the whole tree rather than a
+// chosen package, because a check that picks its own scope can always
+// pick one where nothing is wrong.
+func TestHostRuleStateIsNeverDeleted(t *testing.T) {
+	t.Run("system-current-corpus/AC-17", func(t *testing.T) {
+		pool := freshPool(t)
+		fx := seedFixtures(t, pool)
+
+		p, ok := Lookup("host_rule_state")
+		if !ok {
+			t.Fatal("host_rule_state has no registry entry")
+		}
+		if p.State != StateNever {
+			t.Errorf("host_rule_state state = %q, want never. Leaving it undecided after a spec "+
+				"has decided is the rot the registry exists to prevent", p.State)
+		}
+		if strings.TrimSpace(p.Reason) == "" {
+			t.Error("host_rule_state is never with no reason. The reason is what stops a later " +
+				"reader from sweeping it")
+		}
+		if !strings.Contains(p.Reason, "corpus") {
+			t.Errorf("the reason does not name what took the decision: %q", p.Reason)
+		}
+
+		// A row a year old, outside every current corpus: its scan id
+		// names no scan_runs row at all.
+		orphanScan, _ := uuid.NewV7()
+		ancient := time.Now().Add(-365 * 24 * time.Hour)
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO host_rule_state
+				(host_id, rule_id, current_status, severity, last_checked_at,
+				 check_count, last_scan_id, evidence, framework_refs,
+				 first_seen_at, last_changed_at)
+			VALUES ($1, 'retired-a-year-ago', 'fail', 'high', $2, 1, $3,
+			        '{}'::jsonb, '{}'::jsonb, $2, $2)`,
+			fx.host, ancient, orphanScan); err != nil {
+			t.Fatalf("seed ancient rule state: %v", err)
+		}
+
+		// The row must be outside the corpus, or its survival proves
+		// nothing: a row the sweep would spare anyway is not the case
+		// under test.
+		var inCorpus int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM host_rule_state_current
+			  WHERE host_id = $1 AND rule_id = 'retired-a-year-ago'`, fx.host).Scan(&inCorpus); err != nil {
+			t.Fatalf("check corpus membership: %v", err)
+		}
+		if inCorpus != 0 {
+			t.Fatalf("the seeded row is inside the current corpus, so this test is not " +
+				"exercising a retired row")
+		}
+
+		if err := NewSweeper(pool, failIfCalled(t)).Sweep(context.Background()); err != nil {
+			t.Errorf("sweep: %v", err)
+		}
+
+		if !rowExists(t, pool, "host_rule_state",
+			"host_id = $1 AND rule_id = 'retired-a-year-ago'", fx.host) {
+			t.Error("a host_rule_state row a year old and outside every current corpus was " +
+				"deleted by the sweep. Scoping the reads is only defensible because the rows stay: " +
+				"they are the record of what this host used to be measured against")
+		}
+	})
+}
+
+// @spec system-current-corpus
+// @ac AC-17
+// AC-17, second half: no non-test Go source DELETEs from the three
+// tables that hold compliance history.
+//
+// This walks the whole tree rather than a chosen package. A check scoped
+// to the packages this story touched would pass by construction, and the
+// DELETE that matters is the one a future author adds somewhere nobody
+// thought to look.
+func TestNoSourceDeletesComplianceHistory(t *testing.T) {
+	t.Run("system-current-corpus/AC-17", func(t *testing.T) {
+		root, err := filepath.Abs(filepath.Join("..", ".."))
+		if err != nil {
+			t.Fatalf("resolve module root: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+			t.Fatalf("module root %s has no go.mod: %v", root, err)
+		}
+
+		// Matched on parsed string literals, not file text, so the prose
+		// in a doc comment saying a table is never deleted does not read
+		// as a DELETE. Same rule the corpus guard uses and for the same
+		// reason.
+		deletes := regexp.MustCompile(`(?is)\bDELETE\s+FROM\s+(host_rule_state|transactions|scan_results)\b`)
+
+		// The matcher's own check. A tree-wide search that finds nothing
+		// looks identical whether the tree is clean or the pattern is
+		// broken, and the clean answer is the one everybody expects, so
+		// nobody would look. These pin both directions.
+		for _, bad := range []string{
+			`DELETE FROM host_rule_state WHERE host_id = $1`,
+			"delete\n\tfrom scan_results where scan_id = $1",
+			`DELETE   FROM transactions`,
+		} {
+			if !deletes.MatchString(bad) {
+				t.Fatalf("the matcher does not catch %q, so a tree-wide pass proves nothing", bad)
+			}
+		}
+		for _, ok := range []string{
+			`SELECT * FROM host_rule_state WHERE host_id = $1`,
+			`DELETE FROM posture_snapshots WHERE host_id = $1`,
+		} {
+			if deletes.MatchString(ok) {
+				t.Fatalf("the matcher reports %q, which deletes nothing it protects", ok)
+			}
+		}
+
+		var findings []string
+		scanned := 0
+
+		err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				switch d.Name() {
+				case ".git", "node_modules", "vendor", "frontend", "dist", "testdata":
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			n := d.Name()
+			if !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
+				return nil
+			}
+			fset := token.NewFileSet()
+			f, perr := parser.ParseFile(fset, path, nil, 0)
+			if perr != nil {
+				t.Fatalf("parse %s: %v", path, perr)
+			}
+			scanned++
+			rel, _ := filepath.Rel(root, path)
+			ast.Inspect(f, func(node ast.Node) bool {
+				lit, ok := node.(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					return true
+				}
+				val, uerr := strconv.Unquote(lit.Value)
+				if uerr != nil {
+					t.Fatalf("%s: cannot unquote literal at %s: %v", rel, fset.Position(lit.Pos()), uerr)
+				}
+				if m := deletes.FindStringSubmatch(val); m != nil {
+					findings = append(findings, filepath.ToSlash(rel)+": DELETE FROM "+m[1])
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk: %v", err)
+		}
+		if scanned == 0 {
+			t.Fatal("no Go sources were scanned, so this check passed without testing anything")
+		}
+		sort.Strings(findings)
+		for _, f := range findings {
+			t.Errorf("%s. host_rule_state, transactions and scan_results hold the compliance "+
+				"record. Current-score reads are scoped; the rows are never removed", f)
+		}
+		if len(findings) == 0 {
+			t.Logf("%d non-test Go sources scanned, none DELETE from the three history tables", scanned)
 		}
 	})
 }

@@ -4,7 +4,12 @@ spec:
   # so every acceptance criterion below is red on arrival. Tier 1, because a
   # sweep deletes rows and a delete is not reversible, and because two of the
   # three swept tables hold security state (SSO auth states and used OTPs).
-  version: "1.0.0"
+  #
+  # 1.1.0 records one decision the registry was still carrying as undecided.
+  # system-current-corpus C-09 decided that host_rule_state is never pruned,
+  # so that entry moves undecided to never and the pinned undecided list drops
+  # from thirty-nine names to thirty-eight.
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -16,9 +21,12 @@ spec:
       Each table in the schema carries exactly one entry saying what
       happens to its old rows: swept, never, deferred, or undecided.
       Every entry carries a reason. undecided is a real answer and the
-      most common one today, because 39 of the 46 tables have never had
+      most common one today, because 38 of the 46 tables have never had
       a retention decision taken. Saying so in the registry is what
-      stops the next reader from mistaking silence for a decision.
+      stops the next reader from mistaking silence for a decision. The
+      thirty-ninth was host_rule_state, and system-current-corpus C-09
+      decided it in v1.1.0 of this spec: never pruned, because the fix
+      for a stale row there is to stop counting it, not to delete it.
 
       Why this is a spec and not a function. OpenWatch already had two
       purge functions and no sweeper. internal/sso/store.go
@@ -49,6 +57,7 @@ spec:
       - system-sso
       - api-compliance-exceptions
       - system-api-tokens
+      - system-current-corpus
 
   objective:
     summary: >
@@ -59,9 +68,9 @@ spec:
       includes:
         - A retention registry in internal/retention, one entry per table in the schema
         - "Three swept tables: idempotency_keys, sso_auth_states, auth_mfa_otp_uses"
-        - "Two never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions"
+        - "Three never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions, host_rule_state"
         - "Two deferred tables recorded as deferred, with reasons: sessions, refresh_tokens"
-        - Thirty-nine remaining tables recorded as undecided, each with a reason pointing at bugs/OW-013
+        - Thirty-eight remaining tables recorded as undecided, each with a reason pointing at bugs/OW-013
         - One sweeper on one cron.Scheduler that walks the registry
         - A completeness guard over every table the migrations create
         - A wiring guard proving the sweeper is reached from cmd/openwatch/main.go
@@ -186,7 +195,7 @@ spec:
       enforcement: error
     - id: C-08
       description: >
-        Two tables MUST be recorded as never, in code, with reasons.
+        Three tables MUST be recorded as never, in code, with reasons.
         api_tokens, because the operator UI lists expired tokens on
         purpose (internal/apitoken/apitoken.go filters neither
         expires_at nor revoked_at), because expires_at is nullable so
@@ -195,9 +204,14 @@ spec:
         compliance_exceptions, because expiry there is already a status
         transition rather than a deletion, and the table's partial
         unique index depends on expired rows persisting. That table is
-        the model this spec follows, not a defect it corrects. Recording
-        never in the registry is what stops a future reader from
-        "fixing" either one.
+        the model this spec follows, not a defect it corrects.
+        host_rule_state (v1.1.0), because a row there whose rule left the
+        corpus is still the evidence of a real verdict, and
+        system-current-corpus C-09 fixes it by scoping the READ rather
+        than by deleting. Deleting would also break the writer, which
+        reads the prior row to decide whether a scan changed anything.
+        Recording never in the registry is what stops a future reader
+        from "fixing" any of the three.
       type: technical
       enforcement: error
     - id: C-09
@@ -276,7 +290,7 @@ spec:
     - id: C-13
       description: >
         The undecided entries MUST be pinned by table name in the test,
-        not counted. Thirty-nine tables carry State undecided today. A
+        not counted. Thirty-eight tables carry State undecided today. A
         count-based guard lets a promotion pay for a new undecided
         table and hold the total, so a new table can arrive undecided
         forever without a reviewer seeing it. Pinning the names means
@@ -333,12 +347,13 @@ spec:
       references_constraints: [C-07]
     - id: AC-04
       description: >
-        Never-swept tables survive a sweep. api_tokens and
-        compliance_exceptions are State never with non-empty reasons.
-        Seed an api_tokens row whose expires_at is a year in the past
-        and a compliance_exceptions row whose expires_at is a year in
-        the past, run a full sweep, and assert both rows are still
-        present.
+        Never-swept tables survive a sweep. api_tokens,
+        compliance_exceptions and host_rule_state (v1.1.0) are State
+        never with non-empty reasons. Seed an api_tokens row whose
+        expires_at is a year in the past, a compliance_exceptions row
+        whose expires_at is a year in the past, and a host_rule_state
+        row last checked a year ago, run a full sweep, and assert all
+        three rows are still present.
       priority: critical
       references_constraints: [C-06, C-08]
     - id: AC-05
@@ -468,9 +483,10 @@ spec:
       references_constraints: [C-12]
     - id: AC-16
       description: >
-        The undecided set is exactly the pinned list of thirty-nine
+        The undecided set is exactly the pinned list of thirty-eight
         table names, asserted as a set so both a missing and an
-        unexpected name fail. Separately, seed a row in one undecided
+        unexpected name fail. host_rule_state left that list in v1.1.0
+        and its absence is part of what this test now asserts. Separately, seed a row in one undecided
         table with a past timestamp, run a full sweep, and assert it
         survives. AC-04 and AC-05 cannot catch this: a filter written
         as "not never and not deferred" sweeps every undecided table

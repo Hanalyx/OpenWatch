@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -86,7 +88,7 @@ func seedRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, s
 			(host_id, rule_id, current_status, severity, last_checked_at,
 			 check_count, last_scan_id, evidence, framework_refs, first_seen_at, last_changed_at)
 		VALUES ($1, $2, $3, 'high', now(), 1, $4, '{}'::jsonb, $5::jsonb, now(), now())`,
-		hostID, ruleID, status, uuid.Must(uuid.NewV7()), refsJSON)
+		hostID, ruleID, status, corpustest.CurrentRun(t, pool, hostID), refsJSON)
 	if err != nil {
 		t.Fatalf("seed rule state %s: %v", ruleID, err)
 	}

@@ -2,8 +2,9 @@
 // GET /hosts/{id}/compliance/frameworks.
 //
 // The lens is the "one scan, many framework views" projection: the
-// host's full host_rule_state corpus (bounded, ~539 rows) is read in
-// ONE unpaginated query, optionally filtered to a framework, and
+// host's CURRENT corpus (internal/corpus: the host_rule_state rows the
+// host's most recent completed scan evaluated, bounded at ~539 rows) is
+// read in ONE unpaginated query, optionally filtered to a framework, and
 // summarized three ways — summary counts, per-category breakdown
 // (computed in Go from the kensa RuleCatalog), and the full rules
 // list. The frameworks endpoint lists the lens options.
@@ -118,7 +119,7 @@ func (h *handlers) GetHostCompliance(
 		       CASE WHEN $2::text IS NULL THEN '[]'::jsonb
 		            ELSE COALESCE(framework_refs -> $2, '[]'::jsonb)
 		       END AS control_ids
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE host_id = $1
 		   AND ($2::text IS NULL OR framework_refs ? $2)
 		 ORDER BY CASE lower(COALESCE(severity, ''))
@@ -293,7 +294,7 @@ func (h *handlers) GetHostComplianceFrameworks(
 		       COUNT(*)::bigint,
 		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
 		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
-		  FROM host_rule_state,
+		  FROM host_rule_state_current,
 		       LATERAL jsonb_object_keys(framework_refs) AS key
 		 WHERE host_id = $1
 		 GROUP BY key
@@ -362,7 +363,7 @@ func (h *handlers) GetHostComplianceFrameworks(
 		SELECT COUNT(*)::bigint,
 		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
 		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
-		  FROM host_rule_state WHERE host_id = $1`, hostID).
+		  FROM host_rule_state_current WHERE host_id = $1`, hostID).
 		Scan(&resp.Overall.RuleCount, &oPassing, &oFailing); err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"overall aggregate failed", true)

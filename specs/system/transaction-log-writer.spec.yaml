@@ -1,7 +1,10 @@
 spec:
   id: system-transaction-log-writer
   title: Transaction log writer (write-on-change)
-  version: "1.0.0"
+  # 1.1.0 adds C-11 and AC-16. last_scan_id stopped being a bare audit
+  # column when system-current-corpus made it the input to every score,
+  # so the writer now has to say which writes may move it.
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -81,6 +84,26 @@ spec:
       description: Evidence JSONB per rule MUST be 256 KB or smaller; oversized evidence is rejected by writer.Apply with a typed error before INSERT. Caller (Kensa executor) is expected to enforce its own 10 MB ceiling earlier; this writer-side limit is defense in depth and protects against storage DoS
       type: security
       enforcement: error
+    - id: C-11
+      description: >
+        v1.1.0. ApplyBatch MUST carry an explicit origin, and Apply MUST
+        reject an unset origin with a typed error before writing. A
+        synthetic origin preserves three stored columns rather than
+        overwriting them from EXCLUDED: last_scan_id, framework_refs and
+        severity. It still advances current_status, evidence,
+        last_checked_at and check_count.
+        system-current-corpus C-07 and C-08 own the rule and state why.
+        last_scan_id now decides whether a rule counts toward a score,
+        and worker.flipRuleToPass writes with a request id as a synthetic
+        scan id, so an unconditional assignment would drop a rule out of
+        the score the moment an operator remediated it. The same call
+        passes a nil FrameworkRefs map, which marshals to the JSON scalar
+        null and satisfies the column's NOT NULL, so an unconditional
+        assignment there erases the rule's framework mapping and aborts
+        posture.Rollup for the whole fleet. The transactions row keeps
+        the synthetic id, so C-04 idempotency is unaffected.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -141,3 +164,14 @@ spec:
       description: A DB error during writer.Apply (FK violation, deadlock, disk full) causes rollback AND emits exactly one writer.apply.failed audit event with detail.reason and detail.rule_count_attempted populated.
       priority: critical
       references_constraints: [C-01]
+    - id: AC-16
+      description: >
+        v1.1.0. A scan-origin Apply advances last_scan_id to the batch
+        scan id. A synthetic-origin Apply for the same rule flips the
+        status and leaves last_scan_id, framework_refs and severity
+        unchanged, with framework_refs still a jsonb object rather than
+        the JSON scalar null; re-applying it writes no second
+        transactions row. An Apply with no origin set returns a typed
+        error and writes nothing to host_rule_state or transactions.
+      priority: critical
+      references_constraints: [C-11]

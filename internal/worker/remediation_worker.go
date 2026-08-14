@@ -399,10 +399,19 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 // flipRuleToPass writes a single-rule transaction-log batch marking p.RuleID
 // pass on the host. Keyed on the request id as a synthetic scan id so the
 // Writer's scan_id idempotency makes a re-delivered job a no-op.
+//
+// OriginRemediation is what keeps that idempotency key out of
+// host_rule_state.last_scan_id. The rule keeps the last real scan that
+// evaluated it, so it stays in the host's current corpus and the score moves.
+// Without it the remediated rule would leave the corpus and the fix would
+// silently subtract from the very score it was meant to raise. It also stops
+// this batch from overwriting the severity and framework refs the scan
+// recorded, which a remediation does not observe.
 func (w *RemediationWorker) flipRuleToPass(ctx context.Context, p RemediationPayload) error {
 	return w.writer.Apply(ctx, transactionlog.ApplyBatch{
 		ScanID: p.RequestID, // synthetic scan id == request id (idempotent)
 		HostID: p.HostID,
+		Origin: transactionlog.OriginRemediation,
 		Results: []transactionlog.Result{{
 			RuleID: p.RuleID,
 			Status: transactionlog.StatusPass,

@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -77,7 +79,7 @@ func seedHost(t *testing.T, pool *pgxpool.Pool, createdBy uuid.UUID) uuid.UUID {
 func seedRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, status string) {
 	t.Helper()
 	now := time.Now().UTC()
-	scanID, _ := uuid.NewV7()
+	scanID := corpustest.CurrentRun(t, pool, hostID)
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO host_rule_state
 			(host_id, rule_id, current_status, severity,

@@ -33,8 +33,11 @@ import (
 // each pass is one aggregate UPSERT over a bounded table.
 const RollupInterval = time.Hour
 
-// Rollup UPSERTs today's snapshot rows for every live host that has
-// host_rule_state rows (a never-scanned host has no posture to record).
+// Rollup UPSERTs today's snapshot rows for every live host that has a
+// current corpus (internal/corpus): rules the host's most recent
+// completed scan actually evaluated. A host with no completed scan has
+// no posture to record, and a rule that has left the corpus stops
+// counting rather than freezing its last verdict into the trend.
 //
 // It writes the all-rules series (framework = ”) PLUS one row per
 // framework FAMILY the host has rules in, each OS-RESOLVED: a RHEL 9
@@ -64,7 +67,7 @@ func Rollup(ctx context.Context, pool *pgxpool.Pool, asOf time.Time) (int, error
 		             / COUNT(*) * 1000) / 10,
 		       BOOL_OR(s.current_status = 'fail' AND s.severity = 'critical'),
 		       now()
-		  FROM host_rule_state s
+		  FROM host_rule_state_current s
 		  JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
 		 GROUP BY s.host_id
 		UNION ALL
@@ -81,7 +84,7 @@ func Rollup(ctx context.Context, pool *pgxpool.Pool, asOf time.Time) (int, error
 		  FROM (
 		      SELECT s.host_id, s.current_status, s.severity,
 		             regexp_replace(fk, '` + framework.OSSuffixSQL + `', '') AS fam
-		        FROM host_rule_state s
+		        FROM host_rule_state_current s
 		        JOIN hosts h ON h.id = s.host_id AND h.deleted_at IS NULL
 		        CROSS JOIN LATERAL jsonb_object_keys(s.framework_refs) AS fk
 		       WHERE fk = regexp_replace(fk, '` + framework.OSSuffixSQL + `', '')

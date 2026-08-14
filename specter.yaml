@@ -129,6 +129,7 @@ domains:
             - frontend-settings-exception-queue
             - frontend-settings-discovery-config
             - system-retention-sweeper
+            - system-current-corpus
 settings:
     specs_dir: specs
     # Honored by `specter coverage` (not by `specter sync` — CI passes

@@ -218,9 +218,15 @@ func (s *Service) EffectiveTarget(ctx context.Context, hostID uuid.UUID, orgDefa
 
 // Families groups every framework key present in the corpus into families,
 // sorted by id. Empty when no host has been scanned yet.
+//
+// "The corpus" means the CURRENT corpora (internal/corpus): the rows each
+// host's most recent completed scan evaluated. A framework surviving only
+// on retired rows drops off the list, which is the point. It would
+// otherwise stay selectable as a lens forever, scoring hosts on rules
+// nothing evaluates.
 func (s *Service) Families(ctx context.Context) ([]Family, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT DISTINCT k FROM host_rule_state, jsonb_object_keys(framework_refs) AS k`)
+		`SELECT DISTINCT k FROM host_rule_state_current, jsonb_object_keys(framework_refs) AS k`)
 	if err != nil {
 		return nil, err
 	}

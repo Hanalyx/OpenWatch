@@ -1,0 +1,20 @@
+// Guard fixture: an unregistered current-score read of the bare table.
+//
+// The go tool ignores testdata/, so this file is parsed by the guard and
+// never compiled. That is the point: it can hold the exact broken shape
+// the guard exists to catch, permanently, instead of the shape existing
+// only while someone edits a real file.
+//
+// The doc comment below deliberately names host_rule_state so the
+// fixture also proves comments are not part of the population.
+
+package fixture
+
+// ScoreHost reads host_rule_state without scoping it, which is the
+// twelfth read site this guard exists to find.
+func ScoreHost(hostID string) string {
+	return `
+		SELECT COUNT(*) FILTER (WHERE current_status = 'pass'), COUNT(*)
+		  FROM host_rule_state
+		 WHERE host_id = $1`
+}

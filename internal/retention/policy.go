@@ -137,6 +137,11 @@ var registry = []Policy{
 		State:  StateNever,
 		Reason: reasonComplianceExceptions,
 	},
+	{
+		Table:  "host_rule_state",
+		State:  StateNever,
+		Reason: reasonHostRuleState,
+	},
 
 	// ---- deferred: decided, blocked on named work ------------------
 	//
@@ -257,13 +262,21 @@ var registry = []Policy{
 	{Table: "host_compliance_schedule", State: StateUndecided, Reason: reasonUndecided},
 	{Table: "host_intelligence_state", State: StateUndecided, Reason: reasonUndecided},
 	{Table: "host_system_info", State: StateUndecided, Reason: reasonUndecided},
-	{Table: "host_rule_state", State: StateUndecided, Reason: reasonUndecided},
 }
 
 // reasonUndecided is shared by every table nobody has ruled on. The
 // entry's value is that a new table cannot be added without picking a
 // state; the prose is not doing the work.
 const reasonUndecided = "No retention decision has been taken for this table. See bugs/OW-013."
+
+// reasonHostRuleState records why this table is swept by nothing, ever.
+// Spec system-current-corpus C-09.
+const reasonHostRuleState = "Never swept. Two reasons, and the second is the load-bearing one. " +
+	"The rows record what a host used to be measured against, which an assessor may ask for. " +
+	"And the host_rule_state_current view derives a host's corpus from these rows, so deleting " +
+	"any of them does not merely lose history: it CHANGES past compliance answers, silently and " +
+	"with no way to tell that it happened. A rule that has left the corpus already contributes " +
+	"to no current score, so a sweep would buy nothing and cost that."
 
 // reasonAPITokens and reasonComplianceExceptions are held apart from the
 // table above only because they are long. Both record a decision that a

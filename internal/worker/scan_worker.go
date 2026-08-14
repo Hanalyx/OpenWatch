@@ -349,6 +349,9 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 		ScanID:  j.ID,
 		HostID:  payload.HostID,
 		Results: toTransactionLogResults(result.Outcomes),
+		// A real scan: j.ID is the scan_runs id, so these rows define the
+		// host's current corpus.
+		Origin: transactionlog.OriginScan,
 	}
 	if err := w.writer.Apply(ctx, batch); err != nil {
 		// Persistence failure after a successful scan is treated as

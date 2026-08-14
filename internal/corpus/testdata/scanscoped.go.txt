@@ -1,0 +1,29 @@
+// Guard fixture: scan_scoped, honest and rubber stamp.
+//
+// scan_scoped is the second allowed form of scoping: a read pinned to a
+// NAMED scan rather than to the current corpus. The drift detector needs
+// it, because it runs before the scan is marked completed and a
+// view-based read would compare the new state against itself.
+//
+// The state is only worth having if it is checked. Both functions below
+// are registered scan_scoped; only one actually scopes. The guard must
+// pass the first and fail the second, or "scan_scoped" becomes a phrase
+// that excuses any read at all.
+
+package fixture
+
+// PriorForScan scopes to the scan under evaluation, visibly.
+func PriorForScan() string {
+	return `
+		SELECT rule_id, current_status
+		  FROM host_rule_state
+		 WHERE host_id = $1 AND last_scan_id = $2`
+}
+
+// ClaimsToBeScoped is registered scan_scoped and scopes nothing.
+func ClaimsToBeScoped() string {
+	return `
+		SELECT rule_id, current_status
+		  FROM host_rule_state
+		 WHERE host_id = $1`
+}
