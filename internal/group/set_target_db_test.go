@@ -10,6 +10,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/google/uuid"
 )
 
@@ -36,7 +38,7 @@ func TestGroupCompliance_LensScopedOSResolved(t *testing.T) {
 				  (host_id, rule_id, current_status, severity, last_checked_at,
 				   last_scan_id, framework_refs, first_seen_at, last_changed_at)
 				VALUES ($1,$2,$3,'medium',now(),$4,$5::jsonb,now(),now())`,
-				h, rule, status, uuid.New(), refs); err != nil {
+				h, rule, status, corpustest.CurrentRun(t, pool, h), refs); err != nil {
 				t.Fatalf("seed fw rule: %v", err)
 			}
 		}

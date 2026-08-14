@@ -1,0 +1,25 @@
+// Guard fixture: a corrected read, and the substring trap.
+//
+// host_rule_state_current contains host_rule_state as a substring. A
+// matcher without a trailing word boundary reports this file as a
+// violation, which would make the guard flag every read the change was
+// meant to produce. A guard that fires on correct code gets weakened,
+// so this fixture is what keeps the boundary in place.
+
+package fixture
+
+// ScoreHost reads the view, so it needs no registry entry.
+func ScoreHost(hostID string) string {
+	return `
+		SELECT COUNT(*) FILTER (WHERE current_status = 'pass'), COUNT(*)
+		  FROM host_rule_state_current
+		 WHERE host_id = $1`
+}
+
+// JoinView aliases the view, the other shape a real call site uses.
+func JoinView() string {
+	return `
+		SELECT hrs.rule_id
+		  FROM host_rule_state_current hrs
+		  JOIN hosts h ON h.id = hrs.host_id AND h.deleted_at IS NULL`
+}

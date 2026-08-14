@@ -38,6 +38,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -54,7 +56,7 @@ func seedRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID,
 	if frameworkRefs == "" {
 		frameworkRefs = "{}"
 	}
-	scanID := uuid.Must(uuid.NewV7())
+	scanID := corpustest.CurrentRun(t, pool, hostID)
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO host_rule_state
 			(host_id, rule_id, current_status, severity, last_checked_at,
@@ -913,7 +915,6 @@ func TestHostComplianceLens_DurationAndDescription(t *testing.T) {
 		url, pool := freshAPIServer(t)
 		hostID := seedHostForIntel(t, pool)
 		base := time.Now().UTC().Truncate(time.Second)
-		seedRuleState(t, pool, hostID, "fwk-a", "pass", "low", base, 1, "{}")
 
 		seedRun := func(started any, finished time.Time, policy string) {
 			t.Helper()
@@ -929,12 +930,27 @@ func TestHostComplianceLens_DurationAndDescription(t *testing.T) {
 
 		// Latest completed run has both timestamps: 85s apart.
 		seedRun(base.Add(-85*time.Second), base, "v2")
+		// Seeded AFTER the run, so the row is stamped with it rather than
+		// with one seedRuleState would otherwise create.
+		//
+		// Ordering is load-bearing now that a seeded row has to name a
+		// completed run to be in the host's corpus. seedRuleState creates
+		// one when the host has none, and that run finishes at the moment
+		// it is created, so seeding first would leave a run NEWER than the
+		// 85-second one this test asserts on. The endpoint would then
+		// report that run's duration, which is zero.
+		seedRuleState(t, pool, hostID, "fwk-a", "pass", "low", base, 1, "{}")
+
 		status, body := getLens(t, url, auth.RoleViewer, hostID.String(), "")
 		if status != http.StatusOK {
 			t.Fatalf("status = %d, want 200", status)
 		}
-		if body.ScanContext.DurationSeconds == nil || *body.ScanContext.DurationSeconds != 85 {
-			t.Errorf("duration_seconds = %v, want 85", body.ScanContext.DurationSeconds)
+		if body.ScanContext.DurationSeconds == nil {
+			t.Errorf("duration_seconds = null, want 85")
+		} else if *body.ScanContext.DurationSeconds != 85 {
+			// Dereferenced: the pointer's address says nothing about what
+			// went wrong, and this assertion printed one until now.
+			t.Errorf("duration_seconds = %v, want 85", *body.ScanContext.DurationSeconds)
 		}
 
 		// A newer completed run without started_at: duration goes null.

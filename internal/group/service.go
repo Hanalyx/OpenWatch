@@ -313,7 +313,10 @@ func (s *Service) rollup(ctx context.Context, g Group, orgDefault string) (Rollu
 	// Connectivity counts (hosts/online/down) are OS-agnostic and unfiltered.
 	lensRef := `COALESCE(NULLIF(het.target_framework, ''), NULLIF($2::text, ''))`
 	osMatch := framework.OSResolvedMatchSQL(lensRef, "h.os_family", "h.os_version")
-	lensJoin := `JOIN host_rule_state hrs ON hrs.host_id = m.host_id
+	// The corpus view on the hrs JOIN covers all three subselects below. A
+	// member with no completed scan contributes no rows, so it is absent from
+	// the average rather than counted as zero.
+	lensJoin := `JOIN host_rule_state_current hrs ON hrs.host_id = m.host_id
 		         JOIN hosts h ON h.id = m.host_id
 		         LEFT JOIN host_effective_target het ON het.host_id = m.host_id`
 	err := s.pool.QueryRow(ctx, `
@@ -420,7 +423,7 @@ func (s *Service) Summary(ctx context.Context, orgDefault string) (FleetSummary,
 		SELECT
 		  count(*) FILTER (WHERE hrs.current_status = 'pass'),
 		  count(*) FILTER (WHERE hrs.current_status IN ('pass','fail'))
-		FROM host_rule_state hrs
+		FROM host_rule_state_current hrs
 		JOIN hosts h ON h.id = hrs.host_id
 		WHERE `+framework.OSResolvedMatchSQL("NULLIF($1::text, '')", "h.os_family", "h.os_version"),
 		orgDefault).Scan(&passing, &evaluated)

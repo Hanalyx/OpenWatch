@@ -28,6 +28,11 @@ func NewService(pool *pgxpool.Pool) *Service {
 // ('pass','fail') — skipped + error rows are excluded from both
 // numerator and denominator.
 //
+// Every row is scoped to its host's current corpus (internal/corpus), so
+// a rule that has left a host's scanned corpus stops counting there. A
+// host with no completed scan contributes nothing, which reads through
+// the existing empty-fleet path below.
+//
 // On an empty fleet, returns Score{0, 0} with nil error (NOT
 // pgx.ErrNoRows). Spec AC-01 / AC-02 / AC-03.
 //
@@ -45,7 +50,7 @@ func (s *Service) FleetComplianceScore(ctx context.Context, opts ...Option) (Sco
 		SELECT
 			COUNT(*) FILTER (WHERE current_status = 'pass')                  AS passing,
 			COUNT(*) FILTER (WHERE current_status IN ('pass','fail'))        AS evaluations
-		  FROM host_rule_state hrs
+		  FROM host_rule_state_current hrs
 		  JOIN hosts hh ON hh.id = hrs.host_id
 		 WHERE ` + framework.OSResolvedMatchSQL("$1", "hh.os_family", "hh.os_version")
 	var passing, evaluations int64
@@ -165,7 +170,7 @@ func (s *Service) TopFailingRules(ctx context.Context, limit int, opts ...Option
 	// exact key. Kept consistent with FleetComplianceScore.
 	q := `
 		SELECT rule_id, COUNT(*)::BIGINT AS failing_host_count
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE current_status = 'fail'
 		   AND ` + framework.MatchSQL("$2") + `
 		 GROUP BY rule_id
@@ -204,7 +209,7 @@ func (s *Service) TopFailingHosts(ctx context.Context, limit int, opts ...Option
 	o := applyOpts(opts)
 	q := `
 		SELECT host_id, COUNT(*)::BIGINT AS failing_rule_count
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE current_status = 'fail'
 		   AND ` + framework.MatchSQL("$2") + `
 		 GROUP BY host_id

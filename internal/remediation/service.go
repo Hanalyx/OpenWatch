@@ -303,11 +303,19 @@ func (s *Service) ListSteps(ctx context.Context, requestID uuid.UUID) ([]Step, e
 // reads host_rule_state only. A non-failing or unknown rule, or absent
 // framework data, yields an empty projection (no error). One passing rule is
 // ~1/N of its framework's rules on the host, so delta ~= 100/N.
+//
+// Both reads are scoped to the host's current corpus (internal/corpus). A
+// rule that has left the scanned corpus keeps its last verdict in the
+// table forever, and unscoped this offered to remediate that rule and
+// quoted a score gain for it. Nothing would have flipped: the scan engine
+// no longer ships a handler for it. The denominators are scoped for the
+// same reason, so the quoted lift is a share of the rules the host is
+// actually measured against.
 func (s *Service) ProjectLift(ctx context.Context, hostID uuid.UUID, ruleID string) (ProjectedLift, error) {
 	var status string
 	var refsRaw []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT current_status, framework_refs FROM host_rule_state
+		SELECT current_status, framework_refs FROM host_rule_state_current
 		 WHERE host_id = $1 AND rule_id = $2`, hostID, ruleID).Scan(&status, &refsRaw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProjectedLift{}, nil // no state for this rule on this host
@@ -338,7 +346,7 @@ func (s *Service) ProjectLift(ctx context.Context, hostID uuid.UUID, ruleID stri
 		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'cis%')),
 		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'stig%')),
 		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'nist%'))
-		FROM host_rule_state WHERE host_id = $1`, hostID).Scan(&nCIS, &nSTIG, &nNIST)
+		FROM host_rule_state_current WHERE host_id = $1`, hostID).Scan(&nCIS, &nSTIG, &nNIST)
 	if err != nil {
 		return ProjectedLift{}, fmt.Errorf("remediation: project lift denom: %w", err)
 	}

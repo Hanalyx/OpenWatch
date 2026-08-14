@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/db/corpustest"
+
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/google/uuid"
@@ -98,7 +100,7 @@ func seedRuleState(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID, s
 		   (host_id, rule_id, current_status, severity, last_checked_at,
 		    last_scan_id, first_seen_at, last_changed_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $5, $5)`,
-		hostID, ruleID, status, nullIfEmpty(severity), now, uuid.New())
+		hostID, ruleID, status, nullIfEmpty(severity), now, corpustest.CurrentRun(t, pool, hostID))
 	if err != nil {
 		t.Fatalf("seed rule_state: %v", err)
 	}
@@ -339,7 +341,7 @@ func seedRuleStateAt(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID,
 		   (host_id, rule_id, current_status, severity, last_checked_at,
 		    last_scan_id, first_seen_at, last_changed_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $5, $5)`,
-		hostID, ruleID, status, nullIfEmpty(severity), checkedAt, uuid.New())
+		hostID, ruleID, status, nullIfEmpty(severity), checkedAt, corpustest.CurrentRun(t, pool, hostID))
 	if err != nil {
 		t.Fatalf("seed rule_state at: %v", err)
 	}
@@ -416,7 +418,7 @@ func seedRuleStateFW(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID,
 		   (host_id, rule_id, current_status, severity, framework_refs, last_checked_at,
 		    last_scan_id, first_seen_at, last_changed_at)
 		 VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $6, $6)`,
-		hostID, ruleID, status, nullIfEmpty(severity), frameworkRefs, now, uuid.New())
+		hostID, ruleID, status, nullIfEmpty(severity), frameworkRefs, now, corpustest.CurrentRun(t, pool, hostID))
 	if err != nil {
 		t.Fatalf("seed rule_state fw: %v", err)
 	}
@@ -579,6 +581,12 @@ func TestFrameworks_FleetCatalog(t *testing.T) {
 }
 
 // seedScanRun inserts a completed scan_run for a host (finished now).
+//
+// It backs the scan_results fixtures, not host_rule_state. Call it
+// BEFORE seedRuleState on the same host if you ever need both: it
+// finishes now, so a run created here after rule state has been seeded
+// becomes that host's latest completed run and drops those rows out of
+// its current corpus.
 func seedScanRun(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) uuid.UUID {
 	t.Helper()
 	id, _ := uuid.NewV7()

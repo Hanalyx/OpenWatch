@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/corpus"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 )
 
@@ -52,7 +53,10 @@ func (s *Service) Thresholds() Thresholds { return s.thresholds }
 // before this scan landed (writer.Apply already moved host_rule_state
 // to the new state, so we have to reconstruct).
 //
-// Current score: full host_rule_state for this host (post-Apply).
+// Current score: this host's host_rule_state rows carrying THIS scanID
+// (post-Apply). That is the corpus the scan evaluated. Rules the host
+// once carried but this scan no longer ships are excluded, so a retired
+// rule's frozen verdict cannot drag the current score.
 //
 // Per-severity transition counts: read from the transactions table
 // filtered to this scanID + state_changed change_kind.
@@ -73,7 +77,7 @@ func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Current score from host_rule_state (post-Apply).
-	currentPassed, currentFailed, totalRows, err := s.readCurrentCounts(ctx, tx, hostID)
+	currentPassed, currentFailed, totalRows, err := s.readCurrentCounts(ctx, tx, hostID, scanID)
 	if err != nil {
 		return Report{}, err
 	}
@@ -156,15 +160,26 @@ func (s *Service) publishDrift(ctx context.Context, r Report) {
 }
 
 // readCurrentCounts returns the passed / failed / total counts from
-// host_rule_state (current state post-Apply).
-func (s *Service) readCurrentCounts(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) (passed, failed, total int, err error) {
+// host_rule_state (current state post-Apply), scoped to the rules
+// scanID actually evaluated.
+//
+// This is the same corpus rule the read paths apply, keyed differently
+// on purpose. The host_rule_state_current view resolves "the host's most
+// recent COMPLETED scan", and drift runs against a named scan. The worker
+// calls writer.Apply before scanruns.MarkCompleted, so in that window the
+// most recent completed scan is the PREVIOUS one and the view would
+// return only the rules this scan retired. corpus.AtScanSQL is exact and
+// does not depend on where in the worker drift gets wired.
+//
+// Registered in corpus.Registry as scan_scoped.
+func (s *Service) readCurrentCounts(ctx context.Context, tx pgx.Tx, hostID, scanID uuid.UUID) (passed, failed, total int, err error) {
 	row := tx.QueryRow(ctx, `
 		SELECT
 			count(*) FILTER (WHERE current_status = 'pass')   AS passed,
 			count(*) FILTER (WHERE current_status = 'fail')   AS failed,
 			count(*)                                          AS total
 		  FROM host_rule_state
-		 WHERE host_id = $1`, hostID)
+		 WHERE host_id = $1 AND `+corpus.AtScanSQL("host_rule_state", "$2"), hostID, scanID)
 	if err := row.Scan(&passed, &failed, &total); err != nil {
 		return 0, 0, 0, fmt.Errorf("read current counts: %w", err)
 	}
@@ -227,10 +242,16 @@ func (s *Service) reconstructPriorCounts(ctx context.Context, tx pgx.Tx, hostID,
 
 	// Total rows in current = currentPassed + currentFailed + skipped/error.
 	// If ALL of those were first_seen, this is the first scan ever.
+	// Same scan-scoped corpus as readCurrentCounts, so firstSeenCount and
+	// this total are counted over the same set of rules. Comparing a
+	// scan-scoped numerator against an all-time denominator would report
+	// hadPrior on a genuine first scan whenever the host carried retired
+	// rows.
 	var totalRulesInCurrent int
 	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM host_rule_state WHERE host_id = $1`,
-		hostID).Scan(&totalRulesInCurrent); err != nil {
+		`SELECT count(*) FROM host_rule_state WHERE host_id = $1 AND `+
+			corpus.AtScanSQL("host_rule_state", "$2"),
+		hostID, scanID).Scan(&totalRulesInCurrent); err != nil {
 		return 0, 0, false, err
 	}
 	hadPrior = firstSeenCount < totalRulesInCurrent

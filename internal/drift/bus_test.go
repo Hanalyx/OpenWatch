@@ -38,27 +38,28 @@ func TestDetectForScan_MajorWorsening_PublishesDriftDetected(t *testing.T) {
 		})
 		defer sub.Unsubscribe()
 
-		// Prior baseline: 8 pass, 0 fail → 100% score.
-		// (host_rule_state rows tagged to a different scanID so the
-		// prior-reconstruction logic uses them.)
-		priorScanID, _ := uuid.NewV7()
-		for i := 0; i < 8; i++ {
-			ruleID := "rule.prior." + uuid.NewString()[:8]
-			seedRuleState(t, pool, hostID, priorScanID, ruleID, "pass", "high")
-		}
-
-		// Current scan: drop 6 rules to fail → score = 2/8 = 25% (a
-		// 75-point drop, well into major-worsening).
+		// A RESCAN of eight rules the host already carried. Six flip
+		// pass -> fail: prior 8/8 = 100%, current 2/8 = 25%, a 75-point
+		// drop and well into major worsening.
+		//
+		// The eight rows carry the CURRENT scan id and the six flips
+		// carry state_changed, which is what writer.Apply leaves behind
+		// on a rescan. The earlier fixture seeded eight extra rows under
+		// a separate prior scan id and marked every transaction
+		// first_seen, a state no scan produces: the same rule cannot be
+		// first_seen and also have a prior row. It only read as a
+		// worsening while the current counts were unscoped and summed
+		// both sets. Scoped to one scan it reads as a first-ever scan,
+		// which is stable, and correctly so.
 		currentScanID, _ := uuid.NewV7()
 		for i := 0; i < 6; i++ {
 			ruleID := "rule.now.f." + uuid.NewString()[:8]
 			seedRuleState(t, pool, hostID, currentScanID, ruleID, "fail", "high")
-			seedTransaction(t, pool, hostID, currentScanID, ruleID, "fail", "high", "first_seen")
+			seedTransaction(t, pool, hostID, currentScanID, ruleID, "fail", "high", "state_changed")
 		}
 		for i := 0; i < 2; i++ {
 			ruleID := "rule.now.p." + uuid.NewString()[:8]
 			seedRuleState(t, pool, hostID, currentScanID, ruleID, "pass", "high")
-			seedTransaction(t, pool, hostID, currentScanID, ruleID, "pass", "high", "first_seen")
 		}
 
 		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), bus)
@@ -235,21 +236,18 @@ func TestNewService_NilBus_AuditStillFires(t *testing.T) {
 		var mu sync.Mutex
 		var calls []emitCall
 
-		// Seed a major worsening so an emit fires.
-		priorScanID, _ := uuid.NewV7()
-		for i := 0; i < 8; i++ {
-			seedRuleState(t, pool, hostID, priorScanID, "rule.p."+uuid.NewString()[:8], "pass", "high")
-		}
+		// A rescan flipping six of eight rules, so a major worsening
+		// fires. Same shape as AC-15 above: one scan id across all eight
+		// rows, state_changed on the flips.
 		currentScanID, _ := uuid.NewV7()
 		for i := 0; i < 6; i++ {
 			r := "rule.f." + uuid.NewString()[:8]
 			seedRuleState(t, pool, hostID, currentScanID, r, "fail", "high")
-			seedTransaction(t, pool, hostID, currentScanID, r, "fail", "high", "first_seen")
+			seedTransaction(t, pool, hostID, currentScanID, r, "fail", "high", "state_changed")
 		}
 		for i := 0; i < 2; i++ {
 			r := "rule.p2." + uuid.NewString()[:8]
 			seedRuleState(t, pool, hostID, currentScanID, r, "pass", "high")
-			seedTransaction(t, pool, hostID, currentScanID, r, "pass", "high", "first_seen")
 		}
 
 		svc := NewService(pool, fakeEmitter(&mu, &calls), DefaultThresholds(), nil)

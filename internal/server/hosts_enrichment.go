@@ -148,6 +148,10 @@ func loadHostLivenessByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 // Spec api-hosts v1.5.0 — surfaces "last scan" without requiring a
 // separate scans table. host_rule_state's last_checked_at is the
 // source of truth because every compliance check writes there.
+//
+// Scoped to the current corpus (internal/corpus). Retired rows keep the
+// timestamp of the last scan that evaluated them, so an unscoped MAX
+// could date a host by a rule it has not been checked against since.
 func loadHostLastScanByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID) (map[uuid.UUID]time.Time, error) {
 	out := map[uuid.UUID]time.Time{}
 	if len(ids) == 0 {
@@ -155,7 +159,7 @@ func loadHostLastScanByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.U
 	}
 	const q = `
 		SELECT host_id, MAX(last_checked_at)
-		  FROM host_rule_state
+		  FROM host_rule_state_current
 		 WHERE host_id = ANY($1)
 		 GROUP BY host_id`
 	rows, err := pool.Query(ctx, q, ids)
@@ -253,7 +257,7 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 		       COUNT(*)::BIGINT                                               AS total,
 		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail'
 		                          AND lower(COALESCE(hrs.severity, '')) = 'critical')::BIGINT AS critical_failing
-		  FROM host_rule_state hrs
+		  FROM host_rule_state_current hrs
 		  JOIN eff ON eff.host_id = hrs.host_id
 		 WHERE ` + framework.OSResolvedMatchSQL("eff.lens", "eff.osf", "eff.osv") + `
 		 GROUP BY hrs.host_id`
@@ -282,8 +286,10 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 }
 
 // loadHostComplianceSummary reads the per-status counts from
-// host_rule_state for the given host. A host with no rule_state rows
-// returns all zeros — never an error. Spec api-hosts C-06 / AC-16.
+// host_rule_state for the given host, scoped to the host's current
+// corpus (internal/corpus). A host with no rule_state rows in that
+// corpus returns all zeros, never an error. Spec api-hosts C-06 /
+// AC-16. Total 0 is the caller's "no data" signal, not a score of zero.
 //
 // framework, when non-empty, filters rows to those whose framework_refs
 // JSONB contains the given key (api-hosts v1.2.0 AC-17 / AC-18). A host
@@ -303,7 +309,7 @@ func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID u
 			COUNT(*) FILTER (WHERE hrs.current_status = 'skipped')::BIGINT AS skipped,
 			COUNT(*) FILTER (WHERE hrs.current_status = 'error')::BIGINT   AS errors,
 			COUNT(*)::BIGINT                                               AS total
-		  FROM host_rule_state hrs
+		  FROM host_rule_state_current hrs
 		  JOIN hosts hh ON hh.id = hrs.host_id
 		 WHERE hrs.host_id = $1
 		   AND ` + framework.OSResolvedMatchSQL("$2", "hh.os_family", "hh.os_version")

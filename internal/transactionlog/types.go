@@ -51,6 +51,7 @@ const (
 	ReasonDeadlock         FailureReason = "deadlock"
 	ReasonEvidenceOversize FailureReason = "evidence_oversize"
 	ReasonSQLCError        FailureReason = "sqlc_error"
+	ReasonMissingOrigin    FailureReason = "missing_origin"
 	ReasonUnknown          FailureReason = "unknown"
 )
 
@@ -68,12 +69,59 @@ type Result struct {
 	SkipReason    string              // populated when Status == StatusSkipped
 }
 
+// Origin says what produced an ApplyBatch. It has NO valid zero value, and
+// Apply rejects a batch that leaves it unset.
+//
+// Refusing to guess is the only version that cannot be wrong quietly. If the
+// zero value meant OriginScan, a future synthetic caller who forgets the
+// field silently reintroduces the defect this type exists to prevent. If it
+// meant OriginRemediation, a scan that forgets it stops advancing the corpus
+// and every host's score freezes. Neither failure announces itself.
+//
+// Spec: system-current-corpus C-07.
+type Origin string
+
+const (
+	// OriginScan is a real scan. Its ScanID is a scan_runs id, so the rows
+	// it writes define the host's current corpus.
+	OriginScan Origin = "scan"
+
+	// OriginRemediation is a remediation flipping one rule to pass. Its
+	// ScanID is a remediation REQUEST id, used as a synthetic scan id so
+	// the writer's scan_id idempotency makes a re-delivered job a no-op.
+	// No scan ran.
+	OriginRemediation Origin = "remediation"
+)
+
+// Synthetic reports whether the origin names something other than a real
+// scan, and therefore whether ScanID is a scan_runs id.
+func (o Origin) Synthetic() bool { return o == OriginRemediation }
+
+// Valid reports whether o is a known origin.
+func (o Origin) Valid() bool {
+	return o == OriginScan || o == OriginRemediation
+}
+
 // ApplyBatch is the bundle of (scan_id, host_id, results) that
 // writer.Apply processes atomically. One ApplyBatch == one DB transaction.
 type ApplyBatch struct {
 	ScanID  uuid.UUID
 	HostID  uuid.UUID
 	Results []Result
+
+	// Origin is REQUIRED. See Origin for why it has no default.
+	//
+	// A synthetic origin changes what the UPSERT is allowed to overwrite.
+	// host_rule_state.last_scan_id keeps the last REAL scan that evaluated
+	// the rule, so a remediated rule still matches its host's current
+	// corpus and the score moves. Let a synthetic id land there and the
+	// opposite happens: the rule drops out of the score the moment an
+	// operator fixes it, silently.
+	//
+	// The transactions row still carries ScanID. UNIQUE(scan_id, rule_id)
+	// is what makes the flip idempotent, and the provenance is in the
+	// evidence blob (source, request_id), so nothing is lost.
+	Origin Origin
 }
 
 // Sentinel errors. Tests use errors.Is for classification; the audit
@@ -94,4 +142,10 @@ var (
 	// A future commit adds the full schema check against the
 	// KensaEvidence OpenAPI schema once that schema lands.
 	ErrInvalidEvidence = errors.New("transactionlog: evidence is not a JSON object")
+
+	// ErrMissingOrigin is returned when ApplyBatch.Origin is unset or
+	// unknown. Apply rejects the batch before writing anything, so a
+	// caller that forgets the field fails loudly instead of silently
+	// getting scan semantics. Spec system-current-corpus C-07.
+	ErrMissingOrigin = errors.New("transactionlog: ApplyBatch.Origin is required")
 )

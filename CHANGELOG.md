@@ -12,6 +12,30 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Compliance scores now count only the rules a host's most recent completed
+  scan actually evaluated. Before this, a rule that left the scan corpus, by
+  being merged, renamed, or dropped, kept its last verdict forever and kept
+  counting. A rule that was failing when it left stayed failing permanently:
+  no scan could clear it and no remediation could fix it, because the scan
+  engine no longer ships a handler for it. **Scores on affected hosts will
+  move, and the direction depends on what those retired rules were last
+  recorded as.** A retired rule that was failing was inflating the work
+  remaining; one that was passing was inflating the score. Nothing is deleted;
+  the historical rows stay on disk and scan history stays fully browsable and
+  exportable.
+- **Some hosts may show as "never scanned" until their next scan completes.**
+  This affects hosts whose rule state was recorded before OpenWatch began
+  keeping a scan logbook, so there is no completed scan to attribute those
+  rows to. Showing no data is the honest answer, because we cannot prove which
+  corpus those hosts were measured against. It corrects itself on the next
+  scan, and you can trigger one rather than wait.
+- A remediation no longer overwrites the severity and framework mapping that
+  the scan recorded for the rule it fixed. A remediated rule used to lose
+  both, which dropped it out of every framework-scoped score and, because the
+  daily posture snapshot is computed for the whole fleet in one statement,
+  **stopped posture snapshots for every host until that rule was rescanned.**
+  Upgrading repairs the affected rows from stored scan results where they
+  exist.
 - OpenWatch deletes expired rows from three tables on a schedule:
   `idempotency_keys` after 24 hours, `sso_auth_states` after 1 hour, and
   `auth_mfa_otp_uses` after 24 hours. Nothing removed them before, so on a
