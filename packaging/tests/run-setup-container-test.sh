@@ -54,6 +54,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Wait for the boot script to hand off to systemd, or report why it could not.
+#
+# Without this, a container that died during boot is discovered by whatever
+# runs next: either a `docker exec` failing for a reason that reads as a docker
+# problem, or the in-container test timing out on systemd. Both name the wrong
+# thing. The boot script's own output is in `docker logs`, and nothing was
+# printing it. See CP bugs/OW-019.
+wait_for_systemd() {
+    local container="$1" state
+    for _ in $(seq 1 90); do
+        state="$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || echo false)"
+        if [ "$state" != true ]; then
+            echo ">> the container exited while booting. Its own log follows." >&2
+            docker logs "$container" 2>&1 | sed 's/^/   | /' >&2
+            exit 1
+        fi
+        # /run/systemd/system exists only once systemd is actually running.
+        if docker exec "$container" test -d /run/systemd/system 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo ">> systemd did not come up within 90s. The container's log follows." >&2
+    docker logs "$container" 2>&1 | sed 's/^/   | /' >&2
+    exit 1
+}
+
 # Pin the VERSION as well as the arch. A CI runner's dist/ holds only the
 # current build, but a developer's accumulates every historical one, and a
 # glob that matches thirteen packages installs whichever the package manager
@@ -68,20 +95,24 @@ else
 fi
 echo ">> staged $(ls "$PKGS" | tr '\n' ' ')"
 
-# Installing systemd then exec'ing it makes it PID 1 in place. Ubuntu and
-# Debian need systemd-sysv for /sbin/init; the RHEL family already has it.
+# Installing systemd then exec'ing it makes it PID 1 in place. boot-systemd.sh
+# does that; it is a mounted file rather than a `bash -c` string because the
+# string silenced its own package install and reported the failure minutes
+# later as a systemd timeout. See CP bugs/OW-019.
 case "$KIND" in
-    deb) BOOT='export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq systemd systemd-sysv >/dev/null && exec /sbin/init' ;;
-    rpm) BOOT='dnf install -y -q systemd >/dev/null 2>&1 || true; exec /sbin/init' ;;
-    *)   echo "kind must be deb or rpm" >&2; exit 1 ;;
+    deb|rpm) ;;
+    *) echo "kind must be deb or rpm" >&2; exit 1 ;;
 esac
 
 echo ">> booting $IMAGE with systemd as PID 1"
 CONTAINER="$(docker run -d --privileged --cgroupns=host \
     -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
     -v "$PKGS:/pkgs:ro" \
+    -v "$APP_DIR/packaging/tests/boot-systemd.sh:/boot.sh:ro" \
     -v "$APP_DIR/packaging/tests/setup-container-test.sh:/test.sh:ro" \
-    "$IMAGE" bash -c "$BOOT")"
+    "$IMAGE" bash /boot.sh "$KIND")"
+
+wait_for_systemd "$CONTAINER"
 
 echo ">> running the setup test in $CONTAINER"
 docker exec \
