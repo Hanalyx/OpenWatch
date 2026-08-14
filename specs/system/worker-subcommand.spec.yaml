@@ -1,7 +1,7 @@
 spec:
   id: system-worker-subcommand
   title: openwatch worker — scan job claimer and dispatcher
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -112,6 +112,19 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-12
+      description: >
+        openwatch worker MUST record a license load result on BOTH outcomes,
+        the same as openwatch serve. The worker used to emit only when a
+        license was rejected, so a standalone worker running a valid license
+        left no audit record that it had loaded one, while serve recorded
+        both. An auditor reconstructing which processes held which entitlement
+        saw half the fleet, and the half that was missing was the half that
+        was working. A record of failures alone cannot answer "what was this
+        deployment entitled to do", which is the question the audit log
+        exists for.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Two concurrent Worker.Run goroutines against 10 pending jobs (10 distinct host_ids, one job each) claim disjoint subsets — no double-claim observed. queue.Dequeue's SELECT FOR UPDATE SKIP LOCKED is the only mechanism in play.
@@ -180,3 +193,14 @@ spec:
       description: Source-inspection — cmdWorker does NOT instantiate eventbus.NewBus, alertrouter.NewRouter, liveness.NewService, or server.New. The worker is HTTP-free.
       priority: critical
       references_constraints: [C-11]
+    - id: AC-18
+      description: >
+        The worker emits on a successful license load, not only on a
+        rejection. Source inspection over cmd/openwatch/worker.go asserts the
+        boot path passes license.VerifyValid to license.EmitLoadResult, which
+        is the argument that appears only on the success branch. Counting
+        EmitLoadResult calls would pass on two rejection emits, so the check
+        keys on the value that distinguishes the branches. Same source-walk
+        shape as AC-16.
+      priority: high
+      references_constraints: [C-12]
