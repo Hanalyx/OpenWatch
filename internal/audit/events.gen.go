@@ -231,7 +231,7 @@ const (
 	LicenseTampered Code = "license.tampered"
 	//
 	PolicyLoaded Code = "policy.loaded"
-	//
+	// A policy load attempt was rejected and the prior state retained
 	PolicyInvalid Code = "policy.invalid"
 	// Operation evaluated against a versioned policy
 	PolicyApplied Code = "policy.applied"
@@ -1168,15 +1168,15 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
-		DetailKeys:  []string{"policy_type", "policy_version"},
+		DetailKeys:  []string{"new_version", "policy_type", "previous_version", "warnings"},
 	},
 	PolicyInvalid: {
 		Code:        PolicyInvalid,
 		Category:    "policy",
 		Severity:    SeverityError,
-		Description: ``,
+		Description: `A policy load attempt was rejected and the prior state retained`,
 		ActorTypes:  nil,
-		DetailKeys:  nil,
+		DetailKeys:  []string{"attempted_version", "errors", "policy_type"},
 	},
 	PolicyApplied: {
 		Code:        PolicyApplied,
@@ -1184,7 +1184,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Operation evaluated against a versioned policy`,
 		ActorTypes:  nil,
-		DetailKeys:  []string{"decision", "policy_type", "policy_version"},
+		DetailKeys:  []string{"detail", "outcome", "policy_type", "policy_version", "reason"},
 	},
 	RemediationRequested: {
 		Code:        RemediationRequested,

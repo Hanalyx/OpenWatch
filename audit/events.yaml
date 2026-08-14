@@ -717,24 +717,48 @@ events:
   # =========================================================================
   - code: policy.loaded
     severity: info
+    # policy_version was declared here and never sent. The loader reports the
+    # move, not the destination: new_version and previous_version are the pair
+    # that says what changed. See CP bugs/OW-021.
     detail_schema:
       type: object
       properties:
         policy_type: {type: string}
-        policy_version: {type: string}
+        new_version: {type: string}
+        previous_version: {type: string}
+        warnings: {type: array, items: {type: string}}
 
   - code: policy.invalid
     severity: error
+    description: A policy load attempt was rejected and the prior state retained
+    # Declared nothing at all until OW-021, which left the emitted keys
+    # uncheckable rather than merely wrong: a nil schema is skipped, so this
+    # event was invisible to the detail-schema check.
+    detail_schema:
+      type: object
+      properties:
+        policy_type: {type: string}
+        attempted_version: {type: string}
+        errors: {type: array, items: {type: string}}
 
   - code: policy.applied
     severity: info
     description: Operation evaluated against a versioned policy
+    # decision was declared here and never sent; the emitter has always called
+    # it outcome. Renaming the declaration rather than the field keeps every
+    # stored row readable.
     detail_schema:
       type: object
       properties:
         policy_type: {type: string}
         policy_version: {type: string}
-        decision: {type: string, enum: [allow, deny, defer]}
+        # Evaluate is emitApplied's only caller and sets exactly these four.
+        # Outcome also has allow, deny and defer constants, which no code
+        # path assigns; they are not listed because this event cannot carry
+        # them.
+        outcome: {type: string, enum: [critical, high, medium, ok]}
+        reason: {type: string}
+        detail: {type: object}
 
   # =========================================================================
   # remediation — license-gated
