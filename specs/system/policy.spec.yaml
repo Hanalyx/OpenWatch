@@ -1,7 +1,7 @@
 spec:
   id: system-policy
   title: Policies-as-data framework
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -133,3 +133,16 @@ spec:
       description: The embedded policy-pubkey-current.pem MUST NOT equal the public half of the testdata test key; a regression to the test trust anchor fails the build (SEC-H1 guard).
       priority: critical
       references_constraints: [C-10]
+    - id: AC-14
+      description: >
+        Each policy event's declared detail_schema in audit/events.yaml matches
+        the keys its emitter sends, in both directions: policy.loaded declares
+        exactly policy_type, new_version, previous_version and warnings;
+        policy.invalid declares policy_type, attempted_version and errors;
+        policy.applied declares policy_type, policy_version, outcome, reason and
+        detail. Emitting all three raises no detail-schema violation. The
+        expected sets are pinned to C-06, C-07 and C-08 rather than read back
+        from events.yaml, which disagreed with all three constraints until this
+        AC existed.
+      priority: high
+      references_constraints: [C-06, C-07, C-08]
