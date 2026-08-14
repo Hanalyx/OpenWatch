@@ -1,0 +1,12 @@
+# Vulnerability reports must never reach a public issue. SECURITY.md says so,
+# and an issue template that invited them contradicted it: it filed publicly and
+# asked the reporter to acknowledge that. It has been removed, and these links
+# take its place at the point where someone chooses what to open.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/Hanalyx/OpenWatch/security/advisories/new
+    about: Stays private to the maintainers until an advisory is published. Never open a public issue for a vulnerability.
+  - name: Security policy, supported versions, and release verification
+    url: https://github.com/Hanalyx/OpenWatch/blob/main/SECURITY.md
+    about: How to report, what we support, and how to verify a release signature. Email security@hanalyx.com if you prefer.
