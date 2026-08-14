@@ -62,8 +62,12 @@ func setState(s *State) {
 // Reset clears the active license state back to the free-tier baseline
 // and wipes the LastKnownGood watermark. This is the in-process equivalent
 // of "deleting the license file and re-running boot." Used by tests that
-// install a license and need a clean slate for the next subtest, and by
-// the admin endpoint that uninstalls a license.
+// install a license and need a clean slate for the next subtest.
+//
+// It has no non-test callers. This comment used to name "the admin endpoint
+// that uninstalls a license", which does not exist: the uninstall path is
+// OW-005 item 9, and `license:revoke` is registered for it but wired to no
+// route.
 //
 // Safe to call concurrently with IsEnabled — the underlying swap is atomic.
 func Reset() {

@@ -5,6 +5,7 @@
 //	AC-13  TestCmdWorker_HelpAndVersion_Sourced
 //	AC-16  TestCmdWorker_BootPrerequisites
 //	AC-17  TestCmdWorker_NoHTTPSubsystems
+//	AC-18  TestCmdWorker_EmitsOnSuccessfulLicenseLoad
 
 package main
 
@@ -139,6 +140,31 @@ func TestCmdWorker_NoHTTPSubsystems(t *testing.T) {
 			if strings.Contains(src, imp) {
 				t.Errorf("cmd/openwatch/worker.go MUST NOT import %s", imp)
 			}
+		}
+	})
+}
+
+// @ac AC-18
+// AC-18: the worker records a license load on success, not only on rejection.
+//
+// It used to emit only when a license was rejected, so a standalone worker
+// running a valid license left no audit record that it held one. serve
+// recorded both outcomes, so an auditor reconstructing which processes were
+// entitled to what saw half the fleet, and the missing half was the half that
+// was working.
+//
+// Keying on license.VerifyValid rather than counting EmitLoadResult calls is
+// deliberate: a count of two passes on two rejection emits, and the value is
+// what distinguishes the branches.
+func TestCmdWorker_EmitsOnSuccessfulLicenseLoad(t *testing.T) {
+	t.Run("system-worker-subcommand/AC-18", func(t *testing.T) {
+		src := workerGoSource(t)
+		const want = "license.EmitLoadResult(bootCtx, \"boot\", license.VerifyValid,"
+		if !strings.Contains(src, want) {
+			t.Errorf("cmd/openwatch/worker.go does not emit on a successful license load. " +
+				"Expected a call passing license.VerifyValid, which appears only on the " +
+				"success branch; found none. A worker that records only rejections cannot " +
+				"answer what this deployment was entitled to do.")
 		}
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: system-audit-emission
   title: Audit event emission
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -66,6 +66,28 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-09
+      description: >
+        An event's declared detail_schema MUST be read. audit/events.yaml lets
+        an event declare the keys its detail map carries, and 80 events declare
+        one. Until this constraint, nothing read any of them:
+        scripts/gen-audit-events.go parsed the block into a struct field and
+        emitted nothing from it, so an emitter could send any keys, omit every
+        declared key, or rename them, and no gate noticed. That is worse than
+        an undocumented contract, because the declaration reads as enforcement:
+        it sits in a generated-code pipeline, in a file whose other fields all
+        produce output, written as a JSON Schema fragment. The generator MUST
+        emit the property names, and Emit MUST compare an event's detail keys
+        against them. The check is a SUBSET check on names: an undeclared key
+        is a violation, an absent declared key is not, because many events
+        carry a key only in some outcomes and demanding all of them would push
+        emitters to send nulls. Types and enums are out of scope, since a check
+        that half-enforces a schema is worse than one that enforces the key set
+        honestly. A violation MUST be counted and logged, and MUST NOT drop the
+        event: an audit record carrying an unexpected key is still the evidence
+        an operator needs.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Codegen produces events.gen.go with one typed constant per event in events.yaml.
@@ -122,3 +144,16 @@ spec:
       description: 'v1.1.0 — ClipDetail truncates a string longer than MaxDetailFieldLen (256) runes to that length, replaces control characters (e.g. newline, tab, NUL) with spaces, and leaves a short clean string unchanged. The login-failure emitters (identity binder + server auth handler) pass the User-Agent and submitted username through ClipDetail before recording them in audit detail.'
       priority: high
       references_constraints: [C-08]
+    - id: AC-17
+      description: >
+        The declared detail_schema is enforced. Every event whose events.yaml
+        entry declares a detail_schema with properties has a non-empty
+        DetailKeys in the generated Metadata, and the count matches the number
+        of declarations. Emitting a detail carrying an undeclared key increments DetailViolations and logs the offending key names; emitting
+        one whose keys are a subset does not. An event declaring no schema is
+        never counted, so an absent declaration and an empty one behave alike.
+        A negative case proves the check can fail: without it, an event sending
+        a key no schema lists passes silently, which is the state this spec
+        version corrects.
+      priority: high
+      references_constraints: [C-09]
