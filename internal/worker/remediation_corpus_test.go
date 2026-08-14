@@ -406,8 +406,14 @@ func testRemediatedRuleKeepsItsFrameworkRefs(t *testing.T) {
 // without also asserting that NOTHING was written would pass against an
 // implementation that rejected the batch after a partial write.
 func TestWriter_OriginRules(t *testing.T) {
-	t.Run("system-current-corpus/AC-14", func(t *testing.T) {
-		t.Log("system-transaction-log-writer/AC-16")
+	// The name carries system-transaction-log-writer/AC-16, not
+	// system-current-corpus/AC-14. `specter ingest` records the FIRST
+	// spec-id/AC-NN in a test name and ignores any later one, so a test
+	// can report exactly one pair however many specs it satisfies. AC-14
+	// is covered independently by testRemediatedRuleStaysInCurrentCorpus
+	// above; AC-16 had nothing the ingest could see, which is what CI's
+	// coverage phase caught.
+	t.Run("system-transaction-log-writer/AC-16", func(t *testing.T) {
 		pool := freshPool(t)
 		ctx := context.Background()
 		user := seedUser(t, pool)
