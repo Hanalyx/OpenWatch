@@ -163,6 +163,10 @@ func prepareEvent(ctx context.Context, code Code, ev Event) *Event {
 			pkgMissingCorrelation.Add(1)
 		}
 	}
+	// Both Emit and EmitSync funnel through here, so this is the one place the
+	// declared detail_schema is checked. See detailschema.go for what it does
+	// and deliberately does not enforce.
+	checkDetailSchema(ctx, code, ev.Detail)
 	return &ev
 }
 
