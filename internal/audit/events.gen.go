@@ -328,6 +328,12 @@ type EventMeta struct {
 	Severity    Severity
 	Description string
 	ActorTypes  []string
+
+	// DetailKeys is the sorted property set of the event's detail_schema in
+	// audit/events.yaml, empty when it declares none. Emit checks a detail
+	// map against it. Before this existed the schema was parsed and dropped,
+	// so 80 events declared a detail contract that nothing read.
+	DetailKeys []string
 }
 
 // Metadata maps every active event code to its registry entry.
@@ -338,6 +344,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User authenticated successfully`,
 		ActorTypes:  []string{"user"},
+		DetailKeys:  []string{"auth_method", "mfa_used"},
 	},
 	AuthLoginFailure: {
 		Code:        AuthLoginFailure,
@@ -345,6 +352,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Authentication attempt failed`,
 		ActorTypes:  []string{"user"},
+		DetailKeys:  []string{"auth_method", "reason"},
 	},
 	AuthLogout: {
 		Code:        AuthLogout,
@@ -352,6 +360,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User explicitly logged out`,
 		ActorTypes:  []string{"user"},
+		DetailKeys:  nil,
 	},
 	AuthTokenIssued: {
 		Code:        AuthTokenIssued,
@@ -359,6 +368,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Access or refresh token issued`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"token_type", "ttl_seconds"},
 	},
 	AuthTokenRefreshed: {
 		Code:        AuthTokenRefreshed,
@@ -366,6 +376,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Refresh token used to issue new access token`,
 		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  nil,
 	},
 	AuthTokenRevoked: {
 		Code:        AuthTokenRevoked,
@@ -373,6 +384,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Token added to revocation blacklist`,
 		ActorTypes:  []string{"system", "user"},
+		DetailKeys:  []string{"reason"},
 	},
 	AuthMfaEnrolled: {
 		Code:        AuthMfaEnrolled,
@@ -380,6 +392,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User completed MFA enrollment`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"method"},
 	},
 	AuthMfaValidated: {
 		Code:        AuthMfaValidated,
@@ -387,6 +400,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `MFA challenge passed during login`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthMfaFailed: {
 		Code:        AuthMfaFailed,
@@ -394,6 +408,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `MFA challenge failed`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthMfaDisabled: {
 		Code:        AuthMfaDisabled,
@@ -401,6 +416,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `User disabled MFA on their account`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthSessionCreated: {
 		Code:        AuthSessionCreated,
@@ -408,6 +424,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `New session opened`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthSessionExpired: {
 		Code:        AuthSessionExpired,
@@ -415,6 +432,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Session timed out (idle or absolute)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"reason"},
 	},
 	AuthSessionRevoked: {
 		Code:        AuthSessionRevoked,
@@ -422,6 +440,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Session revoked (explicit logout or admin action)`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthPasswordChanged: {
 		Code:        AuthPasswordChanged,
@@ -429,6 +448,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User's password was successfully updated`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthProfileUpdated: {
 		Code:        AuthProfileUpdated,
@@ -436,6 +456,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User updated their own profile (self-service). email_changed is true when the update included the sign-in email.`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"email_changed"},
 	},
 	AuthPasswordPolicyFailed: {
 		Code:        AuthPasswordPolicyFailed,
@@ -443,6 +464,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Password change rejected by the NIST 800-63B policy validator`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthApiKeyCreated: {
 		Code:        AuthApiKeyCreated,
@@ -450,6 +472,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `API key issued`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthApiKeyRevoked: {
 		Code:        AuthApiKeyRevoked,
@@ -457,6 +480,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `API key invalidated`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthPolicyUpdated: {
 		Code:        AuthPolicyUpdated,
@@ -464,6 +488,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Workspace authentication policy changed (require-MFA, session timeouts)`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthzPermissionDenied: {
 		Code:        AuthzPermissionDenied,
@@ -471,6 +496,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `RBAC denied an authenticated request`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"required_permission", "route"},
 	},
 	AuthzRoleAssigned: {
 		Code:        AuthzRoleAssigned,
@@ -478,6 +504,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Role assigned to user`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AuthzRoleRemoved: {
 		Code:        AuthzRoleRemoved,
@@ -485,6 +512,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Role removed from user`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	HostCreated: {
 		Code:        HostCreated,
@@ -492,6 +520,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	HostUpdated: {
 		Code:        HostUpdated,
@@ -499,6 +528,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	HostDeleted: {
 		Code:        HostDeleted,
@@ -506,6 +536,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	HostConnectivityChecked: {
 		Code:        HostConnectivityChecked,
@@ -513,6 +544,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"ping_success", "response_time_ms", "ssh_accessible"},
 	},
 	HostPlatformDetected: {
 		Code:        HostPlatformDetected,
@@ -520,6 +552,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"os_family", "os_version", "platform_identifier"},
 	},
 	HostDiscoveryCompleted: {
 		Code:        HostDiscoveryCompleted,
@@ -527,6 +560,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Host OS fingerprint Discovery run finished successfully; carries the captured facts as detail`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"architecture", "discovered_at", "kernel_release", "os_family", "os_version"},
 	},
 	HostIntelligenceRefreshed: {
 		Code:        HostIntelligenceRefreshed,
@@ -534,6 +568,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AccountUserLocked: {
 		Code:        AccountUserLocked,
@@ -541,6 +576,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `User account lock detected via passwd/shadow comparison`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"user"},
 	},
 	AccountUserUnlocked: {
 		Code:        AccountUserUnlocked,
@@ -548,6 +584,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `User account unlock detected via passwd/shadow comparison`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"user"},
 	},
 	AccountUserCreated: {
 		Code:        AccountUserCreated,
@@ -555,6 +592,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `New user account appeared in /etc/passwd since prior snapshot`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"uid", "user"},
 	},
 	AccountUserDeleted: {
 		Code:        AccountUserDeleted,
@@ -562,6 +600,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `User account removed from /etc/passwd since prior snapshot`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"user"},
 	},
 	AccountUserPrivilegedGroupAdded: {
 		Code:        AccountUserPrivilegedGroupAdded,
@@ -569,6 +608,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityCritical,
 		Description: `User added to wheel/sudo/admin group since prior snapshot`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"group", "user"},
 	},
 	AccountPasswordExpired: {
 		Code:        AccountPasswordExpired,
@@ -576,6 +616,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Password expiry crossed since prior snapshot`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"user"},
 	},
 	AccountPasswordExpiring: {
 		Code:        AccountPasswordExpiring,
@@ -583,6 +624,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Password expiry within warning window`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"days_remaining", "user"},
 	},
 	AccountSshKeyAdded: {
 		Code:        AccountSshKeyAdded,
@@ -590,6 +632,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `New authorized_keys entry detected for a user`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"fingerprint", "user"},
 	},
 	AccountSshKeyRemoved: {
 		Code:        AccountSshKeyRemoved,
@@ -597,6 +640,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `authorized_keys entry removed for a user`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"fingerprint", "user"},
 	},
 	AccountSudoFailureThreshold: {
 		Code:        AccountSudoFailureThreshold,
@@ -604,6 +648,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Sudo failure count crossed the per-cycle threshold`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"count", "user"},
 	},
 	SecurityLoginNewSourceIp: {
 		Code:        SecurityLoginNewSourceIp,
@@ -611,6 +656,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Known user logged in from previously-unseen source IP`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"source_ip", "user"},
 	},
 	SecurityLoginFailedThreshold: {
 		Code:        SecurityLoginFailedThreshold,
@@ -618,6 +664,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Failed login count crossed the per-cycle threshold`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"count", "user"},
 	},
 	SecuritySelinuxDenied: {
 		Code:        SecuritySelinuxDenied,
@@ -625,6 +672,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `SELinux denial entry observed in audit log since prior cycle`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"denial"},
 	},
 	SecurityApparmorDenied: {
 		Code:        SecurityApparmorDenied,
@@ -632,6 +680,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `AppArmor denial entry observed in audit log since prior cycle`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"denial"},
 	},
 	SecurityFirewallRuleChanged: {
 		Code:        SecurityFirewallRuleChanged,
@@ -639,6 +688,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `Firewall ruleset hash changed since prior cycle`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"current_hash", "prior_hash"},
 	},
 	SecurityPortOpened: {
 		Code:        SecurityPortOpened,
@@ -646,6 +696,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `New listening port observed`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"port", "protocol"},
 	},
 	SystemPackageInstalled: {
 		Code:        SystemPackageInstalled,
@@ -653,6 +704,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Newly installed package observed`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"name", "version"},
 	},
 	SystemPackageUpdated: {
 		Code:        SystemPackageUpdated,
@@ -660,6 +712,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Package upgraded to a new version`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"current", "name", "prior"},
 	},
 	SystemPackageRemoved: {
 		Code:        SystemPackageRemoved,
@@ -667,6 +720,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Previously-installed package no longer present`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"name"},
 	},
 	SystemKernelUpdated: {
 		Code:        SystemKernelUpdated,
@@ -674,6 +728,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `New kernel installed; reboot likely pending`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"current", "prior"},
 	},
 	SystemRebootRequired: {
 		Code:        SystemRebootRequired,
@@ -681,6 +736,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Host indicates a reboot is required (vendor marker file present)`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	SystemRebootCompleted: {
 		Code:        SystemRebootCompleted,
@@ -688,6 +744,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Host uptime fell below the prior cycle's value — reboot completed`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	SystemConfigFileChanged: {
 		Code:        SystemConfigFileChanged,
@@ -695,6 +752,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `Critical host config file content hash changed (e.g. /etc/sudoers)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"current_hash", "path", "prior_hash"},
 	},
 	SystemServiceStarted: {
 		Code:        SystemServiceStarted,
@@ -702,6 +760,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Systemd unit transitioned to active`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"unit"},
 	},
 	SystemServiceStopped: {
 		Code:        SystemServiceStopped,
@@ -709,6 +768,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Systemd unit transitioned to inactive`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"unit"},
 	},
 	SystemServiceFailed: {
 		Code:        SystemServiceFailed,
@@ -716,6 +776,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `Systemd unit transitioned to failed`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"unit"},
 	},
 	SystemFilesystemMounted: {
 		Code:        SystemFilesystemMounted,
@@ -723,6 +784,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Mountpoint that did not exist in prior cycle is now mounted`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"mountpoint", "source"},
 	},
 	SystemFilesystemUnmounted: {
 		Code:        SystemFilesystemUnmounted,
@@ -730,6 +792,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Previously-mounted mountpoint is no longer mounted`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"mountpoint"},
 	},
 	HostBulkImported: {
 		Code:        HostBulkImported,
@@ -737,6 +800,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"failed", "successful", "total_processed"},
 	},
 	CredentialCreated: {
 		Code:        CredentialCreated,
@@ -744,6 +808,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"auth_method", "credential_id", "scope"},
 	},
 	CredentialUpdated: {
 		Code:        CredentialUpdated,
@@ -751,6 +816,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"auth_method", "credential_id", "scope", "secret_rotated"},
 	},
 	CredentialDeleted: {
 		Code:        CredentialDeleted,
@@ -758,6 +824,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"credential_id"},
 	},
 	ScanQueued: {
 		Code:        ScanQueued,
@@ -765,6 +832,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"framework", "template_id"},
 	},
 	ScanStarted: {
 		Code:        ScanStarted,
@@ -772,6 +840,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ScanCompleted: {
 		Code:        ScanCompleted,
@@ -779,6 +848,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"compliance_score", "failed", "passed", "skipped"},
 	},
 	ScanFailed: {
 		Code:        ScanFailed,
@@ -786,6 +856,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"error_code", "error_message"},
 	},
 	ScanCancelled: {
 		Code:        ScanCancelled,
@@ -793,6 +864,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"cancellation_reason"},
 	},
 	ScanSessionCreated: {
 		Code:        ScanSessionCreated,
@@ -800,6 +872,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"total_hosts"},
 	},
 	ScanSessionCancelled: {
 		Code:        ScanSessionCancelled,
@@ -807,6 +880,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ScanTemplateCreated: {
 		Code:        ScanTemplateCreated,
@@ -814,6 +888,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ScanTemplateUpdated: {
 		Code:        ScanTemplateUpdated,
@@ -821,6 +896,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ScanTemplateDeleted: {
 		Code:        ScanTemplateDeleted,
@@ -828,6 +904,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceStateChanged: {
 		Code:        ComplianceStateChanged,
@@ -835,6 +912,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Rule state transition (write-on-change pattern)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"new_status", "previous_status", "rule_id"},
 	},
 	FindingPersisted: {
 		Code:        FindingPersisted,
@@ -842,6 +920,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `A single rule finding was persisted to the transaction log (one per transactions row insert). Spec system-transaction-log-writer AC-09.`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"change_kind", "host_id", "prior_status", "rule_id", "scan_id", "status"},
 	},
 	WriterApplyFailed: {
 		Code:        WriterApplyFailed,
@@ -849,6 +928,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `writer.Apply rolled back the entire batch due to a DB error (FK violation, deadlock, oversize evidence). Spec system-transaction-log-writer AC-15.`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"host_id", "offending_rule_id", "reason", "rule_count_attempted", "scan_id"},
 	},
 	ComplianceExceptionRequested: {
 		Code:        ComplianceExceptionRequested,
@@ -856,6 +936,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceExceptionApproved: {
 		Code:        ComplianceExceptionApproved,
@@ -863,6 +944,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceExceptionRejected: {
 		Code:        ComplianceExceptionRejected,
@@ -870,6 +952,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceExceptionRevoked: {
 		Code:        ComplianceExceptionRevoked,
@@ -877,6 +960,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceExceptionExpired: {
 		Code:        ComplianceExceptionExpired,
@@ -884,6 +968,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceBaselineEstablished: {
 		Code:        ComplianceBaselineEstablished,
@@ -891,6 +976,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceBaselineCleared: {
 		Code:        ComplianceBaselineCleared,
@@ -898,6 +984,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ComplianceDriftDetected: {
 		Code:        ComplianceDriftDetected,
@@ -905,6 +992,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"drift_type", "score_delta"},
 	},
 	ComplianceSnapshotCreated: {
 		Code:        ComplianceSnapshotCreated,
@@ -912,6 +1000,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AlertCreated: {
 		Code:        AlertCreated,
@@ -919,6 +1008,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"alert_severity", "alert_type"},
 	},
 	AlertAcknowledged: {
 		Code:        AlertAcknowledged,
@@ -926,6 +1016,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AlertSilenced: {
 		Code:        AlertSilenced,
@@ -933,6 +1024,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Operator silenced an alert (active -> silenced)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"prior_state", "reason", "until"},
 	},
 	AlertUnsilencedAuto: {
 		Code:        AlertUnsilencedAuto,
@@ -940,6 +1032,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Lifecycle sweep re-armed a silenced alert whose silenced_until elapsed`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"silenced_until"},
 	},
 	AlertResolved: {
 		Code:        AlertResolved,
@@ -947,6 +1040,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AlertDismissed: {
 		Code:        AlertDismissed,
@@ -954,6 +1048,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Operator marked an alert as irrelevant (terminal state)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"prior_state", "reason"},
 	},
 	AlertThresholdChanged: {
 		Code:        AlertThresholdChanged,
@@ -961,6 +1056,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	NotificationDispatched: {
 		Code:        NotificationDispatched,
@@ -968,6 +1064,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"channel_type", "delivery_id"},
 	},
 	NotificationDeliveryFailed: {
 		Code:        NotificationDeliveryFailed,
@@ -975,6 +1072,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	NotificationDeliverySucceeded: {
 		Code:        NotificationDeliverySucceeded,
@@ -982,6 +1080,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	NotificationChannelCreated: {
 		Code:        NotificationChannelCreated,
@@ -989,6 +1088,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	NotificationChannelUpdated: {
 		Code:        NotificationChannelUpdated,
@@ -996,6 +1096,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	NotificationChannelDeleted: {
 		Code:        NotificationChannelDeleted,
@@ -1003,6 +1104,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseInstalled: {
 		Code:        LicenseInstalled,
@@ -1010,6 +1112,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseInvalid: {
 		Code:        LicenseInvalid,
@@ -1017,6 +1120,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseExpiringSoon: {
 		Code:        LicenseExpiringSoon,
@@ -1024,6 +1128,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseExpired: {
 		Code:        LicenseExpired,
@@ -1031,6 +1136,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseFeatureCheckDenied: {
 		Code:        LicenseFeatureCheckDenied,
@@ -1038,6 +1144,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"feature", "suppressed_count"},
 	},
 	LicenseClockRollbackDetected: {
 		Code:        LicenseClockRollbackDetected,
@@ -1045,6 +1152,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityCritical,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	LicenseTampered: {
 		Code:        LicenseTampered,
@@ -1052,6 +1160,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityCritical,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	PolicyLoaded: {
 		Code:        PolicyLoaded,
@@ -1059,6 +1168,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"policy_type", "policy_version"},
 	},
 	PolicyInvalid: {
 		Code:        PolicyInvalid,
@@ -1066,6 +1176,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	PolicyApplied: {
 		Code:        PolicyApplied,
@@ -1073,6 +1184,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Operation evaluated against a versioned policy`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"decision", "policy_type", "policy_version"},
 	},
 	RemediationRequested: {
 		Code:        RemediationRequested,
@@ -1080,6 +1192,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	RemediationApproved: {
 		Code:        RemediationApproved,
@@ -1087,6 +1200,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	RemediationExecuted: {
 		Code:        RemediationExecuted,
@@ -1094,6 +1208,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"dry_run", "steps_failed", "steps_succeeded"},
 	},
 	RemediationRolledBack: {
 		Code:        RemediationRolledBack,
@@ -1101,6 +1216,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	ReportGenerated: {
 		Code:        ReportGenerated,
@@ -1108,6 +1224,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"kind", "report_id", "scope_label"},
 	},
 	ReportScheduleCreated: {
 		Code:        ReportScheduleCreated,
@@ -1115,6 +1232,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"channel_id", "frequency", "kind", "name", "schedule_id"},
 	},
 	ReportScheduleDeleted: {
 		Code:        ReportScheduleDeleted,
@@ -1122,6 +1240,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"schedule_id"},
 	},
 	ReportScheduleToggled: {
 		Code:        ReportScheduleToggled,
@@ -1129,6 +1248,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"enabled", "schedule_id"},
 	},
 	IntegrationWebhookDelivered: {
 		Code:        IntegrationWebhookDelivered,
@@ -1136,6 +1256,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	IntegrationWebhookFailed: {
 		Code:        IntegrationWebhookFailed,
@@ -1143,6 +1264,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	IntegrationWebhookSubscribed: {
 		Code:        IntegrationWebhookSubscribed,
@@ -1150,6 +1272,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `External subscriber registered for event delivery`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"event_types", "target_url"},
 	},
 	IntegrationWebhookUnsubscribed: {
 		Code:        IntegrationWebhookUnsubscribed,
@@ -1157,6 +1280,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Webhook subscription deleted; no further deliveries`,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	IntegrationPluginInstalled: {
 		Code:        IntegrationPluginInstalled,
@@ -1164,6 +1288,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	IntegrationPluginExecuted: {
 		Code:        IntegrationPluginExecuted,
@@ -1171,6 +1296,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	SystemStartup: {
 		Code:        SystemStartup,
@@ -1178,6 +1304,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Service has booted and is accepting requests`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  nil,
 	},
 	SystemShutdown: {
 		Code:        SystemShutdown,
@@ -1185,6 +1312,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  nil,
 	},
 	SystemConfigChanged: {
 		Code:        SystemConfigChanged,
@@ -1192,6 +1320,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `An operator-tunable runtime config value was updated via the system_config table`,
 		ActorTypes:  []string{"system", "user"},
+		DetailKeys:  []string{"changed_by", "config_key", "new_value", "old_value"},
 	},
 	SystemIntelligenceSudoPasswordUsed: {
 		Code:        SystemIntelligenceSudoPasswordUsed,
@@ -1199,6 +1328,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `Emitted exactly once per host per cycle when the SSH dial layer used the credential's stored password as the sudo password (sudo -S fallback) because the host did not honor sudo -n NOPASSWD for one or more probe commands. Gated on system_config.security.allow_credential_sudo_password. Spec: system-ssh-connectivity v1.1.0 C-09..C-12 + AC-16.`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"command_count", "credential_id", "host_id"},
 	},
 	SystemMigrationApplied: {
 		Code:        SystemMigrationApplied,
@@ -1206,6 +1336,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"migration_id"},
 	},
 	SystemHealthDegraded: {
 		Code:        SystemHealthDegraded,
@@ -1213,6 +1344,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"component", "reason"},
 	},
 	SystemHealthRecovered: {
 		Code:        SystemHealthRecovered,
@@ -1220,6 +1352,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	SchedulerStartupFailed: {
 		Code:        SchedulerStartupFailed,
@@ -1227,6 +1360,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `Scheduler refused to start because the schedules policy was missing or failed Ed25519 verification`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"policy_path", "reason"},
 	},
 	SchedulerScheduleUpdated: {
 		Code:        SchedulerScheduleUpdated,
@@ -1234,6 +1368,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `A row in host_compliance_schedule was updated (next_scheduled_scan, maintenance_mode, or manual override)`,
 		ActorTypes:  []string{"system", "user"},
+		DetailKeys:  []string{"change_kind", "host_id", "new", "prior"},
 	},
 	SchedulerPolicyReloadRejected: {
 		Code:        SchedulerPolicyReloadRejected,
@@ -1241,6 +1376,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `Runtime policy reload was rejected; the previous valid policy remains active`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"policy_version_active", "policy_version_attempted", "reason"},
 	},
 	SchedulerPolicyClamped: {
 		Code:        SchedulerPolicyClamped,
@@ -1248,6 +1384,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `A tier interval in the schedules policy was clamped to the safety floor (5 min) or ceiling (48 h)`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"clamp_kind", "clamped_minutes", "original_minutes", "tier"},
 	},
 	SchedulerPolicyRevokedKeyRejected: {
 		Code:        SchedulerPolicyRevokedKeyRejected,
@@ -1255,6 +1392,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `A schedules policy was signed by a previously-rotated (revoked) signing key and rejected even though the Ed25519 signature was mathematically valid`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"key_fingerprint", "policy_version"},
 	},
 	SchedulerJobHmacRejected: {
 		Code:        SchedulerJobHmacRejected,
@@ -1262,6 +1400,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityError,
 		Description: `A dequeued scan job failed HMAC verification; the job payload was tampered after enqueue`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"failure", "host_id", "job_id"},
 	},
 	SchedulerTickDispatched: {
 		Code:        SchedulerTickDispatched,
@@ -1269,6 +1408,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Scheduler tick dispatched zero or more scan jobs to the queue`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"dispatched_count", "due_count", "skipped_backoff_count", "skipped_maintenance_count"},
 	},
 	WorkerLoopTick: {
 		Code:        WorkerLoopTick,
@@ -1276,6 +1416,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Periodic heartbeat from openwatch worker — at 55..65s intervals (60s nominal with jitter)`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  []string{"claimed_count", "completed_since_last_tick", "idle_count", "in_flight_count"},
 	},
 	AdminUserCreated: {
 		Code:        AdminUserCreated,
@@ -1283,6 +1424,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminUserUpdated: {
 		Code:        AdminUserUpdated,
@@ -1290,6 +1432,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminUserDeleted: {
 		Code:        AdminUserDeleted,
@@ -1297,6 +1440,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminUserPasswordReset: {
 		Code:        AdminUserPasswordReset,
@@ -1304,6 +1448,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `An administrator reset another user's (or their own) password.`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"self", "target_user_id"},
 	},
 	AdminUserDisabled: {
 		Code:        AdminUserDisabled,
@@ -1311,6 +1456,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `An administrator disabled a user account (cannot authenticate).`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"target_user_id"},
 	},
 	AdminUserEnabled: {
 		Code:        AdminUserEnabled,
@@ -1318,6 +1464,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `An administrator re-enabled a previously disabled user account.`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"target_user_id"},
 	},
 	AdminRoleChanged: {
 		Code:        AdminRoleChanged,
@@ -1325,6 +1472,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminSystemSettingChanged: {
 		Code:        AdminSystemSettingChanged,
@@ -1332,6 +1480,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminRetentionPolicyChanged: {
 		Code:        AdminRetentionPolicyChanged,
@@ -1339,6 +1488,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminSsoProviderCreated: {
 		Code:        AdminSsoProviderCreated,
@@ -1346,6 +1496,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	AdminSsoProviderUpdated: {
 		Code:        AdminSsoProviderUpdated,
@@ -1353,6 +1504,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: `SSO provider config changed (enable/disable, secret rotation, metadata refresh)`,
 		ActorTypes:  nil,
+		DetailKeys:  []string{"fields_changed", "provider_type"},
 	},
 	AdminSsoProviderDeleted: {
 		Code:        AdminSsoProviderDeleted,
@@ -1360,6 +1512,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
+		DetailKeys:  nil,
 	},
 	DiagnosticsTestJobCompleted: {
 		Code:        DiagnosticsTestJobCompleted,
@@ -1367,6 +1520,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: `Worker drained a diagnostics.test_job and emitted this completion event`,
 		ActorTypes:  []string{"system"},
+		DetailKeys:  nil,
 	},
 }
 
