@@ -43,7 +43,7 @@ func TestGroupRollup_EqualHostMeanNotPooled(t *testing.T) {
 
 		r := listOne(t, svc, ctx, site.ID)
 		got := scorePct(t, r.Score.Score)
-		if want := exp.Num("avg_compliance_pct"); got != want {
+		if want := exp.Num("score_pct"); got != want {
 			t.Errorf("avg = %v, want %v (equal-host mean)", got, want)
 		}
 		// The two answers this fixture exists to separate. Member A carries
@@ -326,7 +326,7 @@ func TestGroupSummary_IsTheFleetScore(t *testing.T) {
 		}
 
 		got := scorePct(t, sum.Score.Score)
-		if want := exp.Num("avg_compliance_pct"); got != want {
+		if want := exp.Num("score_pct"); got != want {
 			t.Errorf("summary avg = %v, want %v", got, want)
 		}
 		// The soft-deleted host scores 0 over twenty failing rules. Counting it

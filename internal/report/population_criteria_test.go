@@ -8,9 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/db"
 
 	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
@@ -210,22 +213,41 @@ func TestGeneration_DiscriminationIsStrict(t *testing.T) {
 
 		// Every ambiguous shape, each built as RAW JSON so the test can
 		// express what a struct cannot: a present key holding null.
-		bodies := map[string]string{
-			"provenance_null":                  `{"compliance_pct":53,"provenance":null}`,
-			"provenance_empty_object":          `{"compliance_pct":53,"provenance":{}}`,
-			"artifact_class_empty":             `{"provenance":{"artifact_class":""}}`,
-			"artifact_class_unknown":           `{"provenance":{"artifact_class":"guess"}}`,
-			"compliance_pct_null_on_current":   `{"compliance_pct":null,"score_pct":90,"provenance":{"artifact_class":"score_bearing"}}`,
-			"rollup_compliance_pct_on_current": `{"rollup":{"compliance_pct":53,"score_pct":90,"provenance":{"artifact_class":"score_bearing"}}}`,
+		bodies := map[string]map[string]string{
+			"provenance_null": {
+				"executive": `{"compliance_pct":53,"provenance":null}`},
+			"provenance_empty_object": {
+				"executive": `{"compliance_pct":53,"provenance":{}}`},
+			"artifact_class_empty": {
+				"executive": `{"provenance":{"artifact_class":""}}`},
+			"artifact_class_unknown": {
+				"executive": `{"provenance":{"artifact_class":"guess"}}`},
+			"compliance_pct_null_on_current": {
+				"executive": `{"compliance_pct":null,"score_pct":90,"provenance":{"artifact_class":"score_bearing"}}`},
+			"rollup_compliance_pct_on_current": {
+				"attestation": `{"rollup":{"compliance_pct":53,"score_pct":90,"provenance":{"artifact_class":"score_bearing"}}}`},
+			// A score-bearing KIND declaring the read-model class. It parses,
+			// and it drops the whole envelope while doing so.
+			"score_bearing_kind_declares_read_model": {
+				"executive":   `{"score_pct":90,"provenance":{"artifact_class":"read_model"}}`,
+				"attestation": `{"rollup":{"score_pct":90,"provenance":{"artifact_class":"read_model"}}}`},
+			// And the mirror: a read-model kind claiming to carry a score.
+			"read_model_kind_declares_score_bearing": {
+				"exception":   `{"provenance":{"artifact_class":"score_bearing"}}`,
+				"remediation": `{"provenance":{"artifact_class":"score_bearing"}}`},
 		}
 		rejected := 0
 		for _, shape := range in.MapList("rejected_shapes") {
 			kind := shape.Str("kind")
 			name := shape.Str("case")
 			shape.AllConsumed()
-			body, ok := bodies[name]
+			byKind, ok := bodies[name]
 			if !ok {
 				t.Fatalf("fixture names case %q, which this test does not build", name)
+			}
+			body, ok := byKind[kind]
+			if !ok {
+				t.Fatalf("case %q has no body for kind %q", name, kind)
 			}
 			if err := checkScoreFields(kind, []byte(body)); err == nil {
 				t.Errorf("%s (%s) was accepted; only an ABSENT provenance key means legacy, "+
@@ -244,6 +266,34 @@ func TestGeneration_DiscriminationIsStrict(t *testing.T) {
 			t.Errorf("rejected %d shapes, want %d", rejected, exp.Int("rejected_count"))
 		}
 
+		// The class is kind-SPECIFIC, not merely a known value. Asserted from
+		// the fixture's own table so a change there has to change the code.
+		if !exp.Bool("class_is_kind_specific") {
+			t.Fatal("fixture must require the class to be kind-specific")
+		}
+		byKind := in.Map("expected_class_by_kind")
+		for _, kind := range []string{"executive", "attestation", "exception", "remediation"} {
+			want := byKind.Str(kind)
+			got, known := expectedClassFor[Kind(kind)]
+			if !known {
+				t.Errorf("kind %q declares no expected artifact class", kind)
+				continue
+			}
+			if string(got) != want {
+				t.Errorf("kind %q expects class %q, want %q", kind, got, want)
+			}
+			// And the matching class is accepted, so the rejections above are
+			// discrimination rather than a check that refuses everything.
+			body := `{"provenance":{"artifact_class":"` + want + `"}}`
+			if Kind(kind) == KindAttestation {
+				body = `{"rollup":{"provenance":{"artifact_class":"` + want + `"}}}`
+			}
+			if err := checkScoreFields(kind, []byte(body)); err != nil {
+				t.Errorf("kind %q rejected its own declared class %q: %v", kind, want, err)
+			}
+		}
+		byKind.AllConsumed()
+
 		in.AllConsumed()
 		exp.AllConsumed()
 	})
@@ -251,7 +301,11 @@ func TestGeneration_DiscriminationIsStrict(t *testing.T) {
 
 // @ac AC-39
 // AC-39: the whole frozen content comes from one repeatable-read, read-only
-// snapshot, so a scan completing mid-generation cannot land in half of it.
+// snapshot, asserted THROUGH Generate.
+//
+// A test that called withFrozenSnapshot directly would stay green if Generate
+// stopped using it, which is exactly the disconnection this criterion has to
+// rule out.
 func TestFrozenContent_ComesFromOneSnapshot(t *testing.T) {
 	t.Run("system-compliance-scoring/AC-39", func(t *testing.T) {
 		ac := scoringAC(t, "AC-39")
@@ -265,20 +319,33 @@ func TestFrozenContent_ComesFromOneSnapshot(t *testing.T) {
 		if in.Str("concurrent_write") == "" {
 			t.Fatal("fixture must describe the concurrent write")
 		}
+		if in.Str("driven_through") != "Generate" {
+			t.Fatalf("fixture drives %q; this criterion is about Generate",
+				in.Str("driven_through"))
+		}
+		inside := in.StrList("inside_the_snapshot")
+		for _, want := range []string{"group_membership", "group_name", "content_reads", "data_as_of"} {
+			found := false
+			for _, got := range inside {
+				if got == want {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("fixture does not require %q inside the snapshot", want)
+			}
+		}
 
-		base := seedPopulationHost(t, pool, owner,
+		seedPopulationHost(t, pool, owner,
 			map[string]int{"pass": 9, "fail": 1}, "framework_scored", false)
-		_ = base
 
-		// The snapshot's own properties, asserted by opening one and reading
-		// what Postgres reports. A test that only compared two numbers could
-		// pass on Read Committed whenever the race did not fire.
-		var iso, mode string
+		// The snapshot's declared properties.
+		var iso, ro string
 		if err := svc.withFrozenSnapshot(ctx, func(q queryer) error {
 			if err := q.QueryRow(ctx, "SHOW transaction_isolation").Scan(&iso); err != nil {
 				return err
 			}
-			return q.QueryRow(ctx, "SHOW transaction_read_only").Scan(&mode)
+			return q.QueryRow(ctx, "SHOW transaction_read_only").Scan(&ro)
 		}); err != nil {
 			t.Fatalf("open snapshot: %v", err)
 		}
@@ -287,39 +354,255 @@ func TestFrozenContent_ComesFromOneSnapshot(t *testing.T) {
 				"statement takes its own snapshot and the content can disagree with itself",
 				iso, exp.Str("isolation_level"))
 		}
-		if wantRO := exp.Str("access_mode"); (mode == "on") != (wantRO == "read only") {
-			t.Errorf("transaction_read_only = %q, want %q", mode, wantRO)
+		if wantRO := exp.Str("access_mode"); (ro == "on") != (wantRO == "read only") {
+			t.Errorf("transaction_read_only = %q, want %q", ro, wantRO)
 		}
-
-		// The behavior: a write committed after the snapshot opens is
-		// invisible to every read inside it.
 		if !exp.Bool("content_reads_share_one_snapshot") ||
 			!exp.Bool("concurrent_write_invisible") {
 			t.Fatal("fixture must require one snapshot and an invisible concurrent write")
 		}
+
+		// GENERATE must use it, and that has to be provable without racing.
+		//
+		// The queryer Generate hands its readers is captured through the group
+		// scoper, which receives the SAME q every content reader gets. Two
+		// reads of now() with a real gap between them are equal inside one
+		// transaction and different on the pool, because each pooled statement
+		// is its own transaction. That is a deterministic signal: a Generate
+		// that bypassed the snapshot fails here every run, not sometimes.
+		if !exp.Bool("generate_uses_the_snapshot") {
+			t.Fatal("fixture must require Generate to use the snapshot")
+		}
+		probe := &snapshotProbe{t: t}
+		probed := NewService(pool).WithGroups(probe)
+		gid := uuid.New()
+		if _, err := probed.Generate(ctx, "ac39@example.com",
+			GenerateRequest{GroupID: &gid, Framework: "framework_scored"}); err != nil {
+			t.Fatalf("probed generate: %v", err)
+		}
+		if probe.inSnapshot == 0 {
+			t.Fatal("group scope was never resolved inside the snapshot; a scoped Generate " +
+				"must reach ScopeGroupIn")
+		}
+		if probe.pooled > 0 {
+			t.Errorf("group scope resolved through ScopeGroup %d time(s); membership read "+
+				"outside the snapshot lets a host join or leave between the scope decision "+
+				"and the content computed from it", probe.pooled)
+		}
+		if probe.first.IsZero() || probe.second.IsZero() {
+			t.Fatal("the snapshot probe did not run")
+		}
+		if !probe.first.Equal(probe.second) {
+			t.Errorf("the queryer Generate passed its readers returned two transaction "+
+				"timestamps, %v then %v; each statement took its own snapshot, so the "+
+				"artifact's parts can describe different fleet states",
+				probe.first, probe.second)
+		}
+
+		// And the artifact itself: one population describes the whole of it,
+		// and the sampling instant cannot postdate the row it was stored in.
+		if !exp.Bool("data_as_of_is_the_snapshot_instant") {
+			t.Fatal("fixture must require data_as_of to be the snapshot instant")
+		}
 		for _, kind := range in.StrList("kinds") {
-			var first, second int
-			err := svc.withFrozenSnapshot(ctx, func(q queryer) error {
-				if err := q.QueryRow(ctx,
-					`SELECT count(*)::int FROM hosts WHERE deleted_at IS NULL`).
-					Scan(&first); err != nil {
-					return err
-				}
-				// Committed by a DIFFERENT connection, after the snapshot's
-				// first read. Under read committed the second count would see
-				// it; under repeatable read it must not.
-				seedHost(t, pool, owner, false)
-				return q.QueryRow(ctx,
-					`SELECT count(*)::int FROM hosts WHERE deleted_at IS NULL`).Scan(&second)
-			})
+			rep, err := svc.Generate(ctx, "ac39@example.com",
+				GenerateRequest{Kind: Kind(kind), Framework: "framework_scored"})
 			if err != nil {
-				t.Fatalf("%s: snapshot: %v", kind, err)
+				t.Fatalf("%s: generate: %v", kind, err)
 			}
-			if first != second {
-				t.Errorf("%s: the snapshot saw %d hosts and then %d; a host that appeared "+
-					"mid-generation reached part of the content, so a signed artifact can "+
-					"describe two different fleets", kind, first, second)
+			prov, _ := provenanceOf(t, kind, rep.Content)
+			if prov.HostsScored+prov.HostsWithoutScore != prov.HostsTotal {
+				t.Errorf("%s: %d + %d != %d; the artifact's parts describe different "+
+					"populations", kind, prov.HostsScored, prov.HostsWithoutScore,
+					prov.HostsTotal)
 			}
+			if rep.DataAsOf.After(rep.CreatedAt) {
+				t.Errorf("%s: data_as_of %v is after created_at %v; the sampling instant was "+
+					"taken outside the snapshot and postdates the data it describes",
+					kind, rep.DataAsOf, rep.CreatedAt)
+			}
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}
+
+// snapshotProbe records which resolution path a scoped Generate takes, and
+// interrogates the queryer it was handed.
+//
+// It reads transaction_timestamp() twice with a real gap between them. Inside
+// one transaction both reads return the transaction's start time and are
+// equal; on the pool each statement is its own transaction and the two differ.
+// So the probe distinguishes "Generate opened a snapshot" from "Generate used
+// the pool" without depending on a race landing.
+type snapshotProbe struct {
+	t             *testing.T
+	pooled        int
+	inSnapshot    int
+	first, second time.Time
+}
+
+func (p *snapshotProbe) ScopeGroup(context.Context, uuid.UUID) (string, []uuid.UUID, error) {
+	p.pooled++
+	return "Probed", []uuid.UUID{}, nil
+}
+
+func (p *snapshotProbe) ScopeGroupIn(ctx context.Context, q db.Queryer,
+	_ uuid.UUID) (string, []uuid.UUID, error) {
+	p.inSnapshot++
+	if err := q.QueryRow(ctx, "SELECT transaction_timestamp()").Scan(&p.first); err != nil {
+		return "", nil, err
+	}
+	// A real gap, so two pooled statements cannot coincidentally share a
+	// timestamp at the resolution Postgres reports.
+	var ignored string
+	if err := q.QueryRow(ctx, "SELECT pg_sleep(0.05)::text").Scan(&ignored); err != nil {
+		return "", nil, err
+	}
+	if err := q.QueryRow(ctx, "SELECT transaction_timestamp()").Scan(&p.second); err != nil {
+		return "", nil, err
+	}
+	return "Probed", []uuid.UUID{}, nil
+}
+
+func activeHostCount(t *testing.T, pool *pgxpool.Pool) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*)::int FROM hosts WHERE deleted_at IS NULL`).Scan(&n); err != nil {
+		t.Fatalf("count hosts: %v", err)
+	}
+	return n
+}
+
+// @ac AC-40
+// AC-40: a stored artifact renders the same numbers however the fleet
+// changes after it was signed.
+func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
+	t.Run("system-compliance-scoring/AC-40", func(t *testing.T) {
+		ac := scoringAC(t, "AC-40")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		pool := freshPool(t)
+		ctx := context.Background()
+		svc := NewService(pool)
+		owner := seedUser(t, pool)
+		if in.Str("artifact") != "pre_rollup_attestation" {
+			t.Fatalf("fixture names artifact %q", in.Str("artifact"))
+		}
+		if in.Str("mutation") == "" {
+			t.Fatal("fixture must describe the mutation")
+		}
+
+		ids := map[string]uuid.UUID{}
+		for _, h := range in.MapList("hosts") {
+			c := h.Map("counts")
+			counts := map[string]int{"pass": c.Int("pass"), "fail": c.Int("fail")}
+			c.AllConsumed()
+			ids[h.Str("id")] = seedPopulationHost(t, pool, owner, counts, "framework_scored", false)
+			h.AllConsumed()
+		}
+
+		// A stored attestation, then its rollup stripped, which is the shape
+		// of an artifact signed before the rollup was part of the content.
+		rep, err := svc.Generate(ctx, "ac40@example.com",
+			GenerateRequest{Kind: KindAttestation, Framework: "framework_scored"})
+		if err != nil {
+			t.Fatalf("generate: %v", err)
+		}
+		var stored AttestationContent
+		if err := json.Unmarshal(rep.Content, &stored); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		// Strip the rollup so the stored row is the pre-rollup shape, and
+		// clear any cached face, so exporting takes the back-compat path.
+		stripped := stored
+		stripped.Rollup = AttestationRollup{}
+		strippedRaw, err := json.Marshal(stripped)
+		if err != nil {
+			t.Fatalf("marshal stripped: %v", err)
+		}
+		if _, err := pool.Exec(ctx,
+			`UPDATE report_snapshots SET content = $2::jsonb WHERE id = $1`,
+			rep.ID, string(strippedRaw)); err != nil {
+			t.Fatalf("store pre-rollup content: %v", err)
+		}
+
+		// Driven through the RENDER path, so the call site's own choice of
+		// population is what is under test. Calling the rollup helper directly
+		// with a hardcoded argument proved nothing about how it is invoked.
+		recompute := func(label string) (float64, int) {
+			t.Helper()
+			if _, err := pool.Exec(ctx,
+				`DELETE FROM report_faces WHERE snapshot_id = $1`, rep.ID); err != nil {
+				t.Fatalf("%s: clear cached face: %v", label, err)
+			}
+			fresh, err := svc.Get(ctx, rep.ID)
+			if err != nil {
+				t.Fatalf("%s: get: %v", label, err)
+			}
+			var c AttestationContent
+			if err := json.Unmarshal(fresh.Content, &c); err != nil {
+				t.Fatalf("%s: decode stored: %v", label, err)
+			}
+			if c.Rollup.TotalChecks != 0 {
+				t.Fatalf("%s: the stored artifact still carries a rollup, so the "+
+					"back-compat path is not exercised", label)
+			}
+			// The production function the render path calls, so a change at
+			// that call site is what this catches.
+			rollup, err := svc.legacyRollupFor(ctx, c)
+			if err != nil {
+				t.Fatalf("%s: recompute: %v", label, err)
+			}
+			if rollup.ScorePct == nil {
+				t.Fatalf("%s: recomputed score is null", label)
+			}
+			if rollup.Provenance == nil {
+				t.Fatalf("%s: recomputed rollup carries no provenance", label)
+			}
+			// And the real face renders without error on the same content.
+			if _, _, err := svc.Export(ctx, rep.ID, FacePDF); err != nil {
+				t.Fatalf("%s: export pdf: %v", label, err)
+			}
+			return *rollup.ScorePct, rollup.Provenance.HostsTotal
+		}
+
+		beforeScore, beforeTotal := recompute("before")
+		if beforeScore != exp.Num("score_pct_before") {
+			t.Errorf("score before deletion = %v, want %v", beforeScore, exp.Num("score_pct_before"))
+		}
+		if beforeTotal != exp.Int("hosts_total_before") {
+			t.Errorf("hosts_total before = %d, want %d", beforeTotal, exp.Int("hosts_total_before"))
+		}
+
+		// Soft-delete an attested host AFTER signing.
+		if _, err := pool.Exec(ctx,
+			`UPDATE hosts SET deleted_at = now() WHERE id = $1`,
+			ids["deleted_after_signing"]); err != nil {
+			t.Fatalf("soft delete: %v", err)
+		}
+
+		afterScore, afterTotal := recompute("after")
+		if afterScore != exp.Num("score_pct_after") {
+			t.Errorf("score after deletion = %v, want %v; a signed artifact records what was "+
+				"true when it was signed, and the current deletion state of a host is not "+
+				"part of that record", afterScore, exp.Num("score_pct_after"))
+		}
+		if afterTotal != exp.Int("hosts_total_after") {
+			t.Errorf("hosts_total after = %d, want %d; the population came from the hosts "+
+				"table rather than from the artifact's own frozen ids",
+				afterTotal, exp.Int("hosts_total_after"))
+		}
+		if !exp.Bool("identical_after_deletion") {
+			t.Fatal("fixture must require identical numbers")
+		}
+		if beforeScore != afterScore || beforeTotal != afterTotal {
+			t.Errorf("the rendered artifact moved: %v/%d became %v/%d",
+				beforeScore, beforeTotal, afterScore, afterTotal)
 		}
 
 		in.AllConsumed()

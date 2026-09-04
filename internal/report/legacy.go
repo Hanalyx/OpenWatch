@@ -82,10 +82,18 @@ const (
 	generationCurrent
 )
 
-// validArtifactClasses are the only values a present artifact_class may hold.
-var validArtifactClasses = map[string]bool{
-	string(compliance.ScoreBearing): true,
-	string(compliance.ReadModel):    true,
+// expectedClassFor is the artifact class each report kind MUST declare.
+//
+// C-16: executive and attestation compute a fleet score and are
+// score-bearing; exception and remediation aggregate no scan set and are read
+// models. Accepting either globally known value for every kind let an
+// artifact deny the class its own kind requires, so an executive could
+// declare read_model and drop the whole envelope while still parsing.
+var expectedClassFor = map[Kind]compliance.ArtifactClass{
+	KindExecutive:   compliance.ScoreBearing,
+	KindAttestation: compliance.ScoreBearing,
+	KindException:   compliance.ReadModel,
+	KindRemediation: compliance.ReadModel,
 }
 
 // generationOf classifies stored content, rejecting the ambiguous middle.
@@ -126,9 +134,15 @@ func generationOf(kind string, content []byte) (artifactGeneration, error) {
 	if err := json.Unmarshal(classRaw, &class); err != nil {
 		return generationCurrent, ErrInvalidProvenance{"artifact_class is not a string"}
 	}
-	if !validArtifactClasses[class] {
+	want, known := expectedClassFor[Kind(kind)]
+	if !known {
 		return generationCurrent, ErrInvalidProvenance{
-			"artifact_class " + strconv.Quote(class) + " is not a known class"}
+			"kind " + strconv.Quote(kind) + " has no declared artifact class"}
+	}
+	if class != string(want) {
+		return generationCurrent, ErrInvalidProvenance{
+			"artifact_class " + strconv.Quote(class) + " contradicts kind " +
+				strconv.Quote(kind) + ", which is " + string(want)}
 	}
 	return generationCurrent, nil
 }

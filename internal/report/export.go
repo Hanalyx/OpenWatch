@@ -403,11 +403,7 @@ func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte,
 	// Back-compat: a snapshot frozen before the rollup was part of the
 	// content has an empty rollup but attested hosts; recompute it live.
 	if c.Rollup.TotalChecks == 0 && c.HostsAttested > 0 {
-		// Scoped to the hosts THIS ARTIFACT attested, not to the fleet as it
-		// stands now. Recomputing against today's hosts would let a snapshot's
-		// rendered numbers drift as the fleet changes, which is the opposite
-		// of what freezing content is for.
-		rollup, err := s.computeAttestationRollup(ctx, s.pool, hostIDsOf(c), scanIDsOf(c), c.Framework)
+		rollup, err := s.legacyRollupFor(ctx, c)
 		if err != nil {
 			return nil, "", err
 		}
@@ -449,7 +445,17 @@ func scanIDsOf(c AttestationContent) []uuid.UUID {
 // failing), rounded half up, nil when nothing was evaluated. Called at
 // generation time to FREEZE the rollup into the signed content (and as a
 // back-compat fallback when rendering a pre-rollup snapshot).
-func (s *Service) computeAttestationRollup(ctx context.Context, q queryer, hostIDs, scanIDs []uuid.UUID, framework string) (AttestationRollup, error) {
+// frozenPopulation selects the rollup's population directly from a stored
+// artifact's own host ids, with no reference to the hosts table.
+//
+// A recomputed legacy face must not move when the fleet does. Reusing the
+// generation query meant it filtered hosts.deleted_at IS NULL, so
+// soft-deleting an attested host changed the numbers on an artifact that was
+// already signed. What the artifact recorded is the record; the current
+// deletion state of a host is not part of it.
+const frozenPopulation = "unnest($%d::uuid[]) AS hh(id)"
+
+func (s *Service) computeAttestationRollup(ctx context.Context, q queryer, hostIDs, scanIDs []uuid.UUID, framework string, frozen bool) (AttestationRollup, error) {
 	var r AttestationRollup
 	r.TopFailing = []TopFailingRule{}
 
@@ -477,6 +483,18 @@ func (s *Service) computeAttestationRollup(ctx context.Context, q queryer, hostI
 	// has now. The lens sits in the JOIN condition for the same reason as the
 	// executive query: in WHERE it would turn the outer join back into an
 	// inner one.
+	countArgs := []any{scanIDs}
+	next := 2
+
+	// The population source. Generating fresh content asks the hosts table
+	// which hosts are active; re-rendering a stored artifact asks the artifact.
+	population := "hosts hh"
+	if frozen {
+		population = fmt.Sprintf(frozenPopulation, next)
+		countArgs = append(countArgs, hostIDs)
+		next++
+	}
+
 	countQ := `
 		SELECT hh.id,
 		       count(sr.rule_id)::int,
@@ -485,23 +503,24 @@ func (s *Service) computeAttestationRollup(ctx context.Context, q queryer, hostI
 		       count(*) FILTER (WHERE sr.status = 'skipped')::int,
 		       count(*) FILTER (WHERE sr.status = 'error')::int,
 		       COALESCE(MIN(run.engine_version), '')
-		  FROM hosts hh
+		  FROM ` + population + `
 		  LEFT JOIN scan_results sr
 		    ON sr.host_id = hh.id
 		   AND sr.scan_id = ANY($1)`
-	countArgs := []any{scanIDs}
-	next := 2
 	if framework != "" {
 		countQ += fmt.Sprintf(" AND sr.framework_refs ? $%d", next)
 		countArgs = append(countArgs, framework)
 		next++
 	}
 	countQ += `
-		  LEFT JOIN scan_runs run ON run.id = sr.scan_id
+		  LEFT JOIN scan_runs run ON run.id = sr.scan_id`
+	if !frozen {
+		countQ += `
 		 WHERE hh.deleted_at IS NULL`
-	if hostIDs != nil {
-		countQ += fmt.Sprintf(" AND hh.id = ANY($%d)", next)
-		countArgs = append(countArgs, hostIDs)
+		if hostIDs != nil {
+			countQ += fmt.Sprintf(" AND hh.id = ANY($%d)", next)
+			countArgs = append(countArgs, hostIDs)
+		}
 	}
 	countQ += " GROUP BY hh.id"
 	hostRows, err := q.Query(ctx, countQ, countArgs...)
@@ -823,4 +842,20 @@ func hostIDsOf(c AttestationContent) []uuid.UUID {
 		out = append(out, a.HostID)
 	}
 	return out
+}
+
+// legacyRollupFor recomputes the rollup for an artifact signed before the
+// rollup was part of the content.
+//
+// The population comes from the artifact's OWN frozen host ids, not from the
+// hosts table, and carries no current-deletion filter. Scoping it to today's
+// active hosts made a signed artifact's rendered numbers move when a host was
+// later soft-deleted, which is the opposite of what freezing content is for.
+//
+// It is a named function rather than an inline call so the rendering path's
+// choice of population is the thing under test, not an argument a test can
+// hardcode.
+func (s *Service) legacyRollupFor(ctx context.Context, c AttestationContent) (AttestationRollup, error) {
+	return s.computeAttestationRollup(
+		ctx, s.pool, hostIDsOf(c), scanIDsOf(c), c.Framework, true)
 }

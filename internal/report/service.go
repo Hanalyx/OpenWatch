@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Hanalyx/openwatch/internal/db"
+
 	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,6 +63,12 @@ const allHostsLabel = "All hosts"
 // Service satisfies it via ScopeGroup.
 type GroupScoper interface {
 	ScopeGroup(ctx context.Context, groupID uuid.UUID) (name string, hostIDs []uuid.UUID, err error)
+
+	// ScopeGroupIn resolves the same thing inside a caller-supplied
+	// transaction, so a signed artifact's scope and its content come from one
+	// snapshot. Resolving membership on the pool first let a host join or
+	// leave in between, and nothing in the artifact would say so.
+	ScopeGroupIn(ctx context.Context, q db.Queryer, groupID uuid.UUID) (name string, hostIDs []uuid.UUID, err error)
 }
 
 // Service owns the reports library: generating an executive summary
@@ -153,23 +161,8 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	}
 
 	scope := Scope{Framework: req.Framework}
-	var hostIDs []uuid.UUID // nil = all hosts (no host filter)
-	if req.GroupID != nil {
-		if s.groups == nil {
-			return Report{}, ErrGroupScopeUnavailable
-		}
-		name, ids, err := s.groups.ScopeGroup(ctx, *req.GroupID)
-		if err != nil {
-			return Report{}, err // group.ErrNotFound propagates; handler maps to 400
-		}
-		scope.GroupID = req.GroupID
-		scope.GroupName = name
-		// A resolved group always filters by host id — even an empty
-		// group, which must read as zero hosts (not "all hosts").
-		hostIDs = ids
-		if hostIDs == nil {
-			hostIDs = []uuid.UUID{}
-		}
+	if req.GroupID != nil && s.groups == nil {
+		return Report{}, ErrGroupScopeUnavailable
 	}
 
 	// Compute the kind's frozen content, entirely inside ONE snapshot.
@@ -179,8 +172,35 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	// generation could freeze a score, a coverage block and a top-failing list
 	// describing three different states into one signed artifact.
 	var content any
+	var dataAsOf time.Time
 	title := executiveTitle
 	err := s.withFrozenSnapshot(ctx, func(q queryer) error {
+		// The sampling instant is the SNAPSHOT's, read from inside it. Taken
+		// after the transaction closed, it stamped the artifact with a moment
+		// later than the data it describes; under repeatable read now() is
+		// the transaction's start, which is exactly what the content samples.
+		if err := q.QueryRow(ctx, "SELECT now()").Scan(&dataAsOf); err != nil {
+			return fmt.Errorf("report: sampling instant: %w", err)
+		}
+		dataAsOf = dataAsOf.UTC()
+
+		// Membership resolved HERE, in the same snapshot as the content it
+		// scopes.
+		var hostIDs []uuid.UUID // nil = all hosts (no host filter)
+		if req.GroupID != nil {
+			name, ids, serr := s.groups.ScopeGroupIn(ctx, q, *req.GroupID)
+			if serr != nil {
+				return serr // group.ErrNotFound propagates; handler maps to 400
+			}
+			scope.GroupID = req.GroupID
+			scope.GroupName = name
+			// A resolved group always filters by host id, even an empty group,
+			// which must read as zero hosts and not as "all hosts".
+			hostIDs = ids
+			if hostIDs == nil {
+				hostIDs = []uuid.UUID{}
+			}
+		}
 		switch kind {
 		case KindAttestation:
 			c, err := s.computeAttestation(ctx, q, hostIDs, scope.Framework)
@@ -249,7 +269,6 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		signingKeyID = &keyID
 	}
 
-	dataAsOf := time.Now().UTC()
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -356,7 +375,7 @@ func (s *Service) computeAttestation(ctx context.Context, q queryer, hostIDs []u
 	// query set over the frozen scans, framework-lensed). This makes the
 	// in-app number, the PDF cover, and the signature agree, and keeps the
 	// rollup immutable + reproducible like the rest of the snapshot.
-	rollup, err := s.computeAttestationRollup(ctx, q, hostIDs, scanIDsOf(c), framework)
+	rollup, err := s.computeAttestationRollup(ctx, q, hostIDs, scanIDsOf(c), framework, false)
 	if err != nil {
 		return AttestationContent{}, err
 	}
@@ -506,13 +525,10 @@ func (s *Service) computeRemediationActivity(ctx context.Context, q queryer, hos
 
 // queryer is the read subset of pgx the frozen-content readers use.
 //
-// Both *pgxpool.Pool and pgx.Tx satisfy it, so the same reader runs on the
-// pool for a one-off query and inside the snapshot transaction below when it
-// is producing content that will be signed.
-type queryer interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
+// It is db.Queryer, not a local copy: the group service resolves membership
+// inside this package's transaction, and Go matches interface methods by
+// exact parameter type, so both sides have to name the same one.
+type queryer = db.Queryer
 
 // withFrozenSnapshot runs fn against ONE repeatable-read, read-only snapshot.
 //

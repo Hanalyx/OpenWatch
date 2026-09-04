@@ -35,12 +35,15 @@ spec:
       over the group's resolved member set, hosts (member count), online
       and down from host_liveness.reachability_status (reachable /
       unreachable), critical_hosts (distinct member hosts with a failing
-      critical rule in host_rule_state), and avg_compliance_pct from
-      host_rule_state (passing / evaluated, evaluated = pass+fail, nil
-      when no member host has been scanned). The fleet Summary KPIs
-      count groups, sites, os_categories, hosts in any maintenance
-      group, ungrouped active hosts (no manual group and no auto match),
-      and fleet avg_compliance_pct.
+      critical rule in host_rule_state), and a score object carrying
+      score_pct, the outcome counts, coverage, the participation counts and
+      the provenance envelope. score_pct is the equal-host mean of the
+      member scores, to one decimal, and null when no member host produced
+      a verdict. The fleet Summary KPIs count groups, sites, os_categories,
+      hosts in any maintenance group, ungrouped active hosts (no manual
+      group and no auto match), and the same fleet score object. Amended
+      2026-09-03: the bare avg_compliance_pct integer is gone with no
+      alias.
 
       The maintenance flag pauses compliance scans, connectivity probes,
       intelligence, and discovery for a group's hosts: every scheduler/probe
@@ -125,9 +128,9 @@ spec:
         resolved member set: online and down count member hosts whose
         host_liveness.reachability_status is reachable and unreachable
         respectively; critical_hosts counts distinct member hosts with a
-        failing critical rule in host_rule_state; avg_compliance_pct is
-        the equal-host mean of the member scores rounded to a whole
-        percent and is nil when no member produced a verdict. The member
+        failing critical rule in host_rule_state; score.score_pct is the
+        equal-host mean of the member scores to ONE DECIMAL and is null
+        when no member produced a verdict. The member
         chip list is bounded (at most 8, ordered by hostname).
       type: technical
       enforcement: error
@@ -154,8 +157,8 @@ spec:
         hosts_maintenance as the distinct active hosts that belong to any
         maintenance group (manual member or auto match); ungrouped as the
         active hosts in no manual group and matching no auto group; and
-        avg_compliance_pct as the EQUAL-HOST MEAN across all active hosts
-        scored on the org default lens, nil when no host produced a
+        score.score_pct as the EQUAL-HOST MEAN across all active hosts
+        scored on the org default lens, null when no host produced a
         verdict (v1.2.0; the same rule as GET /fleet/score, so the two
         agree as system-compliance-lens AC-11 requires). All host counts
         exclude soft-deleted hosts.
@@ -262,8 +265,9 @@ spec:
         Summary reports groups, sites, and os_categories counts;
         hosts_maintenance as the distinct active hosts in any maintenance
         group (manual member or auto match), ungrouped as active hosts in
-        no manual group and matching no auto group, and avg_compliance_pct
-        across active hosts (nil when nothing evaluated). Soft-deleted
+        no manual group and matching no auto group, and the score object
+        across active hosts (score_pct null when nothing evaluated).
+        Soft-deleted
         hosts are excluded from every count.
       priority: high
       references_constraints: [C-05]
@@ -289,7 +293,7 @@ spec:
           - {id: D, pass: 0, fail: 0, skipped: 0}
         all_failing_group_member: {pass: 0, fail: 3}
       expected_output:
-        avg_compliance_pct: 70.0
+        score_pct: 70.0
         forbidden_pooled_pct: 83.3
         forbidden_zero_averaged_pct: 46.7
         hosts_scored: 2
@@ -325,7 +329,7 @@ spec:
         soft_deleted_host: {pass: 0, fail: 20}
         org_default: ''
       expected_output:
-        avg_compliance_pct: 75.0
+        score_pct: 75.0
         forbidden_with_deleted_pct: 37.5
         hosts_scored: 1
         hosts_without_score: 1

@@ -964,6 +964,14 @@ spec:
         Score fields and provenance are inspected at the level the KIND stores
         them: top level for an executive or a read model, under rollup for an
         attestation.
+
+        The class is validated AGAINST THE KIND, not merely against the set of
+        known classes. C-16 says executive and attestation are score-bearing
+        and exception and remediation are read models, so an executive
+        declaring read_model, or an exception declaring score_bearing, is a
+        contradiction the check must reject. Accepting either globally known
+        value for every kind let an artifact deny the class its own kind
+        requires.
       priority: critical
       references_constraints: [C-09, C-16]
       inputs:
@@ -975,10 +983,20 @@ spec:
           - {kind: executive, case: artifact_class_unknown}
           - {kind: executive, case: compliance_pct_null_on_current}
           - {kind: attestation, case: rollup_compliance_pct_on_current}
+          - {kind: executive, case: score_bearing_kind_declares_read_model}
+          - {kind: attestation, case: score_bearing_kind_declares_read_model}
+          - {kind: exception, case: read_model_kind_declares_score_bearing}
+          - {kind: remediation, case: read_model_kind_declares_score_bearing}
+        expected_class_by_kind:
+          executive: score_bearing
+          attestation: score_bearing
+          exception: read_model
+          remediation: read_model
       expected_output:
         legacy_accepted: true
-        rejected_count: 6
+        rejected_count: 10
         legacy_requires_absent_key: true
+        class_is_kind_specific: true
     - id: AC-39
       description: >-
         The whole frozen content of a signed artifact comes from ONE database
@@ -994,13 +1012,55 @@ spec:
         Generation runs in a single REPEATABLE READ, READ ONLY transaction, so
         every read sees the same fleet at the same instant. Read-only because
         generation reads; the artifact is stored after the snapshot closes.
+
+        Group membership, the group name and the sampling timestamp are inside
+        that snapshot too. Resolving membership before it let a host join or
+        leave between the scope decision and the content, and taking
+        data_as_of after it stamped the artifact with an instant later than
+        the data it describes. The criterion is asserted THROUGH Generate,
+        because a test that called the transaction helper directly would stay
+        green if Generate stopped using it.
       priority: critical
       references_constraints: [C-09]
       inputs:
         kinds: [executive, attestation]
         concurrent_write: a host gains rule state after the first content read
+        driven_through: Generate
+        inside_the_snapshot: [group_membership, group_name, content_reads, data_as_of]
       expected_output:
         isolation_level: repeatable read
         access_mode: read only
         content_reads_share_one_snapshot: true
         concurrent_write_invisible: true
+        generate_uses_the_snapshot: true
+        data_as_of_is_the_snapshot_instant: true
+    - id: AC-40
+      description: >-
+        A stored artifact renders the same numbers however the fleet changes
+        after it was signed.
+
+        Added 2026-09-04. The back-compat path that recomputes a rollup for a
+        pre-rollup attestation passed the artifact's own frozen host ids, but
+        reused the generation query, which filters on hosts.deleted_at IS
+        NULL. Soft-deleting an attested host therefore changed the numbers on
+        an already-signed artifact's rendered face. A signed artifact records
+        what was true when it was signed; the current deletion state of a host
+        is not part of that record.
+
+        The compatibility population comes from the frozen host ids
+        themselves, independent of the hosts table and of any current deletion
+        state.
+      priority: critical
+      references_constraints: [C-11]
+      inputs:
+        artifact: pre_rollup_attestation
+        hosts:
+          - {id: kept, counts: {pass: 1, fail: 1}}
+          - {id: deleted_after_signing, counts: {pass: 4, fail: 0}}
+        mutation: soft delete the second host AFTER the artifact is signed
+      expected_output:
+        score_pct_before: 75.0
+        score_pct_after: 75.0
+        hosts_total_before: 2
+        hosts_total_after: 2
+        identical_after_deletion: true

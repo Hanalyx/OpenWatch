@@ -20,19 +20,20 @@ spec:
       the active (non-deleted) host count from hosts, and the top failing
       rules (the rules failing on the most hosts) from host_rule_state.
       The same counting shape as the Groups fleet rollup is used so the
-      numbers agree across the app: compliance_pct is passing over
-      evaluated (evaluated = current_status in pass or fail) rounded half
-      up to a whole percent, and nil when nothing has been evaluated (so
-      an unscanned fleet is distinguishable from a fully failing one). The
+      numbers agree across the app: score_pct is the EQUAL-HOST MEAN of
+      the in-scope hosts' scores, to one decimal, and null when no host
+      produced a verdict (so an unscanned fleet is distinguishable from a
+      fully failing one). It replaced compliance_pct, a POOLED whole
+      percent, on 2026-09-03. The
       computed ExecutiveContent is marshalled to JSON and stored in the
       row's content column; the row is WRITE-ONCE and is never recomputed,
       so data_as_of records the instant the posture was sampled.
 
       CONTENT IS A WIRE CONTRACT: the detail view and any later renderer
-      read the frozen JSON by exact key (compliance_pct, host_count,
-      passing_rules, failing_rules, critical_issues, top_failing_rules).
-      compliance_pct encodes as JSON null when unevaluated (not 0, not
-      omitted) and top_failing_rules always serializes as a list (never
+      read the frozen JSON by exact key (score_pct, host_count,
+      passing_rules, failing_rules, critical_issues, top_failing_rules,
+      provenance). score_pct encodes as JSON null when unevaluated (not 0,
+      not omitted) and top_failing_rules always serializes as a list (never
       JSON null), ordered most-failing first and capped at a small
       leadership-facing limit.
 
@@ -70,7 +71,7 @@ spec:
         - reports table (migration 0028) and the internal/report service
         - Generate / List / Get over the executive summary kind
         - The three HTTP endpoints with their RBAC bars (host:read view, host:write generate)
-        - Executive content computed from host_rule_state (pass/fail counts, critical, compliance_pct) plus the active host count and the top failing rules
+        - Executive content computed per host over every active in-scope host (pass/fail counts, critical, the equal-host mean score_pct) plus the active host count, the top failing rules, and the frozen provenance envelope
         - The frozen JSON content as a wire contract (exact keys, nil compliance encoding, list-never-null top-failing)
         - The write-once row whose data_as_of is the posture sample instant and whose format is json
       excludes:
@@ -86,11 +87,12 @@ spec:
     - id: C-01
       description: >-
         The frozen executive content is a JSON wire contract: it
-        serializes the exact keys compliance_pct, host_count,
+        serializes the exact keys score_pct, host_count,
         passing_rules, failing_rules, critical_issues, top_failing_rules,
-        and coverage (v1.2.0, an object with hosts_total, hosts_fresh,
-        hosts_stale, hosts_unreachable); compliance_pct encodes as JSON
-        null when nothing is evaluated (not 0, not omitted);
+        coverage (v1.2.0, an object with hosts_total, hosts_fresh,
+        hosts_stale, hosts_unreachable), and provenance; score_pct encodes
+        as JSON null when nothing is evaluated (not 0, not omitted); a
+        newly generated artifact MUST NOT carry compliance_pct;
         top_failing_rules always serializes as a list (never JSON null),
         ordered most-failing first and capped at the small
         leadership-facing limit.
@@ -98,10 +100,14 @@ spec:
       enforcement: error
     - id: C-02
       description: >-
-        compliance_pct is passing over evaluated (evaluated =
-        current_status in pass or fail) rounded half up to a whole percent,
-        and nil (never 0) when nothing has been evaluated, so an unscanned
-        fleet is distinguishable from a fully failing one.
+        score_pct is the equal-host mean of the in-scope hosts' scores,
+        each host being passing over (passing + failing), rendered to one
+        decimal and null (never 0) when no host has been evaluated, so an
+        unscanned fleet is distinguishable from a fully failing one.
+        Amended 2026-09-03: it was compliance_pct, a pooled whole percent
+        over every rule outcome in scope, which weighted a host by how many
+        rules it carried and could never equal the one-decimal score every
+        other surface reports.
       type: technical
       enforcement: error
     - id: C-03
@@ -273,8 +279,8 @@ spec:
         it does NOT copy the bulk rows. Because scan_results are immutable,
         the snapshot is point-in-time while staying small (inline JSONB, no
         blob needed). v1.11.0: the headline compliance rollup is FROZEN into
-        the content at generation time - rollup {compliance_pct,
-        total_checks, passing, failing, skipped, errored, top_failing} -
+        the content at generation time - rollup {score_pct, total_checks,
+        passing, failing, skipped, errored, top_failing, provenance} -
         computed once by aggregate queries over the frozen scans
         (framework-lensed), so it is part of the signed content and the
         in-app view, the PDF cover, and the signature all show the same
@@ -464,8 +470,8 @@ spec:
         Generate, over seeded host_rule_state and hosts, samples the live
         posture and freezes it: passing_rules and failing_rules match the
         pass and fail row counts, critical_issues counts the failing rows
-        of critical severity, compliance_pct is the rounded
-        passing-over-evaluated percent, host_count is the active host count
+        of critical severity, score_pct is the one-decimal equal-host mean
+        of the per-host scores, host_count is the active host count
         (soft-deleted hosts excluded), and top_failing_rules leads with the
         rule failing on the most hosts. The stored row carries the fixed
         title/scope/kind/format, the supplied generated_by, and a
@@ -475,7 +481,7 @@ spec:
     - id: AC-05
       description: >-
         Generate over a fleet with hosts but no evaluated rule_state rows
-        reports nil compliance_pct (never scanned, not 0%), zero pass and
+        reports null score_pct (never scanned, not 0%), zero pass and
         fail and critical counts, the active host_count, and an empty
         (non-null) top_failing_rules list, so the document and any later
         renderer never see a JSON null slice.

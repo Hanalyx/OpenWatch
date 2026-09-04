@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -268,12 +270,22 @@ func (s *Service) List(ctx context.Context, orgDefault string) ([]GroupWithRollu
 // scope), distinct from the unscoped all-hosts case the caller models
 // as no group at all.
 func (s *Service) ScopeGroup(ctx context.Context, groupID uuid.UUID) (string, []uuid.UUID, error) {
-	g, err := s.Get(ctx, groupID)
+	return s.ScopeGroupIn(ctx, s.pool, groupID)
+}
+
+// ScopeGroupIn is ScopeGroup against a caller-supplied queryer, so the group
+// name and its member set can be read inside the caller's transaction.
+func (s *Service) ScopeGroupIn(ctx context.Context, q db.Queryer, groupID uuid.UUID) (string, []uuid.UUID, error) {
+	row := q.QueryRow(ctx, `SELECT `+groupCols+` FROM groups WHERE id = $1`, groupID)
+	g, err := scanGroup(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, ErrNotFound
+	}
 	if err != nil {
-		return "", nil, err // ErrNotFound propagates
+		return "", nil, err
 	}
 	cte, arg := memberCTE(g)
-	rows, err := s.pool.Query(ctx, cte, arg)
+	rows, err := q.Query(ctx, cte, arg)
 	if err != nil {
 		return "", nil, fmt.Errorf("group: scope members: %w", err)
 	}
