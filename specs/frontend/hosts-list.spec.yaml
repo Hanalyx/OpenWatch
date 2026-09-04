@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 2
 
@@ -170,11 +170,11 @@ spec:
       priority: medium
       references_constraints: [C-02]
     - id: AC-16
-      description: 'v1.3.0 — per-host compliance is real: apiHostToDev maps the list endpoint nullable compliance_summary into the host shape. compliance = round(passing/total*1000)/10 when total > 0, otherwise null; passed/failed/total come from the summary (passing/failing/total); critical_failing is carried as criticalFailing. A null summary (or a zero-rule summary) keeps compliance/passed/failed null so the card renders the honest "No scan data" state with the "Scan needed" hint (never-scanned hosts only) and the table cell renders a dash. No placeholder zeros. Card and table cells render the real percentage, the passing/failing counts, and the tier color via the existing complianceTier().'
+      description: 'v1.3.0 — per-host compliance is real: apiHostToDev maps the list endpoint nullable compliance_summary into the host shape. compliance is TAKEN from the summary''s server-computed score_pct and is null when the server sends null (v1.11.0; it was derived here as round(passing/total*1000)/10, which was both the replaced formula and a second implementation of it in the browser); passed/failed/total come from the summary (passing/failing/total); critical_failing is carried as criticalFailing. A null summary (or a zero-rule summary) keeps compliance/passed/failed null so the card renders the honest "No scan data" state with the "Scan needed" hint (never-scanned hosts only) and the table cell renders a dash. No placeholder zeros. Card and table cells render the real percentage, the passing/failing counts, and the tier color via the existing complianceTier().'
       priority: critical
       references_constraints: [C-02]
     - id: AC-17
-      description: 'v1.3.0 — the Avg. compliance KPI is a rule-weighted average over hosts WITH scan data only: kpisFromHosts filters to hosts whose compliance is non-null and total > 0 before summing passed/total. Never-scanned hosts are excluded from the average entirely, not counted as 0.'
+      description: 'v1.3.0 — the Avg. compliance KPI is the EQUAL-HOST MEAN over hosts that have a score: kpisFromHosts filters to hosts whose compliance is non-null and averages those values, each host counting once (v1.11.0; it was rule-weighted, which gave a host with many rules more say and disagreed with every server surface). Never-scanned hosts are excluded entirely, not counted as 0. A fleet in which NO host has a score yields null, not 0: reporting an absence of data as total failure is the defect this work removes. The KPI renders a dash for null. This client-side value is a fallback; AC-26''s authoritative fleet score replaces it once that query resolves.'
       priority: high
       references_constraints: [C-02]
     - id: AC-18
@@ -220,11 +220,14 @@ spec:
         client-side kpisFromHosts aggregate so /hosts and /dashboard agree.
         v1.10.0 — the key carries the org default lens (['fleet','score',lens])
         and forwards it as ?framework= so the KPI reflects the default lens,
-        matching the dashboard.
+        matching the dashboard. v1.11.0 — the value is TAKEN AS SENT from
+        score_pct, guarded on it being non-null rather than on a count being
+        positive, and passing_fraction and total_evaluations are gone from the
+        contract entirely.
         Source-inspection of HostsListPage: a useQuery with queryKey
         ['fleet','score',lens] hits GET /api/v1/fleet/score, and the avg-compliance
-        KPI value is set to round(passing_fraction * 100) from that query
-        (guarded on total_evaluations > 0), the same expression the dashboard
+        KPI value is assigned score_pct from that query
+        (guarded on score_pct !== null), the same value the dashboard
         widget uses.
       priority: high
       references_constraints: [C-13]

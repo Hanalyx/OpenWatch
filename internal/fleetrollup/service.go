@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -30,11 +31,20 @@ func NewService(pool *pgxpool.Pool) *Service {
 //
 // Every row is scoped to its host's current corpus (internal/corpus), so
 // a rule that has left a host's scanned corpus stops counting there. A
-// host with no completed scan contributes nothing, which reads through
-// the existing empty-fleet path below.
+// host with no completed scan contributes nothing.
 //
-// On an empty fleet, returns Score{0, 0} with nil error (NOT
-// pgx.ErrNoRows). Spec AC-01 / AC-02 / AC-03.
+// The mean is EQUAL-HOST: score each host, then average the scores. It is not
+// a pooled ratio over every rule row, which weighted each host by how many
+// rules it carried and called the result a fleet score.
+//
+// A host that produced no verdict is counted in HostsWithoutScore and left out
+// of the mean, never averaged in as zero. An empty fleet has NO score rather
+// than zero percent, and still returns nil error, never pgx.ErrNoRows.
+//
+// ONE LENS. Every host is scored against the framework passed here, resolved to
+// that host's OS. Per-host effective targets are deliberately not honored: an
+// average over hosts each graded on a different benchmark is not a measurement
+// of anything. Spec system-fleet-rollup C-05, AC-01 to AC-03.
 //
 // WithFramework filters to rows whose framework_refs JSONB contains
 // the given key (api-fleet-observability v1.1.0 AC-14).
@@ -46,27 +56,126 @@ func (s *Service) FleetComplianceScore(ctx context.Context, opts ...Option) (Sco
 	// stig_rhel9, a RHEL 10 host against stig_rhel10 — rather than the family
 	// union, which would grade every host against every OS variant it carries
 	// mapped rules for. $1 NULL = all rules. Joins hosts for each row's OS.
+	// One row per host, then the mean of those rows. The GROUP BY is what makes
+	// it equal-host: without it this is the pooled ratio it replaces.
+	//
+	// The per-host value is ScorePctSQL, which is NOT rounded. Rounding each
+	// host to one decimal before averaging is a different function from
+	// averaging and rounding once: 0/1 and 2/3 average to 33.3, but rounding
+	// first averages 0.0 and 66.7 to 33.4.
+	// The population is EVERY ACTIVE HOST, left-joined to its rule state, not
+	// the hosts that happen to have rows.
+	//
+	// Building per_host from host_rule_state_current made a host disappear
+	// instead of counting: never scanned, scanned and produced nothing, or
+	// carrying no rule that matches the chosen lens all yielded no row at all,
+	// so HostsWithoutScore under-reported and hosts_scored plus
+	// hosts_without_score did not add up to the fleet. The lens predicate
+	// therefore belongs in the JOIN condition; in WHERE it would turn the outer
+	// join back into an inner one and undo this.
 	q := `
-		SELECT
-			COUNT(*) FILTER (WHERE current_status = 'pass')                  AS passing,
-			COUNT(*) FILTER (WHERE current_status IN ('pass','fail'))        AS evaluations
-		  FROM host_rule_state_current hrs
-		  JOIN hosts hh ON hh.id = hrs.host_id
-		 WHERE ` + framework.OSResolvedMatchSQL("$1", "hh.os_family", "hh.os_version")
-	var passing, evaluations int64
-	if err := s.pool.QueryRow(ctx, q, nullableFramework(o.framework)).Scan(&passing, &evaluations); err != nil {
+		WITH per_host AS (
+			SELECT hh.id AS host_id,
+			       ` + compliance.ScorePctSQL(
+		compliance.StatusCountSQL("hrs", "'pass'"),
+		compliance.StatusCountSQL("hrs", "'pass','fail'")) + ` AS score_pct,
+			       ` + compliance.StatusCountSQL("hrs", "'pass'") + ` AS passing,
+			       ` + compliance.StatusCountSQL("hrs", "'fail'") + ` AS failing,
+			       ` + compliance.StatusCountSQL("hrs", "'skipped'") + ` AS skipped,
+			       ` + compliance.StatusCountSQL("hrs", "'error'") + ` AS errored,
+			       -- The engine that produced THIS host's outcomes, copied from
+			       -- the run its rule state belongs to. MIN over one host's rows
+			       -- is that host's single value; the DISTINCT across hosts is
+			       -- taken below.
+			       MIN(sr.engine_version) AS engine_version
+			  FROM hosts hh
+			  LEFT JOIN host_rule_state_current hrs
+			    ON hrs.host_id = hh.id
+			   AND ` + framework.OSResolvedMatchSQL("$1", "hh.os_family", "hh.os_version") + `
+			  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+			 WHERE hh.deleted_at IS NULL
+			 GROUP BY hh.id
+		)
+		SELECT ` + compliance.MeanScoreSQL("score_pct") + `,
+		       COUNT(*) FILTER (WHERE score_pct IS NOT NULL)::int,
+		       COUNT(*) FILTER (WHERE score_pct IS NULL)::int,
+		       COUNT(*)::int,
+		       COALESCE(SUM(passing), 0)::bigint,
+		       COALESCE(SUM(failing), 0)::bigint,
+		       COALESCE(SUM(skipped), 0)::bigint,
+		       COALESCE(SUM(errored), 0)::bigint,
+		       -- Engine contributors WITH COUNTS, over the SCORED hosts only.
+		       -- A bare version list could not tell "every scored host ran
+		       -- v0.9.0" from "one did and the rest recorded nothing", and the
+		       -- singular engine_version then published agreement that did not
+		       -- exist. The counts make the difference visible and let the
+		       -- envelope refuse an accounting that does not reconcile.
+		       COALESCE(
+		           (SELECT jsonb_agg(jsonb_build_object(
+		                       'engine_version', e.engine_version,
+		                       'contributors_scored', e.n)
+		                   ORDER BY e.engine_version)
+		              FROM (SELECT engine_version, COUNT(*)::int AS n
+		                      FROM per_host
+		                     WHERE score_pct IS NOT NULL AND engine_version IS NOT NULL
+		                     GROUP BY engine_version) e),
+		           '[]'::jsonb),
+		       -- Scored hosts whose run recorded no engine.
+		       COUNT(*) FILTER (WHERE score_pct IS NOT NULL AND engine_version IS NULL)::int
+		  FROM per_host`
+	var mean *float64
+	var scored, unscored, total int
+	var counts compliance.Counts
+	var engineRows []struct {
+		EngineVersion      string `json:"engine_version"`
+		ContributorsScored int    `json:"contributors_scored"`
+	}
+	var withoutEngine int
+	// The counts come from the SAME statement as the score, so a scan
+	// completing between two queries cannot leave the number and the outcomes
+	// behind it describing different snapshots of the fleet.
+	if err := s.pool.QueryRow(ctx, q, nullableFramework(o.framework)).
+		Scan(&mean, &scored, &unscored, &total,
+			&counts.Pass, &counts.Fail, &counts.Skipped, &counts.Error,
+			&engineRows, &withoutEngine); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Filtered COUNT never returns NoRows but defend anyway.
+			// An aggregate over an empty set returns one row of NULLs, never
+			// NoRows, but defend anyway. An empty fleet has no score.
 			return Score{}, nil
 		}
 		return Score{}, fmt.Errorf("fleetrollup: FleetComplianceScore: %w", err)
 	}
-	if evaluations == 0 {
-		return Score{PassingFraction: 0, TotalEvaluations: 0}, nil
+	score, err := compliance.ScoreFromNullable(mean)
+	if err != nil {
+		return Score{}, fmt.Errorf("fleetrollup: FleetComplianceScore: %w", err)
+	}
+	engines := make([]compliance.EngineContributor, 0, len(engineRows))
+	for _, e := range engineRows {
+		engines = append(engines, compliance.EngineContributor{
+			EngineVersion: e.EngineVersion, ContributorsScored: e.ContributorsScored,
+		})
+	}
+	// The invariant, checked rather than assumed. If it ever fails, a host
+	// vanished from the population and the counts describe a fleet that is not
+	// the one being reported on.
+	if scored+unscored != total {
+		return Score{}, fmt.Errorf(
+			"fleetrollup: FleetComplianceScore: %d scored + %d unscored != %d hosts",
+			scored, unscored, total)
 	}
 	return Score{
-		PassingFraction:  float64(passing) / float64(evaluations),
-		TotalEvaluations: evaluations,
+		Score:  score,
+		Counts: counts,
+		// skipReasonsTyped is false for every deployment until KN-OW-021 ships.
+		// Passing it rather than assuming it keeps the call site honest about
+		// which world it is in.
+		Coverage:           compliance.AssessmentCoverage(counts, false),
+		HostsScored:        scored,
+		HostsWithoutScore:  unscored,
+		HostsTotal:         total,
+		Lens:               o.framework,
+		Engines:            engines,
+		HostsWithoutEngine: withoutEngine,
 	}, nil
 }
 

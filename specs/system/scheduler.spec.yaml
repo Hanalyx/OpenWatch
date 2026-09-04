@@ -1,7 +1,7 @@
 spec:
   id: system-scheduler
   title: Adaptive compliance scheduler
-  version: "3.1.0"
+  version: "3.2.0"
   status: approved
   tier: 1
 
@@ -107,7 +107,7 @@ spec:
       type: business
       enforcement: error
     - id: C-09
-      description: Every UPDATE to host_compliance_schedule MUST emit a scheduler.schedule.updated audit event with the prior + new state in detail
+      description: 'Every RUNTIME APPLICATION update to host_compliance_schedule MUST emit a scheduler.schedule.updated audit event with the prior and new state in detail. Versioned data migrations are exempt: they have no authenticated actor and no request correlation id, and a migration MUST NOT synthesize either. Their provenance is the migration version, the release changelog entry, the migration result and the deterministic reconciliation tests. RATIFIED by the founder on 2026-09-02: runtime application updates remain fully audited; versioned data migrations must not fabricate actor or correlation provenance and instead rely on the migration version, execution result, CHANGELOG entry and deterministic reconciliation tests.'
       type: security
       enforcement: error
     - id: C-10
@@ -123,11 +123,27 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-13
+      description: The unknown scan interval MUST NEVER exceed the critical interval. A host whose compliance cannot be established is not less urgent than one known to be failing, so an operator configuration that sets it slower is clamped at ladder-build time
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: A compliance score MUST be representable as absent. An absent score maps to StateUnknown and persists as SQL NULL; a confirmed zero percent is a verdict, maps to StateCritical and persists as 0. The two MUST NOT collapse
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: Schedule rows written before the absent-score contract MUST be reconciled from scan evidence, never from the stored score value, so a genuinely zero-percent host keeps its score and state. Reconciliation preserves has_critical_findings, never moves next_scheduled_scan later, and is idempotent
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: The PolicyVersion snapshot MUST be derived from the EFFECTIVE ladder rather than from raw configuration, so two configurations producing the same ladder produce the same version regardless of which clamps applied
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
-      description: 'v3.0.0 - scheduler.LoadFromConfig(systemconfig.ScanConfig) maps all six state minutes into a clamped TierLadder via LoadIntervals (missing tier still defaults to MaxInterval 48h) and derives the version snapshot from the ladder values; two configs with the same ladder produce the same version, an edit that changes any interval changes it.'
+      description: 'v3.2.0 - scheduler.LoadFromConfig(systemconfig.ScanConfig) maps all six state minutes into a clamped TierLadder via LoadIntervals (missing tier still defaults to MaxInterval 48h) and derives the version snapshot from the ladder values; two configs with the same ladder produce the same version, an edit that changes any interval changes it. The unknown interval is additionally clamped to no more than the critical interval (see AC-17).'
       priority: critical
-      references_constraints: [C-01, C-04]
+      references_constraints: [C-01, C-04, C-16]
     - id: AC-02
       description: scheduler.NextScanFor(state, lastFinishedAt, ladder) returns lastFinishedAt + ladder[state]; clamps to MaxInterval.
       priority: critical
@@ -172,7 +188,7 @@ spec:
       priority: critical
       references_constraints: [C-08]
     - id: AC-13
-      description: Every UPDATE to host_compliance_schedule (next_scheduled_scan write, maintenance_mode toggle, manual override) emits exactly one scheduler.schedule.updated audit event with prior and new state in detail.
+      description: 'Every RUNTIME APPLICATION update to host_compliance_schedule (next_scheduled_scan write, maintenance_mode toggle, manual override) emits exactly one scheduler.schedule.updated audit event with prior and new state in detail. A versioned data migration is not a runtime application update and is exempt per C-09.'
       priority: critical
       references_constraints: [C-09]
     - id: AC-14
@@ -187,3 +203,106 @@ spec:
       description: Source-inspection of internal/scheduler/ — JobPayload struct has no FrameworkID field; NewService signature has no defaultFramework parameter; Dispatch emit payload does not contain the "framework_id" key. Confirms the v2.0.0 architectural correction is materially in place, not just spec'd.
       priority: critical
       references_constraints: [C-12]
+    - id: AC-17
+      description: 'The unknown scan interval is never slower than the critical interval. LoadFromConfig clamps unknown to min(unknown, critical), so an operator configuration of unknown=360 and critical=240 yields a 240-minute unknown tier. A host whose compliance cannot be established is not less urgent than one known to be failing.'
+      priority: critical
+      references_constraints: [C-13]
+      inputs:
+        clamped: {unknown_mins: 360, critical_mins: 240}
+        below_clamp: {unknown_mins: 60, critical_mins: 240}
+      expected_output:
+        clamped_ladder_unknown_mins: 240
+        clamped_ladder_critical_mins: 240
+        below_clamp_ladder_unknown_mins: 60
+    - id: AC-18
+      description: 'StateFromScore selects unknown for an ABSENT score rather than falling through to critical. Before bugs/OW-024 the parameter was a bare float64, an all-skipped scan arrived as 0.0, and the default branch stored the host as critically non-compliant for a scanning problem. unknown is in the public compliance_state enum and had no producer for the case that needed it.'
+      priority: critical
+      references_constraints: [C-14]
+      inputs:
+        score_present: false
+        has_critical_findings: false
+      expected_output:
+        state: unknown
+        forbidden_state: critical
+    - id: AC-19
+      description: 'A genuine zero percent score is NOT absent and still selects critical. A host whose every evaluated rule failed has a real verdict, and it must stay distinguishable from a host nothing could assess. This is the counterexample that fails if absence and zero are collapsed.'
+      priority: critical
+      references_constraints: [C-14]
+      inputs:
+        score_pct: 0.0
+        has_critical_findings: false
+      expected_output:
+        state: critical
+        forbidden_same_as_absent: true
+    - id: AC-20
+      description: 'PersistAfterScan stores NULL in compliance_score when the score is absent, never 0. host_compliance_schedule.compliance_score is already a nullable REAL, so this needs no schema change; the caller previously had no way to express absence.'
+      priority: critical
+      references_constraints: [C-14]
+      inputs:
+        score_present: false
+      expected_output:
+        stored_compliance_score: null
+        stored_compliance_state: unknown
+        returned_state: unknown
+    - id: AC-21
+      description: 'The repair migration corrects schedule rows the buggy producer already wrote, because a producer fix only corrects a host at its next scan. Eligibility comes from the outcome counts on the most recent completed scan run, rules_pass = 0 AND rules_fail = 0, both non-null. NOT from rule-state rows: a completed scan that returned no outcomes at all writes none, and the old worker persisted a fabricated zero for it too, so a rule-state predicate would have left the worse case unrepaired. A completed run with null counts is missing evidence and is left alone. It MUST NOT select on compliance_score = 0, because a host whose every evaluated rule failed has a real zero and must keep it. has_critical_findings is preserved, next_scheduled_scan is never moved later, and a host with no completed scan is out of scope. A host with no rule-state rows is NOT out of scope: a completed scan that returned zero outcomes writes none, and it carries the same fabricated row. A completed run whose counts are null is missing evidence rather than evidence of zero, and is left unchanged. The repair is idempotent. It is also transactional: run inside one transaction alongside a repairable host, an abort on the conflicting row leaves the repairable host unchanged too, which is rollback rather than merely statement ordering.'
+      priority: critical
+      references_constraints: [C-15]
+      inputs:
+        fixtures:
+          - name: unassessable
+            completed_scan: true
+            counts: {pass: 0, fail: 0, skipped: 5, error: 0}
+            stored: {state: critical, score: 0, has_critical_findings: false}
+            expect: {state: unknown, score: null, repaired: true}
+          - name: completed-zero-outcomes
+            completed_scan: true
+            counts: {pass: 0, fail: 0, skipped: 0, error: 0}
+            stored: {state: critical, score: 0, has_critical_findings: false}
+            expect: {state: unknown, score: null, repaired: true}
+          - name: genuine-zero
+            completed_scan: true
+            counts: {pass: 0, fail: 5, skipped: 0, error: 0}
+            stored: {state: critical, score: 0, has_critical_findings: false}
+            expect: {state: critical, score: 0.0, repaired: false}
+          - name: normally-scored
+            completed_scan: true
+            counts: {pass: 8, fail: 2, skipped: 0, error: 0}
+            stored: {state: mostly_compliant, score: 80, has_critical_findings: false}
+            expect: {state: mostly_compliant, score: 80.0, repaired: false}
+          - name: completed-null-counts
+            completed_scan: true
+            counts: {pass: null, fail: null, skipped: null, error: null}
+            stored: {state: critical, score: 0, has_critical_findings: false}
+            expect: {state: critical, score: 0.0, repaired: false}
+          - name: never-scanned
+            completed_scan: false
+            counts: {pass: 0, fail: 0, skipped: 0, error: 0}
+            stored: {state: unknown, score: null, has_critical_findings: false}
+            expect: {state: unknown, score: null, repaired: false}
+        conflicting_fixture:
+          name: conflicting-critical
+          completed_scan: true
+          counts: {pass: 0, fail: 0, skipped: 5, error: 0}
+          stored: {state: critical, score: 0, has_critical_findings: true}
+          expect: {state: critical, score: 0.0, repaired: false}
+        runs: 2
+      expected_output:
+        has_critical_findings_preserved: true
+        next_scheduled_scan_moved_later: false
+        idempotent: true
+        conflicting_critical_aborts: true
+        conflicting_critical_leaves_rows_unrepaired: true
+        transactional: true
+    - id: AC-22
+      description: 'PolicyVersion is derived from the effective ladder, so two configurations that clamp to the same cadence produce the same version. Building it from raw configuration broke AC-01 wherever a clamp applied: below the 5-minute floor, above the 48-hour ceiling, and now at the unknown-to-critical clamp.'
+      priority: critical
+      references_constraints: [C-16]
+      inputs:
+        same_ladder_pairs:
+          - {a: {unknown_mins: 360, critical_mins: 240}, b: {unknown_mins: 240, critical_mins: 240}, why: unknown clamped to critical}
+          - {a: {critical_mins: 1}, b: {critical_mins: 5}, why: both land on the 5-minute floor}
+        different_ladder_pair: {a: {partial_mins: 720}, b: {partial_mins: 721}}
+      expected_output:
+        same_ladder_same_version: true
+        different_ladder_different_version: true

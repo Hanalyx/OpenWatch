@@ -1,7 +1,7 @@
 spec:
   id: api-host-compliance
   title: Per-host compliance lens + failed-rules API + fleet scan-queue KPI
-  version: "1.5.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -32,7 +32,7 @@ spec:
       ?framework= lens and returns four sections: scan_context (latest
       COMPLETED scan_runs row - last_scan_at, scan_id, policy_version;
       nulls/empty when never scanned), summary (passing/failing/skipped/
-      error/total over the filtered rows plus score_pct = passing/total
+      error/total over the filtered rows plus score_pct = passing over passing plus failing
       as a percentage rounded to one decimal, 0 when total is 0),
       categories (the same rows grouped by RuleCatalog category,
       "uncategorized" when the catalog lacks the rule, sorted failing
@@ -156,7 +156,7 @@ spec:
       priority: high
       references_constraints: [C-03]
     - id: AC-08
-      description: 'v1.1.0 - GET /hosts/{id}/compliance for a host with mixed-status rows returns summary, categories, and rules that reconcile: summary.passing/failing/skipped/error equal the per-status counts over the rules array, total = len(rules), score_pct = round(passing/total*1000)/10 (0 when total=0); rules carry EVERY status and are ordered by severity rank (critical > high > medium > low > unset) then rule_id ASC; categories use "uncategorized" for catalog-unknown rules and are sorted failing DESC then category ASC.'
+      description: 'v1.1.0 - GET /hosts/{id}/compliance for a host with mixed-status rows returns summary, categories, and rules that reconcile: summary.passing/failing/skipped/error equal the per-status counts over the rules array, total = len(rules), score_pct = round(passing/(passing+failing)*1000)/10, taken from internal/compliance rather than computed in the handler (v1.6.0, replacing passing-over-total, which counted a rule nothing could evaluate as a failure). It is NULL when no rule produced a verdict (v1.7.0), which is a different fact from a genuine zero and is now expressible; the field was required and non-nullable until this release and had to read 0; rules carry EVERY status and are ordered by severity rank (critical > high > medium > low > unset) then rule_id ASC; categories use "uncategorized" for catalog-unknown rules and are sorted failing DESC then category ASC.'
       priority: critical
       references_constraints: [C-01, C-05]
     - id: AC-09
@@ -180,7 +180,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-14
-      description: 'v1.2.0 - GET /hosts/{id}/compliance/frameworks: each frameworks[] item carries passing/failing counted over the host rows containing that framework key and score_pct = round(passing/rule_count*1000)/10; the response carries overall with framework_id="all" aggregating ALL host rows (rule_count = row count, passing/failing per-status counts, same score formula, 0 when the host has no rows).'
+      description: 'v1.2.0 - GET /hosts/{id}/compliance/frameworks: each frameworks[] item carries passing/failing counted over the host rows containing that framework key and score_pct = round(passing/(passing+failing)*1000)/10 (v1.6.0, NOT over rule_count, which counts skipped and errored rules and made every unevaluated rule count against the host); the response carries overall with framework_id="all" aggregating ALL host rows (rule_count = row count, passing/failing per-status counts, same score formula, 0 when the host has no rows).'
       priority: critical
       references_constraints: [C-04, C-05]
     - id: AC-15
@@ -199,3 +199,34 @@ spec:
       description: 'v1.5.0 - the lens bar honors the enabled-frameworks allowlist. With ComplianceConfig.EnabledFrameworks=[cis, nist_800_53, stig], GET /hosts/{id}/compliance/frameworks on a host (os_family rhel) whose rows carry refs for cis_rhel9, nist_800_53, pci_dss_4, srg and stig_rhel9 lists exactly cis_rhel9, nist_800_53, stig_rhel9 (pci_dss_4 and srg dropped by family); clearing the allowlist to empty lists all five; the overall aggregate still counts all rows and GET /compliance?framework=pci_dss_4 still projects normally (deep link unfiltered).'
       priority: high
       references_constraints: [C-07]
+    - id: AC-19
+      description: 'v1.8.0 - a null score claims NO scored contributor. The envelope''s counts describe contributors to a SCORE, not hosts that were looked at, so a host whose rules all skipped reports hosts_without_corpus_identity 0, while a host whose every evaluated rule failed reports 1 beside its genuine score of 0. Constructing the envelope with a fixed 1 made an unassessable host claim a measurement that did not happen. The two cases are seeded together because a fixed 1 and a fixed 0 are each right for one of them, and only the pair can tell a correct implementation from either'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        all_skipped_host: {passing: 0, failing: 0, skipped: 4}
+        all_failing_host: {passing: 0, failing: 3, skipped: 0}
+      expected_output:
+        all_skipped_score_pct: null
+        all_skipped_hosts_without_corpus_identity: 0
+        all_skipped_coverage_status: unavailable_unclassified_skips
+        all_failing_score_pct: 0.0
+        all_failing_hosts_without_corpus_identity: 1
+        all_failing_coverage_status: available
+        aggregation_method: none
+    - id: AC-20
+      description: 'v1.8.0 - each host-list envelope names the lens THAT HOST was scored under, not the caller''s default. The query resolves the explicit request lens, then the host or group override, then the org default, then all rules, and it now RETURNS that value rather than leaving the mapper to re-derive it from the caller''s variables. A host carrying its own stig target, listed with no request lens and no org default, was filtered by stig and labelled all_rules. The fixture pairs that host with one carrying no override, so the two rows must report DIFFERENT lenses in one response'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        overridden_host: {target_framework: stig, stig_pass: 1, stig_fail: 1, cis_pass: 4}
+        plain_host: {cis_pass: 2, cis_fail: 2}
+        request_lens: ''
+        org_default: ''
+      expected_output:
+        overridden_host_lens: stig
+        forbidden_overridden_host_lens: all_rules
+        overridden_host_score_pct: 50.0
+        plain_host_lens: all_rules
+        plain_host_score_pct: 50.0
+        lenses_differ: true

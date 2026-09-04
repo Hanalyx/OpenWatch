@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -138,7 +138,7 @@ spec:
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-03
-      description: "Behavior: with a mixed-status lens fixture, the Compliance score panel renders score_pct with a legend of Compliant / Non-compliant / Not applicable / Executed (executed = passing + failing; an Error row only when error > 0), the Result mix panel renders the Compliant and Non-compliant bars plus the N/A note, the Scan details panel renders the scan metadata (ran at, coverage), the category rows render each category with 'passing / failing' over executed rules and the executed-only pass percentage, and the rules table renders one row per rules[] entry (severity pill, title, description, control_ids-or-rule_id, category, prototype-worded status chip, relative last_checked_at) — all from the single lens response, with legend numbers equal to the per-status aggregation of the rules array"
+      description: "Behavior: with a mixed-status lens fixture, the Compliance score panel renders score_pct with a legend of Compliant / Non-compliant / Not applicable / Executed (executed = passing + failing; an Error row only when error > 0), the Result mix panel renders the Compliant and Non-compliant bars plus the N/A note, the Scan details panel renders the scan metadata (ran at, coverage), the category rows render each category with 'passing / failing' over executed rules and the SERVER-SENT score_pct, rendering a dash when it is null (v1.5.0; the percentage was computed in the component, which put compliance arithmetic in the browser), and the rules table renders one row per rules[] entry (severity pill, title, description, control_ids-or-rule_id, category, prototype-worded status chip, relative last_checked_at) — all from the single lens response, with legend numbers equal to the per-status aggregation of the rules array"
       priority: critical
       references_constraints: [C-03]
     - id: AC-04

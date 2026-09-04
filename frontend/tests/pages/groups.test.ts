@@ -31,7 +31,12 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('summary.os_categories');
     expect(SRC).toContain('summary.hosts_maintenance');
     expect(SRC).toContain('summary.ungrouped');
-    expect(SRC).toContain('summary.avg_compliance_pct');
+    // The score object, not a bare integer. It carries the one-decimal value
+    // and the population it was taken over.
+    expect(SRC).toContain('summary.score.score_pct');
+    expect(SRC).toContain('summary.score.hosts_scored');
+    expect(SRC).toContain('summary.score.hosts_total');
+    expect(SRC).not.toContain('avg_compliance_pct');
   });
 
   // @ac AC-02
@@ -41,7 +46,7 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('r.online');
     expect(SRC).toContain('r.down');
     expect(SRC).toContain('r.critical_hosts');
-    expect(SRC).toContain('r.avg_compliance_pct');
+    expect(SRC).toContain('r.score.score_pct');
     // Bounded member chip preview off rollup.members.
     expect(SRC).toContain('r.members.slice(0, 4)');
     expect(SRC).toContain('<HostChip');

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 )
 
 // MaxLimit is the hard upper bound on every paginated query. Per
@@ -30,13 +32,52 @@ var AllReachabilityStatuses = []ReachabilityStatus{
 	StatusNeverProbed,
 }
 
-// Score is the fleet-wide compliance summary. PassingFraction is 0..1;
-// multiply by 100 for percentage at the UI. TotalEvaluations is the
-// count of host_rule_state rows whose current_status is pass or fail
-// (skipped / error rows are excluded). Spec AC-01 / AC-03.
+// Score is the fleet-wide compliance summary.
+//
+// Score is the EQUAL-HOST MEAN of the per-host scores: every host counts once,
+// whatever its rule count. It replaces a pooled ratio over every rule row, under
+// which a host carrying 800 rules outweighed one carrying 40 by twenty to one
+// and the "fleet score" was really a weighted average of rule counts.
+//
+// It can be absent. An empty fleet, or a fleet where no host produced a verdict,
+// has no score, and the old Score{0, 0} reported that as zero percent compliant.
+//
+// HostsScored and HostsWithoutScore are the population the mean was taken over.
+// A mean without its denominator cannot be told from a mean over every host.
+//
+// There is deliberately no rule-level evaluation count. It was the denominator
+// of the pooled fraction this replaced, and it stopped meaning anything once the
+// score became a mean over hosts. A caller that needs the size of the corpus a
+// score was computed over counts host_rule_state_current, which is the thing
+// itself rather than a number that used to imply it.
+// Spec system-fleet-rollup C-05, AC-01 to AC-03.
 type Score struct {
-	PassingFraction  float64 `json:"passing_fraction"`
-	TotalEvaluations int64   `json:"total_evaluations"`
+	Score compliance.Score
+	// HostsScored + HostsWithoutScore == HostsTotal, always. HostsTotal is
+	// every active host, so a host that was never scanned, produced nothing, or
+	// carries no rule matching the lens is counted as unscored rather than
+	// omitted from the population entirely.
+	// Counts and Coverage come from the SAME query as Score. Read separately
+	// they could describe a fleet one scan apart from the number they explain.
+	Counts   compliance.Counts
+	Coverage compliance.Coverage
+
+	HostsScored       int
+	HostsWithoutScore int
+	HostsTotal        int
+
+	// Lens is the single framework every host was scored against, as resolved
+	// by the caller. It travels with the number because a percentage that
+	// cannot name its rule set reconciles with nothing.
+	Lens string
+
+	// Engines are the engine versions that produced the contributing outcomes,
+	// with how many SCORED hosts each covers, copied from each host's scan run.
+	// HostsWithoutEngine counts the scored hosts whose run recorded none. The
+	// two together are what let an aggregate say "partially identified" rather
+	// than reporting one version as if everyone agreed.
+	Engines            []compliance.EngineContributor
+	HostsWithoutEngine int
 }
 
 // LivenessRollup is the host-count breakdown by reachability status.

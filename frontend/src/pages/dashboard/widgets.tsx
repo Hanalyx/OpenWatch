@@ -79,16 +79,25 @@ export function KpiAvgCompliance() {
         <WidgetState kind="loading" />
       ) : q.isError ? (
         <WidgetState kind="error" />
-      ) : q.data.total_evaluations === 0 ? (
-        <WidgetState kind="empty" message="No scans yet" />
+      ) : q.data.score_pct === null ? (
+        // No score is not zero percent. The fleet either has no hosts to
+        // assess or none of them produced a verdict, and showing 0 would
+        // report an absence of data as a total failure.
+        <WidgetState
+          kind="empty"
+          message={q.data.hosts_total === 0 ? 'No hosts yet' : 'No host could be scored yet'}
+        />
       ) : (
         (() => {
-          const pct = Math.round(q.data.passing_fraction * 100);
+          // Taken as sent. The server computes the percentage; multiplying a
+          // fraction here was a second implementation of the formula.
+          const pct = q.data.score_pct;
           return (
             <>
               <KpiValue value={pct} unit="%" tone={scoreTone(pct)} />
               <KpiSub>
-                {q.data.total_evaluations.toLocaleString()} evaluations · target ≥ 80%
+                {q.data.hosts_scored.toLocaleString()} of {q.data.hosts_total.toLocaleString()}{' '}
+                hosts scored · target ≥ 80%
               </KpiSub>
             </>
           );
@@ -149,19 +158,22 @@ export function WidgetComplianceTrend() {
       ) : (
         (() => {
           const days = q.data.days;
-          // Guarded by days.length < 2 above, so both ends exist.
-          const first = days[0]!;
-          const last = days[days.length - 1]!;
-          const up = last.avg_score_pct >= first.avg_score_pct;
+          // The trend direction compares the first and last days that actually
+          // have a score. A day with none is not a low point.
+          const scoredDays = days.filter((d) => d.avg_score_pct !== null);
+          const first = scoredDays[0];
+          const last = scoredDays[scoredDays.length - 1];
+          const up = first && last ? last.avg_score_pct! >= first.avg_score_pct! : true;
           return (
             <>
               <TrendChart
                 points={days.map((d) => ({
                   date: d.date,
                   scorePct: d.avg_score_pct,
+                  formulaStatus: d.formula_status,
                   tooltip: [
                     d.date,
-                    `${Math.round(d.avg_score_pct)}% avg compliant`,
+                    ...fleetDayLines(d),
                     `${d.hosts} hosts`,
                     `${d.failing} failing rules`,
                     `${d.critical_hosts} with critical`,
@@ -180,9 +192,9 @@ export function WidgetComplianceTrend() {
                   color: 'var(--ow-fg-3)',
                 }}
               >
-                <span>oldest {Math.round(first.avg_score_pct)}%</span>
+                <span>{first ? `oldest ${first.avg_score_pct}%` : 'no scored day'}</span>
                 <span style={{ color: up ? 'var(--ow-ok)' : 'var(--ow-crit)' }}>
-                  latest {Math.round(last.avg_score_pct)}%
+                  {last ? `latest ${last.avg_score_pct}%` : ''}
                 </span>
               </div>
             </>
@@ -402,4 +414,28 @@ function Row({
       <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
+}
+
+// fleetDayLines explains a day's score, or its absence, in the tooltip.
+//
+// A null score has two different causes and a viewer needs to know which. A
+// mixed day HAS hosts and snapshots and deliberately publishes no number,
+// because the formulas behind them measure different things; a day where
+// nothing could be assessed is a scanning problem. Rendering both as an empty
+// point would hide the difference the API exists to report.
+function fleetDayLines(d: {
+  avg_score_pct: number | null;
+  formula_status: 'identified' | 'legacy_unknown' | 'mixed';
+  hosts_scored: number;
+}): string[] {
+  if (d.formula_status === 'mixed') {
+    return ['No score: this day mixes scoring formulas', 'Their average would not be comparable'];
+  }
+  if (d.avg_score_pct === null) {
+    return ['No score: no host could be assessed'];
+  }
+  const line = `${d.avg_score_pct}% avg compliant (${d.hosts_scored} scored)`;
+  return d.formula_status === 'legacy_unknown'
+    ? [line, 'Earlier formula: not comparable with current days']
+    : [line];
 }

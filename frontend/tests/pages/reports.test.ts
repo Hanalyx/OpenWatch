@@ -224,7 +224,12 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/const r = content\.rollup/);
     expect(PAGE_SRC).toContain('Hosts attested');
     expect(PAGE_SRC).toContain('Framework');
-    expect(PAGE_SRC).toMatch(/r\.compliance_pct/);
+    // The percent is chosen by the artifact's generation, not read from one
+    // field. A current artifact keeps its decimal; a legacy one keeps the
+    // whole percent it was signed with and says it is not comparable.
+    expect(PAGE_SRC).toMatch(/r\.is_legacy \? r\.legacy_pct : r\.score_pct/);
+    expect(PAGE_SRC).toContain('legacy formula, not comparable');
+    expect(PAGE_SRC).toMatch(/pct\.toFixed\(1\)/);
     expect(PAGE_SRC).toMatch(/r\.passing/);
     expect(PAGE_SRC).toMatch(/r\.failing/);
     expect(PAGE_SRC).toMatch(/r\.top_failing\.map/);

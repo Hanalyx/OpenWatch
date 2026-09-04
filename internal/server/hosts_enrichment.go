@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -217,7 +218,11 @@ func loadHostLatestScanIDByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uu
 // keyed by host id — ONE grouped query against host_rule_state for the
 // whole page, no per-host N+1. Hosts with zero rule_state rows don't
 // appear in the map; the list handler renders that as
-// compliance_summary: null ("never scanned"). critical_failing counts
+// compliance_summary: null. That means the host has NO ROWS in its current
+// corpus, which is not the same as never scanned: a completed scan that
+// produced no outcome writes none either, and the two are indistinguishable
+// here. Telling them apart needs the scan run's own counts, which is what
+// posture.Rollup does. critical_failing counts
 // rows with current_status='fail' AND critical severity
 // (case-insensitive). Spec api-hosts v1.5.0 C-12 / AC-23.
 func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []uuid.UUID, explicitLens, orgDefault string) (map[uuid.UUID]*api.HostListComplianceSummary, error) {
@@ -256,9 +261,20 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 		       COUNT(*) FILTER (WHERE hrs.current_status = 'error')::BIGINT   AS errors,
 		       COUNT(*)::BIGINT                                               AS total,
 		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail'
-		                          AND lower(COALESCE(hrs.severity, '')) = 'critical')::BIGINT AS critical_failing
+		                          AND lower(COALESCE(hrs.severity, '')) = 'critical')::BIGINT AS critical_failing,
+		       -- The lens THIS host was filtered by, returned rather than
+		       -- re-derived. The predicate above already resolves the explicit
+		       -- request lens, then the host or group override, then the org
+		       -- default; labelling the envelope from the caller's variables
+		       -- instead reported all_rules for a host scored under its own
+		       -- stig target.
+		       MIN(eff.lens) AS lens,
+		       -- The engine that produced THIS host's outcomes, copied from the
+		       -- run its rule state belongs to. Never the reading process.
+		       MIN(sr.engine_version) AS engine_version
 		  FROM host_rule_state_current hrs
 		  JOIN eff ON eff.host_id = hrs.host_id
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
 		 WHERE ` + framework.OSResolvedMatchSQL("eff.lens", "eff.osf", "eff.osv") + `
 		 GROUP BY hrs.host_id`
 	var explicitParam, orgParam any
@@ -276,10 +292,40 @@ func loadHostListComplianceByIDs(ctx context.Context, pool *pgxpool.Pool, ids []
 	for rows.Next() {
 		var hid uuid.UUID
 		var s api.HostListComplianceSummary
+		var hostLens, hostEngine *string
 		if err := rows.Scan(&hid, &s.Passing, &s.Failing, &s.Skipped,
-			&s.Error, &s.Total, &s.CriticalFailing); err != nil {
+			&s.Error, &s.Total, &s.CriticalFailing, &hostLens, &hostEngine); err != nil {
 			return nil, fmt.Errorf("loadHostListComplianceByIDs scan: %w", err)
 		}
+		// Scored HERE, not in the browser. The hosts list used to receive the
+		// counts and derive passing over TOTAL client side, which was both the
+		// replaced formula and a second implementation of it that nothing could
+		// reconcile with the server's. system-compliance-scoring C-14.
+		counts := compliance.Counts{
+			Pass:    int(s.Passing),
+			Fail:    int(s.Failing),
+			Skipped: int(s.Skipped),
+			Error:   int(s.Error),
+		}
+		score := compliance.HostScore(counts)
+		s.ScorePct = scorePct64(score)
+		// skipReasonsTyped is false until KN-OW-021 ships.
+		cov := compliance.AssessmentCoverage(counts, false)
+		s.CoverageStatus = api.HostListComplianceSummaryCoverageStatus(cov.Status)
+		s.CoveragePct = scorePct64(cov.Pct)
+		resolved := ""
+		if hostLens != nil {
+			resolved = *hostLens
+		}
+		engine := ""
+		if hostEngine != nil {
+			engine = *hostEngine
+		}
+		env, err := hostEnvelope(resolved, score.Present(), engine)
+		if err != nil {
+			return nil, fmt.Errorf("loadHostListComplianceByIDs envelope: %w", err)
+		}
+		s.Envelope = env
 		out[hid] = &s
 	}
 	return out, rows.Err()
@@ -308,9 +354,15 @@ func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID u
 			COUNT(*) FILTER (WHERE hrs.current_status = 'fail')::BIGINT    AS failing,
 			COUNT(*) FILTER (WHERE hrs.current_status = 'skipped')::BIGINT AS skipped,
 			COUNT(*) FILTER (WHERE hrs.current_status = 'error')::BIGINT   AS errors,
-			COUNT(*)::BIGINT                                               AS total
+			COUNT(*)::BIGINT                                               AS total,
+			-- The engine bound to the SAME rows, through the scan id they carry,
+			-- in ONE snapshot. Read separately it could name a scan that
+			-- completed after these counts were taken, pairing one scan's score
+			-- with another scan's engine.
+			MIN(sr.engine_version)                                         AS engine_version
 		  FROM host_rule_state_current hrs
 		  JOIN hosts hh ON hh.id = hrs.host_id
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
 		 WHERE hrs.host_id = $1
 		   AND ` + framework.OSResolvedMatchSQL("$2", "hh.os_family", "hh.os_version")
 	var s api.HostComplianceSummary
@@ -318,10 +370,34 @@ func loadHostComplianceSummary(ctx context.Context, pool *pgxpool.Pool, hostID u
 	if lens != "" {
 		frameworkParam = lens
 	}
+	var hostEngine *string
 	if err := pool.QueryRow(ctx, q, hostID, frameworkParam).Scan(
-		&s.Passing, &s.Failing, &s.Skipped, &s.Error, &s.Total,
+		&s.Passing, &s.Failing, &s.Skipped, &s.Error, &s.Total, &hostEngine,
 	); err != nil {
 		return api.HostComplianceSummary{}, fmt.Errorf("loadHostComplianceSummary: %w", err)
 	}
+	// The PRIMARY single-host score, computed here. The host detail page and
+	// the scans list each derived passing over TOTAL from these counts, which
+	// was the replaced formula and two more implementations of it: a host whose
+	// rules all skipped displayed 0 percent instead of no score.
+	counts := compliance.Counts{
+		Pass: int(s.Passing), Fail: int(s.Failing),
+		Skipped: int(s.Skipped), Error: int(s.Error),
+	}
+	score := compliance.HostScore(counts)
+	s.ScorePct = scorePct64(score)
+	// skipReasonsTyped is false until KN-OW-021 ships.
+	cov := compliance.AssessmentCoverage(counts, false)
+	s.CoverageStatus = api.HostComplianceSummaryCoverageStatus(cov.Status)
+	s.CoveragePct = scorePct64(cov.Pct)
+	engine := ""
+	if hostEngine != nil {
+		engine = *hostEngine
+	}
+	env, err := hostEnvelope(lens, score.Present(), engine)
+	if err != nil {
+		return api.HostComplianceSummary{}, fmt.Errorf("loadHostComplianceSummary envelope: %w", err)
+	}
+	s.Envelope = env
 	return s, nil
 }

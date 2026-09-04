@@ -1,7 +1,7 @@
 spec:
   id: frontend-groups
   title: Groups page - fleet KPIs, Sites and OS-category cards, maintenance toggle, create
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -12,12 +12,12 @@ spec:
       GroupsPage is the operator's fleet-organization view over
       api-groups. A single query against GET /api/v1/groups returns both
       the KPI summary (groups, sites, os_categories, hosts_maintenance,
-      ungrouped, and fleet avg_compliance_pct) and the full group list,
+      ungrouped, and fleet score object) and the full group list,
       so the page renders a KPI row from the response summary and two card
       sections partitioned from the response groups: Sites (kind=site) and
       OS categories (kind=os_category). Each group card shows the name,
       subtype, the member rollup (hosts, online, down, critical_hosts,
-      avg_compliance_pct), and a bounded member chip preview.
+      score object), and a bounded member chip preview.
 
       Mutations go through the api-groups bars: Create (POST /groups)
       and the per-card maintenance toggle (POST /groups/{id}:maintenance)
@@ -48,7 +48,7 @@ spec:
       includes:
         - GroupsPage with a KPI row and card sections from a single GET /groups (summary + groups)
         - 'Sites section (kind=site) and OS-category section (kind=os_category)'
-        - Per-card rollup display (hosts, online, down, critical_hosts, avg_compliance_pct, member chips)
+        - Per-card rollup display (hosts, online, down, critical_hosts, score, member chips)
         - Create mutation (POST /groups) and maintenance toggle (POST /groups/{id}:maintenance), permission gated
         - Query invalidation of the groups key on a successful mutation
       excludes:
@@ -66,7 +66,7 @@ spec:
         row from the response summary and partitions the response groups
         into a Sites section (kind=site) and an OS-category section
         (kind=os_category). Each card renders the rollup fields (hosts,
-        online, down, critical_hosts, avg_compliance_pct) and the bounded
+        online, down, critical_hosts, score) and the bounded
         member chip preview.
       type: technical
       enforcement: error
@@ -102,13 +102,13 @@ spec:
         groups by kind into a Sites section (kind=site) and an OS-category
         section (kind=os_category). The KPI row reads
         groups/sites/os_categories/hosts_maintenance/ungrouped and
-        avg_compliance_pct from the summary.
+        score.score_pct from the summary, with score.hosts_scored of score.hosts_total beneath it (v1.1.0; the field was a bare whole-number percentage that rounded the canonical one decimal again and could say nothing about how many hosts it covered).
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
       description: >-
         Source inspection: each group card renders the rollup fields
-        (hosts, online, down, critical_hosts, avg_compliance_pct) and the
+        (hosts, online, down, critical_hosts, score.score_pct) and the
         member chip preview, styled with the --ow-* design tokens (no raw
         color literals for the card chrome).
       priority: high

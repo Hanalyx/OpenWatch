@@ -61,7 +61,10 @@ export type DeltaTier = 'crit' | 'warn' | 'ok' | 'neutral';
 
 export interface DevKpis {
   hostsOnline: { value: number; total: number; delta: string; deltaTier: DeltaTier };
-  avgCompliance: { value: number; target: number; delta: string; deltaTier: DeltaTier };
+  // value is null when no host could be scored. Rendering that as 0 would
+  // report an absence of data as total failure, which is the defect the whole
+  // scoring change removes.
+  avgCompliance: { value: number | null; target: number; delta: string; deltaTier: DeltaTier };
   criticalIssues: { value: number; scope: string; delta: string; deltaTier: DeltaTier };
   scanQueue: { value: number; scope: string; delta: string; deltaTier: DeltaTier };
 }

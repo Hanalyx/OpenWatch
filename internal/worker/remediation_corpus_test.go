@@ -60,8 +60,17 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"sync/atomic"
 )
+
+// scoreIs reports whether a fleet score is present and equals want, to one
+// decimal. It fails a test on absence rather than treating it as 0, which is the
+// distinction the whole compliance-scoring change exists to keep.
+func scoreIs(s compliance.Score, want float64) bool {
+	got, ok := s.Rounded()
+	return ok && got == want
+}
 
 // scanEvidence is the minimal non-empty evidence object the transactions
 // table requires (its evidence column is NOT NULL).
@@ -190,10 +199,12 @@ func testRemediatedRuleStaysInCurrentCorpus(t *testing.T) {
 	//
 	// If this is already wrong the assertions after remediation prove
 	// nothing, so it is checked rather than assumed.
-	if before := fleetScore(t, pool); before.TotalEvaluations != 2 || before.PassingFraction != 0.5 {
-		t.Fatalf("pre-remediation score = %+v, want {PassingFraction:0.5 TotalEvaluations:2}. "+
-			"The host carries 3 rows and only 2 are in the current corpus; a total of 3 means "+
-			"the retired rule %q is still being scored", before, retired)
+	// 50 percent is only reachable when exactly the two current rules are
+	// scored. Unscoped, the retired failing rule makes it 33.3.
+	if before := fleetScore(t, pool); !scoreIs(before.Score, 50) {
+		t.Fatalf("pre-remediation score = %+v, want 50. The host carries 3 rows and only 2 are "+
+			"in the current corpus; 33.3 means the retired rule %q is still being scored",
+			before, retired)
 	}
 	// The retired row is on disk. The corpus argument only holds if
 	// nothing was deleted to achieve it.
@@ -271,20 +282,29 @@ func testRemediatedRuleStaysInCurrentCorpus(t *testing.T) {
 			control, got, scanID)
 	}
 
-	// ASSERTION 2. The same property through a current-score surface.
-	// Both rules are still counted and both now pass. Under the leak the
-	// remediated rule is gone and this reads
-	// {PassingFraction:1 TotalEvaluations:1}, which is 100 percent computed
-	// over half the corpus. Checking the fraction alone cannot tell those
-	// apart: both read 1. TotalEvaluations is the assertion that can.
-	after := fleetScore(t, pool)
-	if after.TotalEvaluations != 2 {
-		t.Errorf("post-remediation corpus size = %d, want 2. Remediating a rule must not remove it "+
-			"from the corpus the score is computed over; got %+v", after.TotalEvaluations, after)
+	// ASSERTION 2. The corpus the score is computed over still holds both rules.
+	//
+	// This asserts the CORPUS directly rather than inferring its size from a
+	// score's denominator. Under the leak the remediated rule drops out of
+	// host_rule_state_current and the fleet score reads 100 percent over half
+	// the corpus; the score alone cannot tell that from the healthy case,
+	// because both are 100. Counting the rows the score reads can, and it says
+	// what actually went wrong instead of leaving a reader to infer it from an
+	// evaluation total.
+	var inCorpus int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM host_rule_state_current WHERE host_id = $1`, hostID).
+		Scan(&inCorpus); err != nil {
+		t.Fatalf("count current corpus: %v", err)
 	}
-	if after.PassingFraction != 1 {
-		t.Errorf("post-remediation passing fraction = %v, want 1 (both rules pass); got %+v",
-			after.PassingFraction, after)
+	if inCorpus != 2 {
+		t.Errorf("post-remediation corpus size = %d, want 2. Remediating a rule must not remove "+
+			"it from the corpus the score is computed over", inCorpus)
+	}
+	after := fleetScore(t, pool)
+	if !scoreIs(after.Score, 100) {
+		t.Errorf("post-remediation score = %v, want 100 (both rules pass); got %+v",
+			after.Score, after)
 	}
 }
 

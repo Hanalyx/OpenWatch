@@ -579,7 +579,9 @@ function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
   // Donut: green arc = compliant share of the lens, red remainder.
   const r = 34;
   const c = 2 * Math.PI * r;
-  const frac = Math.max(0, Math.min(100, summary.score_pct)) / 100;
+  // A host with no verdict has no score, and the donut shows an empty ring
+  // rather than a full red one. Coercing null to 0 would draw total failure.
+  const frac = summary.score_pct === null ? 0 : Math.max(0, Math.min(100, summary.score_pct)) / 100;
   return (
     <section
       aria-label="Compliance score"
@@ -878,11 +880,14 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
       </div>
       <div role="list" aria-label="Category breakdown">
         {categories.map((c, i) => {
-          // Prototype semantics: counts and percentage cover EXECUTED
-          // rules only (pass + fail); not-applicable rows neither help
-          // nor hurt a category's score.
-          const executed = c.passing + c.failing;
-          const passPct = executed > 0 ? Math.round((c.passing / executed) * 100) : 0;
+          // Counts and percentage cover EXECUTED rules only (pass + fail);
+          // not-applicable rows neither help nor hurt a category's score.
+          //
+          // The percentage is SENT now. The formula here was already right, but
+          // a compliance percentage computed in a frontend component is one the
+          // rest of the product cannot agree with by construction
+          // (system-compliance-scoring C-14).
+          const passPct = c.score_pct;
           return (
             <div
               key={c.category}
@@ -928,7 +933,7 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
                   display: 'flex',
                 }}
               >
-                {executed > 0 ? (
+                {passPct !== null ? (
                   <>
                     <span style={{ width: `${passPct}%`, background: 'var(--ow-ok)' }} />
                     <span style={{ width: `${100 - passPct}%`, background: 'var(--ow-crit)' }} />
@@ -953,14 +958,14 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
                 style={{
                   width: 44,
                   textAlign: 'right',
-                  color: scoreColor(passPct),
+                  color: passPct === null ? 'var(--ow-fg-3)' : scoreColor(passPct),
                   fontWeight: 700,
                   fontSize: 12,
                   fontVariantNumeric: 'tabular-nums',
                   flexShrink: 0,
                 }}
               >
-                {passPct}%
+                {passPct === null ? '—' : `${passPct}%`}
               </span>
             </div>
           );

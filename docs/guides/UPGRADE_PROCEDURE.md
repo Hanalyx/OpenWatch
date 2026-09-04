@@ -131,6 +131,39 @@ To revert a schema change you restore the pre-upgrade database backup (see
 [Rollback](#rollback)). Plan upgrades accordingly: the database backup is your
 rollback path, not a reverse migration.
 
+### Migrations that lock a table
+
+A migration that changes an existing column's type rewrites the whole table and
+holds an ACCESS EXCLUSIVE lock while it does. Reads and writes of that table
+block until it finishes. Adding a column or an index to a large table can also
+take real time, so measure rather than assume.
+
+Plan for the downtime. The service is stopped during a standard upgrade anyway
+(Step 2), so the practical question is how long Step 5 takes.
+
+| Migration | Table | Why it locks |
+|---|---|---|
+| 0062 | `posture_snapshots` | `score_pct` changes from `REAL` to `numeric(4,1)`. A compliance score is shown to one decimal and `REAL` cannot hold one. |
+
+`posture_snapshots` holds one row per host, per day, per framework series, so
+the rewrite time scales with fleet size times how much history you keep. To
+estimate before you upgrade:
+
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+  psql "$OPENWATCH_DATABASE_DSN" \
+  -c "SELECT count(*) AS rows,
+             pg_size_pretty(pg_total_relation_size('posture_snapshots')) AS size
+        FROM posture_snapshots;"
+```
+
+How long the rewrite takes depends on the row count, the indexes, your storage,
+WAL settings, and what else the database is doing. There is no row count that
+predicts it. **Time the migration against a restored copy of your own database
+before you upgrade production**, and schedule a maintenance window based on what
+you measure. The hourly posture rollup simply runs late afterward; nothing is
+lost.
+
 ## Standard upgrade
 
 These steps assume the OpenWatch user is `openwatch` and the database DSN is in

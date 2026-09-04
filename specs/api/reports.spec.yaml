@@ -419,21 +419,36 @@ spec:
   acceptance_criteria:
     - id: AC-01
       description: >-
-        The executive content marshals to the exact wire keys
-        (compliance_pct, host_count, passing_rules, failing_rules,
-        critical_issues, top_failing_rules, and coverage - itself an object
-        with hosts_total, hosts_fresh, hosts_stale, hosts_unreachable); a
-        never-evaluated fleet encodes compliance_pct as JSON null (not 0,
-        not omitted); an explicitly empty top-failing slice serializes as
-        [] (never JSON null) and a populated one preserves the service's
+        The executive content marshals to the exact wire keys (score_pct,
+        host_count, passing_rules, failing_rules, critical_issues,
+        top_failing_rules, coverage - itself an object with hosts_total,
+        hosts_fresh, hosts_stale, hosts_unreachable - and provenance); a
+        never-evaluated fleet encodes score_pct as JSON null (not 0, not
+        omitted); an explicitly empty top-failing slice serializes as []
+        (never JSON null) and a populated one preserves the service's
         most-failing first order.
+
+        Amended 2026-09-03. The key was compliance_pct, a POOLED whole
+        percent: passing over every rule outcome in scope, so a host with 700
+        rules outvoted one with 50, and a whole number could never equal the
+        one-decimal score every other surface reports. A newly generated
+        artifact MUST NOT carry compliance_pct at all. The field survives only
+        as a decode-only reader for artifacts signed before this change, which
+        are identified by carrying no artifact_class and are never rewritten
+        (system-compliance-scoring AC-34).
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
       description: >-
-        compliance_pct rounds passing over evaluated half up to a whole
-        percent and returns nil (not 0) when nothing was evaluated, so the
-        document distinguishes an unscanned fleet from a fully failing one.
+        score_pct is the equal-host mean of the in-scope hosts' scores,
+        rendered to one decimal, and null (not 0) when no host produced a
+        verdict, so the document distinguishes an unscanned fleet from a fully
+        failing one.
+
+        Amended 2026-09-03 with AC-01. The formula and the type both changed:
+        a pooled whole percent became a nullable one-decimal equal-host mean,
+        owned by internal/compliance rather than computed here
+        (system-compliance-scoring C-14).
       priority: critical
       references_constraints: [C-02]
     - id: AC-03

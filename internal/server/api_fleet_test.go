@@ -25,6 +25,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -37,6 +38,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/specfixture"
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // ---------------------------------------------------------------------
@@ -167,42 +170,111 @@ func TestAPI_Fleet_Score_MixedPassFail_ReturnsFraction(t *testing.T) {
 			b, _ := io.ReadAll(resp.Body)
 			t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, b)
 		}
-		var body struct {
-			PassingFraction  float64 `json:"passing_fraction"`
-			TotalEvaluations int64   `json:"total_evaluations"`
+		raw, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		// Decoded into a map first, so the ABSENCE of the removed keys can be
+		// asserted. A typed struct would silently ignore them.
+		var keys map[string]any
+		if err := json.Unmarshal(raw, &keys); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if body.TotalEvaluations != 5 {
-			t.Errorf("total_evaluations = %d, want 5", body.TotalEvaluations)
+		for _, gone := range []string{"passing_fraction", "total_evaluations"} {
+			if _, present := keys[gone]; present {
+				t.Errorf("%s is still in the response; it is removed with no alias, so a "+
+					"client reading it must fail rather than receive a different quantity", gone)
+			}
 		}
-		want := 3.0 / 5.0
-		if body.PassingFraction != want {
-			t.Errorf("passing_fraction = %v, want %v", body.PassingFraction, want)
+		var body struct {
+			ScorePct          *float64 `json:"score_pct"`
+			HostsScored       int      `json:"hosts_scored"`
+			HostsWithoutScore int      `json:"hosts_without_score"`
+			HostsTotal        int      `json:"hosts_total"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("decode typed: %v", err)
+		}
+		// Host A: 2 of 3 verdicts = 66.666...; host B: 1 of 2 = 50. Their mean
+		// is 58.333..., rounded ONCE to 58.3.
+		//
+		// Not 58.4. That is what rounding each host first produces: 66.7 and
+		// 50.0 average to 58.35, which rounds up. compliance-scoring C-06
+		// requires the mean over unrounded values, and this endpoint is where
+		// the difference becomes visible to an operator.
+		if body.ScorePct == nil || *body.ScorePct != 58.3 {
+			t.Errorf("score_pct = %v, want 58.3 (equal-host mean, rounded once)", body.ScorePct)
+		}
+		if body.ScorePct != nil && *body.ScorePct == 58.4 {
+			t.Error("score_pct = 58.4, each host rounded BEFORE averaging")
+		}
+		if body.ScorePct != nil && *body.ScorePct == 60 {
+			t.Error("score_pct = 60, the pooled answer over every rule row")
+		}
+		if body.HostsScored != 2 || body.HostsWithoutScore != 0 || body.HostsTotal != 2 {
+			t.Errorf("participation = %d scored / %d unscored / %d total, want 2/0/2",
+				body.HostsScored, body.HostsWithoutScore, body.HostsTotal)
 		}
 	})
 }
 
 // @ac AC-02
-// AC-02: empty fleet returns 200 with zeros, not an error.
-func TestAPI_Fleet_Score_EmptyFleet_ZeroNotError(t *testing.T) {
+// AC-02: an empty fleet returns 200 with NO score, not zero and not an error.
+func TestAPI_Fleet_Score_EmptyFleetIsAbsentNotZero(t *testing.T) {
 	t.Run("api-fleet-observability/AC-02", func(t *testing.T) {
-		url, _ := freshAPIServer(t)
-		req := asRole(t, "GET", url+"/api/v1/fleet/score", auth.RoleViewer, nil)
-		resp := doReq(t, req)
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			b, _ := io.ReadAll(resp.Body)
-			t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, b)
+		url, pool := freshAPIServer(t)
+		get := func() struct {
+			ScorePct          *float64 `json:"score_pct"`
+			HostsScored       int      `json:"hosts_scored"`
+			HostsWithoutScore int      `json:"hosts_without_score"`
+			HostsTotal        int      `json:"hosts_total"`
+		} {
+			t.Helper()
+			req := asRole(t, "GET", url+"/api/v1/fleet/score", auth.RoleViewer, nil)
+			resp := doReq(t, req)
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				b, _ := io.ReadAll(resp.Body)
+				t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, b)
+			}
+			var body struct {
+				ScorePct          *float64 `json:"score_pct"`
+				HostsScored       int      `json:"hosts_scored"`
+				HostsWithoutScore int      `json:"hosts_without_score"`
+				HostsTotal        int      `json:"hosts_total"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			return body
 		}
-		var body struct {
-			PassingFraction  float64 `json:"passing_fraction"`
-			TotalEvaluations int64   `json:"total_evaluations"`
+
+		empty := get()
+		if empty.ScorePct != nil {
+			t.Errorf("empty fleet scored %v; it has no score at all", *empty.ScorePct)
 		}
-		_ = json.NewDecoder(resp.Body).Decode(&body)
-		if body.TotalEvaluations != 0 || body.PassingFraction != 0 {
-			t.Errorf("empty fleet returned %+v, want zeros", body)
+		if empty.HostsScored != 0 || empty.HostsWithoutScore != 0 || empty.HostsTotal != 0 {
+			t.Errorf("empty fleet participation = %d/%d/%d, want zeros",
+				empty.HostsScored, empty.HostsWithoutScore, empty.HostsTotal)
+		}
+
+		// The counterexample that gives the absence meaning. A fleet whose every
+		// evaluated rule failed scores 0, and the removed passing_fraction
+		// reported both cases as 0 with no way to tell them apart.
+		user := firstSeededUserID(t, pool)
+		h := seedFleetHost(t, pool, user)
+		seedFleetRuleState(t, pool, h, "rule.a", "fail")
+		seedFleetRuleState(t, pool, h, "rule.b", "fail")
+
+		failed := get()
+		if failed.ScorePct == nil {
+			t.Fatal("a fleet that failed every rule has a real score of 0, not an absent one")
+		}
+		if *failed.ScorePct != 0 {
+			t.Errorf("all-failing fleet scored %v, want 0", *failed.ScorePct)
+		}
+		if (empty.ScorePct == nil) == (failed.ScorePct == nil) {
+			t.Error("an empty fleet and an all-failing fleet are indistinguishable on the wire")
 		}
 	})
 }
@@ -558,17 +630,23 @@ func TestAPI_Fleet_Score_FrameworkFilter(t *testing.T) {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, b)
 		}
 		var body struct {
-			PassingFraction  float64 `json:"passing_fraction"`
-			TotalEvaluations int64   `json:"total_evaluations"`
+			ScorePct *float64 `json:"score_pct"`
+			Envelope struct {
+				Lens string `json:"lens"`
+			} `json:"envelope"`
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&body)
-		// CIS rules: 2 pass, 1 fail → 2/3.
-		if body.TotalEvaluations != 3 {
-			t.Errorf("total_evaluations = %d, want 3 (CIS only)", body.TotalEvaluations)
+		// CIS rules: 2 pass, 1 fail on ONE host, so the equal-host mean is that
+		// host's own score, 66.7.
+		if body.ScorePct == nil || *body.ScorePct != 66.7 {
+			t.Errorf("score_pct = %v, want 66.7 (CIS only)", body.ScorePct)
 		}
-		want := 2.0 / 3.0
-		if body.PassingFraction != want {
-			t.Errorf("passing_fraction = %v, want %v", body.PassingFraction, want)
+		// The envelope echoes the lens AS REQUESTED. A specific corpus key stays
+		// a specific corpus key rather than being reported as its family, so the
+		// response names the exact rule set the number was computed over.
+		if body.Envelope.Lens != "cis_rhel9_v2.0.0" {
+			t.Errorf("envelope lens = %q, want %q; the number must name what it measured",
+				body.Envelope.Lens, "cis_rhel9_v2.0.0")
 		}
 	})
 }
@@ -658,5 +736,208 @@ func TestAPI_Fleet_Score_EmptyFrameworkParam_SameAsNoParam(t *testing.T) {
 		if string(b1) != string(b2) {
 			t.Errorf("?framework= empty differs from no-param: %s vs %s", b1, b2)
 		}
+	})
+}
+
+// @ac AC-19
+// AC-19 (v1.2.0): the removed fields are gone and the envelope is complete.
+//
+// AC-32 checks the artifacts; this checks the RESPONSE. A field can be absent
+// from the schema and still be emitted by a handler that builds its own map.
+func TestAPI_Fleet_Score_EnvelopeAndRemovedFields(t *testing.T) {
+	t.Run("api-fleet-observability/AC-19", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ac := specfixture.Get(t, specfixture.Load(t,
+			"../../specs/api/fleet-observability.spec.yaml", "api-fleet-observability"), "AC-19")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		user := firstSeededUserID(t, pool)
+		producer := in.Str("producer_engine_version")
+		if producer == version.Kensa() {
+			t.Fatalf("fixture engine %q equals this process's; the two must differ or an "+
+				"envelope built from the serving process would pass", producer)
+		}
+		for _, h := range in.MapList("hosts") {
+			id := seedFleetHost(t, pool, user)
+			label := h.Str("id")
+			for i := 0; i < h.Int("pass"); i++ {
+				seedFleetRuleState(t, pool, id, fmt.Sprintf("%s.p%d", label, i), "pass")
+			}
+			for i := 0; i < h.Int("fail"); i++ {
+				seedFleetRuleState(t, pool, id, fmt.Sprintf("%s.f%d", label, i), "fail")
+			}
+			// Stamp the PRODUCING run with a version no running process reports.
+			if _, err := pool.Exec(context.Background(),
+				`UPDATE scan_runs SET engine_version = $2 WHERE host_id = $1`,
+				id, producer); err != nil {
+				t.Fatalf("stamp producer engine: %v", err)
+			}
+			h.AllConsumed()
+		}
+
+		req := asRole(t, "GET", url+"/api/v1/fleet/score", auth.RoleViewer, nil)
+		resp := doReq(t, req)
+		defer resp.Body.Close()
+		raw, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var keys map[string]any
+		if err := json.Unmarshal(raw, &keys); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		for _, raw := range exp.List("forbidden_keys") {
+			name, _ := raw.(string)
+			if _, present := keys[name]; present {
+				t.Errorf("%s is still in the response body", name)
+			}
+		}
+
+		var body struct {
+			ScorePct          *float64 `json:"score_pct"`
+			Passing           int64    `json:"passing"`
+			Failing           int64    `json:"failing"`
+			Skipped           int64    `json:"skipped"`
+			Error             int64    `json:"error"`
+			CoverageStatus    string   `json:"coverage_status"`
+			CoveragePct       *float64 `json:"coverage_pct"`
+			HostsScored       int      `json:"hosts_scored"`
+			HostsWithoutScore int      `json:"hosts_without_score"`
+			HostsTotal        int      `json:"hosts_total"`
+			Envelope          struct {
+				Lens                 string  `json:"lens"`
+				FormulaVersion       *int    `json:"formula_version"`
+				AggregationMethod    string  `json:"aggregation_method"`
+				EngineVersion        *string `json:"engine_version"`
+				EngineIdentityStatus string  `json:"engine_identity_status"`
+				Engines              []struct {
+					EngineVersion      string `json:"engine_version"`
+					ContributorsScored int    `json:"contributors_scored"`
+				} `json:"engines"`
+				HostsWithoutEngineIdentity int     `json:"hosts_without_engine_identity"`
+				CorpusIdentityStatus       string  `json:"corpus_identity_status"`
+				Corpora                    []any   `json:"corpora"`
+				HostsWithoutCorpusIdentity int     `json:"hosts_without_corpus_identity"`
+				CorpusVersion              *string `json:"corpus_version"`
+				CorpusDigest               *string `json:"corpus_digest"`
+			} `json:"envelope"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatalf("decode typed: %v", err)
+		}
+
+		if body.ScorePct == nil || *body.ScorePct != exp.Num("score_pct") {
+			t.Errorf("score_pct = %v, want %v", body.ScorePct, exp.Num("score_pct"))
+		}
+		if body.HostsScored != exp.Int("hosts_scored") ||
+			body.HostsWithoutScore != exp.Int("hosts_without_score") ||
+			body.HostsTotal != exp.Int("hosts_total") {
+			t.Errorf("participation = %d/%d/%d, want %d/%d/%d",
+				body.HostsScored, body.HostsWithoutScore, body.HostsTotal,
+				exp.Int("hosts_scored"), exp.Int("hosts_without_score"), exp.Int("hosts_total"))
+		}
+
+		// The outcome counts come from the same statement as the score, so they
+		// describe the same fleet the number does.
+		if body.Passing != int64(exp.Int("passing")) || body.Failing != int64(exp.Int("failing")) ||
+			body.Skipped != int64(exp.Int("skipped")) || body.Error != int64(exp.Int("error")) {
+			t.Errorf("counts = %d/%d/%d/%d, want %d/%d/%d/%d",
+				body.Passing, body.Failing, body.Skipped, body.Error,
+				exp.Int("passing"), exp.Int("failing"), exp.Int("skipped"), exp.Int("error"))
+		}
+		if body.CoverageStatus != exp.Str("coverage_status") {
+			t.Errorf("coverage_status = %q, want %q", body.CoverageStatus, exp.Str("coverage_status"))
+		}
+		// C-07: the percentage exists if and only if the status is available. A
+		// status announcing a number beside no number is the defect the whole
+		// vocabulary exists to prevent.
+		if body.CoveragePct == nil || *body.CoveragePct != exp.Num("coverage_pct") {
+			t.Errorf("coverage_pct = %v, want %v beside status %q",
+				body.CoveragePct, exp.Num("coverage_pct"), body.CoverageStatus)
+		}
+
+		e := body.Envelope
+		if e.Lens != exp.Str("lens") {
+			t.Errorf("lens = %q, want %q", e.Lens, exp.Str("lens"))
+		}
+		if e.FormulaVersion == nil || *e.FormulaVersion != exp.Int("formula_version") {
+			t.Errorf("formula_version = %v, want %d", e.FormulaVersion, exp.Int("formula_version"))
+		}
+		if e.AggregationMethod != exp.Str("aggregation_method") {
+			t.Errorf("aggregation_method = %q, want %q", e.AggregationMethod,
+				exp.Str("aggregation_method"))
+		}
+		// The engine is COPIED from each host's scan run. These hosts have no
+		// recorded engine, so nothing can be named and both scored hosts count
+		// as lacking one. Reporting the serving process's version here is the
+		// defect the copy exists to prevent.
+		if e.EngineIdentityStatus != exp.Str("engine_identity_status") {
+			t.Errorf("engine_identity_status = %q, want %q", e.EngineIdentityStatus,
+				exp.Str("engine_identity_status"))
+		}
+		wantEngines := exp.MapList("engines")
+		if len(e.Engines) != len(wantEngines) {
+			t.Fatalf("engines = %v, want %d entries", e.Engines, len(wantEngines))
+		}
+		for i, w := range wantEngines {
+			if e.Engines[i].EngineVersion != w.Str("engine_version") {
+				t.Errorf("engines[%d].engine_version = %q, want %q", i,
+					e.Engines[i].EngineVersion, w.Str("engine_version"))
+			}
+			// The COUNT is what a bare version list could not carry, and what
+			// separates "everyone agreed" from "one host said this".
+			if e.Engines[i].ContributorsScored != w.Int("contributors_scored") {
+				t.Errorf("engines[%d].contributors_scored = %d, want %d", i,
+					e.Engines[i].ContributorsScored, w.Int("contributors_scored"))
+			}
+			w.AllConsumed()
+		}
+		if e.HostsWithoutEngineIdentity != exp.Int("hosts_without_engine_identity") {
+			t.Errorf("hosts_without_engine_identity = %d, want %d",
+				e.HostsWithoutEngineIdentity, exp.Int("hosts_without_engine_identity"))
+		}
+		if e.EngineVersion == nil || *e.EngineVersion != exp.Str("engine_version") {
+			t.Errorf("engine_version = %v, want %q", e.EngineVersion, exp.Str("engine_version"))
+		}
+		// The discriminating assertion. The serving process's own version is
+		// what this reported before the copy.
+		_ = exp.Str("forbidden_engine_version")
+		if e.EngineVersion != nil && *e.EngineVersion == version.Kensa() {
+			t.Errorf("engine_version = %q, the SERVING process's version rather than the "+
+				"engine that produced the outcomes", version.Kensa())
+		}
+		// The counts must add up to the scored population.
+		total := e.HostsWithoutEngineIdentity
+		for _, en := range e.Engines {
+			total += en.ContributorsScored
+		}
+		if total != body.HostsScored {
+			t.Errorf("engine contributors sum to %d but %d hosts scored; the accounting must "+
+				"reconcile", total, body.HostsScored)
+		}
+		// Until the scan engine can report which corpus it used, no host can
+		// name one, so every SCORED host is counted as lacking an identity.
+		if e.CorpusIdentityStatus != exp.Str("corpus_identity_status") {
+			t.Errorf("corpus_identity_status = %q, want %q", e.CorpusIdentityStatus,
+				exp.Str("corpus_identity_status"))
+		}
+		exp.EmptyList("corpora")
+		if len(e.Corpora) != 0 {
+			t.Errorf("corpora = %v, want empty; nothing can name a corpus yet", e.Corpora)
+		}
+		if e.HostsWithoutCorpusIdentity != exp.Int("hosts_without_corpus_identity") {
+			t.Errorf("hosts_without_corpus_identity = %d, want %d",
+				e.HostsWithoutCorpusIdentity, exp.Int("hosts_without_corpus_identity"))
+		}
+		exp.IsNull("corpus_version")
+		exp.IsNull("corpus_digest")
+		if e.CorpusVersion != nil || e.CorpusDigest != nil {
+			t.Errorf("singular corpus fields = %v / %v, want both null with no identified corpus",
+				e.CorpusVersion, e.CorpusDigest)
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
 	})
 }

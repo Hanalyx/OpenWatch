@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 2
 

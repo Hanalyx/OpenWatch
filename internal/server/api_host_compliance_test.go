@@ -29,6 +29,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -45,6 +46,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/server/api"
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
 // seedRuleState inserts one host_rule_state row. Column set per
@@ -370,12 +372,26 @@ type lensResp struct {
 		ScanState       *string    `json:"scan_state"`
 	} `json:"scan_context"`
 	Summary struct {
-		Passing  int64   `json:"passing"`
-		Failing  int64   `json:"failing"`
-		Skipped  int64   `json:"skipped"`
-		Error    int64   `json:"error"`
-		Total    int64   `json:"total"`
-		ScorePct float64 `json:"score_pct"`
+		Passing int64 `json:"passing"`
+		Failing int64 `json:"failing"`
+		Skipped int64 `json:"skipped"`
+		Error   int64 `json:"error"`
+		Total   int64 `json:"total"`
+		// Nullable: a host whose rules produced no verdict has no score, which
+		// is a different fact from every evaluated rule failing.
+		ScorePct       *float64 `json:"score_pct"`
+		CoverageStatus string   `json:"coverage_status"`
+		CoveragePct    *float64 `json:"coverage_pct"`
+		Envelope       struct {
+			Lens                       string  `json:"lens"`
+			FormulaVersion             *int    `json:"formula_version"`
+			AggregationMethod          string  `json:"aggregation_method"`
+			EngineVersion              string  `json:"engine_version"`
+			CorpusIdentityStatus       string  `json:"corpus_identity_status"`
+			HostsWithoutCorpusIdentity int     `json:"hosts_without_corpus_identity"`
+			CorpusVersion              *string `json:"corpus_version"`
+			CorpusDigest               *string `json:"corpus_digest"`
+		} `json:"envelope"`
 	} `json:"summary"`
 	Categories []struct {
 		Category string `json:"category"`
@@ -480,9 +496,15 @@ func TestHostComplianceLens_ShapeAndReconciliation(t *testing.T) {
 		if s.Passing != 2 || s.Failing != 3 || s.Skipped != 1 || s.Error != 1 || s.Total != 7 {
 			t.Errorf("summary = %+v, want 2/3/1/1 of 7", s)
 		}
-		// score_pct = round(2/7*1000)/10 = 28.6.
-		if s.ScorePct != 28.6 {
-			t.Errorf("score_pct = %v, want 28.6", s.ScorePct)
+		// score_pct = round(2/(2+3)*1000)/10 = 40.0. The skipped and errored
+		// rules are not verdicts and enter neither side of the fraction. Under
+		// the replaced passing-over-total rule this host read 28.6, which
+		// counted two rules nothing could evaluate as failures.
+		if s.ScorePct == nil || *s.ScorePct != 40.0 {
+			t.Errorf("score_pct = %v, want 40", s.ScorePct)
+		}
+		if s.ScorePct != nil && *s.ScorePct == 28.6 {
+			t.Error("score_pct = 28.6, the passing-over-total answer this replaces")
 		}
 		reconcileLens(t, body)
 
@@ -574,7 +596,8 @@ func TestHostComplianceLens_FrameworkFilterAndControlIDProjection(t *testing.T) 
 		}
 		// Summary recounted under the lens: 1 pass + 1 fail of 2, 50%.
 		s := body.Summary
-		if s.Passing != 1 || s.Failing != 1 || s.Total != 2 || s.ScorePct != 50.0 {
+		if s.Passing != 1 || s.Failing != 1 || s.Total != 2 ||
+			s.ScorePct == nil || *s.ScorePct != 50.0 {
 			t.Errorf("filtered summary = %+v, want 1/1 of 2 at 50.0", s)
 		}
 		reconcileLens(t, body)
@@ -849,6 +872,12 @@ func TestHostComplianceFrameworks_ScoresAndOverallAggregate(t *testing.T) {
 			`{"cis-rhel9-v2.0.0": ["1.2"]}`)
 		seedRuleState(t, pool, hostID, "fwk-c", "pass", "low", base, 1, "{}")
 		seedRuleState(t, pool, hostID, "fwk-d", "skipped", "low", base, 1, "{}")
+		// A CIS rule that produced NO verdict. Without it every framework item
+		// has rule_count equal to passing plus failing, and scoring over
+		// rule_count would give the same answer as scoring over verdicts, so
+		// the item's formula would be untested.
+		seedRuleState(t, pool, hostID, "fwk-e", "skipped", "low", base, 1,
+			`{"cis-rhel9-v2.0.0": ["1.3"]}`)
 
 		type fwItem struct {
 			FrameworkID string  `json:"framework_id"`
@@ -882,19 +911,32 @@ func TestHostComplianceFrameworks_ScoresAndOverallAggregate(t *testing.T) {
 			t.Fatalf("frameworks len = %d, want 2", len(body.Frameworks))
 		}
 		cis, stig := body.Frameworks[0], body.Frameworks[1]
-		if cis.FrameworkID != "cis-rhel9-v2.0.0" || cis.RuleCount != 2 ||
+		// 3 CIS rules, of which one passes, one fails and one was skipped. The
+		// score is 1/(1+1) = 50 over the VERDICTS. Scoring over rule_count
+		// gives 33.3 and counts the skipped rule as a failure.
+		if cis.FrameworkID != "cis-rhel9-v2.0.0" || cis.RuleCount != 3 ||
 			cis.Passing != 1 || cis.Failing != 1 || cis.ScorePct != 50 {
-			t.Errorf("cis item = %+v, want 2 rules / 1 pass / 1 fail / 50%%", cis)
+			t.Errorf("cis item = %+v, want 3 rules / 1 pass / 1 fail / 50%%", cis)
+		}
+		if cis.ScorePct == 33.3 {
+			t.Error("cis score = 33.3, the passing-over-rule_count answer this replaces")
 		}
 		if stig.FrameworkID != "stig-rhel9-v2r7" || stig.RuleCount != 1 ||
 			stig.Passing != 0 || stig.Failing != 1 || stig.ScorePct != 0 {
 			t.Errorf("stig item = %+v, want 1 rule / 0 pass / 1 fail / 0%%", stig)
 		}
-		// Overall: 4 rows total, 2 pass, 1 fail -> 50.0%.
-		if body.Overall.FrameworkID != "all" || body.Overall.RuleCount != 4 ||
+		// Overall: 4 rows, of which 2 pass and 1 fails -> 2/(2+1) = 66.7. The
+		// fourth row produced no verdict. rule_count still reports every row,
+		// so the two numbers deliberately disagree: one counts rules, the other
+		// counts verdicts. Scoring over rule_count gave 50 and made the
+		// unevaluated rule count against the host.
+		if body.Overall.FrameworkID != "all" || body.Overall.RuleCount != 5 ||
 			body.Overall.Passing != 2 || body.Overall.Failing != 1 ||
-			body.Overall.ScorePct != 50 {
-			t.Errorf("overall = %+v, want all / 4 rules / 2 pass / 1 fail / 50%%", body.Overall)
+			body.Overall.ScorePct != 66.7 {
+			t.Errorf("overall = %+v, want all / 5 rules / 2 pass / 1 fail / 66.7%%", body.Overall)
+		}
+		if body.Overall.ScorePct == 50 {
+			t.Error("overall score = 50, the passing-over-rule_count answer this replaces")
 		}
 
 		// Zero-row host: overall zeros, never an error (no divide-by-zero).
@@ -1171,5 +1213,91 @@ func TestHostComplianceFrameworks_AllowlistNarrowing(t *testing.T) {
 		if status != http.StatusOK || len(body.Rules) != 1 {
 			t.Errorf("deep-linked pci_dss_4 lens: status=%d rules=%d, want 200/1", status, len(body.Rules))
 		}
+	})
+}
+
+// @ac AC-19
+// AC-19: a null score claims no scored contributor.
+//
+// The envelope's counts describe contributors to a SCORE, not hosts that were
+// looked at. Both hosts are seeded in one test because a fixed 1 and a fixed 0
+// are each correct for one of them; only the pair distinguishes a real
+// implementation from either constant.
+func TestHostCompliance_NullScoreClaimsNoContributor(t *testing.T) {
+	t.Run("api-host-compliance/AC-19", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ac := specfixture.Get(t, specfixture.Load(t,
+			"../../specs/api/host-compliance.spec.yaml", "api-host-compliance"), "AC-19")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		now := time.Now()
+		seed := func(f *specfixture.Fields) string {
+			h := seedHostForIntel(t, pool)
+			for i := 0; i < f.Int("passing"); i++ {
+				seedRuleState(t, pool, h, fmt.Sprintf("p%d", i), "pass", "low", now, 1, "")
+			}
+			for i := 0; i < f.Int("failing"); i++ {
+				seedRuleState(t, pool, h, fmt.Sprintf("f%d", i), "fail", "low", now, 1, "")
+			}
+			for i := 0; i < f.Int("skipped"); i++ {
+				seedRuleState(t, pool, h, fmt.Sprintf("s%d", i), "skipped", nil, now, 1, "")
+			}
+			f.AllConsumed()
+			return h.String()
+		}
+		skipped := seed(in.Map("all_skipped_host"))
+		failing := seed(in.Map("all_failing_host"))
+
+		read := func(id string) lensResp {
+			status, body := getLens(t, url, auth.RoleViewer, id, "")
+			if status != http.StatusOK {
+				t.Fatalf("status = %d, want 200", status)
+			}
+			return body
+		}
+
+		// The host nothing could assess: no score, and NO scored contributor.
+		s := read(skipped).Summary
+		exp.IsNull("all_skipped_score_pct")
+		if s.ScorePct != nil {
+			t.Errorf("all-skipped score = %v, want null", *s.ScorePct)
+		}
+		if s.Envelope.HostsWithoutCorpusIdentity != exp.Int("all_skipped_hosts_without_corpus_identity") {
+			t.Errorf("all-skipped hosts_without_corpus_identity = %d, want %d; a host that "+
+				"produced no score contributed to none",
+				s.Envelope.HostsWithoutCorpusIdentity,
+				exp.Int("all_skipped_hosts_without_corpus_identity"))
+		}
+		if s.CoverageStatus != exp.Str("all_skipped_coverage_status") {
+			t.Errorf("all-skipped coverage_status = %q, want %q",
+				s.CoverageStatus, exp.Str("all_skipped_coverage_status"))
+		}
+
+		// The host that failed everything: a real score of 0, and ONE
+		// contributor. This is the case a fixed 0 would get wrong.
+		f := read(failing).Summary
+		if f.ScorePct == nil || *f.ScorePct != exp.Num("all_failing_score_pct") {
+			t.Errorf("all-failing score = %v, want %v", f.ScorePct, exp.Num("all_failing_score_pct"))
+		}
+		if f.Envelope.HostsWithoutCorpusIdentity != exp.Int("all_failing_hosts_without_corpus_identity") {
+			t.Errorf("all-failing hosts_without_corpus_identity = %d, want %d; it produced a "+
+				"score and no corpus can be named for it",
+				f.Envelope.HostsWithoutCorpusIdentity,
+				exp.Int("all_failing_hosts_without_corpus_identity"))
+		}
+		if f.CoverageStatus != exp.Str("all_failing_coverage_status") {
+			t.Errorf("all-failing coverage_status = %q, want %q",
+				f.CoverageStatus, exp.Str("all_failing_coverage_status"))
+		}
+		// One host aggregates nothing.
+		for _, e := range []string{s.Envelope.AggregationMethod, f.Envelope.AggregationMethod} {
+			if e != exp.Str("aggregation_method") {
+				t.Errorf("aggregation_method = %q, want %q", e, exp.Str("aggregation_method"))
+			}
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
 	})
 }

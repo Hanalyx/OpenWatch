@@ -32,6 +32,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // Rule is one rule outcome to seed. Only RuleID and Status are required.
@@ -65,11 +67,20 @@ func SeedRun(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, status string, 
 	if !finishedAt.IsZero() {
 		fin = finishedAt
 	}
+	// A completed run carries the engine version of the worker that produced
+	// it, the way scanruns.MarkCompleted stamps one. A seeded run with none
+	// would look like a row written before migration 0063, which is a different
+	// case and one tests should have to ask for.
+	var engine any
+	if status == "completed" {
+		engine = version.Kensa()
+	}
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO scan_runs
-			(id, host_id, trigger_source, status, queued_at, started_at, finished_at)
-		VALUES ($1, $2, 'scheduled', $3, $4, $4, $5)`,
-		id, hostID, status, queuedAt, fin); err != nil {
+			(id, host_id, trigger_source, status, queued_at, started_at, finished_at,
+			 engine_version)
+		VALUES ($1, $2, 'scheduled', $3, $4, $4, $5, $6)`,
+		id, hostID, status, queuedAt, fin, engine); err != nil {
 		t.Fatalf("corpustest: seed scan_run (%s): %v", status, err)
 	}
 	return id

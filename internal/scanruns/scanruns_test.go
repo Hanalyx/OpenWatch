@@ -10,14 +10,17 @@
 //	AC-06  TestLatestForHost_And_ActiveCount
 //	AC-07  TestHostDelete_RestrictedByRuns
 //	AC-08  TestActiveByHostIDs
+//	AC-09  TestMarkCompleted_RecordsCorpusProvenanceUnavailable
 package scanruns
 
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -365,5 +368,78 @@ func TestHostDelete_RestrictedByRuns(t *testing.T) {
 		if _, err := pool.Exec(ctx, `DELETE FROM hosts WHERE id = $1`, host); err == nil {
 			t.Error("host delete with extant scan_runs must fail (ON DELETE RESTRICT)")
 		}
+	})
+}
+
+// @ac AC-09
+// AC-09: the production writer records corpus provenance as unavailable.
+//
+// This asserts against MarkCompleted rather than against a hand-written INSERT.
+// A schema that ACCEPTS 'unavailable' proves nothing about what the product
+// stores, and the criterion names the writer in its inputs for that reason.
+func TestMarkCompleted_RecordsCorpusProvenanceUnavailable(t *testing.T) {
+	t.Run("system-scan-runs/AC-09", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		host := seedHost(t, pool, user)
+		ctx := context.Background()
+
+		ac := specfixture.Get(t, specfixture.Load(t,
+			"../../specs/system/scan-runs.spec.yaml", "system-scan-runs"), "AC-09")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		// The named writer is the one under test. Reading it from the fixture
+		// keeps the criterion honest: pointing it at a different function means
+		// editing the spec, not quietly editing the test.
+		if got := in.Str("written_by"); got != "scanruns.MarkCompleted" {
+			t.Fatalf("fixture names writer %q, but this test exercises scanruns.MarkCompleted", got)
+		}
+		wantStatus := in.Str("status")
+
+		id, _ := uuid.NewV7()
+		_ = MarkRunning(ctx, pool, id, host, "")
+		if err := MarkCompleted(ctx, pool, id, Counts{Pass: 3, Fail: 1}); err != nil {
+			t.Fatalf("MarkCompleted: %v", err)
+		}
+		if !exp.Bool("accepted") {
+			t.Fatal("fixture must claim the row is accepted")
+		}
+
+		var status, version, digest *string
+		if err := pool.QueryRow(ctx,
+			`SELECT corpus_identity_status, corpus_version, corpus_digest
+			   FROM scan_runs WHERE id = $1`, id).Scan(&status, &version, &digest); err != nil {
+			t.Fatalf("read back: %v", err)
+		}
+		if status == nil || *status != exp.Str("marked_completed_status") {
+			t.Errorf("corpus_identity_status = %v, want %q; NULL would claim the row predates the column",
+				status, exp.Str("marked_completed_status"))
+		}
+		if status != nil && *status != wantStatus {
+			t.Errorf("status %q disagrees with the fixture input %q", *status, wantStatus)
+		}
+		exp.IsNull("corpus_version")
+		exp.IsNull("corpus_digest")
+		if version != nil || digest != nil {
+			t.Errorf("version=%v digest=%v, want both NULL; unavailable must not half-claim an identity",
+				version, digest)
+		}
+
+		// The counterexample. Without it the criterion would pass on a writer
+		// that also happily stored a fabricated digest beside the status.
+		if !exp.Bool("with_digest_rejected") {
+			t.Fatal("fixture must claim a digest beside unavailable is rejected")
+		}
+		other, _ := uuid.NewV7()
+		_ = MarkRunning(ctx, pool, other, host, "")
+		if _, err := pool.Exec(ctx,
+			`UPDATE scan_runs SET corpus_identity_status = $1, corpus_digest = $2 WHERE id = $3`,
+			wantStatus, "sha256:"+strings.Repeat("a", 64), other); err == nil {
+			t.Error("unavailable stored alongside a digest; the schema must reject the half-claim")
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
 	})
 }

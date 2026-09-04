@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"log/slog"
 	"math/rand/v2"
 	"sync/atomic"
@@ -402,10 +403,15 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 	// postpones the next auto scan rather than stacking onto it.
 	// Spec system-scheduler v3.0.0 AC-08.
 	if w.sched != nil {
-		score := 0.0
-		if total := len(result.Outcomes); total > 0 {
-			score = float64(counts.Pass) / float64(total) * 100
-		}
+		// One score definition, from internal/compliance. This divided
+		// counts.Pass by len(result.Outcomes), so every skipped and errored
+		// outcome counted as a failure and an all-skipped scan produced a
+		// fabricated 0.0 that the scheduler then stored as critically
+		// non-compliant (bugs/OW-024).
+		score := compliance.HostScore(compliance.Counts{
+			Pass: counts.Pass, Fail: counts.Fail,
+			Skipped: counts.Skipped, Error: counts.Error,
+		})
 		hasCritical := false
 		for _, o := range result.Outcomes {
 			if o.Status == kensa.StatusFail && o.Severity == "critical" {

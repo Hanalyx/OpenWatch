@@ -54,11 +54,8 @@ func renderExecutivePDF(rep Report, c ExecutiveContent) ([]byte, error) {
 
 	// Posture block.
 	sectionHead(pdf, "Posture snapshot")
-	pct := "n/a"
-	if c.CompliancePct != nil {
-		pct = fmt.Sprintf("%d%%", *c.CompliancePct)
-	}
-	stat(pdf, "Fleet compliance", pct)
+	pct, label := scoreFace(c.ScorePct, c.LegacyCompliancePct, c.Provenance != nil)
+	stat(pdf, label, pct)
 	stat(pdf, "Hosts", fmt.Sprintf("%d", c.HostCount))
 	stat(pdf, "Passing rules", fmt.Sprintf("%d", c.PassingRules))
 	stat(pdf, "Failing rules", fmt.Sprintf("%d", c.FailingRules))
@@ -190,11 +187,8 @@ func renderAttestationPDF(rep Report, c AttestationContent) ([]byte, error) {
 	// Attestation coverage + framework rollup (aggregates only).
 	sectionHead(pdf, "Attestation coverage")
 	stat(pdf, "Hosts attested", fmt.Sprintf("%d of %d in scope", c.HostsAttested, c.HostsTotal))
-	pct := "n/a"
-	if r.CompliancePct != nil {
-		pct = fmt.Sprintf("%d%%", *r.CompliancePct)
-	}
-	stat(pdf, "Compliance", pct)
+	pct, label := scoreFace(r.ScorePct, r.LegacyCompliancePct, r.Provenance != nil)
+	stat(pdf, label, pct)
 	stat(pdf, "Checks evaluated", fmt.Sprintf("%d", r.TotalChecks))
 	stat(pdf, "Passing", fmt.Sprintf("%d", r.Passing))
 	stat(pdf, "Failing", fmt.Sprintf("%d", r.Failing))
@@ -487,4 +481,29 @@ func upper(s string) string {
 		}
 	}
 	return string(b)
+}
+
+// scoreFace renders the compliance number a face should show, choosing by
+// the artifact's OWN generation rather than by which field happens to be set.
+//
+// A legacy artifact is identified by carrying no provenance envelope. Nothing
+// backfills one, so the absence is stable and means exactly "signed before
+// the formula changed". Its number stays the pooled whole percent it was
+// signed with, and it is labeled as not comparable: showing it beside a
+// current score under one heading would invite a reader to compare two
+// numbers computed by different rules over different populations.
+//
+// n/a is not zero. A null score means nothing was evaluated, which is a
+// different fact from every evaluated rule failing.
+func scoreFace(score *float64, legacy *int, current bool) (value, label string) {
+	if !current {
+		if legacy == nil {
+			return "n/a", "Compliance (legacy formula, not comparable)"
+		}
+		return fmt.Sprintf("%d%%", *legacy), "Compliance (legacy formula, not comparable)"
+	}
+	if score == nil {
+		return "n/a", "Compliance"
+	}
+	return fmt.Sprintf("%.1f%%", *score), "Compliance"
 }

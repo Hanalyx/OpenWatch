@@ -1,7 +1,7 @@
 spec:
   id: frontend-dashboard
   title: Dashboard (authenticated fleet overview)
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -105,3 +105,21 @@ spec:
       description: 'v1.1.0 source-inspection — WidgetComplianceTrend renders the shared TrendChart (not the auto-scaled Sparkline) with a fleet tooltip carrying avg score, hosts, failing rules, and hosts with critical findings, colored by trend direction; it no longer labels endpoints as "Nd ago" or "today".'
       priority: high
       references_constraints: [C-04]
+    - id: AC-06
+      description: 'v1.2.0 - the trend chart BREAKS its line at every formula boundary and never joins a legacy_unknown point to an identified one. Two scores produced by different formulas are different quantities, so a line between them draws a slope nobody measured. The API already reports this correctly; carrying the enum without changing the rendering would preserve the invalid comparison visually. A day with no score is drawn as a hollow marker in a GUTTER strictly below the score plot, separated by a divider. Not at the baseline: y(0) IS the bottom of the plot, so a marker there sits exactly on the zero-percent axis and reads as total failure however the comment describes it. The two coordinates MUST differ, and hovering it says whether the day mixed formulas or could not be assessed. The accessible summary names the same facts, because a viewer who cannot see a broken line still needs to know the window is not comparable end to end'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        points:
+          - {date: day1, formula_status: legacy_unknown, score_pct: 40.0}
+          - {date: day2, formula_status: legacy_unknown, score_pct: 50.0}
+          - {date: day3, formula_status: identified, score_pct: 60.0}
+          - {date: day4, formula_status: identified, score_pct: 70.0}
+          - {date: day5, formula_status: mixed, score_pct: null}
+      expected_output:
+        segments: 2
+        forbidden_segments: 1
+        points_on_a_line: 4
+        gutter_markers: 1
+        aria_mentions_legacy: true
+        aria_mentions_mixed: true

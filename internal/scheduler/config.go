@@ -11,8 +11,9 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/cron"
@@ -29,12 +30,18 @@ import (
 // effective cadence, which is what the in-flight-snapshot constraint
 // (C-06) actually protects.
 func LoadFromConfig(cfg systemconfig.ScanConfig) LoadResult {
-	return LoadIntervals(PolicyTiers{
-		Version: fmt.Sprintf("cfg-%d-%d-%d-%d-%d-%d",
-			cfg.UnknownMins, cfg.CriticalMins, cfg.NonCompliantMins,
-			cfg.PartialMins, cfg.MostlyCompliantMins, cfg.CompliantMins),
+	res := LoadIntervals(PolicyTiers{
+		// Version is derived from the EFFECTIVE ladder below, not from these
+		// raw values, so this placeholder is overwritten before returning.
+		Version: "",
 		IntervalMins: map[ComplianceState]int{
-			StateUnknown:         cfg.UnknownMins,
+			// An unassessable host is not less urgent than one known to be
+			// failing, so unknown is clamped to critical when an operator has
+			// configured it slower. The shipped defaults were unknown 360 and
+			// critical 240, so before bugs/OW-024 fixing the fabricated zero
+			// would have moved those hosts from a 4-hour re-check to a 6-hour
+			// one: a correction that quietly reduced monitoring.
+			StateUnknown:         minInt(cfg.UnknownMins, cfg.CriticalMins),
 			StateCritical:        cfg.CriticalMins,
 			StateNonCompliant:    cfg.NonCompliantMins,
 			StatePartial:         cfg.PartialMins,
@@ -42,6 +49,33 @@ func LoadFromConfig(cfg systemconfig.ScanConfig) LoadResult {
 			StateCompliant:       cfg.CompliantMins,
 		},
 	})
+	res.PolicyVersion = policyVersionFromLadder(res.Ladder)
+	return res
+}
+
+// policyVersionFromLadder derives the version snapshot from the six EFFECTIVE
+// intervals, in canonical state order.
+//
+// AC-01 promises that two configurations producing the same ladder produce the
+// same version, and building the string from raw config values broke that
+// wherever a clamp applied. Raw 1 minute and raw 5 minutes both land on the
+// 5-minute floor; raw 100 hours and raw 48 hours both land on the ceiling; and
+// unknown=360/critical=240 now lands on the same ladder as unknown=240. Each
+// produced a different version for an identical cadence, and the version is what
+// the in-flight-snapshot constraint compares.
+//
+// Deriving from the ladder makes the contract structural rather than a thing
+// two expressions have to be kept in agreement about.
+func policyVersionFromLadder(l TierLadder) string {
+	order := []ComplianceState{
+		StateUnknown, StateCritical, StateNonCompliant,
+		StatePartial, StateMostlyCompliant, StateCompliant,
+	}
+	parts := make([]string, 0, len(order))
+	for _, st := range order {
+		parts = append(parts, strconv.Itoa(int(l[st]/time.Minute)))
+	}
+	return "cfg-" + strings.Join(parts, "-")
 }
 
 // RunManaged wires the scheduler to the production cron tick with a
@@ -73,4 +107,13 @@ func (s *Service) RunManaged(ctx context.Context, interval time.Duration, store 
 	})
 	tick.Start(ctx)
 	return tick
+}
+
+// minInt clamps the unknown cadence. Kept explicit rather than inlined so the
+// invariant "unknown is never slower than critical" has one place to read.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

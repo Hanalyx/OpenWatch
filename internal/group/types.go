@@ -8,6 +8,8 @@
 package group
 
 import (
+	"github.com/Hanalyx/openwatch/internal/fleetrollup"
+
 	"time"
 
 	"github.com/google/uuid"
@@ -62,12 +64,17 @@ type MemberChip struct {
 
 // Rollup is the computed member summary the list view shows per group.
 type Rollup struct {
-	Hosts            int
-	Online           int
-	Down             int
-	CriticalHosts    int
-	AvgCompliancePct *int // nil when no member host has been scanned
-	Members          []MemberChip
+	Hosts         int
+	Online        int
+	Down          int
+	CriticalHosts int
+	// Score is the group's compliance average in the SAME shape the fleet uses:
+	// the number, the outcomes behind it, the coverage status, the population,
+	// and the lens. Sharing the shape is what lets one wire mapper serve both,
+	// so a group average cannot ship without the metadata a fleet average
+	// carries.
+	Score   fleetrollup.Score
+	Members []MemberChip
 }
 
 // GroupWithRollup is a group plus its computed metrics.
@@ -82,8 +89,11 @@ type FleetSummary struct {
 	Sites            int
 	OSCategories     int
 	HostsMaintenance int
-	AvgCompliancePct *int
-	Ungrouped        int
+	// Score is GET /fleet/score's own answer, whole. The Groups page and the
+	// fleet KPI cannot disagree because there is only one computation and one
+	// mapping.
+	Score     fleetrollup.Score
+	Ungrouped int
 }
 
 // CreateInput is the payload to create a group.

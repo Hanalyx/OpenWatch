@@ -1,7 +1,7 @@
 spec:
   id: system-drift-detector
   title: Compliance drift detector
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -141,9 +141,14 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-14
-      description: DetectForScan computes score as (passed / total) × 100 where total excludes skipped rules — skipped doesn't count for or against compliance.
+      description: 'v1.2.0 - drift.Score counts only confirmed verdicts: passed / (passed + failed). Skipped AND errored outcomes are excluded from the denominator. The previous wording said total "excludes skipped rules" and never mentioned error, describing a denominator the code has never used. It delegates to internal/compliance so drift shares one score definition with every other surface.'
       priority: high
       references_constraints: [C-03]
+      inputs:
+        counts: {passed: 80, failed: 20}
+      expected_output:
+        score_pct: 80.0
+        score_present: true
     - id: AC-15
       description: On a major-worsening detection, DetectForScan publishes a DriftDetected{DriftType="major"} event to the eventbus; verified with an in-memory bus + subscriber.
       priority: critical
@@ -160,3 +165,39 @@ spec:
       description: NewService(pool, emit, thresholds, nil) — when the bus is nil, DetectForScan still emits the audit event; the only difference is no bus publish.
       priority: high
       references_constraints: [C-10]
+    - id: AC-19
+      description: 'An empty verdict denominator produces an ABSENT score, never zero, and drift emits no event for one. This is bugs/OW-023: drift.ComplianceScore returned 0 for passed+failed=0 and called it a conservative default, while the Evaluate guard tested total rows including skipped. A scan returning only skipped rows therefore passed the guard, scored a fabricated 0, and classified as a major worsening against a real prior, routing a false compliance-collapse alert to Slack, webhook or email. Guard on the denominator the score actually uses. The fixture states has_prior_baseline rather than a prior score percentage: reconstructPriorCounts inverts pass and fail transitions only, so an all-skipped rescan leaves the prior counters where the current ones are and no prior percentage is reconstructible. What the guard needs is that a baseline EXISTS, which is the condition that made the old code emit.'
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        counts: {passed: 0, failed: 0, skipped: 10}
+        has_prior_baseline: true
+      expected_output:
+        current_score_present: false
+        drift_kind: stable
+        audit_events_emitted: 0
+        bus_events_published: 0
+    - id: AC-20
+      description: 'Counterexample to AC-19: a host whose every evaluated rule failed has a real score of zero and is NOT absent. The two must stay distinguishable, because collapsing them is what let an unassessable host alert as a compliance collapse.'
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        counts: {passed: 0, failed: 5}
+      expected_output:
+        score_pct: 0.0
+        score_present: true
+    - id: AC-21
+      description: 'Score absence is symmetric. A report distinguishes an absent prior score from a prior of zero, and states whether a comparison was made at all. HasPriorBaseline is not the same fact: a baseline can exist while no prior percentage is reconstructible, because reconstructPriorCounts inverts pass and fail transitions only. Without PriorScorePresent and ComparisonPresent such a report exposes a plausible PriorScore of 0 and a ScoreDelta of 0 that no comparison produced. The reachable shape: every scored rule in the current scan is first_seen, so reconstructPriorCounts subtracts each one and the prior reduces to zero pass and zero fail, while one retained rule keeps firstSeenCount below the rule total so a baseline still exists.'
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        current: {passed: 2, failed: 0}
+        new_rules_first_seen: 2
+        retained_skipped_rules: 1
+        has_prior_baseline: true
+      expected_output:
+        current_score_present: true
+        prior_score_present: false
+        comparison_present: false
+        drift_kind: stable
+        audit_events_emitted: 0

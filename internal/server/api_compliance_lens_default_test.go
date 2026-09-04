@@ -115,7 +115,7 @@ func TestAPI_HostsList_DefaultsToPerHostEffectiveTarget(t *testing.T) {
 	})
 }
 
-func getFleetScore(t *testing.T, base, suffix string) api.FleetScore {
+func getFleetScore(t *testing.T, base, suffix string) api.AggregateScore {
 	t.Helper()
 	req := asRole(t, "GET", base+"/api/v1/fleet/score"+suffix, auth.RoleViewer, nil)
 	resp := doReq(t, req)
@@ -124,7 +124,7 @@ func getFleetScore(t *testing.T, base, suffix string) api.FleetScore {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET /fleet/score%s = %d: %s", suffix, resp.StatusCode, b)
 	}
-	var s api.FleetScore
+	var s api.AggregateScore
 	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
 		t.Fatalf("decode fleet score: %v", err)
 	}
@@ -163,16 +163,25 @@ func TestAPI_FleetScore_DefaultsToOrgLens(t *testing.T) {
 		seedFleetRuleStateWithFrameworks(t, pool, h, "c.pass", "pass", map[string]string{"cis_rhel9": "x"})
 
 		// No param -> org default STIG, resolved to stig_rhel9 for this host.
+		// One host, so the equal-host mean is its own score: 1 of 2 verdicts.
 		s := getFleetScore(t, url, "")
-		if s.TotalEvaluations != 2 || s.PassingFraction != 0.5 {
-			t.Errorf("fleet default (org stig on RHEL9): frac=%v total=%d, want 0.5/2 (stig_rhel9 only; stig_rhel10 excluded)",
-				s.PassingFraction, s.TotalEvaluations)
+		if s.ScorePct == nil || *s.ScorePct != 50 {
+			t.Errorf("fleet default (org stig on RHEL9): score=%v, want 50 (stig_rhel9 only; stig_rhel10 excluded)",
+				s.ScorePct)
+		}
+		// The envelope names the lens the number was produced under. Without it
+		// the same 50 could have come from any framework.
+		if s.Envelope.Lens != "stig" {
+			t.Errorf("envelope lens = %q, want %q", s.Envelope.Lens, "stig")
 		}
 
 		// Explicit ?framework=cis overrides the org default.
 		sCis := getFleetScore(t, url, "?framework=cis")
-		if sCis.TotalEvaluations != 1 || sCis.PassingFraction != 1.0 {
-			t.Errorf("fleet ?framework=cis: frac=%v total=%d, want 1.0/1", sCis.PassingFraction, sCis.TotalEvaluations)
+		if sCis.ScorePct == nil || *sCis.ScorePct != 100 {
+			t.Errorf("fleet ?framework=cis: score=%v, want 100", sCis.ScorePct)
+		}
+		if sCis.Envelope.Lens != "cis" {
+			t.Errorf("envelope lens = %q, want %q", sCis.Envelope.Lens, "cis")
 		}
 	})
 }

@@ -16,6 +16,7 @@ domains:
             - api-health
             - api-license
             - system-audit-emission
+            - system-compliance-scoring
             - system-config
             - system-correlation
             - system-db

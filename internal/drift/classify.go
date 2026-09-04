@@ -1,5 +1,7 @@
 package drift
 
+import "github.com/Hanalyx/openwatch/internal/compliance"
+
 // Classify maps a score delta to a Kind given the active
 // thresholds. Pure function — no I/O, no side effects, deterministic.
 //
@@ -41,15 +43,18 @@ func Classify(prior, current float64, t Thresholds) Kind {
 	return DriftStable
 }
 
-// ComplianceScore returns the percentage of (passed / (passed + failed))
-// — skipped rules are excluded from the denominator. Spec AC-14.
+// Score returns the host's compliance score from confirmed verdicts, or an
+// absent score when nothing produced one.
 //
-// Edge cases:
-//   - passed + failed == 0  → 0 (no scored rules; conservative default)
-func ComplianceScore(passed, failed int) float64 {
-	denom := passed + failed
-	if denom == 0 {
-		return 0
-	}
-	return (float64(passed) / float64(denom)) * 100
+// It delegates to internal/compliance so drift and every other surface share
+// one definition. Skipped and error outcomes are excluded from the denominator,
+// which the old doc comment said only of skipped.
+//
+// This replaced ComplianceScore, which returned 0 for an empty denominator and
+// called it a "conservative default". It was not conservative: 0 is a real
+// verdict meaning every evaluated rule failed, so a host nothing could assess
+// was indistinguishable from a host that failed everything, and the difference
+// was a major-drift alert routed to an operator (bugs/OW-023).
+func Score(passed, failed int) compliance.Score {
+	return compliance.HostScore(compliance.Counts{Pass: passed, Fail: failed})
 }

@@ -389,10 +389,19 @@ spec:
         narrows the attestation keys (framework, hosts_total, hosts_attested,
         attested) and asAttestationRollup narrows content.rollup;
         AttestationBody reads content.rollup and renders the compliance
-        percent (r.compliance_pct), the passing/failing counts (r.passing /
-        r.failing), and the top-failing table (r.top_failing.map), plus the
-        framework lens and the hosts_attested-of-hosts_total coverage - not
-        any executive content key. The added copy contains no em-dash.
+        percent, the passing/failing counts (r.passing / r.failing), and the
+        top-failing table (r.top_failing.map), plus the framework lens and the
+        hosts_attested-of-hosts_total coverage - not any executive content
+        key. The added copy contains no em-dash.
+
+        Amended 2026-09-03. The percent was read straight from
+        r.compliance_pct. It is now chosen by the artifact's own generation:
+        a current artifact renders score_pct to one decimal, and an artifact
+        signed before the formula change (identified by carrying no
+        provenance.artifact_class) renders its stored compliance_pct under a
+        label saying the legacy formula is not comparable. Rounding a current
+        score to a whole percent would display a different number from the
+        one that was signed.
       priority: high
       references_constraints: [C-11]
     - id: AC-13

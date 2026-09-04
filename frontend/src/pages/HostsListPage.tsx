@@ -93,7 +93,12 @@ export interface ApiHost {
   updated_at: string;
   maintenance_mode?: boolean;
   check_priority?: number;
-  /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
+  /**
+   * v1.5.0 — MAX(host_rule_state.last_checked_at); null when the host has no
+   * rule state. That is not the same as never scanned: a completed scan that
+   * produced no outcome writes no rule state either, and the two look identical
+   * from here.
+   */
   last_scan_at?: string | null;
   /** v1.6.0 — id of the newest completed scan_run; null when none. Spec api-hosts C-13. */
   latest_scan_id?: string | null;
@@ -127,6 +132,8 @@ export interface ApiHostComplianceSummary {
   total: number;
   /** Rows with current_status=fail and critical severity. */
   critical_failing: number;
+  /** Server-computed score, null when the host produced no verdict. */
+  score_pct: number | null;
 }
 
 // Per-vendor accent for the OS chip. Widened to a string-keyed map so
@@ -252,10 +259,11 @@ export function HostsListPage() {
   });
 
   // Avg-compliance KPI value: source the SAME fleet score the dashboard KPI
-  // uses (GET /api/v1/fleet/score = passing / (passing + failing), the
-  // canonical compliance metric that also drives the scheduler bands) so the
-  // two surfaces can never diverge. The client-side kpisFromHosts value (which
-  // divides by the all-status rule total) is only a fallback shown until this
+  // uses, so the two surfaces can never diverge. GET /api/v1/fleet/score is the
+  // EQUAL-HOST MEAN of the per-host scores, each host scored passing over
+  // passing plus failing and counting once whatever its rule count. It is not a
+  // pooled fraction over every rule row; that is the shape it replaced. The
+  // client-side kpisFromHosts value is only a fallback shown until this query
   // resolves. Shared queryKey with the dashboard widget, so it dedupes/caches.
   // Spec frontend-hosts-list AC-26.
   const fleetScoreQuery = useQuery({
@@ -273,8 +281,11 @@ export function HostsListPage() {
   // Authoritative fleet score wins over the client-side aggregate so the
   // /hosts headline equals the /dashboard headline exactly (same endpoint,
   // same integer rounding). Spec frontend-hosts-list AC-26.
-  if (fleetScoreQuery.data && fleetScoreQuery.data.total_evaluations > 0) {
-    kpis.avgCompliance.value = Math.round(fleetScoreQuery.data.passing_fraction * 100);
+  if (fleetScoreQuery.data && fleetScoreQuery.data.score_pct !== null) {
+    // Taken as sent. The server already rounded it to one decimal; rounding a
+    // fraction here was a second implementation of the formula and could
+    // disagree with the dashboard by a whole point.
+    kpis.avgCompliance.value = fleetScoreQuery.data.score_pct;
   }
   if (scanQueueQuery.data) {
     const q = scanQueueQuery.data.queued;
@@ -292,10 +303,24 @@ export function HostsListPage() {
     if (days.length >= 2) {
       const today = days[days.length - 1]!;
       const prev = days[days.length - 2]!;
-      const diff = Math.round((today.avg_score_pct - prev.avg_score_pct) * 10) / 10;
-      kpis.avgCompliance.delta =
-        diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
-      kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';
+      // A delta needs two comparable numbers. Either day may have no score, and
+      // a legacy day cannot be subtracted from a current one at all: the two
+      // were produced by different formulas, so their difference is not a
+      // change in posture.
+      const comparable =
+        today.avg_score_pct !== null &&
+        prev.avg_score_pct !== null &&
+        today.formula_status === prev.formula_status &&
+        today.formula_status !== 'mixed';
+      if (comparable) {
+        const diff = Math.round((today.avg_score_pct! - prev.avg_score_pct!) * 10) / 10;
+        kpis.avgCompliance.delta =
+          diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
+        kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';
+      } else if (today.formula_status === 'mixed') {
+        kpis.avgCompliance.delta = 'No comparison: yesterday mixes formulas';
+        kpis.avgCompliance.deltaTier = 'neutral';
+      }
     }
   }
 
@@ -401,13 +426,17 @@ export function HostsListPage() {
         <KPICard
           icon={<Shield size={14} />}
           label="Avg. compliance"
-          value={kpis.avgCompliance.value}
-          unit="%"
-          tier={complianceTier(kpis.avgCompliance.value)}
-          metaLeft={`Target ≥ ${kpis.avgCompliance.target}%`}
+          value={kpis.avgCompliance.value ?? '—'}
+          unit={kpis.avgCompliance.value === null ? '' : '%'}
+          tier={complianceTier(kpis.avgCompliance.value ?? 0)}
+          metaLeft={
+            kpis.avgCompliance.value === null
+              ? 'No host scored yet'
+              : `Target ≥ ${kpis.avgCompliance.target}%`
+          }
           metaRight={kpis.avgCompliance.delta}
           metaRightTier={kpis.avgCompliance.deltaTier}
-          barPct={kpis.avgCompliance.value}
+          barPct={kpis.avgCompliance.value ?? 0}
         />
         <KPICard
           icon={<AlertTriangle size={14} />}
@@ -1896,7 +1925,9 @@ export function apiHostToDev(h: ApiHost): DevHost {
     status: reachable ? 'online' : 'down',
     monitoring,
     maintenance: h.maintenance_mode === true,
-    compliance: hasScanData ? Math.round((cs.passing / cs.total) * 1000) / 10 : null,
+    // Sent by the server. It used to be derived here as passing over TOTAL,
+    // which was both the replaced formula and a second implementation of it.
+    compliance: cs?.score_pct ?? null,
     passed: hasScanData ? cs.passing : null,
     failed: hasScanData ? cs.failing : null,
     total: hasScanData ? cs.total : 0,
@@ -1915,13 +1946,19 @@ export function apiHostToDev(h: ApiHost): DevHost {
 export function kpisFromHosts(hosts: DevHost[]): DevKpis {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
-  // v1.3.0 (AC-17): the fleet average is rule-weighted over hosts WITH
-  // scan data only. Never-scanned hosts (compliance null, total 0) are
-  // excluded entirely rather than dragging the average down as zeros.
-  const scanned = hosts.filter((h) => h.compliance != null && h.total > 0);
-  const totalRules = scanned.reduce((n, h) => n + h.total, 0);
-  const totalPassed = scanned.reduce((n, h) => n + (h.passed ?? 0), 0);
-  const avgCompliance = totalRules > 0 ? Math.round((totalPassed / totalRules) * 1000) / 10 : 0;
+  // The EQUAL-HOST MEAN over hosts that have a score, matching the server.
+  //
+  // This was a rule-weighted pool: sum the passing rules, sum the total rules,
+  // divide once. That weighted each host by how many rules it carried and gave
+  // a different answer from every server-side surface. It also fell back to 0
+  // when nothing was scored, reporting an absence of data as total failure.
+  // This value is a placeholder anyway: the authoritative fleet score replaces
+  // it as soon as that query resolves.
+  const scanned = hosts.filter((h) => h.compliance != null);
+  const avgCompliance =
+    scanned.length > 0
+      ? Math.round((scanned.reduce((n, h) => n + h.compliance!, 0) / scanned.length) * 10) / 10
+      : null;
   // v1.3.0 (AC-18): critical issues = sum of critical_failing across the
   // fleet; the scope counts how many hosts contribute at least one.
   const criticalIssues = hosts.reduce((n, h) => n + (h.criticalFailing ?? 0), 0);

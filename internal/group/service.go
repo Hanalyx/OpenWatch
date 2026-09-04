@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
+	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/framework"
 )
 
@@ -290,37 +292,92 @@ func (s *Service) ScopeGroup(ctx context.Context, groupID uuid.UUID) (string, []
 	return g.Name, ids, nil
 }
 
-// memberCTE returns the SQL selecting a group's member host ids plus the
+// memberCTE returns the SQL selecting a group's ACTIVE member host ids plus the
 // bound argument. Manual groups read group_members; auto groups derive
 // from hosts.os_family == match_family.
+//
+// Both branches filter deleted_at. The manual branch did not, so a soft-deleted
+// host kept voting in every number the group publishes: hosts_total, the mean,
+// the outcome counts, online and down, and critical_hosts. The member CHIP list
+// joins hosts and dropped it, so the card showed nine members and averaged ten.
+// It also made ScopeGroup's promise of active members untrue, which matters
+// more: that function feeds bulk actions.
 func memberCTE(g Group) (string, any) {
 	if g.Membership == MembershipAuto {
 		return `SELECT id AS host_id FROM hosts WHERE deleted_at IS NULL AND os_family = $1`, g.MatchFamily
 	}
-	return `SELECT host_id FROM group_members WHERE group_id = $1`, g.ID
+	return `SELECT gm.host_id
+	          FROM group_members gm
+	          JOIN hosts h ON h.id = gm.host_id AND h.deleted_at IS NULL
+	         WHERE gm.group_id = $1`, g.ID
 }
 
 func (s *Service) rollup(ctx context.Context, g Group, orgDefault string) (Rollup, error) {
 	cte, arg := memberCTE(g)
 	var r Rollup
-	var passing, evaluated int
-	// Compliance counts (critical / passing / evaluated) are scored against
-	// each member's EFFECTIVE compliance target (host_effective_target, else
-	// the org default $2), RESOLVED to that host's OS-specific key
-	// (framework.OSResolvedMatchSQL) — so a group's AVG matches the hosts-list
-	// column and host-detail tile instead of an unlensed all-rules number.
-	// Empty target + empty org default = all rules (backward compatible).
-	// Connectivity counts (hosts/online/down) are OS-agnostic and unfiltered.
-	lensRef := `COALESCE(NULLIF(het.target_framework, ''), NULLIF($2::text, ''))`
+	var mean *float64
+	var counts compliance.Counts
+	var engineRows []struct {
+		EngineVersion      string `json:"engine_version"`
+		ContributorsScored int    `json:"contributors_scored"`
+	}
+	// ONE LENS FOR THE WHOLE GROUP: this group's own target_framework ($3),
+	// else the org default ($2), else all rules. Each member is then RESOLVED
+	// to its own OS variant of that family (framework.OSResolvedMatchSQL),
+	// which is one lens applied across a mixed fleet rather than two blended.
+	//
+	// It used to read host_effective_target, which is the wrong view for this
+	// question twice over. That view takes the HOST's own target first, so one
+	// member could be graded on a different benchmark from its neighbors inside
+	// the same average. Failing that it takes the target of the OLDEST site
+	// group the host belongs to, which is not necessarily the group being
+	// rendered: a host in two differently targeted groups was scored on the
+	// first group's benchmark on both cards. Averaging members graded on
+	// different benchmarks produces a number that reconciles with no rule list.
+	// api-groups C-07.
+	lensRef := `COALESCE(NULLIF($3::text, ''), NULLIF($2::text, ''))`
 	osMatch := framework.OSResolvedMatchSQL(lensRef, "h.os_family", "h.os_version")
 	// The corpus view on the hrs JOIN covers all three subselects below. A
-	// member with no completed scan contributes no rows, so it is absent from
-	// the average rather than counted as zero.
+	// member with no completed scan contributes no rule rows, so it produces no
+	// score and is left out of the AVERAGE, but it is still a member: the
+	// per-host CTE below is built from the membership and left-joins the rule
+	// state, so that member is counted in HostsWithoutScore rather than
+	// disappearing from the population the average describes.
 	lensJoin := `JOIN host_rule_state_current hrs ON hrs.host_id = m.host_id
-		         JOIN hosts h ON h.id = m.host_id
-		         LEFT JOIN host_effective_target het ON het.host_id = m.host_id`
+		         JOIN hosts h ON h.id = m.host_id`
 	err := s.pool.QueryRow(ctx, `
-		WITH m AS (`+cte+`)
+		WITH m AS (`+cte+`),
+		-- One row per MEMBER, then the mean of those rows. Averaging the rows
+		-- is what makes the group score equal-host; summing pass and evaluated
+		-- across members and dividing once is the pooled ratio this replaces,
+		-- under which a member carrying 800 rules outweighed one carrying 40.
+		-- The per-member value is UNROUNDED; the mean is rounded once.
+		-- Every MEMBER, left-joined to its rule state. Building this from the
+		-- rule state made a member disappear rather than count: never scanned,
+		-- scanned and produced nothing, or carrying no rule matching the lens
+		-- all yielded no row, so hosts_without_score under-reported and the two
+		-- counts did not add up to the membership.
+		per_host AS (
+			SELECT m.host_id,
+			       `+compliance.ScorePctSQL(
+		compliance.StatusCountSQL("hrs", "'pass'"),
+		compliance.StatusCountSQL("hrs", "'pass','fail'"))+` AS score_pct,
+			       `+compliance.StatusCountSQL("hrs", "'pass'")+` AS passing,
+			       `+compliance.StatusCountSQL("hrs", "'fail'")+` AS failing,
+			       `+compliance.StatusCountSQL("hrs", "'skipped'")+` AS skipped,
+			       `+compliance.StatusCountSQL("hrs", "'error'")+` AS errored,
+			       -- The engine that produced THIS member's outcomes, bound to
+			       -- the rows through the scan id they carry. Without it every
+			       -- group reported an empty engine list even after its members'
+			       -- scans recorded their producers.
+			       MIN(sr.engine_version) AS engine_version
+			  FROM m
+			  JOIN hosts h ON h.id = m.host_id
+			  LEFT JOIN host_rule_state_current hrs
+			    ON hrs.host_id = m.host_id AND `+osMatch+`
+			  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+			 GROUP BY m.host_id
+		)
 		SELECT
 		  (SELECT count(*) FROM m),
 		  (SELECT count(*) FROM m JOIN host_liveness hl ON hl.host_id = m.host_id
@@ -329,17 +386,58 @@ func (s *Service) rollup(ctx context.Context, g Group, orgDefault string) (Rollu
 		     WHERE hl.reachability_status = 'unreachable'),
 		  (SELECT count(DISTINCT hrs.host_id) FROM m `+lensJoin+`
 		     WHERE hrs.current_status = 'fail' AND hrs.severity ILIKE 'critical' AND `+osMatch+`),
-		  (SELECT count(*) FROM m `+lensJoin+`
-		     WHERE hrs.current_status = 'pass' AND `+osMatch+`),
-		  (SELECT count(*) FROM m `+lensJoin+`
-		     WHERE hrs.current_status IN ('pass','fail') AND `+osMatch+`)`,
-		arg, orgDefault).Scan(&r.Hosts, &r.Online, &r.Down, &r.CriticalHosts, &passing, &evaluated)
+		  (SELECT `+compliance.MeanScoreSQL("score_pct")+` FROM per_host),
+		  (SELECT count(*) FILTER (WHERE score_pct IS NOT NULL) FROM per_host)::int,
+		  (SELECT count(*) FILTER (WHERE score_pct IS NULL) FROM per_host)::int,
+		  (SELECT COALESCE(SUM(passing), 0) FROM per_host)::bigint,
+		  (SELECT COALESCE(SUM(failing), 0) FROM per_host)::bigint,
+		  (SELECT COALESCE(SUM(skipped), 0) FROM per_host)::bigint,
+		  (SELECT COALESCE(SUM(errored), 0) FROM per_host)::bigint,
+		  -- Engine contributors over the SCORED members only, with counts, so
+		  -- the accounting reconciles with hosts_scored.
+		  (SELECT COALESCE(
+		       jsonb_agg(jsonb_build_object(
+		           'engine_version', e.engine_version,
+		           'contributors_scored', e.n) ORDER BY e.engine_version),
+		       '[]'::jsonb)
+		     FROM (SELECT engine_version, COUNT(*)::int AS n
+		             FROM per_host
+		            WHERE score_pct IS NOT NULL AND engine_version IS NOT NULL
+		            GROUP BY engine_version) e),
+		  (SELECT COUNT(*) FILTER (WHERE score_pct IS NOT NULL AND engine_version IS NULL)
+		     FROM per_host)::int`,
+		arg, orgDefault, g.TargetFramework).Scan(&r.Hosts, &r.Online, &r.Down, &r.CriticalHosts,
+		&mean, &r.Score.HostsScored, &r.Score.HostsWithoutScore,
+		&counts.Pass, &counts.Fail, &counts.Skipped, &counts.Error,
+		&engineRows, &r.Score.HostsWithoutEngine)
 	if err != nil {
 		return Rollup{}, fmt.Errorf("group: rollup: %w", err)
 	}
-	if evaluated > 0 {
-		pct := int((passing*100 + evaluated/2) / evaluated)
-		r.AvgCompliancePct = &pct
+	score, err := compliance.ScoreFromNullable(mean)
+	if err != nil {
+		return Rollup{}, fmt.Errorf("group: rollup score: %w", err)
+	}
+	// Every member is either scored or counted as unscored. A mismatch means a
+	// member fell out of the population the average claims to describe.
+	if r.Score.HostsScored+r.Score.HostsWithoutScore != r.Hosts {
+		return Rollup{}, fmt.Errorf("group: rollup: %d scored + %d unscored != %d members",
+			r.Score.HostsScored, r.Score.HostsWithoutScore, r.Hosts)
+	}
+	for _, e := range engineRows {
+		r.Score.Engines = append(r.Score.Engines, compliance.EngineContributor{
+			EngineVersion: e.EngineVersion, ContributorsScored: e.ContributorsScored,
+		})
+	}
+	r.Score.Score = score
+	r.Score.Counts = counts
+	// skipReasonsTyped is false until KN-OW-021 ships, same as the fleet.
+	r.Score.Coverage = compliance.AssessmentCoverage(counts, false)
+	r.Score.HostsTotal = r.Hosts
+	// The lens this group was scored on: its own target, else the org default,
+	// else all rules. It is the same precedence the query applied.
+	r.Score.Lens = g.TargetFramework
+	if r.Score.Lens == "" {
+		r.Score.Lens = orgDefault
 	}
 
 	chips, err := s.pool.Query(ctx, `
@@ -414,26 +512,23 @@ func (s *Service) Summary(ctx context.Context, orgDefault string) (FleetSummary,
 		return FleetSummary{}, fmt.Errorf("group: summary ungrouped: %w", err)
 	}
 
-	// Fleet avg compliance across all hosts, scored against the ORG default
-	// lens ($1), each host OS-resolved — the same rule as GET /fleet/score so
-	// the two fleet KPIs agree (empty org default = all rules). Per-host
-	// targets are not aggregated into this one number (matches the fleet KPI).
-	var passing, evaluated int
-	err = s.pool.QueryRow(ctx, `
-		SELECT
-		  count(*) FILTER (WHERE hrs.current_status = 'pass'),
-		  count(*) FILTER (WHERE hrs.current_status IN ('pass','fail'))
-		FROM host_rule_state_current hrs
-		JOIN hosts h ON h.id = hrs.host_id
-		WHERE `+framework.OSResolvedMatchSQL("NULLIF($1::text, '')", "h.os_family", "h.os_version"),
-		orgDefault).Scan(&passing, &evaluated)
+	// The fleet KPI on the Groups page IS GET /fleet/score.
+	//
+	// It used to be a second query that meant to compute the same thing, and
+	// they had already drifted: this one read the bare corpus view instead of
+	// the host population, so a never-scanned host vanished from the counts
+	// rather than being reported as unscored, and it had no deleted_at filter,
+	// so a soft-deleted host with stale rule state still moved the number.
+	// api-groups C-05 and system-compliance-lens AC-11 require the two to
+	// agree, and two implementations of one rule agree only until someone edits
+	// one of them. Calling the same function makes the divergence impossible
+	// rather than merely tested for.
+	fleet, err := fleetrollup.NewService(s.pool).
+		FleetComplianceScore(ctx, fleetrollup.WithFramework(orgDefault))
 	if err != nil {
 		return FleetSummary{}, fmt.Errorf("group: summary compliance: %w", err)
 	}
-	if evaluated > 0 {
-		pct := int((passing*100 + evaluated/2) / evaluated)
-		sum.AvgCompliancePct = &pct
-	}
+	sum.Score = fleet
 	return sum, nil
 }
 

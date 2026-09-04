@@ -42,8 +42,10 @@ const LENS = {
   },
   summary: { passing: 2, failing: 1, skipped: 1, error: 0, total: 4, score_pct: 50 },
   categories: [
-    { category: 'ssh', passing: 1, failing: 1, total: 2 },
-    { category: 'auth', passing: 1, failing: 0, total: 2 },
+    // score_pct is SENT by the server now, not derived in the component.
+    // ssh: 1 of 2 verdicts. auth: 1 of 1, its second rule having produced none.
+    { category: 'ssh', passing: 1, failing: 1, total: 2, score_pct: 50 },
+    { category: 'auth', passing: 1, failing: 0, total: 2, score_pct: 100 },
   ],
   rules: [
     {

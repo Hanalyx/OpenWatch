@@ -20,7 +20,6 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"regexp"
 	"sort"
@@ -31,6 +30,7 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
@@ -70,6 +70,9 @@ func (h *handlers) GetHostCompliance(
 	// scan_context: latest COMPLETED run only — queued/running/failed
 	// never qualify (spec AC-10). Never-scanned hosts keep the nulls.
 	scanCtx := api.HostScanContext{}
+	// The engine comes from the RULE ROWS below, not from a separate lookup, so
+	// it always describes the same scan the counts do.
+	hostEngine := ""
 	run, err := scanruns.LatestCompletedForHost(ctx, h.pool, hostID)
 	switch {
 	case err == nil:
@@ -112,16 +115,22 @@ func (h *handlers) GetHostCompliance(
 		framework = *params.Framework
 	}
 	const q = `
-		SELECT rule_id,
-		       COALESCE(severity, ''),
-		       current_status,
-		       last_checked_at,
+		SELECT hrs.rule_id,
+		       COALESCE(hrs.severity, ''),
+		       hrs.current_status,
+		       hrs.last_checked_at,
 		       CASE WHEN $2::text IS NULL THEN '[]'::jsonb
-		            ELSE COALESCE(framework_refs -> $2, '[]'::jsonb)
-		       END AS control_ids
-		  FROM host_rule_state_current
-		 WHERE host_id = $1
-		   AND ($2::text IS NULL OR framework_refs ? $2)
+		            ELSE COALESCE(hrs.framework_refs -> $2, '[]'::jsonb)
+		       END AS control_ids,
+		       -- The engine bound to THESE rows, through the scan id they carry.
+		       -- Reading the latest completed run separately could name a scan
+		       -- that finished after these rows were read, pairing one scan's
+		       -- score with another scan's engine.
+		       COALESCE(sr.engine_version, '') AS engine_version
+		  FROM host_rule_state_current hrs
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+		 WHERE hrs.host_id = $1
+		   AND ($2::text IS NULL OR hrs.framework_refs ? $2)
 		 ORDER BY CASE lower(COALESCE(severity, ''))
 		            WHEN 'critical' THEN 0
 		            WHEN 'high'     THEN 1
@@ -148,12 +157,19 @@ func (h *handlers) GetHostCompliance(
 			item       api.HostComplianceRule
 			checkedAt  time.Time
 			controlIDs []byte
+			rowEngine  string
 		)
 		if err := rows.Scan(&item.RuleId, &item.Severity, &item.Status,
-			&checkedAt, &controlIDs); err != nil {
+			&checkedAt, &controlIDs, &rowEngine); err != nil {
 			writeError(w, http.StatusInternalServerError, "server.error", "server",
 				"compliance lens scan failed", true)
 			return
+		}
+		// Every row in the current corpus belongs to the same scan, so they all
+		// carry the same value. Taking it from a row rather than from a second
+		// query is what binds it to these counts.
+		if rowEngine != "" {
+			hostEngine = rowEngine
 		}
 		item.LastCheckedAt = checkedAt
 		item.ControlIds = []string{}
@@ -189,16 +205,33 @@ func (h *handlers) GetHostCompliance(
 
 	// summary + categories aggregate the SAME fetched rows, so the
 	// reconciliation invariant (spec C-05) holds by construction.
-	resp.Summary = lensSummaryFromRules(resp.Rules)
+	// The lens this summary was computed under. Empty means all rules, which
+	// lensName reports as "all_rules": a named scope, not an absence.
+	lens := ""
+	if params.Framework != nil {
+		lens = *params.Framework
+	}
+	summary, err := lensSummaryFromRules(resp.Rules, lens, hostEngine)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to build the score envelope", true)
+		return
+	}
+	resp.Summary = summary
 	resp.Categories = lensCategoriesFromRules(resp.Rules)
 
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// lensSummaryFromRules counts the per-status totals over the lens
-// rules and derives score_pct = round(passing/total*1000)/10 (one
-// decimal; 0 when total is 0). Spec api-host-compliance AC-08 / C-05.
-func lensSummaryFromRules(rules []api.HostComplianceRule) api.HostComplianceLensSummary {
+// lensSummaryFromRules counts the per-status totals over the lens rules and
+// takes the score from internal/compliance.
+//
+// The arithmetic used to live here: passing over TOTAL, rounded inline. Two
+// things were wrong with that. The formula counted a rule nothing could evaluate
+// as a failure, and a compliance percentage computed in an HTTP handler is one
+// the rest of the product cannot agree with by construction
+// (system-compliance-scoring C-14). Spec api-host-compliance AC-08 / C-05.
+func lensSummaryFromRules(rules []api.HostComplianceRule, lens, engine string) (api.HostComplianceLensSummary, error) {
 	var s api.HostComplianceLensSummary
 	for _, r := range rules {
 		switch r.Status {
@@ -213,10 +246,83 @@ func lensSummaryFromRules(rules []api.HostComplianceRule) api.HostComplianceLens
 		}
 		s.Total++
 	}
-	if s.Total > 0 {
-		s.ScorePct = math.Round(float64(s.Passing)/float64(s.Total)*1000) / 10
+	counts := compliance.Counts{
+		Pass: int(s.Passing), Fail: int(s.Failing),
+		Skipped: int(s.Skipped), Error: int(s.Error),
 	}
-	return s
+	score := compliance.HostScore(counts)
+	s.ScorePct = scorePct64(score)
+	// skipReasonsTyped is false until KN-OW-021 ships.
+	cov := compliance.AssessmentCoverage(counts, false)
+	s.CoverageStatus = api.HostComplianceLensSummaryCoverageStatus(cov.Status)
+	s.CoveragePct = scorePct64(cov.Pct)
+	env, err := hostEnvelope(lens, score.Present(), engine)
+	if err != nil {
+		return api.HostComplianceLensSummary{}, err
+	}
+	s.Envelope = env
+	return s, nil
+}
+
+// hostEnvelope builds the envelope for a SINGLE host's score.
+//
+// aggregation_method is none: one host aggregates nothing, and saying
+// equal_host_mean here would claim it averaged something. Corpus identity is
+// unavailable until the scan engine can report it, so no contributor is named
+// and a scored host is counted as lacking one.
+//
+// scored says whether the host actually produced a score. A host whose rules all
+// skipped has none, and reporting one scored contributor for it would claim a
+// measurement that did not happen: the envelope's counts describe contributors
+// to a SCORE, not hosts that were looked at.
+//
+// It returns an error rather than a degraded envelope. An envelope the
+// constructor refuses is provenance that cannot be stated honestly, and the
+// caller's only correct move is to fail: publishing the score with a read-model
+// envelope would relabel a score-bearing response as a different artifact class
+// and emit empty strings where a lens and an engine version belong.
+func hostEnvelope(lens string, scored bool, engine string) (api.ScoreEnvelope, error) {
+	n := 0
+	if scored {
+		n = 1
+	}
+	// One host contributes at most one engine. It contributes NONE when it has
+	// no score, and none when its run predates migration 0063 and recorded no
+	// version. Those two cases are what hosts_without_engine_identity counts.
+	var engines []compliance.EngineContributor
+	withoutEngine := n
+	if n == 1 && engine != "" {
+		engines = []compliance.EngineContributor{{EngineVersion: engine, ContributorsScored: 1}}
+		withoutEngine = 0
+	}
+	env, err := compliance.ScoreBearingEnvelope(
+		lensName(&lens), compliance.AggregationNone, engines, withoutEngine, nil, n, n)
+	if err != nil {
+		return api.ScoreEnvelope{}, err
+	}
+	return envelopeWire(env), nil
+}
+
+// scorePct64 and scorePct32 render a score into a nullable wire field.
+//
+// A host whose rules produced no verdict has NO score, and the field says so.
+// Until this release it was required and non-nullable, so absence read as 0 and
+// was indistinguishable from every evaluated rule failing.
+func scorePct64(score compliance.Score) *float64 {
+	pct, ok := score.Rounded()
+	if !ok {
+		return nil
+	}
+	return &pct
+}
+
+func scorePct32(score compliance.Score) *float32 {
+	pct, ok := score.Rounded()
+	if !ok {
+		return nil
+	}
+	v := float32(pct)
+	return &v
 }
 
 // lensCategoriesFromRules groups the lens rules by their (already
@@ -241,6 +347,12 @@ func lensCategoriesFromRules(rules []api.HostComplianceRule) []api.HostComplianc
 	}
 	out := make([]api.HostComplianceCategory, 0, len(byName))
 	for _, c := range byName {
+		// Scored here, not in the browser. The category bar derived this
+		// itself, which is compliance arithmetic in a frontend component
+		// (system-compliance-scoring C-14) even though its formula was right.
+		c.ScorePct = scorePct64(compliance.HostScore(compliance.Counts{
+			Pass: int(c.Passing), Fail: int(c.Failing),
+		}))
 		out = append(out, *c)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -292,11 +404,15 @@ func (h *handlers) GetHostComplianceFrameworks(
 	const q = `
 		SELECT key,
 		       COUNT(*)::bigint,
-		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
-		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
-		  FROM host_rule_state_current,
-		       LATERAL jsonb_object_keys(framework_refs) AS key
-		 WHERE host_id = $1
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'pass')::bigint,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail')::bigint,
+		       -- Bound to these rows, in this snapshot, for the same reason as
+		       -- the lens summary above.
+		       COALESCE(MIN(sr.engine_version), '')
+		  FROM host_rule_state_current hrs
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id,
+		       LATERAL jsonb_object_keys(hrs.framework_refs) AS key
+		 WHERE hrs.host_id = $1
 		 GROUP BY key
 		 ORDER BY key`
 	rows, err := h.pool.Query(ctx, q, hostID)
@@ -326,7 +442,9 @@ func (h *handlers) GetHostComplianceFrameworks(
 	for rows.Next() {
 		var item api.HostComplianceFramework
 		var passing, failing int64
-		if err := rows.Scan(&item.FrameworkId, &item.RuleCount, &passing, &failing); err != nil {
+		var chipEngine string
+		if err := rows.Scan(&item.FrameworkId, &item.RuleCount, &passing, &failing,
+			&chipEngine); err != nil {
 			writeError(w, http.StatusInternalServerError, "server.error", "server",
 				"frameworks scan failed", true)
 			return
@@ -345,9 +463,20 @@ func (h *handlers) GetHostComplianceFrameworks(
 		}
 		item.Passing = int(passing)
 		item.Failing = int(failing)
-		if item.RuleCount > 0 {
-			item.ScorePct = float32(math.Round(float64(passing)/float64(item.RuleCount)*1000) / 10)
+		// Scored over the verdicts, not over rule_count. rule_count includes
+		// rules that were skipped or errored, and dividing by it made every
+		// unevaluated rule count against the host.
+		item.ScorePct = scorePct32(compliance.HostScore(compliance.Counts{
+			Pass: int(passing), Fail: int(failing),
+		}))
+		// The chip's lens IS its framework id, so the envelope names it.
+		chipEnv, err := hostEnvelope(item.FrameworkId, item.ScorePct != nil, chipEngine)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				"failed to build the score envelope", true)
+			return
 		}
+		item.Envelope = chipEnv
 		resp.Frameworks = append(resp.Frameworks, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -359,21 +488,33 @@ func (h *handlers) GetHostComplianceFrameworks(
 	// All-rules aggregate for the All chip's score (framework_id "all").
 	resp.Overall = api.HostComplianceFramework{FrameworkId: "all"}
 	var oPassing, oFailing int64
+	var overallEngine string
 	if err := h.pool.QueryRow(ctx, `
 		SELECT COUNT(*)::bigint,
-		       COUNT(*) FILTER (WHERE current_status = 'pass')::bigint,
-		       COUNT(*) FILTER (WHERE current_status = 'fail')::bigint
-		  FROM host_rule_state_current WHERE host_id = $1`, hostID).
-		Scan(&resp.Overall.RuleCount, &oPassing, &oFailing); err != nil {
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'pass')::bigint,
+		       COUNT(*) FILTER (WHERE hrs.current_status = 'fail')::bigint,
+		       -- Bound to the same rows, in the same snapshot.
+		       COALESCE(MIN(sr.engine_version), '')
+		  FROM host_rule_state_current hrs
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+		 WHERE hrs.host_id = $1`, hostID).
+		Scan(&resp.Overall.RuleCount, &oPassing, &oFailing, &overallEngine); err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"overall aggregate failed", true)
 		return
 	}
 	resp.Overall.Passing = int(oPassing)
 	resp.Overall.Failing = int(oFailing)
-	if resp.Overall.RuleCount > 0 {
-		resp.Overall.ScorePct = float32(math.Round(float64(oPassing)/float64(resp.Overall.RuleCount)*1000) / 10)
+	resp.Overall.ScorePct = scorePct32(compliance.HostScore(compliance.Counts{
+		Pass: int(oPassing), Fail: int(oFailing),
+	}))
+	overallEnv, err := hostEnvelope("", resp.Overall.ScorePct != nil, overallEngine)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to build the score envelope", true)
+		return
 	}
+	resp.Overall.Envelope = overallEnv
 
 	writeJSON(w, http.StatusOK, resp)
 }

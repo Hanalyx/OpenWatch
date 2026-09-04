@@ -101,7 +101,26 @@ type Report struct {
 	Kind         Kind
 	PriorScore   float64
 	CurrentScore float64
-	ScoreDelta   float64 // current - prior; negative when worsening
+	// CurrentScorePresent is false when no rule produced a verdict, in which
+	// case CurrentScore is meaningless rather than zero percent.
+	CurrentScorePresent bool
+
+	// PriorScorePresent is false when no prior score is reconstructible.
+	//
+	// It is NOT the same fact as HasPriorBaseline. AC-19 is the case that
+	// separates them: an all-skipped rescan has a baseline (transactions exist)
+	// and no reconstructible prior percentage, because reconstructPriorCounts
+	// inverts pass and fail transitions only. Without this flag such a report
+	// exposes a plausible PriorScore of 0.
+	PriorScorePresent bool
+
+	// ComparisonPresent is true only when both scores exist and a delta was
+	// actually computed. When false, ScoreDelta is the zero value and means
+	// nothing: no comparison was made, rather than a comparison that found no
+	// change. A consumer rendering "0.0pp" from an absent comparison would be
+	// the same defect the score type exists to prevent, one field along.
+	ComparisonPresent bool
+	ScoreDelta        float64 // current - prior; negative when worsening
 
 	// HasPriorBaseline is false on the first-ever scan against this
 	// host. Kind is forced to DriftStable in that case (no baseline to

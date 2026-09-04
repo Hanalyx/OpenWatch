@@ -177,7 +177,12 @@ function CoverageTab({
     hostname: string;
     last_scan_at?: string | null;
     scan_state?: 'queued' | 'running' | null;
-    compliance_summary?: { passing: number; total: number } | null;
+    compliance_summary?: {
+      passing: number;
+      total: number;
+      /** Server-computed score; null when the host produced no verdict. */
+      score_pct: number | null;
+    } | null;
   }[];
   isPending: boolean;
   isError: boolean;
@@ -218,7 +223,10 @@ function CoverageTab({
         const age = ageLabel(h.last_scan_at);
         const pill = freshnessPill(h.scan_state, age);
         const cs = h.compliance_summary;
-        const pct = cs && cs.total > 0 ? Math.round((cs.passing / cs.total) * 100) : null;
+        // Sent by the server. Deriving passing over total here counted every
+        // skipped rule as a failure, and showed 0% for a host whose rules all
+        // skipped rather than no score at all.
+        const pct = cs?.score_pct ?? null;
         const open = openHost === h.id;
         return (
           <div key={h.id}>

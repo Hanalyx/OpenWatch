@@ -156,7 +156,10 @@ export function GroupsPage() {
 // ── KPI row ────────────────────────────────────────────────────────
 
 function KpiRow({ summary }: { summary: GroupSummary }) {
-  const avg = summary.avg_compliance_pct;
+  // The score comes as a one-decimal number with its population. It used to be
+  // a whole integer with neither, so a group of ten hosts where two were scored
+  // showed the same "72%" as one where all ten were.
+  const avg = summary.score.score_pct;
   return (
     <div
       style={{
@@ -180,7 +183,11 @@ function KpiRow({ summary }: { summary: GroupSummary }) {
       <Kpi
         label="Avg compliance"
         value={avg == null ? '—' : `${avg}%`}
-        sub="across scanned hosts"
+        sub={
+          avg == null
+            ? `no host scored of ${summary.score.hosts_total}`
+            : `${summary.score.hosts_scored} of ${summary.score.hosts_total} hosts scored`
+        }
         tone={complianceTone(avg)}
       />
       <Kpi
@@ -529,8 +536,8 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
       >
         <Metric
           label="Avg compliance"
-          value={r.avg_compliance_pct == null ? '—' : `${r.avg_compliance_pct}%`}
-          tone={complianceTone(r.avg_compliance_pct)}
+          value={r.score.score_pct == null ? '—' : `${r.score.score_pct}%`}
+          tone={complianceTone(r.score.score_pct)}
         />
         <Metric
           label="Critical hosts"

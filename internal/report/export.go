@@ -21,6 +21,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 )
 
 // ErrInvalidFace is returned by Export for an unknown face (or a face that
@@ -99,33 +101,67 @@ func (s *Service) Export(ctx context.Context, id uuid.UUID, face string) ([]byte
 // signed). This makes a snapshot of either kind offline-verifiable:
 // sha256(json face) == content_sha256.
 func (s *Service) canonicalJSON(rep Report) ([]byte, string, error) {
-	var v any
+	// A legacy artifact is canonicalized through the shape it was SIGNED
+	// with. content is JSONB and never preserved the signed bytes, so the
+	// canonical face is reconstructed by re-marshaling; re-marshaling a
+	// legacy artifact through the current struct would add score_pct, drop a
+	// null compliance_pct and reorder the fields, moving its hash and
+	// invalidating its signature.
+	if err := checkScoreFields(string(rep.Kind), rep.Content); err != nil {
+		return nil, "", err
+	}
+	legacy := isLegacyArtifact(rep.Content)
+
+	// decode unmarshals into whichever shape this artifact was written with
+	// and returns it for canonical re-marshaling.
+	decode := func(current, old any) (any, error) {
+		target := current
+		if legacy {
+			target = old
+		}
+		if err := json.Unmarshal(rep.Content, target); err != nil {
+			return nil, err
+		}
+		// Dereferenced, because the canonical bytes must come from the VALUE
+		// the original marshaled, not from a pointer to it.
+		switch t := target.(type) {
+		case *AttestationContent:
+			return *t, nil
+		case *legacyAttestationContent:
+			return *t, nil
+		case *ExceptionContent:
+			return *t, nil
+		case *RemediationContent:
+			return *t, nil
+		case *ExecutiveContent:
+			return *t, nil
+		case *legacyExecutiveContent:
+			return *t, nil
+		}
+		return nil, fmt.Errorf("report: unhandled content shape %T", target)
+	}
+
+	var (
+		v   any
+		err error
+	)
 	switch rep.Kind {
 	case KindAttestation:
-		var c AttestationContent
-		if err := json.Unmarshal(rep.Content, &c); err != nil {
-			return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
-		}
-		v = c
+		v, err = decode(&AttestationContent{}, &legacyAttestationContent{})
 	case KindException:
-		var c ExceptionContent
-		if err := json.Unmarshal(rep.Content, &c); err != nil {
-			return nil, "", fmt.Errorf("report: decode exception content: %w", err)
-		}
-		v = c
+		// The read-model kinds carry no score, and their provenance field is
+		// omitempty, so a legacy read model re-marshals to its original bytes
+		// through the current struct. They need no frozen shape.
+		v, err = decode(&ExceptionContent{}, &ExceptionContent{})
 	case KindRemediation:
-		var c RemediationContent
-		if err := json.Unmarshal(rep.Content, &c); err != nil {
-			return nil, "", fmt.Errorf("report: decode remediation content: %w", err)
-		}
-		v = c
+		v, err = decode(&RemediationContent{}, &RemediationContent{})
 	default:
-		var c ExecutiveContent
-		if err := json.Unmarshal(rep.Content, &c); err != nil {
-			return nil, "", fmt.Errorf("report: decode executive content: %w", err)
-		}
-		v = c
+		v, err = decode(&ExecutiveContent{}, &legacyExecutiveContent{})
 	}
+	if err != nil {
+		return nil, "", fmt.Errorf("report: decode %s content: %w", rep.Kind, err)
+	}
+
 	canonical, err := json.Marshal(v)
 	if err != nil {
 		return nil, "", fmt.Errorf("report: marshal canonical json: %w", err)
@@ -413,27 +449,88 @@ func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.U
 	var r AttestationRollup
 	r.TopFailing = []TopFailingRule{}
 
+	// One row PER HOST, from the frozen scans, plus the engine each scan run
+	// recorded. Grouping by host is what makes the mean equal-host; the
+	// replaced query summed every outcome in the attested set and divided
+	// once, so an attestation over a 700-rule host and a 50-rule host
+	// reported the first one and called it the fleet.
+	//
+	// The engine comes from the CONTRIBUTING scan runs, never from the
+	// process generating the report. In a rolling deployment the API, the
+	// rollup and the workers run different builds, so a process describing
+	// itself names an engine that never touched the host.
 	countQ := `
-		SELECT count(*),
-		       count(*) FILTER (WHERE status = 'pass'),
-		       count(*) FILTER (WHERE status = 'fail'),
-		       count(*) FILTER (WHERE status = 'skipped'),
-		       count(*) FILTER (WHERE status = 'error')
+		SELECT sr.host_id,
+		       count(*)::int,
+		       count(*) FILTER (WHERE sr.status = 'pass')::int,
+		       count(*) FILTER (WHERE sr.status = 'fail')::int,
+		       count(*) FILTER (WHERE sr.status = 'skipped')::int,
+		       count(*) FILTER (WHERE sr.status = 'error')::int,
+		       COALESCE(MIN(run.engine_version), '')
 		  FROM scan_results sr
+		  JOIN scan_runs run ON run.id = sr.scan_id
 		 WHERE sr.scan_id = ANY($1)`
 	countArgs := []any{scanIDs}
 	if framework != "" {
 		countQ += " AND sr.framework_refs ? $2"
 		countArgs = append(countArgs, framework)
 	}
-	if err := s.pool.QueryRow(ctx, countQ, countArgs...).
-		Scan(&r.TotalChecks, &r.Passing, &r.Failing, &r.Skipped, &r.Errored); err != nil {
+	countQ += " GROUP BY sr.host_id"
+	hostRows, err := s.pool.Query(ctx, countQ, countArgs...)
+	if err != nil {
 		return AttestationRollup{}, fmt.Errorf("report: attestation rollup counts: %w", err)
 	}
-	if evaluated := r.Passing + r.Failing; evaluated > 0 {
-		pct := int((float64(r.Passing)/float64(evaluated))*100 + 0.5)
-		r.CompliancePct = &pct
+	var (
+		hostScores []compliance.Score
+		engines    []compliance.EngineContributor
+		noEngine   int
+	)
+	for hostRows.Next() {
+		var (
+			hostID                              uuid.UUID
+			total, pass, fail, skipped, errored int
+			engine                              string
+		)
+		if err := hostRows.Scan(&hostID, &total, &pass, &fail, &skipped, &errored,
+			&engine); err != nil {
+			hostRows.Close()
+			return AttestationRollup{}, fmt.Errorf("report: attestation rollup host: %w", err)
+		}
+		r.TotalChecks += total
+		r.Passing += pass
+		r.Failing += fail
+		r.Skipped += skipped
+		r.Errored += errored
+		score := compliance.HostScore(compliance.Counts{
+			Pass: pass, Fail: fail, Skipped: skipped, Error: errored,
+		})
+		hostScores = append(hostScores, score)
+		if !score.Present() {
+			continue
+		}
+		if engine == "" {
+			noEngine++
+			continue
+		}
+		engines = append(engines, compliance.EngineContributor{
+			EngineVersion: engine, ContributorsScored: 1,
+		})
 	}
+	if err := hostRows.Err(); err != nil {
+		hostRows.Close()
+		return AttestationRollup{}, fmt.Errorf("report: attestation rollup iterate: %w", err)
+	}
+	hostRows.Close()
+
+	agg := compliance.MeanOfHostScores(hostScores)
+	r.ScorePct = scorePtr(agg.Score)
+	env, err := compliance.ScoreBearingEnvelope(lensName(framework),
+		compliance.AggregationEqualHostMean, engines, noEngine, nil,
+		agg.HostsScored, agg.HostsScored)
+	if err != nil {
+		return AttestationRollup{}, fmt.Errorf("report: attestation provenance: %w", err)
+	}
+	r.Provenance = NewScoreProvenance(env, agg)
 
 	topQ := `
 		SELECT sr.rule_id, count(DISTINCT sr.host_id)

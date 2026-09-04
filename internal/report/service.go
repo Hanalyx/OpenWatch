@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -358,7 +360,7 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 // scoped to hostIDs when set. Active = approved and not past expiry;
 // ExpiringSoon = active with an expiry within the next 30 days.
 func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.UUID) (ExceptionContent, error) {
-	c := ExceptionContent{Exceptions: []ExceptionRow{}}
+	c := ExceptionContent{Exceptions: []ExceptionRow{}, Provenance: NewReadModelProvenance()}
 
 	// Summary aggregate (exact, independent of the row cap).
 	sumQ := `
@@ -429,7 +431,10 @@ func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.U
 // usernames), scoped to hostIDs when set. The window is filtered on
 // requested_at (when the request was filed).
 func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid.UUID, from, to time.Time) (RemediationContent, error) {
-	c := RemediationContent{PeriodFrom: from, PeriodTo: to, Activities: []RemediationActRow{}}
+	c := RemediationContent{
+		PeriodFrom: from, PeriodTo: to, Activities: []RemediationActRow{},
+		Provenance: NewReadModelProvenance(),
+	}
 
 	// Summary aggregate by outcome (exact, independent of the row cap).
 	sumQ := `
@@ -507,29 +512,98 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
+	// Qualified with the hrs alias. The posture query now joins scan_runs to
+	// read each host's engine, and scan_runs has a host_id too, so an
+	// unqualified column is ambiguous rather than merely untidy.
 	if hostIDs != nil {
-		hrsWhere.WriteString(" AND host_id = ANY(" + addArg(hostIDs) + ")")
+		hrsWhere.WriteString(" AND hrs.host_id = ANY(" + addArg(hostIDs) + ")")
 	}
 	if framework != "" {
-		hrsWhere.WriteString(" AND framework_refs ? " + addArg(framework))
+		hrsWhere.WriteString(" AND hrs.framework_refs ? " + addArg(framework))
 	}
 
-	var passing, failing, critical, evaluated int
-	err := s.pool.QueryRow(ctx, `
-		SELECT
-		  count(*) FILTER (WHERE current_status = 'pass'),
-		  count(*) FILTER (WHERE current_status = 'fail'),
-		  count(*) FILTER (WHERE current_status = 'fail' AND severity ILIKE 'critical'),
-		  count(*) FILTER (WHERE current_status IN ('pass','fail'))
-		FROM host_rule_state_current
-		WHERE true`+hrsWhere.String(), args...).Scan(&passing, &failing, &critical, &evaluated)
+	// ONE query, per host, and the engine that produced each host's rows.
+	//
+	// The score and the provenance beside it must come from a single database
+	// snapshot. Computing the mean here and reading the engine versions in a
+	// second statement would freeze internally contradictory evidence: under
+	// Read Committed the two statements see different snapshots, so a signed
+	// artifact could name an engine that did not produce the outcomes the
+	// score was taken over. It is signed, so nobody can go back and check.
+	//
+	// Grouping by host is what makes the mean equal-host. The replaced query
+	// summed pass and fail across the whole scope and divided once, which
+	// weighted every host by how many rules it happened to carry.
+	rows, err := s.pool.Query(ctx, `
+		SELECT hrs.host_id,
+		       count(*) FILTER (WHERE hrs.current_status = 'pass')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'fail')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'skipped')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'error')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'fail'
+		                          AND hrs.severity ILIKE 'critical')::int,
+		       COALESCE(MIN(sr.engine_version), '')
+		  FROM host_rule_state_current hrs
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+		 WHERE true`+hrsWhere.String()+`
+		 GROUP BY hrs.host_id`, args...)
 	if err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: posture counts: %w", err)
 	}
-	c.PassingRules = passing
-	c.FailingRules = failing
-	c.CriticalIssues = critical
-	c.CompliancePct = compliancePct(passing, evaluated)
+	defer rows.Close()
+
+	var (
+		hostScores []compliance.Score
+		engines    []compliance.EngineContributor
+		noEngine   int
+	)
+	for rows.Next() {
+		var (
+			hostID                            uuid.UUID
+			pass, fail, skipped, errored, cri int
+			engine                            string
+		)
+		if err := rows.Scan(&hostID, &pass, &fail, &skipped, &errored, &cri, &engine); err != nil {
+			return ExecutiveContent{}, fmt.Errorf("report: posture host: %w", err)
+		}
+		c.PassingRules += pass
+		c.FailingRules += fail
+		c.CriticalIssues += cri
+		score := compliance.HostScore(compliance.Counts{
+			Pass: pass, Fail: fail, Skipped: skipped, Error: errored,
+		})
+		hostScores = append(hostScores, score)
+		// The envelope counts contributors to a SCORE. A host that produced no
+		// verdict contributes nothing, so it names no engine and is not
+		// counted as lacking one either.
+		if !score.Present() {
+			continue
+		}
+		if engine == "" {
+			noEngine++
+			continue
+		}
+		engines = append(engines, compliance.EngineContributor{
+			EngineVersion: engine, ContributorsScored: 1,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return ExecutiveContent{}, fmt.Errorf("report: posture iterate: %w", err)
+	}
+
+	agg := compliance.MeanOfHostScores(hostScores)
+	c.ScorePct = scorePtr(agg.Score)
+
+	env, err := compliance.ScoreBearingEnvelope(lensName(framework),
+		compliance.AggregationEqualHostMean, engines, noEngine, nil,
+		agg.HostsScored, agg.HostsScored)
+	if err != nil {
+		// Propagated, never swallowed. A provenance failure must not quietly
+		// downgrade a score-bearing artifact into something else; refusing to
+		// generate is the only honest outcome.
+		return ExecutiveContent{}, fmt.Errorf("report: executive provenance: %w", err)
+	}
+	c.Provenance = NewScoreProvenance(env, agg)
 
 	// Coverage over the same scope. hosts_total is the active host count
 	// (all non-deleted hosts, or the scoped subset), so host_count is
@@ -545,26 +619,26 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 	// LIMIT as the next placeholder.
 	limitPH := fmt.Sprintf("$%d", len(args)+1)
 	topArgs := append(append([]any{}, args...), topFailingLimit)
-	rows, err := s.pool.Query(ctx, `
-		SELECT rule_id, count(*)::int AS failing_host_count
-		  FROM host_rule_state_current
-		 WHERE current_status = 'fail'`+hrsWhere.String()+`
-		 GROUP BY rule_id
+	topRows, err := s.pool.Query(ctx, `
+		SELECT hrs.rule_id, count(*)::int AS failing_host_count
+		  FROM host_rule_state_current hrs
+		 WHERE hrs.current_status = 'fail'`+hrsWhere.String()+`
+		 GROUP BY hrs.rule_id
 		 ORDER BY failing_host_count DESC, rule_id ASC
 		 LIMIT `+limitPH, topArgs...)
 	if err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: top failing rules: %w", err)
 	}
-	defer rows.Close()
+	defer topRows.Close()
 	c.TopFailingRules = []TopFailingRule{}
-	for rows.Next() {
+	for topRows.Next() {
 		var t TopFailingRule
-		if err := rows.Scan(&t.RuleID, &t.FailingHostCount); err != nil {
+		if err := topRows.Scan(&t.RuleID, &t.FailingHostCount); err != nil {
 			return ExecutiveContent{}, fmt.Errorf("report: top failing scan: %w", err)
 		}
 		c.TopFailingRules = append(c.TopFailingRules, t)
 	}
-	if err := rows.Err(); err != nil {
+	if err := topRows.Err(); err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: top failing iterate: %w", err)
 	}
 	return c, nil
@@ -656,12 +730,30 @@ func frameworkFamilyLabel(framework string) string {
 // up). It returns nil when nothing has been evaluated yet, so the
 // executive summary distinguishes "0% compliant" from "never scanned".
 // Pure (no DB), so the rounding contract is unit-tested directly.
-func compliancePct(passing, evaluated int) *int {
-	if evaluated <= 0 {
+// scorePtr renders a score for the wire: the canonical one-decimal value, or
+// null when there is none.
+//
+// It replaced compliancePct, which pooled every rule outcome in the scope and
+// returned a whole percent. Two things were wrong with that. Pooling weights
+// a host by how many rules it carries, so the number tracked the biggest
+// corpus rather than the fleet; and a whole percent can never equal the
+// one-decimal score every other surface reports, so a signed artifact
+// disagreed with the app by construction (system-compliance-scoring C-14).
+func scorePtr(score compliance.Score) *float64 {
+	pct, ok := score.Rounded()
+	if !ok {
 		return nil
 	}
-	pct := (passing*100 + evaluated/2) / evaluated
 	return &pct
+}
+
+// lensName is the lens an artifact was scored under. Empty means no framework
+// narrowed the rule set, which is the resolved lens all_rules, not an absence.
+func lensName(framework string) string {
+	if framework == "" {
+		return "all_rules"
+	}
+	return framework
 }
 
 // List returns every report, newest first.

@@ -47,6 +47,7 @@ function makeSummary(overrides: Partial<ApiHostComplianceSummary> = {}): ApiHost
     error: 0,
     total: 0,
     critical_failing: 0,
+    score_pct: null,
     ...overrides,
   };
 }
@@ -128,22 +129,21 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
 });
 
 // @ac AC-26
-// AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score
-// (the same fleet score, and the same round(passing_fraction*100) expression,
-// the dashboard KPI uses) so /hosts and /dashboard can never show a different
-// fleet-compliance number. The client-side kpisFromHosts aggregate (which
-// divides by the all-status rule total) is only a fallback.
+// AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score,
+// TAKEN AS SENT, so /hosts and /dashboard can never show a different
+// fleet-compliance number. It used to be round(passing_fraction * 100), which
+// was a second implementation of the formula in the browser.
 test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
   // Shares the dashboard's query key + endpoint.
   expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score', lens]");
   expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
-  // The KPI value is overridden with the canonical fleet score, same rounding
-  // as the dashboard widget (Math.round(passing_fraction * 100)).
-  expect(PAGE_SRC).toMatch(
-    /kpis\.avgCompliance\.value\s*=\s*Math\.round\(\s*fleetScoreQuery\.data\.passing_fraction\s*\*\s*100\s*\)/,
-  );
-  // Guarded so an empty fleet (no pass/fail evaluations) keeps the fallback.
-  expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.total_evaluations\s*>\s*0/);
+  // Assigned directly. No arithmetic: the server already rounded it.
+  expect(PAGE_SRC).toMatch(/kpis\.avgCompliance\.value\s*=\s*fleetScoreQuery\.data\.score_pct/);
+  // Guarded on the score being PRESENT, not on a count being positive. A fleet
+  // nobody could score has no number, and the KPI must not show 0 percent.
+  expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.score_pct\s*!==\s*null/);
+  // The removed fields must not reappear anywhere on this page.
+  expect(PAGE_SRC).not.toMatch(/passing_fraction|total_evaluations/);
 });
 
 // @ac AC-14
@@ -175,10 +175,15 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
           error: 3,
           total: 508,
           critical_failing: 4,
+          // Server-computed: 400 / (400 + 100) = 80.0. The browser used to
+          // derive 78.7 from passing over TOTAL, counting the 5 skipped and 3
+          // errored rules as failures.
+          score_pct: 80,
         }),
       }),
     );
-    expect(scanned.compliance).toBe(78.7); // round(400/508*1000)/10
+    expect(scanned.compliance).toBe(80);
+    expect(scanned.compliance).not.toBe(78.7); // the passing-over-total answer
     expect(scanned.passed).toBe(400);
     expect(scanned.failed).toBe(100);
     expect(scanned.total).toBe(508);
@@ -219,12 +224,22 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
       makeDevHost({ id: 'c', compliance: null, passed: null, failed: null, total: 0 }),
     ];
     const kpis = kpisFromHosts(hosts);
-    // Weighted average over the single scanned host = 90, not 30.
+    // Equal-host mean over the single scored host = 90, not 30.
     expect(kpis.avgCompliance.value).toBe(90);
 
-    // All-never-scanned fleet: average is 0, not NaN.
+    // Each host counts ONCE. A host with ten times the rules does not get ten
+    // times the say, which is what the rule-weighted version gave it.
+    const uneven = kpisFromHosts([
+      makeDevHost({ id: 'big', compliance: 90, passed: 900, failed: 100, total: 1000 }),
+      makeDevHost({ id: 'small', compliance: 50, passed: 1, failed: 1, total: 2 }),
+    ]);
+    expect(uneven.avgCompliance.value).toBe(70);
+    expect(uneven.avgCompliance.value).not.toBe(89.9); // the rule-weighted answer
+
+    // All-never-scanned fleet: NULL, not 0. Reporting an absence of data as
+    // total failure is the defect this work removes.
     const noneScanned = kpisFromHosts([makeDevHost({ id: 'x' }), makeDevHost({ id: 'y' })]);
-    expect(noneScanned.avgCompliance.value).toBe(0);
+    expect(noneScanned.avgCompliance.value).toBeNull();
   });
 
   // @ac AC-18

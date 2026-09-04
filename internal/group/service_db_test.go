@@ -27,8 +27,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 )
+
+// scorePct reads a group or fleet average, failing the test when it is absent.
+// A helper returning 0 for an absent score would erase the distinction these
+// assertions exist to check.
+func scorePct(t *testing.T, s compliance.Score) float64 {
+	t.Helper()
+	pct, ok := s.Rounded()
+	if !ok {
+		t.Fatal("compliance average is absent, want a score")
+	}
+	return pct
+}
 
 func freshPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -393,8 +406,14 @@ func TestRollup_LivenessAndCompliance(t *testing.T) {
 		if r.CriticalHosts != 1 {
 			t.Errorf("critical_hosts = %d, want 1", r.CriticalHosts)
 		}
-		if r.AvgCompliancePct == nil || *r.AvgCompliancePct != 75 {
-			t.Errorf("avg_compliance_pct = %v, want 75", r.AvgCompliancePct)
+		// Equal-host mean over the two members, so each contributes its own
+		// score once. The pooled ratio over their combined rule rows is a
+		// different number whenever the members carry different rule counts.
+		pct, ok := r.Score.Score.Rounded()
+		if !ok {
+			t.Errorf("avg compliance absent, want a score")
+		} else if pct != 75 {
+			t.Errorf("avg compliance = %v, want 75", pct)
 		}
 		if len(r.Members) != 2 {
 			t.Errorf("member chips = %d, want 2", len(r.Members))
@@ -406,8 +425,9 @@ func TestRollup_LivenessAndCompliance(t *testing.T) {
 		if err := svc.AddMember(ctx, empty.ID, hNew); err != nil {
 			t.Fatalf("add hNew: %v", err)
 		}
-		if er := listOne(t, svc, ctx, empty.ID); er.AvgCompliancePct != nil {
-			t.Errorf("unscanned group avg = %v, want nil", er.AvgCompliancePct)
+		if er := listOne(t, svc, ctx, empty.ID); er.Score.Score.Present() {
+			pct, _ := er.Score.Score.Value()
+			t.Errorf("unscanned group avg = %v, want absent", pct)
 		}
 	})
 }
@@ -458,8 +478,8 @@ func TestSummary_Counts(t *testing.T) {
 			t.Errorf("ungrouped = %d, want 1", sum.Ungrouped)
 		}
 		// Fleet avg over 3 evaluated rows (2 pass) = 67%.
-		if sum.AvgCompliancePct == nil || *sum.AvgCompliancePct != 67 {
-			t.Errorf("fleet avg = %v, want 67", sum.AvgCompliancePct)
+		if got := scorePct(t, sum.Score.Score); got != 66.7 {
+			t.Errorf("fleet avg = %v, want 66.7 (equal-host mean, one decimal)", got)
 		}
 		_ = auto
 	})

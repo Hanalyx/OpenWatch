@@ -33,7 +33,13 @@ interface Coverage {
 }
 
 interface ExecutiveContent {
-  compliance_pct: number | null;
+  // score_pct is the current field: the equal-host mean, one decimal, null
+  // when no host produced a verdict. legacy_pct is the pooled whole percent
+  // an artifact signed before 2026-09-03 carries instead. Exactly one is a
+  // number on any given artifact, and which one is decided by is_legacy.
+  score_pct: number | null;
+  legacy_pct: number | null;
+  is_legacy: boolean;
   host_count: number;
   passing_rules: number;
   failing_rules: number;
@@ -51,10 +57,25 @@ function asCoverage(c: Partial<Coverage> | undefined): Coverage {
   };
 }
 
+// A legacy artifact is the one carrying no provenance.artifact_class.
+// Nothing backfills it, so the absence is stable and means exactly "signed
+// before the formula changed". Choosing on which score field happens to be
+// present would make a malformed document look like whichever generation it
+// resembled.
+function isLegacyArtifact(c: { provenance?: { artifact_class?: unknown } }): boolean {
+  return typeof c?.provenance?.artifact_class !== 'string' || c.provenance.artifact_class === '';
+}
+
 function asExecutiveContent(content: Report['content']): ExecutiveContent {
-  const c = content as Partial<ExecutiveContent>;
+  const c = content as Partial<ExecutiveContent> & {
+    compliance_pct?: unknown;
+    provenance?: { artifact_class?: unknown };
+  };
+  const legacy = isLegacyArtifact(c);
   return {
-    compliance_pct: typeof c.compliance_pct === 'number' ? c.compliance_pct : null,
+    score_pct: !legacy && typeof c.score_pct === 'number' ? c.score_pct : null,
+    legacy_pct: legacy && typeof c.compliance_pct === 'number' ? c.compliance_pct : null,
+    is_legacy: legacy,
     host_count: typeof c.host_count === 'number' ? c.host_count : 0,
     passing_rules: typeof c.passing_rules === 'number' ? c.passing_rules : 0,
     failing_rules: typeof c.failing_rules === 'number' ? c.failing_rules : 0,
@@ -75,7 +96,9 @@ interface AttestedHostRef {
 }
 
 interface AttestationRollup {
-  compliance_pct: number | null;
+  score_pct: number | null;
+  legacy_pct: number | null;
+  is_legacy: boolean;
   total_checks: number;
   passing: number;
   failing: number;
@@ -92,9 +115,19 @@ interface AttestationContent {
   rollup: AttestationRollup;
 }
 
-function asAttestationRollup(r: Partial<AttestationRollup> | undefined): AttestationRollup {
+function asAttestationRollup(
+  r:
+    | (Partial<AttestationRollup> & {
+        compliance_pct?: unknown;
+        provenance?: { artifact_class?: unknown };
+      })
+    | undefined,
+): AttestationRollup {
+  const legacy = isLegacyArtifact(r ?? {});
   return {
-    compliance_pct: typeof r?.compliance_pct === 'number' ? r.compliance_pct : null,
+    score_pct: !legacy && typeof r?.score_pct === 'number' ? r.score_pct : null,
+    legacy_pct: legacy && typeof r?.compliance_pct === 'number' ? r.compliance_pct : null,
+    is_legacy: legacy,
     total_checks: typeof r?.total_checks === 'number' ? r.total_checks : 0,
     passing: typeof r?.passing === 'number' ? r.passing : 0,
     failing: typeof r?.failing === 'number' ? r.failing : 0,
@@ -1167,8 +1200,23 @@ function CoverageCaveat({ coverage }: { coverage: Coverage }) {
   );
 }
 
+// scoreFace renders a compliance number and the label above it, choosing by
+// the artifact's own generation.
+//
+// A current score keeps its decimal: it is the equal-host mean and rounding
+// it to a whole number would put a different value on screen from the one
+// that was signed. A legacy score is already a whole percent, and it is
+// labeled as not comparable so nobody reads it beside a current one as if
+// the two answered the same question.
+function scoreFace(pct: number | null, isLegacy: boolean): { value: string; label: string } {
+  const label = isLegacy ? 'Compliance (legacy formula, not comparable)' : 'Compliance';
+  if (pct === null) return { value: 'n/a', label };
+  return { value: isLegacy ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`, label };
+}
+
 function ExecutiveBody({ content }: { content: ExecutiveContent }) {
-  const pct = content.compliance_pct;
+  const pct = content.is_legacy ? content.legacy_pct : content.score_pct;
+  const face = scoreFace(pct, content.is_legacy);
   const pctTone =
     pct === null
       ? 'var(--ow-fg-2)'
@@ -1189,11 +1237,7 @@ function ExecutiveBody({ content }: { content: ExecutiveContent }) {
             gap: 12,
           }}
         >
-          <Stat
-            label="Fleet compliance"
-            value={pct === null ? 'n/a' : `${Math.round(pct)}%`}
-            tone={pctTone}
-          />
+          <Stat label={face.label} value={face.value} tone={pctTone} />
           <Stat label="Hosts" value={`${content.host_count}`} />
           <Stat label="Passing rules" value={`${content.passing_rules}`} tone="var(--ow-ok)" />
           <Stat label="Failing rules" value={`${content.failing_rules}`} tone="var(--ow-warn)" />
@@ -1261,7 +1305,8 @@ function AttestationBody({ content }: { content: AttestationContent }) {
   const lens = content.framework || 'All frameworks';
   const notAttested = Math.max(0, content.hosts_total - content.hosts_attested);
   const r = content.rollup;
-  const pct = r.compliance_pct;
+  const pct = r.is_legacy ? r.legacy_pct : r.score_pct;
+  const face = scoreFace(pct, r.is_legacy);
   const pctTone =
     pct === null
       ? 'var(--ow-fg-2)'
@@ -1281,11 +1326,7 @@ function AttestationBody({ content }: { content: AttestationContent }) {
             gap: 12,
           }}
         >
-          <Stat
-            label="Compliance"
-            value={pct === null ? 'n/a' : `${Math.round(pct)}%`}
-            tone={pctTone}
-          />
+          <Stat label={face.label} value={face.value} tone={pctTone} />
           <Stat label="Framework" value={lens} />
           <Stat
             label="Hosts attested"

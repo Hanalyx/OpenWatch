@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -210,10 +210,16 @@ spec:
         The /groups compliance averages are lens-scoped and OS-resolved, not
         all-rules. With the org default set to "stig", a group whose RHEL 9
         member carries stig_rhel9 (1 pass, 1 fail) + stig_rhel10 (1 pass) has a
-        per-group AvgCompliancePct computed from stig_rhel9 ONLY (1/2 = 50, the
-        stig_rhel10 row EXCLUDED), and the groups-page fleet AvgCompliancePct is
+        per-group average computed from stig_rhel9 ONLY (1/2 = 50, the
+        stig_rhel10 row EXCLUDED), and the groups-page fleet average is
         the same org-default OS-resolved score as GET /fleet/score. With no org
-        default and no group/host target, both revert to all-rules.
+        default and no group target, both revert to all-rules.
+
+        v1.6.0: the GROUP's own target_framework selects the lens, not the
+        member's. A member target_framework does not participate in any group
+        or fleet average. See api-groups C-07: a host in two differently
+        targeted groups used to be scored on whichever group was joined first,
+        including while rendering the other one.
       priority: high
       references_constraints: [C-06]
     - id: AC-12

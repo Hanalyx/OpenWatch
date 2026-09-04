@@ -18,9 +18,32 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/group"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
+
+// groupScoreWire renders a group or fleet aggregate onto the contract.
+//
+// It goes through the SAME mapper GET /fleet/score uses, so the Groups page
+// cannot ship a number the fleet endpoint would describe differently. It used
+// to be a bare nullable integer, which rounded the canonical one decimal a
+// second time and could say nothing about the lens, the population or the
+// outcomes behind it.
+func groupScoreWire(score fleetrollup.Score) (api.AggregateScore, error) {
+	lens := score.Lens
+	env, err := aggregateEnvelope(&lens, score.Engines, score.HostsWithoutEngine, score.HostsScored)
+	if err != nil {
+		// The error propagates. Substituting a read-model envelope would still
+		// publish the score while labelling it not_applicable and emitting
+		// empty strings where a lens, an aggregation method and an engine
+		// version belong. That downgrades a score-bearing response into a
+		// different artifact class to hide a provenance failure, which is worse
+		// than returning nothing.
+		return api.AggregateScore{}, err
+	}
+	return aggregateScoreWire(score, env), nil
+}
 
 // toAPIGroup maps a service group to the wire shape.
 func toAPIGroup(g group.Group) api.Group {
@@ -69,14 +92,22 @@ func (h *handlers) PostGroupTarget(w http.ResponseWriter, r *http.Request, id op
 }
 
 // toAPIRollup maps a service rollup to the wire shape.
-func toAPIRollup(r group.Rollup) api.GroupRollup {
+//
+// It can fail, because the score envelope can. A rollup whose provenance cannot
+// be stated honestly is not rendered with a degraded envelope; the caller turns
+// it into a 500.
+func toAPIRollup(r group.Rollup) (api.GroupRollup, error) {
+	score, err := groupScoreWire(r.Score)
+	if err != nil {
+		return api.GroupRollup{}, err
+	}
 	out := api.GroupRollup{
-		Hosts:            r.Hosts,
-		Online:           r.Online,
-		Down:             r.Down,
-		CriticalHosts:    r.CriticalHosts,
-		AvgCompliancePct: r.AvgCompliancePct,
-		Members:          []api.GroupMember{},
+		Hosts:         r.Hosts,
+		Online:        r.Online,
+		Down:          r.Down,
+		CriticalHosts: r.CriticalHosts,
+		Score:         score,
+		Members:       []api.GroupMember{},
 	}
 	for _, m := range r.Members {
 		out.Members = append(out.Members, api.GroupMember{
@@ -85,11 +116,15 @@ func toAPIRollup(r group.Rollup) api.GroupRollup {
 			Status:   m.Status,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // toAPIGroupWithRollup maps a service group+rollup to the wire shape.
-func toAPIGroupWithRollup(g group.GroupWithRollup) api.GroupWithRollup {
+func toAPIGroupWithRollup(g group.GroupWithRollup) (api.GroupWithRollup, error) {
+	rollup, err := toAPIRollup(g.Rollup)
+	if err != nil {
+		return api.GroupWithRollup{}, err
+	}
 	return api.GroupWithRollup{
 		Id:              openapitypes.UUID(g.ID),
 		Name:            g.Name,
@@ -102,8 +137,8 @@ func toAPIGroupWithRollup(g group.GroupWithRollup) api.GroupWithRollup {
 		UpdatedAt:       g.UpdatedAt,
 		MatchFamily:     matchFamilyPtr(g.MatchFamily),
 		TargetFramework: matchFamilyPtr(g.TargetFramework),
-		Rollup:          toAPIRollup(g.Rollup),
-	}
+		Rollup:          rollup,
+	}, nil
 }
 
 func matchFamilyPtr(mf string) *string {
@@ -195,19 +230,31 @@ func (h *handlers) GetGroups(w http.ResponseWriter, r *http.Request) {
 	if mapGroupErr(w, err) {
 		return
 	}
+	fleetScore, err := groupScoreWire(sum.Score)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to build the score envelope", true)
+		return
+	}
 	resp := api.GroupListResponse{
 		Summary: api.GroupSummary{
 			Groups:           sum.Groups,
 			Sites:            sum.Sites,
 			OsCategories:     sum.OSCategories,
 			HostsMaintenance: sum.HostsMaintenance,
-			AvgCompliancePct: sum.AvgCompliancePct,
+			Score:            fleetScore,
 			Ungrouped:        sum.Ungrouped,
 		},
 		Groups: []api.GroupWithRollup{},
 	}
 	for _, g := range groups {
-		resp.Groups = append(resp.Groups, toAPIGroupWithRollup(g))
+		wire, gerr := toAPIGroupWithRollup(g)
+		if gerr != nil {
+			writeError(w, http.StatusInternalServerError, "server.error", "server",
+				"failed to build the score envelope", true)
+			return
+		}
+		resp.Groups = append(resp.Groups, wire)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

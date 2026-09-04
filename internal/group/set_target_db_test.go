@@ -8,6 +8,7 @@ package group
 
 import (
 	"context"
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"testing"
 
 	"github.com/Hanalyx/openwatch/internal/db/corpustest"
@@ -56,30 +57,31 @@ func TestGroupCompliance_LensScopedOSResolved(t *testing.T) {
 
 		// Org default = stig -> per-group AVG and fleet AVG are stig_rhel9 (50).
 		roll := listOneLens(t, svc, ctx, site.ID, "stig")
-		if roll.AvgCompliancePct == nil || *roll.AvgCompliancePct != 50 {
-			t.Errorf("per-group avg (org stig) = %v, want 50 (stig_rhel9 only, not all-rules 67)", roll.AvgCompliancePct)
+		if got := scorePct(t, roll.Score.Score); got != 50 {
+			t.Errorf("per-group avg (org stig) = %v, want 50 (stig_rhel9 only, not all-rules)", got)
 		}
 		sum, err := svc.Summary(ctx, "stig")
 		if err != nil {
 			t.Fatalf("Summary(stig): %v", err)
 		}
-		if sum.AvgCompliancePct == nil || *sum.AvgCompliancePct != 50 {
-			t.Errorf("fleet avg (org stig) = %v, want 50 (stig_rhel9)", sum.AvgCompliancePct)
+		if got := scorePct(t, sum.Score.Score); got != 50 {
+			t.Errorf("fleet avg (org stig) = %v, want 50 (stig_rhel9)", got)
 		}
 
-		// No org default -> all rules (2/3 = 67).
+		// No org default -> all rules. One member, so the equal-host mean is
+		// just that member's own score: 2 of 3 verdicts passing, 66.7.
 		all, err := svc.List(ctx, "")
 		if err != nil {
 			t.Fatalf("List(''): %v", err)
 		}
-		var allRules *int
+		var allRules compliance.Score
 		for _, gr := range all {
 			if gr.ID == site.ID {
-				allRules = gr.Rollup.AvgCompliancePct
+				allRules = gr.Rollup.Score.Score
 			}
 		}
-		if allRules == nil || *allRules != 67 {
-			t.Errorf("per-group avg (no default) = %v, want 67 (all rules)", allRules)
+		if got := scorePct(t, allRules); got != 66.7 {
+			t.Errorf("per-group avg (no default) = %v, want 66.7 (all rules)", got)
 		}
 	})
 }

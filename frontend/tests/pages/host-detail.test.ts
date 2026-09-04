@@ -37,10 +37,14 @@ describe('frontend-host-detail — structural', () => {
   });
 
   // @ac AC-04
-  test('frontend-host-detail/AC-04 — populated summary math: passing / total', () => {
-    // The component computes pct = Math.round(passing / total * 100).
-    expect(PAGE_SRC).toContain('summary.passing / summary.total');
-    expect(PAGE_SRC).toContain('Math.round');
+  test('frontend-host-detail/AC-04 — populated summary renders the server score', () => {
+    // The score is TAKEN, not computed. The component used to derive
+    // Math.round(passing / total * 100), which counted skipped and errored
+    // rules as failures.
+    expect(PAGE_SRC).toContain('const pct = summary.score_pct');
+    expect(PAGE_SRC).not.toContain('summary.passing / summary.total');
+    // A null score is the empty state, never a rendered zero.
+    expect(PAGE_SRC).toContain('const isEmpty = pct === null');
     // Per-status renderers
     expect(PAGE_SRC).toMatch(/label="passing"/);
     expect(PAGE_SRC).toMatch(/label="failing"/);

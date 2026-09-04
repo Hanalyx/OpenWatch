@@ -27,7 +27,11 @@ func TestLoadFromConfig_LadderAndVersion(t *testing.T) {
 		load := LoadFromConfig(cfg)
 
 		want := TierLadder{
-			StateUnknown:         360 * time.Minute,
+			// Clamped to critical: LoadFromConfig takes min(unknown, critical)
+			// so an unassessable host is never re-checked more slowly than one
+			// known to be failing (system-scheduler AC-30, bugs/OW-024). The
+			// configured 360 is deliberately not what lands here.
+			StateUnknown:         240 * time.Minute,
 			StateCritical:        240 * time.Minute,
 			StateNonCompliant:    480 * time.Minute,
 			StatePartial:         720 * time.Minute,
@@ -127,12 +131,12 @@ func TestStateFromScore_FiveBands_AndAllStates(t *testing.T) {
 			{0, StateCritical},
 		}
 		for _, c := range cases {
-			if got := StateFromScore(c.score, false); got != c.want {
+			if got := StateFromScore(mustScore(t, c.score), false); got != c.want {
 				t.Errorf("StateFromScore(%v) = %q, want %q", c.score, got, c.want)
 			}
 		}
 		// hasCritical forces critical at any score.
-		if got := StateFromScore(100, true); got != StateCritical {
+		if got := StateFromScore(mustScore(t, 100), true); got != StateCritical {
 			t.Errorf("hasCritical override failed: %q", got)
 		}
 
@@ -212,7 +216,7 @@ func TestPersistAfterScan_UpsertsScheduleRow(t *testing.T) {
 
 		completed := time.Now().UTC().Truncate(time.Second)
 		ctx := withCorrelation(context.Background(), "persist-test")
-		res, err := svc.PersistAfterScan(ctx, h, 75, false, completed)
+		res, err := svc.PersistAfterScan(ctx, h, mustScore(t, 75), false, completed)
 		if err != nil {
 			t.Fatalf("PersistAfterScan: %v", err)
 		}
@@ -244,7 +248,7 @@ func TestPersistAfterScan_UpsertsScheduleRow(t *testing.T) {
 		}
 
 		// Second persist (worse score) UPDATEs the same row.
-		if _, err := svc.PersistAfterScan(ctx, h, 10, false, completed.Add(time.Hour)); err != nil {
+		if _, err := svc.PersistAfterScan(ctx, h, mustScore(t, 10), false, completed.Add(time.Hour)); err != nil {
 			t.Fatalf("second PersistAfterScan: %v", err)
 		}
 		_ = pool.QueryRow(context.Background(),
