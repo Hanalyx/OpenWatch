@@ -908,3 +908,99 @@ spec:
         does_not_reconcile_rejected: true
         sorted_order: [v0.10.0, v0.9.0]
         duplicate_versions_merged_to: [{engine_version: v0.9.0, contributors_scored: 3}]
+    - id: AC-37
+      description: >-
+        Participation counts on a signed artifact account for EVERY active
+        in-scope host, not only the hosts that happen to have rows.
+
+        Added 2026-09-04. The executive query read host_rule_state_current and
+        the attestation rollup read scan_results, so a host with no matching
+        rows produced no entry at all: never scanned, completed with zero
+        outcomes, or carrying nothing the lens matches. The counts then
+        described a smaller fleet than the artifact's own host_count, and an
+        unscanned two-host fleet was signed carrying host_count 2 beside
+        hosts_total 0 and hosts_without_score 0. A reader cannot detect that
+        after the fact, because the artifact is immutable.
+
+        Both readers are population-first: the active in-scope hosts,
+        left-joined to their lensed rule state or to the results of their
+        frozen scan. The lens predicate belongs in the JOIN condition, because
+        in WHERE it turns the outer join back into an inner one and restores
+        the defect. A soft-deleted host is not in the population at all.
+      priority: critical
+      references_constraints: [C-09, C-15]
+      inputs:
+        kinds: [executive, attestation]
+        hosts:
+          - {id: scored, counts: {pass: 9, fail: 1}}
+          - {id: all_skipped, counts: {pass: 0, fail: 0, skipped: 4}}
+          - {id: never_scanned, counts: {}}
+          - {id: other_framework, counts: {pass: 2, fail: 2}, framework: framework_other}
+          - {id: soft_deleted, counts: {pass: 1, fail: 1}, deleted: true}
+        lens: framework_scored
+      expected_output:
+        hosts_total: 4
+        hosts_scored: 1
+        hosts_without_score: 3
+        score_pct: 90.0
+        participation_reconciles: true
+        soft_deleted_counted: false
+    - id: AC-38
+      description: >-
+        Generation discrimination is strict. ONLY the absence of the
+        provenance key means legacy; provenance that is present but unusable
+        is rejected rather than read as history.
+
+        Added 2026-09-04. The check decoded provenance into a pointer and
+        treated a null envelope, an empty envelope and an empty artifact_class
+        as legacy, so a malformed current artifact was rendered as a
+        historical one under whichever score it happened to carry. The
+        forbidden-field check had the matching defect: it tested the decoded
+        pointer rather than key presence, so "compliance_pct": null passed on a
+        current artifact, and it inspected the top level for every kind, so an
+        attestation carrying rollup.compliance_pct beside a valid
+        artifact_class was never detected.
+
+        Score fields and provenance are inspected at the level the KIND stores
+        them: top level for an executive or a read model, under rollup for an
+        attestation.
+      priority: critical
+      references_constraints: [C-09, C-16]
+      inputs:
+        legacy_shape: {kind: executive, provenance_key_present: false}
+        rejected_shapes:
+          - {kind: executive, case: provenance_null}
+          - {kind: executive, case: provenance_empty_object}
+          - {kind: executive, case: artifact_class_empty}
+          - {kind: executive, case: artifact_class_unknown}
+          - {kind: executive, case: compliance_pct_null_on_current}
+          - {kind: attestation, case: rollup_compliance_pct_on_current}
+      expected_output:
+        legacy_accepted: true
+        rejected_count: 6
+        legacy_requires_absent_key: true
+    - id: AC-39
+      description: >-
+        The whole frozen content of a signed artifact comes from ONE database
+        snapshot.
+
+        Added 2026-09-04. The score and the engine identity shared a statement,
+        but coverage and the top-failing list were queried separately under
+        Read Committed, and the attestation host count, scan selection and
+        rollup were three more. A scan completing between them produced one
+        signed artifact whose score, coverage and top-failing list described
+        different fleet states, with nothing in the artifact saying so.
+
+        Generation runs in a single REPEATABLE READ, READ ONLY transaction, so
+        every read sees the same fleet at the same instant. Read-only because
+        generation reads; the artifact is stored after the snapshot closes.
+      priority: critical
+      references_constraints: [C-09]
+      inputs:
+        kinds: [executive, attestation]
+        concurrent_write: a host gains rule state after the first content read
+      expected_output:
+        isolation_level: repeatable read
+        access_mode: read only
+        content_reads_share_one_snapshot: true
+        concurrent_write_invisible: true

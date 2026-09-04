@@ -1,6 +1,11 @@
 package report
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strconv"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
+)
 
 // The frozen pre-2026-09-03 content shapes.
 //
@@ -55,24 +60,89 @@ type legacyAttestationContent struct {
 	Rollup        legacyAttestationRollup `json:"rollup"`
 }
 
-// isLegacyArtifact reports whether stored content predates the formula
-// change, which is true exactly when it carries no artifact_class.
+// ErrInvalidProvenance reports provenance that is present but unusable.
 //
-// The absence is the identity. Nothing backfills an artifact_class onto a
-// stored row, so an artifact without one was signed before the change and
-// stays that way for as long as it exists. Reading the field is deliberately
-// the ONLY test: guessing from which score field happens to be present would
-// make a malformed artifact look like whichever generation it resembled.
-func isLegacyArtifact(content []byte) bool {
-	var probe struct {
-		Provenance *struct {
-			ArtifactClass string `json:"artifact_class"`
-		} `json:"provenance"`
+// A present-but-empty envelope is not a legacy artifact. Treating it as one
+// let "provenance": {} and "provenance": null read as "signed before the
+// formula changed", which is a claim about history that the bytes do not
+// support. Absence means legacy; anything else present must be valid.
+type ErrInvalidProvenance struct{ Reason string }
+
+func (e ErrInvalidProvenance) Error() string {
+	return "report: invalid provenance: " + e.Reason
+}
+
+// artifactGeneration says which contract a stored artifact was written under.
+type artifactGeneration int
+
+const (
+	// generationLegacy is an artifact with NO provenance key at all.
+	generationLegacy artifactGeneration = iota
+	// generationCurrent is an artifact carrying a valid artifact_class.
+	generationCurrent
+)
+
+// validArtifactClasses are the only values a present artifact_class may hold.
+var validArtifactClasses = map[string]bool{
+	string(compliance.ScoreBearing): true,
+	string(compliance.ReadModel):    true,
+}
+
+// generationOf classifies stored content, rejecting the ambiguous middle.
+//
+// Only ACTUAL ABSENCE of the provenance key means legacy. A null provenance,
+// an empty object, or an empty or unknown artifact_class are all
+// present-but-invalid: something wrote a provenance field and failed to fill
+// it, and reading that as "legacy" would silently accept a broken artifact as
+// a historical one and render whatever score it happened to carry.
+func generationOf(kind string, content []byte) (artifactGeneration, error) {
+	// Raw key inspection, at the level this KIND stores provenance: the key's
+	// presence is the question, and unmarshaling into a pointer cannot tell an
+	// absent key from an explicit null. An attestation nests its envelope
+	// under rollup, so looking only at the top level read every attestation as
+	// legacy.
+	host, err := scoreFieldHost(kind, content)
+	if err != nil {
+		return generationLegacy, err
 	}
-	if err := json.Unmarshal(content, &probe); err != nil {
-		return false
+	raw, present := host["provenance"]
+	if !present {
+		return generationLegacy, nil
 	}
-	return probe.Provenance == nil || probe.Provenance.ArtifactClass == ""
+	if string(raw) == "null" {
+		return generationCurrent, ErrInvalidProvenance{
+			"provenance is present and null; absence means legacy, and a null " +
+				"envelope claims a history the bytes do not support"}
+	}
+	var env map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return generationCurrent, ErrInvalidProvenance{"provenance is not an object"}
+	}
+	classRaw, hasClass := env["artifact_class"]
+	if !hasClass {
+		return generationCurrent, ErrInvalidProvenance{"provenance carries no artifact_class"}
+	}
+	var class string
+	if err := json.Unmarshal(classRaw, &class); err != nil {
+		return generationCurrent, ErrInvalidProvenance{"artifact_class is not a string"}
+	}
+	if !validArtifactClasses[class] {
+		return generationCurrent, ErrInvalidProvenance{
+			"artifact_class " + strconv.Quote(class) + " is not a known class"}
+	}
+	return generationCurrent, nil
+}
+
+// isLegacyArtifact reports whether stored content predates the formula
+// change, which is true exactly when it carries NO provenance key.
+//
+// The absence is the identity. Nothing backfills provenance onto a stored
+// row, so an artifact without it was signed before the change and stays that
+// way for as long as it exists. A present-but-invalid envelope is not legacy
+// and is rejected by generationOf instead of being quietly accepted here.
+func isLegacyArtifact(kind string, content []byte) bool {
+	gen, err := generationOf(kind, content)
+	return err == nil && gen == generationLegacy
 }
 
 // ErrAmbiguousScore reports an artifact carrying both score fields.
@@ -88,19 +158,50 @@ func (e ErrAmbiguousScore) Error() string {
 		"a current artifact must carry exactly one score"
 }
 
+// scoreFieldHost returns the object a kind's score fields live in.
+//
+// An executive artifact carries them at the top level; an attestation carries
+// them under rollup. The previous check looked at the top level for both, so
+// a hybrid attestation carrying rollup.compliance_pct beside a valid
+// artifact_class was never detected.
+func scoreFieldHost(kind string, content []byte) (map[string]json.RawMessage, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(content, &top); err != nil {
+		return nil, ErrInvalidProvenance{"content is not a JSON object"}
+	}
+	if Kind(kind) != KindAttestation {
+		return top, nil
+	}
+	raw, ok := top["rollup"]
+	if !ok {
+		return map[string]json.RawMessage{}, nil
+	}
+	var rollup map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rollup); err != nil {
+		return nil, ErrInvalidProvenance{"attestation rollup is not an object"}
+	}
+	return rollup, nil
+}
+
 // checkScoreFields rejects a current artifact that also carries the legacy
-// field.
+// field, and any artifact whose provenance is present but unusable.
+//
+// It tests KEY PRESENCE, not the decoded value. Decoding into a pointer made
+// "compliance_pct": null indistinguishable from an absent key, so a current
+// artifact could carry the forbidden field as an explicit null and pass.
 func checkScoreFields(kind string, content []byte) error {
-	if isLegacyArtifact(content) {
+	gen, err := generationOf(kind, content)
+	if err != nil {
+		return err
+	}
+	if gen == generationLegacy {
 		return nil
 	}
-	var probe struct {
-		CompliancePct *int `json:"compliance_pct"`
+	host, err := scoreFieldHost(kind, content)
+	if err != nil {
+		return err
 	}
-	if err := json.Unmarshal(content, &probe); err != nil {
-		return nil
-	}
-	if probe.CompliancePct != nil {
+	if _, present := host["compliance_pct"]; present {
 		return ErrAmbiguousScore{Kind: kind}
 	}
 	return nil

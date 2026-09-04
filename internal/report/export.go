@@ -110,7 +110,7 @@ func (s *Service) canonicalJSON(rep Report) ([]byte, string, error) {
 	if err := checkScoreFields(string(rep.Kind), rep.Content); err != nil {
 		return nil, "", err
 	}
-	legacy := isLegacyArtifact(rep.Content)
+	legacy := isLegacyArtifact(string(rep.Kind), rep.Content)
 
 	// decode unmarshals into whichever shape this artifact was written with
 	// and returns it for canonical re-marshaling.
@@ -403,7 +403,11 @@ func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte,
 	// Back-compat: a snapshot frozen before the rollup was part of the
 	// content has an empty rollup but attested hosts; recompute it live.
 	if c.Rollup.TotalChecks == 0 && c.HostsAttested > 0 {
-		rollup, err := s.computeAttestationRollup(ctx, scanIDsOf(c), c.Framework)
+		// Scoped to the hosts THIS ARTIFACT attested, not to the fleet as it
+		// stands now. Recomputing against today's hosts would let a snapshot's
+		// rendered numbers drift as the fleet changes, which is the opposite
+		// of what freezing content is for.
+		rollup, err := s.computeAttestationRollup(ctx, s.pool, hostIDsOf(c), scanIDsOf(c), c.Framework)
 		if err != nil {
 			return nil, "", err
 		}
@@ -445,7 +449,7 @@ func scanIDsOf(c AttestationContent) []uuid.UUID {
 // failing), rounded half up, nil when nothing was evaluated. Called at
 // generation time to FREEZE the rollup into the signed content (and as a
 // back-compat fallback when rendering a pre-rollup snapshot).
-func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.UUID, framework string) (AttestationRollup, error) {
+func (s *Service) computeAttestationRollup(ctx context.Context, q queryer, hostIDs, scanIDs []uuid.UUID, framework string) (AttestationRollup, error) {
 	var r AttestationRollup
 	r.TopFailing = []TopFailingRule{}
 
@@ -459,24 +463,48 @@ func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.U
 	// process generating the report. In a rolling deployment the API, the
 	// rollup and the workers run different builds, so a process describing
 	// itself names an engine that never touched the host.
+	// The population is EVERY ACTIVE IN-SCOPE HOST, left-joined to the results
+	// of its FROZEN scan, not the hosts that happen to have results.
+	//
+	// Starting from scan_results made a host disappear rather than count: a
+	// host with no completed scan, a completed scan that produced zero
+	// results, or a scan whose results all fall outside the lens each yielded
+	// no row. The participation counts then described only the hosts with
+	// results, and the artifact was signed saying so.
+	//
+	// Joining on host_id AND the frozen scan id together is what binds each
+	// host to the scan this attestation froze, rather than to whatever scan it
+	// has now. The lens sits in the JOIN condition for the same reason as the
+	// executive query: in WHERE it would turn the outer join back into an
+	// inner one.
 	countQ := `
-		SELECT sr.host_id,
-		       count(*)::int,
+		SELECT hh.id,
+		       count(sr.rule_id)::int,
 		       count(*) FILTER (WHERE sr.status = 'pass')::int,
 		       count(*) FILTER (WHERE sr.status = 'fail')::int,
 		       count(*) FILTER (WHERE sr.status = 'skipped')::int,
 		       count(*) FILTER (WHERE sr.status = 'error')::int,
 		       COALESCE(MIN(run.engine_version), '')
-		  FROM scan_results sr
-		  JOIN scan_runs run ON run.id = sr.scan_id
-		 WHERE sr.scan_id = ANY($1)`
+		  FROM hosts hh
+		  LEFT JOIN scan_results sr
+		    ON sr.host_id = hh.id
+		   AND sr.scan_id = ANY($1)`
 	countArgs := []any{scanIDs}
+	next := 2
 	if framework != "" {
-		countQ += " AND sr.framework_refs ? $2"
+		countQ += fmt.Sprintf(" AND sr.framework_refs ? $%d", next)
 		countArgs = append(countArgs, framework)
+		next++
 	}
-	countQ += " GROUP BY sr.host_id"
-	hostRows, err := s.pool.Query(ctx, countQ, countArgs...)
+	countQ += `
+		  LEFT JOIN scan_runs run ON run.id = sr.scan_id
+		 WHERE hh.deleted_at IS NULL`
+	if hostIDs != nil {
+		countQ += fmt.Sprintf(" AND hh.id = ANY($%d)", next)
+		countArgs = append(countArgs, hostIDs)
+	}
+	countQ += " GROUP BY hh.id"
+	hostRows, err := q.Query(ctx, countQ, countArgs...)
 	if err != nil {
 		return AttestationRollup{}, fmt.Errorf("report: attestation rollup counts: %w", err)
 	}
@@ -542,7 +570,7 @@ func (s *Service) computeAttestationRollup(ctx context.Context, scanIDs []uuid.U
 		topArgs = append(topArgs, framework)
 	}
 	topQ += " GROUP BY sr.rule_id ORDER BY count(DISTINCT sr.host_id) DESC, sr.rule_id LIMIT 10"
-	rows, err := s.pool.Query(ctx, topQ, topArgs...)
+	rows, err := q.Query(ctx, topQ, topArgs...)
 	if err != nil {
 		return AttestationRollup{}, fmt.Errorf("report: attestation rollup top-failing: %w", err)
 	}
@@ -786,4 +814,13 @@ func csvSafe(s string) string {
 		return "'" + s
 	}
 	return s
+}
+
+// hostIDsOf returns the hosts an attestation snapshot froze.
+func hostIDsOf(c AttestationContent) []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(c.Attested))
+	for _, a := range c.Attested {
+		out = append(out, a.HostID)
+	}
+	return out
 }

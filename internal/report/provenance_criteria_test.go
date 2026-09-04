@@ -377,7 +377,7 @@ func TestProvenance_LegacyArtifactStaysValidAndUnrewritten(t *testing.T) {
 
 		// It is recognized as legacy by the ABSENCE of artifact_class, which
 		// is the only test. Nothing infers it from which score field is set.
-		if !isLegacyArtifact(signedBytes) {
+		if !isLegacyArtifact(string(KindExecutive), signedBytes) {
 			t.Fatal("an artifact with no artifact_class was not recognized as legacy; every " +
 				"guarantee below rests on that recognition")
 		}
@@ -401,7 +401,7 @@ func TestProvenance_LegacyArtifactStaysValidAndUnrewritten(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal both-fields artifact: %v", err)
 		}
-		if isLegacyArtifact(both) {
+		if isLegacyArtifact(string(KindExecutive), both) {
 			t.Fatal("an artifact carrying artifact_class was read as legacy")
 		}
 		if err := checkScoreFields("executive", both); err == nil {
