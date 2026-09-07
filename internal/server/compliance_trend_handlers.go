@@ -162,8 +162,9 @@ func (h *handlers) GetFleetComplianceTrend(
 		return
 	}
 
+	// Field order matters: this is an ALIAS for the generated anonymous
+	// struct, and oapi-codegen emits fields alphabetically.
 	type fleetDay = struct {
-		AvgScorePct       *float32                                  `json:"avg_score_pct"`
 		CriticalHosts     int                                       `json:"critical_hosts"`
 		Date              openapitypes.Date                         `json:"date"`
 		Envelope          api.ScoreEnvelope                         `json:"envelope"`
@@ -173,6 +174,7 @@ func (h *handlers) GetFleetComplianceTrend(
 		Hosts             int                                       `json:"hosts"`
 		HostsScored       int                                       `json:"hosts_scored"`
 		HostsWithoutScore int                                       `json:"hosts_without_score"`
+		ScorePct          *float32                                  `json:"score_pct"`
 	}
 	resp := api.FleetComplianceTrend{Days: []fleetDay{}}
 	for _, p := range points {
@@ -196,7 +198,7 @@ func (h *handlers) GetFleetComplianceTrend(
 			return
 		}
 		resp.Days = append(resp.Days, fleetDay{
-			AvgScorePct:       scorePct32(p.Score),
+			ScorePct:          scorePct32(p.Score),
 			Envelope:          env,
 			FormulaStatus:     api.FleetComplianceTrendDaysFormulaStatus(p.FormulaStatus),
 			FormulaVersion:    formulaVersionWire(p.FormulaStatus),

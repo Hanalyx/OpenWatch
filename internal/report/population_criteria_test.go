@@ -5,8 +5,20 @@
 package report
 
 import (
+	"bytes"
+	"compress/zlib"
 	"context"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/printer"
+	"go/token"
+	"io"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -423,9 +435,85 @@ func TestFrozenContent_ComesFromOneSnapshot(t *testing.T) {
 			}
 		}
 
+		// The other half, which behavior cannot reach: every content reader
+		// inside Generate takes the SNAPSHOT queryer, never the pool. The
+		// probe above proves the queryer Generate hands out is a transaction;
+		// it cannot prove a reader did not quietly use s.pool instead.
+		guard := in.Map("source_guard")
+		exp.EmptyList("content_calls_taking_the_pool")
+		pooled := contentCallsTakingThePool(t,
+			guard.Str("file"), guard.Str("function"),
+			guard.Str("call_prefix"), guard.Str("forbidden_argument"))
+		guard.AllConsumed()
+		if len(pooled) != 0 {
+			t.Errorf("inside Generate these content calls take the pool:\n  %s\nA reader on "+
+				"the pool sees its own snapshot, so part of a signed artifact would describe "+
+				"a different fleet from the rest", strings.Join(pooled, "\n  "))
+		}
+
 		in.AllConsumed()
 		exp.AllConsumed()
 	})
+}
+
+// contentCallsTakingThePool parses one function and reports every call whose
+// selector starts with prefix and which passes the forbidden argument.
+//
+// Parsed rather than grepped: the forbidden text appears legitimately
+// elsewhere in the file, including in the helper that opens the transaction
+// and in the store that writes the artifact afterwards.
+func contentCallsTakingThePool(t *testing.T, file, fn, prefix, forbidden string) []string {
+	t.Helper()
+	path := filepath.Join("..", "..", file)
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", file, err)
+	}
+	var target *ast.FuncDecl
+	for _, d := range parsed.Decls {
+		if f, ok := d.(*ast.FuncDecl); ok && f.Name.Name == fn {
+			target = f
+		}
+	}
+	if target == nil {
+		t.Fatalf("%s declares no function %s; the guard cannot see what it claims to check",
+			file, fn)
+	}
+	var found, calls []string
+	ast.Inspect(target, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !strings.HasPrefix(sel.Sel.Name, prefix) {
+			return true
+		}
+		calls = append(calls, sel.Sel.Name)
+		for _, arg := range call.Args {
+			if exprText(fset, arg) == forbidden {
+				found = append(found, sel.Sel.Name+" takes "+forbidden)
+			}
+		}
+		return true
+	})
+	// The scanner must SEE the calls it is meant to police, otherwise a clean
+	// result means the walk found nothing rather than nothing wrong.
+	if len(calls) == 0 {
+		t.Fatalf("no %s* calls found inside %s; the guard is blind", prefix, fn)
+	}
+	sort.Strings(found)
+	return found
+}
+
+// exprText renders an expression back to source.
+func exprText(fset *token.FileSet, e ast.Expr) string {
+	var buf bytes.Buffer
+	if err := printer.Fprint(&buf, fset, e); err != nil {
+		return ""
+	}
+	return buf.String()
 }
 
 // snapshotProbe records which resolution path a scoped Generate takes, and
@@ -476,9 +564,58 @@ func activeHostCount(t *testing.T, pool *pgxpool.Pool) int {
 	return n
 }
 
+// pdfStreamRe finds the compressed content streams in a rendered PDF.
+var pdfStreamRe = regexp.MustCompile(`(?s)stream\r?\n(.*?)\r?\nendstream`)
+
+// renderedText returns the text a PDF actually draws.
+//
+// Raw byte comparison cannot be used: fpdf stamps CreationDate and ModDate,
+// so two renders of identical content differ. Inflating the content streams
+// compares what a reader SEES, which is the claim, and is unaffected by when
+// the file was produced.
+func renderedText(t *testing.T, pdf []byte) string {
+	t.Helper()
+	var out bytes.Buffer
+	for _, m := range pdfStreamRe.FindAllSubmatch(pdf, -1) {
+		zr, err := zlib.NewReader(bytes.NewReader(m[1]))
+		if err != nil {
+			continue // not a Flate stream; fonts and metadata are not text
+		}
+		b, err := io.ReadAll(zr)
+		zr.Close()
+		if err != nil {
+			t.Fatalf("inflate pdf stream: %v", err)
+		}
+		out.Write(b)
+	}
+	if out.Len() == 0 {
+		t.Fatal("no text extracted from the PDF; the comparison below would be vacuous")
+	}
+	return out.String()
+}
+
+// exportedText renders a stored report's PDF face and returns its text,
+// clearing any cached face first so the render actually runs.
+func exportedText(t *testing.T, svc *Service, pool *pgxpool.Pool, id uuid.UUID) string {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		`DELETE FROM report_faces WHERE snapshot_id = $1`, id); err != nil {
+		t.Fatalf("clear cached face: %v", err)
+	}
+	pdf, media, err := svc.Export(context.Background(), id, FacePDF)
+	if err != nil {
+		t.Fatalf("export pdf: %v", err)
+	}
+	if media != "application/pdf" {
+		t.Fatalf("media type = %q, want application/pdf", media)
+	}
+	return renderedText(t, pdf)
+}
+
 // @ac AC-40
 // AC-40: a stored artifact renders the same numbers however the fleet
-// changes after it was signed.
+// changes after it was signed, and which render path runs is decided by
+// generation rather than by a data value.
 func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
 	t.Run("system-compliance-scoring/AC-40", func(t *testing.T) {
 		ac := scoringAC(t, "AC-40")
@@ -505,8 +642,6 @@ func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
 			h.AllConsumed()
 		}
 
-		// A stored attestation, then its rollup stripped, which is the shape
-		// of an artifact signed before the rollup was part of the content.
 		rep, err := svc.Generate(ctx, "ac40@example.com",
 			GenerateRequest{Kind: KindAttestation, Framework: "framework_scored"})
 		if err != nil {
@@ -517,95 +652,116 @@ func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
 			t.Fatalf("decode: %v", err)
 		}
 
-		// Strip the rollup so the stored row is the pre-rollup shape, and
-		// clear any cached face, so exporting takes the back-compat path.
-		stripped := stored
-		stripped.Rollup = AttestationRollup{}
-		strippedRaw, err := json.Marshal(stripped)
+		// Make it the PRE-ROLLUP shape: no rollup and no provenance key, which
+		// is what an artifact signed before either existed looks like.
+		legacyBody := map[string]any{
+			"framework":      stored.Framework,
+			"hosts_total":    stored.HostsTotal,
+			"hosts_attested": stored.HostsAttested,
+			"attested":       stored.Attested,
+		}
+		legacyRaw, err := json.Marshal(legacyBody)
 		if err != nil {
-			t.Fatalf("marshal stripped: %v", err)
+			t.Fatalf("marshal legacy body: %v", err)
 		}
 		if _, err := pool.Exec(ctx,
 			`UPDATE report_snapshots SET content = $2::jsonb WHERE id = $1`,
-			rep.ID, string(strippedRaw)); err != nil {
+			rep.ID, string(legacyRaw)); err != nil {
 			t.Fatalf("store pre-rollup content: %v", err)
 		}
-
-		// Driven through the RENDER path, so the call site's own choice of
-		// population is what is under test. Calling the rollup helper directly
-		// with a hardcoded argument proved nothing about how it is invoked.
-		recompute := func(label string) (float64, int) {
-			t.Helper()
-			if _, err := pool.Exec(ctx,
-				`DELETE FROM report_faces WHERE snapshot_id = $1`, rep.ID); err != nil {
-				t.Fatalf("%s: clear cached face: %v", label, err)
-			}
-			fresh, err := svc.Get(ctx, rep.ID)
-			if err != nil {
-				t.Fatalf("%s: get: %v", label, err)
-			}
-			var c AttestationContent
-			if err := json.Unmarshal(fresh.Content, &c); err != nil {
-				t.Fatalf("%s: decode stored: %v", label, err)
-			}
-			if c.Rollup.TotalChecks != 0 {
-				t.Fatalf("%s: the stored artifact still carries a rollup, so the "+
-					"back-compat path is not exercised", label)
-			}
-			// The production function the render path calls, so a change at
-			// that call site is what this catches.
-			rollup, err := svc.legacyRollupFor(ctx, c)
-			if err != nil {
-				t.Fatalf("%s: recompute: %v", label, err)
-			}
-			if rollup.ScorePct == nil {
-				t.Fatalf("%s: recomputed score is null", label)
-			}
-			if rollup.Provenance == nil {
-				t.Fatalf("%s: recomputed rollup carries no provenance", label)
-			}
-			// And the real face renders without error on the same content.
-			if _, _, err := svc.Export(ctx, rep.ID, FacePDF); err != nil {
-				t.Fatalf("%s: export pdf: %v", label, err)
-			}
-			return *rollup.ScorePct, rollup.Provenance.HostsTotal
+		if !isLegacyArtifact(string(KindAttestation), legacyRaw) {
+			t.Fatal("the stored fixture is not the legacy shape, so the compatibility path " +
+				"is not exercised")
 		}
 
-		beforeScore, beforeTotal := recompute("before")
-		if beforeScore != exp.Num("score_pct_before") {
-			t.Errorf("score before deletion = %v, want %v", beforeScore, exp.Num("score_pct_before"))
-		}
-		if beforeTotal != exp.Int("hosts_total_before") {
-			t.Errorf("hosts_total before = %d, want %d", beforeTotal, exp.Int("hosts_total_before"))
+		// Through the RENDER path, on the text a reader sees. Returning a
+		// value from the recomputation helper would leave the call site free
+		// to pass a different population, which is the defect this criterion
+		// is about.
+		before := exportedText(t, svc, pool, rep.ID)
+		wantBefore := formatPct(exp.Num("score_pct_before"))
+		if !strings.Contains(before, wantBefore) {
+			t.Errorf("the rendered artifact does not show %s before deletion", wantBefore)
 		}
 
-		// Soft-delete an attested host AFTER signing.
 		if _, err := pool.Exec(ctx,
 			`UPDATE hosts SET deleted_at = now() WHERE id = $1`,
 			ids["deleted_after_signing"]); err != nil {
 			t.Fatalf("soft delete: %v", err)
 		}
 
-		afterScore, afterTotal := recompute("after")
-		if afterScore != exp.Num("score_pct_after") {
-			t.Errorf("score after deletion = %v, want %v; a signed artifact records what was "+
-				"true when it was signed, and the current deletion state of a host is not "+
-				"part of that record", afterScore, exp.Num("score_pct_after"))
+		after := exportedText(t, svc, pool, rep.ID)
+		wantAfter := formatPct(exp.Num("score_pct_after"))
+		if !strings.Contains(after, wantAfter) {
+			t.Errorf("the rendered artifact does not show %s after deletion; a signed "+
+				"artifact records what was true when it was signed, and the current "+
+				"deletion state of a host is not part of that record", wantAfter)
 		}
-		if afterTotal != exp.Int("hosts_total_after") {
-			t.Errorf("hosts_total after = %d, want %d; the population came from the hosts "+
-				"table rather than from the artifact's own frozen ids",
-				afterTotal, exp.Int("hosts_total_after"))
+		if !exp.Bool("rendered_bytes_identical") || !exp.Bool("identical_after_deletion") {
+			t.Fatal("fixture must require identical rendered output")
 		}
-		if !exp.Bool("identical_after_deletion") {
-			t.Fatal("fixture must require identical numbers")
+		if before != after {
+			t.Errorf("the rendered artifact moved after a host was deleted; the population " +
+				"came from the hosts table rather than from the artifact's own frozen ids")
 		}
-		if beforeScore != afterScore || beforeTotal != afterTotal {
-			t.Errorf("the rendered artifact moved: %v/%d became %v/%d",
-				beforeScore, beforeTotal, afterScore, afterTotal)
+		// The participation counts the fixture pins, read off the same render.
+		if exp.Int("hosts_total_before") != exp.Int("hosts_total_after") {
+			t.Fatal("fixture must pin the same host total on both sides")
+		}
+		if !strings.Contains(before, "of "+strconv.Itoa(exp.Int("hosts_total_before"))+" in scope") {
+			t.Errorf("the rendered artifact does not state %d hosts in scope",
+				exp.Int("hosts_total_before"))
+		}
+
+		// A CURRENT artifact whose scans produced zero outcomes renders its
+		// own frozen rollup. The selector used to be an outcome count, which
+		// read this artifact as legacy and recomputed it.
+		zero := in.Map("current_zero_outcome_artifact")
+		if zero.Str("kind") != string(KindAttestation) || !zero.Bool("completed_scan_with_no_outcomes") {
+			t.Fatal("fixture must describe a current attestation over a scan with no outcomes")
+		}
+		zero.AllConsumed()
+		if !exp.Bool("current_zero_outcome_uses_frozen_rollup") ||
+			exp.Bool("current_zero_outcome_recomputed") {
+			t.Fatal("fixture must require the frozen rollup to be used")
+		}
+
+		zeroPool := freshPool(t)
+		zeroSvc := NewService(zeroPool)
+		zeroOwner := seedUser(t, zeroPool)
+		zeroHost := seedHost(t, zeroPool, zeroOwner, false)
+		zeroScan := seedScanRun(t, zeroPool, zeroHost)
+		zeroRep, err := zeroSvc.Generate(ctx, "ac40@example.com",
+			GenerateRequest{Kind: KindAttestation, Framework: "framework_scored"})
+		if err != nil {
+			t.Fatalf("generate zero-outcome: %v", err)
+		}
+		var zeroContent AttestationContent
+		if err := json.Unmarshal(zeroRep.Content, &zeroContent); err != nil {
+			t.Fatalf("decode zero-outcome: %v", err)
+		}
+		if zeroContent.Rollup.TotalChecks != 0 {
+			t.Fatalf("the zero-outcome fixture produced %d checks; it must produce none",
+				zeroContent.Rollup.TotalChecks)
+		}
+		if zeroContent.Rollup.Provenance == nil {
+			t.Fatal("the zero-outcome artifact carries no provenance, so it is not current")
+		}
+		// Results added AFTER signing. A render that recomputed would pick
+		// these up; one that uses the frozen rollup cannot.
+		seedScanResult(t, zeroPool, zeroScan, zeroHost, "late-rule", "pass",
+			`{"framework_scored": ["x"]}`)
+		zeroText := exportedText(t, zeroSvc, zeroPool, zeroRep.ID)
+		if strings.Contains(zeroText, "100.0%") {
+			t.Error("a current zero-outcome attestation was recomputed from data written " +
+				"after it was signed; generation must be read from the provenance key, not " +
+				"inferred from an outcome count")
 		}
 
 		in.AllConsumed()
 		exp.AllConsumed()
 	})
 }
+
+// formatPct renders a score the way the PDF face does.
+func formatPct(v float64) string { return strconv.FormatFloat(v, 'f', 1, 64) + "%" }

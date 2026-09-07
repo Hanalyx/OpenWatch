@@ -50,6 +50,19 @@ var ArithmeticRegistry = []ArithmeticSite{
 	},
 	{
 		File:   "frontend/src/pages/HostsListPage.tsx",
+		Symbol: "diff",
+		Expr:   "prev.score_pct",
+		Reason: "The fleet trend DELTA on the hosts list: today's score minus yesterday's, " +
+			"for a \"vs yesterday\" caption. It is a difference between two scores the API " +
+			"already computed, not a score, and the site is guarded: it runs only when BOTH " +
+			"days carry a score and their formula_status matches and is not mixed, because " +
+			"subtracting a legacy day from a current one measures the formula change rather " +
+			"than a change in posture. It became visible to this guard on 2026-09-06, when " +
+			"the fleet trend field was renamed from avg_score_pct to score_pct and the " +
+			"operand finally matched a score-field name.",
+	},
+	{
+		File:   "frontend/src/pages/HostsListPage.tsx",
 		Symbol: "passPct",
 		Expr:   "host.passed",
 		Reason: "A stacked-bar WIDTH: passed over total, as a CSS percentage of the rule " +

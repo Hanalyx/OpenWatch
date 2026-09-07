@@ -13,7 +13,7 @@ spec:
       host's daily posture points (date, score_pct, passing, failing,
       total) over the trailing window, oldest first. GET
       /api/v1/fleet/compliance/trend?days=N returns per-day fleet
-      aggregates (avg_score_pct, hosts, failing, critical_hosts).
+      aggregates (score_pct, hosts, failing, critical_hosts).
 
       days defaults to 30 and is CLAMPED into [1, 90] - never
       rejected. Days without snapshots are absent from the arrays
@@ -65,7 +65,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-03
-      description: 'The fleet endpoint aggregates per day across hosts (avg_score_pct to one decimal, hosts count, summed failing, critical_hosts count), excludes soft-deleted hosts, and returns {days: []} when no snapshots exist'
+      description: 'The fleet endpoint aggregates per day across hosts (score_pct to one decimal, hosts count, summed failing, critical_hosts count), excludes soft-deleted hosts, and returns {days: []} when no snapshots exist. Renamed from avg_score_pct on 2026-09-06, with no alias: every other surface calls this field score_pct, and the aggregation_method in the envelope already says it is an equal-host mean, so the avg_ prefix carried no information and cost a real integration mistake'
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
@@ -92,8 +92,8 @@ spec:
         host_absent_day_score_pct: null
         forbidden_host_score_pct: 0.0
         fleet_today_present: true
-        fleet_today_avg_score_pct: 90.0
-        forbidden_fleet_avg_score_pct: 45.0
+        fleet_today_score_pct: 90.0
+        forbidden_fleet_score_pct: 45.0
         fleet_today_hosts: 2
         fleet_all_unscored_day_present: true
         fleet_all_unscored_day_score_pct: null

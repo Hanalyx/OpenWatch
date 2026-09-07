@@ -3633,12 +3633,12 @@ paths:
         rules, and hosts carrying critical findings. Powers the
         hosts-page average-compliance delta.
 
-        avg_score_pct is the mean of the hosts that produced a SCORE
+        score_pct is the mean of the hosts that produced a SCORE
         that day, counting each host once. hosts counts every host with
         a snapshot that day, so the two differ whenever a host could not
         be assessed; such a host is omitted from the average rather than
         averaged in as zero. A day on which no host produced a score is
-        omitted from the array entirely, because avg_score_pct cannot
+        omitted from the array entirely, because score_pct cannot
         express that absence.
         Spec api-compliance-trend.
       parameters:
@@ -7045,7 +7045,7 @@ components:
             type: object
             required:
               - date
-              - avg_score_pct
+              - score_pct
               - formula_status
               - formula_version
               - envelope
@@ -7058,7 +7058,7 @@ components:
               date:
                 type: string
                 format: date
-              avg_score_pct:
+              score_pct:
                 type: number
                 nullable: true
                 description: >-
@@ -7095,7 +7095,7 @@ components:
                 type: integer
                 description: >-
                   Every host with a snapshot that day, including hosts that
-                  produced no score and are therefore not in avg_score_pct.
+                  produced no score and are therefore not in score_pct.
               failing:
                 type: integer
               critical_hosts:

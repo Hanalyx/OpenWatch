@@ -2485,8 +2485,6 @@ type FleetComplianceStatesStatesState string
 type FleetComplianceTrend struct {
 	// Days One entry per day with snapshots, oldest first
 	Days []struct {
-		// AvgScorePct Equal-host mean over the hosts that produced a score that day, to one decimal. Not a pooled ratio, so a host with many rules does not outweigh one with few. NULL when no host produced a score, and NULL when formula_status is mixed.
-		AvgScorePct   *float32           `json:"avg_score_pct"`
 		CriticalHosts int                `json:"critical_hosts"`
 		Date          openapi_types.Date `json:"date"`
 		Envelope      ScoreEnvelope      `json:"envelope"`
@@ -2498,7 +2496,7 @@ type FleetComplianceTrend struct {
 		// FormulaVersion 2 when formula_status is identified, otherwise null.
 		FormulaVersion *int `json:"formula_version"`
 
-		// Hosts Every host with a snapshot that day, including hosts that produced no score and are therefore not in avg_score_pct.
+		// Hosts Every host with a snapshot that day, including hosts that produced no score and are therefore not in score_pct.
 		Hosts int `json:"hosts"`
 
 		// HostsScored Hosts that produced a score that day.
@@ -2506,6 +2504,9 @@ type FleetComplianceTrend struct {
 
 		// HostsWithoutScore Hosts with a snapshot that day but no score.
 		HostsWithoutScore int `json:"hosts_without_score"`
+
+		// ScorePct Equal-host mean over the hosts that produced a score that day, to one decimal. Not a pooled ratio, so a host with many rules does not outweigh one with few. NULL when no host produced a score, and NULL when formula_status is mixed.
+		ScorePct *float32 `json:"score_pct"`
 	} `json:"days"`
 }
 

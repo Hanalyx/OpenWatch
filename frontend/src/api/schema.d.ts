@@ -2190,12 +2190,12 @@ export interface paths {
          *     rules, and hosts carrying critical findings. Powers the
          *     hosts-page average-compliance delta.
          *
-         *     avg_score_pct is the mean of the hosts that produced a SCORE
+         *     score_pct is the mean of the hosts that produced a SCORE
          *     that day, counting each host once. hosts counts every host with
          *     a snapshot that day, so the two differ whenever a host could not
          *     be assessed; such a host is omitted from the average rather than
          *     averaged in as zero. A day on which no host produced a score is
-         *     omitted from the array entirely, because avg_score_pct cannot
+         *     omitted from the array entirely, because score_pct cannot
          *     express that absence.
          *     Spec api-compliance-trend.
          */
@@ -4583,7 +4583,7 @@ export interface components {
                 /** Format: date */
                 date: string;
                 /** @description Equal-host mean over the hosts that produced a score that day, to one decimal. Not a pooled ratio, so a host with many rules does not outweigh one with few. NULL when no host produced a score, and NULL when formula_status is mixed. */
-                avg_score_pct: number | null;
+                score_pct: number | null;
                 /**
                  * @description mixed means the day's snapshots were produced by MORE THAN ONE formula. Those measure different things, so the day reports no score rather than their average. legacy_unknown means every snapshot predates the current formula; its score is preserved and is not comparable with an identified one.
                  * @enum {string}
@@ -4597,7 +4597,7 @@ export interface components {
                 hosts_scored: number;
                 /** @description Hosts with a snapshot that day but no score. */
                 hosts_without_score: number;
-                /** @description Every host with a snapshot that day, including hosts that produced no score and are therefore not in avg_score_pct. */
+                /** @description Every host with a snapshot that day, including hosts that produced no score and are therefore not in score_pct. */
                 hosts: number;
                 failing: number;
                 critical_hosts: number;

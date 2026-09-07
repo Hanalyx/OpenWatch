@@ -220,15 +220,14 @@ func latestTrendScore(t *testing.T, url, path string) *float64 {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("GET %s = %d: %s", path, resp.StatusCode, b)
 	}
-	// Two field names, because the fleet trend calls it avg_score_pct while
-	// every other surface calls it score_pct. Reading only one of them
-	// silently returns null for the other endpoint, which is how this helper
-	// first "found" a missing fleet score.
+	// One field name now. The fleet trend called it avg_score_pct until
+	// 2026-09-06 while every other surface called it score_pct, and reading
+	// only one of them silently returned null for the other endpoint, which
+	// is how this helper first "found" a missing fleet score.
 	var body struct {
 		Days []struct {
-			Date        string   `json:"date"`
-			ScorePct    *float64 `json:"score_pct"`
-			AvgScorePct *float64 `json:"avg_score_pct"`
+			Date     string   `json:"date"`
+			ScorePct *float64 `json:"score_pct"`
 		} `json:"days"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
@@ -237,11 +236,7 @@ func latestTrendScore(t *testing.T, url, path string) *float64 {
 	if len(body.Days) == 0 {
 		t.Fatalf("%s returned no points although the rollup ran", path)
 	}
-	last := body.Days[len(body.Days)-1]
-	if last.ScorePct != nil {
-		return last.ScorePct
-	}
-	return last.AvgScorePct
+	return body.Days[len(body.Days)-1].ScorePct
 }
 
 // setGroupTarget points a group at a compliance target framework.

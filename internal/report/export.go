@@ -400,9 +400,16 @@ func (s *Service) exportAttestationPDF(ctx context.Context, rep Report) ([]byte,
 	if err := json.Unmarshal(rep.Content, &c); err != nil {
 		return nil, "", fmt.Errorf("report: decode attestation content: %w", err)
 	}
-	// Back-compat: a snapshot frozen before the rollup was part of the
-	// content has an empty rollup but attested hosts; recompute it live.
-	if c.Rollup.TotalChecks == 0 && c.HostsAttested > 0 {
+	// Back-compat, selected by GENERATION and never by data values.
+	//
+	// The condition was TotalChecks == 0 && HostsAttested > 0, which reads a
+	// count and guesses. That misclassifies a current, correctly signed
+	// attestation whose completed scans genuinely produced zero outcomes: it
+	// has a frozen rollup saying so, and inferring "legacy" from the zero
+	// threw that rollup away and recomputed one. An artifact's generation is
+	// the presence or absence of its provenance key, exactly as AC-38
+	// requires, and nothing else.
+	if isLegacyArtifact(string(rep.Kind), rep.Content) {
 		rollup, err := s.legacyRollupFor(ctx, c)
 		if err != nil {
 			return nil, "", err

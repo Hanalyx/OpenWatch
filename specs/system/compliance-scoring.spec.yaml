@@ -1020,6 +1020,12 @@ spec:
         the data it describes. The criterion is asserted THROUGH Generate,
         because a test that called the transaction helper directly would stay
         green if Generate stopped using it.
+
+        The behavior test proves the queryer Generate hands out is a
+        transaction. It cannot prove that EVERY content reader receives that
+        same queryer rather than reaching for the pool itself, so a source
+        guard states the other half: inside Generate, no call to a compute
+        function may take s.pool as an argument.
       priority: critical
       references_constraints: [C-09]
       inputs:
@@ -1027,6 +1033,11 @@ spec:
         concurrent_write: a host gains rule state after the first content read
         driven_through: Generate
         inside_the_snapshot: [group_membership, group_name, content_reads, data_as_of]
+        source_guard:
+          file: internal/report/service.go
+          function: Generate
+          call_prefix: compute
+          forbidden_argument: s.pool
       expected_output:
         isolation_level: repeatable read
         access_mode: read only
@@ -1034,6 +1045,7 @@ spec:
         concurrent_write_invisible: true
         generate_uses_the_snapshot: true
         data_as_of_is_the_snapshot_instant: true
+        content_calls_taking_the_pool: []
     - id: AC-40
       description: >-
         A stored artifact renders the same numbers however the fleet changes
@@ -1050,6 +1062,18 @@ spec:
         The compatibility population comes from the frozen host ids
         themselves, independent of the hosts table and of any current deletion
         state.
+
+        Which path renders is decided by GENERATION, never by data values. The
+        selector was an outcome count, TotalChecks == 0 with attested hosts,
+        which misclassifies a current, correctly signed attestation whose
+        completed scans genuinely produced zero outcomes: it carries a frozen
+        rollup saying exactly that, and the count-based guess discarded it and
+        recomputed. Generation is the presence or absence of the provenance
+        key, as AC-38 requires.
+
+        Asserted on the RENDERED BYTES. Comparing a value returned by the
+        recomputation helper leaves the rendering call site free to pass a
+        different population, which is the defect this criterion exists for.
       priority: critical
       references_constraints: [C-11]
       inputs:
@@ -1058,9 +1082,15 @@ spec:
           - {id: kept, counts: {pass: 1, fail: 1}}
           - {id: deleted_after_signing, counts: {pass: 4, fail: 0}}
         mutation: soft delete the second host AFTER the artifact is signed
+        current_zero_outcome_artifact:
+          kind: attestation
+          completed_scan_with_no_outcomes: true
       expected_output:
         score_pct_before: 75.0
         score_pct_after: 75.0
         hosts_total_before: 2
         hosts_total_after: 2
         identical_after_deletion: true
+        rendered_bytes_identical: true
+        current_zero_outcome_uses_frozen_rollup: true
+        current_zero_outcome_recomputed: false

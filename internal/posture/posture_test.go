@@ -489,13 +489,13 @@ func TestTrends_WindowOrderingAndFleetAggregates(t *testing.T) {
 		if !ok {
 			t.Fatal("today has no fleet score, but two hosts were scored")
 		}
-		if want := exp.Num("avg_score_pct"); avg != want {
-			t.Errorf("avg_score_pct = %v, want %v (equal-host mean)", avg, want)
+		if want := exp.Num("score_pct"); avg != want {
+			t.Errorf("score_pct = %v, want %v (equal-host mean)", avg, want)
 		}
 		// The discriminating assertion: averaging the unscored host in as zero
 		// gives the forbidden answer, which is the OW-023 defect one layer out.
-		if bad := exp.Num("forbidden_avg_score_pct"); avg == bad {
-			t.Errorf("avg_score_pct = %v, the answer produced by averaging the unscored host in as zero", bad)
+		if bad := exp.Num("forbidden_score_pct"); avg == bad {
+			t.Errorf("score_pct = %v, the answer produced by averaging the unscored host in as zero", bad)
 		}
 		if today.Hosts != exp.Int("hosts") {
 			t.Errorf("hosts = %d, want %d", today.Hosts, exp.Int("hosts"))

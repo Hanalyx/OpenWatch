@@ -308,12 +308,12 @@ export function HostsListPage() {
       // were produced by different formulas, so their difference is not a
       // change in posture.
       const comparable =
-        today.avg_score_pct !== null &&
-        prev.avg_score_pct !== null &&
+        today.score_pct !== null &&
+        prev.score_pct !== null &&
         today.formula_status === prev.formula_status &&
         today.formula_status !== 'mixed';
       if (comparable) {
-        const diff = Math.round((today.avg_score_pct! - prev.avg_score_pct!) * 10) / 10;
+        const diff = Math.round((today.score_pct! - prev.score_pct!) * 10) / 10;
         kpis.avgCompliance.delta =
           diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
         kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';

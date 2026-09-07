@@ -248,7 +248,7 @@ func TestFleetComplianceTrend_AggregatesAndDeletedHosts(t *testing.T) {
 		var body struct {
 			Days []struct {
 				Date          string  `json:"date"`
-				AvgScorePct   float64 `json:"avg_score_pct"`
+				ScorePct      float64 `json:"score_pct"`
 				Hosts         int     `json:"hosts"`
 				Failing       int     `json:"failing"`
 				CriticalHosts int     `json:"critical_hosts"`
@@ -261,7 +261,7 @@ func TestFleetComplianceTrend_AggregatesAndDeletedHosts(t *testing.T) {
 			t.Fatalf("days = %d, want 1", len(body.Days))
 		}
 		d := body.Days[0]
-		if d.Hosts != 2 || d.AvgScorePct != 70.0 || d.Failing != 6 || d.CriticalHosts != 1 {
+		if d.Hosts != 2 || d.ScorePct != 70.0 || d.Failing != 6 || d.CriticalHosts != 1 {
 			t.Errorf("day = %+v, want hosts 2 avg 70 failing 6 critical 1 (ghost dropped)", d)
 		}
 	})
@@ -415,7 +415,7 @@ func TestComplianceTrend_AbsentScoreDayIsExplained(t *testing.T) {
 		var fleet struct {
 			Days []struct {
 				Date              string   `json:"date"`
-				AvgScorePct       *float64 `json:"avg_score_pct"`
+				ScorePct          *float64 `json:"score_pct"`
 				FormulaStatus     string   `json:"formula_status"`
 				Hosts             int      `json:"hosts"`
 				HostsScored       int      `json:"hosts_scored"`
@@ -430,7 +430,7 @@ func TestComplianceTrend_AbsentScoreDayIsExplained(t *testing.T) {
 		}
 		var today *struct {
 			Date              string   `json:"date"`
-			AvgScorePct       *float64 `json:"avg_score_pct"`
+			ScorePct          *float64 `json:"score_pct"`
 			FormulaStatus     string   `json:"formula_status"`
 			Hosts             int      `json:"hosts"`
 			HostsScored       int      `json:"hosts_scored"`
@@ -444,13 +444,13 @@ func TestComplianceTrend_AbsentScoreDayIsExplained(t *testing.T) {
 		if today == nil {
 			t.Fatalf("no fleet day with %d hosts; got %+v", exp.Int("fleet_today_hosts"), fleet.Days)
 		}
-		if today.AvgScorePct == nil || *today.AvgScorePct != exp.Num("fleet_today_avg_score_pct") {
-			t.Errorf("avg_score_pct = %v, want %v (mean of the hosts that scored)",
-				today.AvgScorePct, exp.Num("fleet_today_avg_score_pct"))
+		if today.ScorePct == nil || *today.ScorePct != exp.Num("fleet_today_score_pct") {
+			t.Errorf("score_pct = %v, want %v (mean of the hosts that scored)",
+				today.ScorePct, exp.Num("fleet_today_score_pct"))
 		}
-		if bad := exp.Num("forbidden_fleet_avg_score_pct"); today.AvgScorePct != nil &&
-			*today.AvgScorePct == bad {
-			t.Errorf("avg_score_pct = %v, the answer produced by averaging the unscored host in as zero", bad)
+		if bad := exp.Num("forbidden_fleet_score_pct"); today.ScorePct != nil &&
+			*today.ScorePct == bad {
+			t.Errorf("score_pct = %v, the answer produced by averaging the unscored host in as zero", bad)
 		}
 		if today.HostsScored != 1 || today.HostsWithoutScore != 1 {
 			t.Errorf("today participation = %d scored / %d unscored, want 1/1",
@@ -470,8 +470,8 @@ func TestComplianceTrend_AbsentScoreDayIsExplained(t *testing.T) {
 				continue
 			}
 			found = true
-			if d.AvgScorePct != nil {
-				t.Errorf("fleet day %s scored %v; no host scored that day", d.Date, *d.AvgScorePct)
+			if d.ScorePct != nil {
+				t.Errorf("fleet day %s scored %v; no host scored that day", d.Date, *d.ScorePct)
 			}
 			if d.HostsScored != 0 || d.HostsWithoutScore != 1 {
 				t.Errorf("fleet day %s participation = %d/%d, want 0 scored and 1 unscored",
@@ -590,7 +590,7 @@ func TestComplianceTrend_FormulaStatusAndVersion(t *testing.T) {
 		var fleet struct {
 			Days []struct {
 				Date           string   `json:"date"`
-				AvgScorePct    *float64 `json:"avg_score_pct"`
+				ScorePct       *float64 `json:"score_pct"`
 				FormulaStatus  string   `json:"formula_status"`
 				FormulaVersion *int     `json:"formula_version"`
 				Hosts          int      `json:"hosts"`
@@ -616,9 +616,9 @@ func TestComplianceTrend_FormulaStatusAndVersion(t *testing.T) {
 				t.Errorf("fleet mixed day formula_version = %d, want null", *d.FormulaVersion)
 			}
 			wantMixed.IsNull("score_pct")
-			if d.AvgScorePct != nil {
+			if d.ScorePct != nil {
 				t.Errorf("fleet mixed day scored %v; two formulas measure different things "+
-					"and their mean is a score under neither", *d.AvgScorePct)
+					"and their mean is a score under neither", *d.ScorePct)
 			}
 		}
 		if !found {

@@ -160,16 +160,16 @@ export function WidgetComplianceTrend() {
           const days = q.data.days;
           // The trend direction compares the first and last days that actually
           // have a score. A day with none is not a low point.
-          const scoredDays = days.filter((d) => d.avg_score_pct !== null);
+          const scoredDays = days.filter((d) => d.score_pct !== null);
           const first = scoredDays[0];
           const last = scoredDays[scoredDays.length - 1];
-          const up = first && last ? last.avg_score_pct! >= first.avg_score_pct! : true;
+          const up = first && last ? last.score_pct! >= first.score_pct! : true;
           return (
             <>
               <TrendChart
                 points={days.map((d) => ({
                   date: d.date,
-                  scorePct: d.avg_score_pct,
+                  scorePct: d.score_pct,
                   formulaStatus: d.formula_status,
                   tooltip: [
                     d.date,
@@ -192,9 +192,9 @@ export function WidgetComplianceTrend() {
                   color: 'var(--ow-fg-3)',
                 }}
               >
-                <span>{first ? `oldest ${first.avg_score_pct}%` : 'no scored day'}</span>
+                <span>{first ? `oldest ${first.score_pct}%` : 'no scored day'}</span>
                 <span style={{ color: up ? 'var(--ow-ok)' : 'var(--ow-crit)' }}>
-                  {last ? `latest ${last.avg_score_pct}%` : ''}
+                  {last ? `latest ${last.score_pct}%` : ''}
                 </span>
               </div>
             </>
@@ -424,17 +424,17 @@ function Row({
 // nothing could be assessed is a scanning problem. Rendering both as an empty
 // point would hide the difference the API exists to report.
 function fleetDayLines(d: {
-  avg_score_pct: number | null;
+  score_pct: number | null;
   formula_status: 'identified' | 'legacy_unknown' | 'mixed';
   hosts_scored: number;
 }): string[] {
   if (d.formula_status === 'mixed') {
     return ['No score: this day mixes scoring formulas', 'Their average would not be comparable'];
   }
-  if (d.avg_score_pct === null) {
+  if (d.score_pct === null) {
     return ['No score: no host could be assessed'];
   }
-  const line = `${d.avg_score_pct}% avg compliant (${d.hosts_scored} scored)`;
+  const line = `${d.score_pct}% avg compliant (${d.hosts_scored} scored)`;
   return d.formula_status === 'legacy_unknown'
     ? [line, 'Earlier formula: not comparable with current days']
     : [line];

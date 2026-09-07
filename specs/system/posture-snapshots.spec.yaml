@@ -131,8 +131,8 @@ spec:
         day_host_scores: [90.0, 60.0]
         day_unscored_hosts: 1
       expected_output:
-        avg_score_pct: 75.0
-        forbidden_avg_score_pct: 50.0
+        score_pct: 75.0
+        forbidden_score_pct: 50.0
         hosts: 3
         hosts_scored: 2
         hosts_without_score: 1

@@ -12,6 +12,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **BREAKING: `GET /api/v1/fleet/compliance/trend` renames `avg_score_pct` to
+  `score_pct`.** No alias, so a client reading the old name fails rather than
+  silently receiving nothing. Every other surface already called this field
+  `score_pct`, and the envelope's `aggregation_method` already says the value
+  is an equal-host mean, so the `avg_` prefix carried no information the
+  response did not otherwise state. The inconsistency was not cosmetic: it
+  caused a real integration mistake during development, where a reader that
+  looked for `score_pct` got null from this one endpoint and read it as a
+  fleet with no score.
+
 - **BREAKING: a newly generated executive or attestation report no longer
   carries `compliance_pct`.** It carries `score_pct` instead: the equal-host
   mean of the in-scope hosts' scores, to one decimal, and empty when no host
