@@ -1,87 +1,123 @@
 spec:
   id: api-reports
-  title: Reports library - point-in-time Fleet Compliance Executive Summary artifacts (list / generate / fetch)
-  version: "1.15.0"
+  title: Reports library - immutable, signed, point-in-time compliance artifacts (four kinds)
+  version: "1.16.0"
   status: approved
   tier: 2
 
   context:
     system: openwatch
-    feature: A library of immutable compliance reports whose one MVP kind, the Fleet Compliance Executive Summary, is computed from data that already exists and stored as a frozen JSON document
+    feature: A library of immutable compliance reports across four kinds, each computed from one point-in-time database snapshot, frozen as content-addressed JSON, signed when a signer is wired, and served through kind-specific rendered faces
     description: >
-      A report is a point-in-time, immutable compliance artifact. The MVP
-      builds exactly ONE kind, the Fleet Compliance Executive Summary, and
-      a three-endpoint surface over it: list the library, generate a new
-      summary, and fetch one report with its stored content.
+      A report is a point-in-time, immutable compliance artifact. There are
+      FOUR kinds: executive, attestation, exception and remediation.
 
-      DERIVED, THEN FROZEN (load-bearing): Generate computes a posture
-      snapshot from data that already exists and writes it once. It reads
-      host_rule_state for the pass and fail counts and the critical count,
-      the active (non-deleted) host count from hosts, and the top failing
-      rules (the rules failing on the most hosts) from host_rule_state.
-      The same counting shape as the Groups fleet rollup is used so the
-      numbers agree across the app: score_pct is the EQUAL-HOST MEAN of
-      the in-scope hosts' scores, to one decimal, and null when no host
-      produced a verdict (so an unscanned fleet is distinguishable from a
-      fully failing one). It replaced compliance_pct, a POOLED whole
-      percent, on 2026-09-03. The
-      computed ExecutiveContent is marshalled to JSON and stored in the
-      row's content column; the row is WRITE-ONCE and is never recomputed,
-      so data_as_of records the instant the posture was sampled.
+      DERIVED, THEN FROZEN (load-bearing): Generate computes the kind's
+      content from data that already exists and writes it once. Every read
+      behind one Generate runs in a SINGLE repeatable-read, read-only
+      database snapshot, so the score, the coverage block, the top-failing
+      list and the provenance all describe the same fleet at the same
+      instant; data_as_of is that snapshot's own timestamp. The row is
+      WRITE-ONCE and is never recomputed.
 
-      CONTENT IS A WIRE CONTRACT: the detail view and any later renderer
-      read the frozen JSON by exact key (score_pct, host_count,
+      SCORE-BEARING VERSUS READ MODEL: executive and attestation compute a
+      fleet score and carry the full provenance envelope with
+      artifact_class score_bearing. The score is the canonical nullable
+      score_pct: the EQUAL-HOST MEAN of the in-scope hosts' scores, to one
+      decimal, null when no host produced a verdict, so an unscanned fleet
+      stays distinguishable from a fully failing one. Exception and
+      remediation aggregate no scan set, so they are signed READ MODELS:
+      artifact_class read_model, corpus_identity_status not_applicable, and
+      no score or contributor count at all. An artifact_class that
+      contradicts its kind is rejected.
+
+      CONTENT IS A WIRE CONTRACT: a renderer reads the frozen JSON by exact
+      key. For the executive kind those are score_pct, host_count,
       passing_rules, failing_rules, critical_issues, top_failing_rules,
-      provenance). score_pct encodes as JSON null when unevaluated (not 0,
-      not omitted) and top_failing_rules always serializes as a list (never
-      JSON null), ordered most-failing first and capped at a small
-      leadership-facing limit.
+      coverage and provenance. score_pct encodes as JSON null when
+      unevaluated (not 0, not omitted) and top_failing_rules always
+      serializes as a list (never JSON null), ordered most-failing first
+      and capped at a small leadership-facing limit.
 
-      STORAGE SHAPE: a report row carries a fixed title ("Fleet Compliance
-      - Executive Summary"), a kind (only 'executive' in the MVP), a fixed
-      scope_label ('All hosts'), data_as_of, generated_by (the calling
-      principal's id, or 'system' when the request is anonymous), a format
-      (always 'json' in the MVP), the JSON content, and created_at. The
-      library lists newest first.
+      CONTENT-ADDRESSED AND SIGNED: each row carries a content_sha256 over
+      its canonical JSON, and when a signer is wired Generate adds an
+      Ed25519 signature over that address with the signing key id. A
+      verifier can check an artifact offline from the canonical JSON face
+      plus GET /api/v1/reports/signing-key, without trusting the app that
+      served it.
 
-      RBAC: the two read endpoints (list, fetch) require host:read; the
-      generate action requires host:write. Anonymous callers are rejected
-      on all three. Handlers map report.ErrNotFound to 404
-      (reports.not_found); a fetch for an unknown id 404s.
+      FACES ARE KIND-SPECIFIC. Executive renders json and pdf. Attestation
+      renders json, pdf, csv and oscal_sar. Exception and remediation each
+      render json, pdf and csv. A face that does not apply to a kind is
+      refused. Attestation bulk faces may render ASYNCHRONOUSLY when a
+      worker is wired; lazy synchronous export remains the correctness
+      fallback, so a face is always obtainable.
+
+      STORAGE SHAPE: a report row carries a title and scope_label derived
+      from its kind and scope, the kind, data_as_of, generated_by (the
+      calling principal's id, or "scheduler" for a scheduled run), the
+      format, the JSON content, content_sha256, the optional signature and
+      signing key id, and created_at. The library lists newest first.
+
+      SCOPING: Generate accepts an optional scope. group_id narrows to a
+      group's resolved active members, framework applies the compliance
+      lens, and period_days sets the look-back window for the time-windowed
+      remediation kind. An absent body means all hosts and all frameworks.
+
+      RBAC: the read endpoints require host:read; generate requires
+      host:write. Anonymous callers are rejected on every route. Scheduled
+      generation is a separate authenticated internal path that records
+      "scheduler", not an anonymous request. Handlers map report.ErrNotFound
+      to 404 (reports.not_found).
 
       Endpoints:
-        GET  /api/v1/reports            - list the library, newest first (host:read)
-        POST /api/v1/reports:generate   - generate an executive summary for all hosts (host:write)
-        GET  /api/v1/reports/{id}       - fetch one report with its stored content (host:read)
+        GET  /api/v1/reports                  - list the library, newest first (host:read)
+        POST /api/v1/reports:generate         - generate a report of any kind (host:write)
+        GET  /api/v1/reports/{id}             - fetch one report with its stored content (host:read)
+        GET  /api/v1/reports/{id}/export      - stream a rendered face as an attachment (host:read)
+        GET  /api/v1/reports/frameworks       - the fleet framework catalog for the scope picker (host:read)
+        GET  /api/v1/reports/signing-key      - the public signing key, for offline verification
+
+      HISTORY, not current scope: the initial release contained only the
+      executive JSON artifact. Later approved versions added content
+      addressing, Ed25519 signing, the export faces, and the attestation,
+      exception and remediation kinds. Release history belongs in
+      CHANGELOG.md; the constraints below are the current contract.
 
     related_specs:
       - api-groups
       - api-host-compliance
       - system-rbac
+      - system-report-schedule
+      - system-compliance-scoring
 
   objective:
     summary: >
-      A correct, auditable reports library whose one MVP kind, the Fleet
-      Compliance Executive Summary, is computed once from the
-      authoritative posture tables, stored as a frozen JSON document, and
-      served behind a host:read view / host:write generate RBAC bar. No
-      signing, no PDF or OSCAL rendering, no scheduled dispatch.
+      A correct, auditable reports library across four kinds, each computed
+      once from the authoritative tables inside one database snapshot,
+      frozen as content-addressed JSON, signed for tamper-evidence when a
+      signer is wired, rendered through kind-specific faces, and served
+      behind a host:read view / host:write generate RBAC bar.
     scope:
       includes:
-        - reports table (migration 0028) and the internal/report service
-        - Generate / List / Get over the executive summary kind
-        - The three HTTP endpoints with their RBAC bars (host:read view, host:write generate)
-        - Executive content computed per host over every active in-scope host (pass/fail counts, critical, the equal-host mean score_pct) plus the active host count, the top failing rules, and the frozen provenance envelope
-        - The frozen JSON content as a wire contract (exact keys, nil compliance encoding, list-never-null top-failing)
-        - The write-once row whose data_as_of is the posture sample instant and whose format is json
+        - report_snapshots and report_faces plus the internal/report service
+        - Generate / List / Get / Export over all four kinds (executive, attestation, exception, remediation)
+        - 'The HTTP surface with its RBAC bars: list, fetch, generate, export, the framework catalog, and the signing-key endpoint'
+        - One repeatable-read read-only snapshot per Generate, covering group resolution, every content read, and the sampling timestamp
+        - Score-bearing content (executive, attestation) carrying the canonical nullable score_pct, equal-host aggregation and the full provenance envelope
+        - Read-model content (exception, remediation) carrying the read-model provenance shape and no score
+        - Content addressing (content_sha256) and Ed25519 signing, with offline verification from the canonical JSON face and the signing key
+        - Kind-specific faces, and the asynchronous rendering path for attestation bulk faces with lazy export as the correctness fallback
+        - Group, framework and remediation look-back scoping
       excludes:
-        - The OSCAL POA&M face (open-findings milestones; a later phase. The fleet OSCAL SAR face ships in v1.8.0 / C-14)
-        - The Scheduled dispatcher (auto-generated and delivered reports)
-        - The Templates gallery (the six prototype templates beyond the one executive kind)
-        - Retention sweeps (rows are kept; no expiry or purge in the MVP)
-        - Report kinds other than executive (attestation, remediation, exceptions)
-        - A "Signed" badge / Verify action in the UI (frontend; this spec covers the wire + endpoint)
-        - A period dimension on the scope (applies to the trend) and an explicit host-set scope
+        # Audited against the code and the registered specs on 2026-09-07.
+        # An entry is kept only where the capability is genuinely absent or
+        # is owned by another approved spec.
+        - The OSCAL POA&M face (open-findings milestones). Not implemented; the fleet OSCAL SAR face ships per C-14
+        - The Templates gallery (prototype templates beyond the four kinds). Still deferred, see internal/report/types.go
+        - Retention sweeps for report_snapshots and report_faces. Both tables are recorded StateUndecided in internal/retention/policy.go, so the decision is owned there rather than here
+        - An explicit host-set scope (an arbitrary list of host ids). Scoping is by group, framework and look-back window only
+        - Scheduled generation and email delivery, which are IMPLEMENTED and owned by system-report-schedule. This is a boundary, not an absence
 
   constraints:
     - id: C-01
@@ -145,14 +181,21 @@ spec:
       enforcement: error
     - id: C-06
       description: >-
-        RBAC: GET /api/v1/reports and GET /api/v1/reports/{id} require
-        host:read; POST /api/v1/reports:generate requires host:write;
-        anonymous callers are rejected on all three (auth.EnforcePermission
-        with auth.HostRead or auth.HostWrite). A host:read-only caller is
-        403 on generate. generated_by records the calling principal's id,
-        or 'system' when the request is anonymous, and the wire surfaces no
-        signing, PDF, or OSCAL fields. A successful generate emits a
+        RBAC: every read route (list, fetch, export, the framework catalog)
+        requires host:read; POST /api/v1/reports:generate requires
+        host:write. Anonymous callers are rejected on every route
+        (auth.EnforcePermission with auth.HostRead or auth.HostWrite). A
+        host:read-only caller is 403 on generate. generated_by records the
+        calling principal's id. A successful generate emits a
         report.generated audit event (actor, report id, kind, scope_label).
+
+        Corrected 2026-09-07. This constraint said generated_by records
+        'system' when the request is anonymous, and that the wire surfaces
+        no signing, PDF or OSCAL fields. Both were stale: an anonymous
+        generate never reaches the actor lookup because the permission bar
+        rejects it first, and signing, PDF and OSCAL SAR all ship under
+        C-11, C-15 and C-14. Scheduled generation is a separate
+        authenticated internal path that records "scheduler".
       type: security
       enforcement: error
     - id: C-07
