@@ -41,10 +41,15 @@ spec:
 
       CONTENT-ADDRESSED AND SIGNED: each row carries a content_sha256 over
       its canonical JSON, and when a signer is wired Generate adds an
-      Ed25519 signature over that address with the signing key id. A
-      verifier can check an artifact offline from the canonical JSON face
-      plus GET /api/v1/reports/signing-key, without trusting the app that
-      served it.
+      Ed25519 signature over that address with the signing key id. Given
+      the canonical JSON face and a TRUSTED copy of the public key, a
+      verifier can then check the artifact with no server-side verification
+      operation. Establishing trust in that key, or in its fingerprint, is
+      an operational responsibility outside this report format:
+      GET /api/v1/reports/signing-key is a convenience for fetching the key,
+      not a root of trust. A server that served a replacement artifact could
+      serve a matching signature and public key with it, so a key taken from
+      the same server proves only internal consistency.
 
       FACES ARE KIND-SPECIFIC. Executive renders json and pdf. Attestation
       renders json, pdf, csv and oscal_sar. Exception and remediation each
@@ -181,9 +186,10 @@ spec:
       enforcement: error
     - id: C-06
       description: >-
-        RBAC: every read route (list, fetch, export, the framework catalog)
-        requires host:read; POST /api/v1/reports:generate requires
-        host:write. Anonymous callers are rejected on every route
+        RBAC: every read route requires host:read. That is list, fetch,
+        export, the framework catalog and the signing-key endpoint, which is
+        the whole read surface at this version. POST
+        /api/v1/reports:generate requires host:write. Anonymous callers are rejected on every route
         (auth.EnforcePermission with auth.HostRead or auth.HostWrite). A
         host:read-only caller is 403 on generate. generated_by records the
         calling principal's id. A successful generate emits a
