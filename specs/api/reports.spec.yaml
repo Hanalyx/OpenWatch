@@ -774,25 +774,48 @@ spec:
     - id: AC-26
       description: >-
         v1.17.0 - Report attribution is real or absent, never invented.
-        generated_by records the authenticated principal's own id. An
-        anonymous caller is rejected before any artifact exists. An
-        authorized request that somehow carries no principal fails and
+        generated_by records the authenticated principal's OWN id, compared
+        exactly. An anonymous caller is rejected before any artifact exists.
+        An authorized request that somehow carries no principal fails and
         generates nothing, rather than recording a placeholder actor into
         content that is about to be signed. Scheduled generation is a
         separate authenticated internal path and keeps its explicit
         "scheduler" actor.
+
+        Every case is observed AT THE PRODUCTION CALL SITE: the HTTP cases
+        drive PostReportGenerate, and the scheduler case drives
+        Dispatcher.Tick with a generator that captures the actor it is
+        handed. Asserting against the helper, or against the constant the
+        dispatcher is supposed to pass, would leave a regression at either
+        call site undetected.
       priority: critical
       references_constraints: [C-06, C-11]
       inputs:
+        # Each row drives one exercised case: which identity is presented,
+        # through which production entry point, and what it must produce.
         cases:
-          - {caller: authenticated, principal: present}
-          - {caller: anonymous, principal: absent}
-          - {caller: authorized, principal: missing}
-          - {caller: scheduler, principal: explicit}
+          - caller: authenticated
+            identity: role_principal
+            through: PostReportGenerate
+            expect_status: 201
+            expect_actor: caller_principal_id
+          - caller: anonymous
+            identity: none
+            through: PostReportGenerate
+            expect_status: 401
+            expect_actor: none
+          - caller: authorized_without_principal
+            identity: empty_id_with_role
+            through: PostReportGenerate
+            expect_status: 500
+            expect_actor: none
+          - caller: scheduler
+            identity: internal
+            through: Dispatcher.Tick
+            expect_status: 0
+            expect_actor: scheduler
         forbidden_actor: system
       expected_output:
-        authenticated_records_principal: true
-        anonymous_rejected_before_generation: true
-        missing_principal_generates_nothing: true
-        scheduler_records: scheduler
+        artifacts_created_by_rejected_cases: 0
         artifacts_attributed_to_forbidden_actor: 0
+        observed_at_call_site: true

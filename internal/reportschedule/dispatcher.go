@@ -33,8 +33,6 @@ type Dispatcher struct {
 	deliver Deliverer
 }
 
-// NewDispatcher wires the dispatcher over the schedule service, a report
-// generator, and an email deliverer.
 // Actor is the principal recorded on a scheduled generation.
 //
 // Scheduled runs are an authenticated internal path with an actor of their
@@ -42,6 +40,8 @@ type Dispatcher struct {
 // contract can bind the value rather than a copy of the string.
 const Actor = "scheduler"
 
+// NewDispatcher wires the dispatcher over the schedule service, a report
+// generator, and an email deliverer.
 func NewDispatcher(svc *Service, gen Generator, deliver Deliverer) *Dispatcher {
 	return &Dispatcher{svc: svc, gen: gen, deliver: deliver}
 }
