@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - immutable, signed, point-in-time compliance artifacts (four kinds)
-  version: "1.16.0"
+  version: "1.17.0"
   status: approved
   tier: 2
 
@@ -194,6 +194,11 @@ spec:
         host:read-only caller is 403 on generate. generated_by records the
         calling principal's id. A successful generate emits a
         report.generated audit event (actor, report id, kind, scope_label).
+
+        generated_by FAILS CLOSED. It is part of the signed artifact, so an
+        authorized request that carries no principal MUST generate nothing
+        rather than record a placeholder: a fabricated actor cannot be
+        detected or corrected by any later reader of the artifact.
 
         Corrected 2026-09-07. This constraint said generated_by records
         'system' when the request is anonymous, and that the wire surfaces
@@ -766,3 +771,28 @@ spec:
         key, report listing, and report read.
       priority: critical
       references_constraints: [C-19]
+    - id: AC-26
+      description: >-
+        v1.17.0 - Report attribution is real or absent, never invented.
+        generated_by records the authenticated principal's own id. An
+        anonymous caller is rejected before any artifact exists. An
+        authorized request that somehow carries no principal fails and
+        generates nothing, rather than recording a placeholder actor into
+        content that is about to be signed. Scheduled generation is a
+        separate authenticated internal path and keeps its explicit
+        "scheduler" actor.
+      priority: critical
+      references_constraints: [C-06, C-11]
+      inputs:
+        cases:
+          - {caller: authenticated, principal: present}
+          - {caller: anonymous, principal: absent}
+          - {caller: authorized, principal: missing}
+          - {caller: scheduler, principal: explicit}
+        forbidden_actor: system
+      expected_output:
+        authenticated_records_principal: true
+        anonymous_rejected_before_generation: true
+        missing_principal_generates_nothing: true
+        scheduler_records: scheduler
+        artifacts_attributed_to_forbidden_actor: 0

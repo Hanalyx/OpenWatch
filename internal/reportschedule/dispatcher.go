@@ -35,6 +35,13 @@ type Dispatcher struct {
 
 // NewDispatcher wires the dispatcher over the schedule service, a report
 // generator, and an email deliverer.
+// Actor is the principal recorded on a scheduled generation.
+//
+// Scheduled runs are an authenticated internal path with an actor of their
+// own, distinct from any HTTP caller. It is a named constant so the
+// contract can bind the value rather than a copy of the string.
+const Actor = "scheduler"
+
 func NewDispatcher(svc *Service, gen Generator, deliver Deliverer) *Dispatcher {
 	return &Dispatcher{svc: svc, gen: gen, deliver: deliver}
 }
@@ -86,7 +93,7 @@ func (d *Dispatcher) run(ctx context.Context, sch Schedule) error {
 		Framework:  sch.Scope.Framework,
 		PeriodDays: sch.Scope.PeriodDays,
 	}
-	rep, err := d.gen.Generate(ctx, "scheduler", req)
+	rep, err := d.gen.Generate(ctx, Actor, req)
 	if err != nil {
 		return fmt.Errorf("generate: %w", err)
 	}
