@@ -810,12 +810,10 @@ spec:
             expect_status: 500
             expect_actor: none
           - caller: scheduler
-            identity: internal
             through: Dispatcher.Tick
-            expect_status: 0
             expect_actor: scheduler
+            expect_generate_calls: 1
         forbidden_actor: system
       expected_output:
         artifacts_created_by_rejected_cases: 0
         artifacts_attributed_to_forbidden_actor: 0
-        observed_at_call_site: true

@@ -73,23 +73,23 @@ func TestReportActor_RealOrAbsentNeverInvented(t *testing.T) {
 
 		url, pool := freshAPIServer(t)
 		forbidden := in.Str("forbidden_actor")
-		if !exp.Bool("observed_at_call_site") {
-			t.Fatal("fixture must require observation at the production call site")
-		}
 		rejectedCreated := 0
 
 		// Every case comes from the table: the identity presented, the entry
 		// point it goes through, and what it must produce.
 		for _, c := range in.MapList("cases") {
+			// Only the fields EVERY case has are read here. The rest are read
+			// inside the branch that uses them, so a field belonging to one
+			// entry point cannot sit unread on another and still look asserted.
 			caller := c.Str("caller")
-			identity := c.Str("identity")
 			through := c.Str("through")
-			wantStatus := c.Int("expect_status")
-			wantActor := c.Str("expect_actor")
-			c.AllConsumed()
 
 			switch through {
 			case "PostReportGenerate":
+				identity := c.Str("identity")
+				wantStatus := c.Int("expect_status")
+				wantActor := c.Str("expect_actor")
+
 				before := reportRowCount(t, pool)
 				status, actor := generateAs(t, url, pool, identity)
 				if status != wantStatus {
@@ -120,13 +120,23 @@ func TestReportActor_RealOrAbsentNeverInvented(t *testing.T) {
 				}
 
 			case "Dispatcher.Tick":
-				got := tickActor(t, pool)
-				if got != wantActor {
+				wantActor := c.Str("expect_actor")
+				wantCalls := c.Int("expect_generate_calls")
+
+				gotActor, gotCalls := tickActor(t, pool)
+				if gotActor != wantActor {
 					t.Errorf("%s: the dispatcher handed Generate the actor %q, want %q; "+
 						"scheduled generation is a separate authenticated path",
-						caller, got, wantActor)
+						caller, gotActor, wantActor)
 				}
-				if got == forbidden {
+				// Exact equality, not calls > 0. A scheduled run that
+				// generated twice would otherwise pass, and the artifact
+				// count is what an operator is billed and audited on.
+				if gotCalls != wantCalls {
+					t.Errorf("%s: the dispatcher called Generate %d time(s), want %d",
+						caller, gotCalls, wantCalls)
+				}
+				if gotActor == forbidden {
 					t.Errorf("%s: the scheduled path records the placeholder %q",
 						caller, forbidden)
 				}
@@ -135,6 +145,9 @@ func TestReportActor_RealOrAbsentNeverInvented(t *testing.T) {
 				t.Fatalf("%s: fixture names entry point %q, which this test does not drive",
 					caller, through)
 			}
+			// After the switch, so a field that belongs to no branch, or a
+			// newly added one nobody read, fails the case.
+			c.AllConsumed()
 		}
 
 		if rejectedCreated != exp.Int("artifacts_created_by_rejected_cases") {
@@ -207,8 +220,13 @@ func generateAs(t *testing.T, url string, pool *pgxpool.Pool, identity string) (
 }
 
 // tickActor runs one real dispatcher tick over a due schedule and returns
-// the actor the dispatcher passed to Generate.
-func tickActor(t *testing.T, pool *pgxpool.Pool) string {
+// the actor the dispatcher passed to Generate, and how many times it called
+// it.
+//
+// The call count is returned rather than checked here so the criterion can
+// compare it exactly against the fixture. A helper that asserted "at least
+// once" would hide a duplicate generation.
+func tickActor(t *testing.T, pool *pgxpool.Pool) (actor string, calls int) {
 	t.Helper()
 	ctx := context.Background()
 	svc := reportschedule.NewService(pool)
@@ -237,8 +255,5 @@ func tickActor(t *testing.T, pool *pgxpool.Pool) string {
 	if err := d.Tick(ctx); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	if gen.calls == 0 {
-		t.Fatal("the dispatcher never generated; the scheduled call site was not exercised")
-	}
-	return gen.gotActor
+	return gen.gotActor, gen.calls
 }
