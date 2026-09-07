@@ -3637,9 +3637,12 @@ paths:
         that day, counting each host once. hosts counts every host with
         a snapshot that day, so the two differ whenever a host could not
         be assessed; such a host is omitted from the average rather than
-        averaged in as zero. A day on which no host produced a score is
-        omitted from the array entirely, because score_pct cannot
-        express that absence.
+        averaged in as zero. A day on which no host produced a score
+        still appears, carrying score_pct: null with its host counts and
+        formula_status, so a client can say WHY there is no number
+        instead of showing a gap. That day used to be dropped from the
+        array, because score_pct could not express absence; it is
+        nullable now, so it can.
         Spec api-compliance-trend.
       parameters:
         - name: days

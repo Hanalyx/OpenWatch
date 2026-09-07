@@ -145,10 +145,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   them until the scan engine can report it, but the field is there now, so
   adding that later does not reshape the API again.
 - **Every compliance score on the API can now be empty.** `score_pct` on the
-  host compliance summary, the per-framework chips, the daily trend, and the
-  hosts list, and `avg_score_pct` on the fleet trend, are all nullable. Empty
-  means no rule produced a verdict; 0 means every evaluated rule failed. **If
-  you read any of these, handle null.**
+  host compliance summary, the per-framework chips, the daily trend, the hosts
+  list and the fleet trend is nullable. Empty means no rule produced a verdict;
+  0 means every evaluated rule failed. **If you read any of these, handle
+  null.**
 - Trend days now carry `formula_status` and `formula_version`, and **a day whose
   snapshot has no score is returned rather than omitted**, so an unassessable
   day is visible and explained instead of looking like a day with no data.

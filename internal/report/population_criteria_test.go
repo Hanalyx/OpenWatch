@@ -697,7 +697,7 @@ func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
 				"artifact records what was true when it was signed, and the current "+
 				"deletion state of a host is not part of that record", wantAfter)
 		}
-		if !exp.Bool("rendered_bytes_identical") || !exp.Bool("identical_after_deletion") {
+		if !exp.Bool("rendered_content_identical") || !exp.Bool("identical_after_deletion") {
 			t.Fatal("fixture must require identical rendered output")
 		}
 		if before != after {

@@ -21,7 +21,7 @@
 --                    pre-migration row used passing over total. Its CORPUS
 --                    semantics are not. Migration 0060 changed which rules a
 --                    score counts, and nothing recorded which corpus produced
---                    any given historical row. Labelling those rows with a
+--                    any given historical row. Labeling those rows with a
 --                    formula version would imply they are comparable to
 --                    version-2 rows on the same axis, and they are not: the
 --                    formula is only half of what makes two scores comparable.
@@ -135,7 +135,7 @@ BEGIN
                      OR corpus_digest IS NOT NULL)
                 AND (corpus_identity_status IS DISTINCT FROM 'unavailable'
                      OR (corpus_digest IS NULL AND corpus_version IS NULL))
-                -- a null status is not a licence to carry values. A row with no
+                -- a null status is not a license to carry values. A row with no
                 -- status and a digest is a half-claim: it asserts a corpus while
                 -- refusing to say whether the identity is known.
                 AND (corpus_identity_status IS NOT NULL

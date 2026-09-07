@@ -146,7 +146,7 @@ func syntheticFixture(t *testing.T, form, recv, forbidden, method string) string
 
 // @spec system-compliance-scoring
 // @ac AC-04
-// AC-04: absence is representable in the type, not signalled by a sentinel
+// AC-04: absence is representable in the type, not signaled by a sentinel
 // number. An exported accessor returning a bare forbidden type fails, in any
 // declaration form.
 func TestSourceGuard_NoBareResultAccessor(t *testing.T) {

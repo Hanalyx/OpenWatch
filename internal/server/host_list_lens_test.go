@@ -20,7 +20,7 @@ import (
 //
 // The query already resolved it per host, including overrides. The mapper used
 // to re-derive a single lens from the caller's variables, so a host filtered by
-// its own stig target came back labelled all_rules. Two hosts in one response,
+// its own stig target came back labeled all_rules. Two hosts in one response,
 // one with an override and one without, is the only shape that catches it: with
 // one host the wrong answer and the right answer can coincide.
 func TestHostList_EnvelopeNamesTheHostsOwnLens(t *testing.T) {
@@ -74,7 +74,7 @@ func TestHostList_EnvelopeNamesTheHostsOwnLens(t *testing.T) {
 		plainFix.AllConsumed()
 
 		// No request lens and no org default, which is exactly the case the old
-		// mapper labelled all_rules for everyone.
+		// mapper labeled all_rules for everyone.
 		if q := in.Str("request_lens"); q != "" {
 			t.Fatalf("fixture sets a request lens %q; this criterion is about the defaulted path", q)
 		}

@@ -1071,9 +1071,16 @@ spec:
         recomputed. Generation is the presence or absence of the provenance
         key, as AC-38 requires.
 
-        Asserted on the RENDERED BYTES. Comparing a value returned by the
-        recomputation helper leaves the rendering call site free to pass a
-        different population, which is the defect this criterion exists for.
+        Asserted on the RENDERED CONTENT: the visible text the PDF face draws,
+        recovered by inflating its content streams. Comparing a value returned
+        by the recomputation helper leaves the rendering call site free to pass
+        a different population, which is the defect this criterion exists for,
+        so the observable has to come from the rendered artifact.
+
+        Not the raw bytes. The PDF writer stamps CreationDate and ModDate, so
+        two renders of identical content differ and a byte comparison would
+        fail on correct code. The drawn text is the thing a reader actually
+        sees, and it is stable.
       priority: critical
       references_constraints: [C-11]
       inputs:
@@ -1091,6 +1098,6 @@ spec:
         hosts_total_before: 2
         hosts_total_after: 2
         identical_after_deletion: true
-        rendered_bytes_identical: true
+        rendered_content_identical: true
         current_zero_outcome_uses_frozen_rollup: true
         current_zero_outcome_recomputed: false

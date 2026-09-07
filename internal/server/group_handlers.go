@@ -35,7 +35,7 @@ func groupScoreWire(score fleetrollup.Score) (api.AggregateScore, error) {
 	env, err := aggregateEnvelope(&lens, score.Engines, score.HostsWithoutEngine, score.HostsScored)
 	if err != nil {
 		// The error propagates. Substituting a read-model envelope would still
-		// publish the score while labelling it not_applicable and emitting
+		// publish the score while labeling it not_applicable and emitting
 		// empty strings where a lens, an aggregation method and an engine
 		// version belong. That downgrades a score-bearing response into a
 		// different artifact class to hide a provenance failure, which is worse
