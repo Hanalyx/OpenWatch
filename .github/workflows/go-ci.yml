@@ -196,8 +196,12 @@ jobs:
       # stale when the bits change, an unreadable checksum list fails closed,
       # and an agent cannot satisfy a gate that requires a human observer.
       # Stdlib only and no network, so this runs unconditionally and fast.
+      # -S disables site packages. The checker is standard library only by
+      # design (see release-status.py's header), and this runner happens to
+      # have PyYAML installed, so without -S an accidental third-party import
+      # would pass here and fail on a runner that does not.
       - name: release gate checker tests
-        run: python3 scripts/test_release_status.py
+        run: python3 -S scripts/test_release_status.py
 
       # Annotation hygiene: cross-reference every test's @spec / @ac
       # annotation against the spec registry and fail on a dangling spec

@@ -9,6 +9,7 @@ import { expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { loadCriterion, trackFixture } from '../support/spec-fixture';
+import type { components } from '@/api/schema';
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
@@ -35,36 +36,76 @@ import { HostsListPage } from '@/pages/HostsListPage';
 /** A host row carrying the pass/fail counts a local mean would be built from. */
 type FixtureHost = { id: string; hostname: string; rules_passed: number; rules_failed: number };
 
+type Schemas = components['schemas'];
+
+/**
+ * ENVELOPE is the smallest valid ScoreEnvelope, typed against the generated
+ * contract so a field the API adds or renames breaks the build here.
+ */
+const ENVELOPE = {
+  lens: 'all_rules',
+  formula_version: 2,
+  aggregation_method: 'none',
+  engine_version: null,
+  engine_identity_status: 'unavailable',
+  engines: [],
+  hosts_without_engine_identity: 0,
+  corpus_identity_status: 'unavailable',
+  corpora: [],
+  hosts_without_corpus_identity: 0,
+  corpus_version: null,
+  corpus_digest: null,
+} satisfies Schemas['ScoreEnvelope'];
+
+/**
+ * hostRow builds ONE list item against the generated schema.
+ *
+ * The earlier version of this fixture was an untyped object literal carrying
+ * `passed` and `failed`. The contract's fields are `passing` and `failing`, so
+ * those two keys reached nothing: the tempting per-host data the criterion
+ * depends on was half absent and the test could not say so. `satisfies` makes
+ * the compiler check it, which is the only thing that catches a field name the
+ * page does not read.
+ */
+function hostRow(h: FixtureHost) {
+  const total = h.rules_passed + h.rules_failed;
+  return {
+    id: h.id,
+    hostname: h.hostname,
+    ip_address: '10.0.0.1',
+    port: 22,
+    environment: 'production',
+    last_scan_at: new Date().toISOString(),
+    liveness: { reachability_status: 'reachable', monitoring_state: 'online' },
+    os_family: 'rhel',
+    os_version: '9.4',
+    // The tempting data. A page computing its own fleet mean would average
+    // these and print a number.
+    compliance_summary: {
+      passing: h.rules_passed,
+      failing: h.rules_failed,
+      skipped: 0,
+      error: 0,
+      total,
+      critical_failing: 0,
+      score_pct: Math.round((h.rules_passed / total) * 1000) / 10,
+      coverage_status: 'available',
+      coverage_pct: 100,
+      envelope: ENVELOPE,
+    },
+  } satisfies Schemas['HostListItem'];
+}
+
 /**
  * routes answers every query the page makes. Only /fleet/score varies between
  * cases; everything else is fixed, so a difference on screen can only come
  * from the score.
  */
 function routes(hosts: FixtureHost[], scorePct: number | null) {
+  const hostList = { hosts: hosts.map(hostRow) } satisfies Schemas['HostListResponse'];
   return (url: string) => {
     if (url === '/api/v1/hosts') {
-      return {
-        data: {
-          hosts: hosts.map((h) => ({
-            id: h.id,
-            hostname: h.hostname,
-            ip_address: '10.0.0.1',
-            operating_system: 'RHEL 9',
-            last_scan_at: new Date().toISOString(),
-            liveness: { reachability_status: 'reachable', monitoring_state: 'online' },
-            // The tempting data. A page computing its own fleet mean would
-            // average these and print a number.
-            compliance_summary: {
-              total: h.rules_passed + h.rules_failed,
-              passed: h.rules_passed,
-              failed: h.rules_failed,
-              score_pct: (h.rules_passed / (h.rules_passed + h.rules_failed)) * 100,
-            },
-          })),
-        },
-        error: undefined,
-        response: { ok: true, status: 200 },
-      };
+      return { data: hostList, error: undefined, response: { ok: true, status: 200 } };
     }
     if (url === '/api/v1/fleet/score') {
       return {
@@ -75,7 +116,7 @@ function routes(hosts: FixtureHost[], scorePct: number | null) {
     }
     if (url === '/api/v1/fleet/scan-queue') {
       return {
-        data: { queued: 0, running: 0 },
+        data: { queued: 0, running: 0 } satisfies Schemas['FleetScanQueue'],
         error: undefined,
         response: { ok: true, status: 200 },
       };

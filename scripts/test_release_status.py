@@ -18,6 +18,9 @@ directly with the inputs those functions would have returned.
 """
 
 import importlib.util
+import os
+import re
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -191,6 +194,168 @@ class PlatformCheckWiring(unittest.TestCase):
                         f"{check!r} names a distro the matrix does not run")
 
 
+# --------------------------------------------------------------- spec reader
+#
+# The specs are YAML, and this checker has no dependencies by design: see the
+# header of release-status.py, which reads TOML with the stdlib tomllib rather
+# than pulling in PyYAML. CI installs no Python packages, so an import of a
+# third-party module here fails the Quality gates job on a machine that has it
+# and passes on a developer's laptop that does not.
+#
+# Only two facts are needed, and the spec files have one controlled shape, so a
+# structural reader is enough. It is deliberately NOT a YAML parser: it tracks
+# indentation and the current top-level section instead of matching `id:`
+# wherever it appears, because fixture cases inside a criterion carry their own
+# ids and a regex over the whole file would collect those too.
+#
+#   spec:                     column 0
+#     id: <spec id>           column 2, the ROOT id, exactly one per file
+#     acceptance_criteria:    column 2, a section name
+#       - id: AC-NN           column 4 dash item, only inside that section
+#         inputs:
+#           cases:
+#             - id: whatever  column 10, a fixture case, NOT a criterion
+
+SPEC_ROOT_ID = re.compile(r"^  id:\s*(\S+)\s*$")
+SPEC_SECTION = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_]*):")
+SPEC_LIST_ID = re.compile(r"^    - id:\s*(\S+)\s*$")
+
+
+def _unquote(v):
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+        return v[1:-1]
+    return v
+
+
+def read_one_spec(path):
+    """Return (spec_id, [ac ids]) for one spec file, or raise ValueError."""
+    spec_id, section, acs = None, None, []
+    for n, line in enumerate(path.read_text().split("\n"), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = SPEC_ROOT_ID.match(line)
+        if m:
+            if spec_id is not None:
+                raise ValueError(f"{path}:{n}: a second root id")
+            spec_id = _unquote(m.group(1))
+            continue
+        m = SPEC_SECTION.match(line)
+        if m:
+            section = m.group(1)
+            continue
+        m = SPEC_LIST_ID.match(line)
+        if m and section == "acceptance_criteria":
+            ac = _unquote(m.group(1))
+            if ac in acs:
+                raise ValueError(f"{path}:{n}: duplicate criterion {ac}")
+            acs.append(ac)
+    if spec_id is None:
+        raise ValueError(f"{path}: no readable spec.id")
+    return spec_id, acs
+
+
+def read_spec_registry(root=None):
+    """Map every tracked spec id to the set of its criterion ids."""
+    root = root or (rs.REPO / "specs")
+    out = {}
+    for f in sorted(root.rglob("*.spec.yaml")):
+        spec_id, acs = read_one_spec(f)
+        if spec_id in out:
+            raise ValueError(f"duplicate spec id {spec_id!r} at {f}")
+        out[spec_id] = set(acs)
+    return out
+
+
+TEST_SPEC_ANNOTATION = re.compile(r"^// @spec (\S+)", re.M)
+TEST_AC_ANNOTATION = re.compile(r"^\s*// @ac (AC-\d+)", re.M)
+
+
+def read_test_annotations():
+    """Map each annotated spec id to the criterion ids some test claims."""
+    out = {}
+    for root in (rs.REPO / "frontend" / "tests", rs.REPO / "internal"):
+        for f in root.rglob("*"):
+            if f.suffix not in (".ts", ".tsx", ".go") or not f.is_file():
+                continue
+            text = f.read_text(errors="ignore")
+            m = TEST_SPEC_ANNOTATION.search(text)
+            if not m:
+                continue
+            out.setdefault(m.group(1), set()).update(TEST_AC_ANNOTATION.findall(text))
+    return out
+
+
+class SpecReaderIsStructural(unittest.TestCase):
+    """The reader must key on structure, not on the word `id` appearing."""
+
+    def _read(self, body):
+        import tempfile, pathlib
+        d = pathlib.Path(tempfile.mkdtemp())
+        f = d / "x.spec.yaml"
+        f.write_text(body)
+        return f
+
+    def test_a_fixture_case_id_is_not_a_criterion(self):
+        f = self._read(
+            "spec:\n  id: demo\n  acceptance_criteria:\n    - id: AC-01\n"
+            "      inputs:\n        cases:\n          - id: not_a_criterion\n"
+        )
+        self.assertEqual(read_one_spec(f), ("demo", ["AC-01"]))
+
+    def test_a_list_id_outside_the_criteria_section_is_ignored(self):
+        f = self._read(
+            "spec:\n  id: demo\n  constraints:\n    - id: C-01\n"
+            "  acceptance_criteria:\n    - id: AC-01\n"
+        )
+        self.assertEqual(read_one_spec(f), ("demo", ["AC-01"]))
+
+    def test_a_spec_with_no_root_id_is_an_error(self):
+        f = self._read("spec:\n  title: nothing\n")
+        with self.assertRaises(ValueError):
+            read_one_spec(f)
+
+    def test_a_duplicate_criterion_id_is_an_error(self):
+        f = self._read(
+            "spec:\n  id: demo\n  acceptance_criteria:\n    - id: AC-01\n    - id: AC-01\n"
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate criterion AC-01"):
+            read_one_spec(f)
+
+    def test_a_duplicate_spec_id_is_an_error(self):
+        import tempfile, pathlib
+        d = pathlib.Path(tempfile.mkdtemp())
+        for name in ("a", "b"):
+            (d / f"{name}.spec.yaml").write_text(
+                "spec:\n  id: same\n  acceptance_criteria:\n    - id: AC-01\n")
+        with self.assertRaisesRegex(ValueError, "duplicate spec id"):
+            read_spec_registry(d)
+
+    def test_the_registry_reads_the_shipped_specs(self):
+        specs = read_spec_registry()
+        self.assertGreater(len(specs), 100, "the shipped spec tree should be large")
+        self.assertIn("AC-31", specs["system-compliance-scoring"])
+
+
+class CheckerRunsWithoutSitePackages(unittest.TestCase):
+    """This suite must run with site packages disabled.
+
+    CI installs no Python dependencies and release-status.py says so in its
+    own header. An import of a third-party module passes on a laptop that has
+    it and fails the Quality gates job, which is the worst way to find out.
+    Running the shipped file under `python3 -S` makes the boundary executable
+    rather than a comment.
+    """
+
+    def test_the_suite_passes_under_dash_S(self):
+        if os.environ.get("OW_RELEASE_STATUS_NO_SITE") == "1":
+            self.skipTest("already the -S child; do not recurse")
+        env = dict(os.environ, OW_RELEASE_STATUS_NO_SITE="1")
+        r = subprocess.run([sys.executable, "-S", __file__],
+                           capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0,
+                         f"the suite fails without site packages:\n{r.stderr[-3000:]}")
+
+
 class ManifestIsLoadable(unittest.TestCase):
     """The shipped manifest must parse and reference only known evidence
     kinds, so a typo in gates.toml surfaces here rather than as a gate that
@@ -226,11 +391,7 @@ class ManifestIsLoadable(unittest.TestCase):
         would leave the gate reading like evidence while pointing at nothing,
         which is the same failure mode the gates file exists to prevent.
         """
-        import yaml
-        specs = {}
-        for f in (rs.REPO / "specs").rglob("*.spec.yaml"):
-            doc = yaml.safe_load(f.read_text())["spec"]
-            specs[doc["id"]] = {c["id"] for c in doc.get("acceptance_criteria", [])}
+        specs = read_spec_registry()
         cited = [g for g in self.gates["gate"] if "spec" in g or "ac" in g]
         self.assertTrue(cited, "no gate cites a spec; this test would prove nothing")
         for g in cited:
@@ -248,19 +409,7 @@ class ManifestIsLoadable(unittest.TestCase):
         enough: the gate claims the check run proves the behavior, so a test
         has to claim the criterion.
         """
-        import re
-        annotated = {}
-        roots = [rs.REPO / "frontend" / "tests", rs.REPO / "internal"]
-        for root in roots:
-            for f in root.rglob("*"):
-                if f.suffix not in (".ts", ".tsx", ".go") or not f.is_file():
-                    continue
-                text = f.read_text(errors="ignore")
-                m = re.search(r"^// @spec (\S+)", text, re.M)
-                if not m:
-                    continue
-                annotated.setdefault(m.group(1), set()).update(
-                    re.findall(r"^\s*// @ac (AC-\d+)", text, re.M))
+        annotated = read_test_annotations()
         for g in self.gates["gate"]:
             if "spec" not in g:
                 continue
