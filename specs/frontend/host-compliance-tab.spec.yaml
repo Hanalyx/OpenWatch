@@ -198,13 +198,20 @@ spec:
         cases:
           - {id: all_skipped, passing: 0, failing: 0, skipped: 40, error: 0, score_pct: null,
              coverage_status: unavailable_unclassified_skips, renders: 'No score', forbids: '0%'}
+          # Five failing outcomes, nothing skipped and nothing errored, so every
+          # in-scope rule produced a verdict and coverage is 100.0. The score is
+          # 0 because all five verdicts were failures: coverage says how much
+          # ran, the score says how it came out, and they move independently.
           - {id: genuine_zero, passing: 0, failing: 5, skipped: 0, error: 0, score_pct: 0,
-             coverage_status: available, coverage_pct: 83.3, renders: '0%', forbids: 'No score'}
+             coverage_status: available, coverage_pct: 100.0, renders: '0%', forbids: 'No score'}
           - {id: no_outcomes, passing: 0, failing: 0, skipped: 0, error: 0, score_pct: null,
              coverage_status: unavailable_no_outcomes, renders: 'No score', forbids: '0%'}
-          # Nonzero error, so the error count is proven preserved and the
-          # error-language rule is exercised rather than assumed. An errored
-          # rule produced no verdict either, so this case still has no score.
+          # Nonzero error, so the error count is proven preserved and the Error
+          # legend row is exercised rather than assumed: it renders only when
+          # errors exist. This case DOES have a score, 60, from its three
+          # passing and two failing verdicts. The four skipped and six errored
+          # outcomes stay outside the score denominator, which is why coverage
+          # is withheld here while the score is not.
           - {id: mixed_with_errors, passing: 3, failing: 2, skipped: 4, error: 6, score_pct: 60,
              coverage_status: unavailable_unclassified_skips, renders: '60%', forbids: 'No score'}
         forbidden_copy: ['null%', 'not applicable', 'N/A', 'rules evaluated']

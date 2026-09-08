@@ -572,6 +572,21 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
     const forbids = c.get<string>('forbids');
     c.allConsumed();
 
+    // The fixture must describe a response the SERVER could actually send.
+    // A render test cannot catch an impossible one, because the value drives
+    // both the mock and the expectation: genuine_zero once carried
+    // coverage_pct 83.3 while its own counts give 100.0, and every assertion
+    // still passed. Coverage is executed over in-scope, where in-scope is
+    // pass + fail + error (system-compliance-scoring C-07).
+    if (coverageStatus === 'available') {
+      const inScope = counts.passing + counts.failing + counts.error;
+      const executed = counts.passing + counts.failing;
+      const computed = Math.round((executed / inScope) * 1000) / 10;
+      expect(coveragePct, `${id}: coverage_pct must match its own counts`).toBe(computed);
+    } else {
+      expect(coveragePct, `${id}: an unavailable status carries no percentage`).toBeUndefined();
+    }
+
     const summary = summaryFor({
       ...counts,
       score_pct: scorePct,
@@ -607,11 +622,18 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
 
     // Coverage: a percentage only when the contract says available, and a
     // stated reason when it does not.
+    //
+    // Compared EXACTLY against the expectation rather than used as an if.
+    // Guarding the assertion on the boolean meant flipping the expectation to
+    // false disabled the check instead of failing it, so the two
+    // expected_output flags asserted nothing.
     if (coverageStatus === 'available') {
-      if (showsPct) expect(text, `${id}: coverage percentage`).toContain(`${coveragePct}%`);
-    } else if (showsReason) {
-      expect(text, `${id}: coverage unavailable`).toContain('Assessment coverage unavailable');
-      expect(text, `${id}: coverage reason`).toMatch(reasonPattern);
+      const gotPct = text.includes(`${coveragePct}%`);
+      expect(gotPct, `${id}: coverage percentage shown`).toBe(showsPct);
+    } else {
+      const gotReason =
+        text.includes('Assessment coverage unavailable') && reasonPattern.test(text);
+      expect(gotReason, `${id}: coverage unavailable with a stated reason`).toBe(showsReason);
     }
 
     // ALL FOUR raw counts survive whatever the score does, asserted PER ROW.
