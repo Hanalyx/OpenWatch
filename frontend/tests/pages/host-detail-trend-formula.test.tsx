@@ -6,11 +6,9 @@
 
 import type React from 'react';
 import { expect, test, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import yaml from 'js-yaml';
+import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixture';
 
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock } }));
@@ -22,39 +20,13 @@ vi.mock('@tanstack/react-router', () => ({
 
 import { CardComplianceTrend } from '@/pages/HostDetailPage';
 
-type AnyRec = Record<string, unknown>;
-
-function tracked(obj: AnyRec, label: string) {
-  const seen = new Set<string>();
-  return {
-    get<T>(key: string): T {
-      if (!(key in obj)) throw new Error(`${label}: fixture has no key ${key}`);
-      seen.add(key);
-      return obj[key] as T;
-    },
-    allConsumed() {
-      const missed = Object.keys(obj).filter((k) => !seen.has(k));
-      expect(missed, `${label}: fixture keys never asserted`).toEqual([]);
-    },
-  };
-}
-
-function loadAC47() {
-  const doc = yaml.load(
-    readFileSync(resolve(process.cwd(), '../specs/frontend/host-detail.spec.yaml'), 'utf8'),
-  ) as { spec: { acceptance_criteria: AnyRec[] } };
-  const ac = doc.spec.acceptance_criteria.find((a) => a.id === 'AC-47');
-  if (!ac) throw new Error('AC-47 not found in frontend-host-detail');
-  return { inputs: ac.inputs as AnyRec, expected: ac.expected_output as AnyRec };
-}
-
 // @ac AC-47
 // AC-47: a delta needs two distinct scored days sharing a formula, and every
 // impossible case names its own reason.
 test('frontend-host-detail/AC-47 — trend delta never compares what it cannot', async () => {
-  const { inputs, expected } = loadAC47();
-  const inp = tracked(inputs, 'AC-47 inputs');
-  const exp = tracked(expected, 'AC-47 expected_output');
+  const { inputs, expected } = loadCriterion('host-detail', 'frontend-host-detail', 'AC-47');
+  const inp = trackFixture(inputs, 'AC-47 inputs');
+  const exp = trackFixture(expected, 'AC-47 expected_output');
 
   const cases = inp.get<AnyRec[]>('cases');
   const forbidden = inp.get<string[]>('forbidden_when_incomparable');
@@ -69,7 +41,7 @@ test('frontend-host-detail/AC-47 — trend delta never compares what it cannot',
 
   let forbiddenHits = 0;
   for (const raw of cases) {
-    const c = tracked(raw, `AC-47 case ${String(raw.id)}`);
+    const c = trackFixture(raw, `AC-47 case ${String(raw.id)}`);
     const id = c.get<string>('id');
     const days = c.get<AnyRec[]>('days');
     const wantCaption = c.get<string>('expect_caption');
@@ -77,7 +49,7 @@ test('frontend-host-detail/AC-47 — trend delta never compares what it cannot',
     c.allConsumed();
 
     const payload = days.map((d) => {
-      const day = tracked(d, `AC-47 case ${id} day`);
+      const day = trackFixture(d, `AC-47 case ${id} day`);
       const out = {
         date: day.get<string>('date'),
         score_pct: day.get<number | null>('score_pct'),

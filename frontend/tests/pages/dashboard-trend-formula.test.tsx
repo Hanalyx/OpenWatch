@@ -7,11 +7,9 @@
 
 import type React from 'react';
 import { expect, test, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import yaml from 'js-yaml';
+import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixture';
 
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock } }));
@@ -24,32 +22,6 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/api/useDefaultLens', () => ({ useDefaultLens: () => ({ lens: '' }) }));
 
 import { WidgetComplianceTrend } from '@/pages/dashboard/widgets';
-
-type AnyRec = Record<string, unknown>;
-
-function tracked(obj: AnyRec, label: string) {
-  const seen = new Set<string>();
-  return {
-    get<T>(key: string): T {
-      if (!(key in obj)) throw new Error(`${label}: fixture has no key ${key}`);
-      seen.add(key);
-      return obj[key] as T;
-    },
-    allConsumed() {
-      const missed = Object.keys(obj).filter((k) => !seen.has(k));
-      expect(missed, `${label}: fixture keys never asserted`).toEqual([]);
-    },
-  };
-}
-
-function loadAC07() {
-  const doc = yaml.load(
-    readFileSync(resolve(process.cwd(), '../specs/frontend/dashboard.spec.yaml'), 'utf8'),
-  ) as { spec: { acceptance_criteria: AnyRec[] } };
-  const ac = doc.spec.acceptance_criteria.find((a) => a.id === 'AC-07');
-  if (!ac) throw new Error('AC-07 not found in frontend-dashboard');
-  return { inputs: ac.inputs as AnyRec, expected: ac.expected_output as AnyRec };
-}
 
 function dayPayload(d: AnyRec) {
   return {
@@ -80,9 +52,9 @@ function renderTrend() {
 // the fixture. Same-formula and cross-formula cases are both present, so an
 // implementation that disables every comparison fails the same-formula ones.
 test('frontend-dashboard/AC-07 — no direction, color or delta across a formula boundary', async () => {
-  const { inputs, expected } = loadAC07();
-  const inp = tracked(inputs, 'AC-07 inputs');
-  const exp = tracked(expected, 'AC-07 expected_output');
+  const { inputs, expected } = loadCriterion('dashboard', 'frontend-dashboard', 'AC-07');
+  const inp = trackFixture(inputs, 'AC-07 inputs');
+  const exp = trackFixture(expected, 'AC-07 expected_output');
 
   const cases = inp.get<AnyRec[]>('cases');
   const forbidden = inp.get<string[]>('forbidden_when_incomparable');
@@ -108,7 +80,7 @@ test('frontend-dashboard/AC-07 — no direction, color or delta across a formula
 
   let forbiddenHits = 0;
   for (const raw of cases) {
-    const c = tracked(raw, `AC-07 case ${String(raw.id)}`);
+    const c = trackFixture(raw, `AC-07 case ${String(raw.id)}`);
     const id = c.get<string>('id');
     const days = c.get<AnyRec[]>('days');
     const wantDirection = c.get<string>('expect_direction');
@@ -119,7 +91,7 @@ test('frontend-dashboard/AC-07 — no direction, color or delta across a formula
 
     // Every nested day object is consumed too, so an unread field there fails.
     const payload = days.map((d) => {
-      const day = tracked(d, `AC-07 case ${id} day`);
+      const day = trackFixture(d, `AC-07 case ${id} day`);
       const out = dayPayload({
         date: day.get<string>('date'),
         score_pct: day.get<number | null>('score_pct'),

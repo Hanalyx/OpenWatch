@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixture';
 
 const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock, POST: postMock } }));
@@ -478,40 +479,6 @@ describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
 // would let the spec drift without anything noticing.
 // ─────────────────────────────────────────────────────────────────────────
 
-import yaml from 'js-yaml';
-
-type AnyRec = Record<string, unknown>;
-
-// tracked wraps a fixture object and records which keys were read, so an
-// unconsumed field fails rather than sitting decoratively in the YAML.
-function tracked(obj: AnyRec, label: string) {
-  const seen = new Set<string>();
-  return {
-    get<T>(key: string): T {
-      if (!(key in obj)) throw new Error(`${label}: fixture has no key ${key}`);
-      seen.add(key);
-      return obj[key] as T;
-    },
-    has(key: string) {
-      seen.add(key);
-      return key in obj;
-    },
-    allConsumed() {
-      const missed = Object.keys(obj).filter((k) => !seen.has(k));
-      expect(missed, `${label}: fixture keys never asserted`).toEqual([]);
-    },
-  };
-}
-
-function loadAC11() {
-  const doc = yaml.load(
-    readFileSync(resolve(process.cwd(), '../specs/frontend/host-compliance-tab.spec.yaml'), 'utf8'),
-  ) as { spec: { acceptance_criteria: AnyRec[] } };
-  const ac = doc.spec.acceptance_criteria.find((a) => a.id === 'AC-11');
-  if (!ac) throw new Error('AC-11 not found in frontend-host-compliance-tab');
-  return { inputs: ac.inputs as AnyRec, expected: ac.expected_output as AnyRec };
-}
-
 // summaryFor builds a contract-shaped summary for one fixture case.
 function summaryFor(c: {
   passing: number;
@@ -538,9 +505,13 @@ function summaryFor(c: {
 // AC-11: a completed all-skipped scan and a genuine zero appear in the same
 // fixture, so neither a hardcoded null nor a hardcoded zero survives.
 test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverage is honest, no "not applicable"', async () => {
-  const { inputs, expected } = loadAC11();
-  const inp = tracked(inputs, 'AC-11 inputs');
-  const exp = tracked(expected, 'AC-11 expected_output');
+  const { inputs, expected } = loadCriterion(
+    'host-compliance-tab',
+    'frontend-host-compliance-tab',
+    'AC-11',
+  );
+  const inp = trackFixture(inputs, 'AC-11 inputs');
+  const exp = trackFixture(expected, 'AC-11 expected_output');
 
   const cases = inp.get<AnyRec[]>('cases');
   const forbidden = inp.get<string[]>('forbidden_copy');
@@ -557,7 +528,7 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
 
   const rendered: string[] = [];
   for (const raw of cases) {
-    const c = tracked(raw, `AC-11 case ${String(raw.id)}`);
+    const c = trackFixture(raw, `AC-11 case ${String(raw.id)}`);
     const id = c.get<string>('id');
     const counts = {
       passing: c.get<number>('passing'),
