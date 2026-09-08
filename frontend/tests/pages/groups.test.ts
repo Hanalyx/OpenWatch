@@ -85,17 +85,17 @@ describe('frontend-groups — source inspection', () => {
     // Empty sections render an explicit empty string, not a blank grid.
     expect(SRC).toContain('groups.length === 0');
     expect(SRC).toContain('emptyText');
-    // No prose copy carries an em-dash. The only '—' occurrences are the
-    // shared single-glyph no-data value placeholder (avg compliance with
-    // nothing scanned), which is not prose copy: assert every '—' sits in
-    // a `== null ? '—'` placeholder ternary.
+    // No prose copy carries an em-dash, and no score renders as one either.
+    //
+    // The page used a bare '—' as the no-data value for an absent score. It
+    // now says "No score", which names the state instead of leaving a glyph
+    // the reader has to interpret, so the placeholder ternaries are gone.
     const emDashes = SRC.match(/—/g) ?? [];
     const placeholders = SRC.match(/== null \? '—'/g) ?? [];
-    // GroupsPage has one em-dash in a leading code comment (exempt) plus
-    // the two placeholder ternaries. Assert no em-dash appears inside a
-    // JSX/string literal other than the value-placeholder ternary.
-    expect(placeholders.length).toBe(2);
-    // Comment line + 2 placeholders = 3 total; nothing else.
-    expect(emDashes.length).toBe(3);
+    expect(placeholders.length, 'no em-dash score placeholders remain').toBe(0);
+    // Only the file's leading code comment, which is exempt.
+    expect(emDashes.length, 'em-dashes outside the header comment').toBe(1);
+    // And the absent score names itself.
+    expect(SRC).toContain("'No score'");
   });
 });

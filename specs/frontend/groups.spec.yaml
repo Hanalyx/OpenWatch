@@ -1,7 +1,7 @@
 spec:
   id: frontend-groups
   title: Groups page - fleet KPIs, Sites and OS-category cards, maintenance toggle, create
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -138,3 +138,48 @@ spec:
         prose copy).
       priority: high
       references_constraints: [C-03]
+    - id: AC-06
+      description: >-
+        v1.2.0 - the groups surface consumes the shared server aggregate and
+        invents nothing. score_pct is rendered as sent; a null renders an
+        explicit no-score state and NEVER 0%, null%, or a red tone. Colouring
+        an absent score critical is the OW-023 defect in the UI: a group
+        nobody could measure was painted the same as a group that failed
+        everything, and complianceTone returned the critical token for null.
+
+        Participation is stated in full: hosts_scored, hosts_without_score and
+        hosts_total all come from the aggregate, so a mean over 2 of 200 hosts
+        cannot read like a mean over 200. Coverage comes from the aggregate
+        too, in the three contract states, and no percentage is shown for
+        either unavailable one.
+
+        No browser-side score, mean, denominator or fallback arithmetic exists
+        on this page.
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        cases:
+          - {id: scored, score_pct: 72.5, hosts_scored: 8, hosts_without_score: 2, hosts_total: 10,
+             coverage_status: available, coverage_pct: 91.4,
+             expect_value: '72.5%', expect_tone: 'var(--ow-warn)',
+             expect_participation: '8 of 10 hosts scored', expect_coverage: '91.4%'}
+          - {id: genuine_zero, score_pct: 0, hosts_scored: 3, hosts_without_score: 0, hosts_total: 3,
+             coverage_status: available, coverage_pct: 100.0,
+             expect_value: '0%', expect_tone: 'var(--ow-crit)',
+             expect_participation: '3 of 3 hosts scored', expect_coverage: '100%'}
+          - {id: no_score, score_pct: null, hosts_scored: 0, hosts_without_score: 10, hosts_total: 10,
+             coverage_status: unavailable_unclassified_skips, coverage_pct: null,
+             expect_value: 'No score', expect_tone: 'var(--ow-fg-3)',
+             expect_participation: 'no host scored of 10', expect_coverage: 'Coverage unavailable'}
+          - {id: no_outcomes, score_pct: null, hosts_scored: 0, hosts_without_score: 4, hosts_total: 4,
+             coverage_status: unavailable_no_outcomes, coverage_pct: null,
+             expect_value: 'No score', expect_tone: 'var(--ow-fg-3)',
+             expect_participation: 'no host scored of 4', expect_coverage: 'Coverage unavailable'}
+        forbidden_copy: ['null%', 'NaN']
+        critical_tone_token: 'var(--ow-crit)'
+      expected_output:
+        every_case_matches_its_expected_value: true
+        every_case_matches_its_expected_tone: true
+        every_case_states_participation: true
+        every_case_states_coverage: true
+        forbidden_copy_occurrences: 0

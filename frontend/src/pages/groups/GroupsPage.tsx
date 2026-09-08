@@ -47,10 +47,24 @@ function swatchColor(key: string): string {
 
 // Compliance band -> tone color. null (nothing scanned) reads as crit.
 function complianceTone(pct: number | null | undefined): string {
-  if (pct == null) return 'var(--ow-crit)';
+  // An ABSENT score is neutral, not critical. Returning the critical token
+  // for null painted a group nobody could measure exactly like a group that
+  // failed everything, which is bugs/OW-023 rendered in CSS: a measurement
+  // gap presented as the worst possible result. Zero still earns critical,
+  // because zero is a verdict.
+  if (pct == null) return 'var(--ow-fg-3)';
   if (pct < 40) return 'var(--ow-crit)';
   if (pct < 80) return 'var(--ow-warn)';
   return 'var(--ow-ok)';
+}
+
+// coverageLabel renders assessment coverage from the aggregate, in the three
+// contract states, inventing no number for the two that have none.
+function coverageLabel(score: { coverage_status?: string; coverage_pct?: number | null }): string {
+  if (score.coverage_status === 'available' && score.coverage_pct != null) {
+    return `${score.coverage_pct}% coverage`;
+  }
+  return 'Coverage unavailable';
 }
 
 function statusDotColor(status: string): string {
@@ -155,7 +169,9 @@ export function GroupsPage() {
 
 // ── KPI row ────────────────────────────────────────────────────────
 
-function KpiRow({ summary }: { summary: GroupSummary }) {
+// Exported so the contract test renders the PRODUCTION KPI row. GroupsPage
+// renders this same function.
+export function KpiRow({ summary }: { summary: GroupSummary }) {
   // The score comes as a one-decimal number with its population. It used to be
   // a whole integer with neither, so a group of ten hosts where two were scored
   // showed the same "72%" as one where all ten were.
@@ -182,12 +198,12 @@ function KpiRow({ summary }: { summary: GroupSummary }) {
       />
       <Kpi
         label="Avg compliance"
-        value={avg == null ? '—' : `${avg}%`}
-        sub={
+        value={avg == null ? 'No score' : `${avg}%`}
+        sub={`${
           avg == null
             ? `no host scored of ${summary.score.hosts_total}`
             : `${summary.score.hosts_scored} of ${summary.score.hosts_total} hosts scored`
-        }
+        } · ${coverageLabel(summary.score)}`}
         tone={complianceTone(avg)}
       />
       <Kpi
@@ -536,7 +552,7 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
       >
         <Metric
           label="Avg compliance"
-          value={r.score.score_pct == null ? '—' : `${r.score.score_pct}%`}
+          value={r.score.score_pct == null ? 'No score' : `${r.score.score_pct}%`}
           tone={complianceTone(r.score.score_pct)}
         />
         <Metric

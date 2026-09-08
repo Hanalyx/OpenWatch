@@ -166,7 +166,9 @@ export function ScansPage() {
   );
 }
 
-function CoverageTab({
+// Exported so the contract test renders the PRODUCTION coverage table.
+// ScansPage renders this same function.
+export function CoverageTab({
   hosts,
   isPending,
   isError,
@@ -254,7 +256,10 @@ function CoverageTab({
                 {h.hostname}
               </button>
               <span style={{ fontSize: 13, color: 'var(--ow-fg-1)' }}>
-                {pct === null ? 'n/a' : `${pct}%`}
+                {/* "No score", not "n/a": the abbreviation reads as "not
+                    applicable", which claims the host had nothing to measure
+                    rather than that no verdict was produced. */}
+                {pct === null ? 'No score' : `${pct}%`}
               </span>
               <span
                 style={{
