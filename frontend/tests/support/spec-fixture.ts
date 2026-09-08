@@ -36,6 +36,42 @@ export function trackFixture(obj: AnyRec, label: string) {
   };
 }
 
+/** The parts of a spec whose prose makes ACTIVE claims about the product. */
+export type SpecProse = {
+  contextDescription: string;
+  objectiveSummary: string;
+  scopeIncludes: string[];
+};
+
+/**
+ * loadSpecProse returns a spec's active prose, excluding its constraints and
+ * criteria.
+ *
+ * A criterion can forbid a claim in rendered copy while the spec's own
+ * context, objective and scope keep making it. Those three are where a reader
+ * learns what the product does, so a guard over rendered strings alone leaves
+ * the claim standing in the place most likely to be quoted.
+ */
+export function loadSpecProse(file: string, specId: string): SpecProse {
+  const doc = yaml.load(
+    readFileSync(resolve(process.cwd(), `../specs/frontend/${file}.spec.yaml`), 'utf8'),
+  ) as {
+    spec: {
+      id: string;
+      context?: { description?: string };
+      objective?: { summary?: string; scope?: { includes?: string[] } };
+    };
+  };
+  if (doc.spec.id !== specId) {
+    throw new Error(`${file}.spec.yaml declares ${doc.spec.id}, expected ${specId}`);
+  }
+  return {
+    contextDescription: doc.spec.context?.description ?? '',
+    objectiveSummary: doc.spec.objective?.summary ?? '',
+    scopeIncludes: doc.spec.objective?.scope?.includes ?? [],
+  };
+}
+
 /**
  * loadCriterion reads one acceptance criterion from a tracked frontend spec.
  *

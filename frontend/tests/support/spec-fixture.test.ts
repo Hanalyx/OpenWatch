@@ -3,7 +3,7 @@
 // once, and nothing else in the suite would report it.
 
 import { describe, expect, test } from 'vitest';
-import { loadCriterion, trackFixture } from './spec-fixture';
+import { loadCriterion, loadSpecProse, trackFixture } from './spec-fixture';
 
 describe('trackFixture', () => {
   test('an unread key fails', () => {
@@ -70,5 +70,23 @@ describe('loadCriterion', () => {
     expect(() => noop.allConsumed()).not.toThrow();
     const real = trackFixture({ unread: 1 }, 'probe');
     expect(() => real.allConsumed()).toThrowError(/never asserted/);
+  });
+
+  it('loadSpecProse rejects a spec whose declared id does not match', () => {
+    expect(() => loadSpecProse('reports', 'frontend-repoorts')).toThrow(
+      /declares frontend-reports/,
+    );
+  });
+
+  it('loadSpecProse returns the active prose and not the criteria', () => {
+    const prose = loadSpecProse('reports', 'frontend-reports');
+    expect(prose.objectiveSummary.length).toBeGreaterThan(0);
+    expect(prose.scopeIncludes.length).toBeGreaterThan(0);
+    // AC-08's own description quotes the words it forbids. A guard that swept
+    // the criteria too would fire on the criterion that bans them.
+    const all = [prose.contextDescription, prose.objectiveSummary, ...prose.scopeIncludes].join(
+      ' ',
+    );
+    expect(all).not.toContain('never says');
   });
 });

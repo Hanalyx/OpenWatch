@@ -141,9 +141,10 @@ describe('frontend-reports — reports library page', () => {
   });
 
   // @ac AC-08
-  test('frontend-reports/AC-08 — signed badge + offline Verify (hash + Ed25519)', () => {
+  test('frontend-reports/AC-08 — signed badge + same-server Verify (hash + Ed25519)', () => {
     // A verifyReport helper fetches the signing key, re-hashes the json
-    // face, and Ed25519-verifies the signature offline.
+    // face, and Ed25519-verifies the signature against the key this server
+    // serves. Not offline: the artifact, signature and key share one source.
     expect(PAGE_SRC).toContain('function verifyReport');
     expect(PAGE_SRC).toContain("fetch('/api/v1/reports/signing-key'");
     expect(PAGE_SRC).toMatch(/export\?format=json/);
