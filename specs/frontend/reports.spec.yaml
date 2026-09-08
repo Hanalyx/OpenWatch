@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.11.0"
+  version: "1.12.0"
   status: approved
   tier: 2
 
@@ -143,17 +143,37 @@ spec:
       enforcement: error
     - id: C-07
       description: >-
-        v1.4.0 - When a report carries a signature the detail header shows a
-        "Signed" badge and a Verify control. Verify runs a verifyReport
-        helper that checks the report OFFLINE in the browser: it fetches
+        v1.12.0 - When a report carries a signature the detail header shows a
+        "Signed" badge and a Verify control. The badge states that a signature
+        is PRESENT. It is not a claim of trusted authenticity, and nothing in
+        this surface may present it as one.
+
+        Verify runs a verifyReport helper that fetches
         GET /api/v1/reports/signing-key, re-hashes the canonical JSON face
-        (GET export?format=json) with SHA-256 and compares it to
-        content_sha256 (content integrity), then Ed25519-verifies the
-        signature (Web Crypto) over the same domain-separated payload the
-        server signs ("openwatch/report-snapshot/v1\n" + content_sha256).
-        The Ed25519 step degrades gracefully where Web Crypto lacks it (the
-        content hash is still verified). The result (verified / failed /
-        content-only) is surfaced, and an ephemeral key is disclosed.
+        (GET export?format=json) with SHA-256 against content_sha256, then
+        Ed25519-verifies the signature over the domain-separated payload.
+
+        What that proves, stated exactly: the content and the signature are
+        INTERNALLY CONSISTENT with the key this OpenWatch server served. It is
+        not offline verification and it does not establish authenticity. The
+        artifact, the signature and the key all come from the same server, so a
+        server able to serve a replacement artifact can serve a matching
+        signature and key beside it. Authenticity requires comparing the key,
+        or its fingerprint, with a copy obtained independently of this server,
+        and the UI must say so.
+
+        Three outcomes, and they are distinct:
+
+        - consistent: hash matched and the signature verified against the
+          served key.
+        - content_only: the hash matched but this browser's Web Crypto lacks
+          Ed25519, so the signature was NOT checked. This is not success and
+          must not render as success.
+        - failed: an unsigned report, an unreachable or mismatched key, a hash
+          mismatch, or an invalid signature.
+
+        The earlier wording said the helper "checks the report OFFLINE in the
+        browser", which is the overclaim this amendment removes.
       type: security
       enforcement: error
     - id: C-09
@@ -336,15 +356,53 @@ spec:
       references_constraints: [C-06]
     - id: AC-08
       description: >-
-        v1.4.0 - Source inspection: a verifyReport helper fetches
-        "/api/v1/reports/signing-key", digests the json export face with
-        SHA-256 and compares it to content_sha256, and Ed25519-verifies the
-        signature via crypto.subtle.verify over the domain-separated payload
-        ("openwatch/report-snapshot/v1\n" + content_sha256), with a
-        try/catch fallback when Web Crypto lacks Ed25519. ReportDetail
-        renders a "Signed" badge and a Verify control (gated on
-        report.signature) that calls an onVerify handler and surfaces a
-        verifyResult.
+        v1.12.0 - the verification RESULT is rendered with copy and tone that
+        match what the check proved. Asserted on the rendered panel, not on the
+        source of the helper: a source-only criterion cannot tell a success
+        color from a caution one.
+
+        A consistent result says the content and signature are consistent with
+        the key this server served, and states that authenticity needs an
+        independently trusted key or fingerprint. It never says "offline",
+        "authentic", "trusted" or "verified" without that qualification.
+
+        A content_only result is rendered as a CAUTION, never as success: the
+        signature was not checked at all. A failed result is rendered as a
+        failure.
+
+        The "Signed" badge means a signature is present, and its title or
+        adjacent copy says so rather than implying trust.
+      inputs:
+        cases:
+          - id: consistent
+            status: consistent
+            expect_contains: 'consistent with the signing key this server served'
+            expect_also: 'independently trusted copy'
+            expect_tone: 'var(--ow-ok, #2faf6a)'
+          - id: content_only
+            status: content_only
+            expect_contains: 'signature was NOT checked'
+            expect_also: 'independently trusted copy'
+            expect_tone: 'var(--ow-warn)'
+          - id: invalid_signature
+            status: failed
+            expect_contains: 'Signature is INVALID'
+            expect_also: null
+            expect_tone: 'var(--ow-crit)'
+          - id: hash_mismatch
+            status: failed
+            expect_contains: 'Content hash mismatch'
+            expect_also: null
+            expect_tone: 'var(--ow-crit)'
+        # The overclaims themselves, not the word "authenticity", which the
+        # correct qualification necessarily uses.
+        forbidden_copy: ['offline', 'is authentic', 'proves authenticity', 'independently verified']
+        badge_meaning: 'a signature is present'
+      expected_output:
+        every_case_matches_its_expected_copy: true
+        every_case_matches_its_expected_tone: true
+        content_only_is_not_success: true
+        forbidden_copy_occurrences: 0
       priority: high
       references_constraints: [C-07]
     - id: AC-09

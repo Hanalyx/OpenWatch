@@ -16,7 +16,7 @@ import type { components } from '@/api/schema';
 // kind-aware body (ExecutiveBody / AttestationBody) over the frozen content.
 //
 // Live: kind selector, scope + framework pickers, coverage caveat, Ed25519
-// signing with a "Signed" badge + offline Verify, and downloadable faces
+// signing with a "Signed" badge + a Verify control, and downloadable faces
 // (PDF cover, CSV evidence, OSCAL SAR, canonical JSON). Still deferred
 // (honest "coming soon" states, NOT faked): the Templates gallery and the
 // Scheduled dispatcher.
@@ -747,43 +747,72 @@ function bytesToHex(buf: ArrayBuffer): string {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-interface VerifyResult {
-  ok: boolean;
+/**
+ * What a verification attempt established.
+ *
+ * Not a boolean. The content-only fallback used to return ok: true, so a run
+ * that never checked the signature rendered exactly like one that did.
+ */
+export type VerifyStatus = 'consistent' | 'content_only' | 'failed';
+
+export interface VerifyResult {
+  status: VerifyStatus;
   detail: string;
 }
 
-// verifyReport checks a signed report offline in the browser: it fetches
-// the published signing key, re-hashes the canonical JSON face and
-// compares it to content_sha256 (content integrity), then Ed25519-verifies
-// the signature over the same domain-separated payload the server signed.
-// The Ed25519 step degrades gracefully where Web Crypto lacks it (the
-// content hash is still verified).
-async function verifyReport(report: Report): Promise<VerifyResult> {
+/**
+ * TRUST_NOTE is the qualification every non-failure result carries.
+ *
+ * The artifact, the signature and the key all come from the same server, so
+ * this check proves they agree with each other and nothing more. A server
+ * able to serve a replacement artifact can serve a matching signature and key
+ * beside it.
+ */
+const TRUST_NOTE =
+  ' Authenticity requires comparing this key or its fingerprint with an ' +
+  'independently trusted copy, obtained outside this server.';
+
+/** verifyTone maps an outcome to its color. Only a checked signature is green. */
+export function verifyTone(status: VerifyStatus): string {
+  if (status === 'consistent') return 'var(--ow-ok, #2faf6a)';
+  if (status === 'content_only') return 'var(--ow-warn)';
+  return 'var(--ow-crit)';
+}
+
+// verifyReport checks a signed report IN THE BROWSER against the key this
+// same server serves: it fetches the signing key, re-hashes the canonical
+// JSON face and compares it to content_sha256, then Ed25519-verifies the
+// signature over the domain-separated payload the server signed.
+//
+// This is NOT offline verification and it does not establish authenticity.
+// The earlier wording said offline, which told a reader the check was
+// independent of the server it was checking.
+export async function verifyReport(report: Report): Promise<VerifyResult> {
   if (!report.signature || !report.signing_key_id) {
-    return { ok: false, detail: 'This report is not signed.' };
+    return { status: 'failed', detail: 'This report is not signed.' };
   }
   const keyRes = await fetch('/api/v1/reports/signing-key', { credentials: 'same-origin' });
   if (!keyRes.ok)
-    return { ok: false, detail: `Could not fetch the signing key (${keyRes.status}).` };
+    return { status: 'failed', detail: `Could not fetch the signing key (${keyRes.status}).` };
   const key = (await keyRes.json()) as {
     key_id: string;
     public_key: string;
     ephemeral: boolean;
   };
   if (key.key_id !== report.signing_key_id) {
-    return { ok: false, detail: 'The signing key does not match this report.' };
+    return { status: 'failed', detail: 'The signing key does not match this report.' };
   }
 
   const faceRes = await fetch(`/api/v1/reports/${report.id}/export?format=json`, {
     credentials: 'same-origin',
   });
   if (!faceRes.ok)
-    return { ok: false, detail: `Could not fetch the report content (${faceRes.status}).` };
+    return { status: 'failed', detail: `Could not fetch the report content (${faceRes.status}).` };
   const faceBuf = await faceRes.arrayBuffer();
   const hashHex = bytesToHex(await crypto.subtle.digest('SHA-256', faceBuf));
   if (hashHex !== report.content_sha256) {
     return {
-      ok: false,
+      status: 'failed',
       detail: 'Content hash mismatch: the content does not match the signed hash.',
     };
   }
@@ -804,18 +833,59 @@ async function verifyReport(report: Report): Promise<VerifyResult> {
       base64ToBuffer(report.signature),
       payload,
     );
-    if (!valid) return { ok: false, detail: 'Signature is INVALID.' };
+    if (!valid) return { status: 'failed', detail: 'Signature is INVALID.' };
     return {
-      ok: true,
-      detail: `Verified: content matches and the signature is valid${ephNote}. Key ${key.key_id}.`,
+      status: 'consistent',
+      detail:
+        `Content and signature are consistent with the signing key this server ` +
+        `served${ephNote}. Key ${key.key_id}.${TRUST_NOTE}`,
     };
   } catch {
-    // This browser's Web Crypto lacks Ed25519; the content hash is verified.
+    // This browser's Web Crypto lacks Ed25519, so the signature was never
+    // checked. That is a caution, not a success: reporting it as success
+    // credited a check that did not run.
     return {
-      ok: true,
-      detail: `Content hash verified. Signature check is unavailable in this browser; verify the signature offline with key ${key.key_id}${ephNote}.`,
+      status: 'content_only',
+      detail:
+        `Content hash matches, but the signature was NOT checked: this browser ` +
+        `cannot verify Ed25519. Check it with key ${key.key_id}${ephNote} ` +
+        `elsewhere.${TRUST_NOTE}`,
     };
   }
+}
+
+/**
+ * VerifyPanel renders one verification outcome.
+ *
+ * Exported so the contract test renders the PRODUCTION panel: a source-only
+ * criterion cannot tell a success color from a caution one, and telling those
+ * two apart is the point.
+ */
+export function VerifyPanel({ result }: { result: VerifyResult }) {
+  return (
+    <div
+      role="status"
+      style={{
+        marginBottom: 14,
+        padding: '8px 12px',
+        borderRadius: 'var(--ow-radius)',
+        // Three tones for three outcomes. A content-only run shows CAUTION,
+        // not success: the signature was never checked, and painting it green
+        // credited a check that did not run.
+        border: `1px solid ${verifyTone(result.status)}`,
+        background:
+          result.status === 'consistent'
+            ? 'var(--ow-ok-bg, rgba(47,175,106,0.12))'
+            : result.status === 'content_only'
+              ? 'var(--ow-warn-bg, rgba(214,158,46,0.12))'
+              : 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
+        color: verifyTone(result.status),
+        fontSize: 12.5,
+      }}
+    >
+      {result.detail}
+    </div>
+  );
 }
 
 function ReportDetail({
@@ -851,7 +921,7 @@ function ReportDetail({
       setVerifyResult(await verifyReport(report));
     } catch (e) {
       setVerifyResult({
-        ok: false,
+        status: 'failed',
         detail: e instanceof Error ? e.message : 'Verification failed',
       });
     } finally {
@@ -962,7 +1032,13 @@ function ReportDetail({
                 {resolved.generated_by}
                 {resolved.signature && (
                   <span
-                    title={`Signed by ${resolved.signing_key_id ?? 'the report key'}`}
+                    // The badge states that a signature is PRESENT. It is
+                    // not a claim of trusted authenticity: "Signed by <key>"
+                    // read as an attestation about who produced the report.
+                    title={
+                      `A signature is present, made with key ` +
+                      `${resolved.signing_key_id ?? 'the report key'}. Use Verify to check it.`
+                    }
                     style={{
                       marginLeft: 8,
                       padding: '1px 7px',
@@ -987,7 +1063,7 @@ function ReportDetail({
                   type="button"
                   onClick={() => onVerify(resolved)}
                   disabled={verifying}
-                  title="Verify the signature and content hash offline"
+                  title="Check the content hash and signature against the key this server serves"
                   style={{
                     height: 32,
                     padding: '0 12px',
@@ -1118,24 +1194,7 @@ function ReportDetail({
               {downloadError}
             </div>
           )}
-          {verifyResult && (
-            <div
-              role="status"
-              style={{
-                marginBottom: 14,
-                padding: '8px 12px',
-                borderRadius: 'var(--ow-radius)',
-                border: `1px solid ${verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)'}`,
-                background: verifyResult.ok
-                  ? 'var(--ow-ok-bg, rgba(47,175,106,0.12))'
-                  : 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
-                color: verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)',
-                fontSize: 12.5,
-              }}
-            >
-              {verifyResult.detail}
-            </div>
-          )}
+          {verifyResult && <VerifyPanel result={verifyResult} />}
           {resolved &&
             (resolved.kind === 'attestation' ? (
               <AttestationBody content={asAttestationContent(resolved.content)} />
