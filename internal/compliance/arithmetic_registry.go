@@ -41,7 +41,7 @@ var ArithmeticRegistry = []ArithmeticSite{
 	{
 		File:   "frontend/src/pages/HostDetailPage.tsx",
 		Symbol: "diff",
-		Expr:   "first.score_pct",
+		Expr:   "latest.score_pct!",
 		Reason: "The trend DELTA between two days: latest.score_pct minus first.score_pct. " +
 			"Both operands are server-computed scores and the result is a difference, not a " +
 			"score, so there is no second formula here. It is guarded on both days sharing a " +
@@ -51,7 +51,7 @@ var ArithmeticRegistry = []ArithmeticSite{
 	{
 		File:   "frontend/src/pages/HostsListPage.tsx",
 		Symbol: "diff",
-		Expr:   "prev.score_pct",
+		Expr:   "today.score_pct!",
 		Reason: "The fleet trend DELTA on the hosts list: today's score minus yesterday's, " +
 			"for a \"vs yesterday\" caption. It is a difference between two scores the API " +
 			"already computed, not a score, and the site is guarded: it runs only when BOTH " +

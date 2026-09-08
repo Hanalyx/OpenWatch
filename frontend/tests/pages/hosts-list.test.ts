@@ -11,7 +11,7 @@
 //   AC-14  test('frontend-hosts-list/AC-14 — scan-queue KPI wired')
 //   AC-15  test('frontend-hosts-list/AC-15 — no dead fleet Run scan header control')
 //   AC-16  test('frontend-hosts-list/AC-16 — compliance_summary maps to real compliance with null honesty')
-//   AC-17  test('frontend-hosts-list/AC-17 — avg compliance KPI excludes never-scanned hosts')
+//   AC-17  test('frontend-hosts-list/AC-17 — kpisFromHosts computes no fleet score')
 //   AC-18  test('frontend-hosts-list/AC-18 — critical issues KPI sums critical_failing with affected-hosts scope')
 //   AC-26  test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)')
 
@@ -130,18 +130,20 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
 
 // @ac AC-26
 // AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score,
-// TAKEN AS SENT, so /hosts and /dashboard can never show a different
-// fleet-compliance number. It used to be round(passing_fraction * 100), which
-// was a second implementation of the formula in the browser.
+// TAKEN AS SENT and INCLUDING when it is null, so /hosts and /dashboard can
+// never show a different fleet-compliance number.
 test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
   // Shares the dashboard's query key + endpoint.
   expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score', lens]");
   expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
   // Assigned directly. No arithmetic: the server already rounded it.
   expect(PAGE_SRC).toMatch(/kpis\.avgCompliance\.value\s*=\s*fleetScoreQuery\.data\.score_pct/);
-  // Guarded on the score being PRESENT, not on a count being positive. A fleet
-  // nobody could score has no number, and the KPI must not show 0 percent.
-  expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.score_pct\s*!==\s*null/);
+  // Guarded on the QUERY having resolved, never on the score being non-null.
+  // The old guard skipped the assignment when the server said null, which left
+  // a locally computed number on screen for the one fleet the server was
+  // certain had no score.
+  expect(PAGE_SRC).not.toMatch(/fleetScoreQuery\.data\.score_pct\s*!==\s*null/);
+  expect(PAGE_SRC).toMatch(/if\s*\(fleetScoreQuery\.data\)\s*\{/);
   // The removed fields must not reappear anywhere on this page.
   expect(PAGE_SRC).not.toMatch(/passing_fraction|total_evaluations/);
 });
@@ -216,30 +218,37 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
   });
 
   // @ac AC-17
-  test('frontend-hosts-list/AC-17 — avg compliance KPI excludes never-scanned hosts', () => {
-    const hosts: DevHost[] = [
+  // AC-17: kpisFromHosts derives NO compliance score. Any host data it is
+  // given must leave the KPI null, because the only source of that number is
+  // GET /api/v1/fleet/score.
+  test('frontend-hosts-list/AC-17 — kpisFromHosts computes no fleet score', () => {
+    // Hosts that WOULD average to something, if anything here averaged.
+    const scored = kpisFromHosts([
       makeDevHost({ id: 'a', compliance: 90, passed: 90, failed: 10, total: 100 }),
-      // Never scanned: must NOT drag the average toward zero.
-      makeDevHost({ id: 'b', compliance: null, passed: null, failed: null, total: 0 }),
-      makeDevHost({ id: 'c', compliance: null, passed: null, failed: null, total: 0 }),
-    ];
-    const kpis = kpisFromHosts(hosts);
-    // Equal-host mean over the single scored host = 90, not 30.
-    expect(kpis.avgCompliance.value).toBe(90);
-
-    // Each host counts ONCE. A host with ten times the rules does not get ten
-    // times the say, which is what the rule-weighted version gave it.
-    const uneven = kpisFromHosts([
-      makeDevHost({ id: 'big', compliance: 90, passed: 900, failed: 100, total: 1000 }),
-      makeDevHost({ id: 'small', compliance: 50, passed: 1, failed: 1, total: 2 }),
+      makeDevHost({ id: 'b', compliance: 50, passed: 1, failed: 1, total: 2 }),
     ]);
-    expect(uneven.avgCompliance.value).toBe(70);
-    expect(uneven.avgCompliance.value).not.toBe(89.9); // the rule-weighted answer
+    expect(scored.avgCompliance.value).toBeNull();
+    // Named wrong answers, so a reintroduced formula is caught by value and
+    // not only by nullness: 70 is the equal-host mean, 89.9 the rule-weighted
+    // pool that preceded it.
+    expect(scored.avgCompliance.value).not.toBe(70);
+    expect(scored.avgCompliance.value).not.toBe(89.9);
 
-    // All-never-scanned fleet: NULL, not 0. Reporting an absence of data as
-    // total failure is the defect this work removes.
-    const noneScanned = kpisFromHosts([makeDevHost({ id: 'x' }), makeDevHost({ id: 'y' })]);
-    expect(noneScanned.avgCompliance.value).toBeNull();
+    // A genuine zero must not be manufactured either. A fleet of all-failing
+    // hosts still has no LOCAL score; zero comes from the server or nowhere.
+    const allFailing = kpisFromHosts([
+      makeDevHost({ id: 'z', compliance: 0, passed: 0, failed: 10, total: 10 }),
+    ]);
+    expect(allFailing.avgCompliance.value).toBeNull();
+    expect(allFailing.avgCompliance.value).not.toBe(0);
+
+    // Inventory KPIs still work: removing the score did not gut the function.
+    const inv = kpisFromHosts([
+      makeDevHost({ id: 'p', status: 'online', criticalFailing: 3 }),
+      makeDevHost({ id: 'q', status: 'down', criticalFailing: 0 }),
+    ]);
+    expect(inv.hostsOnline.value).toBe(1);
+    expect(inv.criticalIssues.value).toBe(3);
   });
 
   // @ac AC-18

@@ -39,6 +39,18 @@ func TestNoComplianceArithmeticOutsideScoringPackage(t *testing.T) {
 			// A wire field and its generated Go name are the same field.
 			fields[goName(f)] = true
 		}
+		// Browser-only aliases. They join the TypeScript matcher and stay out
+		// of the Go one: "compliance" is a frontend rename of score_pct, and
+		// in Go it is the scoring package, so scanning Go for it reported
+		// every compliance.ScorePctSQL(...) concatenation as a score
+		// computation.
+		tsFields := map[string]bool{}
+		for f := range fields {
+			tsFields[f] = true
+		}
+		for _, f := range in.StrList("ts_only_score_field_names") {
+			tsFields[f] = true
+		}
 		scopes := in.StrList("source_scope")
 		// Excluded by exact package identity. The formula lives in
 		// internal/compliance, and naming it here rather than omitting it from
@@ -82,16 +94,41 @@ func TestNoComplianceArithmeticOutsideScoringPackage(t *testing.T) {
 		}
 		exp.EmptyList("registry_entries_without_reason")
 
-		found := scanForArithmetic(t, scopes, fields, excluded)
+		found := scanForArithmetic(t, scopes, fields, tsFields, excluded)
 
 		// Every named operand form must be one this guard can see. A rule that
 		// matches bare identifiers only misses two of the four shapes that were
 		// in the tree when this was written.
 		for _, form := range in.StrList("operand_forms_that_must_match") {
-			if !matchesForm(t, form, fields) {
+			if !matchesForm(t, form, tsFields) {
 				t.Errorf("the guard cannot see %q, which the criterion names as a form it "+
 					"must match", form)
 			}
+		}
+
+		// The postfix assertion, on BOTH sides of the operator. Adding a field
+		// to the list happens to catch a right-hand operand even with the !
+		// excluded from the chain, so a fixture that checked only that order
+		// would have passed against the broken matcher.
+		if !in.Bool("postfix_assertion_transparent") {
+			t.Fatal("fixture must require the postfix assertion to be transparent")
+		}
+		bangDetected := 0
+		for _, b := range in.MapList("bang_operand_orders") {
+			expr := b.Str("expr")
+			side := b.Str("side")
+			b.AllConsumed()
+			if tsArithFor(tsFields).MatchString(expr) {
+				bangDetected++
+				continue
+			}
+			t.Errorf("the guard cannot see %q, where the score field carries a postfix "+
+				"assertion on the %s of the operator; whether a violation is detected must "+
+				"not depend on operand order", expr, side)
+		}
+		if bangDetected != exp.Int("bang_orders_detected") {
+			t.Errorf("detected %d of the postfix-assertion orders, want %d",
+				bangDetected, exp.Int("bang_orders_detected"))
 		}
 
 		exp.EmptyList("ast_violations")
@@ -154,7 +191,7 @@ func TestNoComplianceArithmeticOutsideScoringPackage(t *testing.T) {
 				}
 			}(path)
 		}
-		for _, v := range scanForArithmetic(t, scopes, fields, excluded) {
+		for _, v := range scanForArithmetic(t, scopes, fields, tsFields, excluded) {
 			for _, w := range wantFiles {
 				if v.file == w {
 					detected = append(detected, w)
@@ -317,7 +354,15 @@ func tsArithFor(fields map[string]bool) *regexp.Regexp {
 	}
 	sort.Strings(names) // deterministic pattern, so a failure is reproducible
 	alt := strings.Join(names, "|")
-	const chain = `[A-Za-z0-9_$.\[\]]`
+	// The postfix non-null assertion is part of the chain. TypeScript writes
+	// h.compliance! for "this is not null", and that ! is punctuation about
+	// nullability, not part of the operand's identity. Leaving it out made a
+	// score field invisible on the LEFT of an operator, because the matcher
+	// then needed an operator directly after the name and found ! instead,
+	// while the same expression with the operands swapped was caught. A guard
+	// whose answer depends on which side of a plus the author wrote is not a
+	// guard.
+	const chain = `[A-Za-z0-9_$.\[\]!]`
 	// The leading chain is OPTIONAL. Requiring a first character meant a BARE
 	// identifier never matched: the class consumed the field's own first letter
 	// and the word boundary then failed inside it. Only member expressions were
@@ -434,10 +479,10 @@ func stripTSNonCode(src string) string {
 // rather than left out of the scope list; a prefix match would also silence
 // any package nested beneath it, which is how an exclusion written for one
 // package quietly grows to cover others.
-func scanForArithmetic(t *testing.T, scopes []string, fields map[string]bool,
+func scanForArithmetic(t *testing.T, scopes []string, fields, tsFields map[string]bool,
 	excluded map[string]bool) []arithSite {
 	t.Helper()
-	tsArith := tsArithFor(fields)
+	tsArith := tsArithFor(tsFields)
 	var out []arithSite
 	for _, dir := range scopes {
 		root := filepath.Join("..", "..", dir)

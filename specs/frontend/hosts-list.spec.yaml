@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.11.0"
+  version: "1.12.0"
   status: approved
   tier: 2
 
@@ -102,10 +102,14 @@ spec:
         same fleet score the dashboard KPI uses (GET /api/v1/fleet/score,
         passing / (passing + failing) — the canonical compliance metric that
         also drives the scheduler bands), so the /hosts and /dashboard surfaces
-        cannot show different fleet-compliance numbers. The client-side
-        kpisFromHosts average (which divides by the all-status rule total,
-        including skipped + error) is a fallback shown only until the fleet
-        score resolves, never the authoritative displayed value.
+        cannot show different fleet-compliance numbers. v1.12.0 - kpisFromHosts
+        computes NO fleet score at all, as a fallback or otherwise. The previous
+        wording permitted a client-side average until the fleet query resolved,
+        which system-compliance-scoring C-14 forbids: it was a second
+        implementation of the compliance formula in the browser, and a
+        placeholder is still a number an operator reads and acts on. While the
+        query is loading or has errored, the KPI shows no score. The
+        /fleet/score result is authoritative INCLUDING when score_pct is null.
       type: technical
       enforcement: error
 
@@ -174,7 +178,7 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-17
-      description: 'v1.3.0 — the Avg. compliance KPI is the EQUAL-HOST MEAN over hosts that have a score: kpisFromHosts filters to hosts whose compliance is non-null and averages those values, each host counting once (v1.11.0; it was rule-weighted, which gave a host with many rules more say and disagreed with every server surface). Never-scanned hosts are excluded entirely, not counted as 0. A fleet in which NO host has a score yields null, not 0: reporting an absence of data as total failure is the defect this work removes. The KPI renders a dash for null. This client-side value is a fallback; AC-26''s authoritative fleet score replaces it once that query resolves.'
+      description: 'v1.12.0 - kpisFromHosts derives NO compliance score. It returns a null avgCompliance value and computes only inventory KPIs (hosts online, critical issues, scan queue) from the host list. Source-inspection of HostsListPage: kpisFromHosts contains no arithmetic over any host compliance value, and system-compliance-scoring AC-31 detects the frontend alias so a reintroduction fails the build rather than review. It previously computed the equal-host mean locally as a placeholder. That was the second formula implementation C-14 exists to forbid, it survived an authoritative null so a fleet the server could not score displayed an invented percentage, and it rounded independently of the server. A fleet with no score renders a dash, which is now the ONLY way a dash is produced: from the absence of a server score, never from local arithmetic finding nothing to average.'
       priority: high
       references_constraints: [C-02]
     - id: AC-18
@@ -221,14 +225,17 @@ spec:
         v1.10.0 — the key carries the org default lens (['fleet','score',lens])
         and forwards it as ?framework= so the KPI reflects the default lens,
         matching the dashboard. v1.11.0 — the value is TAKEN AS SENT from
-        score_pct, guarded on it being non-null rather than on a count being
-        positive, and passing_fraction and total_evaluations are gone from the
-        contract entirely.
+        score_pct, and passing_fraction and total_evaluations are gone from the
+        contract entirely. v1.12.0 — the assignment is guarded on the QUERY
+        having resolved, not on score_pct being non-null, so an authoritative
+        null reaches the KPI and renders as no score. The earlier guard skipped
+        the assignment when the server said null, leaving whatever the page had
+        computed locally on screen: the one answer the server was certain about
+        was the one it could not deliver.
         Source-inspection of HostsListPage: a useQuery with queryKey
         ['fleet','score',lens] hits GET /api/v1/fleet/score, and the avg-compliance
-        KPI value is assigned score_pct from that query
-        (guarded on score_pct !== null), the same value the dashboard
-        widget uses.
+        KPI value is assigned score_pct from that query whenever the query has
+        data, the same value the dashboard widget uses.
       priority: high
       references_constraints: [C-13]
     - id: AC-27

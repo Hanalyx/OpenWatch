@@ -715,6 +715,12 @@ spec:
           covers the difference: a site it cannot classify is listed with a
           reason rather than silently permitted.
 
+          Amended 2026-09-08. compliance joins the field list because
+          HostsListPage maps score_pct onto that name and then computes a fleet
+          mean from it, so C-14's prohibition had one live violation the guard
+          could not see. A detector that cannot observe a rule does not narrow
+          the rule: the silence was an enforcement defect, not permission.
+
           The scope is every production location, not a chosen few. It read
           internal/server and frontend/src until 2026-09-03, and internal/report
           held two pooled whole-percent formulas that whole time: compliancePct
@@ -735,7 +741,24 @@ spec:
           - q.data.passing_fraction * 100
           - float64(passing) / float64(evaluations)
           - Math.round(fleetScoreQuery.data.passing_fraction * 100)
+          - h.compliance! + n
+          - n + h.compliance!
         score_field_names: [score_pct, passing, failing, passed, failed, passing_fraction, total_evaluations, assessment_coverage_pct, rules_pass, rules_fail]
+        # Names that are score fields ONLY in the browser. compliance is a
+        # frontend rename of score_pct; in Go it is the scoring PACKAGE, so
+        # putting it in the shared list made every `compliance.ScorePctSQL(...)
+        # + ...` string concatenation in fleetrollup read as arithmetic on a
+        # score. A browser-only alias belongs in a browser-only list.
+        ts_only_score_field_names: [compliance]
+        # A postfix non-null assertion is not part of the operand's identity.
+        # The operand chain excluded it, so a score field carrying one was
+        # invisible on the LEFT of an operator while the same expression with
+        # the operands swapped was caught. Whether a violation is seen must not
+        # depend on which side of a plus the author wrote.
+        postfix_assertion_transparent: true
+        bang_operand_orders:
+          - {expr: 'h.compliance! + n', side: left}
+          - {expr: 'n + h.compliance!', side: right}
         registry: internal/compliance/arithmetic_registry.go
         mutation_fixtures:
           - {file: internal/server/x_fixture.go, expr: float64(passing) / float64(evaluations)}
@@ -753,6 +776,7 @@ spec:
         two_sites_one_line_detected: 2
         newly_supplied_field_detected: true
         second_site_in_registered_file_rejected: true
+        bang_orders_detected: 2
         mutation_fixtures_reported:
           - internal/server/x_fixture.go
           - frontend/src/x_fixture.tsx

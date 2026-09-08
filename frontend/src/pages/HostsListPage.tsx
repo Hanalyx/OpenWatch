@@ -281,10 +281,15 @@ export function HostsListPage() {
   // Authoritative fleet score wins over the client-side aggregate so the
   // /hosts headline equals the /dashboard headline exactly (same endpoint,
   // same integer rounding). Spec frontend-hosts-list AC-26.
-  if (fleetScoreQuery.data && fleetScoreQuery.data.score_pct !== null) {
-    // Taken as sent. The server already rounded it to one decimal; rounding a
-    // fraction here was a second implementation of the formula and could
-    // disagree with the dashboard by a whole point.
+  if (fleetScoreQuery.data) {
+    // Taken as sent, INCLUDING when it is null. The server already rounded it
+    // to one decimal; rounding a fraction here was a second implementation of
+    // the formula and could disagree with the dashboard by a whole point.
+    //
+    // The null case is the point. This condition used to require score_pct
+    // !== null, so an authoritative "this fleet has no score" left whatever
+    // the page had computed locally on screen: the one answer the server is
+    // certain about was the one it could not deliver.
     kpis.avgCompliance.value = fleetScoreQuery.data.score_pct;
   }
   if (scanQueueQuery.data) {
@@ -1946,19 +1951,19 @@ export function apiHostToDev(h: ApiHost): DevHost {
 export function kpisFromHosts(hosts: DevHost[]): DevKpis {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
-  // The EQUAL-HOST MEAN over hosts that have a score, matching the server.
+  // NO fleet score is computed here. It is read from GET /api/v1/fleet/score
+  // and from nowhere else.
   //
-  // This was a rule-weighted pool: sum the passing rules, sum the total rules,
-  // divide once. That weighted each host by how many rules it carried and gave
-  // a different answer from every server-side surface. It also fell back to 0
-  // when nothing was scored, reporting an absence of data as total failure.
-  // This value is a placeholder anyway: the authoritative fleet score replaces
-  // it as soon as that query resolves.
-  const scanned = hosts.filter((h) => h.compliance != null);
-  const avgCompliance =
-    scanned.length > 0
-      ? Math.round((scanned.reduce((n, h) => n + h.compliance!, 0) / scanned.length) * 10) / 10
-      : null;
+  // This used to average the per-host scores locally as a placeholder until
+  // that query resolved. A placeholder is still a number an operator reads and
+  // acts on, and it was a SECOND implementation of the compliance formula in
+  // the browser, which system-compliance-scoring C-14 forbids. It also
+  // survived an authoritative null, so a fleet the server could not score
+  // showed a locally invented percentage instead of "no score".
+  //
+  // Until the fleet query resolves the KPI is null, which renders as no score
+  // rather than as a guess.
+  const avgCompliance: number | null = null;
   // v1.3.0 (AC-18): critical issues = sum of critical_failing across the
   // fleet; the scope counts how many hosts contribute at least one.
   const criticalIssues = hosts.reduce((n, h) => n + (h.criticalFailing ?? 0), 0);
