@@ -787,6 +787,24 @@ export function verifyTone(status: VerifyStatus): string {
 // This is NOT offline verification and it does not establish authenticity.
 // The earlier wording said offline, which told a reader the check was
 // independent of the server it was checking.
+/**
+ * errorName reads the name off a thrown value.
+ *
+ * WebCrypto rejects with a DOMException. Narrowing with `instanceof Error`
+ * first drops it in engines where DOMException does not extend Error, which
+ * turned "this browser cannot do Ed25519" into "the signature is not usable".
+ */
+function errorName(err: unknown): string {
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    typeof (err as { name?: unknown }).name === 'string'
+  ) {
+    return (err as { name: string }).name;
+  }
+  return 'crypto error';
+}
+
 export async function verifyReport(report: Report): Promise<VerifyResult> {
   if (!report.signature || !report.signing_key_id) {
     return { status: 'failed', detail: 'This report is not signed.' };
@@ -848,7 +866,12 @@ export async function verifyReport(report: Report): Promise<VerifyResult> {
     // failure was reported as a browser limitation and rendered as a caution
     // with the content hash intact. Those are verification FAILURES, and
     // saying otherwise blamed the reader's browser for a bad artifact.
-    if (err instanceof Error && err.name === 'NotSupportedError') {
+    // Read .name off the thrown value directly. WebCrypto raises a
+    // DOMException, and a DOMException is NOT an instanceof Error in every
+    // engine, so the instanceof narrowing here reported a genuine
+    // unsupported-algorithm error as a verification failure.
+    const name = errorName(err);
+    if (name === 'NotSupportedError') {
       return {
         status: 'content_only',
         detail:
@@ -860,10 +883,46 @@ export async function verifyReport(report: Report): Promise<VerifyResult> {
     return {
       status: 'failed',
       detail:
-        `Signature could not be checked: ${err instanceof Error ? err.name : 'crypto error'}. ` +
+        `Signature could not be checked: ${name}. ` +
         `The content hash matched, but the signature is not usable.`,
     };
   }
+}
+
+/**
+ * VerifyControl is the button that starts a verification.
+ *
+ * It is a component rather than inline JSX so its title can be asserted from a
+ * test. The title is a trust claim made before any check has run, and the
+ * forbidden-copy guard reached the result panel and the badge but not this
+ * button, so "Verify offline" could have been restored here without failing
+ * anything.
+ */
+export function VerifyControl({ busy, onVerify }: { busy: boolean; onVerify: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onVerify}
+      disabled={busy}
+      title="Check the content hash and signature against the key this server serves"
+      style={{
+        height: 32,
+        padding: '0 12px',
+        borderRadius: 6,
+        border: '1px solid var(--ow-line)',
+        background: 'var(--ow-bg-1)',
+        color: 'var(--ow-fg-1)',
+        fontFamily: 'inherit',
+        fontSize: 12,
+        fontWeight: 500,
+        cursor: busy ? 'default' : 'pointer',
+        opacity: busy ? 0.6 : 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {busy ? 'Verifying…' : 'Verify'}
+    </button>
+  );
 }
 
 /**
@@ -1080,28 +1139,7 @@ function ReportDetail({
           {resolved && (
             <>
               {resolved.signature && (
-                <button
-                  type="button"
-                  onClick={() => onVerify(resolved)}
-                  disabled={verifying}
-                  title="Check the content hash and signature against the key this server serves"
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--ow-line)',
-                    background: 'var(--ow-bg-1)',
-                    color: 'var(--ow-fg-1)',
-                    fontFamily: 'inherit',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: verifying ? 'default' : 'pointer',
-                    opacity: verifying ? 0.6 : 1,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {verifying ? 'Verifying…' : 'Verify'}
-                </button>
+                <VerifyControl busy={verifying} onVerify={() => onVerify(resolved)} />
               )}
               <button
                 type="button"

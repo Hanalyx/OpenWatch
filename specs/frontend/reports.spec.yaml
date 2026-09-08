@@ -372,74 +372,97 @@ spec:
         failure.
 
         The "Signed" badge means a signature is present, and its title or
-        adjacent copy says so rather than implying trust.
+        adjacent copy says so rather than implying trust. The Verify control makes
+        a trust claim before any check has run, so its title is held to the same
+        forbidden-copy list as the badge and the result panel.
+
+        Each case drives only the stimuli its own stage reaches, and asserts how
+        many times the key import and the signature verify actually ran. An
+        unreached stimulus is left out rather than set to a value nothing reads.
       inputs:
-        # Each case carries its own STIMULI. The id labels the case and
-        # selects nothing: a test that switched on the id decided for itself
-        # what each name meant, so changing a stimulus here changed nothing.
+        # Each case supplies ONLY the stimuli its stage reaches, plus the exact
+        # number of times the crypto calls should run. Supplying every field to
+        # every case made most of them decorative: a hash mismatch returns
+        # before any key is imported, and a case carrying both
+        # ed25519_available: false and crypto_error: NotSupportedError could
+        # have either one changed with no effect on the result.
         cases:
-          - id: consistent
-            digest_matches: true
-            ed25519_available: true
-            signature_valid: true
-            crypto_error: null
-            expect_status: consistent
-            expect_contains: 'consistent with the signing key this server served'
-            expect_also: 'independently trusted copy'
-            expect_tone: 'var(--ow-ok, #2faf6a)'
+          - id: hash_mismatch
+            stage: digest
+            digest_matches: false
+            expect_import_calls: 0
+            expect_verify_calls: 0
+            expect_status: failed
+            expect_contains: 'Content hash mismatch'
+            expect_also: null
+            expect_tone: 'var(--ow-crit)'
           - id: unsupported_algorithm
+            stage: import
             digest_matches: true
             ed25519_available: false
-            signature_valid: true
-            crypto_error: NotSupportedError
+            expect_import_calls: 1
+            expect_verify_calls: 0
             expect_status: content_only
             expect_contains: 'signature was NOT checked'
             expect_also: 'independently trusted copy'
             expect_tone: 'var(--ow-warn)'
-          # A malformed key or signature is a verification FAILURE, not a
-          # browser limitation. A bare catch reported it as one, blaming the
-          # reader's browser for a bad artifact and rendering a caution with
-          # the content hash intact.
           - id: malformed_key_material
+            stage: import
             digest_matches: true
             ed25519_available: true
-            signature_valid: true
-            crypto_error: DataError
+            import_exception: DataError
+            expect_import_calls: 1
+            expect_verify_calls: 0
             expect_status: failed
             expect_contains: 'Signature could not be checked: DataError'
             expect_also: null
             expect_tone: 'var(--ow-crit)'
           - id: invalid_signature
+            stage: verify
             digest_matches: true
             ed25519_available: true
             signature_valid: false
-            crypto_error: null
+            expect_import_calls: 1
+            expect_verify_calls: 1
             expect_status: failed
             expect_contains: 'Signature is INVALID'
             expect_also: null
             expect_tone: 'var(--ow-crit)'
-          - id: hash_mismatch
-            digest_matches: false
+          - id: consistent
+            stage: verify
+            digest_matches: true
             ed25519_available: true
             signature_valid: true
-            crypto_error: null
-            expect_status: failed
-            expect_contains: 'Content hash mismatch'
-            expect_also: null
-            expect_tone: 'var(--ow-crit)'
-        # The overclaims themselves, not the word "authenticity", which the
-        # correct qualification necessarily uses.
-        forbidden_copy: ['offline', 'is authentic', 'proves authenticity', 'independently verified']
+            expect_import_calls: 1
+            expect_verify_calls: 1
+            expect_status: consistent
+            expect_contains: 'consistent with the signing key this server served'
+            expect_also: 'independently trusted copy'
+            expect_tone: 'var(--ow-ok, #2faf6a)'
+        # An unsupported algorithm must be raised the way a browser raises it.
+        # A plain Error with .name assigned is not what WebCrypto throws, so a
+        # handler keying on the wrong thing would still have passed.
+        unsupported_is_a_real_dom_exception: true
+        forbidden_copy:
+          - 'offline'
+          - 'is authentic'
+          - 'proves authenticity'
+          - 'independently verified'
         badge:
           text: 'Signature present'
           title_contains: 'A signature is present'
           title_forbids: 'Signed by'
           tone: 'var(--ow-fg-3)'
+        verify_control:
+          text: 'Verify'
+          title_contains: 'against the key this server serves'
       expected_output:
         every_case_matches_its_expected_copy: true
         every_case_matches_its_expected_tone: true
         content_only_is_not_success: true
         badge_states_presence_not_trust: true
+        crypto_reached_only_the_stages_a_case_names: true
+        trust_language_guarded_on_badge_control_and_panel: true
         forbidden_copy_occurrences: 0
       priority: high
       references_constraints: [C-07]
