@@ -219,6 +219,57 @@ class ManifestIsLoadable(unittest.TestCase):
                 with self.subTest(gate=g["id"]):
                     self.assertIn("kind", g)
 
+    def test_gate_spec_citations_resolve(self):
+        """A gate citing a spec and AC must cite one that exists.
+
+        Without this the citation is prose. A criterion renamed or renumbered
+        would leave the gate reading like evidence while pointing at nothing,
+        which is the same failure mode the gates file exists to prevent.
+        """
+        import yaml
+        specs = {}
+        for f in (rs.REPO / "specs").rglob("*.spec.yaml"):
+            doc = yaml.safe_load(f.read_text())["spec"]
+            specs[doc["id"]] = {c["id"] for c in doc.get("acceptance_criteria", [])}
+        cited = [g for g in self.gates["gate"] if "spec" in g or "ac" in g]
+        self.assertTrue(cited, "no gate cites a spec; this test would prove nothing")
+        for g in cited:
+            with self.subTest(gate=g["id"]):
+                self.assertIn("spec", g, "a gate citing an ac must name its spec")
+                self.assertIn("ac", g, "a gate citing a spec must name its ac")
+                self.assertIn(g["spec"], specs, f"{g['spec']!r} is not a tracked spec")
+                self.assertIn(g["ac"], specs[g["spec"]],
+                              f"{g['spec']} has no {g['ac']}")
+
+    def test_gate_spec_citations_are_annotated_by_a_test(self):
+        """The cited criterion must be annotated by a test that CI runs.
+
+        A spec can carry a criterion nothing exercises. Resolving the id is not
+        enough: the gate claims the check run proves the behavior, so a test
+        has to claim the criterion.
+        """
+        import re
+        annotated = {}
+        roots = [rs.REPO / "frontend" / "tests", rs.REPO / "internal"]
+        for root in roots:
+            for f in root.rglob("*"):
+                if f.suffix not in (".ts", ".tsx", ".go") or not f.is_file():
+                    continue
+                text = f.read_text(errors="ignore")
+                m = re.search(r"^// @spec (\S+)", text, re.M)
+                if not m:
+                    continue
+                annotated.setdefault(m.group(1), set()).update(
+                    re.findall(r"^\s*// @ac (AC-\d+)", text, re.M))
+        for g in self.gates["gate"]:
+            if "spec" not in g:
+                continue
+            with self.subTest(gate=g["id"]):
+                self.assertIn(g["spec"], annotated,
+                              f"no test file annotates {g['spec']!r}")
+                self.assertIn(g["ac"], annotated[g["spec"]],
+                              f"no test annotates {g['spec']}/{g['ac']}")
+
     def test_shipped_attestations_parse(self):
         for a in rs.load_attestations():
             with self.subTest(f=a["_file"]):

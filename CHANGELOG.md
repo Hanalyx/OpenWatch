@@ -162,6 +162,43 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   zero percent. Hovering it says whether the day mixed formulas or could not be
   assessed. Averages and KPIs show a dash instead of 0% when nothing could be
   scored.
+- **A missing compliance score is no longer colored as a failing one.** The
+  Avg. compliance KPI on the Hosts page, the score on a group card and the
+  Groups summary all painted an absent score in the same critical red as a
+  fleet at 12%. Absence now reads as neutral. On the Hosts KPI, which also
+  draws a bar, an absent score draws no bar at all, while a genuine zero keeps
+  the critical color and draws a bar at zero, so the two are told apart at a
+  glance.
+- **The Hosts page no longer computes its own fleet average.** It showed a
+  locally calculated mean while the server's answer was still loading, and kept
+  showing it when the server answered that the fleet has no score. That was a
+  second implementation of the compliance formula in the browser, and it could
+  disagree with the dashboard. The page now shows no score until the server
+  answers, then shows what the server sent.
+- **Skipped rules are no longer described as "not applicable".** A skip means
+  the scan did not evaluate the rule, which is not the same as the rule not
+  applying to the host. The host compliance tab now says how many rules are in
+  the view rather than how many were evaluated, states which of the two reasons
+  made coverage unavailable, and shows "No score" rather than 0% when nothing
+  was assessed. Group cards state participation and coverage next to the score,
+  so a group average now says how many of its hosts it covers.
+- **A compliance delta is not shown across a scoring-formula boundary.** The
+  dashboard, the Hosts page and the host detail page compared two days whose
+  scores came from different formulas, then drew an arrow and a color from the
+  difference. Those numbers answer different questions, so subtracting them
+  produced a movement that never happened. Each surface now shows no delta, no
+  direction and no color in that case, and says why in plain words.
+- **Report verification says what it actually proves.** The Verify control
+  checks a report against the signing key this same server hands out, so a
+  successful check shows that the content and the signature agree with that
+  key. It is not offline verification and it does not establish authenticity.
+  The result now says so, and points out that authenticity needs the key or its
+  fingerprint compared against a copy you trust from somewhere other than this
+  server. **The cryptography is unchanged. Only the claim is corrected.** The
+  badge on a signed report now reads "Signature present" in a neutral color
+  rather than "Signed by" in green, because no check has run when it appears. A
+  browser that cannot verify Ed25519 is told the signature was not checked,
+  which is separate from a signature that was checked and failed.
 - **A daily fleet trend point reports no score when its snapshots were produced
   by more than one scoring formula.** This happens while a fleet is part way
   through the change: a host whose scans produce no usable evidence keeps its

@@ -13,7 +13,7 @@
 //   AC-16  test('frontend-hosts-list/AC-16 — compliance_summary maps to real compliance with null honesty')
 //   AC-17  test('frontend-hosts-list/AC-17 — kpisFromHosts computes no fleet score')
 //   AC-18  test('frontend-hosts-list/AC-18 — critical issues KPI sums critical_failing with affected-hosts scope')
-//   AC-26  test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)')
+//   AC-26  hosts-list-fleet-score.test.tsx (mounted: absent score is not a zero score)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -130,25 +130,14 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
   expect(btnSlice).not.toMatch(/setInterval/);
 });
 
-// @ac AC-26
-// AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score,
-// TAKEN AS SENT and INCLUDING when it is null, so /hosts and /dashboard can
-// never show a different fleet-compliance number.
-test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
-  // Shares the dashboard's query key + endpoint.
-  expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score', lens]");
-  expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
-  // Assigned directly. No arithmetic: the server already rounded it.
-  expect(PAGE_SRC).toMatch(/kpis\.avgCompliance\.value\s*=\s*fleetScoreQuery\.data\.score_pct/);
-  // Guarded on the QUERY having resolved, never on the score being non-null.
-  // The old guard skipped the assignment when the server said null, which left
-  // a locally computed number on screen for the one fleet the server was
-  // certain had no score.
-  expect(PAGE_SRC).not.toMatch(/fleetScoreQuery\.data\.score_pct\s*!==\s*null/);
-  expect(PAGE_SRC).toMatch(/if\s*\(fleetScoreQuery\.data\)\s*\{/);
-  // The removed fields must not reappear anywhere on this page.
-  expect(PAGE_SRC).not.toMatch(/passing_fraction|total_evaluations/);
-});
+// AC-26 is proven by MOUNTING the page, in hosts-list-fleet-score.test.tsx.
+//
+// What used to be here read the source and confirmed the query key, the
+// endpoint and the shape of the assignment. All three stayed true while the
+// rendered KPI painted an authoritative null in critical red, because source
+// text cannot tell an absent score from a bad one on screen. The structural
+// facts it checked are still worth holding, so they moved into the mounted
+// test's fixture as observable output rather than as string matches.
 
 // @ac AC-19
 // AC-19: the delta comes from the presenter the page calls, and every case
