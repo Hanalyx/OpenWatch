@@ -208,14 +208,21 @@ class PlatformCheckWiring(unittest.TestCase):
 # wherever it appears, because fixture cases inside a criterion carry their own
 # ids and a regex over the whole file would collect those too.
 #
-#   spec:                     column 0
+#   spec:                     column 0, the ONE root mapping that counts
 #     id: <spec id>           column 2, the ROOT id, exactly one per file
 #     acceptance_criteria:    column 2, a section name
 #       - id: AC-NN           column 4 dash item, only inside that section
 #         inputs:
 #           cases:
 #             - id: whatever  column 10, a fixture case, NOT a criterion
+#   metadata:                 column 0, a DIFFERENT root; everything under it
+#     id: counterfeit         is outside spec: and must be ignored entirely
+#
+# The column-zero parent is tracked, not assumed. Keying on "a column-two id"
+# alone accepted a document whose only such id sat under another root mapping,
+# which is a spec id taken from a place that does not define one.
 
+SPEC_ROOT_MAP = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
 SPEC_ROOT_ID = re.compile(r"^  id:\s*(\S+)\s*$")
 SPEC_SECTION = re.compile(r"^  ([A-Za-z_][A-Za-z0-9_]*):")
 SPEC_LIST_ID = re.compile(r"^    - id:\s*(\S+)\s*$")
@@ -230,8 +237,19 @@ def _unquote(v):
 def read_one_spec(path):
     """Return (spec_id, [ac ids]) for one spec file, or raise ValueError."""
     spec_id, section, acs = None, None, []
+    in_spec, spec_roots = False, 0
     for n, line in enumerate(path.read_text().split("\n"), 1):
         if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = SPEC_ROOT_MAP.match(line)
+        if m:
+            # A new column-zero mapping ends whatever came before it.
+            in_spec = m.group(1) == "spec"
+            section = None
+            if in_spec:
+                spec_roots += 1
+            continue
+        if not in_spec:
             continue
         m = SPEC_ROOT_ID.match(line)
         if m:
@@ -249,6 +267,8 @@ def read_one_spec(path):
             if ac in acs:
                 raise ValueError(f"{path}:{n}: duplicate criterion {ac}")
             acs.append(ac)
+    if spec_roots != 1:
+        raise ValueError(f"{path}: expected exactly one spec: root, found {spec_roots}")
     if spec_id is None:
         raise ValueError(f"{path}: no readable spec.id")
     return spec_id, acs
@@ -308,6 +328,36 @@ class SpecReaderIsStructural(unittest.TestCase):
             "  acceptance_criteria:\n    - id: AC-01\n"
         )
         self.assertEqual(read_one_spec(f), ("demo", ["AC-01"]))
+
+    def test_an_id_under_another_root_mapping_is_not_the_spec_id(self):
+        """The counterfeit this reader used to accept.
+
+        Every field is at the documented column, but none of it is under
+        `spec:`. Keying on "a column-two id" alone took `counterfeit` as the
+        spec id and AC-99 as its criterion.
+        """
+        f = self._read(
+            "metadata:\n  id: counterfeit\n  acceptance_criteria:\n    - id: AC-99\n"
+        )
+        with self.assertRaisesRegex(ValueError, "exactly one spec: root"):
+            read_one_spec(f)
+
+    def test_content_after_another_root_mapping_leaves_the_spec(self):
+        f = self._read(
+            "spec:\n  id: real\n  acceptance_criteria:\n    - id: AC-01\n"
+            "metadata:\n  acceptance_criteria:\n    - id: AC-99\n"
+        )
+        self.assertEqual(read_one_spec(f), ("real", ["AC-01"]))
+
+    def test_two_spec_roots_each_with_an_id_are_an_error(self):
+        f = self._read("spec:\n  id: a\nspec:\n  id: b\n")
+        with self.assertRaisesRegex(ValueError, "a second root id"):
+            read_one_spec(f)
+
+    def test_two_spec_roots_are_an_error_even_with_one_id(self):
+        f = self._read("spec:\n  id: a\nspec:\n  title: second\n")
+        with self.assertRaisesRegex(ValueError, "exactly one spec: root"):
+            read_one_spec(f)
 
     def test_a_spec_with_no_root_id_is_an_error(self):
         f = self._read("spec:\n  title: nothing\n")

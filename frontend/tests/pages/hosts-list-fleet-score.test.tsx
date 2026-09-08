@@ -39,8 +39,16 @@ type FixtureHost = { id: string; hostname: string; rules_passed: number; rules_f
 type Schemas = components['schemas'];
 
 /**
- * ENVELOPE is the smallest valid ScoreEnvelope, typed against the generated
- * contract so a field the API adds or renames breaks the build here.
+ * ENVELOPE is the smallest valid ScoreEnvelope for ONE scored host, typed
+ * against the generated contract so a field the API adds or renames breaks
+ * the build here.
+ *
+ * The counters are 1, not 0. This host is scored and recorded neither an
+ * engine nor a corpus, so it is a host WITHOUT each identity. The first
+ * version of this fixture left both at 0 with both contributor lists empty,
+ * which says one scored host is accounted for by nothing at all. The compiler
+ * accepted it because every field had the right type; the arithmetic between
+ * the fields is not something a type can state.
  */
 const ENVELOPE = {
   lens: 'all_rules',
@@ -49,13 +57,34 @@ const ENVELOPE = {
   engine_version: null,
   engine_identity_status: 'unavailable',
   engines: [],
-  hosts_without_engine_identity: 0,
+  hosts_without_engine_identity: 1,
   corpus_identity_status: 'unavailable',
   corpora: [],
-  hosts_without_corpus_identity: 0,
+  hosts_without_corpus_identity: 1,
   corpus_version: null,
   corpus_digest: null,
 } satisfies Schemas['ScoreEnvelope'];
+
+/**
+ * assertEnvelopeAccountsForOneHost checks the arithmetic the type cannot.
+ *
+ * Every scored host is accounted for exactly once on each axis: either a
+ * contributor entry covers it, or it is counted as having no identity. A
+ * fixture that satisfies the shape while breaking this describes a host that
+ * does not exist, and a test built on it proves nothing about a real one.
+ */
+function assertEnvelopeAccountsForOneHost(env: Schemas['ScoreEnvelope'], who: string) {
+  const engineContributors = env.engines.reduce((n, e) => n + e.contributors_scored, 0);
+  expect(
+    engineContributors + env.hosts_without_engine_identity,
+    `${who}: engine contributors plus hosts_without_engine_identity`,
+  ).toBe(1);
+  const corpusContributors = env.corpora.reduce((n, c) => n + c.contributors_scored, 0);
+  expect(
+    corpusContributors + env.hosts_without_corpus_identity,
+    `${who}: corpus contributors plus hosts_without_corpus_identity`,
+  ).toBe(1);
+}
 
 /**
  * hostRow builds ONE list item against the generated schema.
@@ -176,6 +205,14 @@ test('frontend-hosts-list/AC-26 — absent fleet score is not a zero score', asy
     expect(f, `AC-26 must require ${n}`).toBe(true);
   }
   expect(hosts.length, 'the fixture must supply scoreable hosts').toBeGreaterThan(1);
+
+  // The fixture must describe hosts that could exist. A render test cannot
+  // catch an impossible one: it draws whatever it is handed.
+  for (const h of hosts) {
+    const row = hostRow(h);
+    expect(row.compliance_summary.score_pct, `${h.hostname}: scored`).not.toBeNull();
+    assertEnvelopeAccountsForOneHost(row.compliance_summary.envelope, h.hostname);
+  }
 
   const observed: Record<string, string[]> = {};
   for (const raw of cases) {
