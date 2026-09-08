@@ -158,12 +158,33 @@ export function WidgetComplianceTrend() {
       ) : (
         (() => {
           const days = q.data.days;
-          // The trend direction compares the first and last days that actually
-          // have a score. A day with none is not a low point.
+          // Direction compares the first and last days that have a score AND
+          // were produced by the same formula.
+          //
+          // It used to compare them whatever formula each came from, so a
+          // legacy_unknown day and an identified day were subtracted and the
+          // result colored the chart line and the latest caption green or red.
+          // That difference is a change of MEASUREMENT, not a change in
+          // posture, and coloring it asserts something about the fleet that
+          // nothing measured. A mixed day carries no score at all, so the
+          // null filter already keeps it out of the comparison.
           const scoredDays = days.filter((d) => d.score_pct !== null);
           const first = scoredDays[0];
           const last = scoredDays[scoredDays.length - 1];
-          const up = first && last ? last.score_pct! >= first.score_pct! : true;
+          // TWO DISTINCT scored days, sharing a formula state. With only one
+          // scored day first and last are the same point, and comparing it
+          // with itself yielded "up" and painted the widget green: a claim of
+          // improvement from a single measurement.
+          const comparable =
+            first !== undefined &&
+            last !== undefined &&
+            first !== last &&
+            first.formula_status === last.formula_status &&
+            first.formula_status !== 'mixed';
+          const up = comparable ? last!.score_pct! >= first!.score_pct! : null;
+          // Neutral when there is nothing valid to compare. Never green or red
+          // on a boundary: those colors are the claim.
+          const lineColor = up === null ? 'var(--ow-fg-3)' : up ? 'var(--ow-ok)' : 'var(--ow-crit)';
           return (
             <>
               <TrendChart
@@ -180,7 +201,7 @@ export function WidgetComplianceTrend() {
                   ],
                 }))}
                 windowDays={30}
-                color={up ? 'var(--ow-ok)' : 'var(--ow-crit)'}
+                color={lineColor}
                 height={70}
               />
               <div
@@ -193,10 +214,15 @@ export function WidgetComplianceTrend() {
                 }}
               >
                 <span>{first ? `oldest ${first.score_pct}%` : 'no scored day'}</span>
-                <span style={{ color: up ? 'var(--ow-ok)' : 'var(--ow-crit)' }}>
-                  {last ? `latest ${last.score_pct}%` : ''}
-                </span>
+                <span style={{ color: lineColor }}>{last ? `latest ${last.score_pct}%` : ''}</span>
               </div>
+              {up === null && scoredDays.length > 0 ? (
+                <div role="note" style={{ marginTop: 4, fontSize: 11, color: 'var(--ow-fg-3)' }}>
+                  {days.some((d) => d.formula_status === 'mixed')
+                    ? 'No trend direction: a day in this window mixes scoring formulas.'
+                    : 'No trend direction: these days were scored by different formulas.'}
+                </div>
+              ) : null}
             </>
           );
         })()

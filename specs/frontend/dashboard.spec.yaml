@@ -1,7 +1,7 @@
 spec:
   id: frontend-dashboard
   title: Dashboard (authenticated fleet overview)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -123,3 +123,73 @@ spec:
         gutter_markers: 1
         aria_mentions_legacy: true
         aria_mentions_mixed: true
+    - id: AC-07
+      description: >-
+        v1.3.0 - the compliance trend widget makes NO comparison across a
+        formula boundary. AC-06 breaks the chart LINE at a boundary; this
+        criterion covers everything else the widget says about direction.
+
+        The widget derived its direction from the first and last scored days
+        regardless of formula state, so a legacy_unknown day and an identified
+        day were subtracted from each other and the result colored the chart
+        line and the latest-value caption green or red. That difference is a
+        change of measurement, not a change in posture, and coloring it states
+        a claim about the fleet that nothing measured.
+
+        When the compared endpoints share a formula state and it is not mixed,
+        the widget may show direction and directional color. Otherwise it shows
+        neutral color, no direction, no delta, and no improved, declined or
+        versus wording, and it says visibly that the formulas differ. A mixed
+        day carries no score at all and never participates in a comparison.
+
+        Asserted on the RENDERED widget: the caption text, the chart stroke
+        color, and the caption color. Same-formula and cross-formula fixtures
+        are both present, so an implementation that simply disables every
+        comparison fails the same-formula case.
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        cases:
+          - id: same_formula_up
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            comparable: true
+            expect_direction: up
+            expect_line_segments: 1
+            expect_explanation: false
+          - id: same_formula_down
+            days:
+              - {date: '2026-09-01', score_pct: 80.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 70.0, formula_status: identified}
+            comparable: true
+            expect_direction: down
+            expect_line_segments: 1
+            expect_explanation: false
+          - id: cross_formula
+            days:
+              - {date: '2026-09-01', score_pct: 40.0, formula_status: legacy_unknown}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            comparable: false
+            expect_direction: none
+            # The line BREAKS at the boundary, so the two points are never joined.
+            expect_line_segments: 0
+            expect_explanation: true
+          - id: mixed_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: mixed}
+            comparable: false
+            expect_direction: none
+            # A mixed day carries no score, so it plots no point to join.
+            expect_line_segments: 0
+            expect_explanation: true
+        forbidden_when_incomparable: ['improved', 'declined', 'vs yesterday', 'versus']
+        neutral_color_token: 'var(--ow-fg-3)'
+        up_color_token: 'var(--ow-ok)'
+        down_color_token: 'var(--ow-crit)'
+      expected_output:
+        directional_color_only_when_comparable: true
+        line_segments_match_fixture: true
+        explanation_shown_when_incomparable: true
+        forbidden_wording_occurrences: 0
