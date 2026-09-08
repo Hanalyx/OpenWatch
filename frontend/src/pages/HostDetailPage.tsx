@@ -1899,7 +1899,9 @@ const remTd: CSSProperties = {
 // Hero stat strip — band 5
 // ─────────────────────────────────────────────────────────────────────────
 
-function HeroCompliance({
+// Exported so the contract test renders the PRODUCTION component rather than a
+// copy of its logic. HostDetailPage renders this same function.
+export function HeroCompliance({
   summary,
   lastScan,
   scanState,

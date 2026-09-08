@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -169,3 +169,42 @@ spec:
       description: 'v1.4.0 source-inspection - the scan-context strip Re-scan button reflects an in-flight scan: ScanContextStrip is passed scan_context.scan_state (queued|running) and forwards it to RescanButton, which stays disabled and shows "Running…"/"Queued…" for the whole scan (not just the request round-trip) and reverts to "Re-scan" when scanState is null. The state is kept live by the scan.started/scan.completed SSE invalidation of the ["host", hostId] lens query.'
       priority: high
       references_constraints: [C-01]
+    - id: AC-11
+      description: >-
+        v1.6.0 - absence is rendered as absence. The score donut renders
+        score_pct as sent and shows "No score" with a "No verdict" caption when
+        it is null, never the string "null%" and never a full or empty ring
+        that reads as zero percent. Framework chips do the same, rendering a
+        dash rather than interpolating a null into a percent template. A
+        completed all-skipped scan and a genuine zero-percent scan appear in the
+        same fixture, so an implementation that hardcodes either null or zero
+        fails one of them.
+
+        Assessment coverage is stated in all three contract states and never
+        invented: available shows the supplied percentage; both unavailable
+        states show no percentage and say why, one because skips carry no
+        machine-readable reason and one because the lens produced no outcomes.
+
+        No skipped outcome is called "not applicable" or "N/A" anywhere in the
+        rendered copy, including the status filter and the status pills.
+        OpenWatch cannot tell an inapplicable rule from an unevaluated one until
+        KN-OW-021 ships a typed reason, so the word asserts a classification no
+        scan produced. Skipped and errored outcomes are never described as
+        evaluated verdicts. The raw passing, failing, skipped and error counts
+        are all preserved.
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        cases:
+          - {id: all_skipped, passing: 0, failing: 0, skipped: 40, error: 0, score_pct: null, coverage_status: unavailable_unclassified_skips}
+          - {id: genuine_zero, passing: 0, failing: 5, skipped: 0, error: 0, score_pct: 0, coverage_status: available}
+          - {id: no_outcomes, passing: 0, failing: 0, skipped: 0, error: 0, score_pct: null, coverage_status: unavailable_no_outcomes}
+        forbidden_copy: [null%, 'not applicable', N/A]
+      expected_output:
+        all_skipped_renders: No score
+        genuine_zero_renders: 0%
+        no_outcomes_renders: No score
+        coverage_available_shows_percentage: true
+        coverage_unavailable_shows_reason: true
+        forbidden_copy_occurrences: 0
+        counts_preserved: true

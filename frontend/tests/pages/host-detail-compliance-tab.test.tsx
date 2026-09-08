@@ -40,7 +40,16 @@ const LENS = {
     scan_id: '0c9e2f5a-1111-4222-8333-444455556666',
     policy_version: 'v3',
   },
-  summary: { passing: 2, failing: 1, skipped: 1, error: 0, total: 4, score_pct: 50 },
+  summary: {
+    passing: 2,
+    failing: 1,
+    skipped: 1,
+    error: 0,
+    total: 4,
+    score_pct: 50,
+    coverage_status: 'unavailable_unclassified_skips',
+    coverage_pct: null,
+  },
   categories: [
     // score_pct is SENT by the server now, not derived in the component.
     // ssh: 1 of 2 verdicts. auth: 1 of 1, its second rule having produced none.
@@ -273,14 +282,14 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const legend = within(scoreRegion).getByLabelText('Status totals');
     expect(legend).toHaveTextContent(/Compliant\s*2/);
     expect(legend).toHaveTextContent(/Non-compliant\s*1/);
-    expect(legend).toHaveTextContent(/Not applicable\s*1/);
+    expect(legend).toHaveTextContent(/No verdict\s*1/);
     expect(legend).toHaveTextContent(/Executed\s*3/);
     expect(within(legend).queryByText('Error')).toBeNull();
     // Result mix panel: Compliant / Non-compliant bars with counts.
     const summaryRegion = screen.getByLabelText('Result mix');
     expect(summaryRegion).toHaveTextContent('Compliant');
     expect(summaryRegion).toHaveTextContent('Non-compliant');
-    expect(summaryRegion).toHaveTextContent('1 rules not applicable');
+    expect(summaryRegion).toHaveTextContent('1 rules produced no verdict');
     // Scan panel (prototype right column) renders alongside.
     const scanRegion = screen.getByLabelText('Scan details');
     expect(scanRegion).toHaveTextContent('Ran');
@@ -306,7 +315,7 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('Non-compliant')).toBeInTheDocument();
     expect(within(table).getAllByText('Compliant').length).toBe(2);
-    expect(within(table).getByText('N/A')).toBeInTheDocument();
+    expect(within(table).getByText('No verdict')).toBeInTheDocument();
 
     // ONE lens request + ONE frameworks request — everything rendered
     // from a single lens response.
@@ -457,4 +466,132 @@ describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
     expect(TAB_SRC).toMatch(/disabled=\{busy \|\| active\}/);
     expect(TAB_SRC).toMatch(/scanState === 'running'\s*\?\s*'Running…'/);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// AC-11: absence renders as absence, coverage states are honest, and no
+// skipped outcome is called "not applicable".
+// ─────────────────────────────────────────────────────────────────────────
+
+// summaryFor builds a contract-shaped summary for one fixture case.
+function summaryFor(c: {
+  passing: number;
+  failing: number;
+  skipped: number;
+  error: number;
+  score_pct: number | null;
+  coverage_status: string;
+}) {
+  return {
+    passing: c.passing,
+    failing: c.failing,
+    skipped: c.skipped,
+    error: c.error,
+    total: c.passing + c.failing + c.skipped + c.error,
+    score_pct: c.score_pct,
+    coverage_status: c.coverage_status,
+    coverage_pct: c.coverage_status === 'available' ? 83.3 : null,
+  };
+}
+
+// @ac AC-11
+// AC-11: a completed all-skipped scan and a genuine zero appear in the same
+// fixture, so neither a hardcoded null nor a hardcoded zero survives.
+test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverage is honest, no "not applicable"', async () => {
+  const cases = [
+    {
+      id: 'all_skipped',
+      passing: 0,
+      failing: 0,
+      skipped: 40,
+      error: 0,
+      score_pct: null,
+      coverage_status: 'unavailable_unclassified_skips',
+      expect: 'No score',
+    },
+    {
+      id: 'genuine_zero',
+      passing: 0,
+      failing: 5,
+      skipped: 0,
+      error: 0,
+      score_pct: 0,
+      coverage_status: 'available',
+      expect: '0%',
+    },
+    {
+      id: 'no_outcomes',
+      passing: 0,
+      failing: 0,
+      skipped: 0,
+      error: 0,
+      score_pct: null,
+      coverage_status: 'unavailable_no_outcomes',
+      expect: 'No score',
+    },
+  ];
+
+  const rendered: string[] = [];
+  for (const c of cases) {
+    getMock.mockReset();
+    const summary = summaryFor(c);
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/hosts/{id}/compliance/frameworks') {
+        return {
+          data: { overall: { ...summary, framework_id: null }, frameworks: [] },
+          error: undefined,
+          response: { ok: true, status: 200 },
+        };
+      }
+      return {
+        data: { ...LENS, summary, categories: [], rules: [] },
+        error: undefined,
+        response: { ok: true, status: 200 },
+      };
+    });
+
+    const { container, unmount } = renderTab();
+    // Wait for the SCORE PANEL, not the page heading. The heading renders
+    // during loading too, so awaiting it read the DOM mid-flight and every
+    // assertion below saw "Loading compliance data".
+    await screen.findByLabelText('Compliance score');
+    const text = container.textContent ?? '';
+    rendered.push(text);
+
+    expect(text, `${c.id}: expected ${c.expect}`).toContain(c.expect);
+    expect(text, `${c.id}: null must never be interpolated into a percent`).not.toContain('null%');
+
+    // The pair that kills both a hardcoded null and a hardcoded zero: the
+    // zero case must not read as an absence, and the null cases must not read
+    // as zero percent.
+    if (c.score_pct === 0) {
+      expect(text, 'a genuine zero is a verdict, not an absence').not.toContain('No score');
+    } else {
+      expect(text, 'an absent score must not render as zero percent').not.toMatch(/\b0%/);
+    }
+
+    // Coverage: a percentage only when the contract says available, and a
+    // stated reason when it does not.
+    if (c.coverage_status === 'available') {
+      expect(text).toContain('83.3%');
+    } else {
+      expect(text).toContain('Assessment coverage unavailable');
+      expect(text).toMatch(/machine-readable reason|produced no outcomes/);
+    }
+
+    // Raw counts survive whatever the score does.
+    expect(text).toContain(String(c.skipped));
+
+    unmount();
+  }
+
+  // No skipped outcome is called "not applicable" anywhere a USER can read
+  // it. Asserted on rendered output rather than on source, so an explanatory
+  // code comment about the word does not fail the check while a label
+  // carrying it would pass one.
+  expect(rendered.join(' ')).not.toMatch(/not applicable/i);
+  // "N/A" as a standalone status label, which is the same claim abbreviated.
+  expect(rendered.join(' ')).not.toMatch(/\bN\/A\b/);
+  // And the status filter, which is rendered in every case above.
+  expect(rendered[0]).toContain('No verdict');
 });
