@@ -2562,7 +2562,9 @@ function CardTopFailed({
 // posture snapshot rollup (api-compliance-trend). The query key carries
 // the ['host', hostId] prefix so scan.completed SSE invalidation
 // refreshes it with the rest of the page.
-function CardComplianceTrend({ hostId }: { hostId: string }) {
+// Exported so the contract test renders the PRODUCTION card. HostDetailPage
+// renders this same function.
+export function CardComplianceTrend({ hostId }: { hostId: string }) {
   const trendQuery = useQuery({
     queryKey: ['host', hostId, 'compliance_trend'],
     queryFn: async () => {
@@ -2604,9 +2606,26 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
     const scoredDays = days.filter((d) => d.score_pct !== null);
     const latest = scoredDays[scoredDays.length - 1];
     const first = scoredDays[0];
-    const comparable =
-      latest !== undefined && first !== undefined && latest.formula_status === first.formula_status;
-    const diff = comparable ? Math.round((latest.score_pct! - first.score_pct!) * 10) / 10 : null;
+    // A delta needs TWO DISTINCT scored days sharing a formula. With one
+    // scored day, first and latest are the same point: the card compared it
+    // with itself and rendered "0% since <its own date>", a measured flat
+    // trend drawn from a single measurement.
+    //
+    // Each impossible case names its own reason. A single sentence covering
+    // all three said an earlier formula scored part of the window, which is
+    // untrue when the window simply has one scored day.
+    let noCompareReason: string | null = null;
+    if (days.some((d) => d.formula_status === 'mixed')) {
+      noCompareReason = 'a day in this window mixes scoring formulas';
+    } else if (scoredDays.length < 2) {
+      noCompareReason = 'at least two scored days are needed';
+    } else if (latest!.formula_status !== first!.formula_status) {
+      noCompareReason = 'these days were scored by different formulas';
+    }
+    const diff =
+      noCompareReason === null
+        ? Math.round((latest!.score_pct! - first!.score_pct!) * 10) / 10
+        : null;
     body = (
       <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -2632,9 +2651,13 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
               {diff}% since {first.date}
             </span>
           )}
-          {diff === null && latest !== undefined && (
+          {/* Rendered whatever latest is. Requiring a scored day here meant a
+              window of entirely scoreless days computed the reason and then
+              suppressed it, leaving the one case most in need of explanation
+              with a blank where the delta had been. */}
+          {noCompareReason !== null && (
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ow-fg-3)' }}>
-              No comparison: an earlier formula scored part of this window
+              {`No comparison: ${noCompareReason}`}
             </span>
           )}
         </div>

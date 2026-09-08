@@ -41,7 +41,7 @@ var ArithmeticRegistry = []ArithmeticSite{
 	{
 		File:   "frontend/src/pages/HostDetailPage.tsx",
 		Symbol: "diff",
-		Expr:   "latest.score_pct!",
+		Expr:   "latest!.score_pct!",
 		Reason: "The trend DELTA between two days: latest.score_pct minus first.score_pct. " +
 			"Both operands are server-computed scores and the result is a difference, not a " +
 			"score, so there is no second formula here. It is guarded on both days sharing a " +

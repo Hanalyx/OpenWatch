@@ -304,28 +304,10 @@ export function HostsListPage() {
   }
 
   if (fleetTrendQuery.data) {
-    const days = fleetTrendQuery.data.days;
-    if (days.length >= 2) {
-      const today = days[days.length - 1]!;
-      const prev = days[days.length - 2]!;
-      // A delta needs two comparable numbers. Either day may have no score, and
-      // a legacy day cannot be subtracted from a current one at all: the two
-      // were produced by different formulas, so their difference is not a
-      // change in posture.
-      const comparable =
-        today.score_pct !== null &&
-        prev.score_pct !== null &&
-        today.formula_status === prev.formula_status &&
-        today.formula_status !== 'mixed';
-      if (comparable) {
-        const diff = Math.round((today.score_pct! - prev.score_pct!) * 10) / 10;
-        kpis.avgCompliance.delta =
-          diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
-        kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';
-      } else if (today.formula_status === 'mixed') {
-        kpis.avgCompliance.delta = 'No comparison: yesterday mixes formulas';
-        kpis.avgCompliance.deltaTier = 'neutral';
-      }
+    const presented = fleetDeltaFromTrend(fleetTrendQuery.data.days);
+    if (presented) {
+      kpis.avgCompliance.delta = presented.delta;
+      kpis.avgCompliance.deltaTier = presented.tier;
     }
   }
 
@@ -1946,6 +1928,54 @@ export function apiHostToDev(h: ApiHost): DevHost {
     // "Running"/"Queued" indicator; null when idle. Spec api-hosts C-14.
     scanState: h.scan_state ?? null,
   };
+}
+
+/** One day of the fleet compliance trend, as this page reads it. */
+export type FleetTrendDay = {
+  score_pct: number | null;
+  formula_status: 'identified' | 'legacy_unknown' | 'mixed';
+};
+
+/**
+ * fleetDeltaFromTrend turns the fleet trend into the KPI delta caption and its
+ * tier, or null when there is not even a pair of days to consider.
+ *
+ * A delta needs two days that both carry a score and share a formula state
+ * that is not mixed. Otherwise it says WHICH case applies rather than leaving
+ * a blank: the page previously explained only a mixed today, and said
+ * "yesterday mixes formulas" while naming the wrong day, so a mixed previous
+ * day and a formula mismatch both rendered an unexplained gap.
+ *
+ * Exported so the contract test drives the presenter the page actually calls
+ * rather than reading these sentences out of the source.
+ */
+export function fleetDeltaFromTrend(
+  days: FleetTrendDay[],
+): { delta: string; tier: 'ok' | 'crit' | 'neutral' } | null {
+  if (days.length < 2) return null;
+  const today = days[days.length - 1]!;
+  const prev = days[days.length - 2]!;
+  const comparable =
+    today.score_pct !== null &&
+    prev.score_pct !== null &&
+    today.formula_status === prev.formula_status &&
+    today.formula_status !== 'mixed';
+  if (comparable) {
+    const diff = Math.round((today.score_pct! - prev.score_pct!) * 10) / 10;
+    return {
+      delta: diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`,
+      tier: diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral',
+    };
+  }
+  const reason =
+    today.formula_status === 'mixed'
+      ? 'today mixes formulas'
+      : prev.formula_status === 'mixed'
+        ? 'yesterday mixes formulas'
+        : today.formula_status !== prev.formula_status
+          ? 'the two days were scored by different formulas'
+          : 'a day in this window has no score';
+  return { delta: `No comparison: ${reason}`, tier: 'neutral' };
 }
 
 export function kpisFromHosts(hosts: DevHost[]): DevKpis {

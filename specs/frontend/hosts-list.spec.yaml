@@ -186,7 +186,28 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-19
-      description: 'v1.4.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]): with two or more snapshot days it renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change); with fewer days the delta stays empty - never a fabricated zero'
+      description: 'v1.12.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]). It renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change) ONLY when both days carry a score and share a formula state that is not mixed. Otherwise it renders no delta, a neutral tier, and a reason naming which of four cases applies: today mixes formulas, yesterday mixes formulas, the two days were scored by different formulas, or a day has no score. The earlier text required "vs yesterday" unconditionally, and the code explained only the case where TODAY is mixed while saying "yesterday mixes formulas", so a mixed previous day and a formula mismatch both produced an unexplained blank. The presentation lives in the exported fleetDeltaFromTrend, which the page calls, so the contract is asserted against the presenter rather than against the source text of its sentences.'
+      inputs:
+        cases:
+          - {id: rise, prev_score: 70.0, prev_status: identified, today_score: 80.0, today_status: identified,
+             expect_delta: '+10% vs yesterday', expect_tier: ok}
+          - {id: fall, prev_score: 80.0, prev_status: identified, today_score: 70.0, today_status: identified,
+             expect_delta: '-10% vs yesterday', expect_tier: crit}
+          - {id: flat, prev_score: 75.0, prev_status: identified, today_score: 75.0, today_status: identified,
+             expect_delta: 'No change vs yesterday', expect_tier: neutral}
+          - {id: mixed_today, prev_score: 70.0, prev_status: identified, today_score: null, today_status: mixed,
+             expect_delta: 'No comparison: today mixes formulas', expect_tier: neutral}
+          - {id: mixed_yesterday, prev_score: null, prev_status: mixed, today_score: 70.0, today_status: identified,
+             expect_delta: 'No comparison: yesterday mixes formulas', expect_tier: neutral}
+          - {id: formula_mismatch, prev_score: 40.0, prev_status: legacy_unknown, today_score: 80.0, today_status: identified,
+             expect_delta: 'No comparison: the two days were scored by different formulas', expect_tier: neutral}
+          - {id: scoreless_day, prev_score: 70.0, prev_status: identified, today_score: null, today_status: identified,
+             expect_delta: 'No comparison: a day in this window has no score', expect_tier: neutral}
+        directional_tiers: [ok, crit]
+      expected_output:
+        every_case_matches_its_expected_delta: true
+        every_case_matches_its_expected_tier: true
+        directional_tier_only_when_comparable: true
       priority: high
 
     - id: AC-20

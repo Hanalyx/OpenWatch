@@ -25,6 +25,8 @@ import {
   type ApiHostComplianceSummary,
 } from '@/pages/HostsListPage';
 import type { DevHost } from '@/api/host-view-model';
+import { fleetDeltaFromTrend, type FleetTrendDay } from '@/pages/HostsListPage';
+import { loadCriterion, trackFixture } from '../support/spec-fixture';
 
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
@@ -146,6 +148,64 @@ test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score
   expect(PAGE_SRC).toMatch(/if\s*\(fleetScoreQuery\.data\)\s*\{/);
   // The removed fields must not reappear anywhere on this page.
   expect(PAGE_SRC).not.toMatch(/passing_fraction|total_evaluations/);
+});
+
+// @ac AC-19
+// AC-19: the delta comes from the presenter the page calls, and every case
+// produces its own caption and tier. Reading the sentences out of the source
+// proved they exist, not that the right one renders for a given response.
+test('frontend-hosts-list/AC-19 — delta explains every case it cannot compare', () => {
+  const ac = loadCriterion('hosts-list', 'frontend-hosts-list', 'AC-19');
+  const inp = trackFixture(ac.inputs, 'AC-19 inputs');
+  const exp = trackFixture(ac.expected, 'AC-19 expected_output');
+
+  const cases = inp.get<Record<string, unknown>[]>('cases');
+  const directionalTiers = inp.get<string[]>('directional_tiers');
+  const checkDelta = exp.get<boolean>('every_case_matches_its_expected_delta');
+  const checkTier = exp.get<boolean>('every_case_matches_its_expected_tier');
+  const tierOnlyWhenComparable = exp.get<boolean>('directional_tier_only_when_comparable');
+  inp.allConsumed();
+  exp.allConsumed();
+  expect(checkDelta, 'AC-19 must require the delta comparison').toBe(true);
+  expect(checkTier, 'AC-19 must require the tier comparison').toBe(true);
+  expect(tierOnlyWhenComparable, 'AC-19 must restrict the directional tier').toBe(true);
+
+  for (const raw of cases) {
+    const c = trackFixture(raw, `AC-19 case ${String(raw.id)}`);
+    const id = c.get<string>('id');
+    const days = [
+      {
+        score_pct: c.get<number | null>('prev_score'),
+        formula_status: c.get<string>('prev_status') as FleetTrendDay['formula_status'],
+      },
+      {
+        score_pct: c.get<number | null>('today_score'),
+        formula_status: c.get<string>('today_status') as FleetTrendDay['formula_status'],
+      },
+    ];
+    const wantDelta = c.get<string>('expect_delta');
+    const wantTier = c.get<string>('expect_tier');
+    c.allConsumed();
+
+    const got = fleetDeltaFromTrend(days);
+    expect(got, `${id}: presenter returned nothing`).not.toBeNull();
+    expect(got!.delta, `${id}: caption`).toBe(wantDelta);
+    expect(got!.tier, `${id}: tier`).toBe(wantTier);
+
+    // A directional tier is a claim. Only a real rise or fall earns one, so a
+    // case that cannot be compared must never be colored.
+    const comparable = !wantDelta.startsWith('No comparison');
+    if (!comparable) {
+      expect(directionalTiers, `${id}: incomparable must not be colored`).not.toContain(got!.tier);
+    }
+  }
+
+  // Fewer than two days is not a case at all: there is nothing to say.
+  expect(fleetDeltaFromTrend([]), 'no days').toBeNull();
+  expect(
+    fleetDeltaFromTrend([{ score_pct: 70, formula_status: 'identified' }]),
+    'one day',
+  ).toBeNull();
 });
 
 // @ac AC-14
@@ -279,11 +339,11 @@ describe('frontend-hosts-list v1.4.0 — fleet trend delta', () => {
   test('frontend-hosts-list/AC-19 — avg-compliance delta reads the fleet trend; empty below two days', () => {
     expect(PAGE_SRC).toContain("queryKey: ['fleet', 'compliance', 'trend']");
     expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/compliance/trend'");
-    // Delta only renders with >= 2 snapshot days.
-    expect(PAGE_SRC).toContain('if (days.length >= 2)');
-    expect(PAGE_SRC).toMatch(/vs yesterday/);
-    // Tier by direction.
-    expect(PAGE_SRC).toContain("diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral'");
+    // The page delegates to the exported presenter rather than inlining the
+    // comparison, so the behavior is asserted against fleetDeltaFromTrend in
+    // the criterion above rather than against this source text.
+    expect(PAGE_SRC).toContain('fleetDeltaFromTrend(fleetTrendQuery.data.days)');
+    expect(fleetDeltaFromTrend([]), 'fewer than two days yields no delta').toBeNull();
     // kpisFromHosts itself never fabricates a delta.
     expect(PAGE_SRC).toMatch(/avgCompliance: \{ value: avgCompliance, target: 80, delta: '',/);
   });

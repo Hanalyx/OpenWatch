@@ -154,42 +154,61 @@ spec:
             days:
               - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
               - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
-            comparable: true
             expect_direction: up
+            expect_color_token: 'var(--ow-ok)'
             expect_line_segments: 1
-            expect_explanation: false
+            expect_explanation: null
           - id: same_formula_down
             days:
               - {date: '2026-09-01', score_pct: 80.0, formula_status: identified}
               - {date: '2026-09-02', score_pct: 70.0, formula_status: identified}
-            comparable: true
             expect_direction: down
+            expect_color_token: 'var(--ow-crit)'
             expect_line_segments: 1
-            expect_explanation: false
+            expect_explanation: null
+          # Equal scores are FLAT. Comparable, but nothing improved, so the
+          # widget must not paint it green. >= made equal read as up.
+          - id: same_formula_flat
+            days:
+              - {date: '2026-09-01', score_pct: 75.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 75.0, formula_status: identified}
+            expect_direction: flat
+            expect_color_token: 'var(--ow-fg-3)'
+            expect_line_segments: 1
+            expect_explanation: null
           - id: cross_formula
             days:
               - {date: '2026-09-01', score_pct: 40.0, formula_status: legacy_unknown}
               - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
-            comparable: false
             expect_direction: none
+            expect_color_token: 'var(--ow-fg-3)'
             # The line BREAKS at the boundary, so the two points are never joined.
             expect_line_segments: 0
-            expect_explanation: true
+            expect_explanation: 'No trend direction: these days were scored by different formulas.'
           - id: mixed_day
             days:
               - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
               - {date: '2026-09-02', score_pct: null, formula_status: mixed}
-            comparable: false
             expect_direction: none
-            # A mixed day carries no score, so it plots no point to join.
+            expect_color_token: 'var(--ow-fg-3)'
             expect_line_segments: 0
-            expect_explanation: true
+            expect_explanation: 'No trend direction: a day in this window mixes scoring formulas.'
+          # One scored day beside a scoreless day that is NOT mixed. There are
+          # not two scored points to compare, and the reason is neither a
+          # formula mismatch nor a mixed day.
+          - id: one_scored_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: identified}
+            expect_direction: none
+            expect_color_token: 'var(--ow-fg-3)'
+            expect_line_segments: 0
+            expect_explanation: 'No trend direction: at least two scored days are needed.'
         forbidden_when_incomparable: ['improved', 'declined', 'vs yesterday', 'versus']
-        neutral_color_token: 'var(--ow-fg-3)'
-        up_color_token: 'var(--ow-ok)'
-        down_color_token: 'var(--ow-crit)'
+        directional_color_tokens: ['var(--ow-ok)', 'var(--ow-crit)']
       expected_output:
-        directional_color_only_when_comparable: true
+        every_case_matches_its_expected_direction: true
+        every_case_matches_its_expected_color: true
+        every_case_matches_its_expected_explanation: true
         line_segments_match_fixture: true
-        explanation_shown_when_incomparable: true
         forbidden_wording_occurrences: 0

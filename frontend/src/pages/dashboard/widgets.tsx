@@ -175,16 +175,40 @@ export function WidgetComplianceTrend() {
           // scored day first and last are the same point, and comparing it
           // with itself yielded "up" and painted the widget green: a claim of
           // improvement from a single measurement.
-          const comparable =
-            first !== undefined &&
-            last !== undefined &&
-            first !== last &&
-            first.formula_status === last.formula_status &&
-            first.formula_status !== 'mixed';
-          const up = comparable ? last!.score_pct! >= first!.score_pct! : null;
-          // Neutral when there is nothing valid to compare. Never green or red
-          // on a boundary: those colors are the claim.
-          const lineColor = up === null ? 'var(--ow-fg-3)' : up ? 'var(--ow-ok)' : 'var(--ow-crit)';
+          // Direction is up, down, flat, or none with a stated reason. Each
+          // reason names a different situation, because "no direction" alone
+          // leaves a reader guessing which of three things happened.
+          //
+          // A mixed day is checked first: it carries no score, so it would
+          // otherwise present as "not enough scored days" and hide the more
+          // specific fact that a day in the window mixes formulas.
+          let direction: 'up' | 'down' | 'flat' | null = null;
+          let reason: string | null = null;
+          if (days.some((d) => d.formula_status === 'mixed')) {
+            reason = 'a day in this window mixes scoring formulas';
+          } else if (scoredDays.length < 2) {
+            // With one scored day, first and last are the same point.
+            // Comparing it with itself yielded "up" and painted the widget
+            // green: a claim of improvement from a single measurement.
+            reason = 'at least two scored days are needed';
+          } else if (first!.formula_status !== last!.formula_status) {
+            reason = 'these days were scored by different formulas';
+          } else if (last!.score_pct! > first!.score_pct!) {
+            direction = 'up';
+          } else if (last!.score_pct! < first!.score_pct!) {
+            direction = 'down';
+          } else {
+            // EQUAL is flat, not up. >= painted two identical scores green,
+            // which claims an improvement that did not happen.
+            direction = 'flat';
+          }
+          // Green and red are the claim. Only a real rise or fall earns one.
+          const lineColor =
+            direction === 'up'
+              ? 'var(--ow-ok)'
+              : direction === 'down'
+                ? 'var(--ow-crit)'
+                : 'var(--ow-fg-3)';
           return (
             <>
               <TrendChart
@@ -216,11 +240,9 @@ export function WidgetComplianceTrend() {
                 <span>{first ? `oldest ${first.score_pct}%` : 'no scored day'}</span>
                 <span style={{ color: lineColor }}>{last ? `latest ${last.score_pct}%` : ''}</span>
               </div>
-              {up === null && scoredDays.length > 0 ? (
+              {reason !== null ? (
                 <div role="note" style={{ marginTop: 4, fontSize: 11, color: 'var(--ow-fg-3)' }}>
-                  {days.some((d) => d.formula_status === 'mixed')
-                    ? 'No trend direction: a day in this window mixes scoring formulas.'
-                    : 'No trend direction: these days were scored by different formulas.'}
+                  {`No trend direction: ${reason}.`}
                 </div>
               ) : null}
             </>
