@@ -196,15 +196,22 @@ spec:
       references_constraints: [C-01]
       inputs:
         cases:
-          - {id: all_skipped, passing: 0, failing: 0, skipped: 40, error: 0, score_pct: null, coverage_status: unavailable_unclassified_skips}
-          - {id: genuine_zero, passing: 0, failing: 5, skipped: 0, error: 0, score_pct: 0, coverage_status: available}
-          - {id: no_outcomes, passing: 0, failing: 0, skipped: 0, error: 0, score_pct: null, coverage_status: unavailable_no_outcomes}
-        forbidden_copy: [null%, 'not applicable', N/A]
+          - {id: all_skipped, passing: 0, failing: 0, skipped: 40, error: 0, score_pct: null,
+             coverage_status: unavailable_unclassified_skips, renders: 'No score', forbids: '0%'}
+          - {id: genuine_zero, passing: 0, failing: 5, skipped: 0, error: 0, score_pct: 0,
+             coverage_status: available, coverage_pct: 83.3, renders: '0%', forbids: 'No score'}
+          - {id: no_outcomes, passing: 0, failing: 0, skipped: 0, error: 0, score_pct: null,
+             coverage_status: unavailable_no_outcomes, renders: 'No score', forbids: '0%'}
+          # Nonzero error, so the error count is proven preserved and the
+          # error-language rule is exercised rather than assumed. An errored
+          # rule produced no verdict either, so this case still has no score.
+          - {id: mixed_with_errors, passing: 3, failing: 2, skipped: 4, error: 6, score_pct: 60,
+             coverage_status: unavailable_unclassified_skips, renders: '60%', forbids: 'No score'}
+        forbidden_copy: ['null%', 'not applicable', 'N/A', 'rules evaluated']
+        coverage_reason_pattern: 'machine-readable reason|produced no outcomes'
       expected_output:
-        all_skipped_renders: No score
-        genuine_zero_renders: 0%
-        no_outcomes_renders: No score
         coverage_available_shows_percentage: true
         coverage_unavailable_shows_reason: true
         forbidden_copy_occurrences: 0
         counts_preserved: true
+        counts_asserted: [passing, failing, skipped, error]

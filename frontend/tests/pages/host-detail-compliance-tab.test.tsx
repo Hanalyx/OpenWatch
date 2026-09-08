@@ -471,7 +471,46 @@ describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
 // ─────────────────────────────────────────────────────────────────────────
 // AC-11: absence renders as absence, coverage states are honest, and no
 // skipped outcome is called "not applicable".
+//
+// Every value below comes from the SPEC. The fixture is read through js-yaml
+// and every key is consumed, so editing the YAML changes what this test
+// asserts and an unread key fails it. A test that restated the cases inline
+// would let the spec drift without anything noticing.
 // ─────────────────────────────────────────────────────────────────────────
+
+import yaml from 'js-yaml';
+
+type AnyRec = Record<string, unknown>;
+
+// tracked wraps a fixture object and records which keys were read, so an
+// unconsumed field fails rather than sitting decoratively in the YAML.
+function tracked(obj: AnyRec, label: string) {
+  const seen = new Set<string>();
+  return {
+    get<T>(key: string): T {
+      if (!(key in obj)) throw new Error(`${label}: fixture has no key ${key}`);
+      seen.add(key);
+      return obj[key] as T;
+    },
+    has(key: string) {
+      seen.add(key);
+      return key in obj;
+    },
+    allConsumed() {
+      const missed = Object.keys(obj).filter((k) => !seen.has(k));
+      expect(missed, `${label}: fixture keys never asserted`).toEqual([]);
+    },
+  };
+}
+
+function loadAC11() {
+  const doc = yaml.load(
+    readFileSync(resolve(process.cwd(), '../specs/frontend/host-compliance-tab.spec.yaml'), 'utf8'),
+  ) as { spec: { acceptance_criteria: AnyRec[] } };
+  const ac = doc.spec.acceptance_criteria.find((a) => a.id === 'AC-11');
+  if (!ac) throw new Error('AC-11 not found in frontend-host-compliance-tab');
+  return { inputs: ac.inputs as AnyRec, expected: ac.expected_output as AnyRec };
+}
 
 // summaryFor builds a contract-shaped summary for one fixture case.
 function summaryFor(c: {
@@ -481,6 +520,7 @@ function summaryFor(c: {
   error: number;
   score_pct: number | null;
   coverage_status: string;
+  coverage_pct?: number;
 }) {
   return {
     passing: c.passing,
@@ -490,7 +530,7 @@ function summaryFor(c: {
     total: c.passing + c.failing + c.skipped + c.error,
     score_pct: c.score_pct,
     coverage_status: c.coverage_status,
-    coverage_pct: c.coverage_status === 'available' ? 83.3 : null,
+    coverage_pct: c.coverage_pct ?? null,
   };
 }
 
@@ -498,43 +538,48 @@ function summaryFor(c: {
 // AC-11: a completed all-skipped scan and a genuine zero appear in the same
 // fixture, so neither a hardcoded null nor a hardcoded zero survives.
 test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverage is honest, no "not applicable"', async () => {
-  const cases = [
-    {
-      id: 'all_skipped',
-      passing: 0,
-      failing: 0,
-      skipped: 40,
-      error: 0,
-      score_pct: null,
-      coverage_status: 'unavailable_unclassified_skips',
-      expect: 'No score',
-    },
-    {
-      id: 'genuine_zero',
-      passing: 0,
-      failing: 5,
-      skipped: 0,
-      error: 0,
-      score_pct: 0,
-      coverage_status: 'available',
-      expect: '0%',
-    },
-    {
-      id: 'no_outcomes',
-      passing: 0,
-      failing: 0,
-      skipped: 0,
-      error: 0,
-      score_pct: null,
-      coverage_status: 'unavailable_no_outcomes',
-      expect: 'No score',
-    },
-  ];
+  const { inputs, expected } = loadAC11();
+  const inp = tracked(inputs, 'AC-11 inputs');
+  const exp = tracked(expected, 'AC-11 expected_output');
+
+  const cases = inp.get<AnyRec[]>('cases');
+  const forbidden = inp.get<string[]>('forbidden_copy');
+  const reasonPattern = new RegExp(inp.get<string>('coverage_reason_pattern'));
+  const wantCounts = exp.get<string[]>('counts_asserted');
+  const showsPct = exp.get<boolean>('coverage_available_shows_percentage');
+  const showsReason = exp.get<boolean>('coverage_unavailable_shows_reason');
+  const wantForbiddenCount = exp.get<number>('forbidden_copy_occurrences');
+  if (!exp.get<boolean>('counts_preserved')) {
+    throw new Error('fixture must require the raw counts to be preserved');
+  }
+  inp.allConsumed();
+  exp.allConsumed();
 
   const rendered: string[] = [];
-  for (const c of cases) {
+  for (const raw of cases) {
+    const c = tracked(raw, `AC-11 case ${String(raw.id)}`);
+    const id = c.get<string>('id');
+    const counts = {
+      passing: c.get<number>('passing'),
+      failing: c.get<number>('failing'),
+      skipped: c.get<number>('skipped'),
+      error: c.get<number>('error'),
+    };
+    const scorePct = c.get<number | null>('score_pct');
+    const coverageStatus = c.get<string>('coverage_status');
+    const coveragePct = c.has('coverage_pct') ? c.get<number>('coverage_pct') : undefined;
+    const renders = c.get<string>('renders');
+    const forbids = c.get<string>('forbids');
+    c.allConsumed();
+
+    const summary = summaryFor({
+      ...counts,
+      score_pct: scorePct,
+      coverage_status: coverageStatus,
+      coverage_pct: coveragePct,
+    });
+
     getMock.mockReset();
-    const summary = summaryFor(c);
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/v1/hosts/{id}/compliance/frameworks') {
         return {
@@ -551,47 +596,61 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
     });
 
     const { container, unmount } = renderTab();
-    // Wait for the SCORE PANEL, not the page heading. The heading renders
-    // during loading too, so awaiting it read the DOM mid-flight and every
-    // assertion below saw "Loading compliance data".
+    // Wait for the SCORE PANEL, not the page heading: the heading renders
+    // during loading too, so awaiting it read the DOM mid-flight.
     await screen.findByLabelText('Compliance score');
     const text = container.textContent ?? '';
     rendered.push(text);
 
-    expect(text, `${c.id}: expected ${c.expect}`).toContain(c.expect);
-    expect(text, `${c.id}: null must never be interpolated into a percent`).not.toContain('null%');
-
-    // The pair that kills both a hardcoded null and a hardcoded zero: the
-    // zero case must not read as an absence, and the null cases must not read
-    // as zero percent.
-    if (c.score_pct === 0) {
-      expect(text, 'a genuine zero is a verdict, not an absence').not.toContain('No score');
-    } else {
-      expect(text, 'an absent score must not render as zero percent').not.toMatch(/\b0%/);
-    }
+    expect(text, `${id}: expected ${renders}`).toContain(renders);
+    expect(text, `${id}: must not show ${forbids}`).not.toContain(forbids);
 
     // Coverage: a percentage only when the contract says available, and a
     // stated reason when it does not.
-    if (c.coverage_status === 'available') {
-      expect(text).toContain('83.3%');
-    } else {
-      expect(text).toContain('Assessment coverage unavailable');
-      expect(text).toMatch(/machine-readable reason|produced no outcomes/);
+    if (coverageStatus === 'available') {
+      if (showsPct) expect(text, `${id}: coverage percentage`).toContain(`${coveragePct}%`);
+    } else if (showsReason) {
+      expect(text, `${id}: coverage unavailable`).toContain('Assessment coverage unavailable');
+      expect(text, `${id}: coverage reason`).toMatch(reasonPattern);
     }
 
-    // Raw counts survive whatever the score does.
-    expect(text).toContain(String(c.skipped));
+    // ALL FOUR raw counts survive whatever the score does, asserted PER ROW.
+    // Searching the whole legend for the number was too weak: with several
+    // zero counts any digit matched something, so a component that rendered a
+    // constant would have passed.
+    const legend = within(container).getByRole('list', { name: 'Status totals' });
+    const rowLabel: Record<string, string> = {
+      passing: 'Compliant',
+      failing: 'Non-compliant',
+      skipped: 'No verdict',
+      error: 'Error',
+    };
+    for (const name of wantCounts) {
+      const n = counts[name as keyof typeof counts];
+      // The Error row renders only when there are errors, which is why the
+      // fixture carries a nonzero-error case.
+      if (name === 'error' && n === 0) continue;
+      const label = rowLabel[name] ?? '';
+      const row = within(legend)
+        .getAllByRole('listitem')
+        .find((el) => (el.textContent ?? '').startsWith(label));
+      expect(row, `${id}: legend row for ${name}`).toBeDefined();
+      expect(row?.textContent, `${id}: ${name} count is ${n}`).toBe(`${label}${n}`);
+    }
 
+    // Unmount between cases. Without it the next render lands beside this one
+    // and findByLabelText resolves against the stale panel.
     unmount();
   }
 
-  // No skipped outcome is called "not applicable" anywhere a USER can read
-  // it. Asserted on rendered output rather than on source, so an explanatory
-  // code comment about the word does not fail the check while a label
-  // carrying it would pass one.
-  expect(rendered.join(' ')).not.toMatch(/not applicable/i);
-  // "N/A" as a standalone status label, which is the same claim abbreviated.
-  expect(rendered.join(' ')).not.toMatch(/\bN\/A\b/);
-  // And the status filter, which is rendered in every case above.
-  expect(rendered[0]).toContain('No verdict');
+  // Forbidden copy, from the fixture, across every rendered case.
+  const all = rendered.join(' ');
+  let hits = 0;
+  for (const phrase of forbidden) {
+    if (new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(all)) {
+      hits += 1;
+      expect.fail(`rendered copy contains the forbidden phrase ${phrase}`);
+    }
+  }
+  expect(hits).toBe(wantForbiddenCount);
 });

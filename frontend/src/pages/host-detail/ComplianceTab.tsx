@@ -16,7 +16,7 @@
 //      changes.
 //   3. score + result-mix + scan panels (three columns): donut score
 //      with the status legend (Executed = pass + fail; Error only when
-//      present); Compliant / Non-compliant bars with an N/A note; scan
+//      present); Compliant / Non-compliant bars with a no-verdict note; scan
 //      metadata (framework, ran at, duration, coverage).
 //   4. numbered category rows: passing / failing over EXECUTED rules
 //      with a banded pass percentage.
@@ -27,7 +27,7 @@
 //      rules max), so search and filtering never refetch.
 //
 // Status wording follows the prototype: Compliant / Non-compliant /
-// N/A (skipped) / Error.
+// No verdict (skipped) / Error.
 //
 // Data flow: ONE GET /hosts/{id}/compliance response renders sections
 // 1 and 3-5; GET /hosts/{id}/compliance/frameworks feeds the lens bar
@@ -574,7 +574,7 @@ function LensChip({
 // ─────────────────────────────────────────────────────────────────────────
 // 3. Score donut + Result mix + Scan panels (prototype three-column
 //    block). The donut panel carries the status legend; the result-mix
-//    panel renders just the Compliant / Non-compliant bars + N/A note.
+//    panel renders just the Compliant / Non-compliant bars + no-verdict note.
 // ─────────────────────────────────────────────────────────────────────────
 
 // coverageLine renders assessment coverage in the three states the contract
@@ -850,9 +850,13 @@ function ScanPanel({
   lensTotal: number;
 }) {
   const ran = scanContext.last_scan_at ? new Date(scanContext.last_scan_at).toLocaleString() : '';
+  // "in this view", not "evaluated". lensTotal is summary.total, which counts
+  // passing, failing, skipped AND errored rules. Calling that number evaluated
+  // claims a verdict for every rule the scan skipped or errored on, which is
+  // the same overclaim as labeling a skip "not applicable".
   const coverage = framework
     ? `${lensTotal} of this host's rules carry a ${frameworkLabel(framework)} ref`
-    : `${lensTotal} rules evaluated on this host`;
+    : `${lensTotal} rules in this view`;
   return (
     <section aria-label="Scan details" style={panel}>
       <h3 style={panelHead}>Scan</h3>
@@ -1341,7 +1345,7 @@ function Th({ children, width }: { children: ReactNode; width?: number }) {
 }
 
 // StatusChip — prototype wording: Compliant (ok), Non-compliant
-// (crit), N/A (muted), Error (warn).
+// (crit), No verdict (muted), Error (warn).
 const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = {
   pass: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Compliant' },
   fail: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Non-compliant' },
