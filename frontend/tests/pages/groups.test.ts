@@ -31,11 +31,14 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('summary.os_categories');
     expect(SRC).toContain('summary.hosts_maintenance');
     expect(SRC).toContain('summary.ungrouped');
-    // The score object, not a bare integer. It carries the one-decimal value
-    // and the population it was taken over.
-    expect(SRC).toContain('summary.score.score_pct');
-    expect(SRC).toContain('summary.score.hosts_scored');
-    expect(SRC).toContain('summary.score.hosts_total');
+    // The score OBJECT, not a bare integer, handed whole to the shared
+    // presenter. The field reads moved there when the fleet KPI and the group
+    // cards stopped presenting the aggregate two different ways.
+    expect(SRC).toContain('scorePresentation(summary.score)');
+    expect(SRC).toContain('score.score_pct');
+    expect(SRC).toContain('score.hosts_scored');
+    expect(SRC).toContain('score.hosts_without_score');
+    expect(SRC).toContain('score.hosts_total');
     expect(SRC).not.toContain('avg_compliance_pct');
   });
 
@@ -46,7 +49,9 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('r.online');
     expect(SRC).toContain('r.down');
     expect(SRC).toContain('r.critical_hosts');
-    expect(SRC).toContain('r.score.score_pct');
+    // The card uses the SAME presenter as the fleet KPI, so a group scored
+    // over 2 of 200 hosts cannot read like one scored over all 200.
+    expect(SRC).toContain('scorePresentation(r.score)');
     // Bounded member chip preview off rollup.members.
     expect(SRC).toContain('r.members.slice(0, 4)');
     expect(SRC).toContain('<HostChip');

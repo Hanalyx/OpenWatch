@@ -147,11 +147,19 @@ spec:
         nobody could measure was painted the same as a group that failed
         everything, and complianceTone returned the critical token for null.
 
-        Participation is stated in full: hosts_scored, hosts_without_score and
-        hosts_total all come from the aggregate, so a mean over 2 of 200 hosts
-        cannot read like a mean over 200. Coverage comes from the aggregate
-        too, in the three contract states, and no percentage is shown for
-        either unavailable one.
+        Participation is stated in full and EXPLICITLY: hosts_scored,
+        hosts_without_score and hosts_total are each rendered, so a mean over 2
+        of 200 hosts cannot read like a mean over 200 and the unscored count is
+        not left to be inferred by subtraction.
+
+        Coverage comes from the aggregate in the three contract states, and the
+        two unavailable ones render DIFFERENT explanations: one says skips are
+        not yet classified, the other that no rule produced an outcome.
+        Collapsing them discards the reason coverage_status exists to carry.
+
+        The SAME presentation serves the fleet KPI and every group card. They
+        used to differ, so a card showed a bare percentage with no population
+        beside it.
 
         No browser-side score, mean, denominator or fallback arithmetic exists
         on this page.
@@ -159,27 +167,35 @@ spec:
       references_constraints: [C-03]
       inputs:
         cases:
-          - {id: scored, score_pct: 72.5, hosts_scored: 8, hosts_without_score: 2, hosts_total: 10,
+          # An unscored count far from the total, so a rendering that dropped
+          # hosts_without_score cannot be mistaken for a correct one.
+          - {id: scored, score_pct: 72.5, hosts_scored: 8, hosts_without_score: 192, hosts_total: 200,
              coverage_status: available, coverage_pct: 91.4,
              expect_value: '72.5%', expect_tone: 'var(--ow-warn)',
-             expect_participation: '8 of 10 hosts scored', expect_coverage: '91.4%'}
+             expect_participation: '8 scored · 192 without score · 200 total',
+             expect_coverage: '91.4% coverage'}
           - {id: genuine_zero, score_pct: 0, hosts_scored: 3, hosts_without_score: 0, hosts_total: 3,
              coverage_status: available, coverage_pct: 100.0,
              expect_value: '0%', expect_tone: 'var(--ow-crit)',
-             expect_participation: '3 of 3 hosts scored', expect_coverage: '100%'}
-          - {id: no_score, score_pct: null, hosts_scored: 0, hosts_without_score: 10, hosts_total: 10,
+             expect_participation: '3 scored · 0 without score · 3 total',
+             expect_coverage: '100% coverage'}
+          - {id: unclassified_skips, score_pct: null, hosts_scored: 0, hosts_without_score: 10, hosts_total: 10,
              coverage_status: unavailable_unclassified_skips, coverage_pct: null,
              expect_value: 'No score', expect_tone: 'var(--ow-fg-3)',
-             expect_participation: 'no host scored of 10', expect_coverage: 'Coverage unavailable'}
+             expect_participation: '0 scored · 10 without score · 10 total',
+             expect_coverage: 'Coverage unavailable: skips are not yet classified'}
           - {id: no_outcomes, score_pct: null, hosts_scored: 0, hosts_without_score: 4, hosts_total: 4,
              coverage_status: unavailable_no_outcomes, coverage_pct: null,
              expect_value: 'No score', expect_tone: 'var(--ow-fg-3)',
-             expect_participation: 'no host scored of 4', expect_coverage: 'Coverage unavailable'}
+             expect_participation: '0 scored · 4 without score · 4 total',
+             expect_coverage: 'Coverage unavailable: no rule produced an outcome'}
         forbidden_copy: ['null%', 'NaN']
-        critical_tone_token: 'var(--ow-crit)'
+        # Both production paths render the same presentation.
+        surfaces: [fleet_kpi, group_card]
       expected_output:
         every_case_matches_its_expected_value: true
         every_case_matches_its_expected_tone: true
         every_case_states_participation: true
         every_case_states_coverage: true
+        both_surfaces_render_the_same_presentation: true
         forbidden_copy_occurrences: 0
