@@ -298,6 +298,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
   upgrade` between two candidates reported nothing to do and `rpm -q` could not
   tell them apart. **Release candidates now carry distinct package versions.**
+- CI pins Specter v0.15.0, and the spec gate now rejects every annotation
+  diagnostic rather than only the ones marked as errors. **This is a
+  contributor-facing change with no effect on a running install.** A test that
+  claims an acceptance criterion must name that criterion in a way the test
+  runner actually prints, so the evidence behind a criterion can be found. The
+  repository had 232 annotations that named no visible test, all now repaired.
+  The gate lives in one script that `make spec-check` and CI both run, so the
+  local check and the CI check cannot drift apart. Severity is not the filter:
+  `specter check --test` exits 0 with warnings present, and one diagnostic kind
+  stays a warning even in strict mode, so the gate reads the reported counts
+  instead of the exit status.
+- The Specter manifest drops two settings that v0.15 no longer applies.
+  `system.tier` is deprecated upstream and never set any spec's tier, and the
+  `default` domain's `tier` is a checked assertion rather than something it
+  hands down. That domain holds specs at three different tiers, so no single
+  assertion was true for 45 of them. **Each spec's own declared tier is
+  unchanged**; only the manifest stopped claiming otherwise.
 
 ### Removed
 

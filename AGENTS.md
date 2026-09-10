@@ -71,11 +71,21 @@ don't turn embedded-spec back on without reading the comment there.
 
 Specs in `specs/` are the SSOT; the registry is [specter.yaml](specter.yaml).
 Every acceptance criterion (`AC-NN`) must be covered by a test carrying a literal
-`// @spec <id>` + `// @ac AC-NN` annotation, and Go subtests also use a
-`t.Run("<spec-id>/AC-NN", …)` token. CI enforces annotation hygiene
-(`specter check --test`), 100% **structural** coverage
-(`specter coverage --strictness annotation`; the literal `// @ac` is required,
-the `t.Run` token alone is not enough), and 100% **outcome** coverage
+`// @spec <id>` + `// @ac AC-NN` annotation, AND the test's own runner-visible
+name must contain the literal token `<spec-id>/AC-NN`: `t.Run("<spec-id>/AC-NN",
+…)` in Go, and the test title in Vitest. Both halves are required and neither
+substitutes for the other. The token has to be a literal, so
+`t.Run("<spec-id>/AC-"+n, …)` does not count: a static scan cannot see it, and
+the point is that a reader can find the evidence behind a criterion.
+
+Put the `// @ac` on the test, never in a file-header index, and give the
+directive its own line: trailing prose after the id is read as part of the id.
+
+CI runs one gate, `scripts/specter-gate.py`, which `make spec-check` runs too so
+the two cannot drift. It pins the Specter version from `.specter-version`,
+rejects EVERY annotation diagnostic including warnings, and requires 100%
+**structural** coverage. Do not gate on `specter check --test`'s exit status: it
+exits 0 with warnings present. Outcome coverage stays a separate CI step
 (`specter sync`; the annotated test must pass). Run `make spec-check` locally
 first. If the spec and code disagree, the (human-approved) spec wins.
 
