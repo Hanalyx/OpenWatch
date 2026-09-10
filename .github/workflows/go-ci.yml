@@ -135,20 +135,18 @@ jobs:
 
       - name: Set up specter
         if: steps.paths.outputs.go == 'true'
-        env:
-          # Pinned so CI is reproducible. Bump in lockstep with any
-          # spec-schema change required by specs/. The authoritative pin is
-          # the tracked .specter-version file, which scripts/specter-gate.py
-          # also reads and refuses to run against a different build. Keeping
-          # the number in one place is the point: two pins disagree the
-          # moment one of them is bumped.
-          SPECTER_VERSION: "0.15.0"
+        # The version is DERIVED from the tracked .specter-version file, never
+        # written here. An earlier revision declared it in `env:` and then
+        # compared the two, which detects drift but is still two places to
+        # edit; scripts/specter-gate.py reads the same file and refuses to run
+        # against any other build.
         run: |
-          pinned=$(tr -d '[:space:]' < .specter-version)
-          if [ "$pinned" != "$SPECTER_VERSION" ]; then
-            echo "::error::.specter-version pins $pinned but this workflow installs $SPECTER_VERSION"
+          SPECTER_VERSION="$(tr -d '[:space:]' < .specter-version)"
+          if [ -z "$SPECTER_VERSION" ]; then
+            echo "::error::.specter-version is missing or empty"
             exit 1
           fi
+          echo "Installing specter $SPECTER_VERSION (from .specter-version)"
           curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
               -o /tmp/specter.tar.gz
           tar -xzf /tmp/specter.tar.gz -C /tmp specter
@@ -209,10 +207,12 @@ jobs:
       # have PyYAML installed, so without -S an accidental third-party import
       # would pass here and fail on a runner that does not.
       - name: release gate checker tests
-        run: python3 -S scripts/test_release_status.py
+        run: |
+          python3 -S scripts/test_release_status.py
+          python3 -S scripts/test_specter_gate.py
 
-      # The Specter gate: pinned version, zero annotation diagnostics at ANY
-      # severity, and 100% structural coverage. The policy lives in
+      # The Specter gate: pinned version, zero annotation ERRORS and WARNINGS
+      # (info is not blocking), and 100% structural coverage. The policy lives in
       # scripts/specter-gate.py, which `make spec-check` also runs, so the
       # local and CI gates cannot drift into different rules. Spec
       # release-ci-gates C-07 / AC-11.
@@ -229,11 +229,19 @@ jobs:
       # Severity is not a safe filter here. v0.15 deliberately leaves
       # unreachable_annotation_unknown at WARNING, and `specter check --test`
       # exits 0 with warnings present, so neither the exit code nor --strict
-      # is sufficient. The gate reads the JSON summary and rejects any
-      # nonzero error OR warning count, printing what it rejected.
+      # is sufficient on its own. The gate rejects any nonzero error or
+      # warning count AND a nonzero exit status, printing what it rejected.
+      # It runs under -S so its standard-library-only claim is enforced.
+      #
+      # The baseline this was measured against, stated once so the numbers
+      # are not mixed: 277 warnings, being 130 unreachable_annotation, 102
+      # unreachable_annotation_unknown and 45 domain_tier_conflict. Under
+      # --strict the first and third became errors, giving 175 errors and
+      # 102 warnings of the SAME 277. The 232 reachability annotations
+      # repaired are the first two kinds.
       - name: specter gate (annotations + structural coverage)
         if: steps.paths.outputs.go == 'true'
-        run: python3 scripts/specter-gate.py
+        run: python3 -S scripts/specter-gate.py
 
       # Single full-suite run that BOTH detects data races and emits the
       # JSON specter ingests — replacing the previous two end-to-end passes

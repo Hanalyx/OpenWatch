@@ -298,8 +298,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
   upgrade` between two candidates reported nothing to do and `rpm -q` could not
   tell them apart. **Release candidates now carry distinct package versions.**
-- CI pins Specter v0.15.0, and the spec gate now rejects every annotation
-  diagnostic rather than only the ones marked as errors. **This is a
+- CI pins Specter v0.15.0, and the spec gate now rejects annotation warnings
+  as well as errors, rather than errors alone. **This is a
   contributor-facing change with no effect on a running install.** A test that
   claims an acceptance criterion must name that criterion in a way the test
   runner actually prints, so the evidence behind a criterion can be found. The

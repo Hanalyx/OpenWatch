@@ -81,11 +81,19 @@ the point is that a reader can find the evidence behind a criterion.
 Put the `// @ac` on the test, never in a file-header index, and give the
 directive its own line: trailing prose after the id is read as part of the id.
 
+Two upstream scanner defects are worked around in `frontend/tests/`. A regex or
+string literal holding an unbalanced `(`/`{` or a quote makes Specter lose its
+place for the rest of the file, so a few literals are written with `\x28`,
+`\x7b`, `\x27` and `\x22`, which are the same characters to the regex engine
+(SP-OW-083). And Specter does not scan `.test.tsx` at all, so `make spec-check`
+does that check locally (SP-OW-082). Both are temporary.
+
 CI runs one gate, `scripts/specter-gate.py`, which `make spec-check` runs too so
 the two cannot drift. It pins the Specter version from `.specter-version`,
-rejects EVERY annotation diagnostic including warnings, and requires 100%
-**structural** coverage. Do not gate on `specter check --test`'s exit status: it
-exits 0 with warnings present. Outcome coverage stays a separate CI step
+rejects every annotation ERROR and WARNING (info is not blocking), and requires
+100% **structural** coverage. Do not gate on `specter check --test`'s exit
+status alone: it exits 0 with warnings present. Do not gate on the reported
+counts alone either: a failed run can still print zeroed counters. Outcome coverage stays a separate CI step
 (`specter sync`; the annotated test must pass). Run `make spec-check` locally
 first. If the spec and code disagree, the (human-approved) spec wins.
 

@@ -14,10 +14,13 @@ it.
 Why it keys on the JSON summary rather than the exit code. Measured against
 v0.15 on this repository:
 
-  * `specter check --test` exited 0 with 232 warnings present.
-  * `specter check --test --strict` promotes unreachable_annotation and
-    domain_tier_conflict to errors but deliberately leaves
-    unreachable_annotation_unknown at warning: 175 errors, 102 warnings.
+  * `specter check --test` exited 0 with 277 warnings present: 130
+    unreachable_annotation, 102 unreachable_annotation_unknown and 45
+    domain_tier_conflict.
+  * `specter check --test --strict` on that same tree promoted the 130 and
+    the 45 to errors and deliberately left unreachable_annotation_unknown at
+    warning: 175 errors, 102 warnings. Both numbers describe ONE baseline;
+    232 is the reachability subset of it, not a total to pair with 175.
 
 So neither the exit code nor --strict is a safe signal. An annotation naming
 no reachable test is a criterion whose evidence nobody can find, which is the
@@ -68,7 +71,12 @@ def check_version(want):
 
 
 def check_annotations():
-    """Reject EVERY annotation diagnostic, at any severity."""
+    """Reject every ERROR and WARNING diagnostic.
+
+    Info diagnostics are not blocking. The contract says so in as many words
+    (release-ci-gates C-07); an earlier draft of both said "any severity",
+    which described something this function never did.
+    """
     code, out, err = run(["check", "--test", "--json"])
     blob = out if out.lstrip().startswith("{") else out[out.index("{"):] if "{" in out else ""
     if not blob:
@@ -82,6 +90,16 @@ def check_annotations():
     diags = doc.get("diagnostics") or []
     errors = summary.get("errors", 0)
     warnings = summary.get("warnings", 0)
+    # The exit status is checked TOO, not instead. Reading only the summary
+    # trusts the report to describe the run that produced it: a crash after
+    # the counters were zeroed, or any failure mode that still prints
+    # {"errors":0,"warnings":0}, would have been reported as a clean gate.
+    if code != 0 and not (errors or warnings):
+        print(err.strip() or out.strip(), file=sys.stderr)
+        fail(
+            f"specter check --test exited {code} while reporting a clean summary. "
+            "The report does not describe the run."
+        )
     if errors or warnings:
         # Print what was rejected. A count alone tells a reader something is
         # wrong without telling them what.
@@ -103,7 +121,86 @@ def check_annotations():
 
 TSX_SPEC = re.compile(r"^// @spec (\S+)", re.M)
 TSX_AC = re.compile(r"^\s*// @ac (AC-\d+)", re.M)
-TSX_TITLE = re.compile(r"""(?:test|it|describe)\(\s*(['"`])(.*?)\1""", re.S)
+CALLER = re.compile(r"(?:^|[^\w$.])(?:test|it|describe)\s*\(\s*$")
+
+
+def test_titles(src):
+    """Every string literal used as a test, it or describe title.
+
+    A raw regex over the file was wrong, and provably so: it accepted
+
+        // test("frontend-demo/AC-01", () => {})
+
+    as a title, which let a real test lose its token while a commented-out
+    decoy kept the gate green. That is the exact failure this check exists to
+    catch, so the scanner has to know what is code.
+
+    This walks the source once, tracking line comments, block comments, the
+    three string forms and regex literals, and returns only the contents of
+    strings that a call to test, it or describe opens.
+    """
+    titles = []
+    i, n = 0, len(src)
+    code = []          # source with comments and string bodies blanked out
+    spans = {}         # index in `code` of a string start -> its content
+    prev_significant = ""
+    while i < n:
+        c = src[i]
+        two = src[i:i + 2]
+        if two == "//":
+            j = src.find("\n", i)
+            j = n if j < 0 else j
+            code.append(" " * (j - i))
+            i = j
+            continue
+        if two == "/*":
+            j = src.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            code.append(" " * (j - i))
+            i = j
+            continue
+        if c in "'\"`":
+            quote, j, buf = c, i + 1, []
+            while j < n:
+                if src[j] == "\\":
+                    buf.append(src[j:j + 2])
+                    j += 2
+                    continue
+                if src[j] == quote:
+                    break
+                buf.append(src[j])
+                j += 1
+            spans[len("".join(code))] = "".join(buf)
+            code.append(" " * (j + 1 - i))
+            i = j + 1
+            prev_significant = "str"
+            continue
+        if c == "/" and prev_significant in ("", "op"):
+            # A regex literal, not division: only an operator or the start of
+            # an expression can precede one.
+            j = i + 1
+            while j < n:
+                if src[j] == "\\":
+                    j += 2
+                    continue
+                if src[j] == "[":
+                    while j < n and src[j] != "]":
+                        j += 2 if src[j] == "\\" else 1
+                if src[j] == "/" or src[j] == "\n":
+                    break
+                j += 1
+            code.append(" " * (j + 1 - i))
+            i = j + 1
+            continue
+        code.append(c)
+        if not c.isspace():
+            prev_significant = "val" if (c.isalnum() or c in "_$)]}") else "op"
+        i += 1
+    code = "".join(code)
+    for start, content in spans.items():
+        if CALLER.search(code[:start]):
+            titles.append(content)
+    return titles
 
 
 def check_tsx_reachability():
@@ -114,11 +211,13 @@ def check_tsx_reachability():
     .tsx file raises nothing at all. Most of the frontend suite is .tsx, so
     without this the gate reports a clean run over annotations nobody checked.
 
+    Filed upstream as SP-OW-082. Delete this function when it lands, rather
+    than leaving a local reimplementation to rot beside a fixed scanner.
+
     The rule is the one Specter applies to .ts: every `// @ac AC-NN` in a file
     that declares `// @spec <id>` must have the literal token `<id>/AC-NN` in
-    a test, it or describe title in that same file. A token in a comment does
-    not count, which is deliberate: a header index that spells out the token
-    would otherwise keep the check green after the real title lost it.
+    a test, it or describe title in that same file. A token in a comment or in
+    an ordinary string does not count.
     """
     root = REPO / "frontend" / "tests"
     bad = []
@@ -128,7 +227,7 @@ def check_tsx_reachability():
         if not m:
             continue
         spec_id = m.group(1)
-        titles = [t for _, t in TSX_TITLE.findall(text)]
+        titles = test_titles(text)
         for ac in dict.fromkeys(TSX_AC.findall(text)):
             token = f"{spec_id}/{ac}"
             if not any(token in t for t in titles):

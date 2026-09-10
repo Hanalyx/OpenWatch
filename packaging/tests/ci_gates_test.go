@@ -252,17 +252,27 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 		}
 
 		src := readAppFile(t, gate)
+		mf := readAppFile(t, "Makefile")
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 
-		// The gate must read the JSON summary, not the exit code. Measured on
-		// this tree: `specter check --test` exited 0 with 232 warnings, and
-		// --strict leaves unreachable_annotation_unknown at warning.
-		if exp.Bool("gate_keys_on_json_summary_not_exit_code") {
+		// The gate reads the JSON summary AND the exit status. Either alone
+		// admits a clean-looking failure: `specter check --test` exits 0 with
+		// warnings, and a crashed run can still print zeroed counters.
+		if exp.Bool("gate_reads_the_json_summary") {
 			if !strings.Contains(src, `"--json"`) || !strings.Contains(src, `"summary"`) {
 				t.Error("the gate must read specter's JSON summary")
 			}
 		}
+		if exp.Bool("exit_status_is_checked_alongside_the_summary") {
+			// The SPECIFIC guard, not just any exit-code check: `code != 0`
+			// appears three times in the gate for unrelated reasons, so the
+			// looser match stayed true after this one was removed.
+			if !strings.Contains(src, "if code != 0 and not (errors or warnings):") {
+				t.Error("the gate must fail on a nonzero exit even when the summary is clean")
+			}
+		}
 		if exp.Bool("warnings_are_rejected_not_only_errors") {
-			if !strings.Contains(src, "warnings") || !strings.Contains(src, "if errors or warnings:") {
+			if !strings.Contains(src, "if errors or warnings:") {
 				t.Error("the gate must reject a nonzero warning count, not only errors")
 			}
 		}
@@ -271,22 +281,32 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 				t.Error("the gate must print the diagnostics it rejects, not only a count")
 			}
 		}
-		// The gate must refuse to run against an unpinned Specter build.
 		if !strings.Contains(src, pinFile) {
 			t.Errorf("the gate must read the pin from %s", pinFile)
 		}
+
+		// Info is deliberately NOT blocking; the contract and the code must
+		// agree about that rather than one of them claiming "any severity".
+		nonblocking := in.List("nonblocking_severities")
+		if len(nonblocking) != 1 || nonblocking[0] != "info" {
+			t.Errorf("AC-11 must name info as the only non-blocking severity, got %v", nonblocking)
+		}
+		for _, sev := range in.List("rejected_severities") {
+			if !strings.Contains(src, sev.(string)) {
+				t.Errorf("the gate never mentions rejected severity %q", sev)
+			}
+		}
+		_ = in.List("rejected_kinds")
+		_ = in.Int("structural_coverage_pct")
 
 		// Both callers invoke the SAME gate. This is the anti-drift clause:
 		// the Makefile and the workflow previously ran their own greps over
 		// specter's text output, which is two policies wearing one name.
 		if exp.Bool("both_callers_invoke_the_same_gate") {
-			mf := readAppFile(t, "Makefile")
-			wf := readAppFile(t, ".github/workflows/go-ci.yml")
 			// Require an INVOCATION, not a mention. Both files explain the
 			// gate in a comment, so strings.Contains over the whole file
 			// stayed true after the Makefile recipe was swapped for a bare
 			// `specter check --test` and the workflow's `run:` for the same.
-			// That is the exact drift this criterion exists to prevent.
 			invokes := func(body string, isRecipe bool) bool {
 				for _, ln := range strings.Split(body, "\n") {
 					code := ln
@@ -311,10 +331,30 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 			if !invokes(wf, false) {
 				t.Errorf(".github/workflows/go-ci.yml has no run: step calling %s", gate)
 			}
-			// And the workflow installs the pinned version, not another one.
-			if !strings.Contains(wf, wantVersion) {
-				t.Errorf(".github/workflows/go-ci.yml does not pin Specter %s", wantVersion)
+		}
+
+		// -S disables site packages, which makes the gate's standard-library
+		// only claim something the callers enforce rather than assert.
+		if exp.Bool("gate_runs_with_site_packages_disabled") {
+			for _, c := range []struct{ name, body string }{
+				{"Makefile", mf},
+				{".github/workflows/go-ci.yml", wf},
+			} {
+				if !strings.Contains(c.body, "python3 -S "+gate) {
+					t.Errorf("%s must run the gate as `python3 -S %s`", c.name, gate)
+				}
 			}
+		}
+
+		// ONE source for the version. The workflow must DERIVE it from the
+		// pin file, not carry its own literal: comparing two literals catches
+		// drift but still leaves two places to edit.
+		if !strings.Contains(wf, pinFile) {
+			t.Errorf(".github/workflows/go-ci.yml must read the version from %s", pinFile)
+		}
+		if strings.Contains(wf, `"`+wantVersion+`"`) || strings.Contains(wf, "'"+wantVersion+"'") {
+			t.Errorf(".github/workflows/go-ci.yml still hardcodes version %q; derive it from %s",
+				wantVersion, pinFile)
 		}
 	})
 }

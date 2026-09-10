@@ -119,7 +119,8 @@ describe('frontend-host-detail — prototype shell', () => {
     // Hex escapes, not \{ and ['"]: the same characters to the regex engine,
     // but Specter's scanner counts raw braces and quotes and loses its place
     // for the rest of the file. Rewriting this ONE literal cleared all 19 of
-    // this file's reachability diagnostics.
+    // this file's reachability diagnostics. Upstream bug SP-OW-083; revert to
+    // the readable form once the scanner is literal-aware.
     expect(PAGE_SRC).not.toMatch(
       /status=\x7bisDown\s*\?\s*[\x27\x22]down[\x27\x22]\s*:\s*[\x27\x22]online[\x27\x22]\x7d/,
     );

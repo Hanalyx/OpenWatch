@@ -206,7 +206,7 @@ check-generated: generate-api generate-api-types
 .PHONY: spec-check
 spec-check:
 	@command -v specter >/dev/null 2>&1 || { echo "spec-check: specter not on PATH; skipping (CI enforces it)"; exit 0; }
-	python3 scripts/specter-gate.py
+	python3 -S scripts/specter-gate.py
 
 # release-status: render release/gates.toml for a candidate and return a
 # go/no-go verdict. Needs `gh` authenticated to read check runs and assets.
@@ -230,6 +230,7 @@ release-status:
 .PHONY: release-status-test
 release-status-test:
 	python3 -S scripts/test_release_status.py
+	python3 -S scripts/test_specter_gate.py
 
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
 # speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
