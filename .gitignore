@@ -858,7 +858,3 @@ frontend/.specter-results.json
 
 # Local MCP server config (env-var refs; per-developer, not shared)
 .mcp.json
-
-# Vitest collection output the Specter gate writes and deletes. Ignored as a
-# safety net: a crash between the write and the unlink would otherwise leave it.
-frontend/.specter-gate-titles.json

@@ -316,30 +316,24 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 				t.Error("the gate must fail on a nonzero exit even when the summary is clean")
 			}
 		}
-		if exp.Bool("diagnostics_are_printed_not_just_counted") {
-			if !strings.Contains(src, "message") {
-				t.Error("the gate must print the diagnostics it rejects, not only a count")
-			}
-		}
 		if !strings.Contains(src, pinFile) {
 			t.Errorf("the gate must read the pin from %s", pinFile)
 		}
 
 		// Callers drive both the paths inspected and the invocation required.
-		callers := in.List("callers")
+		// MapList, not List: each entry is itself a fixture whose fields must
+		// all be consumed, so a nested key cannot be added and go unchecked.
+		callers := in.MapList("callers")
 		if len(callers) == 0 {
 			t.Fatal("AC-11 must name the callers")
 		}
 		checkCallers := exp.Bool("both_callers_invoke_the_same_gate")
 		requireDashS := exp.Bool("gate_runs_with_site_packages_disabled")
-		for _, raw := range callers {
-			c, ok := raw.(map[string]any)
-			if !ok {
-				t.Fatalf("caller entry is not a mapping: %T", raw)
-			}
-			path, _ := c["path"].(string)
-			invocation, _ := c["invocation"].(string)
-			kind, _ := c["kind"].(string)
+		for _, c := range callers {
+			path := c.Str("path")
+			invocation := c.Str("invocation")
+			kind := c.Str("kind")
+			c.AllConsumed()
 			body := readAppFile(t, path)
 
 			// Require an INVOCATION, not a mention: both files explain the
@@ -415,6 +409,26 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 		}
 		if !exp.Bool("warnings_are_rejected_not_only_errors") {
 			t.Error("AC-11 must require warnings to be rejected")
+		}
+
+		// The gate must PRINT what it rejected. Searching the source for the
+		// word "message" proved nothing: the string survives in unrelated
+		// text while the printing is deleted. Feed a distinctive message and
+		// require it verbatim in the output.
+		if exp.Bool("diagnostics_are_printed_not_just_counted") {
+			const marker = "ZZ-distinctive-diagnostic-text-ZZ"
+			body := fmt.Sprintf(
+				`{"diagnostics": [{"kind": "demo", "severity": "warning", "message": %q,`+
+					` "spec_id": "s"}], "summary": {"errors": 0, "warnings": 1, "info": 0}}`,
+				marker)
+			code, out := runGateWith(t, dir, "annotations", body, "", 0)
+			if code == 0 {
+				t.Error("a warning must fail the gate")
+			}
+			if !strings.Contains(out, marker) {
+				t.Errorf("the gate reported a rejection without printing the diagnostic;\nwant %q in:\n%s",
+					marker, out)
+			}
 		}
 
 		in.AllConsumed()

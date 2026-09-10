@@ -28,9 +28,11 @@ same defect as an untested criterion; severity does not change that.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -141,13 +143,25 @@ def collect_vitest_titles(frontend):
     bare `--json` form takes the next argument as an output PATH and will
     happily overwrite a source file.
     """
-    out = REPO / "frontend" / ".specter-gate-titles.json"
+    # The repository's OWN vitest, never `npx vitest`. npx will fetch a
+    # version from the network when the local package is missing, which would
+    # let the gate parse its input with a tool nobody pinned. A gate must fail
+    # closed rather than acquire its own parser.
+    binary = Path(frontend) / "node_modules" / ".bin" / "vitest"
+    if not binary.exists():
+        fail(f"{binary} is missing. Run `npm ci` in frontend/ first.")
+
+    # A unique temporary file, not a fixed name inside frontend/: two runs at
+    # once would otherwise share one path and read each other's output.
+    fd, tmp = tempfile.mkstemp(prefix="specter-gate-titles-", suffix=".json")
+    os.close(fd)
+    out = Path(tmp)
     try:
         p = subprocess.run(
-            ["npx", "vitest", "list", f"--json={out}"],
+            [str(binary), "list", f"--json={out}"],
             capture_output=True, text=True, cwd=frontend,
         )
-        if p.returncode != 0 or not out.exists():
+        if p.returncode != 0 or not out.exists() or not out.read_text().strip():
             fail(
                 "could not collect Vitest test titles "
                 f"(exit {p.returncode}). Run `npm ci` in frontend/ first.\n"
@@ -155,11 +169,12 @@ def collect_vitest_titles(frontend):
             )
         entries = json.loads(out.read_text())
     finally:
-        if out.exists():
-            out.unlink()
+        out.unlink(missing_ok=True)
     by_file = {}
     for e in entries:
-        by_file.setdefault(e.get("file", ""), []).append(e.get("name", ""))
+        raw = e.get("file", "")
+        key = str(Path(raw).resolve()) if raw else ""
+        by_file.setdefault(key, []).append(e.get("name", ""))
     return by_file
 
 
@@ -180,14 +195,14 @@ def check_tsx_reachability(root=None, titles_by_file=None):
     root = Path(root) if root else REPO / "frontend" / "tests"
     if titles_by_file is None:
         titles_by_file = collect_vitest_titles(REPO / "frontend")
-    # Vitest reports paths relative to the frontend root; match on suffix so
-    # the caller can pass either shape.
+    # Vitest reports absolute paths. Match on the RESOLVED path and nothing
+    # looser: a basename fallback let two files named the same in different
+    # directories share titles, so a token collected from one could satisfy an
+    # annotation in the other.
+    resolved = {str(Path(k).resolve()): v for k, v in titles_by_file.items() if k}
+
     def titles_for(f):
-        hits = []
-        for path, names in titles_by_file.items():
-            if path and (str(f).endswith(path) or path.endswith(str(f.name))):
-                hits.extend(names)
-        return hits
+        return resolved.get(str(Path(f).resolve()), [])
 
     bad = []
     for f in sorted(root.rglob("*.test.tsx")):
