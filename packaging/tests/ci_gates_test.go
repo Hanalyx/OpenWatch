@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
 // readAppFile returns the contents of a file relative to the repo root
@@ -216,6 +218,103 @@ func TestCIGates_WorkflowTriggers(t *testing.T) {
 		}
 		if !regexp.MustCompile(`branches:\s*\[\s*main\s*\]|- main`).MatchString(wf) {
 			t.Error("workflow triggers must scope to main branch")
+		}
+	})
+}
+
+// @ac AC-11
+// AC-11: one shared gate enforces the Specter contract and both callers
+// invoke it, so `make spec-check` and CI cannot drift into different
+// policies. Driven from the spec's own fixture: the file names, the pinned
+// version and the policy flags are read from release-ci-gates AC-11 rather
+// than repeated here, so changing the contract without changing the wiring
+// fails.
+func TestCIGates_SpecterGateIsShared(t *testing.T) {
+	t.Run("release-ci-gates/AC-11", func(t *testing.T) {
+		dir := appDir(t)
+		all := specfixture.Load(t, filepath.Join(dir, "specs/release/ci-gates.spec.yaml"), "release-ci-gates")
+		ac := specfixture.Get(t, all, "AC-11")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		pinFile := in.Str("pin_file")
+		wantVersion := in.Str("pinned_version")
+		gate := in.Str("shared_gate")
+
+		// The pin lives in exactly one tracked file. A version pinned in two
+		// places is two pins, and they disagree the moment one is bumped.
+		if !exp.Bool("version_pin_is_read_from_one_file") {
+			t.Fatal("AC-11 must require a single pin file")
+		}
+		gotPin := strings.TrimSpace(readAppFile(t, pinFile))
+		if gotPin != wantVersion {
+			t.Errorf("%s pins %q, spec requires %q", pinFile, gotPin, wantVersion)
+		}
+
+		src := readAppFile(t, gate)
+
+		// The gate must read the JSON summary, not the exit code. Measured on
+		// this tree: `specter check --test` exited 0 with 232 warnings, and
+		// --strict leaves unreachable_annotation_unknown at warning.
+		if exp.Bool("gate_keys_on_json_summary_not_exit_code") {
+			if !strings.Contains(src, `"--json"`) || !strings.Contains(src, `"summary"`) {
+				t.Error("the gate must read specter's JSON summary")
+			}
+		}
+		if exp.Bool("warnings_are_rejected_not_only_errors") {
+			if !strings.Contains(src, "warnings") || !strings.Contains(src, "if errors or warnings:") {
+				t.Error("the gate must reject a nonzero warning count, not only errors")
+			}
+		}
+		if exp.Bool("diagnostics_are_printed_not_just_counted") {
+			if !strings.Contains(src, "message") {
+				t.Error("the gate must print the diagnostics it rejects, not only a count")
+			}
+		}
+		// The gate must refuse to run against an unpinned Specter build.
+		if !strings.Contains(src, pinFile) {
+			t.Errorf("the gate must read the pin from %s", pinFile)
+		}
+
+		// Both callers invoke the SAME gate. This is the anti-drift clause:
+		// the Makefile and the workflow previously ran their own greps over
+		// specter's text output, which is two policies wearing one name.
+		if exp.Bool("both_callers_invoke_the_same_gate") {
+			mf := readAppFile(t, "Makefile")
+			wf := readAppFile(t, ".github/workflows/go-ci.yml")
+			// Require an INVOCATION, not a mention. Both files explain the
+			// gate in a comment, so strings.Contains over the whole file
+			// stayed true after the Makefile recipe was swapped for a bare
+			// `specter check --test` and the workflow's `run:` for the same.
+			// That is the exact drift this criterion exists to prevent.
+			invokes := func(body string, isRecipe bool) bool {
+				for _, ln := range strings.Split(body, "\n") {
+					code := ln
+					if i := strings.Index(code, "#"); i >= 0 {
+						code = code[:i]
+					}
+					if !strings.Contains(code, gate) {
+						continue
+					}
+					if isRecipe && strings.HasPrefix(ln, "\t") {
+						return true
+					}
+					if !isRecipe && strings.Contains(code, "run:") {
+						return true
+					}
+				}
+				return false
+			}
+			if !invokes(mf, true) {
+				t.Errorf("Makefile has no recipe line running %s", gate)
+			}
+			if !invokes(wf, false) {
+				t.Errorf(".github/workflows/go-ci.yml has no run: step calling %s", gate)
+			}
+			// And the workflow installs the pinned version, not another one.
+			if !strings.Contains(wf, wantVersion) {
+				t.Errorf(".github/workflows/go-ci.yml does not pin Specter %s", wantVersion)
+			}
 		}
 	})
 }

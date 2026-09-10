@@ -197,14 +197,16 @@ check-generated: generate-api generate-api-types
 	       exit 1; }
 	@echo "check-generated: server.gen.go and schema.d.ts are in sync"
 
-# spec-check: run the Specter gates CI enforces (annotation hygiene + structural
-# coverage) so spec drift is caught before pushing. Skips cleanly if specter is
+# spec-check: run the Specter gate CI enforces (pinned version + annotation
+# hygiene + structural coverage) so spec drift is caught before pushing. The
+# policy lives in scripts/specter-gate.py and NOT here: this target and the
+# workflow used to carry their own greps over specter's text output, which is
+# two policies that drift apart in silence. Skips cleanly if specter is
 # not on PATH; CI runs the authoritative gate regardless.
 .PHONY: spec-check
 spec-check:
 	@command -v specter >/dev/null 2>&1 || { echo "spec-check: specter not on PATH; skipping (CI enforces it)"; exit 0; }
-	specter check --test
-	specter coverage --strictness annotation
+	python3 scripts/specter-gate.py
 
 # release-status: render release/gates.toml for a candidate and return a
 # go/no-go verdict. Needs `gh` authenticated to read check runs and assets.

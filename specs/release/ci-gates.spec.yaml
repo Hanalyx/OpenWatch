@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -62,6 +62,16 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-07
+      description: >-
+        The Specter gate MUST pin an exact version, MUST reject every annotation diagnostic at ANY severity,
+        and MUST be the SAME implementation locally and in CI. Severity is not a safe filter: v0.15 leaves
+        unreachable_annotation_unknown at warning, and `specter check --test` exits 0 with warnings present,
+        so a gate keyed on the exit code or on --strict alone passes with an annotation that names no
+        reachable test. Structural coverage MUST stay at 100% and outcome coverage MUST stay at the
+        manifest threshold with every tier at 100.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: make vet target exists and runs `go vet ./...` against the full module.
@@ -101,3 +111,41 @@ spec:
     - id: AC-10
       description: The workflow runs on both push to main and pull_request targeting main; uses `set -e` semantics so any step's non-zero exit fails the job.
       priority: high
+    - id: AC-11
+      description: >-
+        One shared gate enforces the Specter contract, and `make spec-check` and the workflow both invoke it,
+        so the two cannot drift into different policies. The gate reads the pinned version from a single
+        tracked file, refuses to run against any other Specter build, fails on a NONZERO WARNING COUNT as
+        well as on errors, and asserts 100% structural coverage.
+
+        It keys on the JSON summary rather than on the process exit code. `specter check --test` returned 0
+        against 232 warnings on this tree, and `--strict` promotes only two of the three kinds, leaving 102
+        unreachable_annotation_unknown at warning. Either signal alone would have reported a clean gate over
+        annotations that name no reachable test.
+
+        The gate prints the diagnostics it rejected. A gate that reports only a count tells a reader that
+        something is wrong without telling them what.
+      inputs:
+        pin_file: .specter-version
+        pinned_version: 0.15.0
+        shared_gate: scripts/specter-gate.py
+        callers:
+          - Makefile spec-check
+          - .github/workflows/go-ci.yml
+        rejected_severities:
+          - error
+          - warning
+        rejected_kinds:
+          - unreachable_annotation
+          - unreachable_annotation_unknown
+          - unknown_spec
+          - unknown_ac
+        structural_coverage_pct: 100
+      expected_output:
+        both_callers_invoke_the_same_gate: true
+        gate_keys_on_json_summary_not_exit_code: true
+        warnings_are_rejected_not_only_errors: true
+        version_pin_is_read_from_one_file: true
+        diagnostics_are_printed_not_just_counted: true
+      priority: critical
+      references_constraints: [C-07]

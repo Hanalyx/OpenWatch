@@ -4,10 +4,16 @@
 schema_version: 1
 system:
     name: openwatch
-    tier: 2
+    # No `tier:` here. v0.15 deprecates system.tier, it has no effect, and it
+    # is removed at v1.0.0. A spec's tier is declared in its own .spec.yaml.
 domains:
     default:
-        tier: 2
+        # No `tier:` here. In v0.15 a domain tier is a checked ASSERTION that
+        # every spec in the domain declares that tier; it does not set one.
+        # This domain holds specs at tiers 1, 2 and 3, so any single value is
+        # false for 45 of them. The declared tier in each .spec.yaml governs,
+        # and rewriting real tiers to match an assertion would be changing the
+        # facts to fit the label.
         description: Default domain for OpenWatch. Specs are the .spec.yaml files under specs/ (indexed below); coverage is gated in CI via specter ingest + sync (strictness threshold).
         specs:
             - api-audit-events-query
@@ -133,11 +139,16 @@ domains:
             - system-current-corpus
 settings:
     specs_dir: specs
-    # Honored by `specter coverage` (not by `specter sync` — CI passes
-    # --tests '**/*' as a workaround). Default discovery walks only
-    # .test.ts / _test.go; .test.tsx is silently invisible, which
-    # broke frontend-live-events coverage in PR 5b. List form documents
-    # the three extensions we use; the CI flag covers the sync gap.
+    # Honored by `specter coverage`, NOT by `specter sync` — CI passes
+    # --tests '**/*' as a workaround. Default discovery walks only
+    # .test.ts / _test.go; .test.tsx is silently invisible, which broke
+    # frontend-live-events coverage in PR 5b. List form documents the three
+    # extensions we use; the CI flag covers the sync gap.
+    #
+    # Re-verified against v0.15, not taken from its changelog: with the flag,
+    # sync reports 121 specs meeting coverage; without it, 16 fall below
+    # threshold, because 10 specs are annotated only in .test.tsx files and
+    # others are split across .test.ts and .test.tsx. The workaround stays.
     tests_glob:
         - '**/*_test.go'
         - '**/*.test.ts'
@@ -153,9 +164,11 @@ settings:
         - vendor
     # Coverage is gated in CI in two layers (see .github/workflows/go-ci.yml):
     #
-    #   1. STRUCTURAL, 100%: `specter sync --strictness annotation` — every AC
-    #      in every spec must have at least one test annotation. No AC may
-    #      silently lose its test.
+    #   1. STRUCTURAL, 100%: `specter coverage --strictness annotation` — every
+    #      AC in every spec must have at least one test annotation. No AC may
+    #      silently lose its test. (The command is `coverage`, not `sync`: an
+    #      earlier version of this comment named `sync`, which honors neither
+    #      tests_glob nor this strictness the same way.)
     #   2. OUTCOME, 100% (this setting): `specter sync` at `threshold` with all
     #      tiers at 100 — every AC's test must actually pass in CI.
     #

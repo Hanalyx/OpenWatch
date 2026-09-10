@@ -137,10 +137,18 @@ jobs:
         if: steps.paths.outputs.go == 'true'
         env:
           # Pinned so CI is reproducible. Bump in lockstep with any
-          # spec-schema change required by specs/. 0.14.0 matches the
-          # local toolchain; all 116 specs validated against it.
-          SPECTER_VERSION: "0.14.0"
+          # spec-schema change required by specs/. The authoritative pin is
+          # the tracked .specter-version file, which scripts/specter-gate.py
+          # also reads and refuses to run against a different build. Keeping
+          # the number in one place is the point: two pins disagree the
+          # moment one of them is bumped.
+          SPECTER_VERSION: "0.15.0"
         run: |
+          pinned=$(tr -d '[:space:]' < .specter-version)
+          if [ "$pinned" != "$SPECTER_VERSION" ]; then
+            echo "::error::.specter-version pins $pinned but this workflow installs $SPECTER_VERSION"
+            exit 1
+          fi
           curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
               -o /tmp/specter.tar.gz
           tar -xzf /tmp/specter.tar.gz -C /tmp specter
@@ -203,50 +211,29 @@ jobs:
       - name: release gate checker tests
         run: python3 -S scripts/test_release_status.py
 
-      # Annotation hygiene: cross-reference every test's @spec / @ac
-      # annotation against the spec registry and fail on a dangling spec
-      # ref, unknown AC id, malformed AC id, or unreachable annotation
-      # error. This catches the class of drift where a spec is renamed or
-      # dropped but its test annotations linger (exactly what happened when
-      # the connectivity specs were lost in a squash-merge). Gate on the
-      # printed error count, not the exit code: `specter check --test`
-      # returns 0 on some builds even with errors present.
-      - name: specter check --test (annotation hygiene)
-        if: steps.paths.outputs.go == 'true'
-        run: |
-          out=$(specter check --test 2>&1) || true
-          echo "$out"
-          n=$(echo "$out" | grep -cE 'error \[' || true)
-          if [ "$n" -gt 0 ]; then
-            echo "::error::specter check --test found $n test-annotation error(s) — fix the dangling @spec / @ac refs listed above."
-            exit 1
-          fi
-
-      # 100% structural coverage gate. Every acceptance criterion in every spec
-      # MUST have at least one test annotation — no AC may silently lose its
-      # test. This runs in annotation strictness (structural, no ingest) so it
-      # is independent of which tests run in this lane, and it fails fast and
-      # with a clear message before the heavier ingest-based outcome gate. The
-      # outcome gate (`specter sync` at the manifest's threshold strictness,
-      # tiers all 100, below) separately requires every AC's test to PASS; the
-      # ingest job provisions OPENWATCH_KENSA_RULES_DIR + OPENWATCH_PACKAGING_BUILD
-      # so the formerly env-gated tests run there instead of skipping.
+      # The Specter gate: pinned version, zero annotation diagnostics at ANY
+      # severity, and 100% structural coverage. The policy lives in
+      # scripts/specter-gate.py, which `make spec-check` also runs, so the
+      # local and CI gates cannot drift into different rules. Spec
+      # release-ci-gates C-07 / AC-11.
       #
-      # NOTE: `specter sync --strictness annotation` would only enforce the
-      # per-tier thresholds, so we assert 100% directly: any per-spec row
-      # (a "… Tn …" line) not at 100% fails the build.
-      - name: specter structural coverage must be 100%
+      # Two things this replaced, and why. The old steps grepped specter's
+      # TEXT output ('error \[' and a coverage table shape); a formatting
+      # change upstream turns such a grep into a gate that matches nothing
+      # and reports success. And the old comment claimed the pinned build
+      # could exit 0 with annotation errors present. Re-measured on v0.15
+      # before deleting that claim: a planted unknown @spec produces
+      # error [unknown_spec_ref] and exit 1, and a planted unknown @ac
+      # produces error [unknown_ac_ref] and exit 1.
+      #
+      # Severity is not a safe filter here. v0.15 deliberately leaves
+      # unreachable_annotation_unknown at WARNING, and `specter check --test`
+      # exits 0 with warnings present, so neither the exit code nor --strict
+      # is sufficient. The gate reads the JSON summary and rejects any
+      # nonzero error OR warning count, printing what it rejected.
+      - name: specter gate (annotations + structural coverage)
         if: steps.paths.outputs.go == 'true'
-        run: |
-          report=$(specter coverage --strictness annotation 2>&1)
-          echo "$report"
-          below=$(echo "$report" | grep -E '\sT[0-9]+\s' | grep -vE '\s100%' || true)
-          if [ -n "$below" ]; then
-            echo "::error::Specter structural coverage is below 100% — every acceptance criterion must carry a // @ac (Go) or // @ac (frontend) annotation. Specs below 100%:"
-            echo "$below"
-            exit 1
-          fi
-          echo "All specs at 100% structural coverage."
+        run: python3 scripts/specter-gate.py
 
       # Single full-suite run that BOTH detects data races and emits the
       # JSON specter ingests — replacing the previous two end-to-end passes
