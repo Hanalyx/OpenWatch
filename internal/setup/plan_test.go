@@ -121,27 +121,31 @@ func TestPlan_ValidateRejectsUnsafeCombinations(t *testing.T) {
 			p.Database.Password = Secret{Source: SecretGenerate, Length: 4}
 		}, "too short"},
 	}
-	for _, c := range cases {
-		t.Run("system-setup/AC-03/"+c.name, func(t *testing.T) {
-			p := DefaultPlan(Platform{})
-			c.edit(&p)
-			// Deliberately NOT calling Derive: Derive fixes defaults nobody
-			// edited, and Validate must still catch a value someone set.
-			errs := p.Validate()
-			if len(errs) == 0 {
-				t.Fatalf("expected a validation error mentioning %q, got none", c.want)
-			}
-			found := false
-			for _, e := range errs {
-				if contains(e.Error(), c.want) {
-					found = true
+	// The token must be a LITERAL for the annotation to be reachable: the
+	// per-case name below is built at runtime, so a static scan cannot see it.
+	t.Run("system-setup/AC-03", func(t *testing.T) {
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				p := DefaultPlan(Platform{})
+				c.edit(&p)
+				// Deliberately NOT calling Derive: Derive fixes defaults nobody
+				// edited, and Validate must still catch a value someone set.
+				errs := p.Validate()
+				if len(errs) == 0 {
+					t.Fatalf("expected a validation error mentioning %q, got none", c.want)
 				}
-			}
-			if !found {
-				t.Errorf("no error mentioned %q; got %v", c.want, errs)
-			}
-		})
-	}
+				found := false
+				for _, e := range errs {
+					if contains(e.Error(), c.want) {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("no error mentioned %q; got %v", c.want, errs)
+				}
+			})
+		}
+	})
 }
 
 // @ac AC-03

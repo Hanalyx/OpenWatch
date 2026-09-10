@@ -116,7 +116,13 @@ describe('frontend-host-detail — prototype shell', () => {
     // binary literal pair should not appear as a JSX prop.
     expect(PAGE_SRC).toMatch(/StatusPill[^>]+band=/);
     // Reject the legacy binary prop: status={isDown ? 'down' : 'online'}.
-    expect(PAGE_SRC).not.toMatch(/status=\{isDown\s*\?\s*['"]down['"]\s*:\s*['"]online['"]\}/);
+    // Hex escapes, not \{ and ['"]: the same characters to the regex engine,
+    // but Specter's scanner counts raw braces and quotes and loses its place
+    // for the rest of the file. Rewriting this ONE literal cleared all 19 of
+    // this file's reachability diagnostics.
+    expect(PAGE_SRC).not.toMatch(
+      /status=\x7bisDown\s*\?\s*[\x27\x22]down[\x27\x22]\s*:\s*[\x27\x22]online[\x27\x22]\x7d/,
+    );
   });
 
   // @ac AC-17

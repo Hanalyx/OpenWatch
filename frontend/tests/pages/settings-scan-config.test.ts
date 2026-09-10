@@ -71,12 +71,12 @@ describe('frontend-settings-scan-config — source inspection', () => {
   test('frontend-settings-scan-config/AC-03 — save re-anchors on the clamped echo; reset on live config; SaveBar gates on scanDirty', () => {
     // onSuccess re-anchors from the PUT response (clamp echo).
     expect(SRC).toMatch(
-      /onSuccess:\s*\(saved\)\s*=>\s*\{[\s\S]*?setScanDraft\(\{\s*\.\.\.saved\s*\}\)/,
+      /onSuccess:\s*\x28saved\x29\s*=>\s*\x7b[\s\S]*?setScanDraft\x28\x7b\s*\.\.\.saved\s*\x7d\x29/,
     );
     // Reset path re-anchors from the live config — a distinct closure.
     expect(SRC).toContain('setScanDraft({ ...scanConfigQuery.data.config })');
     // SaveBar covers the scan draft.
-    expect(SRC).toContain('{(dirty || scanDirty) && (');
+    expect(SRC).toContain('\x7b\x28dirty || scanDirty\x29 && \x28');
     expect(SRC).toMatch(/if \(scanDirty && scanDraft\) saveScanMutation\.mutate\(scanDraft\)/);
   });
 

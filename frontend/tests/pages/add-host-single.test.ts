@@ -35,13 +35,13 @@ const APPLY_SRC = readFileSync(
 describe('frontend-add-host — single-mode structural', () => {
   // @ac AC-01
   test('frontend-add-host/AC-01 — form renders hostname, ip_address, environment, auth_method, use_system_default', () => {
-    expect(PAGE_SRC).toMatch(/label=["']Hostname["']/);
-    expect(PAGE_SRC).toMatch(/label=["']IP address["']/i);
-    expect(PAGE_SRC).toMatch(/label=["']Environment["']/);
+    expect(PAGE_SRC).toMatch(/label=[\x22\x27]Hostname[\x22\x27]/);
+    expect(PAGE_SRC).toMatch(/label=[\x22\x27]IP address[\x22\x27]/i);
+    expect(PAGE_SRC).toMatch(/label=[\x22\x27]Environment[\x22\x27]/);
     // auth_method radio group + use_system_default checkbox.
     expect(PAGE_SRC).toMatch(/legend\s+style=\{labelText\}\s*>\s*Auth method/);
-    expect(PAGE_SRC).toMatch(/register\(['"]use_system_default['"]\)/);
-    expect(PAGE_SRC).toMatch(/register\(['"]auth_method['"]\)/);
+    expect(PAGE_SRC).toMatch(/register\x28[\x27\x22]use_system_default[\x27\x22]\x29/);
+    expect(PAGE_SRC).toMatch(/register\x28[\x27\x22]auth_method[\x27\x22]\x29/);
   });
 
   // @ac AC-02
@@ -53,7 +53,7 @@ describe('frontend-add-host — single-mode structural', () => {
     expect(postHostsIdx).toBeGreaterThan(-1);
     expect(postCredsIdx).toBeGreaterThan(postHostsIdx);
     // The redirect uses the new host id (TanStack Router pattern uses $hostId).
-    expect(PAGE_SRC).toMatch(/navigate\(\s*\{\s*to:\s*['"]\/hosts\/\$hostId['"]/);
+    expect(PAGE_SRC).toMatch(/navigate\x28\s*\x7b\s*to:\s*[\x27\x22]\/hosts\/\$hostId[\x27\x22]/);
     expect(PAGE_SRC).toMatch(/hostId:\s*newHost\.id/);
   });
 
@@ -62,15 +62,15 @@ describe('frontend-add-host — single-mode structural', () => {
     // The second-POST block is wrapped in a !use_system_default guard.
     expect(PAGE_SRC).toMatch(/if\s*\(\s*!values\.use_system_default\s*\)/);
     // Visual: the credential fields region is gated by !useSystemDefault.
-    expect(PAGE_SRC).toMatch(/\{\s*!useSystemDefault\s*&&/);
+    expect(PAGE_SRC).toMatch(/\x7b\s*!useSystemDefault\s*&&/);
   });
 
   // @ac AC-04
   test('frontend-add-host/AC-04 — auth_method show/hide for password vs ssh_key', () => {
     // Password input renders only when auth_method !== 'ssh_key'.
-    expect(PAGE_SRC).toMatch(/authMethod\s*!==\s*['"]ssh_key['"]\s*&&\s*\(\s*<Field/);
+    expect(PAGE_SRC).toMatch(/authMethod\s*!==\s*[\x27\x22]ssh_key[\x27\x22]\s*&&\s*\x28\s*<Field/);
     // Private-key fields render only when auth_method !== 'password'.
-    expect(PAGE_SRC).toMatch(/authMethod\s*!==\s*['"]password['"]\s*&&\s*\(/);
+    expect(PAGE_SRC).toMatch(/authMethod\s*!==\s*[\x27\x22]password[\x27\x22]\s*&&\s*\x28/);
   });
 
   // @ac AC-05
@@ -84,23 +84,23 @@ describe('frontend-add-host — single-mode structural', () => {
     // Inline error rendering on the offending field carries role="alert"
     // so screen readers announce it — the Field helper is the single
     // source for inline error markup.
-    expect(PAGE_SRC).toMatch(/role=["']alert["']/);
+    expect(PAGE_SRC).toMatch(/role=[\x22\x27]alert[\x22\x27]/);
     // `\(?\s*` tolerates Prettier wrapping `error && <div>` into `error && (\n  <div>`.
-    expect(PAGE_SRC).toMatch(/error\s*&&\s*\(?\s*<div\s+role=["']alert["']/);
+    expect(PAGE_SRC).toMatch(/error\s*&&\s*\x28?\s*<div\s+role=[\x22\x27]alert[\x22\x27]/);
   });
 
   // @ac AC-06
   test('frontend-add-host/AC-06 — credential POST 4xx triggers DELETE rollback + inline error', () => {
     // The handler MUST DELETE the freshly-created host when the
     // credential POST returns !ok.
-    expect(PAGE_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/hosts\/\{id\}['"]/);
+    expect(PAGE_SRC).toMatch(/api\.DELETE\x28\s*[\x27\x22]\/api\/v1\/hosts\/\x7bid\x7d[\x27\x22]/);
     // Rollback is inside the !credResp.ok branch (best-effort try).
     const credBlock = PAGE_SRC.slice(
       PAGE_SRC.indexOf('if (!credResp.ok)'),
       PAGE_SRC.indexOf('setServerError(', PAGE_SRC.indexOf('if (!credResp.ok)') + 1) + 200,
     );
     expect(credBlock).toContain("api.DELETE('/api/v1/hosts/{id}'");
-    expect(credBlock).toMatch(/setServerError\(/);
+    expect(credBlock).toMatch(/setServerError\x28/);
     // Form values stay around because react-hook-form's draft state
     // is owned outside the handler (no reset() call on this branch).
     expect(
@@ -171,7 +171,7 @@ describe('frontend-add-host — single-mode structural', () => {
     expect(deps['@axe-core/playwright']).toBeTruthy();
     // Both tabpanels render so per-tab axe scans have a target.
     const PAGE = readFileSync(resolve(process.cwd(), 'src/pages/AddHostPage.tsx'), 'utf8');
-    expect(PAGE).toMatch(/role="tabpanel"/);
+    expect(PAGE).toMatch(/role=\x22tabpanel\x22/);
   });
 
   // @ac AC-10
@@ -190,7 +190,7 @@ describe('frontend-add-host — single-mode structural', () => {
     expect(idxIp).toBeGreaterThan(idxHostname);
     expect(idxEnv).toBeGreaterThan(idxIp);
     // The inline Field helper renders an explicit <label> per input.
-    expect(PAGE_SRC).toMatch(/function Field\(/);
+    expect(PAGE_SRC).toMatch(/function Field\x28/);
     expect(PAGE_SRC).toMatch(/<label[^>]*>\s*<div\s+style=\{labelText\}/);
   });
 
@@ -199,8 +199,8 @@ describe('frontend-add-host — single-mode structural', () => {
     // The submission loop iterates the row list with an indexed for-loop
     // and awaits each POST in sequence. The spec's C-12 forbids parallel
     // submission; a Promise.all over api.POST would break it.
-    expect(PREVIEW_SRC).toMatch(/for\s*\(\s*let\s+i\s*=\s*0\s*;\s*i\s*<\s*\w+\.length/);
-    expect(PREVIEW_SRC).toMatch(/await\s+api\.POST\(\s*['"]\/api\/v1\/hosts['"]/);
+    expect(PREVIEW_SRC).toMatch(/for\s*\x28\s*let\s+i\s*=\s*0\s*;\s*i\s*<\s*\w+\.length/);
+    expect(PREVIEW_SRC).toMatch(/await\s+api\.POST\x28\s*[\x27\x22]\/api\/v1\/hosts[\x27\x22]/);
     expect(PREVIEW_SRC).not.toMatch(/Promise\.all\([^)]*api\.POST/);
   });
 
@@ -215,8 +215,8 @@ describe('frontend-add-host — single-mode structural', () => {
       resolve(process.cwd(), 'src/components/hosts/bulk/types.ts'),
       'utf8',
     );
-    expect(types).toMatch(/status:\s*['"]created['"]/);
-    expect(types).toMatch(/['"]failed['"]/);
+    expect(types).toMatch(/status:\s*[\x27\x22]created[\x27\x22]/);
+    expect(types).toMatch(/[\x27\x22]failed[\x27\x22]/);
     // Per-row error message captured separately from status (the
     // discriminant for api_failed vs validation_failed).
     expect(types).toMatch(/error\?\s*:\s*string/);

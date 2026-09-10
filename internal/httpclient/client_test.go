@@ -1,9 +1,9 @@
 // @spec system-correlation
 //
 // AC traceability:
-// @ac AC-14  (TestClient_ForwardsHeaderFromCtx)
-// @ac AC-15  (TestClient_PreservesExplicitHeader)
-// @ac AC-16  (TestClient_NoHeaderWhenAbsent)
+//   AC-14  (TestClient_ForwardsHeaderFromCtx)
+//   AC-15  (TestClient_PreservesExplicitHeader)
+//   AC-16  (TestClient_NoHeaderWhenAbsent)
 
 package httpclient
 
@@ -16,7 +16,8 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 )
 
-// @ac AC-14  (When ctx has a correlation ID, the outbound request carries)
+// @ac AC-14
+// AC-14: When ctx has a correlation ID, the outbound request carries
 // X-Correlation-Id matching it.
 func TestClient_ForwardsHeaderFromCtx(t *testing.T) {
 	t.Run("system-correlation/AC-14", func(t *testing.T) {
@@ -42,7 +43,8 @@ func TestClient_ForwardsHeaderFromCtx(t *testing.T) {
 	})
 }
 
-// @ac AC-15  (An explicitly-set X-Correlation-Id on the outbound request is)
+// @ac AC-15
+// AC-15: An explicitly-set X-Correlation-Id on the outbound request is
 // preserved (not overwritten by the context value).
 func TestClient_PreservesExplicitHeader(t *testing.T) {
 	t.Run("system-correlation/AC-15", func(t *testing.T) {
@@ -71,7 +73,8 @@ func TestClient_PreservesExplicitHeader(t *testing.T) {
 	})
 }
 
-// @ac AC-16  (When ctx has no correlation ID, the outbound request does NOT)
+// @ac AC-16
+// AC-16: When ctx has no correlation ID, the outbound request does NOT
 // carry an empty X-Correlation-Id header.
 func TestClient_NoHeaderWhenAbsent(t *testing.T) {
 	t.Run("system-correlation/AC-16", func(t *testing.T) {

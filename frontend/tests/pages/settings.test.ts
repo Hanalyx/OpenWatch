@@ -84,7 +84,7 @@ describe('frontend-settings — structural', () => {
   // @ac AC-01
   test('frontend-settings/AC-01 — /settings redirects to /settings/profile', () => {
     // The settingsIndexRoute component renders a Navigate to profile.
-    expect(ROUTER_SRC).toMatch(/<Navigate\s+to=["']\/settings\/profile["']/);
+    expect(ROUTER_SRC).toMatch(/<Navigate\s+to=[\x22\x27]\/settings\/profile[\x22\x27]/);
   });
 
   // @ac AC-02
@@ -109,7 +109,7 @@ describe('frontend-settings — structural', () => {
     // No nav item carries a hardcoded status pip. A static always-on warn
     // pip on Security & auth was removed as misleading (a pip must reflect a
     // real condition, not a literal). The pip affordance is gone entirely.
-    expect(LAYOUT_SRC).not.toMatch(/pip:\s*['"]/);
+    expect(LAYOUT_SRC).not.toMatch(/pip:\s*[\x27\x22]/);
   });
 
   // @ac AC-03
@@ -123,15 +123,17 @@ describe('frontend-settings — structural', () => {
   test('frontend-settings/AC-04 — Profile prefills from GET /auth/me and saves via PATCH /auth/me', () => {
     expect(PROFILE_SRC).toMatch(/useAuthStore/);
     // Prefill from GET /auth/me and persist edits via PATCH /auth/me.
-    expect(PROFILE_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/auth\/me['"]/);
-    expect(PROFILE_SRC).toMatch(/api\.PATCH\(\s*['"]\/api\/v1\/auth\/me['"]/);
+    expect(PROFILE_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/auth\/me[\x27\x22]/);
+    expect(PROFILE_SRC).toMatch(/api\.PATCH\x28\s*[\x27\x22]\/api\/v1\/auth\/me[\x27\x22]/);
     // Save is no longer a permanently-disabled stub.
     expect(PROFILE_SRC).not.toMatch(/disabled\s*>\s*Save changes/);
   });
 
   // @ac AC-05
   test('frontend-settings/AC-05 — Password change posts /auth/password:change with body fields', () => {
-    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/password:change['"]/);
+    expect(PROFILE_SRC).toMatch(
+      /api\.POST\x28\s*[\x27\x22]\/api\/v1\/auth\/password:change[\x27\x22]/,
+    );
     expect(PROFILE_SRC).toMatch(/current_password/);
     expect(PROFILE_SRC).toMatch(/new_password/);
   });
@@ -142,14 +144,14 @@ describe('frontend-settings — structural', () => {
     // and does NOT call any form-reset path on that branch.
     expect(PROFILE_SRC).toMatch(/401|auth\.invalid_credentials/);
     // Error rendering uses role="alert" for inline announce.
-    expect(PROFILE_SRC).toMatch(/role=["']alert["']/);
+    expect(PROFILE_SRC).toMatch(/role=[\x22\x27]alert[\x22\x27]/);
   });
 
   // @ac AC-07
   test('frontend-settings/AC-07 — zod rejects new == current before any POST', () => {
     // Cross-field refine() that compares new_password to current_password
     // and rejects equality. Schema is built across lines (z\n .object).
-    expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\(/);
+    expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\x28/);
     expect(PROFILE_SRC).toMatch(/(?:refine|superRefine)/);
     expect(PROFILE_SRC).toMatch(/new_password\s*!==\s*v\.current_password/);
   });
@@ -158,22 +160,22 @@ describe('frontend-settings — structural', () => {
   test('frontend-settings/AC-08 — zod rejects new_password < 15 chars before any POST', () => {
     // Minimum-length enforcement on the new_password field. AC-08 is
     // the length rule; AC-07 is the differ-from-current rule.
-    expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\(/);
-    expect(PROFILE_SRC).toMatch(/\.min\(\s*15/);
+    expect(PROFILE_SRC).toMatch(/z\s*\.\s*object\x28/);
+    expect(PROFILE_SRC).toMatch(/\.min\x28\s*15/);
     // The min(15) is bound to new_password specifically.
-    expect(PROFILE_SRC).toMatch(/new_password:[\s\S]*?\.min\(\s*15/);
+    expect(PROFILE_SRC).toMatch(/new_password:[\s\S]*?\.min\x28\s*15/);
   });
 
   // @ac AC-09
   test('frontend-settings/AC-09 — Begin enrollment posts /auth/mfa:enroll + renders provisioning_uri', () => {
-    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:enroll['"]/);
+    expect(PROFILE_SRC).toMatch(/api\.POST\x28\s*[\x27\x22]\/api\/v1\/auth\/mfa:enroll[\x27\x22]/);
     // The provisioning URI from the response is rendered in JSX.
     expect(PROFILE_SRC).toMatch(/provisioning_uri/);
   });
 
   // @ac AC-10
   test('frontend-settings/AC-10 — Valid otp posts /auth/mfa:verify + flips identity.mfaEnabled', () => {
-    expect(PROFILE_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/auth\/mfa:verify['"]/);
+    expect(PROFILE_SRC).toMatch(/api\.POST\x28\s*[\x27\x22]\/api\/v1\/auth\/mfa:verify[\x27\x22]/);
     // The auth store identity is updated (mfaEnabled true) on success.
     expect(PROFILE_SRC).toMatch(/mfaEnabled\s*:\s*true/);
   });
@@ -188,13 +190,13 @@ describe('frontend-settings — structural', () => {
       resolve(process.cwd(), 'src/store/useColorSchemeStore.ts'),
       'utf8',
     );
-    expect(colorSrc).toMatch(/['"]ow-color-scheme['"]/);
+    expect(colorSrc).toMatch(/[\x27\x22]ow-color-scheme[\x27\x22]/);
   });
 
   // @ac AC-12
   test('frontend-settings/AC-12 — Preferences persist via Zustand persist under "ow-preferences"', () => {
-    expect(PREFS_STORE_SRC).toMatch(/persist\(/);
-    expect(PREFS_STORE_SRC).toMatch(/name:\s*['"]ow-preferences['"]/);
+    expect(PREFS_STORE_SRC).toMatch(/persist\x28/);
+    expect(PREFS_STORE_SRC).toMatch(/name:\s*[\x27\x22]ow-preferences[\x27\x22]/);
     // PreferencesPage subscribes to the store + calls setters that
     // trigger persistence.
     expect(PREFERENCES_SRC).toMatch(/usePreferencesStore/);
@@ -202,7 +204,7 @@ describe('frontend-settings — structural', () => {
 
   // @ac AC-13
   test('frontend-settings/AC-13 — Credentials list renders from GET /api/v1/credentials', () => {
-    expect(CREDENTIALS_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/credentials['"]/);
+    expect(CREDENTIALS_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/credentials[\x27\x22]/);
   });
 
   // @ac AC-14
@@ -212,7 +214,7 @@ describe('frontend-settings — structural', () => {
     expect(USERS_SRC).toMatch(/(useAuthStore|hasPermission)/);
     expect(USERS_SRC).toMatch(/ForbiddenPage|authz\.permission_denied/);
     // The list is fetched via GET /api/v1/users when the gate passes.
-    expect(USERS_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/users['"]/);
+    expect(USERS_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/users[\x27\x22]/);
   });
 
   // @ac AC-15
@@ -267,7 +269,7 @@ describe('frontend-settings — structural', () => {
     expect(files.length).toBeGreaterThan(0);
     for (const f of files) {
       const src = readFileSync(f, 'utf8');
-      expect(src, `${f} references --mui-*`).not.toMatch(/var\(--mui-/);
+      expect(src, `${f} references --mui-*`).not.toMatch(/var\x28--mui-/);
       // Hex literals only allowed inside comments or token-map files.
       // Strip line comments + block comments before checking.
       const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -306,29 +308,29 @@ describe('frontend-settings — structural', () => {
   // @ac AC-19
   test('frontend-settings/AC-19 — Audit log: audit:read gate, infinite query, cursor, read-only', () => {
     // Gated on audit:read with a ForbiddenPage fallback.
-    expect(AUDIT_SRC).toMatch(/hasPermission\)\('audit:read'\)/);
+    expect(AUDIT_SRC).toMatch(/hasPermission\x29\x28\x27audit:read\x27\x29/);
     expect(AUDIT_SRC).toContain('ForbiddenPage');
     // Cursor-paginated infinite query over the audit events endpoint.
     expect(AUDIT_SRC).toContain('useInfiniteQuery');
-    expect(AUDIT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/audit\/events['"]/);
+    expect(AUDIT_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/audit\/events[\x27\x22]/);
     expect(AUDIT_SRC).toMatch(/getNextPageParam:\s*\(last\)\s*=>\s*last\.next_cursor/);
     // Draft filters distinct from the applied filters that key the query,
     // so typing issues no request per keystroke.
-    expect(AUDIT_SRC).toMatch(/queryKey:\s*\['audit',\s*applied\./);
-    expect(AUDIT_SRC).toMatch(/setApplied\(/);
+    expect(AUDIT_SRC).toMatch(/queryKey:\s*\[\x27audit\x27,\s*applied\./);
+    expect(AUDIT_SRC).toMatch(/setApplied\x28/);
     // Read-only: no write verbs anywhere in the page.
-    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\x28/);
   });
 
   // @ac AC-20
   test('frontend-settings/AC-20 — About renders license state from GET /api/v1/license, not hardcoded', () => {
-    expect(STUBBED_SRC).toMatch(/queryKey:\s*\['license'\]/);
-    expect(STUBBED_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/license['"]/);
+    expect(STUBBED_SRC).toMatch(/queryKey:\s*\[\x27license\x27\]/);
+    expect(STUBBED_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/license[\x27\x22]/);
     // Tier + status rendered through the lookup maps (not hardcoded copy).
     expect(STUBBED_SRC).toContain('LICENSE_TIER_LABEL');
     expect(STUBBED_SRC).toContain('LICENSE_STATUS');
     // Version still sourced live.
-    expect(STUBBED_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/version['"]/);
+    expect(STUBBED_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/version[\x27\x22]/);
     // The old "License view pending" stub copy is gone.
     expect(STUBBED_SRC).not.toContain('License view pending');
   });
@@ -339,12 +341,12 @@ describe('frontend-settings — structural', () => {
     // permission and opens the modal.
     expect(USERS_SRC).toContain('AddUserModal');
     expect(USERS_SRC).toMatch(/onClick=\{\(\)\s*=>\s*setAddOpen\(true\)\}/);
-    expect(USERS_SRC).toMatch(/hasPermission\)\('user:write'\)/);
+    expect(USERS_SRC).toMatch(/hasPermission\x29\x28\x27user:write\x27\x29/);
     // Roster renders per-member roles.
     expect(USERS_SRC).toMatch(/user\.roles/);
     // The create modal POSTs /users and invalidates ['users'].
-    expect(USERMUT_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/users['"]/);
-    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+    expect(USERMUT_SRC).toMatch(/api\.POST\x28\s*[\x27\x22]\/api\/v1\/users[\x27\x22]/);
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27users\x27\]/);
   });
 
   // @ac AC-22
@@ -354,35 +356,47 @@ describe('frontend-settings — structural', () => {
     expect(USERMUT_SRC).toContain('/api/v1/users/{id}/roles:assign');
     expect(USERMUT_SRC).toContain('/api/v1/users/{id}/roles:unassign');
     // Soft-delete.
-    expect(USERMUT_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/users\/\{id\}['"]/);
+    expect(USERMUT_SRC).toMatch(
+      /api\.DELETE\x28\s*[\x27\x22]\/api\/v1\/users\/\x7bid\x7d[\x27\x22]/,
+    );
     // Assignable roles sourced from GET /roles.
-    expect(USERMUT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/roles['"]/);
+    expect(USERMUT_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/roles[\x27\x22]/);
     // Every mutation invalidates the users list.
-    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27users\x27\]/);
   });
 
   // @ac AC-23
   test('frontend-settings/AC-23 — Notifications: notification:read gate, CRUD + test, secret-free', () => {
     // Gated on notification:read with a ForbiddenPage fallback.
-    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:read'\)/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\x29\x28\x27notification:read\x27\x29/);
     expect(NOTIF_SRC).toContain('ForbiddenPage');
     // List keyed ['notification-channels'].
-    expect(NOTIF_SRC).toMatch(/queryKey:\s*\['notification-channels'\]/);
-    expect(NOTIF_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/notifications\/channels['"]/);
+    expect(NOTIF_SRC).toMatch(/queryKey:\s*\[\x27notification-channels\x27\]/);
+    expect(NOTIF_SRC).toMatch(
+      /api\.GET\x28\s*[\x27\x22]\/api\/v1\/notifications\/channels[\x27\x22]/,
+    );
     // CRUD + test endpoints.
-    expect(NOTIF_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/notifications\/channels['"]/);
-    expect(NOTIF_SRC).toMatch(/api\.PATCH\(\s*['"]\/api\/v1\/notifications\/channels\/\{id\}['"]/);
-    expect(NOTIF_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/notifications\/channels\/\{id\}['"]/);
+    expect(NOTIF_SRC).toMatch(
+      /api\.POST\x28\s*[\x27\x22]\/api\/v1\/notifications\/channels[\x27\x22]/,
+    );
+    expect(NOTIF_SRC).toMatch(
+      /api\.PATCH\x28\s*[\x27\x22]\/api\/v1\/notifications\/channels\/\x7bid\x7d[\x27\x22]/,
+    );
+    expect(NOTIF_SRC).toMatch(
+      /api\.DELETE\x28\s*[\x27\x22]\/api\/v1\/notifications\/channels\/\x7bid\x7d[\x27\x22]/,
+    );
     expect(NOTIF_SRC).toContain('/api/v1/notifications/channels/{id}:test');
     // Mutations invalidate the list.
-    expect(NOTIF_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['notification-channels'\]/);
+    expect(NOTIF_SRC).toMatch(
+      /invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27notification-channels\x27\]/,
+    );
     // Renders the non-secret hint, never a url/token secret field.
     expect(NOTIF_SRC).toContain('target_hint');
     expect(NOTIF_SRC).not.toMatch(/channel\.(url|token)\b/);
     // Write/delete/test controls gate on their permissions.
-    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:write'\)/);
-    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:delete'\)/);
-    expect(NOTIF_SRC).toMatch(/hasPermission\)\('notification:test'\)/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\x29\x28\x27notification:write\x27\x29/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\x29\x28\x27notification:delete\x27\x29/);
+    expect(NOTIF_SRC).toMatch(/hasPermission\x29\x28\x27notification:test\x27\x29/);
     // Email channels expose an SMTP encryption selector (none/starttls/tls)
     // and send smtp_encryption in the config, plus a self-signed-cert
     // (skip-verify) toggle for an internal relay.
@@ -398,71 +412,79 @@ describe('frontend-settings — structural', () => {
   // @ac AC-24
   test('frontend-settings/AC-24 — Security: admin gate, live API tokens, secret shown once', () => {
     // Page gated on admin.
-    expect(SEC_SRC).toMatch(/hasPermission\)\('admin'\)/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27admin\x27\x29/);
     expect(SEC_SRC).toContain('ForbiddenPage');
     // API-tokens list keyed ['api-tokens'].
-    expect(SEC_SRC).toMatch(/queryKey:\s*\['api-tokens'\]/);
-    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/tokens['"]/);
+    expect(SEC_SRC).toMatch(/queryKey:\s*\[\x27api-tokens\x27\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/tokens[\x27\x22]/);
     // Create + revoke endpoints.
-    expect(SEC_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/tokens['"]/);
-    expect(SEC_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/tokens\/\{id\}['"]/);
+    expect(SEC_SRC).toMatch(/api\.POST\x28\s*[\x27\x22]\/api\/v1\/tokens[\x27\x22]/);
+    expect(SEC_SRC).toMatch(/api\.DELETE\x28\s*[\x27\x22]\/api\/v1\/tokens\/\x7bid\x7d[\x27\x22]/);
     // Both mutations invalidate the list.
-    expect(SEC_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['api-tokens'\]/);
+    expect(SEC_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27api-tokens\x27\]/);
     // Secret shown once: a copy control + a not-shown-again warning; list
     // renders only the prefix (no raw token/secret list field).
     expect(SEC_SRC).toMatch(/not be shown again/i);
     expect(SEC_SRC).toContain('token.prefix');
     expect(SEC_SRC).not.toMatch(/token\.(token|secret|hash)\b/);
     // Write/delete controls gate on their permissions.
-    expect(SEC_SRC).toMatch(/hasPermission\)\('token:write'\)/);
-    expect(SEC_SRC).toMatch(/hasPermission\)\('token:delete'\)/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27token:write\x27\x29/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27token:delete\x27\x29/);
   });
 
   // @ac AC-25
   test('frontend-settings/AC-25 — Security: live auth-policy section + login enrollment routing', () => {
     // Auth-policy section loads + saves the policy, perm-gated.
-    expect(SEC_SRC).toMatch(/queryKey:\s*\['auth-policy'\]/);
-    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/auth-policy['"]/);
-    expect(SEC_SRC).toMatch(/api\.PUT\(\s*['"]\/api\/v1\/auth-policy['"]/);
-    expect(SEC_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['auth-policy'\]/);
-    expect(SEC_SRC).toMatch(/hasPermission\)\('system:auth_policy_read'\)/);
-    expect(SEC_SRC).toMatch(/hasPermission\)\('system:auth_policy_write'\)/);
+    expect(SEC_SRC).toMatch(/queryKey:\s*\[\x27auth-policy\x27\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/auth-policy[\x27\x22]/);
+    expect(SEC_SRC).toMatch(/api\.PUT\x28\s*[\x27\x22]\/api\/v1\/auth-policy[\x27\x22]/);
+    expect(SEC_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27auth-policy\x27\]/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27system:auth_policy_read\x27\x29/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27system:auth_policy_write\x27\x29/);
     // require-MFA toggle + timeout steppers.
     expect(SEC_SRC).toContain('<Toggle');
     expect(SEC_SRC).toContain('<Stepper');
     // Login routes a non-enrolled user to enrollment when policy requires MFA.
     expect(LOGIN_SRC).toContain('mfa_enrollment_required');
-    expect(LOGIN_SRC).toMatch(/navigate\(\{\s*to:\s*['"]\/settings\/profile['"]/);
+    expect(LOGIN_SRC).toMatch(/navigate\x28\x7b\s*to:\s*[\x27\x22]\/settings\/profile[\x27\x22]/);
   });
 
   // @ac AC-26
   test('frontend-settings/AC-26 — Security: live SSO provider CRUD + login sign-in buttons', () => {
     // SSO section is admin:sso_provider-gated and does provider CRUD.
-    expect(SEC_SRC).toMatch(/hasPermission\)\('admin:sso_provider'\)/);
-    expect(SEC_SRC).toMatch(/queryKey:\s*\['sso-providers'\]/);
-    expect(SEC_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/sso\/providers['"]/);
-    expect(SEC_SRC).toMatch(/api\.POST\(\s*['"]\/api\/v1\/sso\/providers['"]/);
-    expect(SEC_SRC).toMatch(/api\.PUT\(\s*['"]\/api\/v1\/sso\/providers\/\{id\}['"]/);
-    expect(SEC_SRC).toMatch(/api\.DELETE\(\s*['"]\/api\/v1\/sso\/providers\/\{id\}['"]/);
+    expect(SEC_SRC).toMatch(/hasPermission\x29\x28\x27admin:sso_provider\x27\x29/);
+    expect(SEC_SRC).toMatch(/queryKey:\s*\[\x27sso-providers\x27\]/);
+    expect(SEC_SRC).toMatch(/api\.GET\x28\s*[\x27\x22]\/api\/v1\/sso\/providers[\x27\x22]/);
+    expect(SEC_SRC).toMatch(/api\.POST\x28\s*[\x27\x22]\/api\/v1\/sso\/providers[\x27\x22]/);
+    expect(SEC_SRC).toMatch(
+      /api\.PUT\x28\s*[\x27\x22]\/api\/v1\/sso\/providers\/\x7bid\x7d[\x27\x22]/,
+    );
+    expect(SEC_SRC).toMatch(
+      /api\.DELETE\x28\s*[\x27\x22]\/api\/v1\/sso\/providers\/\x7bid\x7d[\x27\x22]/,
+    );
     // Client secret is write-only: the edit form labels it "leave blank to keep".
     expect(SEC_SRC).toMatch(/leave blank to keep/i);
     // Login page fetches enabled providers and starts the backend redirect flow.
-    expect(LOGIN_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/sso\/providers\/enabled['"]/);
+    expect(LOGIN_SRC).toMatch(
+      /api\.GET\x28\s*[\x27\x22]\/api\/v1\/sso\/providers\/enabled[\x27\x22]/,
+    );
     expect(LOGIN_SRC).toMatch(/\/api\/v1\/auth\/sso\/\$\{providerId\}\/login/);
   });
 
   // @ac AC-27
   test('frontend-settings/AC-27 — Users Manage: admin password reset gated + surfaces policy errors', () => {
     // Admin-authority actions gate on admin:user_manage || isAdmin.
-    expect(USERMUT_SRC).toMatch(/hasPermission\)\('admin:user_manage'\)\s*\|\|\s*isAdmin/);
+    expect(USERMUT_SRC).toMatch(
+      /hasPermission\x29\x28\x27admin:user_manage\x27\x29\s*\|\|\s*isAdmin/,
+    );
     expect(USERMUT_SRC).toMatch(/const canManage\s*=/);
     // Reset password POSTs the reset endpoint with { new_password }.
     expect(USERMUT_SRC).toContain('/api/v1/users/{id}:reset-password');
     expect(USERMUT_SRC).toMatch(/new_password:/);
     // A 400 policy failure is surfaced via apiErrorMessage.
-    expect(USERMUT_SRC).toMatch(/apiErrorMessage\(error,/);
+    expect(USERMUT_SRC).toMatch(/apiErrorMessage\x28error,/);
     // Reset invalidates the users list on success.
-    expect(USERMUT_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['users'\]/);
+    expect(USERMUT_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*\[\x27users\x27\]/);
   });
 
   // @ac AC-28
@@ -499,7 +521,7 @@ describe('frontend-settings — structural', () => {
   // @ac AC-30
   test('frontend-settings/AC-30 — preferences store syncs server-side (localStorage cache retained)', () => {
     // localStorage cache retained (instant load + offline fallback).
-    expect(PREFS_STORE_SRC).toMatch(/persist\(/);
+    expect(PREFS_STORE_SRC).toMatch(/persist\x28/);
     expect(PREFS_STORE_SRC).toContain("name: 'ow-preferences'");
     // Write-through: setters PATCH the server via push().
     expect(PREFS_STORE_SRC).toContain("api.PATCH('/api/v1/users/me/preferences'");
@@ -513,7 +535,7 @@ describe('frontend-settings — structural', () => {
       'utf8',
     );
     expect(FRAME_SRC).toContain('hydrateFromServer');
-    expect(FRAME_SRC).toMatch(/useEffect\(/);
+    expect(FRAME_SRC).toMatch(/useEffect\x28/);
   });
 
   // @ac AC-31
@@ -532,17 +554,19 @@ describe('frontend-settings — structural', () => {
     expect(AUDIT_SRC).not.toMatch(/function relTime/);
     expect(AUDIT_SRC).not.toContain('—');
     // Still read-only.
-    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\x28/);
   });
 
   // @ac AC-32
   test('frontend-settings/AC-32 — Audit log export: CSV/JSON download via the auth’d client', () => {
     // Both export buttons wired to exportAudit.
-    expect(AUDIT_SRC).toMatch(/exportAudit\('csv'\)/);
-    expect(AUDIT_SRC).toMatch(/exportAudit\('json'\)/);
+    expect(AUDIT_SRC).toMatch(/exportAudit\x28\x27csv\x27\x29/);
+    expect(AUDIT_SRC).toMatch(/exportAudit\x28\x27json\x27\x29/);
     // Fetches the export endpoint as a blob with the format + applied filters.
-    expect(AUDIT_SRC).toMatch(/api\.GET\(\s*['"]\/api\/v1\/audit\/events\/export['"]/);
-    expect(AUDIT_SRC).toMatch(/parseAs:\s*['"]blob['"]/);
+    expect(AUDIT_SRC).toMatch(
+      /api\.GET\x28\s*[\x27\x22]\/api\/v1\/audit\/events\/export[\x27\x22]/,
+    );
+    expect(AUDIT_SRC).toMatch(/parseAs:\s*[\x27\x22]blob[\x27\x22]/);
     expect(AUDIT_SRC).toMatch(/format,/);
     expect(AUDIT_SRC).toMatch(/applied\.action/);
     // Triggers a browser download (object URL + temporary anchor).
@@ -553,7 +577,7 @@ describe('frontend-settings — structural', () => {
     expect(AUDIT_SRC).toMatch(/disabled=\{exporting !== null\}/);
     expect(AUDIT_SRC).toMatch(/setExportError/);
     // Reading remains GET-only.
-    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\(/);
+    expect(AUDIT_SRC).not.toMatch(/api\.(POST|PATCH|PUT|DELETE)\x28/);
   });
 
   // @ac AC-33

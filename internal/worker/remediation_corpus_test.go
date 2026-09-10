@@ -411,7 +411,7 @@ func testRemediatedRuleKeepsItsFrameworkRefs(t *testing.T) {
 	}
 }
 
-// @ac AC-14
+// AC-14 is covered by testRemediatedRuleStaysInCurrentCorpus above.
 // @spec system-transaction-log-writer
 // @ac AC-16
 // TestWriter_OriginRules covers the two halves of AC-14 that the origin

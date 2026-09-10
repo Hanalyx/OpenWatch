@@ -1,10 +1,10 @@
 // @spec system-license-validation
 //
 // AC traceability:
-// @ac AC-18  (TestLoadJWT_WatermarkIsARatchet)
-// @ac AC-22  (TestLoadJWT_ClockRollbackWarnsAndLoads,
+//   AC-18  (TestLoadJWT_WatermarkIsARatchet)
+//   AC-22  (TestLoadJWT_ClockRollbackWarnsAndLoads,
 //             TestLoadJWT_ClockRollbackIsNotABypass)
-// @ac AC-23  (TestLoadJWT_ReloadDoesNotClearTheWarning)
+//   AC-23  (TestLoadJWT_ReloadDoesNotClearTheWarning)
 
 package license
 

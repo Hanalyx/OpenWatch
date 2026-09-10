@@ -1,15 +1,15 @@
 // @spec system-config
 //
 // AC traceability:
-// @ac AC-01  (TestLoad_DefaultsOnly)
-// @ac AC-02  (TestLoad_TOMLOverridesDefaults)
-// @ac AC-03  (TestLoad_EnvOverridesTOML)
-// @ac AC-04  (TestLoad_FlagsOverrideEnv, TestLoad_FullLayering)
-// @ac AC-05  (TestLoad_AllEnvVarsApply)
-// @ac AC-06  (TestLoad_EnvMaxConnections_InvalidInt)
-// @ac AC-07  (TestLoad_MissingTOML_NotRequired_Silent)
-// @ac AC-08  (TestLoad_MissingTOML_Required_Errors)
-// @ac AC-09  (TestLoad_TOMLMalformed_Errors)
+//   AC-01  (TestLoad_DefaultsOnly)
+//   AC-02  (TestLoad_TOMLOverridesDefaults)
+//   AC-03  (TestLoad_EnvOverridesTOML)
+//   AC-04  (TestLoad_FlagsOverrideEnv, TestLoad_FullLayering)
+//   AC-05  (TestLoad_AllEnvVarsApply)
+//   AC-06  (TestLoad_EnvMaxConnections_InvalidInt)
+//   AC-07  (TestLoad_MissingTOML_NotRequired_Silent)
+//   AC-08  (TestLoad_MissingTOML_Required_Errors)
+//   AC-09  (TestLoad_TOMLMalformed_Errors)
 //   (AC-10..AC-15 covered in validate_test.go)
 
 package config
@@ -41,7 +41,8 @@ func writeTOML(t *testing.T, content string) string {
 	return path
 }
 
-// @ac AC-01  (Load() with zero options returns Defaults().)
+// @ac AC-01
+// AC-01: Load() with zero options returns Defaults().
 func TestLoad_DefaultsOnly(t *testing.T) {
 	t.Run("system-config/AC-01", func(t *testing.T) {
 
@@ -59,7 +60,8 @@ func TestLoad_DefaultsOnly(t *testing.T) {
 	})
 }
 
-// @ac AC-02  (TOML overwrites set fields; unset fields fall through to defaults.)
+// @ac AC-02
+// AC-02: TOML overwrites set fields; unset fields fall through to defaults.
 func TestLoad_TOMLOverridesDefaults(t *testing.T) {
 	t.Run("system-config/AC-02", func(t *testing.T) {
 
@@ -88,7 +90,8 @@ func TestLoad_TOMLOverridesDefaults(t *testing.T) {
 	})
 }
 
-// @ac AC-03  (Env vars override TOML for the same field.)
+// @ac AC-03
+// AC-03: Env vars override TOML for the same field.
 func TestLoad_EnvOverridesTOML(t *testing.T) {
 	t.Run("system-config/AC-03", func(t *testing.T) {
 
@@ -112,7 +115,8 @@ func TestLoad_EnvOverridesTOML(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (CLI flags override env (and TOML and defaults).)
+// @ac AC-04
+// AC-04: CLI flags override env (and TOML and defaults).
 func TestLoad_FlagsOverrideEnv(t *testing.T) {
 	t.Run("system-config/AC-04", func(t *testing.T) {
 
@@ -132,7 +136,8 @@ func TestLoad_FlagsOverrideEnv(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (Full layering — flags > env > TOML > defaults, with field-level precedence.)
+// @ac AC-04
+// AC-04: Full layering — flags > env > TOML > defaults, with field-level precedence.
 func TestLoad_FullLayering(t *testing.T) {
 	t.Run("system-config/AC-04", func(t *testing.T) {
 
@@ -186,7 +191,8 @@ func TestLoad_FullLayering(t *testing.T) {
 	})
 }
 
-// @ac AC-07  (Missing TOML with PathRequired=false silently falls back to defaults.)
+// @ac AC-07
+// AC-07: Missing TOML with PathRequired=false silently falls back to defaults.
 func TestLoad_MissingTOML_NotRequired_Silent(t *testing.T) {
 	t.Run("system-config/AC-07", func(t *testing.T) {
 
@@ -203,7 +209,8 @@ func TestLoad_MissingTOML_NotRequired_Silent(t *testing.T) {
 	})
 }
 
-// @ac AC-08  (Missing TOML with PathRequired=true errors.)
+// @ac AC-08
+// AC-08: Missing TOML with PathRequired=true errors.
 func TestLoad_MissingTOML_Required_Errors(t *testing.T) {
 	t.Run("system-config/AC-08", func(t *testing.T) {
 
@@ -217,7 +224,8 @@ func TestLoad_MissingTOML_Required_Errors(t *testing.T) {
 	})
 }
 
-// @ac AC-06  (Non-integer max_connections env value returns parse error.)
+// @ac AC-06
+// AC-06: Non-integer max_connections env value returns parse error.
 func TestLoad_EnvMaxConnections_InvalidInt(t *testing.T) {
 	t.Run("system-config/AC-06", func(t *testing.T) {
 
@@ -235,7 +243,8 @@ func TestLoad_EnvMaxConnections_InvalidInt(t *testing.T) {
 	})
 }
 
-// @ac AC-05  (All seven env vars apply correctly.)
+// @ac AC-05
+// AC-05: All seven env vars apply correctly.
 func TestLoad_AllEnvVarsApply(t *testing.T) {
 	t.Run("system-config/AC-05", func(t *testing.T) {
 
@@ -274,7 +283,8 @@ func TestLoad_AllEnvVarsApply(t *testing.T) {
 	})
 }
 
-// @ac AC-09  (Malformed TOML errors regardless of PathRequired.)
+// @ac AC-09
+// AC-09: Malformed TOML errors regardless of PathRequired.
 func TestLoad_TOMLMalformed_Errors(t *testing.T) {
 	t.Run("system-config/AC-09", func(t *testing.T) {
 

@@ -1,16 +1,16 @@
 // @spec system-license-validation
 //
 // AC traceability:
-// @ac AC-24  (TestVerify_KidDoesNotOpenDeprecatedSlot)
-// @ac AC-30  (TestVerify_KidSelectsCurrent)
-// @ac AC-25  (TestVerify_KidPrevSetsUsingPrevKey)
-// @ac AC-26  (TestVerify_NoKidUnchanged)
-// @ac AC-27  (TestVerify_UnusableKidFallsBack)
-// @ac AC-28  (TestKeyID_Derivation)
-// @ac AC-29  (TestKeyID_StableAndDistinct)
-// @ac AC-31  (TestVerify_MismatchedKidIsRecorded)
-// @ac AC-32  (TestLoadJWT_MismatchedKidReachesTheAuditTrail)
-// @ac AC-33  (TestNoProductionCodeOpensTheDeprecatedSlot)
+//   AC-24  (TestVerify_KidDoesNotOpenDeprecatedSlot)
+//   AC-30  (TestVerify_KidSelectsCurrent)
+//   AC-25  (TestVerify_KidPrevSetsUsingPrevKey)
+//   AC-26  (TestVerify_NoKidUnchanged)
+//   AC-27  (TestVerify_UnusableKidFallsBack)
+//   AC-28  (TestKeyID_Derivation)
+//   AC-29  (TestKeyID_StableAndDistinct)
+//   AC-31  (TestVerify_MismatchedKidIsRecorded)
+//   AC-32  (TestLoadJWT_MismatchedKidReachesTheAuditTrail)
+//   AC-33  (TestNoProductionCodeOpensTheDeprecatedSlot)
 
 package license
 

@@ -1,7 +1,7 @@
 // @spec system-license-validation
 //
 // AC traceability:
-// @ac AC-14  (TestEmbeddedKey_NotTestKey)
+//   AC-14  (TestEmbeddedKey_NotTestKey)
 
 package license
 
