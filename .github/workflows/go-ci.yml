@@ -211,6 +211,23 @@ jobs:
           python3 -S scripts/test_release_status.py
           python3 -S scripts/test_specter_gate.py
 
+      # Node and the frontend install move AHEAD of the Specter gate because
+      # the gate asks Vitest for the real collected test titles rather than
+      # guessing them from source. The vitest run further down reuses this
+      # same install; nothing is installed twice.
+      - name: Set up Node.js
+        if: steps.paths.outputs.go == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.paths.outputs.go == 'true'
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
       # The Specter gate: pinned version, zero annotation ERRORS and WARNINGS
       # (info is not blocking), and 100% structural coverage. The policy lives in
       # scripts/specter-gate.py, which `make spec-check` also runs, so the
@@ -287,19 +304,10 @@ jobs:
       # gate even though the tests pass. Vitest emits JUnit XML at
       # /tmp/vitest-junit.xml which specter ingest reads alongside the Go
       # test results.
-      - name: Set up Node.js
-        if: steps.paths.outputs.go == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
       - name: frontend vitest (junit) for specter ingest
         if: steps.paths.outputs.go == 'true'
         working-directory: frontend
         run: |
-          npm ci --no-audit --no-fund
           set +e
           npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
           EXIT=$?

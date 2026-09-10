@@ -121,89 +121,49 @@ def check_annotations():
 
 TSX_SPEC = re.compile(r"^// @spec (\S+)", re.M)
 TSX_AC = re.compile(r"^\s*// @ac (AC-\d+)", re.M)
-CALLER = re.compile(r"(?:^|[^\w$.])(?:test|it|describe)\s*\(\s*$")
 
 
-def test_titles(src):
-    """Every string literal used as a test, it or describe title.
+def collect_vitest_titles(frontend):
+    r"""Ask Vitest for the titles it actually collects, keyed by file.
 
-    A raw regex over the file was wrong, and provably so: it accepted
+    NOT a hand-written parser. Two earlier versions were, and both were
+    unsound on valid TypeScript: a raw regex accepted a commented-out decoy,
+    and the lexer that replaced it read
 
-        // test("frontend-demo/AC-01", () => {})
+        function f() { return /test("frontend-demo\/AC-01")/; }
 
-    as a title, which let a real test lose its token while a commented-out
-    decoy kept the gate green. That is the exact failure this check exists to
-    catch, so the scanner has to know what is code.
+    as a real title, because a `/` after `return` looked like division and the
+    regex body was then lexed as code. The requirement is a RUNNER-VISIBLE
+    title, so the runner is the right authority; every further heuristic is a
+    new way to be confidently wrong.
 
-    This walks the source once, tracking line comments, block comments, the
-    three string forms and regex literals, and returns only the contents of
-    strings that a call to test, it or describe opens.
+    `vitest list --json=<path>` performs collection only. Note the `=`: the
+    bare `--json` form takes the next argument as an output PATH and will
+    happily overwrite a source file.
     """
-    titles = []
-    i, n = 0, len(src)
-    code = []          # source with comments and string bodies blanked out
-    spans = {}         # index in `code` of a string start -> its content
-    prev_significant = ""
-    while i < n:
-        c = src[i]
-        two = src[i:i + 2]
-        if two == "//":
-            j = src.find("\n", i)
-            j = n if j < 0 else j
-            code.append(" " * (j - i))
-            i = j
-            continue
-        if two == "/*":
-            j = src.find("*/", i + 2)
-            j = n if j < 0 else j + 2
-            code.append(" " * (j - i))
-            i = j
-            continue
-        if c in "'\"`":
-            quote, j, buf = c, i + 1, []
-            while j < n:
-                if src[j] == "\\":
-                    buf.append(src[j:j + 2])
-                    j += 2
-                    continue
-                if src[j] == quote:
-                    break
-                buf.append(src[j])
-                j += 1
-            spans[len("".join(code))] = "".join(buf)
-            code.append(" " * (j + 1 - i))
-            i = j + 1
-            prev_significant = "str"
-            continue
-        if c == "/" and prev_significant in ("", "op"):
-            # A regex literal, not division: only an operator or the start of
-            # an expression can precede one.
-            j = i + 1
-            while j < n:
-                if src[j] == "\\":
-                    j += 2
-                    continue
-                if src[j] == "[":
-                    while j < n and src[j] != "]":
-                        j += 2 if src[j] == "\\" else 1
-                if src[j] == "/" or src[j] == "\n":
-                    break
-                j += 1
-            code.append(" " * (j + 1 - i))
-            i = j + 1
-            continue
-        code.append(c)
-        if not c.isspace():
-            prev_significant = "val" if (c.isalnum() or c in "_$)]}") else "op"
-        i += 1
-    code = "".join(code)
-    for start, content in spans.items():
-        if CALLER.search(code[:start]):
-            titles.append(content)
-    return titles
+    out = REPO / "frontend" / ".specter-gate-titles.json"
+    try:
+        p = subprocess.run(
+            ["npx", "vitest", "list", f"--json={out}"],
+            capture_output=True, text=True, cwd=frontend,
+        )
+        if p.returncode != 0 or not out.exists():
+            fail(
+                "could not collect Vitest test titles "
+                f"(exit {p.returncode}). Run `npm ci` in frontend/ first.\n"
+                + (p.stderr or p.stdout)[-2000:]
+            )
+        entries = json.loads(out.read_text())
+    finally:
+        if out.exists():
+            out.unlink()
+    by_file = {}
+    for e in entries:
+        by_file.setdefault(e.get("file", ""), []).append(e.get("name", ""))
+    return by_file
 
 
-def check_tsx_reachability():
+def check_tsx_reachability(root=None, titles_by_file=None):
     """Reachability for .tsx, which Specter does not analyze.
 
     Measured, not assumed: removing the literal token from a test title in a
@@ -214,12 +174,21 @@ def check_tsx_reachability():
     Filed upstream as SP-OW-082. Delete this function when it lands, rather
     than leaving a local reimplementation to rot beside a fixed scanner.
 
-    The rule is the one Specter applies to .ts: every `// @ac AC-NN` in a file
-    that declares `// @spec <id>` must have the literal token `<id>/AC-NN` in
-    a test, it or describe title in that same file. A token in a comment or in
-    an ordinary string does not count.
+    `root` and `titles_by_file` are injectable so the enforcement path itself
+    can be tested, not merely the helper it calls.
     """
-    root = REPO / "frontend" / "tests"
+    root = Path(root) if root else REPO / "frontend" / "tests"
+    if titles_by_file is None:
+        titles_by_file = collect_vitest_titles(REPO / "frontend")
+    # Vitest reports paths relative to the frontend root; match on suffix so
+    # the caller can pass either shape.
+    def titles_for(f):
+        hits = []
+        for path, names in titles_by_file.items():
+            if path and (str(f).endswith(path) or path.endswith(str(f.name))):
+                hits.extend(names)
+        return hits
+
     bad = []
     for f in sorted(root.rglob("*.test.tsx")):
         text = f.read_text(errors="ignore")
@@ -227,11 +196,11 @@ def check_tsx_reachability():
         if not m:
             continue
         spec_id = m.group(1)
-        titles = test_titles(text)
+        titles = titles_for(f)
         for ac in dict.fromkeys(TSX_AC.findall(text)):
             token = f"{spec_id}/{ac}"
             if not any(token in t for t in titles):
-                bad.append(f"{f.relative_to(REPO)}: @ac {ac} has no test title containing {token!r}")
+                bad.append(f"{f}: @ac {ac} has no collected test title containing {token!r}")
     if bad:
         for b in bad:
             print(f"  {b}", file=sys.stderr)
@@ -263,12 +232,35 @@ def check_structural_coverage():
     print("specter-gate: structural coverage 100%")
 
 
-def main():
+STAGES = ("version", "annotations", "tsx", "coverage")
+
+
+def main(argv=None):
+    """Run every stage, or one named stage.
+
+    `--only <stage>` exists so the gate's own guards can drive a single stage
+    against a stubbed specter without the others interfering. A CALLER must
+    never use it: running a subset is not running the gate, and
+    release-ci-gates AC-11 fails if `--only` appears in one.
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    only = None
+    if argv and argv[0] == "--only":
+        if len(argv) < 2 or argv[1] not in STAGES:
+            fail(f"--only takes one of {', '.join(STAGES)}")
+        only = argv[1]
+    elif argv:
+        fail(f"unexpected argument {argv[0]!r}")
+
     want = pinned_version()
-    check_version(want)
-    check_annotations()
-    check_tsx_reachability()
-    check_structural_coverage()
+    if only in (None, "version"):
+        check_version(want)
+    if only in (None, "annotations"):
+        check_annotations()
+    if only in (None, "tsx"):
+        check_tsx_reachability()
+    if only in (None, "coverage"):
+        check_structural_coverage()
     print("specter-gate: PASS")
 
 

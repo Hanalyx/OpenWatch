@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 1
 
@@ -141,20 +141,28 @@ spec:
         pin_file: .specter-version
         pinned_version: 0.15.0
         shared_gate: scripts/specter-gate.py
+        # Each caller names the file inspected and the exact invocation it must
+        # contain, so the fixture drives the check instead of describing it.
         callers:
-          - Makefile spec-check
-          - .github/workflows/go-ci.yml
+          - path: Makefile
+            invocation: 'python3 -S scripts/specter-gate.py'
+            kind: recipe
+          - path: .github/workflows/go-ci.yml
+            invocation: 'python3 -S scripts/specter-gate.py'
+            kind: run_step
+        # The policy is severity-based and deliberately KIND-INDEPENDENT: any
+        # error or warning fails, whatever its kind. An earlier fixture listed
+        # four kinds, which read like a contract and drove nothing.
         rejected_severities:
           - error
           - warning
         nonblocking_severities:
           - info
-        rejected_kinds:
-          - unreachable_annotation
-          - unreachable_annotation_unknown
-          - unknown_spec
-          - unknown_ac
         structural_coverage_pct: 100
+        # A caller must run the WHOLE gate. `--only` exists so the gate's own
+        # guards can drive one stage against a stubbed specter; a caller using
+        # it would be running a subset and calling it the gate.
+        forbidden_in_callers: '--only'
       expected_output:
         both_callers_invoke_the_same_gate: true
         gate_reads_the_json_summary: true

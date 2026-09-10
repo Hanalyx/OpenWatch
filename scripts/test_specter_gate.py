@@ -31,38 +31,77 @@ _spec.loader.exec_module(gate)
 TOKEN = "frontend-demo/AC-01"
 
 
-class TitleScannerKnowsWhatCodeIs(unittest.TestCase):
-    """Only a string a test/it/describe call opens counts as a title."""
+class ReachabilityGateRejectsWhatIsNotACollectedTitle(unittest.TestCase):
+    """Drives check_tsx_reachability itself, not a helper it happens to call.
 
-    def found(self, src):
-        return any(TOKEN in t for t in gate.test_titles(src))
+    An earlier version of this file exercised the title scanner directly, so
+    replacing the whole reachability check with a no-op left every test green.
+    These write real .test.tsx files into a temporary root and feed the
+    collected-title map the runner would have produced.
 
-    def test_a_line_comment_decoy_is_not_a_title(self):
-        self.assertFalse(self.found(
-            f'// test("{TOKEN}", () => {{}})\ntest("real title", () => {{}})'))
+    The decoys matter because two hand-written scanners were wrong about them:
+    a raw regex accepted a commented-out test, and the lexer that replaced it
+    read `return /test("...")/` as an executable call.
+    """
 
-    def test_a_block_comment_decoy_is_not_a_title(self):
-        self.assertFalse(self.found(
-            f'/* test("{TOKEN}", () => {{}}) */\ntest("real title", () => {{}})'))
+    TOKEN = "frontend-demo/AC-01"
 
-    def test_an_ordinary_string_containing_a_call_is_not_a_title(self):
-        self.assertFalse(self.found(
-            f"const s = 'test(\"{TOKEN}\", () => {{}})';\ntest(\"real title\", () => {{}})"))
+    def run_gate(self, body, collected):
+        """Write one annotated .test.tsx and run the real check over it."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f = root / "demo.test.tsx"
+            f.write_text("// @spec frontend-demo\n//\n// @ac AC-01\n" + body)
+            titles = {"demo.test.tsx": list(collected)}
+            try:
+                gate.check_tsx_reachability(root=root, titles_by_file=titles)
+                return True
+            except SystemExit:
+                return False
 
-    def test_a_regex_literal_containing_a_call_is_not_a_title(self):
-        self.assertFalse(self.found(
-            f'const re = /test\\("{TOKEN}"\\)/;\ntest("real title", () => {{}})'))
+    def test_a_collected_title_passes(self):
+        self.assertTrue(self.run_gate(
+            f'test("{self.TOKEN} — real", () => {{}});\n', [f"{self.TOKEN} — real"]))
 
-    def test_a_real_executable_title_is_found(self):
-        self.assertTrue(self.found(f'test("{TOKEN} — does the thing", () => {{}})'))
+    def test_no_collected_title_fails(self):
+        self.assertFalse(self.run_gate(
+            'test("some other name", () => {});\n', ["some other name"]))
 
-    def test_a_nested_it_title_is_found(self):
-        self.assertTrue(self.found(
-            f"describe('outer', () => {{\n  it('{TOKEN} — inner', () => {{}});\n}});"))
+    def test_a_line_comment_decoy_fails(self):
+        # The source LOOKS annotated and covered; the runner collected only
+        # the real, untokened title.
+        self.assertFalse(self.run_gate(
+            f'// test("{self.TOKEN}", () => {{}})\ntest("real", () => {{}});\n',
+            ["real"]))
 
-    def test_a_word_ending_in_test_does_not_open_a_title(self):
-        # `latest(` and `mytest(` are not the test() function.
-        self.assertFalse(self.found(f'latest("{TOKEN}");'))
+    def test_a_block_comment_decoy_fails(self):
+        self.assertFalse(self.run_gate(
+            f'/* test("{self.TOKEN}", () => {{}}) */\ntest("real", () => {{}});\n',
+            ["real"]))
+
+    def test_an_ordinary_string_decoy_fails(self):
+        self.assertFalse(self.run_gate(
+            f'const s = \'test("{self.TOKEN}")\';\ntest("real", () => {{}});\n',
+            ["real"]))
+
+    def test_a_regex_after_return_decoy_fails(self):
+        # The exact shape that defeated the hand-written lexer: a `/` after
+        # `return` read as division, then the regex body lexed as code.
+        self.assertFalse(self.run_gate(
+            'function f() {\n  return /test("frontend-demo\\/AC-01")/;\n}\n'
+            'test("real", () => {});\n',
+            ["real"]))
+
+    def test_an_unannotated_file_is_ignored(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "x.test.tsx").write_text('test("no annotations here", () => {});\n')
+            try:
+                gate.check_tsx_reachability(root=root, titles_by_file={})
+            except SystemExit:
+                self.fail("a file with no @spec must not be checked")
 
 
 class SummaryDoesNotOutrankExitStatus(unittest.TestCase):
@@ -106,6 +145,48 @@ class SummaryDoesNotOutrankExitStatus(unittest.TestCase):
         # The annotation stage is satisfied; a later stage may still fail on
         # the fake's coverage output, which is not what this test is about.
         self.assertIn("annotations clean", r.stdout)
+
+
+class EveryStageIsWiredIntoMain(unittest.TestCase):
+    """Runs the whole gate, not its pieces.
+
+    Calling check_tsx_reachability() directly proves the function works and
+    says nothing about whether anything calls it. Deleting its line from
+    main() left every other test in this file green, which is the same defect
+    as a test that asserts around the production path instead of through it.
+
+    A full run needs the Vitest collection, so this is the slow test in the
+    file. It is the one that would have caught the deletion.
+    """
+
+    def test_a_full_run_reports_every_stage(self):
+        r = subprocess.run([sys.executable, "-S", str(GATE)],
+                           capture_output=True, text=True, cwd=REPO)
+        if r.returncode != 0 and "could not collect Vitest" in (r.stdout + r.stderr):
+            self.skipTest("frontend dependencies are not installed")
+        self.assertEqual(r.returncode, 0, f"gate failed:\n{(r.stdout + r.stderr)[-3000:]}")
+        for marker in (
+            "matches .specter-version",       # version
+            "annotations clean",              # annotations
+            ".tsx reachability checked",      # tsx
+            "structural coverage 100%",       # coverage
+        ):
+            self.assertIn(marker, r.stdout,
+                          f"a full run did not report the stage printing {marker!r}; "
+                          "is it still called from main()?")
+
+    def test_every_named_stage_is_dispatched(self):
+        # --only names four stages; each must actually do something rather
+        # than fall through to PASS.
+        for stage, marker in (
+            ("version", "matches .specter-version"),
+            ("annotations", "annotations clean"),
+            ("coverage", "structural coverage"),
+        ):
+            with self.subTest(stage=stage):
+                r = subprocess.run([sys.executable, "-S", str(GATE), "--only", stage],
+                                   capture_output=True, text=True, cwd=REPO)
+                self.assertIn(marker, r.stdout)
 
 
 class GateIsStandardLibraryOnly(unittest.TestCase):

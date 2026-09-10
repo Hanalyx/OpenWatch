@@ -8,9 +8,13 @@
 package packaging_test
 
 import (
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -222,13 +226,60 @@ func TestCIGates_WorkflowTriggers(t *testing.T) {
 	})
 }
 
+// runGateWith runs the real gate against a fake `specter` on PATH.
+//
+// Static assertions cannot tell whether the gate ACTS on its fixture values,
+// so the behavioral cases below drive the whole script: a stub specter prints
+// the JSON summary and coverage table each scenario needs, and seeded titles
+// stand in for a Vitest collection so no npm install is required.
+func runGateWith(t *testing.T, dir, stage, summaryJSON, coverageOut string, exitJSON int) (int, string) {
+	t.Helper()
+	tmp := t.TempDir()
+	stub := filepath.Join(tmp, "specter")
+	script := "#!/bin/sh\n" +
+		"case \"$*\" in\n" +
+		"  *--version*) cat " + filepath.Join(dir, ".specter-version") + "; exit 0;;\n" +
+		"  *--json*) cat <<'EOF'\n" + summaryJSON + "\nEOF\n exit " + strconv.Itoa(exitJSON) + ";;\n" +
+		"  *coverage*) cat <<'EOF'\n" + coverageOut + "\nEOF\n exit 0;;\n" +
+		"esac\nexit 0\n"
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatalf("write stub: %v", err)
+	}
+	cmd := exec.Command("python3", "-S", filepath.Join(dir, "scripts/specter-gate.py"),
+		"--only", stage)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"PATH="+tmp+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	code := 0
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		code = ee.ExitCode()
+	} else if err != nil {
+		t.Fatalf("run gate: %v", err)
+	}
+	return code, string(out)
+}
+
+func coverageTable(pct int) string {
+	failing := 0
+	status := "PASS"
+	if pct < 100 {
+		failing = 1
+		status = "FAIL"
+	}
+	return fmt.Sprintf(
+		"Spec ID                    Tier   ACs   Covered   Coverage   Status\n"+
+			"demo-spec                  T1     10    %d        %d%%      %s\n\n"+
+			"121 specs: %d passing, %d failing",
+		pct/10, pct, status, 121-failing, failing)
+}
+
 // @ac AC-11
 // AC-11: one shared gate enforces the Specter contract and both callers
 // invoke it, so `make spec-check` and CI cannot drift into different
-// policies. Driven from the spec's own fixture: the file names, the pinned
-// version and the policy flags are read from release-ci-gates AC-11 rather
-// than repeated here, so changing the contract without changing the wiring
-// fails.
+// policies. Every fixture field drives an assertion, and the severity and
+// coverage thresholds are bound behaviorally rather than by reading source.
 func TestCIGates_SpecterGateIsShared(t *testing.T) {
 	t.Run("release-ci-gates/AC-11", func(t *testing.T) {
 		dir := appDir(t)
@@ -240,40 +291,29 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 		pinFile := in.Str("pin_file")
 		wantVersion := in.Str("pinned_version")
 		gate := in.Str("shared_gate")
+		wantCoverage := in.Int("structural_coverage_pct")
+		forbidden := in.Str("forbidden_in_callers")
 
-		// The pin lives in exactly one tracked file. A version pinned in two
-		// places is two pins, and they disagree the moment one is bumped.
+		// The pin lives in exactly one tracked file.
 		if !exp.Bool("version_pin_is_read_from_one_file") {
 			t.Fatal("AC-11 must require a single pin file")
 		}
-		gotPin := strings.TrimSpace(readAppFile(t, pinFile))
-		if gotPin != wantVersion {
-			t.Errorf("%s pins %q, spec requires %q", pinFile, gotPin, wantVersion)
+		if got := strings.TrimSpace(readAppFile(t, pinFile)); got != wantVersion {
+			t.Errorf("%s pins %q, spec requires %q", pinFile, got, wantVersion)
 		}
 
 		src := readAppFile(t, gate)
-		mf := readAppFile(t, "Makefile")
-		wf := readAppFile(t, ".github/workflows/go-ci.yml")
-
-		// The gate reads the JSON summary AND the exit status. Either alone
-		// admits a clean-looking failure: `specter check --test` exits 0 with
-		// warnings, and a crashed run can still print zeroed counters.
 		if exp.Bool("gate_reads_the_json_summary") {
 			if !strings.Contains(src, `"--json"`) || !strings.Contains(src, `"summary"`) {
 				t.Error("the gate must read specter's JSON summary")
 			}
 		}
 		if exp.Bool("exit_status_is_checked_alongside_the_summary") {
-			// The SPECIFIC guard, not just any exit-code check: `code != 0`
-			// appears three times in the gate for unrelated reasons, so the
-			// looser match stayed true after this one was removed.
+			// The SPECIFIC guard: `code != 0` appears three times in the
+			// gate for unrelated reasons, so a looser match stayed true
+			// after this one was removed.
 			if !strings.Contains(src, "if code != 0 and not (errors or warnings):") {
 				t.Error("the gate must fail on a nonzero exit even when the summary is clean")
-			}
-		}
-		if exp.Bool("warnings_are_rejected_not_only_errors") {
-			if !strings.Contains(src, "if errors or warnings:") {
-				t.Error("the gate must reject a nonzero warning count, not only errors")
 			}
 		}
 		if exp.Bool("diagnostics_are_printed_not_just_counted") {
@@ -285,70 +325,58 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 			t.Errorf("the gate must read the pin from %s", pinFile)
 		}
 
-		// Info is deliberately NOT blocking; the contract and the code must
-		// agree about that rather than one of them claiming "any severity".
-		nonblocking := in.List("nonblocking_severities")
-		if len(nonblocking) != 1 || nonblocking[0] != "info" {
-			t.Errorf("AC-11 must name info as the only non-blocking severity, got %v", nonblocking)
+		// Callers drive both the paths inspected and the invocation required.
+		callers := in.List("callers")
+		if len(callers) == 0 {
+			t.Fatal("AC-11 must name the callers")
 		}
-		for _, sev := range in.List("rejected_severities") {
-			if !strings.Contains(src, sev.(string)) {
-				t.Errorf("the gate never mentions rejected severity %q", sev)
+		checkCallers := exp.Bool("both_callers_invoke_the_same_gate")
+		requireDashS := exp.Bool("gate_runs_with_site_packages_disabled")
+		for _, raw := range callers {
+			c, ok := raw.(map[string]any)
+			if !ok {
+				t.Fatalf("caller entry is not a mapping: %T", raw)
 			}
-		}
-		_ = in.List("rejected_kinds")
-		_ = in.Int("structural_coverage_pct")
+			path, _ := c["path"].(string)
+			invocation, _ := c["invocation"].(string)
+			kind, _ := c["kind"].(string)
+			body := readAppFile(t, path)
 
-		// Both callers invoke the SAME gate. This is the anti-drift clause:
-		// the Makefile and the workflow previously ran their own greps over
-		// specter's text output, which is two policies wearing one name.
-		if exp.Bool("both_callers_invoke_the_same_gate") {
-			// Require an INVOCATION, not a mention. Both files explain the
-			// gate in a comment, so strings.Contains over the whole file
-			// stayed true after the Makefile recipe was swapped for a bare
-			// `specter check --test` and the workflow's `run:` for the same.
-			invokes := func(body string, isRecipe bool) bool {
-				for _, ln := range strings.Split(body, "\n") {
-					code := ln
-					if i := strings.Index(code, "#"); i >= 0 {
-						code = code[:i]
-					}
-					if !strings.Contains(code, gate) {
-						continue
-					}
-					if isRecipe && strings.HasPrefix(ln, "\t") {
-						return true
-					}
-					if !isRecipe && strings.Contains(code, "run:") {
-						return true
-					}
+			// Require an INVOCATION, not a mention: both files explain the
+			// gate in a comment, so a whole-file substring search stayed
+			// true after the recipe and the run: step were swapped out.
+			found := false
+			for _, ln := range strings.Split(body, "\n") {
+				code := ln
+				if i := strings.Index(code, "#"); i >= 0 {
+					code = code[:i]
 				}
-				return false
-			}
-			if !invokes(mf, true) {
-				t.Errorf("Makefile has no recipe line running %s", gate)
-			}
-			if !invokes(wf, false) {
-				t.Errorf(".github/workflows/go-ci.yml has no run: step calling %s", gate)
-			}
-		}
-
-		// -S disables site packages, which makes the gate's standard-library
-		// only claim something the callers enforce rather than assert.
-		if exp.Bool("gate_runs_with_site_packages_disabled") {
-			for _, c := range []struct{ name, body string }{
-				{"Makefile", mf},
-				{".github/workflows/go-ci.yml", wf},
-			} {
-				if !strings.Contains(c.body, "python3 -S "+gate) {
-					t.Errorf("%s must run the gate as `python3 -S %s`", c.name, gate)
+				if !strings.Contains(code, invocation) {
+					continue
+				}
+				if kind == "recipe" && strings.HasPrefix(ln, "\t") {
+					found = true
+				}
+				if kind == "run_step" && strings.Contains(code, "run:") {
+					found = true
 				}
 			}
+			if checkCallers && !found {
+				t.Errorf("%s has no %s invoking %q", path, kind, invocation)
+			}
+			if requireDashS && !strings.Contains(invocation, "python3 -S ") {
+				t.Errorf("caller %s must invoke the gate under python3 -S", path)
+			}
+			// The collection seam must never appear in a caller, or the gate
+			// could be handed titles instead of collecting them.
+			if strings.Contains(body, forbidden) {
+				t.Errorf("%s must not set %s", path, forbidden)
+			}
 		}
 
-		// ONE source for the version. The workflow must DERIVE it from the
-		// pin file, not carry its own literal: comparing two literals catches
-		// drift but still leaves two places to edit.
+		// ONE source for the version: the workflow derives it from the pin
+		// file rather than carrying its own literal.
+		wf := readAppFile(t, ".github/workflows/go-ci.yml")
 		if !strings.Contains(wf, pinFile) {
 			t.Errorf(".github/workflows/go-ci.yml must read the version from %s", pinFile)
 		}
@@ -356,5 +384,47 @@ func TestCIGates_SpecterGateIsShared(t *testing.T) {
 			t.Errorf(".github/workflows/go-ci.yml still hardcodes version %q; derive it from %s",
 				wantVersion, pinFile)
 		}
+
+		// ---- Behavioral: the severities and the coverage threshold.
+		clean := `{"diagnostics": null, "summary": {"errors": 0, "warnings": 0, "info": 0}}`
+		if code, out := runGateWith(t, dir, "coverage", clean, coverageTable(wantCoverage), 0); code != 0 {
+			t.Errorf("a clean run at %d%% coverage must pass; exit %d\n%s", wantCoverage, code, out)
+		}
+		// Below the required percentage must fail.
+		if code, _ := runGateWith(t, dir, "coverage", clean, coverageTable(wantCoverage-1), 0); code == 0 {
+			t.Errorf("coverage below %d%% must fail the gate", wantCoverage)
+		}
+		for _, sev := range in.List("rejected_severities") {
+			name := sev.(string)
+			body := fmt.Sprintf(
+				`{"diagnostics": [{"kind": "demo", "severity": %q, "message": "m", "spec_id": "s"}],`+
+					` "summary": {"errors": %d, "warnings": %d, "info": 0}}`,
+				name, boolToInt(name == "error"), boolToInt(name == "warning"))
+			if code, _ := runGateWith(t, dir, "annotations", body, "", 0); code == 0 {
+				t.Errorf("a %s diagnostic must fail the gate", name)
+			}
+		}
+		for _, sev := range in.List("nonblocking_severities") {
+			name := sev.(string)
+			body := fmt.Sprintf(
+				`{"diagnostics": [{"kind": "demo", "severity": %q, "message": "m", "spec_id": "s"}],`+
+					` "summary": {"errors": 0, "warnings": 0, "info": 1}}`, name)
+			if code, out := runGateWith(t, dir, "annotations", body, "", 0); code != 0 {
+				t.Errorf("a %s diagnostic must NOT fail the gate; exit %d\n%s", name, code, out)
+			}
+		}
+		if !exp.Bool("warnings_are_rejected_not_only_errors") {
+			t.Error("AC-11 must require warnings to be rejected")
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
 	})
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
