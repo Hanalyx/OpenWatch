@@ -106,7 +106,8 @@ the **Compliance** tab.
 
 ### What you see
 
-- **Compliance score**: percentage of rules passing (for example, 85.0%)
+- **Compliance score**: passing rules over rules that reached a verdict (for
+  example, 85.0%). It can be absent; absent is not zero
 - **Summary bar**: pass, fail, error, and skipped counts
 - **Severity breakdown**: counts by critical, high, medium, low
 - **Findings table**: sortable, filterable list of all findings
@@ -138,14 +139,93 @@ Use the filter controls above the findings table to narrow results:
 
 ### What the score means
 
-The compliance score is the percentage of evaluated rules that passed:
+The compliance score counts only the rules that reached a verdict:
 
 ```
-compliance_score = (passed_rules / total_rules) * 100
+score_pct = passing / (passing + failing) * 100
 ```
 
-A score of 85.0 means 85% of rules passed. Skipped rules are excluded from
-the total.
+A score of 85.0 means 85% of the rules that produced a pass or a fail passed.
+
+**Only `pass` and `fail` count.** A rule that was skipped, that did not apply,
+or that errored stays out of the numerator and out of the denominator. It is
+not counted as a failure. A host where most rules were skipped is not scored
+low for it; see coverage below.
+
+The score is shown to one decimal place. Rounding happens once, when the API
+answers, so an aggregate is averaged before it is rounded.
+
+### A missing score is not a zero
+
+`score_pct` can be absent. Absence and zero mean different things, and the API
+keeps them apart:
+
+| Value | Meaning |
+|---|---|
+| `null` | No rule produced a pass or a fail. There is nothing to score. |
+| `0` | Rules produced verdicts and every one of them failed. |
+
+A zero is a real, measured result. Treat it as a finding. An absent score is
+the absence of a measurement, so do not render it as `0`, color it as a
+failure, or average it into a fleet number.
+
+### Coverage is a separate question
+
+Coverage says whether a score could be produced at all. It never changes the
+score itself. `coverage_status` is exactly one of three values:
+
+| `coverage_status` | Meaning |
+|---|---|
+| `available` | Enough rules reached a verdict. A coverage percentage is reported. |
+| `unavailable_unclassified_skips` | Rules were skipped for reasons the engine did not classify, so coverage cannot be computed. |
+| `unavailable_no_outcomes` | No rule produced any outcome at all. |
+
+**A coverage percentage exists only when the status is `available`.** For the
+other two the number is absent, because there is nothing honest to put in it.
+
+### Fleet and group scores
+
+A fleet or group score is an **equal-host mean**: the mean of the host scores,
+with every scored host counting once, whatever its rule count:
+
+```
+fleet score = mean(score of each scored host)
+```
+
+It is not a pooled ratio over rule rows. Pooling would let a host carrying 700
+rules outvote a host carrying 50, so two fleets with identical host postures
+would report different numbers.
+
+**Hosts with no score are left out of the mean, not counted as zero.** They
+stay visible in the participation counts that travel with the score, such as
+`hosts_total`, `hosts_scored` and `hosts_without_score`. Read those counts
+before reading the score: a 92.0 over three of two hundred hosts is not a fleet
+result.
+
+### Scores from older releases
+
+The formula has changed, and history records which one produced each point.
+Every trend day carries a `formula_status`:
+
+| `formula_status` | Meaning |
+|---|---|
+| `identified` | The day used the current formula. |
+| `legacy_unknown` | The day predates it, and the formula is not recorded. |
+| `mixed` | That day's snapshots disagree about the formula. |
+
+**A mixed day carries no score.** Its `score_pct` and `formula_version` are
+both `null`, and it must not produce a delta, a comparison, or an arrow. Two
+numbers from different formulas do not describe a change in posture.
+
+Reports signed before the change carry a `compliance_pct` field instead of
+`score_pct`. **The two are not comparable.** `compliance_pct` was a pooled
+whole percent over every rule outcome in scope. Those artifacts keep their
+original bytes so their signatures still verify, and nothing rewrites them.
+
+The full response envelope, including the provenance fields that record the
+engine and rule corpus behind a score, is in
+[the OpenAPI contract](../../api/openapi.yaml). It is the authority; this guide
+does not restate every field.
 
 ### Viewing posture in the dashboard
 

@@ -6,6 +6,11 @@ This document maps OpenWatch's security controls to industry frameworks, providi
 
 ## Framework coverage
 
+"Coverage" here means how much of a framework this mapping addresses. It is a
+different measure from the API's `coverage_status`, which says whether a host
+produced enough rule outcomes to be scored. See
+[Scanning and compliance](SCANNING_AND_COMPLIANCE.md#coverage-is-a-separate-question).
+
 | Framework | Controls Mapped | Coverage |
 |-----------|----------------|----------|
 | NIST SP 800-53 Rev 5 | 32 | Moderate baseline |

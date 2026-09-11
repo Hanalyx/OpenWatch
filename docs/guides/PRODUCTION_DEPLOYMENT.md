@@ -132,14 +132,31 @@ Set a durable key before the first report anyone keeps:
 
 ```bash
 sudo install -d -m 0750 -o root -g openwatch /etc/openwatch/keys
-sudo openssl genpkey -algorithm ed25519 -out /etc/openwatch/keys/report_signing.pem
-sudo chown root:openwatch /etc/openwatch/keys/report_signing.pem
-sudo chmod 0640 /etc/openwatch/keys/report_signing.pem
+sudo sh -c 'umask 027; head -c 32 /dev/urandom > /etc/openwatch/keys/report_signing.key'
+sudo chown root:openwatch /etc/openwatch/keys/report_signing.key
+sudo chmod 0640 /etc/openwatch/keys/report_signing.key
 ```
 
-Then set `signing_key_file = "/etc/openwatch/keys/report_signing.pem"` under
+**The file must be 32 raw bytes, not a PEM.** OpenWatch reads the Ed25519 seed
+directly. A key written by `openssl genpkey` is PEM-encoded PKCS#8, about 119
+bytes of base64 text, and the service refuses it at startup with `signing key
+must be 32 raw bytes`.
+
+Then set `signing_key_file = "/etc/openwatch/keys/report_signing.key"` under
 `[reports]` and restart. Back the key up with your other secrets: losing it has
 the same effect as never having set one.
+
+Record the key fingerprint somewhere the OpenWatch host cannot change:
+
+```bash
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  https://openwatch.example.com/api/v1/reports/signing-key
+```
+
+Keep the `key_id` from that response with your other trust anchors. Anyone
+verifying a report needs it from a channel other than the server that served
+the report, or the check proves only that the server agrees with itself. See
+[Verifying a report](REPORT_VERIFICATION.md).
 
 Keep the database password out of the world-readable TOML by putting the DSN in
 `/etc/openwatch/secrets.env`, which the `systemd` unit loads via

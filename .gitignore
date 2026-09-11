@@ -804,6 +804,21 @@ context/
 # Examples directory (do not commit, moved to docs/)
 examples/
 
+# Re-include the tracked operator documentation. This has to sit AFTER the
+# blanket patterns above, because several of them match by FILENAME at any
+# depth and so re-ignore files under docs/guides/, which is otherwise tracked
+# wholesale. `!docs/guides/` un-ignores the directory and does not rescue a
+# file a later name pattern catches.
+#
+# Two caught a guide added on 2026-09-11: `*_VERIFICATION*.md` and `examples/`.
+# The first is also why docs/EVIDENCE_VERIFICATION.md was never tracked; that
+# was read for two years as a deliberate choice. Adding a tracked guide whose
+# name trips one of these patterns needs a negation here, and `git status` will
+# not tell you, so check with `git check-ignore -v <path>`.
+!docs/guides/REPORT_VERIFICATION.md
+!docs/guides/examples/
+!docs/guides/examples/**
+
 # === merged from app/.gitignore when the Go tree was promoted to root (2026-06-05) ===
 # Build artifacts
 dist/
