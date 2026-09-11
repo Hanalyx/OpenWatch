@@ -1272,3 +1272,232 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 		exp.AllConsumed()
 	})
 }
+
+// ignored reports whether git ignores a path, read from the EXIT STATUS.
+// `git check-ignore -v` also prints a line when a NEGATED pattern matches, so
+// treating any output as a match reports the opposite of the truth for exactly
+// the rules that re-include a file.
+func ignored(t *testing.T, dir, path string) bool {
+	t.Helper()
+	cmd := exec.Command("git", "check-ignore", "-q", path)
+	cmd.Dir = dir
+	err := cmd.Run()
+	if err == nil {
+		return true
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 1 {
+		return false
+	}
+	t.Fatalf("git check-ignore %s: %v", path, err)
+	return false
+}
+
+// @ac AC-14
+// AC-14: the tracked documentation boundary, proved against candidate paths
+// rather than against the files that happen to exist, plus two planted files
+// that prove the rules describe real git behavior.
+func TestCIGates_TrackedDocumentationBoundary(t *testing.T) {
+	t.Run("release-ci-gates/AC-14", func(t *testing.T) {
+		dir := appDir(t)
+		all := specfixture.Load(t, filepath.Join(dir, "specs/release/ci-gates.spec.yaml"), "release-ci-gates")
+		ac := specfixture.Get(t, all, "AC-14")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		gitignore := readAppFile(t, in.Str("gitignore"))
+
+		// ---- Documentation a future slice might add must be visible.
+		if exp.Bool("tracked_documentation_is_visible") {
+			for _, p := range in.List("visible_paths") {
+				path := p.(string)
+				if _, err := os.Stat(filepath.Join(dir, path)); err == nil {
+					t.Fatalf("%s exists; AC-14 must probe paths that do NOT exist, or a "+
+						"tracked file could mask the ignore rules", path)
+				}
+				if ignored(t, dir, path) {
+					var why string
+					c := exec.Command("git", "check-ignore", "-v", path)
+					c.Dir = dir
+					if out, _ := c.Output(); len(out) > 0 {
+						why = strings.TrimSpace(string(out))
+					}
+					t.Errorf("documentation path is hidden: %s\n  by %s", path, why)
+				}
+			}
+		}
+
+		// ---- The same names at the repository root stay ignored. Anchoring
+		// must not have turned the rules off.
+		if exp.Bool("root_only_artifacts_stay_ignored") {
+			for _, p := range in.List("root_only_ignored") {
+				path := p.(string)
+				if !ignored(t, dir, path) {
+					t.Errorf("root artifact is no longer ignored: %s", path)
+				}
+			}
+		}
+
+		// ---- Secrets stay ignored at every depth under tracked documentation.
+		if exp.Bool("secrets_stay_ignored_at_every_depth") {
+			for _, d := range in.List("secret_depths") {
+				for _, n := range in.List("secret_names") {
+					path := d.(string) + "/" + n.(string)
+					if !ignored(t, dir, path) {
+						t.Errorf("SECRET NOT IGNORED: %s", path)
+					}
+				}
+			}
+		}
+
+		// ---- The old shapes must not come back.
+		if exp.Bool("unanchored_patterns_do_not_return") {
+			for _, p := range in.List("forbidden_unanchored") {
+				pat := p.(string)
+				for i, ln := range strings.Split(gitignore, "\n") {
+					if strings.TrimSpace(ln) == pat {
+						t.Errorf(".gitignore:%d has %q unanchored again; it matches by basename "+
+							"at every depth and hides documentation", i+1, pat)
+					}
+				}
+			}
+		}
+		if exp.Bool("directory_reincludes_under_docs_are_absent") {
+			for _, p := range in.List("forbidden_negations") {
+				neg := p.(string)
+				for i, ln := range strings.Split(gitignore, "\n") {
+					if strings.TrimSpace(ln) == neg {
+						t.Errorf(".gitignore:%d re-includes %q under docs; that un-ignores the "+
+							"security patterns beneath it. Anchor the colliding rule instead",
+							i+1, neg)
+					}
+				}
+			}
+		}
+
+		// ---- Plant, observe, remove. The probes above read rules; these two
+		// read git's actual behavior on files that are really there.
+		plantedGuide := in.Str("planted_guide")
+		plantedSecret := in.Str("planted_secret")
+		plantDir := filepath.Dir(filepath.Join(dir, plantedGuide))
+		if err := os.MkdirAll(plantDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// Guaranteed cleanup, including on a failing assertion or a panic.
+		t.Cleanup(func() {
+			if err := os.RemoveAll(plantDir); err != nil {
+				t.Errorf("cleanup: %v", err)
+			}
+		})
+		for _, f := range []string{plantedGuide, plantedSecret} {
+			if err := os.WriteFile(filepath.Join(dir, f), []byte("probe\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cmd := exec.Command("git", "status", "--short", "--untracked-files=all")
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("git status: %v", err)
+		}
+		status := string(out)
+		if exp.Bool("planted_guide_is_seen_by_git_status") && !strings.Contains(status, plantedGuide) {
+			t.Errorf("git status does not see the planted guide %s;\nstatus was:\n%s",
+				plantedGuide, status)
+		}
+		if exp.Bool("planted_secret_is_ignored") {
+			if strings.Contains(status, plantedSecret) {
+				t.Errorf("git status OFFERS the planted private key %s", plantedSecret)
+			}
+			if !ignored(t, dir, plantedSecret) {
+				t.Errorf("the planted private key %s is not ignored", plantedSecret)
+			}
+		}
+
+		// ---- Tracked contributor and workflow documentation cites only paths a
+		// reader can open, or says the path is unavailable.
+		type mention struct{ path, text string }
+		allowed := map[mention]bool{}
+		var allowList []mention
+		for _, m := range in.MapList("allowed_references") {
+			mn := mention{m.Str("doc"), m.Str("text")}
+			m.AllConsumed()
+			allowed[mn] = true
+			allowList = append(allowList, mn)
+		}
+		var prefixes, markers []string
+		for _, p := range in.List("ignored_path_prefixes") {
+			prefixes = append(prefixes, p.(string))
+		}
+		for _, m := range in.List("honesty_markers") {
+			markers = append(markers, strings.ToLower(m.(string)))
+		}
+		lsFiles := exec.Command("git", "ls-files",
+			"*.md", "docs/*.md", "docs/guides/*.md", "docs/guides/runbooks/*.md",
+			"docs/runbooks/*.md", ".github/*.md", ".github/workflows/*.md", ".claude/skills/*.md")
+		lsFiles.Dir = dir
+		lsOut, err := lsFiles.Output()
+		if err != nil {
+			t.Fatalf("git ls-files: %v", err)
+		}
+		docs := strings.Fields(string(lsOut))
+		if len(docs) == 0 {
+			t.Fatal("no tracked documentation found; the scan would pass vacuously")
+		}
+		if exp.Bool("tracked_docs_cite_only_reachable_paths") {
+			for _, d := range docs {
+				for i, ln := range strings.Split(readAppFile(t, d), "\n") {
+					hit := false
+					for _, pre := range prefixes {
+						if strings.Contains(ln, pre) {
+							hit = true
+						}
+					}
+					if !hit {
+						continue
+					}
+					low := strings.ToLower(ln)
+					marked := false
+					for _, mk := range markers {
+						if strings.Contains(low, mk) {
+							marked = true
+						}
+					}
+					if marked || allowed[mention{d, strings.TrimRight(ln, "\r")}] {
+						continue
+					}
+					t.Errorf("%s:%d cites a path a reader cannot open: %q",
+						d, i+1, strings.TrimSpace(ln))
+				}
+			}
+		}
+		if exp.Bool("allowed_references_are_live") {
+			for _, mn := range allowList {
+				body := readAppFile(t, mn.path)
+				found := false
+				for _, ln := range strings.Split(body, "\n") {
+					if strings.TrimRight(ln, "\r") == mn.text {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("stale allowlist entry: %s no longer contains %q", mn.path, mn.text)
+					continue
+				}
+				names := false
+				for _, pre := range prefixes {
+					if strings.Contains(mn.text, pre) {
+						names = true
+					}
+				}
+				if !names {
+					t.Errorf("needless allowlist entry: %q in %s names no ignored path",
+						mn.text, mn.path)
+				}
+			}
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}

@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 1
 
@@ -145,6 +145,33 @@ spec:
         Every command in that procedure MUST be exercised against a PRODUCTION-GENERATED artifact.
         A hand-built fixture proves the example agrees with itself, which is the one thing nobody
         needs to know.
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >-
+        The tracked documentation boundary MUST be reliable in both directions, and MUST be provable
+        against candidate paths rather than against the files that happen to exist.
+
+        VISIBILITY. A `.gitignore` pattern written for a repository-root artifact MUST be anchored
+        with a leading `/`. Unanchored, it matches by BASENAME at every depth, so it hides files under
+        docs/guides, docs/runbooks and docs/images without saying so; `git status` reports nothing
+        about an ignored path. Seventy-four such patterns were anchored on 2026-09-11, among them the
+        working-document families (`*_REPORT.md`, `*_SUMMARY.md`, `*_STATUS.md`, `*_VERIFICATION*.md`
+        and nine more), the screenshot families, and `examples/`.
+
+        SECURITY. Patterns that protect key material and credentials MUST stay UNANCHORED, so they
+        keep matching at every depth INCLUDING inside tracked documentation. A per-file or per-
+        directory re-include under docs MUST NOT be used to work around a naming collision: a
+        `!docs/guides/examples/**` negation added on 2026-09-11 un-ignored `*private_key*`,
+        `*credential*`, `*api_key*`, `*passwd*`, `*secret*` and `**/*.key` beneath that directory, so
+        a private key dropped there would have been staged without complaint. Anchor the colliding
+        pattern instead.
+
+        REACHABILITY. Tracked contributor and workflow documentation MUST cite only paths a reader
+        can open, or an explicitly named Context Plane record. Where an ignored path is named, the
+        line MUST say it is unavailable. Pointing a reader at a gitignored file is a dead end that
+        looks like a reference, and `docs/engineering/install_guide.md` was cited that way from the
+        workflow README for months.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -449,3 +476,115 @@ spec:
         allowlisted_mentions_are_live: true
       priority: critical
       references_constraints: [C-09]
+    - id: AC-14
+      description: >-
+        The documentation boundary is proved with `git check-ignore` over CANDIDATE paths that do not
+        exist, so the answer comes from the ignore rules rather than from what happens to be tracked
+        already. Three sets are driven: documentation that must be visible, root-only artifacts that
+        must stay ignored at the root, and secret file names that must stay ignored at every depth
+        beneath the tracked documentation tree.
+
+        The check-ignore answer is read from the EXIT STATUS, not from whether `-v` printed a line. A
+        negated pattern prints too, so a `!` rule read as a match reports the opposite of the truth.
+
+        Two files are then PLANTED and removed under a guaranteed cleanup: a nested guide, which
+        `git status --short` must see, and a private key beside it, which git must ignore. The probe
+        paths and the planted paths are distinct from anything committed.
+
+        The old unanchored patterns must not return: each is asserted absent from `.gitignore` as a
+        bare line, so re-adding `*_REPORT.md` without its leading `/` fails.
+
+        Reachability is scanned over tracked contributor and workflow documentation. A line naming an
+        ignored path passes only when it also says the path is unavailable, or when the exact line is
+        allowlisted. Each allowlist entry must exist and must still name an ignored path, so a stale
+        exemption fails rather than widening.
+      inputs:
+        gitignore: .gitignore
+        visible_paths:
+          - docs/guides/NEW_GUIDE.md
+          - docs/guides/FOO_VERIFICATION.md
+          - docs/guides/SOMETHING_REPORT.md
+          - docs/guides/SOMETHING_SUMMARY.md
+          - docs/guides/MIGRATION_STATUS.md
+          - docs/guides/RBAC_IMPLEMENTATION.md
+          - docs/guides/examples/widget/run.sh
+          - docs/guides/examples/deep/nested/NOTES.md
+          - docs/guides/runbooks/NEW_RUNBOOK.md
+          - docs/runbooks/NEW_RUNBOOK.md
+          - docs/images/content_layout.png
+          - docs/images/login_error.png
+        root_only_ignored:
+          - SOMETHING_REPORT.md
+          - FOO_VERIFICATION.md
+          - CLAUDE.md
+          - examples/foo.md
+          - login_error.png
+          - nginx.conf
+        secret_names:
+          - id_rsa
+          - id_ed25519
+          - private_key.pem
+          - tls.key
+          - api_key.txt
+          - db_credential.json
+          - passwd.txt
+          - my_secret.txt
+          - config.local.toml
+        secret_depths:
+          - docs/guides
+          - docs/guides/examples
+          - docs/guides/examples/deep/nested
+          - docs/runbooks
+        # These must never reappear unanchored. A bare line equal to one of
+        # these is the defect this criterion exists to prevent.
+        forbidden_unanchored:
+          - '*_VERIFICATION*.md'
+          - '*_REPORT.md'
+          - '*_SUMMARY.md'
+          - '*_STATUS.md'
+          - '*_ASSESSMENT.md'
+          - '*test*.md'
+          - 'examples/'
+        # A per-directory re-include under docs is how the security hole was
+        # opened. None of these may appear.
+        forbidden_negations:
+          - '!docs/guides/examples/**'
+          - '!docs/guides/examples/'
+          - '!docs/guides/REPORT_VERIFICATION.md'
+        planted_guide: docs/guides/examples/ac14-probe/NESTED_GUIDE.md
+        # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
+        # to be one the security rules match, or the test would prove nothing.
+        planted_secret: docs/guides/examples/ac14-probe/id_rsa  # pragma: allowlist secret
+        ignored_path_prefixes:
+          - docs/engineering/
+          - docs/architecture/
+          - docs/INTRODUCTION
+          - docs/OPENWATCH_VISION
+          - docs/EVIDENCE_VERIFICATION
+          - docs/KENSA_OPENWATCH_BOUNDARY
+          - docs/handoff/
+        honesty_markers:
+          - gitignored
+          - local-only
+          - not tracked
+          - untracked
+          - Context Plane
+        # Historical entries. A changelog records what a release did; rewriting
+        # a past entry to satisfy a present rule would falsify the record.
+        allowed_references:
+          - doc: CHANGELOG.md
+            text: '  upgrade docs into one, and left `docs/engineering/` for internal design docs.'
+          - doc: CHANGELOG.md
+            text: '  required). See `docs/engineering/remediation_governance_adr.md` ("A-keep").'
+      expected_output:
+        tracked_documentation_is_visible: true
+        root_only_artifacts_stay_ignored: true
+        secrets_stay_ignored_at_every_depth: true
+        unanchored_patterns_do_not_return: true
+        directory_reincludes_under_docs_are_absent: true
+        planted_guide_is_seen_by_git_status: true
+        planted_secret_is_ignored: true
+        tracked_docs_cite_only_reachable_paths: true
+        allowed_references_are_live: true
+      priority: critical
+      references_constraints: [C-10]
