@@ -3706,7 +3706,11 @@ type Report struct {
 	// GET /api/v1/reports/signing-key.
 	Signature *string `json:"signature,omitempty"`
 
-	// SigningKeyId Fingerprint of the key that produced the signature.
+	// SigningKeyId Short correlation identifier of the key that produced the
+	// signature: the first 8 bytes of SHA-256 over the public key.
+	// It matches a report to a served key. It is NOT an authenticity
+	// anchor; 64 bits is within reach of a collision search. Anchor
+	// trust on the complete public key or its full SHA-256.
 	SigningKeyId *string `json:"signing_key_id,omitempty"`
 	Title        string  `json:"title"`
 }
@@ -3799,10 +3803,18 @@ type ReportSigningKey struct {
 
 	// Ephemeral True when the server runs a per-boot development key (no durable
 	// key configured); such signatures do not verify across restarts.
-	Ephemeral bool   `json:"ephemeral"`
-	KeyId     string `json:"key_id"`
+	Ephemeral bool `json:"ephemeral"`
 
-	// PublicKey Base64-encoded Ed25519 public key.
+	// KeyId Short correlation identifier: the first 8 bytes of SHA-256 over
+	// public_key, hex encoded, prefixed `ed25519-`. Use it to match a
+	// report's signing_key_id to this key. It is NOT an authenticity
+	// anchor; compare the complete public_key, or its full SHA-256,
+	// against a copy obtained independently of this server.
+	KeyId string `json:"key_id"`
+
+	// PublicKey Base64-encoded Ed25519 public key, 32 bytes when decoded. This,
+	// or its lowercase hex SHA-256, is the value to compare against an
+	// independently trusted copy.
 	PublicKey string `json:"public_key"`
 }
 

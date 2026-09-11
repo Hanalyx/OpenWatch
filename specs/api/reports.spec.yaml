@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - immutable, signed, point-in-time compliance artifacts (four kinds)
-  version: "1.17.0"
+  version: "1.18.0"
   status: approved
   tier: 2
 
@@ -44,8 +44,10 @@ spec:
       Ed25519 signature over that address with the signing key id. Given
       the canonical JSON face and a TRUSTED copy of the public key, a
       verifier can then check the artifact with no server-side verification
-      operation. Establishing trust in that key, or in its fingerprint, is
-      an operational responsibility outside this report format:
+      operation. Establishing trust in that key is an operational
+      responsibility outside this report format. The TRUST ANCHOR is the
+      COMPLETE key: either the full base64 public_key, or the lowercase hex
+      SHA-256 of the decoded 32-byte key. key_id is NOT an anchor; see C-11.
       GET /api/v1/reports/signing-key is a convenience for fetching the key,
       not a root of trust. A server that served a replacement artifact could
       serve a matching signature and public key with it, so a key taken from
@@ -295,7 +297,7 @@ spec:
         When a signer is wired, Generate signs the snapshot's content
         address with a domain-separated payload ("openwatch/report-snapshot
         /v1\n" + content_sha256) and stores the signature + the signing key
-        id (a public fingerprint of the key) on the row; the Report wire
+        id on the row; the Report wire
         exposes signature (base64) + signing_key_id (a service with no
         signer leaves them null). The signing key is a 32-byte raw Ed25519
         seed loaded from a config path (never stored in the DB), with an
@@ -308,6 +310,16 @@ spec:
         against the published key; re-hashing the canonical json face
         (C-10) confirms the content matches the signed hash. The endpoint is
         503 when no signer is wired.
+
+        key_id AND signing_key_id ARE CORRELATION IDENTIFIERS, NOT AUTHENTICITY
+        ANCHORS. Both are the first 8 bytes of SHA-256 over the public key, so
+        64 bits. They exist to match a report to a served key and to name a key
+        in logs and operator records. 64 bits is inside reach of a collision
+        search, so a party who can grind keys can present a DIFFERENT public key
+        carrying the SAME key_id. Neither field may be documented, rendered or
+        recorded as the value an operator compares to establish authenticity.
+        The anchor is the complete key, or the full lowercase hex SHA-256 of the
+        decoded 32-byte key (C-10).
       type: security
       enforcement: error
     - id: C-12

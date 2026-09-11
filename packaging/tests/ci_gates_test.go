@@ -9,7 +9,9 @@ package packaging_test
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -737,12 +739,6 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 	})
 }
 
-// negation marks a line that WARNS against a claim rather than making it. The
-// verification guide tells readers not to verify against the report bytes, and
-// a forbidden-claim scan that could not tell those apart would fail on the very
-// sentence that prevents the mistake.
-var negation = regexp.MustCompile(`(?i)\b(not|never|cannot|can't|don't|doesn't|instead of|rather than|no longer)\b`)
-
 // @ac AC-13
 // AC-13: the shipped score semantics and the report-verification trust
 // boundary are published, tracked and reachable, and the published procedure
@@ -839,6 +835,28 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 			if len(guides) == 0 {
 				t.Fatal("no tracked guides found; the scan would pass vacuously")
 			}
+			// Allowlist, keyed by exact path and exact line text. A line that
+			// reads as a forbidden claim fails unless it appears here. There is
+			// deliberately no negation heuristic: the previous one excused any
+			// line carrying "not", which a single sentence can satisfy while
+			// still making the claim in its second half.
+			type mention struct{ path, text string }
+			allowed := map[mention]bool{}
+			var allowList []mention
+			for _, m := range in.MapList("allowed_mentions") {
+				docKey := m.Str("doc")
+				text := m.Str("text")
+				m.AllConsumed()
+				path, ok := docs[docKey]
+				if !ok {
+					t.Fatalf("AC-13 allowlists an unknown doc key %q", docKey)
+				}
+				mn := mention{path, text}
+				allowed[mn] = true
+				allowList = append(allowList, mn)
+			}
+
+			var patterns []*regexp.Regexp
 			for _, c := range in.MapList("forbidden_claims") {
 				id := c.Str("id")
 				re, err := regexp.Compile(c.Str("pattern"))
@@ -846,14 +864,45 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 				if err != nil {
 					t.Fatalf("AC-13 claim %s has an invalid pattern: %v", id, err)
 				}
+				patterns = append(patterns, re)
 				for _, g := range guides {
 					for n, ln := range strings.Split(readAppFile(t, g), "\n") {
-						if negation.MatchString(ln) {
+						if !re.MatchString(ln) {
 							continue
 						}
-						if re.MatchString(ln) {
-							t.Errorf("forbidden claim %s at %s:%d: %q", id, g, n+1, strings.TrimSpace(ln))
+						if allowed[mention{g, strings.TrimRight(ln, "\r")}] {
+							continue
 						}
+						t.Errorf("forbidden claim %s at %s:%d: %q", id, g, n+1, strings.TrimSpace(ln))
+					}
+				}
+			}
+
+			// Every allowlisted mention must still EXIST and must still read as
+			// a forbidden claim. Without both, an exemption outlives the
+			// sentence it covered and quietly widens the hole.
+			if exp.Bool("allowlisted_mentions_are_live") {
+				for _, mn := range allowList {
+					body := readAppFile(t, mn.path)
+					found := false
+					for _, ln := range strings.Split(body, "\n") {
+						if strings.TrimRight(ln, "\r") == mn.text {
+							found = true
+						}
+					}
+					if !found {
+						t.Errorf("stale allowlist entry: %s no longer contains %q", mn.path, mn.text)
+						continue
+					}
+					matches := false
+					for _, re := range patterns {
+						if re.MatchString(mn.text) {
+							matches = true
+						}
+					}
+					if !matches {
+						t.Errorf("needless allowlist entry: %q in %s matches no forbidden pattern",
+							mn.text, mn.path)
 					}
 				}
 			}
@@ -864,6 +913,18 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 		run := func(report, meta, key string) int {
 			cmd := exec.Command(filepath.Join(dir, script), report, meta, key)
 			cmd.Dir = fx
+			if err := cmd.Run(); err != nil {
+				var ee *exec.ExitError
+				if errors.As(err, &ee) {
+					return ee.ExitCode()
+				}
+				t.Fatalf("running %s: %v", script, err)
+			}
+			return 0
+		}
+		runIn := func(wd string, args ...string) int {
+			cmd := exec.Command(filepath.Join(dir, script), args...)
+			cmd.Dir = wd
 			if err := cmd.Run(); err != nil {
 				var ee *exec.ExitError
 				if errors.As(err, &ee) {
@@ -985,6 +1046,151 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 				if ed25519.Verify(pub, payload, sig) {
 					t.Errorf("signature verified over %s; the signed payload is not what the contract says", name)
 				}
+			}
+		}
+
+		// ---- The published key document. This file is the one excluded from
+		// secret scanning, so its shape is pinned here field by field: exactly
+		// the declared keys, the right types, a 32-byte key, and a key_id the
+		// test DERIVES rather than trusts.
+		if exp.Bool("signing_key_document_shape_is_enforced") {
+			wantFields := map[string]bool{}
+			for _, f := range in.List("signing_key_fields") {
+				wantFields[f.(string)] = true
+			}
+			wantAlg := in.Str("signing_key_algorithm")
+			wantLen := in.Int("signing_key_bytes")
+			prefix := in.Str("key_id_prefix")
+			idBytes := in.Int("key_id_sha256_bytes")
+			for _, d := range []string{fx, filepath.Join(dir, in.Str("counterexample_dir"))} {
+				name := filepath.Join(d, in.Str("signing_key_file"))
+				raw, err := os.ReadFile(name)
+				if err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
+				var doc map[string]any
+				if err := json.Unmarshal(raw, &doc); err != nil {
+					t.Fatalf("%s: %v", name, err)
+				}
+				for f := range wantFields {
+					if _, ok := doc[f]; !ok {
+						t.Errorf("%s is missing %q", name, f)
+					}
+				}
+				for f := range doc {
+					if !wantFields[f] {
+						t.Errorf("%s carries an undeclared field %q", name, f)
+					}
+				}
+				alg, _ := doc["algorithm"].(string)
+				if alg != wantAlg {
+					t.Errorf("%s algorithm = %q, want %q", name, alg, wantAlg)
+				}
+				if _, ok := doc["ephemeral"].(bool); !ok {
+					t.Errorf("%s ephemeral is not a bool", name)
+				}
+				b64, _ := doc["public_key"].(string)
+				pub, err := base64.StdEncoding.DecodeString(b64)
+				if err != nil {
+					t.Errorf("%s public_key is not base64: %v", name, err)
+				} else if len(pub) != wantLen {
+					t.Errorf("%s public_key decodes to %d bytes, want %d", name, len(pub), wantLen)
+				} else {
+					sum := sha256.Sum256(pub)
+					want := prefix + hex.EncodeToString(sum[:idBytes])
+					if got, _ := doc["key_id"].(string); got != want {
+						t.Errorf("%s key_id = %q, derived %q", name, got, want)
+					}
+				}
+			}
+		}
+
+		// ---- Key validation, each mutation independent of the others.
+		keyMutation := func(name string, edit func(map[string]any)) string {
+			return mutateJSON(name, key, edit)
+		}
+		if exp.Bool("algorithm_mismatch_fails") {
+			bad := keyMutation("alg.json", func(m map[string]any) { m["algorithm"] = "ed448" })
+			if code := run(report, meta, bad); code != 5 {
+				t.Errorf("algorithm mismatch: exit %d, want 5", code)
+			}
+		}
+		if exp.Bool("malformed_key_length_fails") {
+			bad := keyMutation("len.json", func(m map[string]any) {
+				m["public_key"] = base64.StdEncoding.EncodeToString([]byte("short"))
+			})
+			if code := run(report, meta, bad); code != 6 {
+				t.Errorf("malformed key length: exit %d, want 6", code)
+			}
+		}
+		if exp.Bool("key_id_mismatch_fails") {
+			bad := keyMutation("kid.json", func(m map[string]any) {
+				m["key_id"] = "ed25519-0000000000000000"
+			})
+			if code := run(report, meta, bad); code != 7 {
+				t.Errorf("key id mismatch: exit %d, want 7", code)
+			}
+		}
+
+		// ---- The anchor. Without it, success must SAY it is consistency only.
+		anchorFile := filepath.Join(dir, in.Str("trusted_anchor_file"))
+		anchorRaw, err := os.ReadFile(anchorFile)
+		if err != nil {
+			t.Fatalf("reading the trusted anchor: %v", err)
+		}
+		anchor := strings.TrimSpace(string(anchorRaw))
+
+		if exp.Bool("consistency_only_says_so") {
+			cmd := exec.Command(filepath.Join(dir, script), report, meta, key)
+			cmd.Dir = fx
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("consistency run failed: %v\n%s", err, out)
+			}
+			if !strings.Contains(string(out), "AUTHENTICITY NOT ESTABLISHED") {
+				t.Errorf("a run with no anchor did not say authenticity was unestablished:\n%s", out)
+			}
+			// And with the anchor it must NOT still say that.
+			cmd = exec.Command(filepath.Join(dir, script), report, meta, key, anchor)
+			cmd.Dir = fx
+			out, err = cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("anchored run failed: %v\n%s", err, out)
+			}
+			if strings.Contains(string(out), "AUTHENTICITY NOT ESTABLISHED") {
+				t.Errorf("an anchored run still reported authenticity unestablished:\n%s", out)
+			}
+		}
+		if code := runIn(fx, report, meta, key, "0000000000000000000000000000000000000000000000000000000000000000"); code != 8 {
+			t.Errorf("a wrong anchor: exit %d, want 8", code)
+		}
+
+		// ---- The counterexample: a second internally consistent bundle under
+		// a different key. Consistency-only must PASS on it, which is the
+		// point, and the genuine anchor must reject it.
+		if exp.Bool("counterexample_passes_consistency_and_fails_the_anchor") {
+			ce := filepath.Join(dir, in.Str("counterexample_dir"))
+			cr := filepath.Join(ce, "report.json")
+			cm := filepath.Join(ce, "report.meta.json")
+			ck := filepath.Join(ce, "signing-key.json")
+			if code := runIn(ce, cr, cm, ck); code != 0 {
+				t.Errorf("the replacement bundle is not internally consistent: exit %d; "+
+					"the counterexample only makes its point if it passes", code)
+			}
+			if code := runIn(ce, cr, cm, ck, anchor); code != 8 {
+				t.Errorf("the replacement bundle survived the genuine anchor: exit %d, want 8", code)
+			}
+			// And it really is a different key.
+			var a, b struct {
+				KeyID     string `json:"key_id"`
+				PublicKey string `json:"public_key"`
+			}
+			raw, _ := os.ReadFile(key)
+			_ = json.Unmarshal(raw, &a)
+			raw, _ = os.ReadFile(ck)
+			_ = json.Unmarshal(raw, &b)
+			if a.PublicKey == b.PublicKey {
+				t.Error("the counterexample reuses the genuine key; it proves nothing")
 			}
 		}
 

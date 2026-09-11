@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.12.0"
+  version: "1.13.0"
   status: approved
   tier: 2
 
@@ -159,9 +159,11 @@ spec:
         not offline verification and it does not establish authenticity. The
         artifact, the signature and the key all come from the same server, so a
         server able to serve a replacement artifact can serve a matching
-        signature and key beside it. Authenticity requires comparing the key,
-        or its fingerprint, with a copy obtained independently of this server,
-        and the UI must say so.
+        signature and key beside it. Authenticity requires comparing the
+        COMPLETE key, or the full SHA-256 of it, with a copy obtained
+        independently of this server, and the UI must say so. The short key_id
+        is a correlation identifier and MUST NOT be offered as the value to
+        compare (api-reports C-11).
 
         Three outcomes, and they are distinct:
 
@@ -363,9 +365,11 @@ spec:
         color from a caution one.
 
         A consistent result says the content and signature are consistent with
-        the key this server served, and states that authenticity needs an
-        independently trusted key or fingerprint. It never says "offline",
-        "authentic", "trusted" or "verified" without that qualification.
+        the key this server served, and states that authenticity needs the
+        complete key, or its full SHA-256, from an independently trusted
+        source. It never says "offline", "authentic", "trusted" or "verified"
+        without that qualification, and never points the reader at the short
+        key_id as the thing to compare.
 
         A content_only result is rendered as a CAUTION, never as success: the
         signature was not checked at all. A failed result is rendered as a

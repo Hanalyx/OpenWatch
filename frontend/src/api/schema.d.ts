@@ -4291,7 +4291,13 @@ export interface components {
              *     GET /api/v1/reports/signing-key.
              */
             signature?: string;
-            /** @description Fingerprint of the key that produced the signature. */
+            /**
+             * @description Short correlation identifier of the key that produced the
+             *     signature: the first 8 bytes of SHA-256 over the public key.
+             *     It matches a report to a served key. It is NOT an authenticity
+             *     anchor; 64 bits is within reach of a collision search. Anchor
+             *     trust on the complete public key or its full SHA-256.
+             */
             signing_key_id?: string;
             /** Format: date-time */
             created_at: string;
@@ -4301,10 +4307,21 @@ export interface components {
          *     verification of a report's signature over its content_sha256.
          */
         ReportSigningKey: {
+            /**
+             * @description Short correlation identifier: the first 8 bytes of SHA-256 over
+             *     public_key, hex encoded, prefixed `ed25519-`. Use it to match a
+             *     report's signing_key_id to this key. It is NOT an authenticity
+             *     anchor; compare the complete public_key, or its full SHA-256,
+             *     against a copy obtained independently of this server.
+             */
             key_id: string;
             /** @enum {string} */
             algorithm: "ed25519";
-            /** @description Base64-encoded Ed25519 public key. */
+            /**
+             * @description Base64-encoded Ed25519 public key, 32 bytes when decoded. This,
+             *     or its lowercase hex SHA-256, is the value to compare against an
+             *     independently trusted copy.
+             */
             public_key: string;
             /**
              * @description True when the server runs a per-boot development key (no durable

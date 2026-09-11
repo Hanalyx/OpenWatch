@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 1
 
@@ -134,8 +134,13 @@ spec:
         payload the approved contract defines, NOT the report bytes. It MUST name
         /api/v1/reports/signing-key and MUST NOT name the obsolete plural endpoint. It MUST state
         that a key fetched from the server that served the report proves internal consistency only,
-        and that authenticity requires a key or fingerprint obtained through an independently trusted
-        channel. Ephemeral keys and unsigned artifacts MUST be described accurately.
+        and that authenticity requires a TRUST ANCHOR obtained through an independently trusted
+        channel. That anchor is the complete base64 public key, or the lowercase hex SHA-256 of the
+        decoded 32-byte key. The short key_id and signing_key_id are 64-bit CORRELATION identifiers
+        and MUST NOT be published as the value an operator compares to establish authenticity
+        (api-reports C-11). Ephemeral keys and unsigned artifacts MUST be described accurately, and
+        a committed example key MUST be labeled test-only, with its private seed described as
+        derivable rather than secret.
 
         Every command in that procedure MUST be exercised against a PRODUCTION-GENERATED artifact.
         A hand-built fixture proves the example agrees with itself, which is the one thing nobody
@@ -319,9 +324,13 @@ spec:
         the bare hash with no domain tag and the canonical JSON itself, because a procedure that
         accepted either would be verifying something other than what was signed.
 
-        Required statements are matched in the published files. Forbidden claims are matched too, over
-        lines that carry no negation, so a guide WARNING against a wrong claim is not read as making
-        it.
+        Required statements are matched in the published files. Forbidden claims are matched over EVERY
+        line, with no negation heuristic: a line that reads as a forbidden claim fails unless it is
+        allowlisted by exact path and exact text. Each allowlist entry must EXIST in its file and must
+        itself match a forbidden pattern, so an exemption that outlived the sentence it covered fails
+        instead of sitting there. The earlier negation skip was removed because it excused any line
+        carrying a negation word, including one that denied a claim in its first half and made a
+        stronger one in its second.
       inputs:
         verification_guide: docs/guides/REPORT_VERIFICATION.md
         scoring_guide: docs/guides/SCANNING_AND_COMPLIANCE.md
@@ -329,6 +338,22 @@ spec:
         index: docs/README.md
         example_script: docs/guides/examples/report-verification/verify.sh
         fixture_dir: docs/guides/examples/report-verification
+        counterexample_dir: docs/guides/examples/report-verification/counterexample
+        trusted_anchor_file: docs/guides/examples/report-verification/trusted-key.sha256
+        signing_key_file: signing-key.json
+        # The exact shape of the published key document. Enforced field by
+        # field because this file is the one excluded from secret scanning.
+        signing_key_fields:
+          - key_id
+          - algorithm
+          - public_key
+          - ephemeral
+        signing_key_algorithm: ed25519
+        signing_key_bytes: 32
+        key_id_prefix: ed25519-
+        # key_id is the first 8 bytes of SHA-256 over the public key. Stated
+        # here so the test derives it rather than trusting the published value.
+        key_id_sha256_bytes: 8
         signing_key_endpoint: /api/v1/reports/signing-key
         obsolete_endpoint: /api/signing/public-keys
         signing_domain: 'openwatch/report-snapshot/v1'
@@ -355,6 +380,10 @@ spec:
             contains: 'proves consistency, not authenticity'
           - doc: verification_guide
             contains: 'independently trusted'
+          - doc: verification_guide
+            contains: 'correlation identifiers, not anchors'
+          - doc: verification_guide
+            contains: 'test-only, and its private half is'
         forbidden_claims:
           - id: absent_score_is_zero
             pattern: '(?i)(missing|absent|no)\s+score[^.\n]{0,40}\b(is|as|equals?)\b[^.\n]{0,12}\b(0|zero)\b'
@@ -368,6 +397,21 @@ spec:
             pattern: '(?i)signing-key[^.\n]{0,60}(proves|confirms|establishes)[^.\n]{0,20}authentic'
           - id: obsolete_signing_endpoint
             pattern: '/api/signing/public-keys'
+          - id: key_id_as_authenticity_anchor
+            pattern: '(?i)(\bkey_?id\b[^.\n]{0,70}\b(fingerprint|anchors?|authenticity|authentic)\b|\b(fingerprint|anchors?|authenticity)\b[^.\n]{0,70}\bkey_?id\b)'
+        # Legitimate warnings, by EXACT path and EXACT text. Each must exist and
+        # must match a forbidden pattern; a stale entry fails the gate.
+        allowed_mentions:
+          - doc: verification_guide
+            text: 'server has no signer wired. The plural `/api/signing/public-keys` path does not'
+          - doc: verification_guide
+            text: '### Do not anchor on `key_id`'
+          - doc: verification_guide
+            text: '**`key_id` and `signing_key_id` are correlation identifiers, not anchors.**'
+          - doc: scoring_guide
+            text: '### A missing score is not a zero'
+          - doc: scoring_guide
+            text: '**Hosts with no score are left out of the mean, not counted as zero.** They'
       expected_output:
         guide_is_tracked_and_reachable_from_the_index: true
         example_verifies_a_production_generated_artifact: true
@@ -377,6 +421,13 @@ spec:
         payload_prefix_mutation_fails: true
         untrusted_key_fails: true
         unsigned_artifact_is_reported_distinctly: true
+        algorithm_mismatch_fails: true
+        malformed_key_length_fails: true
+        key_id_mismatch_fails: true
+        consistency_only_says_so: true
+        counterexample_passes_consistency_and_fails_the_anchor: true
+        signing_key_document_shape_is_enforced: true
         forbidden_claims_absent: true
+        allowlisted_mentions_are_live: true
       priority: critical
       references_constraints: [C-09]

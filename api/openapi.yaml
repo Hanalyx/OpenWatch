@@ -6638,7 +6638,12 @@ components:
             GET /api/v1/reports/signing-key.
         signing_key_id:
           type: string
-          description: Fingerprint of the key that produced the signature.
+          description: |
+            Short correlation identifier of the key that produced the
+            signature: the first 8 bytes of SHA-256 over the public key.
+            It matches a report to a served key. It is NOT an authenticity
+            anchor; 64 bits is within reach of a collision search. Anchor
+            trust on the complete public key or its full SHA-256.
         created_at: {type: string, format: date-time}
 
     ReportSigningKey:
@@ -6648,11 +6653,21 @@ components:
         The public key used to sign report snapshots, for offline
         verification of a report's signature over its content_sha256.
       properties:
-        key_id: {type: string}
+        key_id:
+          type: string
+          description: |
+            Short correlation identifier: the first 8 bytes of SHA-256 over
+            public_key, hex encoded, prefixed `ed25519-`. Use it to match a
+            report's signing_key_id to this key. It is NOT an authenticity
+            anchor; compare the complete public_key, or its full SHA-256,
+            against a copy obtained independently of this server.
         algorithm: {type: string, enum: [ed25519]}
         public_key:
           type: string
-          description: Base64-encoded Ed25519 public key.
+          description: |
+            Base64-encoded Ed25519 public key, 32 bytes when decoded. This,
+            or its lowercase hex SHA-256, is the value to compare against an
+            independently trusted copy.
         ephemeral:
           type: boolean
           description: |
