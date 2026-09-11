@@ -23,6 +23,13 @@ security/certs/dhparam.pem
 **/*_private.pem
 **/*-key.pem
 **/private_key.*
+# OpenSSH default private key names. These had NO rule at any depth until
+# 2026-09-11: `docs/guides/examples/id_rsa` was visible to `git add`. The public
+# halves (*.pub) stay tracked-able on purpose.
+**/id_rsa
+**/id_ed25519
+**/id_ecdsa
+**/id_dsa
 
 # SSL/TLS Certificate files
 **/*.crt
@@ -333,11 +340,11 @@ backend_test.log
 frontend_test.log
 
 # Test files pattern (temporary files per project convention)
-*test*.py
-*test*.sh
-*test*.md
-*test*.js
-*test*.cjs
+/*test*.py
+/*test*.sh
+/*test*.md
+/*test*.js
+/*test*.cjs
 
 # Committed test suites, which the blanket patterns above would otherwise
 # swallow silently: `git add` refuses and prints nothing unless you look.
@@ -420,24 +427,24 @@ frontend/*.jpeg
 !frontend/playwright.config.ts
 
 # Test screenshots and results
-*_test_results.json
-*_test_result.png
-*_results.json
-*_error.png
-*_debug.png
-*_demo_*.png
-*_comparison_*.png
-*_integration_*.json
-*_e2e_*.json
-*_e2e_*.png
-responsive_*.png
-pagination_*.png
-content_*.png
-login_*.png
-mongodb_*.png
-rules_explorer_*.png
-scrolling_*.png
-tab_*.png
+/*_test_results.json
+/*_test_result.png
+/*_results.json
+/*_error.png
+/*_debug.png
+/*_demo_*.png
+/*_comparison_*.png
+/*_integration_*.json
+/*_e2e_*.json
+/*_e2e_*.png
+/responsive_*.png
+/pagination_*.png
+/content_*.png
+/login_*.png
+/mongodb_*.png
+/rules_explorer_*.png
+/scrolling_*.png
+/tab_*.png
 
 # ======================================
 # PLUGIN DEVELOPMENT
@@ -560,30 +567,30 @@ cache/
 # ======================================
 
 # Test report and summary files
-*_TEST_REPORT.md
-*_TEST_SUMMARY.md
-COMPREHENSIVE_TEST_REPORT.md
-TROUBLESHOOTING_SUMMARY.md
-gitignore_recommendations.md
+/*_TEST_REPORT.md
+/*_TEST_SUMMARY.md
+/COMPREHENSIVE_TEST_REPORT.md
+/TROUBLESHOOTING_SUMMARY.md
+/gitignore_recommendations.md
 
 # Test screenshots and artifacts
-*_error.png
-*_ui_error.png
-login_error.png
-dashboard_error.png
-hosts_error.png
-hosts_ui_error.png
-host_groups_ui_error.png
-content_ui_error.png
-scanning_ui_error.png
-results_ui_error.png
+/*_error.png
+/*_ui_error.png
+/login_error.png
+/dashboard_error.png
+/hosts_error.png
+/hosts_ui_error.png
+/host_groups_ui_error.png
+/content_ui_error.png
+/scanning_ui_error.png
+/results_ui_error.png
 
 # Temporary configuration files
-nginx.conf
+/nginx.conf
 /nginx.conf
 
 # Gitignore analysis files
-gitignore_*.md
+/gitignore_*.md
 
 # GitHub: Allow workflows but ignore other files
 # .github/ - DO NOT ignore entire directory (breaks CI/CD)
@@ -613,7 +620,7 @@ dist/
 !packaging/kensa-rules/*.spec
 
 # RPM creation scripts (temporary)
-create-rpm.sh
+/create-rpm.sh
 
 # Package building directories
 BUILD/
@@ -639,7 +646,7 @@ bin/
 # ======================================
 
 # Mock backend files created during testing
-mock_backend.py
+/mock_backend.py
 
 # Credential migration artifacts
 migrate_*.sql
@@ -668,8 +675,8 @@ scripts/simple_*.py
 scripts/*phase*.py
 
 # Demo and phase files
-*phase*.py
-*demo*.py
+/*phase*.py
+/*demo*.py
 # ======================================
 # TEMPORARY AND DEBUG FILES
 # ======================================
@@ -703,26 +710,26 @@ scripts/cleanup-documentation.sh
 # UPPER_SUFFIX.md convention legit docs mostly avoid. NOTE: *_MIGRATION*.md was
 # removed — it wrongly hid legitimate DB-migration documentation; name scratch
 # migration notes differently if needed.
-*_ASSESSMENT.md
-*_ANALYSIS.md
-*_COMPLETE.md
-*_FIX*.md
-*_IMPLEMENTATION*.md
-*_PHASE*.md
-*_REPORT.md
-*_STATUS.md
-*_SUMMARY.md
-*_VERIFICATION*.md
-*_TRACKING*.md
-CHANGES_SUMMARY.md
-TABPANEL_*.md
+/*_ASSESSMENT.md
+/*_ANALYSIS.md
+/*_COMPLETE.md
+/*_FIX*.md
+/*_IMPLEMENTATION*.md
+/*_PHASE*.md
+/*_REPORT.md
+/*_STATUS.md
+/*_SUMMARY.md
+/*_VERIFICATION*.md
+/*_TRACKING*.md
+/CHANGES_SUMMARY.md
+/TABPANEL_*.md
 
 # Test artifacts and debug files
-test-*.js
-test-*.json
+/test-*.js
+/test-*.json
 test-screenshots/
 test-reports/
-test-results.json
+/test-results.json
 # Playwright writes frontend/test-results/. The pre-commit prettier hook checks
 # the whole frontend dir, so leaving this untracked blocks every commit.
 test-results/
@@ -752,26 +759,26 @@ internal/sdd/
 .claude/skills/context-plane/
 
 # OpenWatch internal documentation (do not commit)
-CLAUDE.md
+/CLAUDE.md
 backend/CLAUDE.md
 frontend/CLAUDE.md
 docs/guides/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.md
-BACKLOG.md
-SESSION_LOG.md
-MONGODB_INDEX_MIGRATION_PLAN.md
+/BACKLOG.md
+/SESSION_LOG.md
+/MONGODB_INDEX_MIGRATION_PLAN.md
 docs/engineering/navigation_mvp_plan.md
 
 # Dependency upgrade analysis documents (generated during updates)
-DEPENDENCY_UPGRADES_STATUS.md
-NPM_GROUPS_UPGRADE_VERIFICATION.md
-VITEST_4_UPGRADE_VERIFICATION.md
-UNTESTED_DEPENDENCY_UPGRADES.md
-REDIS_7_UPGRADE_*.md
+/DEPENDENCY_UPGRADES_STATUS.md
+/NPM_GROUPS_UPGRADE_VERIFICATION.md
+/VITEST_4_UPGRADE_VERIFICATION.md
+/UNTESTED_DEPENDENCY_UPGRADES.md
+/REDIS_7_UPGRADE_*.md
 
 # Test/verification scripts with credentials (security risk)
-test_phase*.sh
-verify_deployment.py
-monitor_ssh_validation.py
+/test_phase*.sh
+/verify_deployment.py
+/monitor_ssh_validation.py
 
 # ======================================
 # STANDALONE TOOLS - DO NOT COMMIT
@@ -780,7 +787,7 @@ monitor_ssh_validation.py
 # SCAP to OpenWatch Converter (standalone CLI tool - distributed separately)
 backend/app/cli/scap_json_to_openwatch_converter.py
 backend/app/cli/scap_to_openwatch_converter_enhanced.py
-scap_json_to_openwatch_converter_enhanced.py
+/scap_json_to_openwatch_converter_enhanced.py
 
 backend/debug_*.py
 backend/scripts/
@@ -802,22 +809,27 @@ frontend/docs/
 context/
 
 # Examples directory (do not commit, moved to docs/)
-examples/
+/examples/
 
-# Re-include the tracked operator documentation. This has to sit AFTER the
-# blanket patterns above, because several of them match by FILENAME at any
-# depth and so re-ignore files under docs/guides/, which is otherwise tracked
-# wholesale. `!docs/guides/` un-ignores the directory and does not rescue a
-# file a later name pattern catches.
+# The per-file re-includes that used to sit here are GONE, and deliberately.
 #
-# Two caught a guide added on 2026-09-11: `*_VERIFICATION*.md` and `examples/`.
-# The first is also why docs/EVIDENCE_VERIFICATION.md was never tracked; that
-# was read for two years as a deliberate choice. Adding a tracked guide whose
-# name trips one of these patterns needs a negation here, and `git status` will
-# not tell you, so check with `git check-ignore -v <path>`.
-!docs/guides/REPORT_VERIFICATION.md
-!docs/guides/examples/
-!docs/guides/examples/**
+# On 2026-09-11 a new guide would not commit, and the fix was two negations:
+# `!docs/guides/REPORT_VERIFICATION.md` and `!docs/guides/examples/**`. Both
+# were wrong answers to a real problem. The first treats a naming collision as
+# a per-file exception, so the next guide needs another one and nothing tells
+# you. The second was worse: `**` re-includes EVERYTHING under that directory,
+# which silently un-ignored `*private_key*`, `*credential*`, `*api_key*`,
+# `*passwd*`, `*secret*` and `**/*.key` beneath it. A private key dropped in
+# docs/guides/examples/ would have been staged without complaint.
+#
+# The cause was blanket patterns written for repository-root scratch files
+# matching by BASENAME at any depth. They are anchored with a leading `/` now,
+# so `*_VERIFICATION*.md` and friends bite at the root and nowhere else, and no
+# per-file negation is needed under docs/.
+#
+# Security patterns stay UNANCHORED on purpose: they must keep matching at every
+# depth, including inside tracked documentation. release-ci-gates AC-14 holds
+# both halves with `git check-ignore` probes over paths that do not exist.
 
 # === merged from app/.gitignore when the Go tree was promoted to root (2026-06-05) ===
 # Build artifacts
