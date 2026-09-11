@@ -585,10 +585,6 @@ cache/
 /scanning_ui_error.png
 /results_ui_error.png
 
-# Temporary configuration files
-/nginx.conf
-/nginx.conf
-
 # Gitignore analysis files
 /gitignore_*.md
 

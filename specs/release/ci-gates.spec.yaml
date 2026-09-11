@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 1
 
@@ -494,6 +494,13 @@ spec:
         The old unanchored patterns must not return: each is asserted absent from `.gitignore` as a
         bare line, so re-adding `*_REPORT.md` without its leading `/` fails.
 
+        The root half is bound over the WHOLE anchored set rather than a sample. Every leading-slash
+        pattern in `.gitignore` is read out of the file, a concrete path is synthesized from it, and
+        that path must still be ignored at the repository root. Anchoring a rule must not switch it
+        off. The reverse assertion, that the same basename is visible under docs, is deliberately NOT
+        made for every pattern: some names are legitimately ignored everywhere by a different rule,
+        `dist/` among them, and asserting otherwise would fail on correct behavior.
+
         Reachability is scanned over tracked contributor and workflow documentation. A line naming an
         ignored path passes only when it also says the path is unavailable, or when the exact line is
         allowlisted. Each allowlist entry must exist and must still name an ignored path, so a stale
@@ -519,7 +526,6 @@ spec:
           - CLAUDE.md
           - examples/foo.md
           - login_error.png
-          - nginx.conf
         secret_names:
           - id_rsa
           - id_ed25519
@@ -551,6 +557,9 @@ spec:
           - '!docs/guides/examples/**'
           - '!docs/guides/examples/'
           - '!docs/guides/REPORT_VERIFICATION.md'
+        # Every leading-slash pattern is bound, not a sample of them. The floor
+        # guards against the scan passing because the patterns were deleted.
+        min_anchored_patterns: 80
         planted_guide: docs/guides/examples/ac14-probe/NESTED_GUIDE.md
         # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
         # to be one the security rules match, or the test would prove nothing.
@@ -579,6 +588,7 @@ spec:
       expected_output:
         tracked_documentation_is_visible: true
         root_only_artifacts_stay_ignored: true
+        every_anchored_pattern_bites_at_the_root: true
         secrets_stay_ignored_at_every_depth: true
         unanchored_patterns_do_not_return: true
         directory_reincludes_under_docs_are_absent: true

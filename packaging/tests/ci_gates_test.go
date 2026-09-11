@@ -1338,6 +1338,41 @@ func TestCIGates_TrackedDocumentationBoundary(t *testing.T) {
 			}
 		}
 
+		// ---- Every anchored pattern, not a sample: anchoring a rule must not
+		// switch it off at the root. The list is read out of .gitignore, so a
+		// pattern added later is bound the moment it lands.
+		if exp.Bool("every_anchored_pattern_bites_at_the_root") {
+			floor := in.Int("min_anchored_patterns")
+			var anchored []string
+			for _, ln := range strings.Split(gitignore, "\n") {
+				t := strings.TrimSpace(ln)
+				if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "!") {
+					continue
+				}
+				if !strings.HasPrefix(t, "/") {
+					continue
+				}
+				anchored = append(anchored, t)
+			}
+			if len(anchored) < floor {
+				t.Errorf("only %d anchored patterns in %s, expected at least %d; "+
+					"were they deleted rather than anchored?", len(anchored), in.Str("gitignore"), floor)
+			}
+			repl := strings.NewReplacer("*", "x", "?", "y", "[Dd]", "D", "$", "S")
+			for _, pat := range anchored {
+				sample := repl.Replace(strings.TrimSuffix(strings.TrimPrefix(pat, "/"), "/"))
+				if sample == "" {
+					continue
+				}
+				if strings.HasSuffix(pat, "/") {
+					sample += "/probe.md"
+				}
+				if !ignored(t, dir, sample) {
+					t.Errorf("anchored pattern %q no longer ignores %q at the root", pat, sample)
+				}
+			}
+		}
+
 		// ---- Secrets stay ignored at every depth under tracked documentation.
 		if exp.Bool("secrets_stay_ignored_at_every_depth") {
 			for _, d := range in.List("secret_depths") {
