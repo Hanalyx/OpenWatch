@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 1
 
@@ -76,6 +76,28 @@ spec:
 
         Structural coverage MUST stay at 100% and outcome coverage MUST stay at the manifest threshold with
         every tier at 100.
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >-
+        The documentation style gate MUST be ONE shared invocation behind a single Make target, and that
+        SAME target MUST run locally, in pre-commit, and in CI. A caller that rebuilds the command itself
+        is a second policy wearing the first one's name.
+
+        The gate MUST check every tracked file of a type the checker supports, not only the files
+        `--changed` selects. `--changed` resolves a commit RANGE, `{base}...HEAD`, and falls back to the
+        index only when that range is empty, so it never reads the working tree. A pre-commit hook keyed on
+        it is vacuous at exactly the moment it is supposed to fire: the files being committed are the files
+        it cannot see. This is not hypothetical. A `--changed` run reported 182 files clean while eleven
+        edited files carrying a real violation sat unread (Context Plane bugs/OW-027, upstream SP-HP-030).
+
+        The checker supports fifteen tracked extensions, source comments included, so the gate is not a
+        Markdown gate and MUST NOT be described as one.
+
+        Scope boundary, stated so it is not mistaken for coverage: files git ignores are outside this gate.
+        That includes the 18 extensionless roadmap documents under docs/engineering/roadmap, which the
+        checker cannot select because it walks tracked paths by extension. They remain taxonomy debt in the
+        Context Plane inventory and are NOT enforced by CI.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -173,3 +195,52 @@ spec:
         gate_runs_with_site_packages_disabled: true
       priority: critical
       references_constraints: [C-07]
+    - id: AC-12
+      description: >-
+        One shared documentation style gate exists as a Make target, and the Makefile, the CI workflow and
+        the pre-commit configuration all reach the full tracked tree through it. The target checks every
+        tracked supported file by default, so no caller has to remember a flag to get the real gate.
+
+        Each caller is bound to the target rather than to a copy of its command: the workflow runs the Make
+        target instead of reconstructing the checker invocation, and the pre-commit hook runs it with
+        `pass_filenames: false` so a staged-file list cannot narrow it back down to the vacuous case.
+
+        Every invocation uses `python3 -S`, so the checker's standard-library-only claim is enforced rather
+        than asserted, the same way the Specter gate is.
+
+        The binding is behavioral, not textual. The gate is exercised against a throwaway Git repository
+        holding a clean tracked file, a tracked violation nobody is editing, a newly staged violation, and a
+        violation inside a source-code comment. The tracked violation nobody is editing is the case that
+        separates this gate from the old one: `--changed` passes it and `--all` does not.
+      inputs:
+        checker: scripts/check-doc-style.py
+        make_target: docs-style
+        precommit_hook_id: doc-style
+        default_mode: '--all'
+        interpreter_flag: '-S'
+        callers:
+          - path: Makefile
+            invocation: 'python3 -S scripts/check-doc-style.py --all'
+            kind: recipe
+          - path: .github/workflows/go-ci.yml
+            invocation: 'make docs-style'
+            kind: run_step
+          - path: .pre-commit-config.yaml
+            invocation: 'make docs-style'
+            kind: hook
+        # The mode the gate must NOT fall back to. Named so the check drives on
+        # it instead of describing it.
+        forbidden_in_callers: '--changed'
+        # Ignored paths are out of scope by construction, not by oversight.
+        excluded_from_gate: docs/engineering/roadmap
+      expected_output:
+        every_caller_reaches_the_same_make_target: true
+        default_mode_is_the_full_tracked_tree: true
+        precommit_hook_ignores_passed_filenames: true
+        unchanged_tracked_violation_is_caught: true
+        staged_violation_is_caught: true
+        source_comment_violation_is_caught: true
+        clean_tree_passes: true
+        gate_runs_with_site_packages_disabled: true
+      priority: critical
+      references_constraints: [C-08]

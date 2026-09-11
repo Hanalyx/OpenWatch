@@ -442,3 +442,215 @@ func boolToInt(b bool) int {
 	}
 	return 0
 }
+
+// codeLines returns the lines of a file with whole-line and trailing `#`
+// comments removed. Every caller of the doc-style gate also EXPLAINS it in a
+// comment, so a whole-file substring search stays true after the recipe, the
+// run: step and the hook entry have all been deleted.
+func codeLines(body string) []string {
+	out := make([]string, 0, 64)
+	for _, ln := range strings.Split(body, "\n") {
+		code := ln
+		if i := strings.Index(code, "#"); i >= 0 {
+			code = code[:i]
+		}
+		if strings.TrimSpace(code) == "" {
+			continue
+		}
+		out = append(out, code)
+	}
+	return out
+}
+
+// @ac AC-12
+// AC-12: one shared documentation-style gate, reached by all three callers,
+// checking every tracked supported file rather than the files --changed
+// selects. The structural half is bound here; the behavioral half runs the
+// stdlib-only suite in scripts/, which exercises the real checker against a
+// throwaway repository. Delegating rather than restating keeps one source of
+// truth for what the gate does.
+func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
+	t.Run("release-ci-gates/AC-12", func(t *testing.T) {
+		dir := appDir(t)
+		all := specfixture.Load(t, filepath.Join(dir, "specs/release/ci-gates.spec.yaml"), "release-ci-gates")
+		ac := specfixture.Get(t, all, "AC-12")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		checker := in.Str("checker")
+		target := in.Str("make_target")
+		mode := in.Str("default_mode")
+		dashS := in.Str("interpreter_flag")
+		hookID := in.Str("precommit_hook_id")
+		forbidden := in.Str("forbidden_in_callers")
+		excluded := in.Str("excluded_from_gate")
+
+		callers := in.MapList("callers")
+		if len(callers) == 0 {
+			t.Fatal("AC-12 must name the callers")
+		}
+		requireShared := exp.Bool("every_caller_reaches_the_same_make_target")
+		requireFullTree := exp.Bool("default_mode_is_the_full_tracked_tree")
+		requireDashS := exp.Bool("gate_runs_with_site_packages_disabled")
+
+		for _, c := range callers {
+			path := c.Str("path")
+			invocation := c.Str("invocation")
+			kind := c.Str("kind")
+			c.AllConsumed()
+			body := readAppFile(t, path)
+
+			found := false
+			for _, code := range codeLines(body) {
+				if !strings.Contains(code, invocation) {
+					continue
+				}
+				switch kind {
+				case "recipe":
+					// A Makefile recipe line is tab-indented. A comment line
+					// mentioning the same command is not.
+					if strings.HasPrefix(code, "\t") {
+						found = true
+					}
+				case "run_step":
+					if strings.Contains(code, "run:") {
+						found = true
+					}
+				case "hook":
+					if strings.Contains(code, "entry:") {
+						found = true
+					}
+				default:
+					t.Fatalf("unknown caller kind %q in the AC-12 fixture", kind)
+				}
+			}
+			if requireShared && !found {
+				t.Errorf("%s has no %s invoking %q", path, kind, invocation)
+			}
+
+			// The vacuous mode must appear in no caller's code. It may still
+			// be described in a comment, which is why this reads code only.
+			for _, code := range codeLines(body) {
+				if strings.Contains(code, forbidden) {
+					t.Errorf("%s still uses %s: %q", path, forbidden, strings.TrimSpace(code))
+				}
+			}
+			// Wherever a caller invokes the checker directly it must disable
+			// site packages, so the stdlib-only claim is enforced.
+			if requireDashS {
+				for _, code := range codeLines(body) {
+					if !strings.Contains(code, checker) {
+						continue
+					}
+					if !strings.Contains(code, "python3 "+dashS+" ") {
+						t.Errorf("%s invokes %s without %s: %q",
+							path, checker, dashS, strings.TrimSpace(code))
+					}
+				}
+			}
+		}
+
+		// The make target itself must default to the full tree. Without this
+		// every caller could reach a shared target that checks nothing.
+		if requireFullTree {
+			mk := readAppFile(t, "Makefile")
+			recipe := []string{}
+			lines := strings.Split(mk, "\n")
+			for i, ln := range lines {
+				if !strings.HasPrefix(ln, target+":") {
+					continue
+				}
+				for _, follow := range lines[i+1:] {
+					if strings.HasPrefix(follow, "\t") {
+						recipe = append(recipe, follow)
+					} else if strings.TrimSpace(follow) != "" {
+						break
+					}
+				}
+				break
+			}
+			if len(recipe) == 0 {
+				t.Fatalf("no %s recipe in the Makefile", target)
+			}
+			joined := strings.Join(codeLines(strings.Join(recipe, "\n")), "\n")
+			if !strings.Contains(joined, mode) {
+				t.Errorf("`make %s` does not default to %s; recipe is %q", target, mode, joined)
+			}
+		}
+
+		// ci-local must reach the gate, or the documented local mirror of CI
+		// is missing the one gate this AC exists to enforce.
+		mk := readAppFile(t, "Makefile")
+		ciLocal := ""
+		for _, code := range codeLines(mk) {
+			if strings.HasPrefix(code, "ci-local:") {
+				ciLocal = code
+				break
+			}
+		}
+		if ciLocal == "" {
+			t.Fatal("no ci-local target in the Makefile")
+		}
+		if !strings.Contains(ciLocal, target) {
+			t.Errorf("ci-local does not depend on %s: %q", target, ciLocal)
+		}
+
+		// The pre-commit hook must ignore any file list it is handed. Keying
+		// this gate on a staged-file list reintroduces the blind spot that
+		// --changed already has.
+		if exp.Bool("precommit_hook_ignores_passed_filenames") {
+			pc := readAppFile(t, ".pre-commit-config.yaml")
+			idx := strings.Index(pc, "- id: "+hookID)
+			if idx < 0 {
+				t.Fatalf(".pre-commit-config.yaml has no %s hook", hookID)
+			}
+			block := pc[idx:]
+			if end := strings.Index(block, "\n  - repo:"); end > 0 {
+				block = block[:end]
+			}
+			if !strings.Contains(block, "pass_filenames: false") {
+				t.Error("the doc-style hook must set pass_filenames: false")
+			}
+			if !strings.Contains(block, "always_run: true") {
+				t.Error("the doc-style hook must set always_run: true")
+			}
+		}
+
+		// The stated scope boundary must be true, not merely claimed: the
+		// excluded tree is excluded because git ignores it.
+		cmd := exec.Command("git", "check-ignore", "-q", excluded)
+		cmd.Dir = dir
+		if err := cmd.Run(); err != nil {
+			t.Errorf("AC-12 claims %s is outside the gate, but git does not ignore it", excluded)
+		}
+
+		// ---- Behavioral: delegate to the stdlib-only suite, which runs the
+		// real checker against a throwaway repository. A structural test
+		// cannot show that an unchanged tracked violation is caught.
+		behavioral := []struct {
+			key string
+		}{
+			{"unchanged_tracked_violation_is_caught"},
+			{"staged_violation_is_caught"},
+			{"source_comment_violation_is_caught"},
+			{"clean_tree_passes"},
+		}
+		want := false
+		for _, b := range behavioral {
+			if exp.Bool(b.key) {
+				want = true
+			}
+		}
+		if want {
+			suite := exec.Command("python3", dashS, "scripts/test_doc_style_gate.py")
+			suite.Dir = dir
+			out, err := suite.CombinedOutput()
+			if err != nil {
+				t.Errorf("the doc-style gate suite failed: %v\n%s", err, out)
+			}
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}
