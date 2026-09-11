@@ -320,7 +320,7 @@ versions and must be operator-supervised; doing it silently from a package
 upgrade would risk the whole database. Plan it separately, with its own backup:
 follow your distribution's procedure, stop `openwatch.service` first so no
 connections are open, then start it again afterward and run the
-[verification](#step-7--verify-the-upgrade) checks. (Minor PostgreSQL and
+[verification](#step-7-verify-the-upgrade) checks. (Minor PostgreSQL and
 dependency updates are handled by `dnf`/`apt` via package dependencies: nothing
 extra to do.)
 
