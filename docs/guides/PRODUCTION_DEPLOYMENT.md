@@ -116,7 +116,7 @@ running with a silent fallback.
 ### Set the report signing key before issuing evidence
 
 `[reports].signing_key_file` behaves differently from those two, and the
-difference matters if anyone outside your organisation will verify a report.
+difference matters if anyone outside your organization will verify a report.
 
 Leave it unset and the service does not refuse to start. It generates a fresh
 key each boot, logs a warning, and carries on signing reports normally. Nothing
