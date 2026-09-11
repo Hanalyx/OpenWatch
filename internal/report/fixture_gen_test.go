@@ -19,7 +19,9 @@ package report
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -35,6 +37,11 @@ func TestWriteVerificationFixture(t *testing.T) {
 
 	// A DURABLE key, the production shape: a 32-byte raw Ed25519 seed. An
 	// ephemeral key would sign an artifact nobody could ever re-verify.
+	//
+	// The seed is DETERMINISTIC and written here in the clear, so the private
+	// key of the published example is derivable by anyone reading this file.
+	// That is deliberate: the fixture is a teaching artifact, not evidence.
+	// Never describe the committed key as secret or reuse it anywhere.
 	seed := make([]byte, 32)
 	for i := range seed {
 		seed[i] = byte(i + 1)
@@ -67,12 +74,67 @@ func TestWriteVerificationFixture(t *testing.T) {
 		t.Fatalf("media type = %q", mediaType)
 	}
 
-	out := filepath.Join(repoRoot(t), "docs", "guides", "examples", "report-verification")
+	root := filepath.Join(repoRoot(t), "docs", "guides", "examples", "report-verification")
+	writeTriplet(t, root, rep, canonical, signer)
+
+	// The trust anchor an auditor is supposed to hold: the FULL SHA-256 of the
+	// decoded public key. Written beside the fixture so the worked example can
+	// be run end to end; in real use it arrives through a channel that does not
+	// depend on the server serving the report.
+	sum := sha256.Sum256(signer.PublicKey())
+	if err := os.WriteFile(filepath.Join(root, "trusted-key.sha256"),
+		[]byte(hex.EncodeToString(sum[:])+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// ---- The counterexample: a DIFFERENT key signing DIFFERENT content, each
+	// internally consistent. This is the artifact a server able to serve a
+	// replacement would hand you. Consistency-only verification passes on it.
+	// Only the trusted anchor tells it apart from the genuine one.
+	seed2 := make([]byte, 32)
+	for i := range seed2 {
+		seed2[i] = byte(0xA0 + i)
+	}
+	keyPath2 := filepath.Join(dir, "other_signing.key")
+	if err := os.WriteFile(keyPath2, seed2, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	signer2, err := NewSigner(keyPath2)
+	if err != nil {
+		t.Fatalf("NewSigner 2: %v", err)
+	}
+	if signer2.KeyID() == signer.KeyID() {
+		t.Fatal("the two fixture keys collide; pick another seed")
+	}
+	h2 := seedHost(t, pool, owner, false)
+	seedRuleState(t, pool, h2, "sshd-disable-root-login", "pass", "high")
+	svc2 := NewService(pool).WithSigner(signer2)
+	rep2, err := svc2.Generate(ctx, "attacker@example.com", GenerateRequest{})
+	if err != nil {
+		t.Fatalf("Generate 2: %v", err)
+	}
+	canonical2, _, err := svc2.Export(ctx, rep2.ID, "json")
+	if err != nil {
+		t.Fatalf("Export 2: %v", err)
+	}
+	sub := filepath.Join(root, "counterexample")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTriplet(t, sub, rep2, canonical2, signer2)
+	t.Logf("wrote fixtures to %s and %s", root, sub)
+}
+
+// writeTriplet writes the three files an operator holds: the canonical JSON
+// face, the report metadata, and the signing-key response.
+func writeTriplet(t *testing.T, out string, rep Report, canonical []byte, signer *Signer) {
+	t.Helper()
 	write := func(name string, b []byte) {
 		if err := os.WriteFile(filepath.Join(out, name), b, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// No trailing newline: this file's SHA-256 is its identity.
 	write("report.json", canonical)
 
 	// The fields an operator reads off GET /api/v1/reports/{id}.
@@ -92,7 +154,6 @@ func TestWriteVerificationFixture(t *testing.T) {
 		"ephemeral":  signer.Ephemeral(),
 	}, "", "  ")
 	write("signing-key.json", append(key, '\n'))
-	t.Logf("wrote fixture to %s", out)
 }
 
 func repoRoot(t *testing.T) string {

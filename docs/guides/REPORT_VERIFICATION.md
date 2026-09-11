@@ -14,8 +14,18 @@ different answers and different costs:
 A third question, **authenticity**, is not answered by either step on its own.
 See [What this does not prove](#what-this-does-not-prove).
 
-You need `openssl` 3.x and standard command line tools. Verification runs
-offline. Nothing here calls back to the server.
+## Dependencies
+
+| Tool | Why |
+|---|---|
+| Python 3 | Reads fields out of the JSON responses. Standard library only. |
+| OpenSSL 3.x | Ed25519 verification, which needs `pkeyutl -rawin`. |
+| coreutils | `sha256sum`, `base64`, `cat`, `printf`. |
+
+Run the Python snippets with `python3 -I -S`. That is isolated mode with no
+site packages, so nothing installed on the machine can change what they read.
+
+Verification runs offline. Nothing here calls back to the server.
 
 ---
 
@@ -83,7 +93,7 @@ The tag ends with a newline, and the hash follows as its 64 lowercase hex
 characters. There is no trailing newline after the hash.
 
 ```bash
-SHA=$(python3 -c 'import json;print(json.load(open("report.meta.json"))["content_sha256"])')
+SHA=$(python3 -I -S -c 'import json;print(json.load(open("report.meta.json"))["content_sha256"])')
 printf 'openwatch/report-snapshot/v1\n%s' "$SHA" > payload.bin
 ```
 
@@ -101,24 +111,29 @@ on a perfectly valid report, because those are not the bytes that were signed.
 The API serves the raw 32-byte Ed25519 key, base64 encoded. `openssl` wants it
 inside an SPKI header, which for Ed25519 is a fixed 12-byte prefix:
 
+Check three things about the key before you use it:
+
+| Check | Why |
+|---|---|
+| `algorithm` is exactly `ed25519` | A different algorithm needs a different routine. Verifying it with this one would report success it did not earn. |
+| The decoded key is exactly 32 bytes | Anything else is not an Ed25519 key, however well formed the base64 looks. |
+| `key_id` equals the report's `signing_key_id` | Catches the wrong key being handed over. This is a CORRELATION check and nothing more; see below. |
+
 ```bash
-python3 -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
+python3 -I -S -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
   | base64 -d > pub.raw
+wc -c < pub.raw    # must be 32
 printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' > pub.der
 cat pub.raw >> pub.der
 openssl pkey -pubin -inform DER -in pub.der -out pub.pem
 ```
-
-Check that `key_id` in `signing-key.json` matches `signing_key_id` on the
-report. If they differ, the report was signed by a key the server no longer
-serves, and you need the original key to verify it.
 
 ---
 
 ## Step 4: verify the signature
 
 ```bash
-python3 -c 'import json,base64,sys;sys.stdout.buffer.write(base64.b64decode(json.load(open("report.meta.json"))["signature"]))' > sig.bin
+python3 -I -S -c 'import json,base64,sys;sys.stdout.buffer.write(base64.b64decode(json.load(open("report.meta.json"))["signature"]))' > sig.bin
 
 openssl pkeyutl -verify -pubin -inkey pub.pem -rawin -in payload.bin -sigfile sig.bin
 ```
@@ -139,12 +154,24 @@ produced by the same code path that serves the API.
 
 ```bash
 cd docs/guides/examples/report-verification
+
+# Consistency only.
 ./verify.sh report.json report.meta.json signing-key.json
+
+# With a trust anchor you hold independently.
+./verify.sh report.json report.meta.json signing-key.json "$(cat trusted-key.sha256)"
 ```
 
-It exits `0` when both checks pass, `2` when the content hash does not match,
-`3` when the signature does not verify, and `4` when the artifact carries no
-signature.
+| Exit | Meaning |
+|---|---|
+| 0 | Every check passed. Read the last lines: with no anchor this is consistency only. |
+| 2 | The canonical JSON does not hash to the declared `content_sha256`. |
+| 3 | The signature does not verify against the supplied key. |
+| 4 | The artifact carries no signature. |
+| 5 | The key is not declared `ed25519`. |
+| 6 | The decoded public key is not 32 bytes. |
+| 7 | The key's `key_id` does not match the report's `signing_key_id`. |
+| 8 | The key does not match the trust anchor you supplied. |
 
 ---
 
@@ -156,15 +183,72 @@ If a server can serve you a replaced report, it can serve the matching
 signature and the matching public key beside it. Everything checks out, and the
 check has told you only that those three files agree with each other.
 
-To get authenticity you need the key, or its `key_id` fingerprint, from an
-independently trusted channel: one that does not depend on that server. Record the fingerprint when the
-key is first installed. Store it where the OpenWatch host cannot change it, and
-compare against that record every time.
+### The trust anchor
 
-The `key_id` is a short public fingerprint of the public key, so comparing
-fingerprints is enough. You do not need to move the key itself.
+To get authenticity you need a copy of the key from an independently trusted
+channel: one that does not depend on that server. The anchor is the **complete
+key**, in one of two forms:
+
+| Anchor | What it is |
+|---|---|
+| The full `public_key` | The complete base64 string from the signing-key response. |
+| Its SHA-256 | The lowercase hex SHA-256 of the **decoded 32 bytes**, not of the base64 text. |
+
+```bash
+python3 -I -S -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
+  | base64 -d | sha256sum
+```
+
+Record one of those when the key is first installed. Store it where the
+OpenWatch host cannot change it, and compare against that record every time.
+
+### Do not anchor on `key_id`
+
+**`key_id` and `signing_key_id` are correlation identifiers, not anchors.**
+Both are the first 8 bytes of the SHA-256 of the public key: 64 bits. They are
+there to match a report to a key and to name a key in your records.
+
+Sixty-four bits is not enough to anchor trust. Someone able to generate keys
+can search for a different key carrying the same `key_id`, and the work needed
+is far below what a signature is supposed to withstand. Comparing `key_id`
+values would feel like checking a fingerprint and would not be one. Compare the
+whole key, or its full SHA-256.
 
 ---
+
+## Proving it to yourself
+
+The example directory carries a `counterexample/`: a second report with its own
+signature and its own public key, all three internally consistent, signed by a
+different key.
+
+```bash
+# Passes. Nothing here is inconsistent.
+./verify.sh counterexample/report.json counterexample/report.meta.json \
+  counterexample/signing-key.json
+
+# Rejected, because the key is not the one you trust.
+./verify.sh counterexample/report.json counterexample/report.meta.json \
+  counterexample/signing-key.json "$(cat trusted-key.sha256)"
+```
+
+The first command exits `0` and says authenticity was not established. The
+second exits `8`. That gap is the whole argument for holding an anchor: a
+replacement bundle is not detectably wrong until you compare it with something
+the server did not give you.
+
+## About the committed example key
+
+**The key in this directory is public, test-only, and its private half is
+derivable by anyone.** The seed is written in the clear in
+`internal/report/fixture_gen_test.go`, so the example can be regenerated. That
+is deliberate: the fixture teaches the procedure, it is not evidence about any
+system.
+
+Never reuse it, never treat it as secret, and never treat a report it signed as
+attested. A production key is 32 bytes from a random source, readable only by
+the service; see
+[Production deployment](PRODUCTION_DEPLOYMENT.md#set-the-report-signing-key-before-issuing-evidence).
 
 ## Ephemeral keys
 
@@ -201,7 +285,9 @@ as it stood at generation.
 |---|---|
 | Hash mismatch on an untouched file | You exported the PDF or CSV face. Only the JSON face is content addressed. |
 | `Signature Verification Failure` on a good report | The payload was built wrong. It is the domain tag plus the hex hash, not the report bytes. |
-| Same failure, correct payload | `-rawin` is missing, or `key_id` does not match `signing_key_id`. |
+| Same failure, correct payload | `-rawin` is missing. |
+| Exit 7, key id mismatch | The key on offer is not the one the report names. The server may have rotated it. |
+| Exit 8, trusted key mismatch | The bundle is self-consistent but signed by a key you do not trust. Treat it as a replacement until proven otherwise. |
 | `503` from the signing-key endpoint | The server has no signer wired, so it has no key to publish. |
 | Verified yesterday, fails today | An ephemeral key, and the service restarted. |
 

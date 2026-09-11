@@ -7,14 +7,14 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
-      # The report-verification fixture is byte-exact: its hash IS its
-      # identity, and appending so much as a newline invalidates the
-      # signature the published example verifies. Excluded from every hook
-      # that rewrites a file.
       - id: trailing-whitespace
-        exclude: ^(frontend/|.*\.min\.(js|css)$|docs/guides/examples/report-verification/)
+        exclude: ^frontend/|\.min\.(js|css)$
+      # end-of-file-fixer appends a newline, which moves the SHA-256 of a
+      # content-addressed file and invalidates the signature the published
+      # example verifies. Scoped to the two files whose hash IS their
+      # identity; every other file in that directory is fixed normally.
       - id: end-of-file-fixer
-        exclude: ^(frontend/|.*\.min\.(js|css)$|docs/guides/examples/report-verification/)
+        exclude: ^(frontend/|.*\.min\.(js|css)$|docs/guides/examples/report-verification/(counterexample/)?report\.json$)
       - id: check-yaml
         args: ['--unsafe']  # tolerate custom YAML tags
       - id: check-json
@@ -47,7 +47,6 @@ repos:
           )$
       - id: mixed-line-ending
         args: ['--fix=lf']
-        exclude: ^docs/guides/examples/report-verification/
 
   # Frontend quality + project-local hooks (via local hooks since we need npm)
   - repo: local
@@ -128,13 +127,19 @@ repos:
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
-        # The report-verification fixture is excluded because it publishes an
-        # Ed25519 PUBLIC key, which is base64 and high entropy and so trips the
-        # entropy detector. Publishing it is the point: a verifier needs it.
-        # JSON cannot carry an inline `pragma: allowlist secret`, and the
-        # private seed that signed the fixture is generated in the test and
-        # never written to the repository.
-        exclude: ^(package-lock\.json|.*\.lock|docs/guides/examples/report-verification/.*)$
+        # The report-verification fixture is NOT excluded. Its high-entropy
+        # strings are a published Ed25519 public key, a content hash and a
+        # signature, none of them secret, and they are recorded in
+        # .secrets.baseline by exact fingerprint instead. A baseline entry is
+        # stronger than an exclusion: editing any of those values changes the
+        # fingerprint and the hook fires again, where an exclusion would stay
+        # silent forever.
+        #
+        # The example's PRIVATE seed is not secret and is not claimed to be: it
+        # is written in the clear in internal/report/fixture_gen_test.go so the
+        # fixture can be regenerated, which is why that key is test-only and
+        # must never be reused.
+        exclude: ^(package-lock\.json|.*\.lock)$
 
   # Shell script linting
   # Note: Using --severity=error to only flag errors, not warnings/info

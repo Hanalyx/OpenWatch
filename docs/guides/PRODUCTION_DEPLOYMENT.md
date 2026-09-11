@@ -146,17 +146,24 @@ Then set `signing_key_file = "/etc/openwatch/keys/report_signing.key"` under
 `[reports]` and restart. Back the key up with your other secrets: losing it has
 the same effect as never having set one.
 
-Record the key fingerprint somewhere the OpenWatch host cannot change:
+Record the trust anchor somewhere the OpenWatch host cannot change. Derive it
+from the key file you just wrote, not from the running server:
 
 ```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  https://openwatch.example.com/api/v1/reports/signing-key
+sudo openssl pkey -inform DER -pubout -outform DER \
+  -in <(printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; \
+        sudo cat /etc/openwatch/keys/report_signing.key) \
+  | tail -c 32 | sha256sum
 ```
 
-Keep the `key_id` from that response with your other trust anchors. Anyone
-verifying a report needs it from a channel other than the server that served
-the report, or the check proves only that the server agrees with itself. See
-[Verifying a report](REPORT_VERIFICATION.md).
+Keep that SHA-256, or the complete base64 public key, with your other trust
+anchors. **Do not record only the `key_id`.** It is the first 8 bytes of that
+hash, 64 bits, and exists to correlate a report with a key rather than to
+anchor trust in one.
+
+Anyone verifying a report needs the anchor from a channel other than the server
+that served the report, or the check proves only that the server agrees with
+itself. See [Verifying a report](REPORT_VERIFICATION.md).
 
 Keep the database password out of the world-readable TOML by putting the DSN in
 `/etc/openwatch/secrets.env`, which the `systemd` unit loads via
