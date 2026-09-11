@@ -5,7 +5,9 @@
 > supported on the **RHEL family and on Ubuntu**, because those are the
 > platforms the bundled Kensa rule corpus covers. This page states, with
 > evidence, which distributions work for (1) running the OpenWatch server and
-> (2) being added as a managed/scanned host.
+> (2) being added as a managed and scanned host. **These are separate
+> questions with separate answers**: the server list comes from the release
+> gate, the scan list from the bundled rule corpus.
 
 **Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
 
@@ -23,10 +25,15 @@ v0.8.0 corpus, not from a live scan.
 - **Each rule declares the platforms it applies to**, so a host is only
   evaluated against rules that match its detected OS. Ubuntu hosts are scanned
   against the Ubuntu rule set; RHEL hosts against the RHEL rule set.
-- **Fedora, Debian, and SUSE remain inventory only**: the corpus carries no rules
-  for them, so a scan reports 0 applicable rules. This is intentional: running
-  rules written for another distro would report *wrong* compliance, so Kensa
-  skips rather than misreport.
+- **Fedora, Debian, and SUSE are inventory only as scan targets**: the corpus
+  carries no rules for them, so a scan reports 0 applicable rules. This is
+  intentional: running rules written for another distribution would report
+  *wrong* compliance, so Kensa skips rather than misreport. This is a statement
+  about scanning a host, not about where the server runs. Debian 12 is a
+  release-tested server platform and an inventory-only scan target at the same
+  time.
+- **The server runs on four release-tested platforms**: RHEL 9, AlmaLinux 10,
+  Ubuntu 24.04 LTS and Debian 12. See section 1.
 - **Host discovery and Server Intelligence are OS-agnostic** (plain SSH +
   portable probes), so they work on any SSH-reachable Linux, including the
   inventory-only distros.
@@ -35,17 +42,49 @@ v0.8.0 corpus, not from a live scan.
 
 ## 1. OpenWatch server (where the application runs)
 
-OpenWatch ships as native packages built for:
+OpenWatch ships as native packages. Four platforms are **release-tested**:
+each is a blocking platform in `release/gates.toml`, each has a CI job that
+runs `openwatch setup` on every push, and each returns `SupportTested` from
+`supportOf` in `internal/setup/platform.go`.
 
-| Platform | Form | Notes |
-|----------|------|-------|
-| **RHEL 9** | native **RPM** | The RPM install is smoke-tested in `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, and `fedora:41` containers. RHEL 9, Rocky 9, AlmaLinux 9, and Oracle Linux 9 are binary-compatible. |
-| **Ubuntu 24.04 LTS** | native **DEB** | The DEB install is smoke-tested in `ubuntu:24.04` and `debian:12` containers. |
+| Release-tested platform | Form |
+|----------|------|
+| **RHEL 9** | native **RPM** |
+| **AlmaLinux 10** | native **RPM** |
+| **Ubuntu 24.04 LTS** | native **DEB** |
+| **Debian 12** | native **DEB** |
 
-RHEL 9 and Ubuntu 24.04 LTS are the released, supported server platforms; the
-other RPM and DEB distributions above are covered by the package install
-smoke test. Any distribution may run the server from source (Go 1.26 +
-PostgreSQL 14 or newer).
+**"Release-tested" describes what CI proves, not a commercial support or
+service-level promise.** It means a job installs the package on that platform
+on every push and asserts the result, and that a release cannot be promoted
+while that job is failing.
+
+**AlmaLinux 10 is release-tested; RHEL 10 is not.** The matrix has an
+AlmaLinux 10 image and no RHEL 10 image, so the claim stops where the evidence
+stops rather than extending to the whole EL10 line.
+
+### Wider package-install coverage
+
+A second CI job installs the built package and checks its files on a longer
+list of images: `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, `fedora:41`,
+`almalinux:10`, `ubuntu:24.04` and `debian:12`. That job proves the package
+installs. It does **not** run `openwatch setup`, stand up PostgreSQL, or start
+the service, so it is a weaker claim than release-tested.
+
+RHEL 9, Rocky 9, AlmaLinux 9 and Oracle Linux 9 are binary-compatible, so the
+RPM behaves the same on them. `openwatch setup` still classifies the rebuilds
+as **untested** and asks for `--allow-untested`, because only `ID=rhel` at
+major 9 is release-tested. The CI job that installs on `rockylinux:9` passes
+that flag for exactly this reason: no container can be a licensed RHEL host.
+
+**Fedora and SUSE are not supported server platforms.** `openwatch setup`
+classifies Fedora as *unsupported*: it is recognized as RHEL-family, but its
+major version falls outside the 8 to 10 range the setup code models. SUSE is
+not recognized as any family, so it is unsupported too. The Fedora entry in
+the package-install list above proves only that the RPM unpacks there.
+
+Any distribution may run the server from source (Go 1.26 + PostgreSQL 14 or
+newer). That is unsupported in the sense above: nothing in CI proves it.
 
 > The server OS is **independent** of the managed-host OS. You can run the
 > OpenWatch server on Ubuntu and scan RHEL hosts, or vice-versa.
@@ -77,9 +116,15 @@ OS family:
 A rule can apply to several platforms, so these counts overlap; the Kensa
 v0.8.0 corpus total is 769 distinct rules.
 
-### Support matrix
+### Support matrix for managed hosts
 
-| Distribution | Discovery | Intelligence | Compliance scan | Overall |
+**This table is about hosts you add and scan, not about where the server
+runs.** The two are independent, and a distribution can sit in different rows
+of each. Debian 12 is the clearest case: it is a **release-tested server
+platform** (section 1) and an **inventory-only scan target**, because the
+bundled rule corpus carries no Debian rules. Neither fact softens the other.
+
+| Distribution | Discovery | Intelligence | Compliance scan | Overall as a scanned host |
 |--------------|-----------|--------------|-----------------|---------|
 | **RHEL 8 / 9 / 10** | Supported | Supported | Supported, full | **Supported** |
 | **Rocky Linux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
@@ -88,17 +133,18 @@ v0.8.0 corpus total is 769 distinct rules.
 | **Oracle Linux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
 | **Ubuntu 22.04 / 24.04 LTS** | Supported | Supported | Supported (117 applicable rules) | **Supported** |
 | **Fedora** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
-| **Debian 12** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
+| **Debian 12** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** as a scan target. Release-tested as a *server* platform. |
 | **SUSE / openSUSE / SLES** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
 | **Alpine / Arch / Gentoo / other** | Supported (best-effort) | Partial | Not supported, **all rules skip** | **Unsupported** |
 
 Legend: **Supported** means the phase works; **Partial** means partial or
 unverified support; **Not supported** means no coverage for that phase.
 
-> **"Inventory only"** means discovery + Server Intelligence populate the host
-> (OS, packages, services, and so on) but there is **no compliance posture**: every
-> scan reports 0 applicable rules. These distros are *recognized*, but not
-> *scannable* with today's corpus.
+> **"Inventory only"** means discovery and Server Intelligence populate the
+> host (OS, packages, services, and so on) but there is **no compliance
+> posture**: every scan reports 0 applicable rules. These distributions are
+> *recognized*, but not *scannable* with today's corpus. This says nothing
+> about whether the OpenWatch server runs on them; see section 1 for that.
 
 ---
 

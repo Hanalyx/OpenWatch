@@ -26,7 +26,12 @@ import (
 type Support string
 
 const (
-	// SupportTested means CI exercises this platform. v0.7.0: RHEL 9 only.
+	// SupportTested means a CI job runs `openwatch setup` on this platform on
+	// every push and asserts the result, and that the platform is blocking in
+	// release/gates.toml. The set is whatever that file marks blocking, so
+	// this comment names no list: the previous one said "v0.7.0: RHEL 9 only"
+	// and was three platforms out of date while supportOf right below it
+	// returned SupportTested for four.
 	SupportTested Support = "tested"
 	// SupportUntested means the family is recognized and the paths are
 	// believed correct, but nothing proves it. Requires --allow-untested.
