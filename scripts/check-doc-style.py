@@ -102,7 +102,7 @@ READING_EXEMPT = {
         "it is the only file in this corpus above the gate. It is not scored at all under v5, "
         "which counted the whole checklist as one unit and left it under MIN_SENTENCES. Rewriting "
         "a form to move a prose metric is the wrong repair, so it is capped and left visible "
-        "rather than edited. Proposed upstream as bugs/SP-HP-032: form templates should join the "
+        "rather than edited. Proposed upstream as bugs/HP-OW-019: form templates should join the "
         "document-class scope rule the way strategy documents already have. This entry may only "
         "ever shrink.",
     ),
@@ -336,7 +336,7 @@ EMOJI_EXT = (".md", ".yml", ".yaml", ".json")
 # scripts. The same reasoning covers .mts and .cts on the TypeScript side.
 # LOCAL CARRY-FORWARD, not in shared v6: .sql. The gate read no SQL at all, so the comments in
 # 64 tracked migrations were invisible to it. Filed as Context Plane bugs/OW-015 and proposed
-# upstream as bugs/SP-HP-033. Remove this local edit once a shared release carries it.
+# upstream as bugs/HP-OW-020. Remove this local edit once a shared release carries it.
 CODE_EXT = (".go", ".ts", ".tsx", ".mts", ".cts", ".py", ".js", ".jsx", ".mjs", ".cjs",
             ".sql")
 GLOBS = ["*.md", "*.yml", "*.yaml", "*.json", "*.go", "*.ts", "*.tsx", "*.mts", "*.cts",
