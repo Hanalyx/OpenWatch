@@ -8,6 +8,9 @@
 package packaging_test
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -726,6 +729,262 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 			out, err := suite.CombinedOutput()
 			if err != nil {
 				t.Errorf("the doc-style gate suite failed: %v\n%s", err, out)
+			}
+		}
+
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}
+
+// negation marks a line that WARNS against a claim rather than making it. The
+// verification guide tells readers not to verify against the report bytes, and
+// a forbidden-claim scan that could not tell those apart would fail on the very
+// sentence that prevents the mistake.
+var negation = regexp.MustCompile(`(?i)\b(not|never|cannot|can't|don't|doesn't|instead of|rather than|no longer)\b`)
+
+// @ac AC-13
+// AC-13: the shipped score semantics and the report-verification trust
+// boundary are published, tracked and reachable, and the published procedure
+// is EXECUTED against a production-generated artifact rather than read. Each
+// input is mutated independently and must fail for its own reason.
+func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
+	t.Run("release-ci-gates/AC-13", func(t *testing.T) {
+		dir := appDir(t)
+		all := specfixture.Load(t, filepath.Join(dir, "specs/release/ci-gates.spec.yaml"), "release-ci-gates")
+		ac := specfixture.Get(t, all, "AC-13")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		docs := map[string]string{
+			"verification_guide": in.Str("verification_guide"),
+			"scoring_guide":      in.Str("scoring_guide"),
+			"api_guide":          in.Str("api_guide"),
+		}
+		index := in.Str("index")
+		script := in.Str("example_script")
+		fixtureDir := in.Str("fixture_dir")
+		keyEndpoint := in.Str("signing_key_endpoint")
+		obsolete := in.Str("obsolete_endpoint")
+		domain := in.Str("signing_domain")
+
+		// ---- Tracked and reachable. A guide nobody can navigate to is a file.
+		if exp.Bool("guide_is_tracked_and_reachable_from_the_index") {
+			for _, p := range []string{docs["verification_guide"], script, index} {
+				cmd := exec.Command("git", "ls-files", "--error-unmatch", p)
+				cmd.Dir = dir
+				if err := cmd.Run(); err != nil {
+					t.Errorf("%s is not tracked", p)
+				}
+			}
+			idx := readAppFile(t, index)
+			rel := strings.TrimPrefix(docs["verification_guide"], "docs/")
+			if !strings.Contains(idx, rel) {
+				t.Errorf("%s does not link %s", index, rel)
+			}
+		}
+
+		// ---- The required statements, matched in the published files.
+		for _, r := range in.MapList("required_statements") {
+			docKey := r.Str("doc")
+			want := r.Str("contains")
+			r.AllConsumed()
+			path, ok := docs[docKey]
+			if !ok {
+				t.Fatalf("AC-13 names an unknown doc key %q", docKey)
+			}
+			if !strings.Contains(readAppFile(t, path), want) {
+				t.Errorf("%s does not state %q", path, want)
+			}
+		}
+
+		// The three coverage statuses, exactly, in the scoring guide.
+		scoring := readAppFile(t, docs["scoring_guide"])
+		for _, st := range in.List("coverage_statuses") {
+			if !strings.Contains(scoring, st.(string)) {
+				t.Errorf("%s does not name coverage status %q", docs["scoring_guide"], st)
+			}
+		}
+
+		// The verification guide must name the live endpoint and the signing
+		// domain, and must not name the obsolete one anywhere.
+		verification := readAppFile(t, docs["verification_guide"])
+		if !strings.Contains(verification, keyEndpoint) {
+			t.Errorf("%s does not name %s", docs["verification_guide"], keyEndpoint)
+		}
+		if !strings.Contains(verification, domain) {
+			t.Errorf("%s does not name the signing domain %q", docs["verification_guide"], domain)
+		}
+
+		// ---- Forbidden claims, across every tracked guide.
+		if exp.Bool("forbidden_claims_absent") {
+			// The obsolete endpoint must be one of the scanned claims, not a
+			// separate check: a plain containment test fires on the sentence
+			// warning readers away from it.
+			var claimed bool
+			for _, c := range in.MapList("forbidden_claims") {
+				if c.Str("pattern") == obsolete {
+					claimed = true
+				}
+			}
+			if !claimed {
+				t.Errorf("AC-13 does not scan for the obsolete endpoint %s", obsolete)
+			}
+			var guides []string
+			out, err := exec.Command("git", "-C", dir, "ls-files", "docs/*.md", "docs/guides/*.md", "docs/guides/runbooks/*.md").Output()
+			if err != nil {
+				t.Fatalf("git ls-files: %v", err)
+			}
+			guides = strings.Fields(string(out))
+			if len(guides) == 0 {
+				t.Fatal("no tracked guides found; the scan would pass vacuously")
+			}
+			for _, c := range in.MapList("forbidden_claims") {
+				id := c.Str("id")
+				re, err := regexp.Compile(c.Str("pattern"))
+				c.AllConsumed()
+				if err != nil {
+					t.Fatalf("AC-13 claim %s has an invalid pattern: %v", id, err)
+				}
+				for _, g := range guides {
+					for n, ln := range strings.Split(readAppFile(t, g), "\n") {
+						if negation.MatchString(ln) {
+							continue
+						}
+						if re.MatchString(ln) {
+							t.Errorf("forbidden claim %s at %s:%d: %q", id, g, n+1, strings.TrimSpace(ln))
+						}
+					}
+				}
+			}
+		}
+
+		// ---- Execute the published procedure against the production artifact.
+		fx := filepath.Join(dir, fixtureDir)
+		run := func(report, meta, key string) int {
+			cmd := exec.Command(filepath.Join(dir, script), report, meta, key)
+			cmd.Dir = fx
+			if err := cmd.Run(); err != nil {
+				var ee *exec.ExitError
+				if errors.As(err, &ee) {
+					return ee.ExitCode()
+				}
+				t.Fatalf("running %s: %v", script, err)
+			}
+			return 0
+		}
+		report := filepath.Join(fx, "report.json")
+		meta := filepath.Join(fx, "report.meta.json")
+		key := filepath.Join(fx, "signing-key.json")
+
+		if exp.Bool("example_verifies_a_production_generated_artifact") {
+			if code := run(report, meta, key); code != 0 {
+				t.Fatalf("the published procedure failed on the shipped artifact: exit %d", code)
+			}
+		}
+
+		tmp := t.TempDir()
+		mutateJSON := func(name, src string, edit func(map[string]any)) string {
+			raw, err := os.ReadFile(src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			if err := json.Unmarshal(raw, &m); err != nil {
+				t.Fatal(err)
+			}
+			edit(m)
+			out, _ := json.Marshal(m)
+			p := filepath.Join(tmp, name)
+			if err := os.WriteFile(p, out, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+
+		if exp.Bool("content_mutation_fails") {
+			raw, _ := os.ReadFile(report)
+			bad := filepath.Join(tmp, "content.json")
+			if err := os.WriteFile(bad, append(raw, ' '), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if code := run(bad, meta, key); code != 2 {
+				t.Errorf("mutated content: exit %d, want 2 (content hash mismatch)", code)
+			}
+		}
+		if exp.Bool("declared_hash_mutation_fails") {
+			bad := mutateJSON("hash.meta.json", meta, func(m map[string]any) {
+				s := m["content_sha256"].(string)
+				m["content_sha256"] = "0" + s[1:]
+			})
+			if code := run(report, bad, key); code != 2 {
+				t.Errorf("mutated declared hash: exit %d, want 2", code)
+			}
+		}
+		if exp.Bool("signature_mutation_fails") {
+			bad := mutateJSON("sig.meta.json", meta, func(m map[string]any) {
+				raw, _ := base64.StdEncoding.DecodeString(m["signature"].(string))
+				raw[0] ^= 0x01
+				m["signature"] = base64.StdEncoding.EncodeToString(raw)
+			})
+			if code := run(report, bad, key); code != 3 {
+				t.Errorf("mutated signature: exit %d, want 3", code)
+			}
+		}
+		if exp.Bool("untrusted_key_fails") {
+			bad := mutateJSON("key.json", key, func(m map[string]any) {
+				other := make([]byte, 32)
+				other[0] = 0x42
+				m["public_key"] = base64.StdEncoding.EncodeToString(other)
+			})
+			if code := run(report, meta, bad); code != 3 {
+				t.Errorf("untrusted key: exit %d, want 3", code)
+			}
+		}
+		if exp.Bool("unsigned_artifact_is_reported_distinctly") {
+			bad := mutateJSON("unsigned.meta.json", meta, func(m map[string]any) {
+				m["signature"] = nil
+			})
+			if code := run(report, bad, key); code != 4 {
+				t.Errorf("unsigned artifact: exit %d, want 4 (distinct from an invalid signature)", code)
+			}
+		}
+
+		// ---- The payload shape. These two are the mistakes the guide exists to
+		// prevent, so they are driven rather than described: verifying over the
+		// bare hash, or over the canonical JSON, must NOT succeed.
+		if exp.Bool("payload_prefix_mutation_fails") {
+			var metaDoc struct {
+				ContentSHA256 string `json:"content_sha256"`
+				Signature     string `json:"signature"`
+			}
+			var keyDoc struct {
+				PublicKey string `json:"public_key"`
+			}
+			raw, _ := os.ReadFile(meta)
+			if err := json.Unmarshal(raw, &metaDoc); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ = os.ReadFile(key)
+			if err := json.Unmarshal(raw, &keyDoc); err != nil {
+				t.Fatal(err)
+			}
+			pub, _ := base64.StdEncoding.DecodeString(keyDoc.PublicKey)
+			sig, _ := base64.StdEncoding.DecodeString(metaDoc.Signature)
+			body, _ := os.ReadFile(report)
+
+			correct := append([]byte(domain+"\n"), []byte(metaDoc.ContentSHA256)...)
+			if !ed25519.Verify(pub, correct, sig) {
+				t.Fatal("the contract's domain-separated payload does not verify; the fixture or the domain is wrong")
+			}
+			for name, payload := range map[string][]byte{
+				"bare hash with no domain tag": []byte(metaDoc.ContentSHA256),
+				"the canonical JSON itself":    body,
+				"wrong domain version":         append([]byte("openwatch/report-snapshot/v2\n"), []byte(metaDoc.ContentSHA256)...),
+			} {
+				if ed25519.Verify(pub, payload, sig) {
+					t.Errorf("signature verified over %s; the signed payload is not what the contract says", name)
+				}
 			}
 		}
 

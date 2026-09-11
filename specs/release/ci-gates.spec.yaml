@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 1
 
@@ -109,6 +109,37 @@ spec:
         A reading-level exemption MAY cap a named file that is not continuous prose, and MUST cap ONLY that
         file and ONLY the reading level. Every other rule stays binding inside an exempt file, and no other
         path inherits its cap.
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: >-
+        The shipped compliance-score semantics and the report-verification trust boundary MUST be
+        documented in TRACKED, reachable operator documentation, and those statements MUST be
+        testable against the published files rather than reviewed by reading.
+
+        Scoring. The published text MUST state that score_pct is nullable and that absence means no
+        rule produced a pass or fail verdict, which is not zero; that a genuine zero is a scored
+        result; that the formula is passing over passing plus failing, so a skipped, inapplicable or
+        errored rule enters neither side; that coverage is a separate axis carrying exactly the three
+        contract statuses, with a percentage only under available; that a fleet or group score is an
+        equal-host mean over scored hosts and never a pooled rule-row ratio, with unscored hosts
+        excluded from the mean but still counted in participation; and that a mixed-formula day has
+        no score and yields no delta, comparison or direction. Legacy compliance_pct and current
+        score_pct MUST be described as not comparable. The complete envelope stays in OpenAPI; the
+        guides MUST refer to it rather than duplicate evolving provenance fields.
+
+        Verification. A TRACKED operator procedure MUST exist, be reachable from the documentation
+        index, and be based on the current canonical JSON export. It MUST verify that the canonical
+        bytes hash to content_sha256 and that the Ed25519 signature covers the domain-separated
+        payload the approved contract defines, NOT the report bytes. It MUST name
+        /api/v1/reports/signing-key and MUST NOT name the obsolete plural endpoint. It MUST state
+        that a key fetched from the server that served the report proves internal consistency only,
+        and that authenticity requires a key or fingerprint obtained through an independently trusted
+        channel. Ephemeral keys and unsigned artifacts MUST be described accurately.
+
+        Every command in that procedure MUST be exercised against a PRODUCTION-GENERATED artifact.
+        A hand-built fixture proves the example agrees with itself, which is the one thing nobody
+        needs to know.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -276,3 +307,76 @@ spec:
         gate_runs_with_site_packages_disabled: true
       priority: critical
       references_constraints: [C-08]
+    - id: AC-13
+      description: >-
+        The score semantics and the verification trust boundary are published, tracked and reachable,
+        and the published procedure is executed rather than read.
+
+        The example script is run against an artifact produced by the report service's own Generate
+        and Export calls, and it passes. Then each input is mutated independently and each must fail
+        for its own reason: the content, the declared hash, the signature, the payload prefix, and the
+        trusted key. The payload mutations include the two shapes a reader is most likely to try,
+        the bare hash with no domain tag and the canonical JSON itself, because a procedure that
+        accepted either would be verifying something other than what was signed.
+
+        Required statements are matched in the published files. Forbidden claims are matched too, over
+        lines that carry no negation, so a guide WARNING against a wrong claim is not read as making
+        it.
+      inputs:
+        verification_guide: docs/guides/REPORT_VERIFICATION.md
+        scoring_guide: docs/guides/SCANNING_AND_COMPLIANCE.md
+        api_guide: docs/guides/API_GUIDE.md
+        index: docs/README.md
+        example_script: docs/guides/examples/report-verification/verify.sh
+        fixture_dir: docs/guides/examples/report-verification
+        signing_key_endpoint: /api/v1/reports/signing-key
+        obsolete_endpoint: /api/signing/public-keys
+        signing_domain: 'openwatch/report-snapshot/v1'
+        coverage_statuses:
+          - available
+          - unavailable_unclassified_skips
+          - unavailable_no_outcomes
+        # Each entry names the file and a literal that must appear in it, so the
+        # fixture drives the check instead of describing it.
+        required_statements:
+          - doc: scoring_guide
+            contains: 'passing / (passing + failing)'
+          - doc: scoring_guide
+            contains: 'A missing score is not a zero'
+          - doc: scoring_guide
+            contains: 'equal-host mean'
+          - doc: scoring_guide
+            contains: 'not comparable'
+          - doc: scoring_guide
+            contains: 'A mixed day carries no score'
+          - doc: api_guide
+            contains: 'Do not coerce `null` to `0`'
+          - doc: verification_guide
+            contains: 'proves consistency, not authenticity'
+          - doc: verification_guide
+            contains: 'independently trusted'
+        forbidden_claims:
+          - id: absent_score_is_zero
+            pattern: '(?i)(missing|absent|no)\s+score[^.\n]{0,40}\b(is|as|equals?)\b[^.\n]{0,12}\b(0|zero)\b'
+          - id: skipped_counts_as_failure
+            pattern: '(?i)skipped[^.\n]{0,60}(count|treated|scored)[^.\n]{0,20}(as|toward)[^.\n]{0,20}fail'
+          - id: old_pooled_formula
+            pattern: 'passed_rules\s*/\s*total_rules'
+          - id: pooled_fleet_arithmetic
+            pattern: '(?i)pooled[^.\n]{0,30}(fleet|aggregate|score)'
+          - id: same_server_key_proves_authenticity
+            pattern: '(?i)signing-key[^.\n]{0,60}(proves|confirms|establishes)[^.\n]{0,20}authentic'
+          - id: obsolete_signing_endpoint
+            pattern: '/api/signing/public-keys'
+      expected_output:
+        guide_is_tracked_and_reachable_from_the_index: true
+        example_verifies_a_production_generated_artifact: true
+        content_mutation_fails: true
+        declared_hash_mutation_fails: true
+        signature_mutation_fails: true
+        payload_prefix_mutation_fails: true
+        untrusted_key_fails: true
+        unsigned_artifact_is_reported_distinctly: true
+        forbidden_claims_absent: true
+      priority: critical
+      references_constraints: [C-09]
