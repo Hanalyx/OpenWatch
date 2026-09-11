@@ -363,8 +363,8 @@ Include when escalating:
 
 ## Not yet implemented
 
-As of OpenWatch `v0.5.0`, the following do not exist in the current code and
-must not be relied on in this runbook:
+Verified against the tree on 2026-09-11. The following do not exist and must
+not be relied on in this runbook:
 
 - **A packaged systemd unit for the scan worker.** Only `openwatch.service`
   (running `serve`) ships today. Running `openwatch worker` under systemd is the
@@ -375,5 +375,5 @@ must not be relied on in this runbook:
 - **Separate `/livez` / `/readyz` probes.** Liveness and readiness are combined in
   the single `GET /api/v1/health` endpoint.
 - **A backup/restore subcommand.** Use standard PostgreSQL tooling
-  (`pg_dump` / `pg_basebackup`). The CLI subcommands are `serve`, `worker`,
-  `migrate`, `create-admin`, and `check-config`.
+  (`pg_dump` / `pg_basebackup`). Run `openwatch --help` for the current
+  subcommand list rather than trusting one written down here.

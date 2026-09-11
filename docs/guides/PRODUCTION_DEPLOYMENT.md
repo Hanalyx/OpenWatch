@@ -13,8 +13,8 @@ repeat those steps; it focuses on production concerns the install guide only
 touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
-> Verify the version you deploy. The current general-availability release is
-> `v0.5.0`. Confirm with `openwatch --version` before and after an upgrade.
+> Verify the version you deploy. Confirm it with `openwatch --version` before
+> and after an upgrade, and compare the two.
 
 ---
 

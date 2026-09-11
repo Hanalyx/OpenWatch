@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-769 rules in the corpus (Kensa v0.8.0; check commands, config values, file permissions). The number evaluated on a given host is lower: rules resolve per operating system
+the bundled Kensa rule corpus (check commands, config values, file permissions). The number evaluated on a given host is lower: rules resolve per operating system
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
@@ -56,7 +56,7 @@ Key points:
 |-----------|------------|-------|
 | CIS RHEL 9 v2.0.0 | cis-rhel9-v2.0.0 | 271 |
 | STIG RHEL 9 V2R7 | stig-rhel9-v2r7 | 338 |
-| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (Ubuntu rules: ~117 on 24.04, ~115 on 22.04) |
+| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (see Ubuntu rule applicability in the distribution support guide) |
 | STIG Ubuntu 22.04 | stig-ubuntu22 | (see Ubuntu rule applicability above) |
 | NIST 800-53 Rev 5 | nist-800-53-r5 | 87 |
 | PCI-DSS v4.0 | pci-dss-v4.0 | 45 |

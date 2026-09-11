@@ -19,8 +19,9 @@ For first-time install and configuration, see the
 commands referenced below, see the [backup and recovery guide](BACKUP_RECOVERY.md). For
 migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md).
 
-> Version note: `v0.5.0` is the current general-availability release. Always back
-> up before upgrading; the upgrade path runs database migrations automatically.
+> Always back up before upgrading; the upgrade path runs database migrations
+> automatically. Check the version you are on with `openwatch --version` before
+> you start, and again afterwards.
 
 ## Quick upgrade (automatic, recommended)
 

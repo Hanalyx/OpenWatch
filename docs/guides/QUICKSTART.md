@@ -56,7 +56,7 @@ A healthy response looks like this:
 ```
 
 `version` reflects how the binary was built: a packaged release reports its
-semver (for example `0.5.0`); a bare `go build` without the Makefile's
+semver (for example `1.2.3`); a bare `go build` without the Makefile's
 `-ldflags` reports `dev`.
 
 A healthy response is always `status: "healthy"`, `db_connected: true`. When

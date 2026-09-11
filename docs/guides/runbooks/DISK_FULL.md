@@ -277,15 +277,18 @@ retention planning.
 
 ## Not yet implemented
 
-As of OpenWatch `v0.5.0`, the following do not exist in the current code and
-must not be relied on:
+Verified against the tree on 2026-09-11. The following do not exist and must
+not be relied on:
 
-- **Automated retention / pruning jobs** for `audit_events` or other tables.
-  Cleanup is manual (path C). This is roadmap work.
+- **Automated retention for `audit_events`.** Cleanup of that table is manual
+  (path C). A scheduled sweeper does exist for `idempotency_keys`,
+  `sso_auth_states` and `auth_mfa_otp_uses` (`internal/retention`), so "no
+  automated retention at all" is no longer true; `audit_events` is recorded
+  there as undecided and is not swept.
 - **A Prometheus or metrics endpoint** exposing disk or database size. Use host-
   level monitoring instead. The only built-in HTTP probe is
   `GET /api/v1/health`, which reports liveness and database connectivity, not
   capacity.
 - **A backup or restore command in the `openwatch` CLI.** Use standard PostgreSQL
-  tooling (`pg_dump` / `pg_basebackup`) for backups. The CLI subcommands are
-  `serve`, `worker`, `migrate`, `create-admin`, and `check-config`.
+  tooling (`pg_dump` / `pg_basebackup`) for backups. Run `openwatch --help` for
+  the current subcommand list rather than trusting one written down here.
