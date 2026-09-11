@@ -120,8 +120,15 @@ first. If the spec and code disagree, the (human-approved) spec wins.
   team actions, never for the product, and state capabilities as team facts with
   numbers. The guide is the source of truth and lives in the Hanalyx Context
   Plane at `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives
-  at `dev/tools/doc-style-check`. Fix a finding rather than suppress it. A
-  cleared term can carry `<!-- doc-style: allow -->` on its line, with a
+  at `dev/tools/doc-style-check`. **The adopted checker version is pinned in
+  `.doc-style-version`**, and the gate refuses to scan with a checker that
+  disagrees with it. That pin is the single source: no Makefile target, workflow
+  or hook repeats the number. It exists because the checker is refetched whole
+  on an upgrade, and a superseded copy once stayed authoritative here for a
+  month while four already-fixed defects were live. Change the pin only together
+  with the checker, and re-derive `READING_GATE` when you do, because a new
+  version can change what the grades mean. Fix a finding rather than suppress
+  it. A cleared term can carry `<!-- doc-style: allow -->` on its line, with a
   reason.
 - **Security is not optional**: parameterized SQL only, argument-list exec (never
   a shell), RBAC + license gates on handlers, audit auth/authz events, secrets

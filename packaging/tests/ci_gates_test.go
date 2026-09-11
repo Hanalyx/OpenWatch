@@ -478,12 +478,17 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 		exp := specfixture.ExpectedOf(t, ac)
 
 		checker := in.Str("checker")
+		gate := in.Str("shared_gate")
+		pinFile := in.Str("pin_file")
+		wantVersion := in.Str("pinned_version")
 		target := in.Str("make_target")
 		mode := in.Str("default_mode")
 		dashS := in.Str("interpreter_flag")
 		hookID := in.Str("precommit_hook_id")
 		forbidden := in.Str("forbidden_in_callers")
 		excluded := in.Str("excluded_from_gate")
+		exemptPath := in.Str("reading_exempt_path")
+		exemptCap := in.Str("reading_exempt_cap")
 
 		callers := in.MapList("callers")
 		if len(callers) == 0 {
@@ -550,8 +555,11 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 			}
 		}
 
-		// The make target itself must default to the full tree. Without this
-		// every caller could reach a shared target that checks nothing.
+		// The make target must reach the full tree. The mode now lives in the
+		// gate rather than the recipe, so the recipe is checked for reaching
+		// the gate and the gate is checked for the mode. Asserting it on the
+		// recipe alone would pass a gate that scans nothing.
+		gateSrc := readAppFile(t, gate)
 		if requireFullTree {
 			mk := readAppFile(t, "Makefile")
 			recipe := []string{}
@@ -573,8 +581,79 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 				t.Fatalf("no %s recipe in the Makefile", target)
 			}
 			joined := strings.Join(codeLines(strings.Join(recipe, "\n")), "\n")
-			if !strings.Contains(joined, mode) {
-				t.Errorf("`make %s` does not default to %s; recipe is %q", target, mode, joined)
+			if !strings.Contains(joined, gate) {
+				t.Errorf("`make %s` does not run %s; recipe is %q", target, gate, joined)
+			}
+			if strings.Contains(joined, checker) {
+				t.Errorf("`make %s` calls the checker directly, skipping the version gate", target)
+			}
+			if !strings.Contains(gateSrc, mode) {
+				t.Errorf("%s does not scan with %s", gate, mode)
+			}
+		}
+
+		// ---- The version pin. One tracked file, compared before scanning.
+		if exp.Bool("pin_is_read_from_one_file") {
+			if got := strings.TrimSpace(readAppFile(t, pinFile)); got != wantVersion {
+				t.Errorf("%s pins %q, spec requires %q", pinFile, got, wantVersion)
+			}
+			if !strings.Contains(gateSrc, pinFile) {
+				t.Errorf("%s does not read the pin from %s", gate, pinFile)
+			}
+		}
+		if exp.Bool("checker_version_is_compared_before_scanning") {
+			// The SPECIFIC guard. A looser match stayed true with the
+			// comparison deleted, because the gate names both versions in
+			// its failure message and in its prose.
+			if !strings.Contains(gateSrc, "if got != want:") {
+				t.Error("the gate must compare the reported version against the pin")
+			}
+			vi := strings.Index(gateSrc, "def check_version(")
+			si := strings.Index(gateSrc, "def run_scan(")
+			if vi < 0 || si < 0 || vi > si {
+				t.Error("the gate must define its version check before its scan")
+			}
+		}
+		if exp.Bool("no_caller_repeats_the_version") {
+			// A DECLARATION, not a mention: the pinned value is a bare digit,
+			// so a substring search would match half the workflow. Comments
+			// are stripped because every caller explains the pin in prose.
+			decl := regexp.MustCompile(`(?i)version["'\s:=-]+["']?` + regexp.QuoteMeta(wantVersion) + `\b`)
+			for _, c := range []string{"Makefile", ".github/workflows/go-ci.yml", ".pre-commit-config.yaml"} {
+				for _, code := range codeLines(readAppFile(t, c)) {
+					if decl.MatchString(code) {
+						t.Errorf("%s declares its own checker version: %q", c, strings.TrimSpace(code))
+					}
+				}
+			}
+		}
+
+		// ---- The reading-level exemption is a hole in the gate, so its shape
+		// is part of the contract: one path, one rule.
+		if exp.Bool("exemption_is_reading_level_only") {
+			src := readAppFile(t, checker)
+			if !strings.Contains(src, exemptPath) {
+				t.Errorf("%s does not cap %s", checker, exemptPath)
+			}
+			if !strings.Contains(src, exemptCap) {
+				t.Errorf("%s does not record the cap %s", checker, exemptCap)
+			}
+			// READING_EXEMPT must be consulted ONLY by the reading-level
+			// check. A second reader would widen the cap to other rules.
+			uses := strings.Count(src, "READING_EXEMPT.get(")
+			if uses == 0 {
+				t.Error("READING_EXEMPT is declared and never read")
+			}
+			for _, fn := range []string{"line_findings", "def check_emoji"} {
+				if i := strings.Index(src, fn); i >= 0 {
+					seg := src[i:]
+					if j := strings.Index(seg, "\ndef "); j > 0 {
+						seg = seg[:j]
+					}
+					if strings.Contains(seg, "READING_EXEMPT") {
+						t.Errorf("%s consults READING_EXEMPT; the cap must cover the reading level only", fn)
+					}
+				}
 			}
 		}
 

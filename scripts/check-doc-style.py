@@ -70,21 +70,52 @@ import sys
 
 VERSION = "6"
 
+# --- OpenWatch adoption record ------------------------------------------------------------------
+# This file is the SHARED checker, owned by hanalyx-platform-agent and published at Context Plane
+# dev/tools/doc-style-check. It is refetched WHOLE on an upgrade, so this block is rewritten with
+# it and cannot drift away from the version above. `.doc-style-version` pins what we adopted and
+# scripts/doc-style-gate.py refuses to scan when the two disagree.
+#
+#   fetched  commit 853953aa837c0c6f3005dc6714a456c5f943b46c
+#   sha256   a6e6fbbc1adbec5dc7aff603a373f9657d1f92fcef16c09560aac8ff2d506663, verified on fetch
+#   adopted  2026-09-11
+#
+# Local edits on top, each marked where it sits:
+#   1. READING_GATE and READING_EXEMPT, re-derived from this corpus. Re-derive them again on the
+#      next upgrade; a new version can change what the grades mean.
+#   2. .sql added to CODE_EXT, GLOBS and COMMENT_STARTS. The shared release predates it and
+#      without it the gate reads none of the 64 tracked migrations (bugs/OW-015, upstream
+#      bugs/HP-OW-020). Drop this edit once a shared release carries it.
+#
+# Re-verify the hash after refetching and BEFORE tuning: the published hash covers the file as
+# fetched, so a correctly adopted copy stops matching once the two edits above are reapplied.
+
 # --- Reading level ----------------------------------------------------------------------------
 # The writing TARGET from the style guide. Not the gate: it is what an author aims at.
 READING_TARGET = 10.0
-# The failing gate, set by measuring this repo's corpus (--grades) rather than picked to be safe.
+# The failing gate, set by measuring THIS repo's corpus (--grades) rather than picked to be safe.
 # A gate no file exceeds proves only that the check ran.
 #
-# Re-derived for v6, because the v5 measurement was biased: a bullet block counted as one long
-# sentence, so list-heavy documents read denser than they are (bugs/HP-OW-018 defect 3). Corrected
-# distribution over 87 scored files: median 9.4, p75 10.4, p90 11.5, max 14.9. The v5 numbers were
-# median 9.8 and max 15.2 over 77 files; ten more files now score, because splitting bullet blocks
-# pushes them past the MIN_SENTENCES floor.
+# Measured for OpenWatch on 2026-09-11 under v6, over 30 scored files:
 #
-# 12.5 sits just above p90 and fails 4 files. 13.0 would fail 3 and 12.0 would fail 6. Picked 12.5
-# rather than keeping 13.0: the metric got stricter, so holding the old number would have quietly
-# loosened the gate, which is the drift this comment exists to prevent.
+#   median 8.9   p75 9.8   p90 10.8   max 12.1   min 7.4
+#
+# The 12.1 maximum is .github/pull_request_template.md, which is a checkbox form rather than
+# continuous prose and is capped in READING_EXEMPT below. Excluding it, the densest real document
+# is docs/guides/runbooks/SECURITY_INCIDENT.md at 11.4.
+#
+# 11.5 sits just above p90 and just above that densest document, so the next file to drift becomes
+# a finding. 11.0 would fail SECURITY_INCIDENT.md, which is dense but not unclear, and the repair
+# would be rewriting a runbook to move a number. 12.0 and 12.5 fail nothing at all: both sit above
+# every prose file in the corpus, and a gate like that proves only that the check ran.
+#
+# Re-derived rather than carried over, for two reasons. The previous gate of 12.0 was calibrated
+# under v5, whose measurement was biased upward: a bullet block counted as one long sentence, so
+# list-heavy documents read far denser than they are (bugs/HP-OW-018 defect 3). Under v5 this
+# corpus read as 29 files, median 9.2, max 14.7; the maximum was CONTRIBUTING.md, which scores
+# 10.1 correctly and never needed the rewrite that measurement invited. And the numbers shipped
+# with the shared tool describe the website's corpus, not ours. Keeping either would have left the
+# stated reasoning describing a distribution no one here had measured.
 READING_GATE = 11.5
 # Below this many scored sentences, Flesch-Kincaid is noise. The guide sets the floor at 25.
 MIN_SENTENCES = 25

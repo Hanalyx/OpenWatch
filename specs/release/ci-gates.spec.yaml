@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 1
 
@@ -94,10 +94,21 @@ spec:
         The checker supports fifteen tracked extensions, source comments included, so the gate is not a
         Markdown gate and MUST NOT be described as one.
 
+        The checker is a SHARED tool, refetched whole on an upgrade, so the gate MUST pin the adopted
+        version in ONE tracked file and MUST compare it against the version the checker reports BEFORE
+        scanning anything. A missing, empty, malformed or mismatched pin MUST fail, never skip. No caller
+        may repeat the version: a second literal is a second source of truth, and the one comment that
+        carried a version named a release two behind what was running, while four already-fixed defects
+        stayed live here for a month.
+
         Scope boundary, stated so it is not mistaken for coverage: files git ignores are outside this gate.
         That includes the 18 extensionless roadmap documents under docs/engineering/roadmap, which the
         checker cannot select because it walks tracked paths by extension. They remain taxonomy debt in the
         Context Plane inventory and are NOT enforced by CI.
+
+        A reading-level exemption MAY cap a named file that is not continuous prose, and MUST cap ONLY that
+        file and ONLY the reading level. Every other rule stays binding inside an exempt file, and no other
+        path inherits its cap.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -212,15 +223,32 @@ spec:
         holding a clean tracked file, a tracked violation nobody is editing, a newly staged violation, and a
         violation inside a source-code comment. The tracked violation nobody is editing is the case that
         separates this gate from the old one: `--changed` passes it and `--all` does not.
+
+        The version pin is bound against a COPY of the gate rather than by reading its source: the pin
+        missing, empty, malformed, or naming a version the checker does not report must each fail, and the
+        passing case must fail when either side is changed alone. No caller may carry the version, checked
+        over code lines with comments stripped, because every caller explains the pin in prose.
+
+        The reading-level exemption is bound as a SCOPE, not as a value. The exempt form passes at its
+        recorded cap; prose of the same grade at any other path fails; and an em dash, an emoji, AI speak
+        or a British spelling inside the exempt file still fails, because the cap covers the reading level
+        and nothing else.
       inputs:
         checker: scripts/check-doc-style.py
+        shared_gate: scripts/doc-style-gate.py
+        pin_file: .doc-style-version
+        pinned_version: '6'
         make_target: docs-style
         precommit_hook_id: doc-style
         default_mode: '--all'
         interpreter_flag: '-S'
+        # The exempt file and its cap, so the guard drives on the fixture rather
+        # than on a literal copied into the test.
+        reading_exempt_path: .github/pull_request_template.md
+        reading_exempt_cap: '12.1'
         callers:
           - path: Makefile
-            invocation: 'python3 -S scripts/check-doc-style.py --all'
+            invocation: 'python3 -S scripts/doc-style-gate.py'
             kind: recipe
           - path: .github/workflows/go-ci.yml
             invocation: 'make docs-style'
@@ -237,6 +265,10 @@ spec:
         every_caller_reaches_the_same_make_target: true
         default_mode_is_the_full_tracked_tree: true
         precommit_hook_ignores_passed_filenames: true
+        pin_is_read_from_one_file: true
+        checker_version_is_compared_before_scanning: true
+        no_caller_repeats_the_version: true
+        exemption_is_reading_level_only: true
         unchanged_tracked_violation_is_caught: true
         staged_violation_is_caught: true
         source_comment_violation_is_caught: true

@@ -239,16 +239,25 @@ release-status-test:
 # command, so the three cannot drift into different policies.
 # Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
 #
-# --all, not --changed. `--changed` resolves a commit RANGE and falls back to
-# the index only when that range is empty, so it never reads the working tree:
-# a hook keyed on it is blind to the files being committed. The full sweep is
-# ~4s over ~1000 tracked files, which is cheap enough to always be the default.
+# The gate verifies the checker before it runs it. The checker is a SHARED tool
+# refetched wholesale on an upgrade, and nothing used to record which version
+# this repo ran, so a superseded copy stayed authoritative for a month while
+# four defects we had reported ourselves were already fixed upstream.
+# `.doc-style-version` is now the single source and the gate fails closed if it
+# is missing or disagrees. The version number lives ONLY in that file. This
+# comment deliberately does not repeat it: the comment that did went stale and
+# named a version two releases behind the one actually running.
+#
+# The scan is --all, not --changed. `--changed` resolves a commit RANGE and
+# falls back to the index only when that range is empty, so it never reads the
+# working tree: a hook keyed on it is blind to the files being committed. The
+# full sweep is ~4s over ~1000 tracked files, cheap enough to be the default.
 # Checked types are the checker's fifteen extensions, source comments included.
 # Files git ignores are outside this gate; see specs/release/ci-gates C-08.
-# Single-file python3 script, no dependencies; -S enforces that.
+# Single-file python3 scripts, no dependencies; -S enforces that.
 .PHONY: docs-style
 docs-style:
-	python3 -S scripts/check-doc-style.py --all
+	python3 -S scripts/doc-style-gate.py
 
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone

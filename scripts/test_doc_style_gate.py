@@ -31,9 +31,16 @@ CHECKER = os.path.join(REPO, "scripts", "check-doc-style.py")
 MAKEFILE = os.path.join(REPO, "Makefile")
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "go-ci.yml")
 PRECOMMIT = os.path.join(REPO, ".pre-commit-config.yaml")
+GATE = os.path.join(REPO, "scripts", "doc-style-gate.py")
+PIN_FILE = os.path.join(REPO, ".doc-style-version")
+EXEMPT_PATH = ".github/pull_request_template.md"
 
 MAKE_TARGET = "docs-style"
-FULL_INVOCATION = "python3 -S scripts/check-doc-style.py --all"
+FULL_INVOCATION = "python3 -S scripts/doc-style-gate.py"
+# A caller declaring its own checker version. The pinned value is a bare digit, so a plain
+# substring search would match anything; this looks for a DECLARATION, which is the shape
+# that can drift from the pin.
+VERSION_DECL = r"(?i)version[\"\'\s:=-]+[\"\']?%s\b"
 
 
 def read(path):
@@ -73,6 +80,8 @@ def check_makefile(text):
     joined = " ".join(commands)
     if FULL_INVOCATION not in joined:
         problems.append(f"`{MAKE_TARGET}` does not run `{FULL_INVOCATION}`; it runs {commands!r}")
+    if "check-doc-style.py" in joined:
+        problems.append(f"`{MAKE_TARGET}` calls the checker directly, skipping the version gate")
     if "--changed" in joined:
         problems.append(f"`{MAKE_TARGET}` runs --changed, which cannot see the working tree")
     if re.search(r"python3\s+(?!-S\b)", joined):
@@ -330,6 +339,208 @@ class LocalCarryForwardsSurviveAnAdoption(unittest.TestCase):
                            cwd=d, capture_output=True, text=True)
         self.assertEqual(1, r.returncode, "a British spelling in a SQL comment was not caught")
         self.assertIn("behaviour", r.stdout + r.stderr)
+
+
+def check_no_caller_declares_a_version(pinned):
+    """No caller may carry its own copy of the checker version. Comments are stripped first,
+    because every caller explains the pin in prose and must be free to."""
+    problems = []
+    for path in (MAKEFILE, WORKFLOW, PRECOMMIT):
+        for code in uncommented(read(path).splitlines()):
+            if re.search(VERSION_DECL % re.escape(pinned), code):
+                problems.append(f"{os.path.basename(path)} declares its own version: "
+                                f"{code.strip()!r}")
+    return problems
+
+
+class ThePinIsTheOnlySourceOfTheCheckerVersion(unittest.TestCase):
+    """The checker is refetched whole on an upgrade, so a superseded copy can stay authoritative
+    in silence. It did, for a month. The pin makes that loud."""
+
+    def make_tree(self, pin=None, checker_version=None, extra=None):
+        """A copy of the gate, the checker and the pin, so a mutation never touches the real tree.
+        The gate resolves its repository from its own path, so copying it is enough."""
+        d = tempfile.mkdtemp(prefix="doc-style-pin-")
+        os.makedirs(os.path.join(d, "scripts"))
+        for src in (GATE, CHECKER):
+            body = read(src)
+            if src == CHECKER and checker_version is not None:
+                body = body.replace('VERSION = "6"', f'VERSION = "{checker_version}"', 1)
+            with open(os.path.join(d, "scripts", os.path.basename(src)), "w",
+                      encoding="utf-8") as fh:
+                fh.write(body)
+        if pin is not None:
+            with open(os.path.join(d, ".doc-style-version"), "w", encoding="utf-8") as fh:
+                fh.write(pin)
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.path.join(d, ".gitconfig"),
+               "GIT_CONFIG_SYSTEM": os.devnull}
+        def g(*a):
+            subprocess.run(["git", *a], cwd=d, check=True, capture_output=True, env=env)
+        g("init", "-q")
+        g("config", "user.email", "t@example.com")
+        g("config", "user.name", "T")
+        for name, body in (extra or {"README.md": MD_CLEAN}).items():
+            full = os.path.join(d, name)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            g("add", name)
+        g("commit", "-qm", "seed")
+        return d
+
+    def run_gate(self, d, *args):
+        return subprocess.run([sys.executable, "-S",
+                               os.path.join(d, "scripts", "doc-style-gate.py"), *args],
+                              cwd=d, capture_output=True, text=True)
+
+    def test_the_real_pin_matches_the_real_checker(self):
+        self.assertTrue(os.path.exists(PIN_FILE), ".doc-style-version is missing")
+        pinned = read(PIN_FILE).strip()
+        self.assertRegex(pinned, r"^[0-9]+(?:\.[0-9]+)*$", f"the pin is not a version: {pinned!r}")
+        r = subprocess.run([sys.executable, "-S", CHECKER, "--version"],
+                           cwd=REPO, capture_output=True, text=True, check=True)
+        m = re.search(r"\bversion\s+([0-9]+(?:\.[0-9]+)*)\b", r.stdout + r.stderr)
+        self.assertIsNotNone(m, "the checker printed no version")
+        self.assertEqual(pinned, m.group(1),
+                         "the pin and the checker disagree in the real tree")
+
+    def test_a_matching_pin_passes(self):
+        d = self.make_tree(pin="6\n")
+        r = self.run_gate(d, "--only", "version")
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+
+    def test_a_missing_pin_fails_closed(self):
+        r = self.run_gate(self.make_tree(pin=None), "--only", "version")
+        self.assertEqual(1, r.returncode, "a missing pin was treated as a skip")
+        self.assertIn("missing", r.stderr)
+
+    def test_an_empty_pin_fails_closed(self):
+        for blank in ("", "\n", "   \n"):
+            r = self.run_gate(self.make_tree(pin=blank), "--only", "version")
+            self.assertEqual(1, r.returncode, f"an empty pin {blank!r} was accepted")
+
+    def test_a_malformed_pin_fails_closed(self):
+        for junk in ("six", "6.x", "v6", "6 6"):
+            r = self.run_gate(self.make_tree(pin=junk), "--only", "version")
+            self.assertEqual(1, r.returncode, f"a malformed pin {junk!r} was accepted")
+
+    def test_changing_the_pin_alone_fails(self):
+        """Required mutation: pin 6 -> 5."""
+        r = self.run_gate(self.make_tree(pin="5\n"), "--only", "version")
+        self.assertEqual(1, r.returncode, "a pin naming another version was accepted")
+        self.assertIn("5", r.stderr)
+
+    def test_changing_the_checker_alone_fails(self):
+        """Required mutation: the checker moves and the pin does not."""
+        d = self.make_tree(pin="6\n", checker_version="7")
+        r = self.run_gate(d, "--only", "version")
+        self.assertEqual(1, r.returncode, "an unpinned checker upgrade was accepted")
+        self.assertIn("7", r.stderr)
+
+    def test_the_version_is_compared_before_anything_is_scanned(self):
+        """A gate that scans first and verifies afterwards has already trusted the tool."""
+        d = self.make_tree(pin="5\n", extra={"BAD.md": MD_VIOLATION})
+        r = self.run_gate(d)
+        self.assertEqual(1, r.returncode)
+        self.assertNotIn("organisation", r.stdout + r.stderr,
+                         "the tree was scanned before the version was checked")
+
+    def test_no_caller_declares_its_own_version(self):
+        self.assertEqual([], check_no_caller_declares_a_version(read(PIN_FILE).strip()))
+
+    def test_a_caller_declaring_a_version_is_caught(self):
+        """Required mutation: a caller introduces its own literal."""
+        original = read(MAKEFILE)
+        broken = original.replace("docs-style:\n", 'docs-style:\n\tDOC_STYLE_VERSION=6; \\\n', 1)
+        self.assertNotEqual(original, broken, "the mutation did not apply")
+        saved = read(MAKEFILE)
+        try:
+            with open(MAKEFILE, "w", encoding="utf-8") as fh:
+                fh.write(broken)
+            self.assertTrue(check_no_caller_declares_a_version("6"),
+                            "a caller-side version literal was accepted")
+        finally:
+            with open(MAKEFILE, "w", encoding="utf-8") as fh:
+                fh.write(saved)
+        self.assertEqual(saved, read(MAKEFILE), "the Makefile was not restored")
+
+
+# Content that scores above the gate. Taken from the real exempt file so the test measures the
+# thing the ledger actually caps, rather than a synthetic string tuned to a number.
+def exempt_file_body():
+    return read(os.path.join(REPO, EXEMPT_PATH))
+
+
+class TheReadingExemptionIsScopedToOneFileAndOneRule(unittest.TestCase):
+    """A cap is a hole in the gate. These tests describe its exact shape."""
+
+    def make_tree(self, files):
+        d = tempfile.mkdtemp(prefix="doc-style-exempt-")
+        os.makedirs(os.path.join(d, "scripts"))
+        with open(os.path.join(d, "scripts", "check-doc-style.py"), "w", encoding="utf-8") as fh:
+            fh.write(read(CHECKER))
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.path.join(d, ".gitconfig"),
+               "GIT_CONFIG_SYSTEM": os.devnull}
+        def g(*a):
+            subprocess.run(["git", *a], cwd=d, check=True, capture_output=True, env=env)
+        g("init", "-q")
+        g("config", "user.email", "t@example.com")
+        g("config", "user.name", "T")
+        for name, body in files.items():
+            full = os.path.join(d, name)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            g("add", name)
+        g("commit", "-qm", "seed")
+        return d
+
+    def scan(self, d):
+        return subprocess.run([sys.executable, "-S",
+                               os.path.join(d, "scripts", "check-doc-style.py"), "--all"],
+                              cwd=d, capture_output=True, text=True)
+
+    def test_the_exempt_form_passes_at_its_cap(self):
+        r = self.scan(self.make_tree({EXEMPT_PATH: exempt_file_body()}))
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+
+    def test_the_same_content_at_another_path_fails(self):
+        """Required mutation guard: no other file inherits the cap."""
+        d = self.make_tree({"docs/NOT_A_FORM.md": exempt_file_body()})
+        r = self.scan(d)
+        self.assertEqual(1, r.returncode,
+                         "over-limit content was excused at a path with no exemption")
+        self.assertIn("reading-level", r.stdout + r.stderr)
+        self.assertIn("NOT_A_FORM.md", r.stdout + r.stderr)
+
+    def test_every_other_rule_still_binds_inside_the_exempt_file(self):
+        """Required mutation guard: the cap covers the reading level and nothing else."""
+        cases = {
+            "em dash": "\nA line with an em dash \u2014 right here.\n",
+            "emoji": "\nA line with an emoji \U0001F600 right here.\n",
+            "ai speak": "\nWe leverage the queue for this.\n",
+            "us english": "\nThe organisation owns the key.\n",
+        }
+        for label, addition in cases.items():
+            with self.subTest(rule=label):
+                d = self.make_tree({EXEMPT_PATH: exempt_file_body() + addition})
+                r = self.scan(d)
+                out = r.stdout + r.stderr
+                self.assertEqual(1, r.returncode,
+                                 f"a {label} violation was excused inside the exempt file")
+                # Printed, not merely counted. A mutation that silenced findings
+                # for exempt paths while leaving the exit code alone survived an
+                # exit-code-only assertion here, which is how this line exists.
+                self.assertIn(os.path.basename(EXEMPT_PATH), out,
+                              f"the {label} finding was counted but never reported")
+
+    def test_the_ledger_names_exactly_one_path(self):
+        src = read(CHECKER)
+        block = src[src.index("READING_EXEMPT = {"):]
+        block = block[:block.index("\n}")]
+        paths = re.findall(r'^\s*"([^"]+)":\s*\(', block, re.M)
+        self.assertEqual([EXEMPT_PATH], paths,
+                         "the exemption ledger grew; it is a ratchet and may only shrink")
 
 
 class TheGateIsStandardLibraryOnly(unittest.TestCase):

@@ -381,12 +381,13 @@ jobs:
   # changed. Enforces the prohibited list from the Context Plane at
   # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
   # US English spelling, and a per-file reading level.
-  # Shared implementation: dev/tools/doc-style-check. This repo runs v6,
-  # fetched at commit 853953aa and verified against the published sha256,
-  # with two local edits marked in the file: the reading gate re-derived
-  # from this corpus, and .sql carried forward because v6 predates it.
-  # Nothing here pins that version, so a newer release goes unnoticed: this
-  # comment said v3 while the tree ran v5 and v6 had been out for a month.
+  # Shared implementation: dev/tools/doc-style-check. The adopted version is
+  # pinned in .doc-style-version, and scripts/doc-style-gate.py refuses to scan
+  # with a checker that disagrees with it. That pin is the only place the number
+  # lives; this job deliberately carries none, because the comment here that
+  # once named a version was two releases out of date and nothing caught it.
+  # Provenance and the local edits are recorded in the checker's own header,
+  # which is replaced wholesale on every upgrade and so cannot drift from it.
   doc-style:
     name: Doc Style
     runs-on: ubuntu-latest
