@@ -381,7 +381,12 @@ jobs:
   # changed. Enforces the prohibited list from the Context Plane at
   # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
   # US English spelling, and a per-file reading level.
-  # Shared implementation: dev/tools/doc-style-check (this repo runs v3).
+  # Shared implementation: dev/tools/doc-style-check. This repo runs v6,
+  # fetched at commit 853953aa and verified against the published sha256,
+  # with two local edits marked in the file: the reading gate re-derived
+  # from this corpus, and .sql carried forward because v6 predates it.
+  # Nothing here pins that version, so a newer release goes unnoticed: this
+  # comment said v3 while the tree ran v5 and v6 had been out for a month.
   doc-style:
     name: Doc Style
     runs-on: ubuntu-latest
