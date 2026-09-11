@@ -231,14 +231,24 @@ release-status:
 release-status-test:
 	python3 -S scripts/test_release_status.py
 	python3 -S scripts/test_specter_gate.py
+	python3 -S scripts/test_doc_style_gate.py
 
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
-# speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
-# dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
-# Use DOC_STYLE_ARGS=--all to sweep the whole tree instead of changed files.
+# speak, US English, reading level). The ONE shared invocation: CI's "Doc Style"
+# job and the pre-commit hook both run this target rather than rebuilding the
+# command, so the three cannot drift into different policies.
+# Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
+#
+# --all, not --changed. `--changed` resolves a commit RANGE and falls back to
+# the index only when that range is empty, so it never reads the working tree:
+# a hook keyed on it is blind to the files being committed. The full sweep is
+# ~4s over ~1000 tracked files, which is cheap enough to always be the default.
+# Checked types are the checker's fifteen extensions, source comments included.
+# Files git ignores are outside this gate; see specs/release/ci-gates C-08.
+# Single-file python3 script, no dependencies; -S enforces that.
 .PHONY: docs-style
 docs-style:
-	python3 scripts/check-doc-style.py $(or $(DOC_STYLE_ARGS),--changed)
+	python3 -S scripts/check-doc-style.py --all
 
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone

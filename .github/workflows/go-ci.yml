@@ -393,8 +393,10 @@ jobs:
       # rather than as a clean run. A gate nobody has watched fail is not
       # known to work.
       - name: Checker selftest
-        run: python3 scripts/check-doc-style.py --selftest
-      - name: Check changed files against the style guide
-        run: |
-          git fetch origin main --depth=1 2>/dev/null || true
-          python3 scripts/check-doc-style.py --changed
+        run: python3 -S scripts/check-doc-style.py --selftest
+      # Runs the Make target, not its own copy of the command. A workflow that
+      # rebuilds the invocation is a second policy wearing the first one's name,
+      # and it is how this job came to check only changed files while the
+      # contract claimed the tree was clean.
+      - name: Check the tracked tree against the style guide
+        run: make docs-style

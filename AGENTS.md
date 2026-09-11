@@ -106,15 +106,23 @@ first. If the spec and code disagree, the (human-approved) spec wins.
 - **No em dashes in docs or user-facing UI copy.** Restructure with periods,
   colons, or parentheses. Commit messages are unaffected.
 - **Developer docs follow the Hanalyx style guide**, and CI enforces its hard
-  rules. `make docs-style` runs the same check locally that the "Doc Style" job
-  runs on changed Markdown. The three gates are: no em dashes, no emojis, no AI
+  rules. `make docs-style` is the one gate: the pre-commit hook and the "Doc
+  Style" job both run that target, so all three see the same policy. It checks
+  every tracked file the checker supports, which is Markdown, YAML, JSON and
+  whole-line source comments, not only the files you changed. The sweep takes
+  about four seconds. It is deliberately not `--changed`: that mode resolves a
+  commit range, so it cannot see your working tree, and it once reported 182
+  files clean while an edited file carried a real violation. Files git ignores
+  are outside the gate, including the extensionless roadmap documents under
+  `docs/engineering/roadmap/`. The gates are: no em dashes, no emojis, no AI
   speak (hype adjectives, filler openers, padding verbs such as `leverage` and
-  `utilize`). Write "we" only for real team actions, never for the product, and
-  state capabilities as team facts with numbers. The guide is the source of
-  truth and lives in the Hanalyx Context Plane at
-  `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives at
-  `dev/tools/doc-style-check`. Fix a finding rather than suppress it. A cleared
-  term can carry `<!-- doc-style: allow -->` on its line, with a reason.
+  `utilize`), US English, and a per-file reading level. Write "we" only for real
+  team actions, never for the product, and state capabilities as team facts with
+  numbers. The guide is the source of truth and lives in the Hanalyx Context
+  Plane at `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives
+  at `dev/tools/doc-style-check`. Fix a finding rather than suppress it. A
+  cleared term can carry `<!-- doc-style: allow -->` on its line, with a
+  reason.
 - **Security is not optional**: parameterized SQL only, argument-list exec (never
   a shell), RBAC + license gates on handlers, audit auth/authz events, secrets
   from env/files only. `.golangci.yml` forbidigo encodes several of these

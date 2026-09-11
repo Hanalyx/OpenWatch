@@ -99,6 +99,21 @@ repos:
         files: ^(internal/.*_test\.go|specs/.*\.spec\.yaml|frontend/(src|tests)/.*\.(ts|tsx))$
         stages: [pre-commit]
 
+      # Documentation style gate. Runs the SAME make target as CI, over the
+      # whole tracked tree. pass_filenames is false and always_run is true on
+      # purpose: keying this on a file list is what made the old gate vacuous,
+      # because the staged list and `--changed` both miss the case where an
+      # already-tracked file carries a violation nobody is editing. Measured at
+      # ~4s over ~1000 files, which buys a real gate for the price of a slow
+      # linter. See specs/release/ci-gates C-08.
+      - id: doc-style
+        name: Documentation style (full tracked tree)
+        entry: make docs-style
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       # Don't run tests in pre-commit (too slow)
       # Tests run in CI instead
 

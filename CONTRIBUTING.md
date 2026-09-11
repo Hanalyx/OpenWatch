@@ -234,6 +234,11 @@ as a runtime plugin. Before adding a service, review the behavioral specs in
 
 ### Documentation Style
 
+Run `make docs-style` before you commit. It checks every tracked file, not only
+the ones you changed, and the pre-commit hook runs it for you. The rules come
+from the Hanalyx developer documentation style guide: no em dashes, no emojis,
+no AI speak, US English spelling, and a reading level scored per file.
+
 - **Clear, concise language**
 - **Step-by-step instructions** with examples
 - **Screenshots** for UI changes

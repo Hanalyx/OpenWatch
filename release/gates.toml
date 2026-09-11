@@ -116,7 +116,7 @@ blocking = true
 [[gate]]
 id = "Q3"
 title = "Documentation style"
-proves = "Changed Markdown is free of em dashes, emojis and AI speak"
+proves = "Every tracked file the checker supports (Markdown, YAML, JSON and source comments) is free of em dashes, emojis, AI speak and British spellings, and each scored document is within the reading-level gate. Files git ignores are out of scope."
 evidence = "github-check"
 check = "Doc Style"
 blocking = true
