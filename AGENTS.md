@@ -6,7 +6,8 @@ sources rather than restating them. Restated facts rot. For live counts
 (version, package count, spec count) run **`scripts/repo-facts.sh`** instead of
 trusting a number written here.
 
-> **Note on `CLAUDE.md` and `docs/engineering/`.** `CLAUDE.md` and everything
+> **Note on two local-only paths, `CLAUDE.md` and `docs/engineering/`.** Both
+> are gitignored. `CLAUDE.md` and everything
 > under `docs/engineering/` are **gitignored / local-only** by policy
 > (`.gitignore`), so they are not reviewed and may drift per-machine. Treat them
 > as personal scratch, not shared truth. Durable guidance that should be shared
@@ -114,7 +115,7 @@ first. If the spec and code disagree, the (human-approved) spec wins.
   commit range, so it cannot see your working tree, and it once reported 182
   files clean while an edited file carried a real violation. Files git ignores
   are outside the gate, including the extensionless roadmap documents under
-  `docs/engineering/roadmap/`. The gates are: no em dashes, no emojis, no AI
+  the gitignored, local-only `docs/engineering/roadmap/`. The gates are: no em dashes, no emojis, no AI
   speak (hype adjectives, filler openers, padding verbs such as `leverage` and
   `utilize`), US English, and a per-file reading level. Write "we" only for real
   team actions, never for the product, and state capabilities as team facts with

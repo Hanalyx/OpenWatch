@@ -10,7 +10,7 @@ Generate or regenerate an operator-facing document from the documentation spec.
 
 Where `<doc-name>` is one of:
 - `docs-readme`: docs/README.md (documentation index)
-- `intro`: docs/INTRODUCTION.md
+- `intro`: README.md. The `docs/INTRODUCTION.md` mirror is local-only and untracked.
 - `installation`: docs/guides/INSTALLATION.md
 - `quickstart`: docs/guides/QUICKSTART.md
 - `user-roles`: docs/guides/USER_ROLES.md
@@ -26,8 +26,12 @@ When this skill is invoked:
 
 Read the authoritative engineering docs and behavioral specs to ground the content:
 
-- `docs/engineering/ARCHITECTURE.md`: per-package backend map and service topology
-- `docs/engineering/rbac_registry.md` and `specs/system/rbac.spec.yaml`: RBAC roles and permissions
+- `internal/` package layout and `cmd/openwatch/main.go`: the per-package backend
+  map and service wiring. (A fuller map exists at
+  `docs/engineering/ARCHITECTURE.md`, which is gitignored and unavailable to a
+  reader who does not already have it.)
+- `specs/system/rbac.spec.yaml`, `internal/users/roles.go` and
+  `internal/auth/roles.gen.go`: RBAC roles and permissions
 - `specs/system/http-server.spec.yaml`: the single Go binary that serves the REST API and the embedded React UI over HTTPS on port `8443`
 - `specs/system/kensa-executor.spec.yaml`: the Kensa compliance engine (Go, SSH-based, native YAML rules)
 - `specs/system/job-queue.spec.yaml`: the PostgreSQL-native background job queue (`SKIP LOCKED`)
@@ -42,10 +46,10 @@ Based on the document being generated, read the relevant source files to populat
 | Document | Source files |
 |----------|-------------|
 | docs-readme | `docs/` directory listing (verify all linked files exist) |
-| intro | `docs/engineering/BACKEND_FUNCTIONALITY.md`, `specs/system/http-server.spec.yaml` |
-| installation | `docs/engineering/install_guide.md`, `docs/guides/INSTALLATION.md`, `docs/guides/PRODUCTION_DEPLOYMENT.md`, `docs/guides/ENVIRONMENT_REFERENCE.md`, `packaging/` |
+| intro | `README.md`, `specs/system/http-server.spec.yaml` |
+| installation | `docs/guides/INSTALLATION.md`, `docs/guides/PRODUCTION_DEPLOYMENT.md`, `docs/guides/ENVIRONMENT_REFERENCE.md`, `packaging/` |
 | quickstart | `cmd/openwatch/main.go` (subcommands and service wiring), `api/openapi.yaml` (auth and Kensa scan routes), `specs/system/http-server.spec.yaml` |
-| user-roles | `internal/users/roles.go`, `internal/auth/roles.gen.go`, `docs/engineering/rbac_registry.md`, `specs/system/rbac.spec.yaml` |
+| user-roles | `internal/users/roles.go`, `internal/auth/roles.gen.go`, `specs/system/rbac.spec.yaml` |
 | api-guide | `api/openapi.yaml` (route and schema source of truth), `internal/server/` (handler wiring) |
 | scanning | `internal/kensa/`, `specs/system/kensa-executor.spec.yaml`, `specs/system/intelligence-scheduler.spec.yaml` |
 | hosts-remediation | `internal/host/`, `api/openapi.yaml` (hosts and remediation routes), `specs/system/host-inventory.spec.yaml`, `specs/system/host-discovery.spec.yaml` |
