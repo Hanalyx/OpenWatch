@@ -122,12 +122,51 @@ func TestWriteVerificationFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTriplet(t, sub, rep2, canonical2, signer2)
-	t.Logf("wrote fixtures to %s and %s", root, sub)
+
+	// ---- An UNSIGNED artifact, from a service with no signer wired. It has no
+	// signing-key document at all, which is the point: the procedure must be
+	// able to check it without one.
+	h3 := seedHost(t, pool, owner, false)
+	seedRuleState(t, pool, h3, "sshd-disable-root-login", "fail", "high")
+	svc3 := NewService(pool)
+	rep3, err := svc3.Generate(ctx, "operator@example.com", GenerateRequest{})
+	if err != nil {
+		t.Fatalf("Generate unsigned: %v", err)
+	}
+	if len(rep3.Signature) != 0 || rep3.SigningKeyID != "" {
+		t.Fatalf("the unsigned fixture came out signed")
+	}
+	canonical3, _, err := svc3.Export(ctx, rep3.ID, "json")
+	if err != nil {
+		t.Fatalf("Export unsigned: %v", err)
+	}
+	un := filepath.Join(root, "unsigned")
+	if err := os.MkdirAll(un, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeReportAndMeta(t, un, rep3, canonical3)
+
+	t.Logf("wrote fixtures to %s, %s and %s", root, sub, un)
 }
 
 // writeTriplet writes the three files an operator holds: the canonical JSON
 // face, the report metadata, and the signing-key response.
 func writeTriplet(t *testing.T, out string, rep Report, canonical []byte, signer *Signer) {
+	t.Helper()
+	writeReportAndMeta(t, out, rep, canonical)
+	key, _ := json.MarshalIndent(map[string]any{
+		"key_id":     signer.KeyID(),
+		"algorithm":  "ed25519",
+		"public_key": base64.StdEncoding.EncodeToString(signer.PublicKey()),
+		"ephemeral":  signer.Ephemeral(),
+	}, "", "  ")
+	if err := os.WriteFile(filepath.Join(out, "signing-key.json"), append(key, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeReportAndMeta writes the two files every artifact has, signed or not.
+func writeReportAndMeta(t *testing.T, out string, rep Report, canonical []byte) {
 	t.Helper()
 	write := func(name string, b []byte) {
 		if err := os.WriteFile(filepath.Join(out, name), b, 0o644); err != nil {
@@ -138,22 +177,21 @@ func writeTriplet(t *testing.T, out string, rep Report, canonical []byte, signer
 	write("report.json", canonical)
 
 	// The fields an operator reads off GET /api/v1/reports/{id}.
+	// signature and signing_key_id are an all-or-nothing pair on the wire, and
+	// an unsigned snapshot carries JSON null for both. Emitting "" would make
+	// the fixture disagree with the API it is supposed to demonstrate.
+	var sig, kid any
+	if len(rep.Signature) > 0 {
+		sig = base64.StdEncoding.EncodeToString(rep.Signature)
+		kid = rep.SigningKeyID
+	}
 	meta, _ := json.MarshalIndent(map[string]any{
 		"id":             rep.ID.String(),
 		"content_sha256": rep.ContentSHA256,
-		"signature":      base64.StdEncoding.EncodeToString(rep.Signature),
-		"signing_key_id": rep.SigningKeyID,
+		"signature":      sig,
+		"signing_key_id": kid,
 	}, "", "  ")
 	write("report.meta.json", append(meta, '\n'))
-
-	// The GET /api/v1/reports/signing-key response shape.
-	key, _ := json.MarshalIndent(map[string]any{
-		"key_id":     signer.KeyID(),
-		"algorithm":  "ed25519",
-		"public_key": base64.StdEncoding.EncodeToString(signer.PublicKey()),
-		"ephemeral":  signer.Ephemeral(),
-	}, "", "  ")
-	write("signing-key.json", append(key, '\n'))
 }
 
 func repoRoot(t *testing.T) string {

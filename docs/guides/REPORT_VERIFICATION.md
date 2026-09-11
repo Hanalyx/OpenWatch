@@ -41,6 +41,12 @@ All three endpoints need the `host:read` permission. The complete response
 shape is in [the OpenAPI contract](../../api/openapi.yaml); this guide names
 only the fields verification uses.
 
+**An unsigned report needs only the first two.** `signature` and
+`signing_key_id` are an all-or-nothing pair: both are present or both are
+`null`. When they are absent there is no key to fetch, and the procedure runs
+without one. One present without the other is malformed metadata, not a signed
+report and not an unsigned one, and it is rejected as such.
+
 **Use the JSON face, not the PDF or the CSV.** The content address covers the
 canonical JSON. The other faces are renderings of the same snapshot and hash to
 different bytes.
@@ -117,7 +123,19 @@ Check three things about the key before you use it:
 |---|---|
 | `algorithm` is exactly `ed25519` | A different algorithm needs a different routine. Verifying it with this one would report success it did not earn. |
 | The decoded key is exactly 32 bytes | Anything else is not an Ed25519 key, however well formed the base64 looks. |
-| `key_id` equals the report's `signing_key_id` | Catches the wrong key being handed over. This is a CORRELATION check and nothing more; see below. |
+| Both identifiers equal the one you DERIVE from the key | See below. Comparing them only with each other proves the two documents agree, which whoever wrote them controls. |
+
+The identifier is `ed25519-` followed by the first 16 hex characters of the
+SHA-256 of the decoded key:
+
+```bash
+echo "ed25519-$(sha256sum pub.raw | cut -c1-16)"
+```
+
+That value must equal `key_id` in the key response **and** `signing_key_id` on
+the report. Deriving it is what ties the identifier to real key material. Two
+documents can carry the same invented identifier and agree with each other
+perfectly.
 
 ```bash
 python3 -I -S -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
@@ -160,18 +178,26 @@ cd docs/guides/examples/report-verification
 
 # With a trust anchor you hold independently.
 ./verify.sh report.json report.meta.json signing-key.json "$(cat trusted-key.sha256)"
+
+# An unsigned artifact, with no key file.
+./verify.sh unsigned/report.json unsigned/report.meta.json
 ```
+
+Usage is `verify.sh <report.json> <report.meta.json> [signing-key.json]
+[trusted]`. The key file is required for a signed artifact and unused for an
+unsigned one.
 
 | Exit | Meaning |
 |---|---|
 | 0 | Every check passed. Read the last lines: with no anchor this is consistency only. |
 | 2 | The canonical JSON does not hash to the declared `content_sha256`. |
 | 3 | The signature does not verify against the supplied key. |
-| 4 | The artifact carries no signature. |
+| 4 | The artifact is unsigned. |
 | 5 | The key is not declared `ed25519`. |
 | 6 | The decoded public key is not 32 bytes. |
-| 7 | The key's `key_id` does not match the report's `signing_key_id`. |
+| 7 | A key identifier is missing, or is not the one derived from the key. |
 | 8 | The key does not match the trust anchor you supplied. |
+| 9 | Malformed metadata: `signature` and `signing_key_id` are not both present or both absent. |
 
 ---
 
@@ -272,10 +298,25 @@ A snapshot generated while no signer was wired carries `signature` and
 `signing_key_id` as `null`. This is not a failure and not tampering. It means
 nothing attested to the content at the time it was made.
 
+Check it with two files and no key:
+
+```bash
+./verify.sh unsigned/report.json unsigned/report.meta.json
+```
+
 Step 1 still works and is still worth running: it shows the bytes are the ones
-the snapshot names. Step 2 onward does not apply. An unsigned artifact cannot
-be made signed after the fact, because the signature covers the content address
-as it stood at generation.
+the snapshot names. The script reports exit `4` after that check, not before,
+so you learn both things. Nothing beyond step 1 applies, and no signing key is
+fetched or opened.
+
+An unsigned artifact cannot be made signed after the fact, because the
+signature covers the content address as it stood at generation.
+
+**One field without the other is neither state.** A `signature` with no
+`signing_key_id`, or the reverse, is metadata that describes nothing real. The
+script exits `9` rather than guessing, because guessing in either direction
+hides something: reading it as unsigned would excuse a missing identifier, and
+reading it as signed would excuse a missing signature.
 
 ---
 
@@ -286,7 +327,8 @@ as it stood at generation.
 | Hash mismatch on an untouched file | You exported the PDF or CSV face. Only the JSON face is content addressed. |
 | `Signature Verification Failure` on a good report | The payload was built wrong. It is the domain tag plus the hex hash, not the report bytes. |
 | Same failure, correct payload | `-rawin` is missing. |
-| Exit 7, key id mismatch | The key on offer is not the one the report names. The server may have rotated it. |
+| Exit 7, key identity | The key on offer is not the one the report names, or its `key_id` is not the identifier of the key material it ships. |
+| Exit 9, malformed metadata | `signature` and `signing_key_id` disagree about whether the snapshot is signed. |
 | Exit 8, trusted key mismatch | The bundle is self-consistent but signed by a key you do not trust. Treat it as a replacement until proven otherwise. |
 | `503` from the signing-key endpoint | The server has no signer wired, so it has no key to publish. |
 | Verified yesterday, fails today | An ephemeral key, and the service restarted. |

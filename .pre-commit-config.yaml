@@ -14,7 +14,7 @@ repos:
       # example verifies. Scoped to the two files whose hash IS their
       # identity; every other file in that directory is fixed normally.
       - id: end-of-file-fixer
-        exclude: ^(frontend/|.*\.min\.(js|css)$|docs/guides/examples/report-verification/(counterexample/)?report\.json$)
+        exclude: ^(frontend/|.*\.min\.(js|css)$|docs/guides/examples/report-verification/(counterexample/|unsigned/)?report\.json$)
       - id: check-yaml
         args: ['--unsafe']  # tolerate custom YAML tags
       - id: check-json

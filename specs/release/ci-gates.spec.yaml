@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 1
 
@@ -265,6 +265,18 @@ spec:
         passing case must fail when either side is changed alone. No caller may carry the version, checked
         over code lines with comments stripped, because every caller explains the pin in prose.
 
+        Key identity is bound by DERIVATION. The identifier is `ed25519-` plus the first 16 lowercase
+        hex characters of SHA-256 over the decoded 32-byte key, and both the key response's key_id and
+        the report's signing_key_id must equal it. Comparing the two published values with each other
+        is not sufficient and is tested as insufficient: a bundle carrying the SAME fabricated
+        identifier in both places must fail.
+
+        The signed and unsigned states are bound as a PAIR. signature and signing_key_id are both
+        present or both absent; one without the other is malformed metadata and fails distinctly from
+        both. An unsigned artifact must verify with the report and its metadata alone, reaching the
+        unsigned exit rather than a usage error or a missing-file error, and a signed one must still
+        require the key.
+
         The reading-level exemption is bound as a SCOPE, not as a value. The exempt form passes at its
         recorded cap; prose of the same grade at any other path fails; and an em dash, an emoji, AI speak
         or a British spelling inside the exempt file still fails, because the cap covers the reading level
@@ -339,6 +351,7 @@ spec:
         example_script: docs/guides/examples/report-verification/verify.sh
         fixture_dir: docs/guides/examples/report-verification
         counterexample_dir: docs/guides/examples/report-verification/counterexample
+        unsigned_dir: docs/guides/examples/report-verification/unsigned
         trusted_anchor_file: docs/guides/examples/report-verification/trusted-key.sha256
         signing_key_file: signing-key.json
         # The exact shape of the published key document. Enforced field by
@@ -351,9 +364,10 @@ spec:
         signing_key_algorithm: ed25519
         signing_key_bytes: 32
         key_id_prefix: ed25519-
-        # key_id is the first 8 bytes of SHA-256 over the public key. Stated
-        # here so the test derives it rather than trusting the published value.
-        key_id_sha256_bytes: 8
+        # key_id is `ed25519-` plus the first 16 lowercase hex characters of
+        # SHA-256 over the decoded public key. Stated here so the test DERIVES
+        # it rather than trusting the published value.
+        key_id_hex_chars: 16
         signing_key_endpoint: /api/v1/reports/signing-key
         obsolete_endpoint: /api/signing/public-keys
         signing_domain: 'openwatch/report-snapshot/v1'
@@ -426,6 +440,10 @@ spec:
         key_id_mismatch_fails: true
         consistency_only_says_so: true
         counterexample_passes_consistency_and_fails_the_anchor: true
+        signed_metadata_requires_both_identifiers: true
+        identifiers_are_derived_not_merely_compared: true
+        metadata_pair_is_all_or_nothing: true
+        unsigned_artifact_verifies_without_a_key_file: true
         signing_key_document_shape_is_enforced: true
         forbidden_claims_absent: true
         allowlisted_mentions_are_live: true

@@ -993,18 +993,32 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 			}
 		}
 		if exp.Bool("untrusted_key_fails") {
-			bad := mutateJSON("key.json", key, func(m map[string]any) {
-				other := make([]byte, 32)
-				other[0] = 0x42
+			// A different key, with its identifiers made CONSISTENT so the
+			// identity check passes and the run reaches the signature. Leaving
+			// the original key_id in place would fail earlier, at 7, and prove
+			// something else.
+			other := make([]byte, 32)
+			other[0] = 0x42
+			otherSum := sha256.Sum256(other)
+			otherID := "ed25519-" + hex.EncodeToString(otherSum[:])[:16]
+			badKey := mutateJSON("key.json", key, func(m map[string]any) {
 				m["public_key"] = base64.StdEncoding.EncodeToString(other)
+				m["key_id"] = otherID
 			})
-			if code := run(report, meta, bad); code != 3 {
-				t.Errorf("untrusted key: exit %d, want 3", code)
+			badMeta := mutateJSON("othermeta.json", meta, func(m map[string]any) {
+				m["signing_key_id"] = otherID
+			})
+			if code := run(report, badMeta, badKey); code != 3 {
+				t.Errorf("a different key with consistent identifiers: exit %d, want 3", code)
 			}
 		}
 		if exp.Bool("unsigned_artifact_is_reported_distinctly") {
+			// BOTH fields cleared. Clearing only the signature leaves a
+			// signing_key_id behind, which is malformed metadata rather than an
+			// unsigned artifact, and is checked separately below.
 			bad := mutateJSON("unsigned.meta.json", meta, func(m map[string]any) {
 				m["signature"] = nil
+				m["signing_key_id"] = nil
 			})
 			if code := run(report, bad, key); code != 4 {
 				t.Errorf("unsigned artifact: exit %d, want 4 (distinct from an invalid signature)", code)
@@ -1061,7 +1075,7 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 			wantAlg := in.Str("signing_key_algorithm")
 			wantLen := in.Int("signing_key_bytes")
 			prefix := in.Str("key_id_prefix")
-			idBytes := in.Int("key_id_sha256_bytes")
+			idChars := in.Int("key_id_hex_chars")
 			for _, d := range []string{fx, filepath.Join(dir, in.Str("counterexample_dir"))} {
 				name := filepath.Join(d, in.Str("signing_key_file"))
 				raw, err := os.ReadFile(name)
@@ -1097,7 +1111,7 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 					t.Errorf("%s public_key decodes to %d bytes, want %d", name, len(pub), wantLen)
 				} else {
 					sum := sha256.Sum256(pub)
-					want := prefix + hex.EncodeToString(sum[:idBytes])
+					want := prefix + hex.EncodeToString(sum[:])[:idChars]
 					if got, _ := doc["key_id"].(string); got != want {
 						t.Errorf("%s key_id = %q, derived %q", name, got, want)
 					}
@@ -1191,6 +1205,66 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 			_ = json.Unmarshal(raw, &b)
 			if a.PublicKey == b.PublicKey {
 				t.Error("the counterexample reuses the genuine key; it proves nothing")
+			}
+		}
+
+		// ---- Key identity is DERIVED, not merely cross-checked. The published
+		// key_id and signing_key_id must both equal the identifier computed
+		// from the key material. Two documents can agree on an invented value.
+		if exp.Bool("signed_metadata_requires_both_identifiers") {
+			bad := mutateJSON("nokid.json", key, func(m map[string]any) { m["key_id"] = nil })
+			if code := run(report, meta, bad); code != 7 {
+				t.Errorf("key response with no key_id: exit %d, want 7", code)
+			}
+		}
+		if exp.Bool("identifiers_are_derived_not_merely_compared") {
+			const fake = "ed25519-aaaaaaaaaaaaaaaa"
+			badMeta := mutateJSON("fakemeta.json", meta, func(m map[string]any) { m["signing_key_id"] = fake })
+			badKey := mutateJSON("fakekey.json", key, func(m map[string]any) { m["key_id"] = fake })
+			if code := run(report, badMeta, badKey); code != 7 {
+				t.Errorf("mutually consistent but fabricated identifiers: exit %d, want 7. "+
+					"Comparing key_id with signing_key_id is not enough; derive it from the key", code)
+			}
+		}
+
+		// ---- signature and signing_key_id are an all-or-nothing pair.
+		unsignedDir := filepath.Join(dir, in.Str("unsigned_dir"))
+		unsignedReport := filepath.Join(unsignedDir, "report.json")
+		unsignedMeta := filepath.Join(unsignedDir, "report.meta.json")
+		if exp.Bool("metadata_pair_is_all_or_nothing") {
+			half := mutateJSON("sig-no-kid.json", meta, func(m map[string]any) { m["signing_key_id"] = nil })
+			if code := run(report, half, key); code != 9 {
+				t.Errorf("signature with no signing_key_id: exit %d, want 9", code)
+			}
+			other := mutateJSON("kid-no-sig.json", unsignedMeta, func(m map[string]any) {
+				m["signing_key_id"] = "ed25519-65b60673d6ed884b"
+			})
+			if code := run(unsignedReport, other, key); code != 9 {
+				t.Errorf("signing_key_id with no signature: exit %d, want 9", code)
+			}
+		}
+
+		// ---- An unsigned artifact must verify with two files and NO key.
+		if exp.Bool("unsigned_artifact_verifies_without_a_key_file") {
+			var um map[string]any
+			raw, err := os.ReadFile(unsignedMeta)
+			if err != nil {
+				t.Fatalf("reading the unsigned fixture: %v", err)
+			}
+			if err := json.Unmarshal(raw, &um); err != nil {
+				t.Fatal(err)
+			}
+			if um["signature"] != nil || um["signing_key_id"] != nil {
+				t.Fatalf("the unsigned fixture is not unsigned: %v", um)
+			}
+			// Two arguments only. Reaching 4 means it neither demanded a key
+			// file (64) nor tried to open a missing one.
+			if code := runIn(unsignedDir, unsignedReport, unsignedMeta); code != 4 {
+				t.Errorf("unsigned artifact with no key file: exit %d, want 4", code)
+			}
+			// A SIGNED artifact still requires the key.
+			if code := runIn(fx, report, meta); code != 64 {
+				t.Errorf("signed artifact with no key file: exit %d, want 64", code)
 			}
 		}
 
