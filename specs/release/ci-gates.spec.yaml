@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.11.0"
+  version: "1.12.0"
   status: approved
   tier: 1
 
@@ -494,12 +494,21 @@ spec:
         The old unanchored patterns must not return: each is asserted absent from `.gitignore` as a
         bare line, so re-adding `*_REPORT.md` without its leading `/` fails.
 
-        The root half is bound over the WHOLE anchored set rather than a sample. Every leading-slash
-        pattern in `.gitignore` is read out of the file, a concrete path is synthesized from it, and
-        that path must still be ignored at the repository root. Anchoring a rule must not switch it
-        off. The reverse assertion, that the same basename is visible under docs, is deliberately NOT
-        made for every pattern: some names are legitimately ignored everywhere by a different rule,
-        `dist/` among them, and asserting otherwise would fail on correct behavior.
+        The anchored set is declared EXACTLY rather than counted or synthesized. `anchored_rules` lists
+        every leading-slash rule with a concrete root probe, and the multiset read out of `.gitignore`
+        must equal the multiset in the fixture: a rule deleted, a rule added without declaring it, a
+        rule duplicated, and a rule de-anchored all fail, and a swap that keeps the total unchanged
+        fails too. A self-derived floor could not catch any of those, which is why it is gone.
+
+        Each root probe is still run through `git check-ignore`, so the declaration is checked against
+        behavior rather than against itself.
+
+        Nested probes carry their EXPECTED visibility rather than assuming it. Most are visible,
+        which is the point of anchoring. `/dist/` is not, because a separate depth-wide rule ignores
+        it everywhere and should; that exception is recorded in the fixture with its reason instead of
+        being silently omitted. Every filename family anchored in `5e12c4ff` has a nested probe:
+        analysis, complete, fix, implementation, phase, report, status, summary, tracking,
+        verification, assessment, the test script and JSON shapes, and the screenshot names.
 
         Reachability is scanned over tracked contributor and workflow documentation. A line naming an
         ignored path passes only when it also says the path is unavailable, or when the exact line is
@@ -520,12 +529,6 @@ spec:
           - docs/runbooks/NEW_RUNBOOK.md
           - docs/images/content_layout.png
           - docs/images/login_error.png
-        root_only_ignored:
-          - SOMETHING_REPORT.md
-          - FOO_VERIFICATION.md
-          - CLAUDE.md
-          - examples/foo.md
-          - login_error.png
         secret_names:
           - id_rsa
           - id_ed25519
@@ -557,9 +560,258 @@ spec:
           - '!docs/guides/examples/**'
           - '!docs/guides/examples/'
           - '!docs/guides/REPORT_VERIFICATION.md'
-        # Every leading-slash pattern is bound, not a sample of them. The floor
-        # guards against the scan passing because the patterns were deleted.
-        min_anchored_patterns: 80
+        # The EXACT policy. Every leading-slash rule in .gitignore is declared
+        # here with a concrete root probe, and the two multisets must match
+        # exactly: a missing rule, an undeclared rule, a duplicate and a
+        # de-anchored rule all fail. Where a rule's family was anchored in
+        # 5e12c4ff, a nested probe records what must happen under the tracked
+        # documentation tree. Nested visibility is NOT assumed true: `/dist/`
+        # carries an explicit exception because a separate depth-wide rule
+        # ignores it everywhere, and should.
+        anchored_rules:
+          - pattern: '/nbproject/private/'
+            root_probe: nbproject/private/probe.md
+          - pattern: '/nbbuild/'
+            root_probe: nbbuild/probe.md
+          - pattern: '/dist/'
+            root_probe: dist/probe.md
+            nested_probe: docs/guides/dist/probe.md
+            nested_visible: false
+            nested_exception: 'dist/ is ignored at every depth by a separate build rule, and should be'
+          - pattern: '/nbdist/'
+            root_probe: nbdist/probe.md
+          - pattern: '/.nb-gradle/'
+            root_probe: .nb-gradle/probe.md
+          - pattern: '/.emacs.desktop'
+            root_probe: .emacs.desktop
+          - pattern: '/.emacs.desktop.lock'
+            root_probe: .emacs.desktop.lock
+          - pattern: '/test/'
+            root_probe: test/probe.md
+            nested_probe: docs/guides/test/probe.md
+            nested_visible: true
+          - pattern: '/*test*.py'
+            root_probe: xtestx.py
+            nested_probe: docs/guides/examples/run_test.py
+            nested_visible: true
+          - pattern: '/*test*.sh'
+            root_probe: xtestx.sh
+            nested_probe: docs/guides/examples/smoke_test.sh
+            nested_visible: true
+          - pattern: '/*test*.md'
+            root_probe: xtestx.md
+            nested_probe: docs/guides/my_test_guide.md
+            nested_visible: true
+          - pattern: '/*test*.js'
+            root_probe: xtestx.js
+            nested_probe: docs/guides/examples/test_helper.js
+            nested_visible: true
+          - pattern: '/*test*.cjs'
+            root_probe: xtestx.cjs
+            nested_probe: docs/guides/examples/test_helper.cjs
+            nested_visible: true
+          - pattern: '/*_test_results.json'
+            root_probe: x_test_results.json
+            nested_probe: docs/guides/examples/rule_test_results.json
+            nested_visible: true
+          - pattern: '/*_test_result.png'
+            root_probe: x_test_result.png
+            nested_probe: docs/images/rule_test_result.png
+            nested_visible: true
+          - pattern: '/*_results.json'
+            root_probe: x_results.json
+            nested_probe: docs/guides/examples/scan_results.json
+            nested_visible: true
+          - pattern: '/*_error.png'
+            root_probe: x_error.png
+            nested_probe: docs/images/scan_error.png
+            nested_visible: true
+          - pattern: '/*_debug.png'
+            root_probe: x_debug.png
+            nested_probe: docs/images/scan_debug.png
+            nested_visible: true
+          - pattern: '/*_demo_*.png'
+            root_probe: x_demo_x.png
+          - pattern: '/*_comparison_*.png'
+            root_probe: x_comparison_x.png
+          - pattern: '/*_integration_*.json'
+            root_probe: x_integration_x.json
+          - pattern: '/*_e2e_*.json'
+            root_probe: x_e2e_x.json
+          - pattern: '/*_e2e_*.png'
+            root_probe: x_e2e_x.png
+          - pattern: '/responsive_*.png'
+            root_probe: responsive_x.png
+            nested_probe: docs/images/responsive_hosts.png
+            nested_visible: true
+          - pattern: '/pagination_*.png'
+            root_probe: pagination_x.png
+          - pattern: '/content_*.png'
+            root_probe: content_x.png
+            nested_probe: docs/images/content_layout.png
+            nested_visible: true
+          - pattern: '/login_*.png'
+            root_probe: login_x.png
+            nested_probe: docs/images/login_flow.png
+            nested_visible: true
+          - pattern: '/mongodb_*.png'
+            root_probe: mongodb_x.png
+          - pattern: '/rules_explorer_*.png'
+            root_probe: rules_explorer_x.png
+          - pattern: '/scrolling_*.png'
+            root_probe: scrolling_x.png
+          - pattern: '/tab_*.png'
+            root_probe: tab_x.png
+            nested_probe: docs/images/tab_compliance.png
+            nested_visible: true
+          - pattern: '/compliance_rules/'
+            root_probe: compliance_rules/probe.md
+          - pattern: '/*_TEST_REPORT.md'
+            root_probe: x_TEST_REPORT.md
+            nested_probe: docs/guides/SCAN_TEST_REPORT.md
+            nested_visible: true
+          - pattern: '/*_TEST_SUMMARY.md'
+            root_probe: x_TEST_SUMMARY.md
+            nested_probe: docs/guides/SCAN_TEST_SUMMARY.md
+            nested_visible: true
+          - pattern: '/COMPREHENSIVE_TEST_REPORT.md'
+            root_probe: COMPREHENSIVE_TEST_REPORT.md
+          - pattern: '/TROUBLESHOOTING_SUMMARY.md'
+            root_probe: TROUBLESHOOTING_SUMMARY.md
+          - pattern: '/gitignore_recommendations.md'
+            root_probe: gitignore_recommendations.md
+          - pattern: '/*_ui_error.png'
+            root_probe: x_ui_error.png
+            nested_probe: docs/images/panel_ui_error.png
+            nested_visible: true
+          - pattern: '/login_error.png'
+            root_probe: login_error.png
+            nested_probe: docs/images/login_error.png
+            nested_visible: true
+          - pattern: '/dashboard_error.png'
+            root_probe: dashboard_error.png
+          - pattern: '/hosts_error.png'
+            root_probe: hosts_error.png
+          - pattern: '/hosts_ui_error.png'
+            root_probe: hosts_ui_error.png
+          - pattern: '/host_groups_ui_error.png'
+            root_probe: host_groups_ui_error.png
+          - pattern: '/content_ui_error.png'
+            root_probe: content_ui_error.png
+          - pattern: '/scanning_ui_error.png'
+            root_probe: scanning_ui_error.png
+          - pattern: '/results_ui_error.png'
+            root_probe: results_ui_error.png
+          - pattern: '/gitignore_*.md'
+            root_probe: gitignore_x.md
+            nested_probe: docs/guides/gitignore_policy.md
+            nested_visible: true
+          - pattern: '/create-rpm.sh'
+            root_probe: create-rpm.sh
+          - pattern: '/mock_backend.py'
+            root_probe: mock_backend.py
+          - pattern: '/*phase*.py'
+            root_probe: xphasex.py
+          - pattern: '/*demo*.py'
+            root_probe: xdemox.py
+          - pattern: '/*_ASSESSMENT.md'
+            root_probe: x_ASSESSMENT.md
+            nested_probe: docs/guides/SYSTEM_ASSESSMENT.md
+            nested_visible: true
+          - pattern: '/*_ANALYSIS.md'
+            root_probe: x_ANALYSIS.md
+            nested_probe: docs/guides/API_ANALYSIS.md
+            nested_visible: true
+          - pattern: '/*_COMPLETE.md'
+            root_probe: x_COMPLETE.md
+            nested_probe: docs/guides/UPGRADE_COMPLETE.md
+            nested_visible: true
+          - pattern: '/*_FIX*.md'
+            root_probe: x_FIXx.md
+            nested_probe: docs/guides/AUTH_FIX_NOTES.md
+            nested_visible: true
+          - pattern: '/*_IMPLEMENTATION*.md'
+            root_probe: x_IMPLEMENTATIONx.md
+            nested_probe: docs/guides/RBAC_IMPLEMENTATION.md
+            nested_visible: true
+          - pattern: '/*_PHASE*.md'
+            root_probe: x_PHASEx.md
+            nested_probe: docs/guides/ROLLOUT_PHASE2.md
+            nested_visible: true
+          - pattern: '/*_REPORT.md'
+            root_probe: x_REPORT.md
+            nested_probe: docs/guides/SOMETHING_REPORT.md
+            nested_visible: true
+          - pattern: '/*_STATUS.md'
+            root_probe: x_STATUS.md
+            nested_probe: docs/guides/MIGRATION_STATUS.md
+            nested_visible: true
+          - pattern: '/*_SUMMARY.md'
+            root_probe: x_SUMMARY.md
+            nested_probe: docs/guides/RELEASE_SUMMARY.md
+            nested_visible: true
+          - pattern: '/*_VERIFICATION*.md'
+            root_probe: x_VERIFICATIONx.md
+            nested_probe: docs/guides/REPORT_VERIFICATION.md
+            nested_visible: true
+          - pattern: '/*_TRACKING*.md'
+            root_probe: x_TRACKINGx.md
+            nested_probe: docs/guides/CHANGE_TRACKING.md
+            nested_visible: true
+          - pattern: '/CHANGES_SUMMARY.md'
+            root_probe: CHANGES_SUMMARY.md
+          - pattern: '/TABPANEL_*.md'
+            root_probe: TABPANEL_x.md
+          - pattern: '/test-*.js'
+            root_probe: test-x.js
+            nested_probe: docs/guides/examples/test-harness.js
+            nested_visible: true
+          - pattern: '/test-*.json'
+            root_probe: test-x.json
+            nested_probe: docs/guides/examples/test-fixture.json
+            nested_visible: true
+          - pattern: '/test-results.json'
+            root_probe: test-results.json
+            nested_probe: docs/guides/examples/test-results.json
+            nested_visible: true
+          - pattern: '/CLAUDE.md'
+            root_probe: CLAUDE.md
+            nested_probe: docs/guides/CLAUDE.md
+            nested_visible: true
+          - pattern: '/BACKLOG.md'
+            root_probe: BACKLOG.md
+            nested_probe: docs/guides/BACKLOG.md
+            nested_visible: true
+          - pattern: '/SESSION_LOG.md'
+            root_probe: SESSION_LOG.md
+          - pattern: '/MONGODB_INDEX_MIGRATION_PLAN.md'
+            root_probe: MONGODB_INDEX_MIGRATION_PLAN.md
+          - pattern: '/DEPENDENCY_UPGRADES_STATUS.md'
+            root_probe: DEPENDENCY_UPGRADES_STATUS.md
+          - pattern: '/NPM_GROUPS_UPGRADE_VERIFICATION.md'
+            root_probe: NPM_GROUPS_UPGRADE_VERIFICATION.md
+          - pattern: '/VITEST_4_UPGRADE_VERIFICATION.md'
+            root_probe: VITEST_4_UPGRADE_VERIFICATION.md
+          - pattern: '/UNTESTED_DEPENDENCY_UPGRADES.md'
+            root_probe: UNTESTED_DEPENDENCY_UPGRADES.md
+          - pattern: '/REDIS_7_UPGRADE_*.md'
+            root_probe: REDIS_7_UPGRADE_x.md
+          - pattern: '/test_phase*.sh'
+            root_probe: test_phasex.sh
+            nested_probe: docs/guides/examples/test_phase2.sh
+            nested_visible: true
+          - pattern: '/verify_deployment.py'
+            root_probe: verify_deployment.py
+          - pattern: '/monitor_ssh_validation.py'
+            root_probe: monitor_ssh_validation.py
+          - pattern: '/scap_json_to_openwatch_converter_enhanced.py'
+            root_probe: scap_json_to_openwatch_converter_enhanced.py
+          - pattern: '/examples/'
+            root_probe: examples/probe.md
+            nested_probe: docs/guides/examples/widget/run.sh
+            nested_visible: true
+          - pattern: '/openwatch'
+            root_probe: openwatch
         planted_guide: docs/guides/examples/ac14-probe/NESTED_GUIDE.md
         # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
         # to be one the security rules match, or the test would prove nothing.
@@ -587,8 +839,9 @@ spec:
             text: '  required). See `docs/engineering/remediation_governance_adr.md` ("A-keep").'
       expected_output:
         tracked_documentation_is_visible: true
-        root_only_artifacts_stay_ignored: true
-        every_anchored_pattern_bites_at_the_root: true
+        anchored_rules_match_gitignore_exactly: true
+        every_anchored_root_probe_is_ignored: true
+        nested_probes_match_declared_visibility: true
         secrets_stay_ignored_at_every_depth: true
         unanchored_patterns_do_not_return: true
         directory_reincludes_under_docs_are_absent: true

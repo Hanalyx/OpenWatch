@@ -1327,49 +1327,91 @@ func TestCIGates_TrackedDocumentationBoundary(t *testing.T) {
 			}
 		}
 
-		// ---- The same names at the repository root stay ignored. Anchoring
-		// must not have turned the rules off.
-		if exp.Bool("root_only_artifacts_stay_ignored") {
-			for _, p := range in.List("root_only_ignored") {
-				path := p.(string)
-				if !ignored(t, dir, path) {
-					t.Errorf("root artifact is no longer ignored: %s", path)
-				}
-			}
-		}
-
-		// ---- Every anchored pattern, not a sample: anchoring a rule must not
-		// switch it off at the root. The list is read out of .gitignore, so a
-		// pattern added later is bound the moment it lands.
-		if exp.Bool("every_anchored_pattern_bites_at_the_root") {
-			floor := in.Int("min_anchored_patterns")
-			var anchored []string
+		// ---- The anchored set is compared EXACTLY against the fixture. A count
+		// or a floor cannot tell a deletion from a swap, and a synthesized glob
+		// cannot say what a rule is FOR. Both are gone.
+		if exp.Bool("anchored_rules_match_gitignore_exactly") {
+			actual := map[string]int{}
 			for _, ln := range strings.Split(gitignore, "\n") {
 				t := strings.TrimSpace(ln)
 				if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "!") {
 					continue
 				}
-				if !strings.HasPrefix(t, "/") {
-					continue
+				if strings.HasPrefix(t, "/") {
+					actual[t]++
 				}
-				anchored = append(anchored, t)
 			}
-			if len(anchored) < floor {
-				t.Errorf("only %d anchored patterns in %s, expected at least %d; "+
-					"were they deleted rather than anchored?", len(anchored), in.Str("gitignore"), floor)
+			declared := map[string]int{}
+			for _, r := range in.MapList("anchored_rules") {
+				declared[r.Str("pattern")]++
 			}
-			repl := strings.NewReplacer("*", "x", "?", "y", "[Dd]", "D", "$", "S")
-			for _, pat := range anchored {
-				sample := repl.Replace(strings.TrimSuffix(strings.TrimPrefix(pat, "/"), "/"))
-				if sample == "" {
-					continue
+			for pat, n := range actual {
+				switch d := declared[pat]; {
+				case d == 0:
+					t.Errorf(".gitignore has undeclared anchored rule %q; add it to AC-14 "+
+						"anchored_rules with a root probe", pat)
+				case n > d:
+					t.Errorf(".gitignore has %q %d times, the fixture declares it %d; a duplicated "+
+						"rule is dead weight and is how the nginx pair arose", pat, n, d)
 				}
-				if strings.HasSuffix(pat, "/") {
-					sample += "/probe.md"
+			}
+			for pat, d := range declared {
+				if a := actual[pat]; a < d {
+					t.Errorf("AC-14 declares anchored rule %q but .gitignore has it %d times; "+
+						"was it deleted or de-anchored?", pat, a)
 				}
-				if !ignored(t, dir, sample) {
-					t.Errorf("anchored pattern %q no longer ignores %q at the root", pat, sample)
+			}
+		}
+
+		// ---- Every declared probe is run. The fixture is checked against git's
+		// behavior, not against itself.
+		checkRoots := exp.Bool("every_anchored_root_probe_is_ignored")
+		checkNested := exp.Bool("nested_probes_match_declared_visibility")
+		for _, r := range in.MapList("anchored_rules") {
+			pat := r.Str("pattern")
+			root := r.Str("root_probe")
+			// nested_probe, nested_visible and nested_exception are optional:
+			// a rule whose family was not touched needs no nested behavior.
+			var nested string
+			var wantVisible bool
+			if r.Has("nested_probe") {
+				nested = r.Str("nested_probe")
+				wantVisible = r.Bool("nested_visible")
+				if r.Has("nested_exception") {
+					// Read so the field is consumed; its content is the reason a
+					// human needs, not something the test can check.
+					if r.Str("nested_exception") == "" {
+						t.Errorf("rule %q records an empty nested_exception", pat)
+					}
+				} else if !wantVisible {
+					t.Errorf("rule %q declares nested_probe %q invisible with no "+
+						"nested_exception; an exception needs its reason recorded", pat, nested)
 				}
+			}
+			r.AllConsumed()
+
+			if checkRoots && !ignored(t, dir, root) {
+				t.Errorf("anchored rule %q no longer ignores its root probe %q", pat, root)
+			}
+			if !checkNested || nested == "" {
+				continue
+			}
+			gotVisible := !ignored(t, dir, nested)
+			if gotVisible == wantVisible {
+				continue
+			}
+			if wantVisible {
+				var why string
+				c := exec.Command("git", "check-ignore", "-v", nested)
+				c.Dir = dir
+				if out, _ := c.Output(); len(out) > 0 {
+					why = strings.TrimSpace(string(out))
+				}
+				t.Errorf("rule %q: nested probe %q should be visible but is ignored\n  by %s",
+					pat, nested, why)
+			} else {
+				t.Errorf("rule %q: nested probe %q is declared ignored but is visible; "+
+					"the recorded exception no longer holds", pat, nested)
 			}
 		}
 

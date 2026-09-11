@@ -574,7 +574,6 @@ cache/
 /gitignore_recommendations.md
 
 # Test screenshots and artifacts
-/*_error.png
 /*_ui_error.png
 /login_error.png
 /dashboard_error.png
