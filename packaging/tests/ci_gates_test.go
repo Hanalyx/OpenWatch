@@ -1644,8 +1644,7 @@ func TestCIGates_TrackedDocumentationBoundary(t *testing.T) {
 			markers = append(markers, strings.ToLower(m.(string)))
 		}
 		lsFiles := exec.Command("git", "ls-files",
-			"*.md", "docs/*.md", "docs/guides/*.md", "docs/guides/runbooks/*.md",
-			"docs/runbooks/*.md", ".github/*.md", ".github/workflows/*.md", ".claude/skills/*.md")
+			"*.md", "docs/*.md", "docs/guides/*.md", "docs/runbooks/*.md", ".github/*.md", ".github/workflows/*.md", ".claude/skills/*.md")
 		lsFiles.Dir = dir
 		lsOut, err := lsFiles.Output()
 		if err != nil {

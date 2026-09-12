@@ -24,7 +24,8 @@ security/certs/dhparam.pem
 **/*-key.pem
 **/private_key.*
 # OpenSSH default private key names. These had NO rule at any depth until
-# 2026-09-11: `docs/guides/examples/id_rsa` was visible to `git add`. The public
+# 2026-09-11: an `id_rsa` in the tracked examples directory was visible to
+# `git add`. That directory is now `docs/runbooks/examples/`. The public
 # halves (*.pub) stay tracked-able on purpose.
 **/id_rsa
 **/id_ed25519
@@ -815,7 +816,8 @@ context/
 # you. The second was worse: `**` re-includes EVERYTHING under that directory,
 # which silently un-ignored `*private_key*`, `*credential*`, `*api_key*`,
 # `*passwd*`, `*secret*` and `**/*.key` beneath it. A private key dropped in
-# docs/guides/examples/ would have been staged without complaint.
+# that directory, since moved to docs/runbooks/examples/, would have been
+# staged without complaint.
 #
 # The cause was blanket patterns written for repository-root scratch files
 # matching by BASENAME at any depth. They are anchored with a leading `/` now,

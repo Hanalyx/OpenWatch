@@ -163,7 +163,7 @@ anchor trust in one.
 
 Anyone verifying a report needs the anchor from a channel other than the server
 that served the report, or the check proves only that the server agrees with
-itself. See [Verifying a report](REPORT_VERIFICATION.md).
+itself. See [Verifying a report](../runbooks/REPORT_VERIFICATION.md).
 
 Keep the database password out of the world-readable TOML by putting the DSN in
 `/etc/openwatch/secrets.env`, which the `systemd` unit loads via
@@ -324,7 +324,7 @@ you have never restored is a hypothesis, not a backup.
 
 Concise, single-binary runbooks follow. Diagnose with `systemctl`, `journalctl`,
 `psql`, `df`, and `top`: not `docker`. For the full incident runbooks, see
-[the runbooks directory](runbooks/).
+[the runbooks directory](../runbooks/).
 
 ### SERVICE_DOWN: service unavailable
 
@@ -471,4 +471,4 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 - [Install guide](INSTALLATION.md): canonical install and provisioning.
 - [User roles](USER_ROLES.md): roles and permissions.
 - [API guide](API_GUIDE.md): every endpoint, its permission, and audit events.
-- [Operational runbooks](runbooks/): incident response procedures.
+- [Operational runbooks](../runbooks/): incident response procedures.

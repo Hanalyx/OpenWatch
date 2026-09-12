@@ -171,7 +171,7 @@ runs all four steps. The example files beside it are a real signed report,
 produced by the same code path that serves the API.
 
 ```bash
-cd docs/guides/examples/report-verification
+cd docs/runbooks/examples/report-verification
 
 # Consistency only.
 ./verify.sh report.json report.meta.json signing-key.json
@@ -274,7 +274,7 @@ system.
 Never reuse it, never treat it as secret, and never treat a report it signed as
 attested. A production key is 32 bytes from a random source, readable only by
 the service; see
-[Production deployment](PRODUCTION_DEPLOYMENT.md#set-the-report-signing-key-before-issuing-evidence).
+[Production deployment](../guides/PRODUCTION_DEPLOYMENT.md#set-the-report-signing-key-before-issuing-evidence).
 
 ## Ephemeral keys
 
@@ -288,7 +288,7 @@ person checking it finds out, and you do not.
 
 Treat an ephemeral signature as a development artifact and nothing more. Set a
 durable key before issuing any report that someone will keep. See
-[Production deployment](PRODUCTION_DEPLOYMENT.md#set-the-report-signing-key-before-issuing-evidence).
+[Production deployment](../guides/PRODUCTION_DEPLOYMENT.md#set-the-report-signing-key-before-issuing-evidence).
 
 ---
 
@@ -337,9 +337,9 @@ reading it as signed would excuse a missing signature.
 
 ## Related
 
-- [Production deployment](PRODUCTION_DEPLOYMENT.md) sets the durable signing key.
-- [Environment reference](ENVIRONMENT_REFERENCE.md) documents
+- [Production deployment](../guides/PRODUCTION_DEPLOYMENT.md) sets the durable signing key.
+- [Environment reference](../guides/ENVIRONMENT_REFERENCE.md) documents
   `OPENWATCH_REPORTS_SIGNING_KEY_FILE`.
-- [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) explains the scores a
+- [Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md) explains the scores a
   report carries.
-- [API guide](API_GUIDE.md) covers the report endpoints.
+- [API guide](../guides/API_GUIDE.md) covers the report endpoints.

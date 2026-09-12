@@ -1,6 +1,6 @@
 package report
 
-// Generator for the worked example in docs/guides/REPORT_VERIFICATION.md.
+// Generator for the worked example in docs/runbooks/REPORT_VERIFICATION.md.
 //
 // It is a GENERATOR, not a gate: it runs only when OPENWATCH_WRITE_REPORT_FIXTURE=1
 // and a test database is configured, and it writes the artifact the published
@@ -74,7 +74,7 @@ func TestWriteVerificationFixture(t *testing.T) {
 		t.Fatalf("media type = %q", mediaType)
 	}
 
-	root := filepath.Join(repoRoot(t), "docs", "guides", "examples", "report-verification")
+	root := filepath.Join(repoRoot(t), "docs", "runbooks", "examples", "report-verification")
 	writeTriplet(t, root, rep, canonical, signer)
 
 	// The trust anchor an auditor is supposed to hold: the FULL SHA-256 of the

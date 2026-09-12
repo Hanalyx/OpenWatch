@@ -14,7 +14,7 @@ service being stopped or crash-looping, a TLS or config error that prevents
 startup, or PostgreSQL being unreachable.
 
 For install and configuration layout, see the
-[install guide](../INSTALLATION.md).
+[install guide](../guides/INSTALLATION.md).
 
 ---
 
@@ -207,7 +207,7 @@ These all cause `serve` to exit non-zero during boot.
 - **Missing JWT or credential key**: the log names the missing key and the env
   var that sets it (`OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` /
   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`). Confirm the configured path exists
-  and is readable. See the [installation guide](../INSTALLATION.md)
+  and is readable. See the [installation guide](../guides/INSTALLATION.md)
   for how these keys are provisioned.
 
 After correcting the file:

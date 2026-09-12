@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verify an OpenWatch report snapshot.
 #
-# These are the exact commands in docs/guides/REPORT_VERIFICATION.md. The guide
+# These are the exact commands in docs/runbooks/REPORT_VERIFICATION.md. The guide
 # explains them; this file is what the test suite runs, so the two cannot drift.
 #
 # Usage:

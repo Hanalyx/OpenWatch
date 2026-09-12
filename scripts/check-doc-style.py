@@ -102,7 +102,7 @@ READING_TARGET = 10.0
 #
 # The 12.1 maximum is .github/pull_request_template.md, which is a checkbox form rather than
 # continuous prose and is capped in READING_EXEMPT below. Excluding it, the densest real document
-# is docs/guides/runbooks/SECURITY_INCIDENT.md at 11.4.
+# is docs/runbooks/SECURITY_INCIDENT.md at 11.4.
 #
 # 11.5 sits just above p90 and just above that densest document, so the next file to drift becomes
 # a finding. 11.0 would fail SECURITY_INCIDENT.md, which is dense but not unclear, and the repair

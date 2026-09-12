@@ -29,7 +29,7 @@ them.
 | [Hosts and remediation](guides/HOSTS_AND_REMEDIATION.md) | Add hosts, configure credentials, remediate findings, roll back |
 | [User roles](guides/USER_ROLES.md) | Built-in roles, the permission registry, and the workflow for each role |
 | [API guide](guides/API_GUIDE.md) | REST API reference for automation and CI/CD integration |
-| [Verifying a report](guides/REPORT_VERIFICATION.md) | Check a report's content hash and Ed25519 signature, and what that does not prove |
+| [Verifying a report](runbooks/REPORT_VERIFICATION.md) | Check a report's content hash and Ed25519 signature, and what that does not prove |
 | [Compliance controls](guides/COMPLIANCE_CONTROLS.md) | NIST, CIS, CMMC and FedRAMP control mapping |
 | [Supported Linux distributions](guides/LINUX_DISTRIBUTION_SUPPORT.md) | Target distributions for the RPM and DEB packages |
 
@@ -39,24 +39,24 @@ them.
 |----------|-------------|
 | [Production deployment](guides/PRODUCTION_DEPLOYMENT.md) | Deployment procedures for the single `openwatch` binary |
 | [Environment reference](guides/ENVIRONMENT_REFERENCE.md) | Environment variables and configuration settings |
-| [Database migrations](guides/DATABASE_MIGRATIONS.md) | Migration procedures using `openwatch migrate` |
+| [Database migrations](runbooks/DATABASE_MIGRATIONS.md) | Migration procedures using `openwatch migrate` |
 | [Monitoring setup](guides/MONITORING_SETUP.md) | Prometheus, Grafana and health checks |
 | [Security hardening](guides/SECURITY_HARDENING.md) | TLS, FIPS, rate limiting and audit logging |
 | [Scaling guide](guides/SCALING_GUIDE.md) | Horizontal scaling and performance tuning |
-| [Backup and recovery](guides/BACKUP_RECOVERY.md) | PostgreSQL backup, restore and disaster recovery |
-| [Secret rotation](guides/SECRET_ROTATION.md) | Rotating database, session and encryption keys |
-| [Upgrade procedure](guides/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch, with the rollback path |
+| [Backup and recovery](runbooks/BACKUP_RECOVERY.md) | PostgreSQL backup, restore and disaster recovery |
+| [Secret rotation](runbooks/SECRET_ROTATION.md) | Rotating database, session and encryption keys |
+| [Upgrade procedure](runbooks/UPGRADE_PROCEDURE.md) | Upgrading OpenWatch, with the rollback path |
 | [Releasing](runbooks/RELEASING.md) | The gated pre-release process and signing-key setup |
 
 ## Incident response runbooks
 
 | Runbook | Trigger |
 |---------|---------|
-| [Service down](guides/runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
-| [Database issues](guides/runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
-| [High CPU](guides/runbooks/HIGH_CPU.md) | CPU use above threshold |
-| [Disk full](guides/runbooks/DISK_FULL.md) | Disk space critically low |
-| [Security incident](guides/runbooks/SECURITY_INCIDENT.md) | Unauthorized access, suspected breach |
+| [Service down](runbooks/SERVICE_DOWN.md) | Health check failure, service unavailable |
+| [Database issues](runbooks/DATABASE_ISSUES.md) | Connection errors, slow queries, replication lag |
+| [High CPU](runbooks/HIGH_CPU.md) | CPU use above threshold |
+| [Disk full](runbooks/DISK_FULL.md) | Disk space critically low |
+| [Security incident](runbooks/SECURITY_INCIDENT.md) | Unauthorized access, suspected breach |
 
 ## Other tracked references
 

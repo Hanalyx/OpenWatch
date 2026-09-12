@@ -15,7 +15,7 @@ scriptlet backs up and migrates the database and restarts the service. The
 for production change windows. Both are documented here.
 
 For first-time install and configuration, see the
-[installation guide](INSTALLATION.md). For the database backup and restore
+[installation guide](../guides/INSTALLATION.md). For the database backup and restore
 commands referenced below, see the [backup and recovery guide](BACKUP_RECOVERY.md). For
 migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md).
 
@@ -307,13 +307,13 @@ Kensa is the SSH-based compliance engine, integrated as a Go dependency; its nat
 binary. Rules therefore travel with
 the binary: installing a new OpenWatch package is what updates the bundled
 rule set. There is no separate rule-pull or out-of-band rule-sync step. See
-[Scanning and compliance](SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
+[Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
 Kensa during a scan.
 
 ## Upgrading PostgreSQL
 
 PostgreSQL is provisioned and operated independently of the OpenWatch package
-(see the [installation guide](INSTALLATION.md)). A **PostgreSQL major-version upgrade**
+(see the [installation guide](../guides/INSTALLATION.md)). A **PostgreSQL major-version upgrade**
 (for example 15 to 16) is **never** performed by the OpenWatch package scriptlet. It is
 a data-directory migration (`pg_upgrade` or dump/restore) that needs both server
 versions and must be operator-supervised; doing it silently from a package

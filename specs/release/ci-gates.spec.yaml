@@ -403,15 +403,15 @@ spec:
           - docs/guides/ac13-claim-probe.md
           - docs/runbooks/ac13-claim-probe.md
         claim_probe_text: 'Fetching the signing-key endpoint proves authenticity of the report.'
-        verification_guide: docs/guides/REPORT_VERIFICATION.md
+        verification_guide: docs/runbooks/REPORT_VERIFICATION.md
         scoring_guide: docs/guides/SCANNING_AND_COMPLIANCE.md
         api_guide: docs/guides/API_GUIDE.md
         index: docs/README.md
-        example_script: docs/guides/examples/report-verification/verify.sh
-        fixture_dir: docs/guides/examples/report-verification
-        counterexample_dir: docs/guides/examples/report-verification/counterexample
-        unsigned_dir: docs/guides/examples/report-verification/unsigned
-        trusted_anchor_file: docs/guides/examples/report-verification/trusted-key.sha256
+        example_script: docs/runbooks/examples/report-verification/verify.sh
+        fixture_dir: docs/runbooks/examples/report-verification
+        counterexample_dir: docs/runbooks/examples/report-verification/counterexample
+        unsigned_dir: docs/runbooks/examples/report-verification/unsigned
+        trusted_anchor_file: docs/runbooks/examples/report-verification/trusted-key.sha256
         signing_key_file: signing-key.json
         # The exact shape of the published key document. Enforced field by
         # field because this file is the one excluded from secret scanning.
@@ -558,9 +558,8 @@ spec:
           - docs/guides/SOMETHING_SUMMARY.md
           - docs/guides/MIGRATION_STATUS.md
           - docs/guides/RBAC_IMPLEMENTATION.md
-          - docs/guides/examples/widget/run.sh
-          - docs/guides/examples/deep/nested/NOTES.md
-          - docs/guides/runbooks/NEW_RUNBOOK.md
+          - docs/runbooks/examples/widget/run.sh
+          - docs/runbooks/examples/deep/nested/NOTES.md
           - docs/runbooks/NEW_RUNBOOK.md
           - docs/images/content_layout.png
           - docs/images/login_error.png
@@ -576,8 +575,8 @@ spec:
           - config.local.toml
         secret_depths:
           - docs/guides
-          - docs/guides/examples
-          - docs/guides/examples/deep/nested
+          - docs/runbooks/examples
+          - docs/runbooks/examples/deep/nested
           - docs/runbooks
         # These must never reappear unanchored. A bare line equal to one of
         # these is the defect this criterion exists to prevent.
@@ -595,6 +594,9 @@ spec:
           - '!docs/guides/examples/**'
           - '!docs/guides/examples/'
           - '!docs/guides/REPORT_VERIFICATION.md'
+          - '!docs/runbooks/examples/**'
+          - '!docs/runbooks/examples/'
+          - '!docs/runbooks/REPORT_VERIFICATION.md'
         # The EXACT policy. Every leading-slash rule in .gitignore is declared
         # here with a concrete root probe, and the two multisets must match
         # exactly: a missing rule, an undeclared rule, a duplicate and a
@@ -627,11 +629,11 @@ spec:
             nested_visible: true
           - pattern: '/*test*.py'
             root_probe: xtestx.py
-            nested_probe: docs/guides/examples/run_test.py
+            nested_probe: docs/runbooks/examples/run_test.py
             nested_visible: true
           - pattern: '/*test*.sh'
             root_probe: xtestx.sh
-            nested_probe: docs/guides/examples/smoke_test.sh
+            nested_probe: docs/runbooks/examples/smoke_test.sh
             nested_visible: true
           - pattern: '/*test*.md'
             root_probe: xtestx.md
@@ -639,15 +641,15 @@ spec:
             nested_visible: true
           - pattern: '/*test*.js'
             root_probe: xtestx.js
-            nested_probe: docs/guides/examples/test_helper.js
+            nested_probe: docs/runbooks/examples/test_helper.js
             nested_visible: true
           - pattern: '/*test*.cjs'
             root_probe: xtestx.cjs
-            nested_probe: docs/guides/examples/test_helper.cjs
+            nested_probe: docs/runbooks/examples/test_helper.cjs
             nested_visible: true
           - pattern: '/*_test_results.json'
             root_probe: x_test_results.json
-            nested_probe: docs/guides/examples/rule_test_results.json
+            nested_probe: docs/runbooks/examples/rule_test_results.json
             nested_visible: true
           - pattern: '/*_test_result.png'
             root_probe: x_test_result.png
@@ -655,7 +657,7 @@ spec:
             nested_visible: true
           - pattern: '/*_results.json'
             root_probe: x_results.json
-            nested_probe: docs/guides/examples/scan_results.json
+            nested_probe: docs/runbooks/examples/scan_results.json
             nested_visible: true
           - pattern: '/*_error.png'
             root_probe: x_error.png
@@ -787,7 +789,7 @@ spec:
             nested_visible: true
           - pattern: '/*_VERIFICATION*.md'
             root_probe: x_VERIFICATIONx.md
-            nested_probe: docs/guides/REPORT_VERIFICATION.md
+            nested_probe: docs/runbooks/REPORT_VERIFICATION.md
             nested_visible: true
           - pattern: '/*_TRACKING*.md'
             root_probe: x_TRACKINGx.md
@@ -799,15 +801,15 @@ spec:
             root_probe: TABPANEL_x.md
           - pattern: '/test-*.js'
             root_probe: test-x.js
-            nested_probe: docs/guides/examples/test-harness.js
+            nested_probe: docs/runbooks/examples/test-harness.js
             nested_visible: true
           - pattern: '/test-*.json'
             root_probe: test-x.json
-            nested_probe: docs/guides/examples/test-fixture.json
+            nested_probe: docs/runbooks/examples/test-fixture.json
             nested_visible: true
           - pattern: '/test-results.json'
             root_probe: test-results.json
-            nested_probe: docs/guides/examples/test-results.json
+            nested_probe: docs/runbooks/examples/test-results.json
             nested_visible: true
           - pattern: '/CLAUDE.md'
             root_probe: CLAUDE.md
@@ -833,7 +835,7 @@ spec:
             root_probe: REDIS_7_UPGRADE_x.md
           - pattern: '/test_phase*.sh'
             root_probe: test_phasex.sh
-            nested_probe: docs/guides/examples/test_phase2.sh
+            nested_probe: docs/runbooks/examples/test_phase2.sh
             nested_visible: true
           - pattern: '/verify_deployment.py'
             root_probe: verify_deployment.py
@@ -843,14 +845,14 @@ spec:
             root_probe: scap_json_to_openwatch_converter_enhanced.py
           - pattern: '/examples/'
             root_probe: examples/probe.md
-            nested_probe: docs/guides/examples/widget/run.sh
+            nested_probe: docs/runbooks/examples/widget/run.sh
             nested_visible: true
           - pattern: '/openwatch'
             root_probe: openwatch
-        planted_guide: docs/guides/examples/ac14-probe/NESTED_GUIDE.md
+        planted_guide: docs/runbooks/examples/ac14-probe/NESTED_GUIDE.md
         # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
         # to be one the security rules match, or the test would prove nothing.
-        planted_secret: docs/guides/examples/ac14-probe/id_rsa  # pragma: allowlist secret
+        planted_secret: docs/runbooks/examples/ac14-probe/id_rsa  # pragma: allowlist secret
         ignored_path_prefixes:
           - docs/engineering/
           - docs/architecture/
