@@ -27,6 +27,7 @@ which is the failure mode this tool exists to prevent.
 import argparse
 import fnmatch
 import json
+import datetime
 import hashlib
 import subprocess
 import sys
@@ -74,9 +75,11 @@ def die(msg):
 # The scope is every tracked blob whose path ends in ".md", read from the
 # CANDIDATE COMMIT. Not the working tree, not the index, and no directory
 # exclusions: .github, .claude and scripts/README.md are documentation a
-# reader can reach, so they are in scope like any other. The count today is
-# 38. That is evidence, never a constant to compare against, because a count
-# has to be edited on every addition and fails nothing when it is not.
+# reader can reach, so they are in scope like any other.
+#
+# No corpus count appears anywhere in this file. A count has to be edited on
+# every addition and fails nothing when it is not, so the only counts here are
+# derived at runtime from the tree in hand and reported alongside the result.
 
 DOC_SUFFIX = b".md"
 
@@ -191,14 +194,44 @@ def _show(paths, limit=6):
     return ", ".join(names)
 
 
+def artifact_pair_matches(att, digests):
+    """Does (artifact, artifact_sha256) name one real file in the candidate?
+
+    The two fields are ONE fact, not two strings that happen to sit together.
+    A digest that is present under a different filename says the reviewer held
+    a different artifact than the one they named, and checking the digest
+    alone would accept it."""
+    sha = att.get("artifact_sha256")
+    name = att.get("artifact")
+    if not sha or not name or digests is None:
+        return False
+    return digests.get(sha) == name
+
+
+def _bad_performed_at(value):
+    """A diagnostic if performed_at is not a usable calendar date, else None."""
+    try:
+        when = datetime.date.fromisoformat(value)
+    except ValueError:
+        return f"performed_at {value!r} is not an ISO calendar date (YYYY-MM-DD)"
+    today = datetime.date.today()
+    if when > today:
+        return (f"performed_at {value} is in the future (today is {today}); "
+                "a review cannot have happened yet")
+    return None
+
+
 def eval_doc_review(att, candidate, tag, commit, digests):
     """(status, note) for one documentation-review attestation."""
     if att.get("performed_by", "").endswith("-agent"):
         return FAIL, (f"{att['_file']}: performed_by is an agent; a documentation "
                       "review is a human observation")
-    for field in ("tag", "commit", "artifact_sha256", "docs_sha256", "performed_at"):
+    for field in ("tag", "commit", "artifact", "artifact_sha256", "docs_sha256",
+                  "performed_by", "performed_at"):
         if not att.get(field):
             return FAIL, f"{att['_file']}: no {field}"
+    if bad := _bad_performed_at(att["performed_at"]):
+        return FAIL, f"{att['_file']}: {bad}"
     if att["tag"] != tag:
         return STALE, f"{att['_file']}: attests tag {att['tag']}, candidate is {tag}"
     if att["commit"] != commit:
@@ -210,6 +243,10 @@ def eval_doc_review(att, candidate, tag, commit, digests):
     if att["artifact_sha256"] not in digests:
         return STALE, (f"{att['_file']}: artifact {att['artifact_sha256'][:12]} is not "
                        "in this candidate's SHA256SUMS")
+    if not artifact_pair_matches(att, digests):
+        return STALE, (f"{att['_file']}: digest {att['artifact_sha256'][:12]} belongs to "
+                       f"{digests[att['artifact_sha256']]!r} in this candidate, but the "
+                       f"attestation names {att['artifact']!r}")
     if candidate is None:
         return ERROR, (f"{att['_file']}: the candidate tree could not be read at "
                        f"{commit[:12]}")
@@ -261,9 +298,15 @@ def select_doc_review(atts, kind, tag, commit, digests):
     same_kind = [a for a in atts if a.get("kind") == kind]
     if not same_kind:
         return None, (MISSING, f"no {kind} attestation")
+    if digests is None:
+        # Fail closed, and as ERROR. Reporting STALE here would say the
+        # evidence describes another candidate, when the truth is that nothing
+        # could be compared at all.
+        return None, (ERROR, (f"cannot read SHA256SUMS for this candidate, so no "
+                              f"{kind} attestation can be tied to these bits"))
     bound = [a for a in same_kind
              if a.get("tag") == tag and a.get("commit") == commit
-             and digests is not None and a.get("artifact_sha256") in digests]
+             and artifact_pair_matches(a, digests)]
     if len(bound) > 1:
         names = ", ".join(sorted(a["_file"] for a in bound))
         return None, (ERROR, f"{len(bound)} {kind} attestations bind to this candidate: {names}")

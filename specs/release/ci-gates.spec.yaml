@@ -182,9 +182,10 @@ spec:
         SCOPE IS A PATH RULE. Every tracked blob whose path ends in `.md` at the candidate
         commit is in scope. There are NO directory exclusions: `.github`, `.claude` and
         `scripts/README.md` are documentation a reader can reach, so they are reviewed like
-        any other. The current count is 38. That is a reading of one commit, never a
-        constant the gate compares against: a count has to be edited on every addition and
-        fails nothing when it is not.
+        any other. NO CORPUS COUNT APPEARS IN THIS CONTRACT. A count is a reading of one
+        commit that has to be edited on every addition and fails nothing when it is not.
+        Counts belong in a generated skeleton and in the checker's own result line, where
+        they are derived from the tree in hand.
 
         ENUMERATION IS FROM THE COMMIT. `git ls-tree -r -z <commit>`, filtered to blob
         entries whose path ends in the exact suffix `.md`, with raw path BYTES preserved
@@ -222,9 +223,20 @@ spec:
         plus a remove, because a blob appearing twice cannot say which path became which.
         Missing or unreadable candidate inputs MUST fail closed.
 
-        A HUMAN MUST ATTEST. The existing `performed_by` rule applies, so an agent cannot
-        sign a documentation review. A generator MAY produce an unsigned skeleton with
+        A HUMAN MUST ATTEST, AND MUST BE NAMED. `performed_by` and `artifact` MUST be
+        nonempty, an identity ending in `-agent` is refused, and `performed_at` MUST be a
+        valid ISO calendar date that is not in the future. `artifact` and
+        `artifact_sha256` are ONE fact and MUST match as an exact pair in the candidate's
+        SHA256SUMS, at selection as well as at final evaluation: a digest present under a
+        different filename means the reviewer held an artifact other than the one they
+        named. An unreadable SHA256SUMS MUST return ERROR through the whole selection
+        path, never STALE, because nothing could be compared rather than the evidence
+        describing another candidate. A generator MAY produce an unsigned skeleton with
         every verdict `pending`, and MUST NOT fill in a human identity or a verdict.
+
+        THE GATE MUST CITE THIS CONTRACT. The gate entry MUST carry `spec` and `ac`
+        naming the criterion it rests on, so a reader of `release/gates.toml` can reach
+        the rule and a reader of the rule can find its gate.
       type: technical
       enforcement: error
 

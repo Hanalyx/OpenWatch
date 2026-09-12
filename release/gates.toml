@@ -349,8 +349,9 @@ blocking = true
 # human against THOSE bytes. Scope is a path rule, not a judgment about which
 # documents matter: every tracked blob ending in .md, with no directory
 # exclusions, so .github, .claude and scripts/README.md are in scope like any
-# other. That is 38 documents today. The count is evidence, never a constant
-# the gate compares against.
+# other. No document count is written here: a count has to be edited on every
+# addition and fails nothing when it is not, so the checker derives it from the
+# candidate and reports it beside the verdict.
 #
 # The attestation records a verdict per path and every verdict must be
 # "accurate". A recorded defect is a NO-GO rather than a note, because there is
@@ -368,3 +369,5 @@ evidence = "doc-review"
 kind = "documentation-review"
 human_required = true
 blocking = true
+spec = "release-ci-gates"
+ac = "AC-15"

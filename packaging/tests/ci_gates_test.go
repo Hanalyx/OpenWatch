@@ -1741,6 +1741,10 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 				`kind = "documentation-review"`,
 				"human_required = true",
 				"blocking = true",
+				// Traceability both ways: a reader of gates.toml can reach
+				// the rule, and a reader of the rule can find its gate.
+				`spec = "release-ci-gates"`,
+				`ac = "AC-15"`,
 			} {
 				if !strings.Contains(b, want) {
 					t.Errorf("the documentation-review gate is missing %s. A gate that does "+

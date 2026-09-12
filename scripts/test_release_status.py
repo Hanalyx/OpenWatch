@@ -293,7 +293,8 @@ TEST_AC_ANNOTATION = re.compile(r"^\s*// @ac (AC-\d+)", re.M)
 def read_test_annotations():
     """Map each annotated spec id to the criterion ids some test claims."""
     out = {}
-    for root in (rs.REPO / "frontend" / "tests", rs.REPO / "internal"):
+    for root in (rs.REPO / "frontend" / "tests", rs.REPO / "internal",
+                 rs.REPO / "packaging" / "tests", rs.REPO / "cmd"):
         for f in root.rglob("*"):
             if f.suffix not in (".ts", ".tsx", ".go") or not f.is_file():
                 continue
@@ -635,7 +636,7 @@ def doc_att(entries, **kw):
         "kind": "documentation-review",
         "tag": "v0.8.0-rc.1",
         "commit": "c" * 40,
-        "artifact": "openwatch-0.8.0-1.x86_64.rpm",
+        "artifact": DIGESTS[GOOD_SHA],
         "artifact_sha256": GOOD_SHA,
         "performed_by": "a.human",
         "performed_at": "2026-09-12",
@@ -789,7 +790,62 @@ class DocReviewRejectsUnboundOrUnsoundEvidence(unittest.TestCase):
         self.assertIn("no reviewed entries", note)
 
 
+class DocReviewRequiresANamedHumanAndARealArtifact(unittest.TestCase):
+    def test_an_empty_performed_by_fails(self):
+        status, note = run_doc(doc_att(ACCURATE, performed_by=""))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("no performed_by", note)
+
+    def test_an_empty_artifact_fails(self):
+        status, note = run_doc(doc_att(ACCURATE, artifact=""))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("no artifact", note)
+
+    def test_a_valid_digest_with_the_wrong_artifact_name_is_stale(self):
+        status, note = run_doc(doc_att(ACCURATE, artifact="openwatch-9.9.9-1.x86_64.rpm"))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("belongs to", note)
+        self.assertIn("openwatch-9.9.9-1.x86_64.rpm", note)
+
+    def test_a_malformed_performed_at_fails(self):
+        for bad in ("2026-13-01", "2026-02-30", "12/09/2026", "yesterday", "2026-9-12"):
+            status, note = run_doc(doc_att(ACCURATE, performed_at=bad))
+            self.assertEqual(status, rs.FAIL, f"{bad!r} was accepted")
+            self.assertIn("ISO calendar date", note)
+
+    def test_a_future_performed_at_fails(self):
+        import datetime
+        ahead = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+        status, note = run_doc(doc_att(ACCURATE, performed_at=ahead))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("in the future", note)
+
+    def test_today_is_accepted(self):
+        import datetime
+        status, note = run_doc(doc_att(ACCURATE,
+                                       performed_at=datetime.date.today().isoformat()))
+        self.assertEqual(status, rs.PASS, note)
+
+
 class DocReviewSelectionIsCandidateBound(unittest.TestCase):
+    def test_unreadable_checksums_are_an_error_through_selection(self):
+        # Not STALE. Nothing could be compared, which is a different fact from
+        # the evidence describing another candidate.
+        picked, problem = rs.select_doc_review([doc_att(ACCURATE)], "documentation-review",
+                                               TAG, COMMIT, None)
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.ERROR)
+        self.assertIn("cannot read SHA256SUMS", problem[1])
+
+    def test_selection_uses_the_artifact_pair_not_the_digest_alone(self):
+        wrong_name = doc_att(ACCURATE, _file="wrong-name.toml",
+                             artifact="openwatch-9.9.9-1.x86_64.rpm")
+        picked, problem = rs.select_doc_review([wrong_name], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(picked, "an attestation naming another artifact was selected")
+        self.assertEqual(problem[0], rs.STALE)
+
+
     def test_a_lexically_later_stale_file_cannot_hide_a_valid_one(self):
         valid = doc_att(ACCURATE, _file="aaa-valid.toml")
         stale = doc_att(ACCURATE, _file="zzz-stale.toml", commit="d" * 40)
