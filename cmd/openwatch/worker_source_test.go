@@ -201,21 +201,32 @@ func TestScanning_ServeRunsTheWorkerInProcess(t *testing.T) {
 		}
 
 		// serve builds the production scan path and registers the worker
-		// on its in-process runner. Each of the three is load-bearing:
-		// without the scan func serve has no way to scan, without the
-		// worker there is nothing to register, and without the
-		// registration the claimed jobs dead-end.
+		// on its in-process runner. Each is load-bearing: without the scan
+		// func serve has no way to scan, without the worker there is
+		// nothing to register, and without the registration the claimed
+		// jobs dead-end.
 		main := mainGoSource(t)
 		for _, want := range []struct{ frag, why string }{
 			{"kensa.NewProductionScanFunc(", "serve must build the production scan func"},
-			{"worker.NewScanWorker(", "serve must construct the scan worker"},
-			{"WithScanWorker(", "serve must register the scan worker on its in-process job runner"},
+			{"scanWorker := worker.NewScanWorker(", "serve must construct the scan worker"},
 		} {
 			if !strings.Contains(main, want.frag) {
 				t.Errorf("cmd/openwatch/main.go does not contain %q: %s. Without it a default "+
 					"packaged install cannot scan, because the unit runs serve and nothing "+
 					"else.", want.frag, want.why)
 			}
+		}
+
+		// The registration must pass THAT worker. `WithScanWorker(` alone is
+		// satisfied by `WithScanWorker(nil)`, which registers nothing and
+		// leaves serve claiming scan jobs it cannot run. Bind the chain link
+		// to the constructed value by name.
+		// The dot ends the PREVIOUS line in this chain, so \s* has to span the
+		// newline. Go's \s matches \n, and the anchor is the argument.
+		if !regexp.MustCompile(`\.\s*WithScanWorker\(scanWorker\)`).MatchString(main) {
+			t.Error("cmd/openwatch/main.go does not chain .WithScanWorker(scanWorker). " +
+				"Registering anything else, nil included, means serve claims scan jobs " +
+				"from the queue and dead-ends them.")
 		}
 
 		// Registering must still mean something. WithScanWorker could keep
