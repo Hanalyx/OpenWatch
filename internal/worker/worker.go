@@ -113,6 +113,17 @@ func (w *Worker) WithScanProcessor(sw *ScanWorker) *Worker {
 	return w
 }
 
+// HasScanProcessor reports whether a scan processor is registered on this
+// worker, so a caller can verify the wiring rather than read the source
+// and hope. system-worker-subcommand AC-19 uses it to prove the serve
+// process really runs scans: a source-inspection check passes on a
+// registration guarded by an impossible condition, and this does not.
+//
+// Read-only. It changes nothing about how jobs are claimed or run.
+func (w *Worker) HasScanProcessor() bool {
+	return w != nil && w.scanProc != nil
+}
+
 // WithRemediationProcessor registers a RemediationWorker whose ProcessJob
 // handles "remediation" jobs claimed by THIS worker's loop. Like scan jobs,
 // queue.Dequeue is not type-filtered, so the in-process worker must route

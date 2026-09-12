@@ -126,12 +126,28 @@ func (s *Service) Dispatch(ctx context.Context) (int, error) {
 	// host_compliance_schedule.maintenance_mode — a column the API never
 	// wrote, so a host toggled into maintenance kept getting scanned. Lock
 	// only the schedule rows (FOR UPDATE OF s); the view is read-only.
+	//
+	// Backoff: the scan worker records a per-host failure ladder in
+	// host_backoff_state and until now nothing read it on this path, so a
+	// host inside its suppression window was re-enqueued on the very next
+	// tick and the 24h dead-letter ceiling did not exist in practice
+	// (CP bugs/OW-031). The join is scoped to probe_type='scan': an
+	// intelligence backoff is a different probe and MUST NOT suppress a
+	// scan (system-intelligence-scheduler keeps the two independent).
+	// An expired window (suppress_until <= now) dispatches normally.
+	//
+	// A suppressed host is simply not selected, so its
+	// next_scheduled_scan is left where it is rather than advanced. It
+	// becomes due again the moment the window passes.
 	const selectStmt = `
 		SELECT s.host_id, s.compliance_state, s.next_scheduled_scan
 		  FROM host_compliance_schedule s
 		  JOIN host_effective_maintenance hem ON hem.host_id = s.host_id
+		  LEFT JOIN host_backoff_state b
+		    ON b.host_id = s.host_id AND b.probe_type = 'scan'
 		 WHERE s.next_scheduled_scan <= $1
 		   AND NOT hem.in_maintenance
+		   AND (b.suppress_until IS NULL OR b.suppress_until <= $1)
 		 ORDER BY s.next_scheduled_scan
 		 FOR UPDATE OF s SKIP LOCKED
 		 LIMIT $2`

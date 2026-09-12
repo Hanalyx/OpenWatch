@@ -87,7 +87,7 @@ func (e *Executor) RecordFailure(ctx context.Context, pool *pgxpool.Pool, hostID
 			(host_id, probe_type, consecutive_failures, last_error_code, last_failure_at, updated_at)
 		VALUES
 			($1, 'scan', 1, $2, $3, $3)
-		ON CONFLICT (host_id) DO UPDATE
+		ON CONFLICT (host_id, probe_type) DO UPDATE
 		SET consecutive_failures = host_backoff_state.consecutive_failures + 1,
 		    last_error_code = EXCLUDED.last_error_code,
 		    last_failure_at = EXCLUDED.last_failure_at,
@@ -105,7 +105,7 @@ func (e *Executor) RecordFailure(ctx context.Context, pool *pgxpool.Pool, hostID
 		if _, err := pool.Exec(ctx, `
 			UPDATE host_backoff_state
 			   SET suppress_until = $1, updated_at = $2
-			 WHERE host_id = $3`,
+			 WHERE host_id = $3 AND probe_type = 'scan'`,
 			suppressUntil, now, hostID); err != nil {
 			return newCount, time.Time{}, fmt.Errorf("kensa: update suppress_until: %w", err)
 		}
@@ -125,7 +125,7 @@ func (e *Executor) RecordSuccess(ctx context.Context, pool *pgxpool.Pool, hostID
 		       suppress_until = NULL,
 		       last_error_code = NULL,
 		       updated_at = $1
-		 WHERE host_id = $2`,
+		 WHERE host_id = $2 AND probe_type = 'scan'`,
 		e.clock(), hostID)
 	if err != nil {
 		return fmt.Errorf("kensa: reset backoff state: %w", err)

@@ -1,7 +1,7 @@
 spec:
   id: system-worker-subcommand
   title: openwatch worker — scan job claimer and dispatcher
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -44,16 +44,19 @@ spec:
       transient failures are NOT in-place re-queued. Instead, the
       worker classifies executor errors, calls queue.Fail on the
       current job, and UPSERTs host_backoff_state.suppress_until
-      with exponential backoff based on consecutive_failures.
+      with exponential backoff based on consecutive_failures. The
+      scheduler dispatcher honors that suppression and will NOT enqueue
+      a new job for the host until the window passes
+      (system-scheduler C-17 owns the read side).
 
-      That suppression is WRITTEN AND NOT READ on the scan path. The
-      scheduler dispatcher ships, but its due-host query joins only
-      host_effective_maintenance and never host_backoff_state, so a
-      host inside its backoff window is re-enqueued on the next tick.
-      Liveness and the intelligence scheduler do read the table; scan
-      dispatch does not. This paragraph previously said the dispatcher
-      was a future PR, which hid the gap behind a plan. See CP
-      bugs/OW-031. After 5 consecutive transient failures, suppress_until
+      The write targets the (host_id, probe_type='scan') row
+      explicitly. Migration 0064 made that pair the primary key. Before
+      it the key was host_id alone, so the scan and intelligence
+      ladders shared one row: a scan failure overwrote intelligence
+      state while leaving it labeled 'intel', a scan success cleared an
+      intelligence suppression, and an intelligence failure on a host
+      with a scan row was discarded outright. See CP bugs/OW-031 for
+      the unread suppression and bugs/OW-032 for the shared row. After 5 consecutive transient failures, suppress_until
       is set to a long ceiling (24h) — that is the "dead-letter."
     related_specs:
       - system-job-queue
@@ -112,7 +115,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-05
-      description: A transient executor error (ErrHostBusy, transport timeout, ssh disconnected — any error NOT classified as permanent by C-06) MUST cause queue.Fail on the current job AND UPSERT host_backoff_state for (host_id, probe_type='scan') with suppress_until = now() + backoff(consecutive_failures), where backoff = 1m, 2m, 4m, 8m, 16m for failures 1..5 and 24h for failures >= 5. The write is the worker's obligation and is what this constraint governs. Enforcement at dispatch is NOT yet wired, because the scheduler's due-host query never reads host_backoff_state (CP bugs/OW-031)
+      description: A transient executor error (ErrHostBusy, transport timeout, ssh disconnected — any error NOT classified as permanent by C-06) MUST cause queue.Fail on the current job AND UPSERT host_backoff_state for (host_id, probe_type='scan') with suppress_until = now() + backoff(consecutive_failures), where backoff = 1m, 2m, 4m, 8m, 16m for failures 1..5 and 24h for failures >= 5. The UPSERT and both UPDATEs MUST name probe_type='scan', so the intelligence ladder for the same host is never read or written by this path. The scheduler dispatcher honors suppress_until and will not enqueue a new job for that host until it passes; system-scheduler C-17 owns that read and AC-23 proves it
       type: technical
       enforcement: error
     - id: C-06
@@ -248,12 +251,19 @@ spec:
       references_constraints: [C-12]
     - id: AC-19
       description: >
-        Source-inspection of three files together. packaging/common/openwatch.service
-        has exactly one ExecStart and it runs `openwatch serve`. cmd/openwatch/main.go
-        builds the production scan func via kensa.NewProductionScanFunc, constructs the
-        scan worker via worker.NewScanWorker, and registers it with WithScanWorker, so
-        the serve process runs the scan loop in-process. cmd/openwatch/worker.go reaches
+        Two halves, because the claims are of two kinds.
+
+        BEHAVIORAL. A Server built the way serve builds one, given a scan worker
+        through Server.WithScanWorker, MUST report a scan processor on its in-process
+        job runner. Registration wrapped in a condition that cannot be true MUST fail
+        this, which source inspection cannot see: the call is still in the source.
+
+        PACKAGING AND SOURCE. packaging/common/openwatch.service has exactly one
+        ExecStart and it runs `openwatch serve`. cmd/openwatch/main.go builds the
+        production scan func via kensa.NewProductionScanFunc, constructs the scan worker
+        via worker.NewScanWorker and registers it. cmd/openwatch/worker.go reaches
         scanning through those same two constructors rather than a separate path.
+
         Removing the serve-side registration MUST fail this criterion, which is what
         separates it from AC-16: AC-16 asserts the worker subcommand's own prerequisites
         and passes whether or not serve scans.

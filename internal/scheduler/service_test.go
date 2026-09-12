@@ -436,3 +436,165 @@ func decodeDetailJSON(raw []byte, into any) error {
 	}
 	return json.Unmarshal(raw, into)
 }
+
+// seedBackoff writes one backoff row for a probe. The scan dispatcher
+// must consult the 'scan' row and ignore every other probe's.
+func seedBackoff(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, probe string, suppressUntil time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO host_backoff_state
+			(host_id, probe_type, consecutive_failures, suppress_until, last_failure_at, updated_at)
+		VALUES ($1, $2, 3, $3, now(), now())`,
+		hostID, probe, suppressUntil)
+	if err != nil {
+		t.Fatalf("seed %s backoff: %v", probe, err)
+	}
+}
+
+func nextScan(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) time.Time {
+	t.Helper()
+	var n time.Time
+	if err := pool.QueryRow(context.Background(),
+		`SELECT next_scheduled_scan FROM host_compliance_schedule WHERE host_id = $1`,
+		hostID).Scan(&n); err != nil {
+		t.Fatalf("read next_scheduled_scan: %v", err)
+	}
+	return n
+}
+
+// @ac AC-23
+// AC-23: an active scan backoff suppresses dispatch, and nothing else does.
+//
+// The worker has always written this ladder. Until now no query read it on
+// the scan path, so a suppressed host was re-enqueued on the very next tick
+// and the 24h dead-letter ceiling did not exist in practice (CP
+// bugs/OW-031). Four hosts cover the whole predicate: no row, an active scan
+// row, an expired scan row, and an intelligence-only row.
+func TestDispatch_ScanBackoffSuppressesOnlyItsOwnProbe(t *testing.T) {
+	t.Run("system-scheduler/AC-23", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		now := time.Now()
+
+		hNone := seedHost(t, pool, user)   // no backoff at all
+		hActive := seedHost(t, pool, user) // scan backoff, still running
+		hExpired := seedHost(t, pool, user)
+		hIntel := seedHost(t, pool, user) // intelligence backoff only
+		for _, h := range []uuid.UUID{hNone, hActive, hExpired, hIntel} {
+			seedSchedule(t, pool, h, withNext(now.Add(-1*time.Minute)))
+		}
+		suppressUntil := now.Add(30 * time.Minute)
+		seedBackoff(t, pool, hActive, "scan", suppressUntil)
+		seedBackoff(t, pool, hExpired, "scan", now.Add(-5*time.Minute))
+		seedBackoff(t, pool, hIntel, "intel", now.Add(6*time.Hour))
+
+		beforeActive := nextScan(t, pool, hActive)
+
+		var calls []emitCall
+		svc := newTestService(t, pool, now, &calls)
+		dispatched, err := svc.Dispatch(withCorrelation(context.Background(), "tick-backoff"))
+		if err != nil {
+			t.Fatalf("Dispatch: %v", err)
+		}
+		if dispatched != 3 {
+			t.Errorf("dispatched = %d, want 3 (no-backoff, expired-backoff and intel-only hosts)", dispatched)
+		}
+
+		enqueued := map[uuid.UUID]bool{}
+		rows, err := pool.Query(context.Background(),
+			`SELECT (payload->>'host_id')::uuid FROM job_queue`)
+		if err != nil {
+			t.Fatalf("read queue: %v", err)
+		}
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				t.Fatalf("scan queued host: %v", err)
+			}
+			enqueued[id] = true
+		}
+		rows.Close()
+
+		if enqueued[hActive] {
+			t.Error("a host inside its scan backoff window was enqueued; the ladder is recorded and not applied")
+		}
+		if !enqueued[hExpired] {
+			t.Error("a host whose scan backoff has expired was not enqueued; suppression outlived its window")
+		}
+		if !enqueued[hIntel] {
+			t.Error("an intelligence-only backoff suppressed a scan; the two ladders are independent")
+		}
+		if !enqueued[hNone] {
+			t.Error("a host with no backoff row was not enqueued")
+		}
+
+		// A skipped host keeps its place in the queue of due work. Advancing
+		// it would push the host a whole interval past the suppression it was
+		// already serving.
+		if after := nextScan(t, pool, hActive); !after.Equal(beforeActive) {
+			t.Errorf("the skipped host's next_scheduled_scan moved %v -> %v; a suppressed host "+
+				"must become due the moment its window passes", beforeActive, after)
+		}
+
+		// Same host, same rows, clock past the window: it dispatches.
+		later := suppressUntil.Add(1 * time.Minute)
+		svcLater := newTestService(t, pool, later, &calls)
+		if _, err := svcLater.Dispatch(withCorrelation(context.Background(), "tick-after")); err != nil {
+			t.Fatalf("Dispatch after expiry: %v", err)
+		}
+		var queued int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM job_queue WHERE (payload->>'host_id')::uuid = $1`, hActive).Scan(&queued); err != nil {
+			t.Fatalf("count queued: %v", err)
+		}
+		if queued == 0 {
+			t.Error("the host was still suppressed after its window passed")
+		}
+	})
+}
+
+// @ac AC-23
+// A host carrying BOTH ladders at once is decided on the scan row alone.
+// This is the arrangement migration 0064 made possible; before it the two
+// rows could not coexist, so the question could not be asked.
+func TestDispatch_BothLaddersPresent_DecidedByTheScanRow(t *testing.T) {
+	t.Run("system-scheduler/AC-23", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		now := time.Now()
+
+		hScanActive := seedHost(t, pool, user)
+		hScanExpired := seedHost(t, pool, user)
+		for _, h := range []uuid.UUID{hScanActive, hScanExpired} {
+			seedSchedule(t, pool, h, withNext(now.Add(-1*time.Minute)))
+			seedBackoff(t, pool, h, "intel", now.Add(6*time.Hour))
+		}
+		seedBackoff(t, pool, hScanActive, "scan", now.Add(30*time.Minute))
+		seedBackoff(t, pool, hScanExpired, "scan", now.Add(-30*time.Minute))
+
+		var calls []emitCall
+		svc := newTestService(t, pool, now, &calls)
+		if _, err := svc.Dispatch(withCorrelation(context.Background(), "tick-both")); err != nil {
+			t.Fatalf("Dispatch: %v", err)
+		}
+
+		for _, tc := range []struct {
+			host uuid.UUID
+			want bool
+			why  string
+		}{
+			{hScanActive, false, "its scan backoff is active"},
+			{hScanExpired, true, "its scan backoff expired, and the intel row is not the scan dispatcher's business"},
+		} {
+			var n int
+			if err := pool.QueryRow(context.Background(),
+				`SELECT count(*) FROM job_queue WHERE (payload->>'host_id')::uuid = $1`, tc.host).Scan(&n); err != nil {
+				t.Fatalf("count queued: %v", err)
+			}
+			if (n > 0) != tc.want {
+				t.Errorf("host enqueued=%v, want %v: %s", n > 0, tc.want, tc.why)
+			}
+		}
+	})
+}

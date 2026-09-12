@@ -567,7 +567,7 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 	if _, err := w.pool.Exec(ctx, `
 		UPDATE host_backoff_state
 		   SET suppress_until = $1, updated_at = $2
-		 WHERE host_id = $3`,
+		 WHERE host_id = $3 AND probe_type = 'scan'`,
 		suppressUntil, w.clock(), hostID); err != nil {
 		slog.WarnContext(ctx, "worker update suppress_until failed",
 			slog.String("host_id", hostID.String()),

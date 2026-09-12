@@ -1,7 +1,7 @@
 spec:
   id: system-scheduler
   title: Adaptive compliance scheduler
-  version: "3.2.0"
+  version: "3.3.0"
   status: approved
   tier: 1
 
@@ -137,6 +137,23 @@ spec:
       enforcement: error
     - id: C-16
       description: The PolicyVersion snapshot MUST be derived from the EFFECTIVE ladder rather than from raw configuration, so two configurations producing the same ladder produce the same version regardless of which clamps applied
+      type: technical
+      enforcement: error
+    - id: C-17
+      description: >
+        Dispatch MUST NOT enqueue a scan for a host whose scan backoff is
+        active. The due-host query MUST exclude rows where a host_backoff_state
+        row for (host_id, probe_type='scan') has suppress_until > now. The scan
+        worker owns the write (system-worker-subcommand C-05); this constraint
+        owns the read, and without it the ladder and its 24h dead-letter ceiling
+        are recorded and never applied (CP bugs/OW-031). Three boundaries are
+        part of the requirement, not refinements of it: a suppress_until in the
+        past MUST dispatch normally; a backoff row for any other probe_type,
+        'intel' in particular, MUST NOT suppress a scan, because the two ladders
+        are independent (system-intelligence-scheduler C-05); and a host skipped
+        for backoff MUST keep its next_scheduled_scan unchanged, so it becomes
+        due the moment the window passes rather than being pushed forward a
+        whole interval.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -306,3 +323,16 @@ spec:
       expected_output:
         same_ladder_same_version: true
         different_ladder_different_version: true
+    - id: AC-23
+      description: >
+        Database behavior, not source inspection. Seed four due hosts: H1 with no
+        backoff row, H2 with a probe_type='scan' row whose suppress_until is in the
+        future, H3 with a probe_type='scan' row whose suppress_until is in the past,
+        and H4 with a probe_type='intel' row whose suppress_until is in the future.
+        One Dispatch enqueues H1, H3 and H4 and does NOT enqueue H2. H2's
+        host_compliance_schedule.next_scheduled_scan is unchanged by that tick.
+        Advancing the clock past H2's suppress_until and dispatching again enqueues
+        H2. A host carrying BOTH a scan and an intelligence row at once is included
+        or excluded on the scan row alone.
+      priority: critical
+      references_constraints: [C-17]
