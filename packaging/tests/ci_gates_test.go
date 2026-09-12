@@ -826,14 +826,148 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 			if !claimed {
 				t.Errorf("AC-13 does not scan for the obsolete endpoint %s", obsolete)
 			}
-			var guides []string
-			out, err := exec.Command("git", "-C", dir, "ls-files", "docs/*.md", "docs/guides/*.md", "docs/guides/runbooks/*.md").Output()
-			if err != nil {
-				t.Fatalf("git ls-files: %v", err)
+			// Discovery walks DIRECTORY ROOTS, so a document at any depth is
+			// scanned, and every root the policy names must contribute. The
+			// previous list of globs omitted docs/runbooks/ outright, so nothing
+			// in it was ever scanned. Depth was not the defect: a plain git
+			// pathspec * matches /, so those globs already recursed. Only
+			// :(glob) magic limits a pathspec to one level, and the nested probe
+			// below is what catches that.
+			var roots []string
+			for _, r := range in.List("scan_roots") {
+				roots = append(roots, r.(string))
 			}
-			guides = strings.Fields(string(out))
+			index := in.Str("scan_index")
+			discover := func() []string {
+				args := append([]string{"-C", dir, "ls-files", index}, roots...)
+				out, err := exec.Command("git", args...).Output()
+				if err != nil {
+					t.Fatalf("git ls-files: %v", err)
+				}
+				var docs []string
+				for _, f := range strings.Fields(string(out)) {
+					if strings.HasSuffix(f, ".md") {
+						docs = append(docs, f)
+					}
+				}
+				return docs
+			}
+			guides := discover()
 			if len(guides) == 0 {
-				t.Fatal("no tracked guides found; the scan would pass vacuously")
+				t.Fatal("no tracked documents discovered; the scan would pass vacuously")
+			}
+
+			// Both roots must contribute, and the named members must be present.
+			// The guard is structural, never today's document count: a count
+			// changes for legitimate reasons and would be edited on every move.
+			if exp.Bool("scan_is_discovered_from_both_roots") {
+				seen := map[string]int{}
+				for _, g := range guides {
+					for _, r := range roots {
+						if strings.HasPrefix(g, r+"/") {
+							seen[r]++
+						}
+					}
+				}
+				for _, r := range roots {
+					if seen[r] == 0 {
+						t.Errorf("no tracked document discovered under %s/; the scan is not "+
+							"covering that root", r)
+					}
+				}
+				have := map[string]bool{}
+				for _, g := range guides {
+					have[g] = true
+				}
+				for _, m := range in.List("required_members") {
+					if !have[m.(string)] {
+						t.Errorf("the discovered scan set omits %s", m)
+					}
+				}
+			}
+
+			// Planted probes, added with intent-to-add so tracked-file discovery
+			// sees them, and removed under a guaranteed cleanup. A nested
+			// document proves the walk recurses; a forbidden claim in each root
+			// proves both roots are really scanned rather than merely listed.
+			plant := func(rel, body string) {
+				full := filepath.Join(dir, rel)
+				if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				add := exec.Command("git", "-C", dir, "add", "-N", rel)
+				if out, err := add.CombinedOutput(); err != nil {
+					t.Fatalf("git add -N %s: %v\n%s", rel, err, out)
+				}
+				t.Cleanup(func() {
+					exec.Command("git", "-C", dir, "rm", "-q", "--cached", "--force", rel).Run()
+					os.Remove(full)
+					os.Remove(filepath.Dir(full))
+				})
+			}
+
+			if exp.Bool("scan_discovers_nested_documents") {
+				nested := in.Str("nested_probe")
+				plant(nested, "# Nested probe\n")
+				found := false
+				for _, g := range discover() {
+					if g == nested {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("discovery missed the nested document %s; the walk is not recursive",
+						nested)
+				}
+			}
+
+			if exp.Bool("forbidden_claims_detected_in_every_root") {
+				text := in.Str("claim_probe_text")
+				var probes []string
+				for _, c := range in.List("claim_probes") {
+					probes = append(probes, c.(string))
+				}
+				for _, probe := range probes {
+					plant(probe, "# Probe\n\n"+text+"\n")
+				}
+				set := discover()
+				for _, probe := range probes {
+					inSet := false
+					for _, g := range set {
+						if g == probe {
+							inSet = true
+						}
+					}
+					if !inSet {
+						t.Errorf("the planted claim probe %s was not discovered", probe)
+						continue
+					}
+					// Read back what discovery found, so the probe travels the
+					// whole path the real scan takes: discover, read, match.
+					// Matching the fixture string instead would pass even if the
+					// scan never opened a file in this root.
+					body, err := os.ReadFile(filepath.Join(dir, probe))
+					if err != nil {
+						t.Errorf("the discovered probe %s could not be read: %v", probe, err)
+						continue
+					}
+					flagged := false
+					for _, c := range in.MapList("forbidden_claims") {
+						re, err := regexp.Compile(c.Str("pattern"))
+						if err != nil {
+							continue
+						}
+						if re.Match(body) {
+							flagged = true
+						}
+					}
+					if !flagged {
+						t.Errorf("a forbidden claim planted in %s is not matched by any pattern", probe)
+					}
+				}
 			}
 			// Allowlist, keyed by exact path and exact line text. A line that
 			// reads as a forbidden claim fails unless it appears here. There is

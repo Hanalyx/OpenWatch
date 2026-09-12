@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.12.0"
+  version: "1.13.0"
   status: approved
   tier: 1
 
@@ -363,6 +363,19 @@ spec:
         the bare hash with no domain tag and the canonical JSON itself, because a procedure that
         accepted either would be verifying something other than what was signed.
 
+        The scan set is DISCOVERED from directory ROOTS, not from a hand-maintained list of path globs.
+        The earlier list named `docs/*.md`, `docs/guides/*.md` and `docs/guides/runbooks/*.md`, and it
+        omitted `docs/runbooks/` entirely, so `RELEASING.md` was never scanned and the six documents
+        moved into that directory would have left the scan silently while the gate stayed green.
+
+        The defect was the MISSING ROOT, not the glob depth. A plain git pathspec `*` matches `/`, so
+        those globs already recursed; only `:(glob)` magic limits a pathspec to one level. Both
+        properties are bound below, because either can break the scan: a root that is not listed, and a
+        walk that stops at depth one.
+
+        Today's document count is NOT the guard. A count changes for legitimate reasons and would have
+        to be edited on every move, which makes it an editing chore rather than a check.
+
         Required statements are matched in the published files. Forbidden claims are matched over EVERY
         line, with no negation heuristic: a line that reads as a forbidden claim fails unless it is
         allowlisted by exact path and exact text. Each allowlist entry must EXIST in its file and must
@@ -371,6 +384,25 @@ spec:
         carrying a negation word, including one that denied a claim in its first half and made a
         stronger one in its second.
       inputs:
+        # Recursive roots. Every tracked Markdown document beneath these is
+        # scanned, at any depth.
+        scan_roots:
+          - docs/guides
+          - docs/runbooks
+        scan_index: docs/README.md
+        # Named members the discovered set must contain. RELEASING.md is listed
+        # because dropping the second root would otherwise go unnoticed.
+        required_members:
+          - docs/README.md
+          - docs/runbooks/RELEASING.md
+        # Planted behaviorally, with intent-to-add so tracked-file discovery
+        # sees them, then removed. A nested document proves recursion; a claim
+        # in each root proves both roots are actually scanned.
+        nested_probe: docs/runbooks/examples/ac13-probe/NESTED_GUIDE.md
+        claim_probes:
+          - docs/guides/ac13-claim-probe.md
+          - docs/runbooks/ac13-claim-probe.md
+        claim_probe_text: 'Fetching the signing-key endpoint proves authenticity of the report.'
         verification_guide: docs/guides/REPORT_VERIFICATION.md
         scoring_guide: docs/guides/SCANNING_AND_COMPLIANCE.md
         api_guide: docs/guides/API_GUIDE.md
@@ -474,6 +506,9 @@ spec:
         signing_key_document_shape_is_enforced: true
         forbidden_claims_absent: true
         allowlisted_mentions_are_live: true
+        scan_is_discovered_from_both_roots: true
+        scan_discovers_nested_documents: true
+        forbidden_claims_detected_in_every_root: true
       priority: critical
       references_constraints: [C-09]
     - id: AC-14
