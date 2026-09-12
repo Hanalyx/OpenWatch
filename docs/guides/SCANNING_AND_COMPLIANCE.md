@@ -102,7 +102,12 @@ to trigger scans manually unless you want immediate results. See the
 ## Operating the scan engine
 
 The Kensa engine runs inside the OpenWatch binary. There is no separate engine
-service to start, stop, or restart. You operate the worker that drives it.
+service to start, stop, or restart.
+
+A packaged install runs one service, `openwatch serve`, and that process runs
+the scan worker in-process. You do not need to start anything else to scan.
+`openwatch worker` is a separate long-lived process for scaling scan capacity
+out to more hosts. It is optional, and several may run against one database.
 
 Check which engine version is linked into the running binary:
 
@@ -113,22 +118,28 @@ curl -sk https://localhost:8443/api/v1/health
 The response carries a `kensa` field. The value is read from the binary's build
 information, so it always reports the engine actually linked in.
 
-The worker process runs the scan jobs. Check its state and follow its logs:
+Check the service state and follow its logs:
 
 ```bash
 systemctl status openwatch.service
 journalctl -u openwatch.service -f
 ```
 
-Scan jobs queue in PostgreSQL. To see what is queued or in flight, use the DSN
-from `/etc/openwatch/secrets.env`:
+Scan jobs queue in PostgreSQL. The connection string lives in
+`/etc/openwatch/secrets.env`, which is mode `0640` and owned `root:openwatch`,
+so read it as the `openwatch` user rather than as yourself. Load the file inside
+the same command that uses it:
 
 ```bash
-psql "$OPENWATCH_DATABASE_DSN" -c \
-  "select id, status, created_at from job_queue order by created_at desc limit 10;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; \
+  psql "$OPENWATCH_DATABASE_DSN" -c \
+  "select id, status, created_at from job_queue order by created_at desc limit 10;"'
 ```
 
-A job that stays queued usually means the worker is not running. Check the
+The single quotes matter. They keep `$OPENWATCH_DATABASE_DSN` unexpanded in your
+own shell, where it is empty, so it resolves after the file is loaded.
+
+A job that stays queued usually means the service is not running. Check the
 service first, then the logs.
 
 ---
