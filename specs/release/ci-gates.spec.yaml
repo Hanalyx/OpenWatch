@@ -365,7 +365,7 @@ spec:
 
         The scan set is DISCOVERED from directory ROOTS, not from a hand-maintained list of path globs.
         The earlier list named `docs/*.md`, `docs/guides/*.md` and `docs/guides/runbooks/*.md`, and it
-        omitted `docs/runbooks/` entirely, so `RELEASING.md` was never scanned and the six documents
+        omitted `docs/runbooks/` entirely, so `RELEASING.md` was never scanned and the documents
         moved into that directory would have left the scan silently while the gate stayed green.
 
         The defect was the MISSING ROOT, not the glob depth. A plain git pathspec `*` matches `/`, so
