@@ -881,6 +881,83 @@ class DocReviewSelectionIsCandidateBound(unittest.TestCase):
         self.assertIn("attests tag v0.7.1", problem[1])
 
 
+class OrdinaryAttestationSelection(unittest.TestCase):
+    """The three shipped v0.7 attestations are the reason this matters: two of
+    them share kind and platform and differ only by candidate."""
+
+    RC3 = "1" * 64
+    RC4 = "2" * 64
+    RPM = "openwatch-0.7.0-1.x86_64.rpm"
+
+    def shipped(self):
+        return [
+            att(_file="clean-install-rhel9-zzz-rc3.toml", kind="clean-install",
+                platform="rhel9", tag="v0.7.0-rc.3", artifact=self.RPM,
+                artifact_sha256=self.RC3, performed_by="openwatch-agent"),
+            att(_file="clean-install-rhel9-aaa-rc4.toml", kind="clean-install",
+                platform="rhel9", tag="v0.7.0-rc.4", artifact=self.RPM,
+                artifact_sha256=self.RC4, performed_by="openwatch-agent"),
+        ]
+
+    def test_a_lexically_later_stale_file_does_not_hide_the_matching_one(self):
+        # rc.3 sorts last. The candidate is rc.4.
+        picked, problem = rs.select_attestation(self.shipped(), "clean-install",
+                                                {self.RC4: self.RPM}, "rhel9")
+        self.assertIsNone(problem, problem)
+        self.assertEqual(picked["_file"], "clean-install-rhel9-aaa-rc4.toml")
+
+    def test_selection_is_by_the_artifact_pair_not_the_digest_alone(self):
+        renamed = att(_file="renamed.toml", kind="clean-install", platform="rhel9",
+                      artifact="openwatch-9.9.9-1.x86_64.rpm", artifact_sha256=self.RC4)
+        picked, problem = rs.select_attestation([renamed], "clean-install",
+                                                {self.RC4: self.RPM}, "rhel9")
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.STALE)
+
+    def test_two_binding_attestations_are_ambiguous(self):
+        a = att(_file="one.toml", kind="clean-install", platform="rhel9",
+                artifact=self.RPM, artifact_sha256=self.RC4)
+        b = att(_file="two.toml", kind="clean-install", platform="rhel9",
+                artifact=self.RPM, artifact_sha256=self.RC4)
+        picked, problem = rs.select_attestation([a, b], "clean-install",
+                                                {self.RC4: self.RPM}, "rhel9")
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.ERROR)
+        self.assertIn("one.toml", problem[1])
+        self.assertIn("two.toml", problem[1])
+
+    def test_a_different_platform_is_not_selected(self):
+        picked, problem = rs.select_attestation(self.shipped(), "clean-install",
+                                                {self.RC4: self.RPM}, "ubuntu2404")
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.MISSING)
+
+    def test_unreadable_checksums_fail_closed_as_error(self):
+        picked, problem = rs.select_attestation(self.shipped(), "clean-install",
+                                                None, "rhel9")
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.ERROR)
+
+    def test_nothing_binding_is_stale_and_names_what_was_considered(self):
+        picked, problem = rs.select_attestation(self.shipped(), "clean-install",
+                                                {"9" * 64: self.RPM}, "rhel9")
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.STALE)
+        self.assertIn("clean-install-rhel9-aaa-rc4.toml", problem[1])
+        self.assertIn("clean-install-rhel9-zzz-rc3.toml", problem[1])
+
+    def test_the_shipped_attestations_are_still_selectable(self):
+        shipped = rs.load_attestations()
+        by_kind = {}
+        for a in shipped:
+            by_kind.setdefault((a["kind"], a.get("platform")), []).append(a)
+        for (kind, platform), group in by_kind.items():
+            digests = {group[0]["artifact_sha256"]: group[0]["artifact"]}
+            picked, problem = rs.select_attestation(shipped, kind, digests, platform)
+            self.assertIsNone(problem, f"{kind}/{platform}: {problem}")
+            self.assertEqual(picked["artifact_sha256"], group[0]["artifact_sha256"])
+
+
 class ManifestCanonicalization(unittest.TestCase):
     def test_the_digest_matches_an_independent_computation(self):
         self.assertEqual(rs.docs_manifest_digest(ACCURATE), _expected_digest(ACCURATE))

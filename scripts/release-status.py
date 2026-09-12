@@ -289,6 +289,38 @@ def eval_doc_review(att, candidate, tag, commit, digests):
                   f"{att['performed_at']}, {len(reviewed)} documents)")
 
 
+def select_attestation(atts, kind, digests, platform=None):
+    """Pick the attestation of `kind` that binds to THIS candidate.
+
+    Selection used to be match[-1]: whichever file sorted last. Two clean-install
+    attestations for the same platform ship today, one per release candidate, so
+    the rule that decided which one spoke for a candidate was its filename. A
+    stale attestation whose name sorts later hid a matching one, and the
+    checker reported the stale one's verdict as the gate's.
+
+    The binding is the artifact PAIR, name and digest together, against the
+    candidate's published SHA256SUMS. Two attestations binding to the same gate,
+    platform and candidate are an ambiguity to report, not a tie to break."""
+    where = f" for {platform}" if platform else ""
+    same = [a for a in atts if a.get("kind") == kind
+            and (platform is None or a.get("platform") == platform)]
+    if not same:
+        return None, (MISSING, f"no {kind} attestation{where}")
+    if digests is None:
+        return None, (ERROR, (f"cannot read SHA256SUMS for this candidate, so no "
+                              f"{kind} attestation{where} can be tied to these bits"))
+    bound = [a for a in same if artifact_pair_matches(a, digests)]
+    if len(bound) > 1:
+        names = ", ".join(sorted(a["_file"] for a in bound))
+        return None, (ERROR, f"{len(bound)} {kind} attestations{where} bind to this "
+                             f"candidate: {names}")
+    if len(bound) == 1:
+        return bound[0], None
+    names = ", ".join(sorted(a["_file"] for a in same))
+    return None, (STALE, (f"no {kind} attestation{where} names an artifact in this "
+                          f"candidate's SHA256SUMS; have {names}"))
+
+
 def select_doc_review(atts, kind, tag, commit, digests):
     """Pick the attestation that binds to THIS candidate.
 
@@ -528,16 +560,16 @@ def evaluate(gates, tag, commit):
                     else:
                         yield gid, label, FAIL, f"{pcheck}: {runs[pcheck]}"
                     continue
-                match = [a for a in atts
-                         if a.get("kind") == g["kind"]
-                         and a.get("platform") == p["id"]]
-                if not match:
-                    yield (gid, label, MISSING,
-                           f"no {g['kind']} attestation for {p['id']} "
-                           f"({p['method']})")
+                att, problem = select_attestation(atts, g["kind"], digests, p["id"])
+                if problem:
+                    status, note = problem
+                    if status == MISSING:
+                        note = (f"no {g['kind']} attestation for {p['id']} "
+                                f"({p['method']})")
+                    yield gid, label, status, note
                     continue
                 status, note = eval_attestation(
-                    match[-1], digests, g.get("human_required", False))
+                    att, digests, g.get("human_required", False))
                 yield gid, label, status, note
 
         elif kind == "doc-review":
@@ -561,12 +593,12 @@ def evaluate(gates, tag, commit):
             yield gid, label_of(g), status, note
 
         elif kind == "attestation":
-            match = [a for a in atts if a.get("kind") == g["kind"]]
-            if not match:
-                yield gid, g["title"], MISSING, f"no {g['kind']} attestation"
+            att, problem = select_attestation(atts, g["kind"], digests)
+            if problem:
+                yield gid, g["title"], problem[0], problem[1]
                 continue
             status, note = eval_attestation(
-                match[-1], digests, g.get("human_required", False))
+                att, digests, g.get("human_required", False))
             yield gid, label_of(g), status, note
 
         else:
