@@ -1774,6 +1774,64 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 			}
 		}
 
+		// The tracked runbook is part of the contract. It must drive the real
+		// scripts, resolve the candidate commit, and tag GA from that commit
+		// by name. An implicit `git tag v<version>` takes whatever HEAD is.
+		book, err := os.ReadFile(filepath.Join(dir, "docs/runbooks/RELEASING.md"))
+		if err != nil {
+			t.Fatalf("read RELEASING.md: %v", err)
+		}
+		for _, want := range []struct{ frag, why string }{
+			{"scripts/doc-review-skeleton.py",
+				"the procedure must invoke the real generator, not describe it"},
+			{"scripts/release-status.py",
+				"the procedure must run the real checker against the completed attestation"},
+			{`RC_COMMIT=$(git rev-list -n 1 "$RC")`,
+				"the candidate commit must be resolved explicitly, not implied"},
+		} {
+			if !strings.Contains(string(book), want.frag) {
+				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
+			}
+		}
+		// EVERY GA tag command must name the commit. Checking that the string
+		// appears somewhere is not enough: the procedure mentions it twice, so
+		// one of them can revert to implicit HEAD while the other keeps the
+		// check green. That is how this assertion first passed a mutation.
+		gaTag := regexp.MustCompile(`(?m)^\s*git tag v<version>.*$`)
+		lines := gaTag.FindAllString(string(book), -1)
+		if len(lines) == 0 {
+			t.Error("docs/runbooks/RELEASING.md never tags GA")
+		}
+		var gaLines int
+		for _, ln := range lines {
+			// Stage 2 cuts the RC with `git tag v<version>-rc.N`, which has no
+			// reviewed commit to name yet. Only the GA tag is in question.
+			if strings.Contains(ln, "v<version>-rc") {
+				continue
+			}
+			gaLines++
+			if !strings.Contains(ln, `"$RC_COMMIT"`) {
+				t.Errorf("docs/runbooks/RELEASING.md tags GA without naming the reviewed "+
+					"commit: %q. An implicit tag takes whatever HEAD is, which is the "+
+					"reviewed commit only by luck.", strings.TrimSpace(ln))
+			}
+		}
+		if gaLines == 0 {
+			t.Error("docs/runbooks/RELEASING.md never tags GA, so the check above " +
+				"would pass on a runbook that promotes nothing")
+		}
+
+		// The attestation stays untracked until the release exists. A
+		// procedure that commits it first records a review nobody accepted.
+		if !regexp.MustCompile(`(?i)leave that file untracked`).MatchString(string(book)) {
+			t.Error("docs/runbooks/RELEASING.md does not tell the reviewer to leave the " +
+				"attestation untracked while the decision is open")
+		}
+		if !regexp.MustCompile(`(?i)commit the attestation after promotion`).MatchString(string(book)) {
+			t.Error("docs/runbooks/RELEASING.md does not defer committing the attestation " +
+				"until after promotion, so the audit commit could change the released commit")
+		}
+
 		// The behavior lives in Python. Run it rather than restate it.
 		cmd := exec.Command("python3", "-S", "scripts/test_release_status.py")
 		cmd.Dir = dir

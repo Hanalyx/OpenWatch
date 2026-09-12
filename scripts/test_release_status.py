@@ -488,6 +488,7 @@ class ManifestIsLoadable(unittest.TestCase):
 import hashlib
 import shutil
 import tempfile
+import tomllib
 
 
 def _git(repo, *args):
@@ -794,7 +795,38 @@ class DocReviewRequiresANamedHumanAndARealArtifact(unittest.TestCase):
     def test_an_empty_performed_by_fails(self):
         status, note = run_doc(doc_att(ACCURATE, performed_by=""))
         self.assertEqual(status, rs.FAIL)
-        self.assertIn("no performed_by", note)
+        self.assertIn("performed_by is empty", note)
+
+    def test_a_whitespace_only_performed_by_fails(self):
+        for blank in (" ", "\t", "   \n ", "\u00a0" if False else "  "):
+            status, note = run_doc(doc_att(ACCURATE, performed_by=blank))
+            self.assertEqual(status, rs.FAIL, f"{blank!r} was accepted as an identity")
+            self.assertIn("performed_by is empty", note)
+
+    def test_the_agent_test_is_applied_to_the_trimmed_identity(self):
+        # Trailing whitespace must not carry an agent past the check.
+        for sneaky in ("openwatch-agent ", " openwatch-agent", "openwatch-agent\t",
+                       "\n openwatch-agent \n"):
+            status, note = run_doc(doc_att(ACCURATE, performed_by=sneaky))
+            self.assertEqual(status, rs.FAIL, f"{sneaky!r} passed as a human")
+            self.assertIn("is an agent", note)
+
+    def test_a_non_string_scalar_fails_without_a_traceback(self):
+        for field, value in (("performed_by", 7), ("performed_at", 20260912),
+                             ("docs_sha256", 12345), ("artifact_sha256", 99),
+                             ("artifact", ["a.rpm"]), ("tag", 1.0),
+                             ("commit", {"sha": "x"})):
+            with self.subTest(field=field):
+                status, note = run_doc(doc_att(ACCURATE, **{field: value}))
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn(f"{field} must be a string", note)
+
+    def test_a_non_string_scalar_does_not_crash_selection_either(self):
+        broken = doc_att(ACCURATE, artifact_sha256=99)
+        picked, problem = rs.select_doc_review([broken], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.STALE)
 
     def test_an_empty_artifact_fails(self):
         status, note = run_doc(doc_att(ACCURATE, artifact=""))
@@ -879,6 +911,57 @@ class DocReviewSelectionIsCandidateBound(unittest.TestCase):
         self.assertIsNone(picked)
         self.assertEqual(problem[0], rs.STALE)
         self.assertIn("attests tag v0.7.1", problem[1])
+
+
+class SkeletonEncodesEveryLegalPath(unittest.TestCase):
+    """Git permits any byte but NUL and "/" in a path component, so a tracked
+    filename can carry a quote, a backslash, a newline or a control character.
+    TOML forbids raw control characters in a basic string, so the generator has
+    to escape them or emit a file tomllib refuses to read."""
+
+    HARD = [
+        'quote".md',
+        "back\\slash.md",
+        "tab\там.md".replace("\т", "\t"),
+        "new\nline.md",
+        "back\x08space.md",
+        "form\x0cfeed.md",
+        "del\x7fchar.md",
+        "ctrl\x01one.md",
+        "unicode-\u00e9\u4e2d.md",
+    ]
+
+    def test_every_legal_path_round_trips_through_the_skeleton(self):
+        repo = Path(tempfile.mkdtemp(prefix="ow-hardpaths-"))
+        try:
+            _git(repo, "init", "-q")
+            _git(repo, "config", "user.email", "t@example.com")
+            _git(repo, "config", "user.name", "T")
+            made = []
+            for name in self.HARD:
+                try:
+                    (repo / name).write_text("x\n", encoding="utf-8")
+                except (OSError, ValueError):
+                    continue  # the filesystem refuses it; git never sees it
+                made.append(name)
+            self.assertGreaterEqual(len(made), 6,
+                                    "too few difficult names survived to prove anything")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", "hard names")
+            commit = _git(repo, "rev-parse", "HEAD").decode().strip()
+
+            gen = rs.REPO / "scripts" / "doc-review-skeleton.py"
+            r = subprocess.run([sys.executable, "-S", str(gen), "--commit", commit],
+                               cwd=repo, capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr.decode())
+
+            parsed = tomllib.loads(r.stdout.decode("utf-8"))
+            recovered = {e["path"] for e in parsed["reviewed"]}
+            for name in made:
+                self.assertIn(name, recovered,
+                              f"{name!r} did not survive the skeleton round trip")
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
 
 
 class OrdinaryAttestationSelection(unittest.TestCase):

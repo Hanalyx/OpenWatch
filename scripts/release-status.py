@@ -203,13 +203,17 @@ def artifact_pair_matches(att, digests):
     alone would accept it."""
     sha = att.get("artifact_sha256")
     name = att.get("artifact")
-    if not sha or not name or digests is None:
+    if not isinstance(sha, str) or not isinstance(name, str) or digests is None:
+        return False
+    if not sha or not name:
         return False
     return digests.get(sha) == name
 
 
 def _bad_performed_at(value):
     """A diagnostic if performed_at is not a usable calendar date, else None."""
+    if not isinstance(value, str):
+        return f"performed_at must be a string, got {type(value).__name__}"
     try:
         when = datetime.date.fromisoformat(value)
     except ValueError:
@@ -221,14 +225,34 @@ def _bad_performed_at(value):
     return None
 
 
+# Every top-level scalar the evaluator reads. A TOML file can carry any type
+# under any key, so each one is checked before it is used: an integer where a
+# string belongs must produce a verdict, not a traceback, because a checker
+# that crashes on malformed evidence reports nothing at all.
+DOC_SCALARS = ("tag", "commit", "artifact", "artifact_sha256", "docs_sha256",
+               "performed_by", "performed_at")
+
+
 def eval_doc_review(att, candidate, tag, commit, digests):
     """(status, note) for one documentation-review attestation."""
-    if att.get("performed_by", "").endswith("-agent"):
+    for field in DOC_SCALARS:
+        value = att.get(field)
+        if value is None:
+            return FAIL, f"{att['_file']}: no {field}"
+        if not isinstance(value, str):
+            return FAIL, (f"{att['_file']}: {field} must be a string, got "
+                          f"{type(value).__name__}")
+    # Trim before testing the identity. " openwatch-agent " neither ends in
+    # "-agent" nor reads as a person, and an untrimmed test would accept it.
+    who = att["performed_by"].strip()
+    if not who:
+        return FAIL, (f"{att['_file']}: performed_by is empty; a documentation review "
+                      "has to name the person who did it")
+    if who.endswith("-agent"):
         return FAIL, (f"{att['_file']}: performed_by is an agent; a documentation "
                       "review is a human observation")
-    for field in ("tag", "commit", "artifact", "artifact_sha256", "docs_sha256",
-                  "performed_by", "performed_at"):
-        if not att.get(field):
+    for field in DOC_SCALARS:
+        if not att[field].strip():
             return FAIL, f"{att['_file']}: no {field}"
     if bad := _bad_performed_at(att["performed_at"]):
         return FAIL, f"{att['_file']}: {bad}"

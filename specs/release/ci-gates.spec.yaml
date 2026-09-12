@@ -968,7 +968,23 @@ spec:
         verdict that is not `accurate`; and a missing, extra, duplicate or malformed
         reviewed entry. A stale attestation whose filename sorts later does not hide a
         valid candidate-bound one, and two that both bind are reported as ambiguous. A
-        tracked path that is not valid UTF-8 is an ERROR. The skeleton generator leaves
-        every verdict `pending` and writes no human identity.
+        tracked path that is not valid UTF-8 is an ERROR. Every top-level scalar the
+        evaluator reads is type-checked, an identity that is empty or whitespace-only is
+        refused, the `-agent` test applies to the TRIMMED identity so trailing whitespace
+        cannot carry an agent past it, and a malformed scalar type produces a verdict
+        rather than a traceback. The skeleton generator leaves every verdict `pending`,
+        writes no human identity, and escapes every control character TOML forbids, so a
+        path Git permits round-trips through `tomllib` unchanged.
+
+        THE TRACKED RUNBOOK IS PART OF THIS CONTRACT. `docs/runbooks/RELEASING.md` MUST
+        carry the D1 procedure, and it MUST invoke the real
+        `scripts/doc-review-skeleton.py` and `scripts/release-status.py` rather than
+        describe them. It MUST resolve the candidate commit explicitly and tag GA from
+        that commit by name: an implicit `git tag v<version>` takes whatever HEAD happens
+        to be, which is the reviewed commit only by luck and is indistinguishable
+        afterward. It MUST keep the attestation untracked while the decision is open and
+        commit it only after promotion, so the audit commit cannot change what was
+        released. Removing the skeleton command, or the check that the resolved candidate
+        commit is the one being promoted, MUST fail.
       priority: critical
       references_constraints: [C-11]

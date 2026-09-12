@@ -74,9 +74,28 @@ def manifest_digest(entries, verdict):
     return h.hexdigest()
 
 
+# TOML basic strings forbid every control character except tab, and require an
+# escape for backslash and quote. Git permits any byte except NUL and "/" in a
+# path component, so a filename can legally carry a backspace, a form feed or a
+# DEL, and emitting one raw produces a file tomllib refuses to parse. Anything
+# without a short escape goes out as \uXXXX.
+_SHORT = {
+    0x08: "\\b", 0x09: "\\t", 0x0A: "\\n", 0x0C: "\\f", 0x0D: "\\r",
+    0x22: '\\"', 0x5C: "\\\\",
+}
+
+
 def toml_escape(s):
-    out = s.replace("\\", "\\\\").replace('"', '\\"')
-    return out.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
+    out = []
+    for ch in s:
+        cp = ord(ch)
+        if cp in _SHORT:
+            out.append(_SHORT[cp])
+        elif cp < 0x20 or cp == 0x7F:
+            out.append(f"\\u{cp:04X}")
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def main():

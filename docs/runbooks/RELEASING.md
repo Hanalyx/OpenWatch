@@ -105,10 +105,91 @@ captain records pass/fail per DoD step and signs.
 > If any gate fails, fix on `main`, cut the next `-rc.N`, and repeat. Never
 > promote an RC that skipped a gate.
 
+## Stage 3b: Documentation review (gate D1)
+
+Gate D1 is blocking. A named human reads every tracked Markdown document at the
+candidate commit and records a verdict for each. Scope is every tracked blob
+whose path ends in `.md`, with no directory exclusions, so `.github`, `.claude`
+and `scripts/README.md` are reviewed like any other document.
+
+The evidence is bound to the candidate, not to a date. Reviewing recently
+proves nothing; reviewing these bytes does.
+
+1. **Cut the RC first and wait for its assets.** The attestation names an
+   artifact and its digest, and both come from the published `SHA256SUMS`. There
+   is nothing to attest until `release.yml` has finished.
+
+2. **Resolve and record the exact RC commit.** Do not work from a branch name
+   or from whatever `HEAD` happens to be.
+
+   ```bash
+   RC=v<version>-rc.N
+   RC_COMMIT=$(git rev-list -n 1 "$RC")
+   echo "$RC_COMMIT"
+   ```
+
+3. **Generate the skeleton for that commit.**
+
+   ```bash
+   python3 -S scripts/doc-review-skeleton.py --commit "$RC_COMMIT" --tag "$RC" \
+     > /tmp/doc-review-$RC.toml
+   ```
+
+   It writes one entry per document with `verdict = "pending"`, and leaves the
+   human identity blank. It cannot fill either in for you.
+
+4. **Read the files as they are at that commit**, not as they are in your
+   working tree. `git show "$RC_COMMIT:path/to/doc.md"` is the safe way; a
+   checkout that has moved on is a different document.
+
+5. **Fill in every field.** Each verdict becomes `accurate` only for a document
+   you read and found accurate. `performed_by` is your own name, never an agent.
+   `performed_at` is an ISO date that is not in the future. `artifact` and
+   `artifact_sha256` are the matching pair from the candidate's `SHA256SUMS`.
+   Then recompute `docs_sha256` over the finished entries. A verdict of anything
+   other than `accurate` is a NO-GO: there is no waiver.
+
+6. **Run the checker with the completed attestation present.**
+
+   ```bash
+   cp /tmp/doc-review-$RC.toml release/attestations/
+   python3 -S scripts/release-status.py --tag "$RC"
+   ```
+
+   **Leave that file untracked while the decision is open.** It is a working
+   document until D1 passes; committing it earlier records a review that has not
+   been accepted yet.
+
+7. **Do not commit anything between the verified RC and the GA tag.** The
+   evidence describes one commit. Any change after it, including a documentation
+   fix found during the review, means cutting a new RC and reviewing again.
+
+8. **Tag GA explicitly from the verified commit.**
+
+   ```bash
+   git tag v<version> "$RC_COMMIT"
+   ```
+
+   Never `git tag v<version>` on its own. That takes the current `HEAD`, which
+   is only the reviewed commit by luck, and the gate cannot tell the difference
+   afterward.
+
+9. **Commit the attestation after promotion**, not before. By then the released
+   commit is fixed, so the audit commit that records the evidence cannot change
+   what was released.
+
+The attestation's `tag` stays the **RC tag**. It records which candidate's
+evidence authorized the promotion, and the GA tag points at the same commit. An
+attestation relabeled with the GA tag would claim a review that never happened
+against that tag.
+
 ## Stage 4: Promote to GA
 
+Tag the reviewed commit by name. `$RC_COMMIT` is the value resolved in Stage 3b,
+and it must equal the commit you are promoting.
+
 ```bash
-git tag v<version>          # no -rc suffix
+git tag v<version> "$RC_COMMIT"   # no -rc suffix, explicit commit
 git push origin v<version>
 ```
 
