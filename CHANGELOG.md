@@ -10,7 +10,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Release promotion now has a blocking documentation-review gate. A named human
+  must verify every tracked Markdown file against the exact release-candidate
+  commit and artifact before GA promotion. Any document change invalidates that
+  evidence. The release runbook documents how to prepare, check, and preserve
+  the attestation without changing the reviewed commit.
+- [The report-verification runbook](docs/runbooks/REPORT_VERIFICATION.md)
+  documents how to check exported report content and signatures. Authenticity
+  requires a separately trusted complete public key or the full SHA-256 digest
+  of its decoded key bytes. The short signing-key identifier is only a
+  correlation value and is not a trust anchor.
+
 ### Changed
+
+- Incident response and other operational procedures previously filed under
+  `docs/guides/` now live under `docs/runbooks/`. Update saved links that point
+  at their former paths.
+- Root scratch-file patterns in `.gitignore` are now anchored to the repository
+  root, so similarly named documentation under nested tracked directories is
+  visible to Git. Secret-like filenames remain ignored at any depth, including
+  inside documentation example directories.
 
 - **BREAKING: `GET /api/v1/fleet/compliance/trend` renames `avg_score_pct` to
   `score_pct`.** No alias, so a client reading the old name fails rather than
@@ -332,6 +353,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Scan backoff now prevents the scheduler from dispatching a host again until
+  its suppression window expires. Migration 0064 gives scan and intelligence
+  backoff independent rows, so a failure or success in one subsystem no longer
+  overwrites or clears the other's state. The normal upgrade migration applies
+  the schema change; no separate operator action is required.
 - License key rotation. The fallback to the previous signing key matched an
   error that only the HMAC path returns, so it could never run and rotation
   would have failed the first time a previous key shipped. **Nothing to do:** no
