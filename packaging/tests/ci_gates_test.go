@@ -1711,3 +1711,80 @@ func TestCIGates_TrackedDocumentationBoundary(t *testing.T) {
 		exp.AllConsumed()
 	})
 }
+
+// AC-15 — the documentation-review gate is declared, blocking, human-required,
+// and its checker behavior is exercised by the Python suite that owns it.
+//
+// This half asserts the DECLARATION, which lives in tracked configuration: one
+// blocking gate, the right evidence kind, a human observer required, and a
+// generator that cannot sign on a human's behalf. The behavioral half (candidate
+// enumeration, manifest canonicalization, every failure diagnostic) is
+// scripts/test_release_status.py, run here so a Go-only CI leg cannot report
+// green while the checker is broken.
+// @ac AC-15
+func TestCIGates_DocumentationReviewGate(t *testing.T) {
+	t.Run("release-ci-gates/AC-15", func(t *testing.T) {
+		dir := appDir(t)
+
+		gates, err := os.ReadFile(filepath.Join(dir, "release/gates.toml"))
+		if err != nil {
+			t.Fatalf("read gates.toml: %v", err)
+		}
+		blocks := strings.Split(string(gates), "[[gate]]")
+		var found int
+		for _, b := range blocks {
+			if !strings.Contains(b, `evidence = "doc-review"`) {
+				continue
+			}
+			found++
+			for _, want := range []string{
+				`kind = "documentation-review"`,
+				"human_required = true",
+				"blocking = true",
+			} {
+				if !strings.Contains(b, want) {
+					t.Errorf("the documentation-review gate is missing %s. A gate that does "+
+						"not block, or that an agent can satisfy, is a record rather than "+
+						"a gate.", want)
+				}
+			}
+		}
+		if found != 1 {
+			t.Fatalf("release/gates.toml declares %d doc-review gates, want exactly 1", found)
+		}
+
+		// The generator must not be able to produce evidence. It writes
+		// pending verdicts and no human identity; the checker refuses both.
+		skel, err := os.ReadFile(filepath.Join(dir, "scripts/doc-review-skeleton.py"))
+		if err != nil {
+			t.Fatalf("read doc-review-skeleton.py: %v", err)
+		}
+		if !strings.Contains(string(skel), `verdict = "pending"`) {
+			t.Error("the skeleton generator does not write pending verdicts; a generator " +
+				"that writes a verdict is attesting on a human's behalf")
+		}
+		for _, forbidden := range []string{`performed_by = "openwatch`, `verdict = "accurate"`} {
+			if strings.Contains(string(skel), forbidden) {
+				t.Errorf("the skeleton generator emits %q; it must leave the human "+
+					"identity and every verdict for a person to fill in", forbidden)
+			}
+		}
+
+		// The behavior lives in Python. Run it rather than restate it.
+		cmd := exec.Command("python3", "-S", "scripts/test_release_status.py")
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("scripts/test_release_status.py failed: %v\n%s", err, tailOf(out, 40))
+		}
+	})
+}
+
+// tailOf returns the last n lines, so a failure reports the assertion rather
+// than several hundred lines of passing test names.
+func tailOf(b []byte, n int) string {
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
+}

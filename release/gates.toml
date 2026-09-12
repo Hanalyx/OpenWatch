@@ -342,3 +342,29 @@ check = "Quality + security gates"
 spec = "system-compliance-scoring"
 ac = "AC-31"
 blocking = true
+
+# ------------------------------------------------ documentation review
+
+# Every tracked Markdown document in the candidate, read and attested by a
+# human against THOSE bytes. Scope is a path rule, not a judgment about which
+# documents matter: every tracked blob ending in .md, with no directory
+# exclusions, so .github, .claude and scripts/README.md are in scope like any
+# other. That is 38 documents today. The count is evidence, never a constant
+# the gate compares against.
+#
+# The attestation records a verdict per path and every verdict must be
+# "accurate". A recorded defect is a NO-GO rather than a note, because there is
+# no approved waiver mechanism; if one is wanted it is its own decision.
+#
+# Binding is to the candidate on three axes, not one: the tag, the commit, and
+# the published artifact digest. Freshness here means reviewed against these
+# exact bytes, never reviewed recently.
+
+[[gate]]
+id = "D1"
+title = "Tracked documentation reviewed against this candidate"
+proves = "A named human read every tracked .md blob at the candidate commit and found each accurate"
+evidence = "doc-review"
+kind = "documentation-review"
+human_required = true
+blocking = true

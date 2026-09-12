@@ -412,7 +412,7 @@ class ManifestIsLoadable(unittest.TestCase):
     silently never applies."""
 
     KINDS = {"github-check", "github-check-all", "release-asset",
-             "signed-tag", "per-platform", "attestation"}
+             "signed-tag", "per-platform", "attestation", "doc-review"}
 
     def setUp(self):
         import tomllib
@@ -474,6 +474,376 @@ class ManifestIsLoadable(unittest.TestCase):
             with self.subTest(f=a["_file"]):
                 self.assertIn("kind", a)
                 self.assertIn("artifact_sha256", a)
+
+
+# ------------------------------------------------- documentation review gate
+#
+# The candidate set is read from a real git commit, so these build throwaway
+# repositories rather than asserting against a list someone typed. Expected
+# digests are recomputed here from the record shape, never copied from the
+# implementation: a constant shared between the code and its test proves the
+# two agree, which is not the same as either being right.
+
+import hashlib
+import shutil
+import tempfile
+
+
+def _git(repo, *args):
+    p = subprocess.run(("git", "-C", str(repo)) + args, capture_output=True)
+    if p.returncode != 0:
+        raise AssertionError(f"git {' '.join(args)}: {p.stderr.decode()}")
+    return p.stdout
+
+
+def _expected_digest(entries):
+    """Independent implementation of the canonical manifest digest."""
+    h = hashlib.sha256()
+    for path, blob, verdict in sorted(entries, key=lambda e: e[0]):
+        h.update(path + b"\0" + blob.encode() + b"\0" + verdict.encode() + b"\0")
+    return h.hexdigest()
+
+
+class DocRepo:
+    """A throwaway repository whose tree is known exactly."""
+
+    FILES = {
+        "README.md": "root doc",
+        "docs/guides/NESTED.md": "nested doc",
+        "docs/runbooks/examples/deep/DEEP.md": "deeply nested doc",
+        ".github/PULL_REQUEST_TEMPLATE.md": "a form, still in scope",
+        ".claude/skills/write-doc.md": "agent scaffolding, still in scope",
+        "scripts/README.md": "script notes, still in scope",
+        "notes.txt": "not markdown",
+        "docs/prose.markdown": "not the .md suffix",
+        "docs/archive.md.bak": "not the .md suffix either",
+        "build/generated.md": "ignored by .gitignore",
+    }
+
+    def __enter__(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="ow-docgate-"))
+        _git(self.dir, "init", "-q")
+        _git(self.dir, "config", "user.email", "t@example.com")
+        _git(self.dir, "config", "user.name", "T")
+        (self.dir / ".gitignore").write_text("build/\n", encoding="utf-8")
+        for rel, body in self.FILES.items():
+            p = self.dir / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body + "\n", encoding="utf-8")
+        _git(self.dir, "add", "-A")
+        _git(self.dir, "commit", "-qm", "seed")
+        # Untracked, and written AFTER the commit so `add -A` cannot pick it
+        # up. Writing it first is how it ended up tracked on the first run.
+        (self.dir / "UNTRACKED.md").write_text("untracked\n", encoding="utf-8")
+        self.commit = _git(self.dir, "rev-parse", "HEAD").decode().strip()
+        return self
+
+    def __exit__(self, *exc):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def docs(self):
+        cwd = os.getcwd()
+        os.chdir(self.dir)
+        try:
+            return rs.candidate_docs(self.commit)
+        finally:
+            os.chdir(cwd)
+
+    def edit(self, rel, body):
+        (self.dir / rel).write_text(body, encoding="utf-8")
+        _git(self.dir, "add", "-A")
+        _git(self.dir, "commit", "-qm", "edit")
+        self.commit = _git(self.dir, "rev-parse", "HEAD").decode().strip()
+
+
+class CandidateEnumeration(unittest.TestCase):
+    EXPECTED = {
+        b"README.md",
+        b"docs/guides/NESTED.md",
+        b"docs/runbooks/examples/deep/DEEP.md",
+        b".github/PULL_REQUEST_TEMPLATE.md",
+        b".claude/skills/write-doc.md",
+        b"scripts/README.md",
+    }
+
+    def test_root_and_nested_markdown_are_included(self):
+        with DocRepo() as repo:
+            got = {p for p, _ in repo.docs()}
+            self.assertIn(b"README.md", got)
+            self.assertIn(b"docs/guides/NESTED.md", got)
+            self.assertIn(b"docs/runbooks/examples/deep/DEEP.md", got)
+
+    def test_there_are_no_path_exclusions(self):
+        with DocRepo() as repo:
+            got = {p for p, _ in repo.docs()}
+        for path in (b".github/PULL_REQUEST_TEMPLATE.md",
+                     b".claude/skills/write-doc.md",
+                     b"scripts/README.md"):
+            self.assertIn(path, got, f"{path!r} was excluded; the scope rule is a "
+                                     "path suffix, not a judgment about which "
+                                     "documents matter")
+
+    def test_non_markdown_ignored_and_untracked_are_excluded(self):
+        with DocRepo() as repo:
+            got = {p for p, _ in repo.docs()}
+        self.assertEqual(got, self.EXPECTED)
+        for path in (b"notes.txt", b"docs/prose.markdown", b"docs/archive.md.bak",
+                     b"build/generated.md", b"UNTRACKED.md"):
+            self.assertNotIn(path, got)
+
+    def test_entries_are_sorted_by_raw_path_bytes(self):
+        with DocRepo() as repo:
+            paths = [p for p, _ in repo.docs()]
+        self.assertEqual(paths, sorted(paths))
+
+    def test_a_non_utf8_path_is_rejected_rather_than_mangled(self):
+        # A git path is bytes; a TOML string is UTF-8. A path that cannot
+        # round-trip must stop the gate, because reviewing a path that is not
+        # the one on disk is worse than not reviewing it.
+        with DocRepo() as repo:
+            bad = os.path.join(os.fsdecode(repo.dir), os.fsdecode(b"bro\xffken.md"))
+            with open(os.fsencode(bad), "wb") as fh:
+                fh.write(b"undecodable name\n")
+            _git(repo.dir, "add", "-A")
+            _git(repo.dir, "commit", "-qm", "bad name")
+            repo.commit = _git(repo.dir, "rev-parse", "HEAD").decode().strip()
+            cwd = os.getcwd()
+            os.chdir(repo.dir)
+            try:
+                with self.assertRaises(rs.PathNotEncodable) as caught:
+                    rs.candidate_docs(repo.commit)
+            finally:
+                os.chdir(cwd)
+        self.assertIn(b"\xff", caught.exception.raw)
+
+    def test_the_tree_is_read_from_the_commit_not_the_working_tree(self):
+        with DocRepo() as repo:
+            before = dict(repo.docs())
+            (repo.dir / "docs/guides/NESTED.md").write_text("dirtied\n", encoding="utf-8")
+            (repo.dir / "WORKTREE_ONLY.md").write_text("never committed\n", encoding="utf-8")
+            after = dict(repo.docs())
+        self.assertEqual(before, after,
+                         "a dirty working tree changed the candidate set; the gate "
+                         "must read the commit")
+
+
+def doc_att(entries, **kw):
+    """A documentation-review attestation over `entries`, overridden per test."""
+    reviewed = [{"path": p.decode(), "blob": b, "verdict": v} for p, b, v in entries]
+    base = {
+        "_file": "doc-review-v0.8.0-rc.1.toml",
+        "kind": "documentation-review",
+        "tag": "v0.8.0-rc.1",
+        "commit": "c" * 40,
+        "artifact": "openwatch-0.8.0-1.x86_64.rpm",
+        "artifact_sha256": GOOD_SHA,
+        "performed_by": "a.human",
+        "performed_at": "2026-09-12",
+        "reviewed": reviewed,
+        "docs_sha256": _expected_digest(entries),
+    }
+    base.update(kw)
+    return base
+
+
+CAND = [(b"README.md", "1" * 40), (b"docs/guides/NESTED.md", "2" * 40)]
+ACCURATE = [(p, b, "accurate") for p, b in CAND]
+TAG, COMMIT = "v0.8.0-rc.1", "c" * 40
+
+
+def run_doc(att, candidate=None, tag=TAG, commit=COMMIT, digests=None):
+    return rs.eval_doc_review(att, CAND if candidate is None else candidate,
+                              tag, commit, DIGESTS if digests is None else digests)
+
+
+class DocReviewAcceptsOnlyAMatchingReview(unittest.TestCase):
+    def test_clean_matching_evidence_passes(self):
+        status, note = run_doc(doc_att(ACCURATE))
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("2 documents", note)
+
+    def test_a_document_added_since_the_review_is_stale(self):
+        cand = CAND + [(b"docs/NEW.md", "3" * 40)]
+        status, note = run_doc(doc_att(ACCURATE), candidate=cand)
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("added docs/NEW.md", note)
+
+    def test_a_document_removed_since_the_review_is_stale(self):
+        status, note = run_doc(doc_att(ACCURATE), candidate=CAND[:1])
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("removed docs/guides/NESTED.md", note)
+
+    def test_an_edited_document_is_stale(self):
+        cand = [(b"README.md", "1" * 40), (b"docs/guides/NESTED.md", "9" * 40)]
+        status, note = run_doc(doc_att(ACCURATE), candidate=cand)
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("edited docs/guides/NESTED.md", note)
+
+    def test_an_unambiguous_rename_is_reported_as_a_rename(self):
+        cand = [(b"README.md", "1" * 40), (b"docs/MOVED.md", "2" * 40)]
+        status, note = run_doc(doc_att(ACCURATE), candidate=cand)
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("renamed docs/guides/NESTED.md -> docs/MOVED.md", note)
+        self.assertNotIn("added", note)
+        self.assertNotIn("removed", note)
+
+    def test_an_ambiguous_duplicate_blob_is_not_called_a_rename(self):
+        # One blob, two new homes: nothing can say which old path became which.
+        reviewed = [(b"a.md", "7" * 40, "accurate"), (b"b.md", "7" * 40, "accurate")]
+        cand = [(b"x.md", "7" * 40), (b"y.md", "7" * 40)]
+        status, note = run_doc(doc_att(reviewed), candidate=cand)
+        self.assertEqual(status, rs.STALE)
+        self.assertNotIn("renamed", note)
+        self.assertIn("added", note)
+        self.assertIn("removed", note)
+
+
+class DocReviewRejectsUnboundOrUnsoundEvidence(unittest.TestCase):
+    def test_wrong_tag_is_stale(self):
+        status, note = run_doc(doc_att(ACCURATE, tag="v0.7.1"))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("attests tag v0.7.1", note)
+
+    def test_wrong_commit_is_stale(self):
+        status, note = run_doc(doc_att(ACCURATE, commit="d" * 40))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("attests commit", note)
+
+    def test_artifact_digest_absent_from_the_candidate_is_stale(self):
+        status, note = run_doc(doc_att(ACCURATE, artifact_sha256=OTHER_SHA))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("SHA256SUMS", note)
+
+    def test_unreadable_checksums_fail_closed(self):
+        status, _ = run_doc(doc_att(ACCURATE), digests=None if False else None)
+        # digests=None means the candidate's SHA256SUMS could not be read.
+        status, note = rs.eval_doc_review(doc_att(ACCURATE), CAND, TAG, COMMIT, None)
+        self.assertEqual(status, rs.ERROR)
+        self.assertIn("unverifiable", note)
+
+    def test_unreadable_candidate_tree_fails_closed(self):
+        status, note = rs.eval_doc_review(doc_att(ACCURATE), None, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.ERROR)
+        self.assertIn("could not be read", note)
+
+    def test_a_stored_blob_that_differs_from_the_tree_is_stale(self):
+        reviewed = [(b"README.md", "1" * 40, "accurate"),
+                    (b"docs/guides/NESTED.md", "f" * 40, "accurate")]
+        status, note = run_doc(doc_att(reviewed))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("edited docs/guides/NESTED.md", note)
+
+    def test_a_tampered_manifest_digest_fails(self):
+        status, note = run_doc(doc_att(ACCURATE, docs_sha256="0" * 64))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("docs_sha256", note)
+
+    def test_an_agent_cannot_attest_a_documentation_review(self):
+        status, note = run_doc(doc_att(ACCURATE, performed_by="openwatch-agent"))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("human observation", note)
+
+    def test_any_verdict_other_than_accurate_is_a_no_go(self):
+        for verdict in ("defect", "pending", "accurate-ish", "ACCURATE", ""):
+            reviewed = [(b"README.md", "1" * 40, "accurate"),
+                        (b"docs/guides/NESTED.md", "2" * 40, verdict)]
+            status, note = run_doc(doc_att(reviewed))
+            self.assertEqual(status, rs.FAIL, f"verdict {verdict!r} was accepted")
+            self.assertIn("must be 'accurate'", note)
+
+    def test_a_missing_entry_fails(self):
+        status, note = run_doc(doc_att(ACCURATE[:1]))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("added docs/guides/NESTED.md", note)
+
+    def test_an_extra_entry_fails(self):
+        reviewed = ACCURATE + [(b"docs/GHOST.md", "5" * 40, "accurate")]
+        status, note = run_doc(doc_att(reviewed))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("removed docs/GHOST.md", note)
+
+    def test_a_duplicate_entry_fails(self):
+        reviewed = ACCURATE + [ACCURATE[0]]
+        status, note = run_doc(doc_att(reviewed))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("duplicate reviewed path", note)
+
+    def test_a_malformed_entry_fails(self):
+        att = doc_att(ACCURATE)
+        att["reviewed"][1] = {"path": "docs/guides/NESTED.md", "blob": "2" * 40}
+        status, note = rs.eval_doc_review(att, CAND, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("exactly path, blob and verdict", note)
+
+    def test_an_entry_carrying_an_extra_field_fails(self):
+        att = doc_att(ACCURATE)
+        att["reviewed"][0]["note"] = "looked fine"
+        status, note = rs.eval_doc_review(att, CAND, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("exactly path, blob and verdict", note)
+
+    def test_no_reviewed_entries_fails(self):
+        att = doc_att(ACCURATE, reviewed=[])
+        status, note = rs.eval_doc_review(att, CAND, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("no reviewed entries", note)
+
+
+class DocReviewSelectionIsCandidateBound(unittest.TestCase):
+    def test_a_lexically_later_stale_file_cannot_hide_a_valid_one(self):
+        valid = doc_att(ACCURATE, _file="aaa-valid.toml")
+        stale = doc_att(ACCURATE, _file="zzz-stale.toml", commit="d" * 40)
+        picked, problem = rs.select_doc_review([stale, valid], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(problem, problem)
+        self.assertEqual(picked["_file"], "aaa-valid.toml")
+        status, _ = rs.eval_doc_review(picked, CAND, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.PASS)
+
+    def test_two_attestations_binding_to_one_candidate_are_ambiguous(self):
+        a = doc_att(ACCURATE, _file="one.toml")
+        b = doc_att(ACCURATE, _file="two.toml")
+        picked, problem = rs.select_doc_review([a, b], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.ERROR)
+        self.assertIn("one.toml", problem[1])
+        self.assertIn("two.toml", problem[1])
+
+    def test_no_attestation_at_all_is_missing(self):
+        picked, problem = rs.select_doc_review([], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.MISSING)
+
+    def test_only_unbound_attestations_report_why(self):
+        stale = doc_att(ACCURATE, _file="old.toml", tag="v0.7.1")
+        picked, problem = rs.select_doc_review([stale], "documentation-review",
+                                               TAG, COMMIT, DIGESTS)
+        self.assertIsNone(picked)
+        self.assertEqual(problem[0], rs.STALE)
+        self.assertIn("attests tag v0.7.1", problem[1])
+
+
+class ManifestCanonicalization(unittest.TestCase):
+    def test_the_digest_matches_an_independent_computation(self):
+        self.assertEqual(rs.docs_manifest_digest(ACCURATE), _expected_digest(ACCURATE))
+
+    def test_entry_order_does_not_change_the_digest(self):
+        self.assertEqual(rs.docs_manifest_digest(ACCURATE),
+                         rs.docs_manifest_digest(list(reversed(ACCURATE))))
+
+    def test_a_newline_in_a_path_cannot_forge_another_record(self):
+        # NUL delimiting is why this is safe. A newline-delimited manifest
+        # would hash these two sets identically.
+        one = [(b"a\nb.md", "1" * 40, "accurate")]
+        two = [(b"a", "1" * 40, "accurate"), (b"b.md", "1" * 40, "accurate")]
+        self.assertNotEqual(rs.docs_manifest_digest(one), rs.docs_manifest_digest(two))
+
+    def test_the_verdict_is_covered_by_the_digest(self):
+        other = [(p, b, "pending") for p, b, _ in ACCURATE]
+        self.assertNotEqual(rs.docs_manifest_digest(ACCURATE),
+                            rs.docs_manifest_digest(other))
 
 
 if __name__ == "__main__":

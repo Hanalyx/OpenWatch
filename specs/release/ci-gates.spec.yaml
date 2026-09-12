@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.13.0"
+  version: "1.14.0"
   status: approved
   tier: 1
 
@@ -174,6 +174,60 @@ spec:
         workflow README for months.
       type: technical
       enforcement: error
+    - id: C-11
+      description: >-
+        A release candidate MUST carry a DOCUMENTATION REVIEW attestation bound to that
+        candidate, and the gate MUST be blocking.
+
+        SCOPE IS A PATH RULE. Every tracked blob whose path ends in `.md` at the candidate
+        commit is in scope. There are NO directory exclusions: `.github`, `.claude` and
+        `scripts/README.md` are documentation a reader can reach, so they are reviewed like
+        any other. The current count is 38. That is a reading of one commit, never a
+        constant the gate compares against: a count has to be edited on every addition and
+        fails nothing when it is not.
+
+        ENUMERATION IS FROM THE COMMIT. `git ls-tree -r -z <commit>`, filtered to blob
+        entries whose path ends in the exact suffix `.md`, with raw path BYTES preserved
+        through sorting. Not the working tree and not the index, because neither is what
+        ships. A path that is not valid UTF-8 MUST fail with a clear ERROR rather than be
+        mangled: a TOML string is UTF-8, so such a path cannot be written into an
+        attestation and read back as itself.
+
+        THE ATTESTATION MUST CARRY kind, tag, commit, artifact identity and digest, human
+        identity and date, docs_sha256, and reviewed entries. Each reviewed entry carries
+        EXACTLY path, blob and verdict. Every verdict MUST be `accurate`; a defect or any
+        other value is NO-GO, because no waiver mechanism is approved and a gate that
+        accepts a recorded defect is a gate that records defects rather than one that
+        stops them.
+
+        THE REVIEW MUST DESCRIBE THIS TREE. The reviewed set MUST equal the candidate set
+        exactly, with no missing, extra or duplicate path, and the stored blob for every
+        path MUST equal the candidate's. Canonical bytes are `path NUL blob NUL verdict
+        NUL` ordered by raw path bytes, and docs_sha256 over those bytes MUST be recomputed
+        and compared. NUL delimiting rather than newline because a newline is legal in a
+        git path, and a newline-delimited manifest cannot tell one path containing a
+        newline from two paths.
+
+        BINDING IS TO THE CANDIDATE ON THREE AXES: attested tag, attested commit, and an
+        artifact digest present in the candidate's published SHA256SUMS. Freshness here
+        means reviewed against THESE bytes, never reviewed recently.
+
+        SELECTION IS BY BINDING, NEVER BY FILENAME ORDER. Where several documentation
+        attestations exist, the one that binds to this candidate is the evidence, so a
+        stale file whose name sorts later cannot hide a valid one. Two attestations binding
+        to the same candidate are an ambiguity to REPORT, not a tie to break.
+
+        DIAGNOSTICS MUST NAME added, removed and edited paths. A rename MAY be reported
+        ONLY for an unambiguous one-to-one identical-blob move; anything else stays an add
+        plus a remove, because a blob appearing twice cannot say which path became which.
+        Missing or unreadable candidate inputs MUST fail closed.
+
+        A HUMAN MUST ATTEST. The existing `performed_by` rule applies, so an agent cannot
+        sign a documentation review. A generator MAY produce an unsigned skeleton with
+        every verdict `pending`, and MUST NOT fill in a human identity or a verdict.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: make vet target exists and runs `go vet ./...` against the full module.
@@ -888,3 +942,21 @@ spec:
         allowed_references_are_live: true
       priority: critical
       references_constraints: [C-10]
+    - id: AC-15
+      description: >-
+        The documentation-review gate exists, blocks, and rests on candidate-bound
+        evidence. `release/gates.toml` carries exactly one blocking gate whose evidence
+        kind is the documentation review and which requires a human observer. The checker
+        enumerates the candidate from `git ls-tree -r -z`, includes root and nested
+        Markdown and the `.github`, `.claude` and `scripts` paths, and excludes
+        non-Markdown, ignored and untracked files. Clean matching evidence passes. Each of
+        these fails with a diagnostic naming the cause: a document added, removed or
+        edited since the review; a duplicated blob that cannot be called a rename; a wrong
+        tag, commit, artifact digest, stored blob or manifest digest; an agent identity; a
+        verdict that is not `accurate`; and a missing, extra, duplicate or malformed
+        reviewed entry. A stale attestation whose filename sorts later does not hide a
+        valid candidate-bound one, and two that both bind are reported as ambiguous. A
+        tracked path that is not valid UTF-8 is an ERROR. The skeleton generator leaves
+        every verdict `pending` and writes no human identity.
+      priority: critical
+      references_constraints: [C-11]

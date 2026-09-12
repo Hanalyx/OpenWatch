@@ -27,6 +27,7 @@ which is the failure mode this tool exists to prevent.
 import argparse
 import fnmatch
 import json
+import hashlib
 import subprocess
 import sys
 import tomllib
@@ -55,9 +56,226 @@ def sh(*args, check=False):
     return p.returncode, p.stdout.strip()
 
 
+def sh_bytes(*args):
+    """Run a command, returning (rc, raw stdout). Paths are bytes in git and
+    stay bytes here: decoding them early is how a path that is legal on disk
+    and illegal in UTF-8 turns into a silently different path."""
+    p = subprocess.run(args, capture_output=True)
+    return p.returncode, p.stdout
+
+
 def die(msg):
     print(f"release-status: {msg}", file=sys.stderr)
     sys.exit(2)
+
+
+# ------------------------------------------- documentation review evidence
+
+# The scope is every tracked blob whose path ends in ".md", read from the
+# CANDIDATE COMMIT. Not the working tree, not the index, and no directory
+# exclusions: .github, .claude and scripts/README.md are documentation a
+# reader can reach, so they are in scope like any other. The count today is
+# 38. That is evidence, never a constant to compare against, because a count
+# has to be edited on every addition and fails nothing when it is not.
+
+DOC_SUFFIX = b".md"
+
+
+class PathNotEncodable(Exception):
+    """A tracked path that TOML cannot carry faithfully."""
+
+    def __init__(self, raw):
+        super().__init__(raw)
+        self.raw = raw
+
+
+def candidate_docs(commit):
+    """[(path_bytes, blob_hex)] for the candidate commit, sorted by raw path.
+
+    Raises PathNotEncodable when a path is not valid UTF-8: a TOML string is
+    UTF-8, so such a path cannot be written into an attestation and read back
+    as itself. Failing loudly beats reviewing a path that is not the one on
+    disk.
+    """
+    rc, raw = sh_bytes("git", "ls-tree", "-r", "-z", commit)
+    if rc != 0:
+        return None
+    out = []
+    for rec in raw.split(b"\0"):
+        if not rec:
+            continue
+        meta, _, path = rec.partition(b"\t")
+        if not path:
+            continue
+        parts = meta.split(b" ")
+        if len(parts) < 3 or parts[1] != b"blob":
+            continue
+        if not path.endswith(DOC_SUFFIX):
+            continue
+        try:
+            path.decode("utf-8")
+        except UnicodeDecodeError:
+            raise PathNotEncodable(path) from None
+        out.append((path, parts[2].decode("ascii")))
+    out.sort(key=lambda e: e[0])
+    return out
+
+
+def docs_manifest_digest(entries):
+    """sha256 over `path NUL blob NUL verdict NUL` records, ordered by raw
+    path bytes. NUL-delimited because a newline is a legal character in a git
+    path, and a newline-delimited manifest cannot tell one path containing a
+    newline from two paths."""
+    h = hashlib.sha256()
+    for path, blob, verdict in sorted(entries, key=lambda e: e[0]):
+        h.update(path)
+        h.update(b"\0")
+        h.update(blob.encode("ascii"))
+        h.update(b"\0")
+        h.update(verdict.encode("utf-8"))
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def _reviewed_entries(att):
+    """[(path_bytes, blob, verdict)] or a diagnostic string."""
+    rows = att.get("reviewed")
+    if not isinstance(rows, list) or not rows:
+        return "carries no reviewed entries"
+    out = []
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict) or set(r) != {"path", "blob", "verdict"}:
+            return (f"reviewed[{i}] must carry exactly path, blob and verdict; "
+                    f"got {sorted(r) if isinstance(r, dict) else type(r).__name__}")
+        if not all(isinstance(r[k], str) for k in ("path", "blob", "verdict")):
+            return f"reviewed[{i}] has a non-string field"
+        out.append((r["path"].encode("utf-8"), r["blob"], r["verdict"]))
+    return out
+
+
+def diff_docs(candidate, reviewed):
+    """(added, removed, edited, renamed) between the candidate tree and the
+    reviewed set.
+
+    A rename is claimed ONLY for an unambiguous one-to-one identical-blob
+    move: the blob appears exactly once on each side. Anything else stays an
+    add plus a remove, because a blob appearing twice cannot say which path
+    became which."""
+    cand = dict(candidate)
+    rev = {p: b for p, b, _ in reviewed}
+    added = sorted(p for p in cand if p not in rev)
+    removed = sorted(p for p in rev if p not in cand)
+    edited = sorted(p for p in cand if p in rev and cand[p] != rev[p])
+
+    by_blob_added = {}
+    by_blob_removed = {}
+    for p in added:
+        by_blob_added.setdefault(cand[p], []).append(p)
+    for p in removed:
+        by_blob_removed.setdefault(rev[p], []).append(p)
+    renamed = []
+    for blob, news in by_blob_added.items():
+        olds = by_blob_removed.get(blob, [])
+        if len(news) == 1 and len(olds) == 1:
+            renamed.append((olds[0], news[0]))
+    for old, new in renamed:
+        added.remove(new)
+        removed.remove(old)
+    return added, removed, edited, sorted(renamed)
+
+
+def _show(paths, limit=6):
+    names = [p.decode("utf-8", "backslashreplace") for p in paths]
+    if len(names) > limit:
+        return ", ".join(names[:limit]) + f" (+{len(names) - limit} more)"
+    return ", ".join(names)
+
+
+def eval_doc_review(att, candidate, tag, commit, digests):
+    """(status, note) for one documentation-review attestation."""
+    if att.get("performed_by", "").endswith("-agent"):
+        return FAIL, (f"{att['_file']}: performed_by is an agent; a documentation "
+                      "review is a human observation")
+    for field in ("tag", "commit", "artifact_sha256", "docs_sha256", "performed_at"):
+        if not att.get(field):
+            return FAIL, f"{att['_file']}: no {field}"
+    if att["tag"] != tag:
+        return STALE, f"{att['_file']}: attests tag {att['tag']}, candidate is {tag}"
+    if att["commit"] != commit:
+        return STALE, (f"{att['_file']}: attests commit {att['commit'][:12]}, "
+                       f"candidate is {commit[:12]}")
+    if digests is None:
+        return ERROR, (f"{att['_file']}: cannot read SHA256SUMS for this candidate, "
+                       "so the attested artifact is unverifiable")
+    if att["artifact_sha256"] not in digests:
+        return STALE, (f"{att['_file']}: artifact {att['artifact_sha256'][:12]} is not "
+                       "in this candidate's SHA256SUMS")
+    if candidate is None:
+        return ERROR, (f"{att['_file']}: the candidate tree could not be read at "
+                       f"{commit[:12]}")
+
+    reviewed = _reviewed_entries(att)
+    if isinstance(reviewed, str):
+        return FAIL, f"{att['_file']}: {reviewed}"
+
+    seen = {}
+    for path, _, _ in reviewed:
+        seen[path] = seen.get(path, 0) + 1
+    dupes = sorted(p for p, n in seen.items() if n > 1)
+    if dupes:
+        return FAIL, f"{att['_file']}: duplicate reviewed path: {_show(dupes)}"
+
+    bad = sorted(p for p, _, v in reviewed if v != "accurate")
+    if bad:
+        return FAIL, (f"{att['_file']}: every verdict must be 'accurate'; "
+                      f"not accurate: {_show(bad)}")
+
+    added, removed, edited, renamed = diff_docs(candidate, reviewed)
+    if added or removed or edited or renamed:
+        bits = []
+        if added:
+            bits.append(f"added {_show(added)}")
+        if removed:
+            bits.append(f"removed {_show(removed)}")
+        if edited:
+            bits.append(f"edited {_show(edited)}")
+        for old, new in renamed:
+            bits.append(f"renamed {old.decode('utf-8', 'backslashreplace')} -> "
+                        f"{new.decode('utf-8', 'backslashreplace')}")
+        return STALE, f"{att['_file']}: the review does not describe this tree: " + "; ".join(bits)
+
+    want = docs_manifest_digest([(p, b, v) for p, b, v in reviewed])
+    if want != att["docs_sha256"]:
+        return FAIL, (f"{att['_file']}: docs_sha256 is {att['docs_sha256'][:12]}, "
+                      f"the reviewed entries hash to {want[:12]}")
+    return PASS, (f"{att['_file']} ({att.get('performed_by', '?')}, "
+                  f"{att['performed_at']}, {len(reviewed)} documents)")
+
+
+def select_doc_review(atts, kind, tag, commit, digests):
+    """Pick the attestation that binds to THIS candidate.
+
+    Never by filename order. A stale attestation whose name sorts later must
+    not hide a valid one, and two attestations that both bind to the same
+    candidate are an ambiguity to report rather than a tie to break."""
+    same_kind = [a for a in atts if a.get("kind") == kind]
+    if not same_kind:
+        return None, (MISSING, f"no {kind} attestation")
+    bound = [a for a in same_kind
+             if a.get("tag") == tag and a.get("commit") == commit
+             and digests is not None and a.get("artifact_sha256") in digests]
+    if len(bound) > 1:
+        names = ", ".join(sorted(a["_file"] for a in bound))
+        return None, (ERROR, f"{len(bound)} {kind} attestations bind to this candidate: {names}")
+    if len(bound) == 1:
+        return bound[0], None
+    # None binds. Report against every candidate so the reason is the real
+    # one, not whichever file happened to sort last.
+    notes = []
+    for a in sorted(same_kind, key=lambda x: x["_file"]):
+        status, note = eval_doc_review(a, None, tag, commit, digests)
+        notes.append(note)
+    return None, (STALE, "; ".join(notes))
 
 
 # ------------------------------------------------------------------ evidence
@@ -278,6 +496,26 @@ def evaluate(gates, tag, commit):
                 status, note = eval_attestation(
                     match[-1], digests, g.get("human_required", False))
                 yield gid, label, status, note
+
+        elif kind == "doc-review":
+            try:
+                cand = candidate_docs(commit)
+            except PathNotEncodable as e:
+                raw = e.raw.decode("utf-8", "backslashreplace")
+                yield (gid, g["title"], ERROR,
+                       f"tracked path {raw!r} is not valid UTF-8, so TOML cannot "
+                       "carry it faithfully and it cannot be attested")
+                continue
+            if cand is None:
+                yield (gid, g["title"], ERROR,
+                       f"cannot read the tree at {commit[:12]}")
+                continue
+            att, problem = select_doc_review(atts, g["kind"], tag, commit, digests)
+            if problem:
+                yield gid, g["title"], problem[0], problem[1]
+                continue
+            status, note = eval_doc_review(att, cand, tag, commit, digests)
+            yield gid, label_of(g), status, note
 
         elif kind == "attestation":
             match = [a for a in atts if a.get("kind") == g["kind"]]
