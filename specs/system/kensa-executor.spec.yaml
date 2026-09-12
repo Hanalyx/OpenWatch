@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.8.0"
+  version: "2.9.0"
   status: approved
   tier: 1
 
@@ -13,12 +13,12 @@ spec:
       pinned to v0.9.0) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
-      opts...)` per kensa-go/api/kensa.go:228) takes a `[]*api.Rule`
+      opts...)` in the module's api package) takes a `[]*api.Rule`
       slice and, internally, calls `detect.Detect` to obtain the
       host's `CapabilitySet`, then `rule.Select` to pick the right
       implementation per rule. Framework identity is per-rule
       metadata (rule.References, normalised by mappings.RefsFromReferences
-      in kensa-go/internal/mappings/mappings.go) — it is NOT a scan
+      in the module's internal/mappings package) — it is NOT a scan
       input. Framework-scoped views are produced by OpenWatch at
       query time via host_rule_state.framework_refs JSONB.
 
@@ -55,6 +55,28 @@ spec:
           coverage. Changed before any scan data exists; the
           host_rule_state/transactions framework_refs columns are
           JSONB, so no migration is required.
+
+          Data path, at package level. internal/scheduler enqueues a scan job
+          onto the PostgreSQL-native queue in internal/queue (SKIP LOCKED), with
+          a JSONB payload carrying the host id, a policy version and an HMAC
+          (internal/worker payload). internal/worker dequeues the job and
+          resolves the host credential through its CredentialBridge, which
+          adapts internal/credential to the CredentialBridge interface this
+          package declares. The executor opens an in-memory SSH session and runs
+          the scan. The result is handed to internal/transactionlog, which owns
+          persistence and is outside this spec's scope. Audit events are emitted
+          through internal/audit.
+
+          The production binding is live in both entry points: the serve and
+          worker subcommands of cmd/openwatch each construct the executor with
+          WithScanFunc(NewProductionScanFunc(...)). AC-18 inspects the worker
+          binding.
+
+          The package also carries the remediation and plan-preview wiring that
+          shares this transport and credential path: RemediateFunc runs the
+          Capture, Apply, Validate, Commit or Rollback transaction, and PlanFunc
+          previews a fix without changing the host. Both are outside this spec,
+          which covers the scan path only.
 
   objective:
     summary: >

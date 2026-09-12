@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-the bundled Kensa rule corpus (check commands, config values, file permissions). The number evaluated on a given host is lower: rules resolve per operating system
+Rules from the bundled corpus run: check commands, config values, permissions
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
@@ -96,6 +96,40 @@ Results appear on the host's compliance tab once the scan completes
 Most hosts are scanned automatically by the adaptive scheduler. You do not need
 to trigger scans manually unless you want immediate results. See the
 [Adaptive Scheduling](#adaptive-scheduling) section below.
+
+---
+
+## Operating the scan engine
+
+The Kensa engine runs inside the OpenWatch binary. There is no separate engine
+service to start, stop, or restart. You operate the worker that drives it.
+
+Check which engine version is linked into the running binary:
+
+```bash
+curl -sk https://localhost:8443/api/v1/health
+```
+
+The response carries a `kensa` field. The value is read from the binary's build
+information, so it always reports the engine actually linked in.
+
+The worker process runs the scan jobs. Check its state and follow its logs:
+
+```bash
+systemctl status openwatch.service
+journalctl -u openwatch.service -f
+```
+
+Scan jobs queue in PostgreSQL. To see what is queued or in flight, use the DSN
+from `/etc/openwatch/secrets.env`:
+
+```bash
+psql "$OPENWATCH_DATABASE_DSN" -c \
+  "select id, status, created_at from job_queue order by created_at desc limit 10;"
+```
+
+A job that stays queued usually means the worker is not running. Check the
+service first, then the logs.
 
 ---
 
