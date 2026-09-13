@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.10.0"
+  version: "1.12.0"
   status: approved
   tier: 2
 
@@ -94,7 +94,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-10
-      description: 'Compliance hero card MUST render the percentage from compliance_summary.passing / compliance_summary.total. When total is 0, render the prototype empty-state ("No scan data yet") rather than NaN%. Pass/fail stacked bar widths come from the same numerator/denominator. The header sub-cell shows "LAST SCAN <date>" (the prototype''s subhead) — the Framework selector belongs on the Compliance tab, NOT this hero card'
+      description: 'v1.12.0 — the Compliance hero card MUST render compliance_summary.score_pct TAKEN AS SENT, and MUST NOT compute a percentage. When score_pct is null the card renders an empty state and never 0%, null%, or NaN%: it distinguishes a host with no scan data at all ("No compliance data for this host yet") from a completed scan whose rules produced no verdict ("No score: no rule on this host produced a verdict"). Pass/fail stacked bar widths come from the raw counts. The header sub-cell shows "LAST SCAN <date>" — the Framework selector belongs on the Compliance tab, NOT this hero card. It previously required passing / total computed in the browser, which counted skipped and errored rules as failures and showed 0% for a host whose rules all skipped; system-compliance-scoring C-14 forbids that arithmetic and C-01 forbids that denominator'
       type: technical
       enforcement: error
     - id: C-11
@@ -122,7 +122,7 @@ spec:
       description: 403 response from GET /hosts/{id} surfaces the authz.permission_denied code with an "Access denied" message in the body — host content is not rendered.
       priority: critical
     - id: AC-04
-      description: 'Populated compliance_summary renders the correct math (Math.round(passing / total * 100)) and labels for each status (passing, failing, skipped, error). The label text matches the prototype''s wording exactly.'
+      description: 'v1.12.0 — a populated compliance_summary renders score_pct AS SENT with no browser-side arithmetic, and the raw passing, failing, skipped and error counts are all preserved and labeled. A completed all-skipped scan (passing 0, failing 0, skipped > 0) renders the no-verdict empty state, never 0%; a genuine zero (passing 0, failing > 0) renders 0% as a real verdict. Both cases appear in one fixture, so an implementation that hardcodes either null or zero fails. It previously required Math.round(passing / total * 100) in the browser, which is the arithmetic system-compliance-scoring C-14 forbids and the denominator C-01 forbids.'
       priority: critical
       references_constraints: [C-10]
     - id: AC-05
@@ -270,3 +270,67 @@ spec:
       description: 'v1.9.0 source-inspection — the overview Compliance hero reflects an in-flight scan: it is passed the detail response scan_state (queued|running) and last_scan_at (no longer hardcoded lastScan={null}); when scanState is set the LAST SCAN subhead is replaced by an accent "Running"/"Queued" badge, otherwise it shows the real formatted last-scan time. The page-head Run scan button stays disabled and shows "Running…"/"Queued…" while scanState is active (not just during the request round-trip), reverting to "Run scan" when idle. The detail query threads last_scan_at + scan_state through to the hero and button, kept live by the scan.started/scan.completed SSE invalidation of ["host", id].'
       priority: high
       references_constraints: [C-04]
+    - id: AC-47
+      description: >-
+        v1.12.0 - the Compliance trend delta makes no claim it cannot support.
+        A delta needs TWO DISTINCT scored days produced by the same formula.
+        With one scored day the card compared that day with itself and rendered
+        "0% since <its own date>", which reads as a measured flat trend drawn
+        from a single measurement.
+
+        When a delta cannot be computed the card says which of three reasons
+        applies, rather than showing a blank or a single generic sentence: the
+        window mixes formulas, the days were scored by different formulas, or
+        there are not yet two scored days. It shows no delta, no plus or minus
+        sign, and no green or red.
+
+        Asserted on the rendered card: the caption text and its color.
+      priority: critical
+      references_constraints: [C-04]
+      inputs:
+        cases:
+          - id: comparable_rise
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            expect_caption: '+10% since 2026-09-01'
+            expect_color_token: 'var(--ow-ok)'
+          - id: comparable_fall
+            days:
+              - {date: '2026-09-01', score_pct: 80.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 70.0, formula_status: identified}
+            expect_caption: '-10% since 2026-09-01'
+            expect_color_token: 'var(--ow-crit)'
+          - id: one_scored_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: identified}
+            expect_caption: 'No comparison: at least two scored days are needed'
+            expect_color_token: 'var(--ow-fg-3)'
+          - id: different_formulas
+            days:
+              - {date: '2026-09-01', score_pct: 40.0, formula_status: legacy_unknown}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            expect_caption: 'No comparison: these days were scored by different formulas'
+            expect_color_token: 'var(--ow-fg-3)'
+          - id: mixed_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: mixed}
+            expect_caption: 'No comparison: a day in this window mixes scoring formulas'
+            expect_color_token: 'var(--ow-fg-3)'
+          # Every day scoreless and none mixed. The card computed the reason
+          # and then suppressed it behind a latest-day guard, so the window
+          # most in need of an explanation rendered a blank.
+          - id: all_scoreless
+            days:
+              - {date: '2026-09-01', score_pct: null, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: identified}
+            expect_caption: 'No comparison: at least two scored days are needed'
+            expect_color_token: 'var(--ow-fg-3)'
+        forbidden_when_incomparable: ['since 2026-09-02', 'improved', 'declined']
+        directional_color_tokens: ['var(--ow-ok)', 'var(--ow-crit)']
+      expected_output:
+        every_case_matches_its_expected_caption: true
+        every_case_matches_its_expected_color: true
+        forbidden_wording_occurrences: 0

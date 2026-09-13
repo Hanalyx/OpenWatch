@@ -70,9 +70,23 @@ type AttestationContent struct {
 // attestation snapshot: pass/fail/total counts, fleet compliance percent,
 // and a sampled top-failing list, over the frozen scans (framework-lensed).
 type AttestationRollup struct {
-	// CompliancePct is passing / (passing + failing), rounded half up; nil
-	// when nothing was evaluated (so an unevaluated set reads as n/a, not 0%).
-	CompliancePct *int `json:"compliance_pct"`
+	// LegacyCompliancePct is DECODE ONLY. It is the pooled whole-percent
+	// number artifacts carried before 2026-09-03: passing over every rule
+	// outcome in the attested set, so a host with 700 rules outvoted one with
+	// 50, and a whole percent could never equal the one-decimal fleet score.
+	//
+	// No constructor sets it. It exists so a legacy artifact still decodes
+	// and still renders the number it was signed with. omitempty is what
+	// keeps it out of every artifact generated from now on.
+	LegacyCompliancePct *int `json:"compliance_pct,omitempty"`
+
+	// ScorePct is the equal-host mean of the attested hosts' scores, to one
+	// decimal, null when no attested host produced a verdict.
+	//
+	// Null and 0.0 are different facts. Zero means every evaluated rule
+	// failed; null means nothing was evaluated, and collapsing the second
+	// into the first is bugs/OW-023 and OW-024.
+	ScorePct *float64 `json:"score_pct"`
 	// TotalChecks is every (host, rule) outcome counted; the rest are the
 	// per-status splits.
 	TotalChecks int `json:"total_checks"`
@@ -82,6 +96,11 @@ type AttestationRollup struct {
 	Errored     int `json:"errored"`
 	// TopFailing lists the rules failing on the most hosts (capped).
 	TopFailing []TopFailingRule `json:"top_failing"`
+
+	// Provenance is the frozen envelope. Nil on a legacy artifact, which is
+	// exactly how a legacy artifact is identified: a missing artifact_class
+	// is the legacy shape and nothing backfills one.
+	Provenance *ScoreProvenance `json:"provenance,omitempty"`
 }
 
 // ExceptionContent is the frozen snapshot for an Exception Register: a
@@ -91,6 +110,10 @@ type AttestationRollup struct {
 type ExceptionContent struct {
 	Summary    ExceptionSummary `json:"summary"`
 	Exceptions []ExceptionRow   `json:"exceptions"`
+
+	// Provenance is the read-model envelope. It carries no score and no
+	// contributor count, because this artifact aggregates no scan set.
+	Provenance *ReadModelProvenance `json:"provenance,omitempty"`
 }
 
 // ExceptionSummary is the bounded rollup of the in-scope waivers by state.
@@ -134,6 +157,9 @@ type RemediationContent struct {
 	PeriodTo   time.Time           `json:"period_to"`
 	Summary    RemediationSummary  `json:"summary"`
 	Activities []RemediationActRow `json:"activities"`
+
+	// Provenance is the read-model envelope; see ExceptionContent.
+	Provenance *ReadModelProvenance `json:"provenance,omitempty"`
 }
 
 // RemediationSummary is the bounded rollup of in-window requests by outcome.
@@ -229,10 +255,14 @@ type GenerateRequest struct {
 // summary report. It is computed once at generation time from
 // host_rule_state and frozen.
 type ExecutiveContent struct {
-	// CompliancePct is the fleet average compliance (passing /
-	// evaluated), rounded to a whole percent. Nil when no host has been
-	// evaluated yet.
-	CompliancePct *int `json:"compliance_pct"`
+	// LegacyCompliancePct is DECODE ONLY, the pooled whole-percent number
+	// artifacts carried before 2026-09-03. See AttestationRollup for why it
+	// is kept and why no constructor sets it.
+	LegacyCompliancePct *int `json:"compliance_pct,omitempty"`
+
+	// ScorePct is the equal-host mean of the in-scope hosts' scores, to one
+	// decimal, null when no host produced a verdict.
+	ScorePct *float64 `json:"score_pct"`
 	// HostCount is the number of active (non-deleted) hosts.
 	HostCount int `json:"host_count"`
 	// PassingRules / FailingRules are host_rule_state rows by status.
@@ -245,6 +275,9 @@ type ExecutiveContent struct {
 	// Coverage describes how much of the in-scope fleet the numbers
 	// actually reflect (fresh vs stale/never-scanned, and unreachable).
 	Coverage Coverage `json:"coverage"`
+
+	// Provenance is the frozen envelope; nil on a legacy artifact.
+	Provenance *ScoreProvenance `json:"provenance,omitempty"`
 }
 
 // Coverage is the staleness disclosure behind every report: of the

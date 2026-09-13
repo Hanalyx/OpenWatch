@@ -65,7 +65,7 @@ describe('frontend-add-host — structural', () => {
     expect(WIZARD_SRC).toContain("'Preview & import'");
     // Upload step uses react-dropzone for drag-drop CSV ingest.
     expect(UPLOAD_SRC).toContain('useDropzone');
-    expect(UPLOAD_SRC).toMatch(/accept:\s*\{\s*'text\/csv'/);
+    expect(UPLOAD_SRC).toMatch(/accept:\s*\x7b\s*\x27text\/csv\x27/);
   });
 
   // @ac AC-13
@@ -97,7 +97,7 @@ describe('frontend-add-host — structural', () => {
     expect(PREVIEW_SRC).toContain('Use system default');
     expect(PREVIEW_SRC).toContain('Clone an existing credential');
     // Credentials list is fetched via the React Query 'credentials' key.
-    expect(PREVIEW_SRC).toMatch(/queryKey:\s*\[['"]credentials['"]\]/);
+    expect(PREVIEW_SRC).toMatch(/queryKey:\s*\[[\x27\x22]credentials[\x27\x22]\]/);
     expect(PREVIEW_SRC).toContain("api.GET('/api/v1/credentials')");
     // Submission loop calls the clone endpoint with the chosen source id
     // and scopes the new credential to the freshly-created host id.
@@ -108,24 +108,26 @@ describe('frontend-add-host — structural', () => {
     // (host stays created — partial outcome, not a hard failure).
     expect(PREVIEW_SRC).toContain('credentialNote');
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────
-// Pure-function tests for the CSV / mapping / validation pipeline.
-//
-// AC-14 asserts that applyMappings classifies per-row validation using
-// the same zod schema as Single mode. These tests pin the behavioral
-// contract; a regression in the helper makes the per-AC source-inspect
-// test (above) still pass but breaks the user-visible behavior, so the
-// behavioral tests guard the contract.
-// ─────────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────
+  // Pure-function tests for the CSV / mapping / validation pipeline.
+  //
+  // AC-14 asserts that applyMappings classifies per-row validation using
+  // the same zod schema as Single mode. These tests pin the behavioral
+  // contract; a regression in the helper makes the per-AC source-inspect
+  // test (above) still pass but breaks the user-visible behavior, so the
+  // behavioral tests guard the contract.
+  // ─────────────────────────────────────────────────────────────────────────
 
-describe('frontend-add-host — bulk parse + validate', () => {
-  // @ac AC-13
-  test('frontend-add-host/AC-13 — required-field validation rejects when hostname is unmapped', () => {
-    // mappingsAreValid requires both hostname and ip_address mapped.
-    // Verified by source inspection of FieldMapperStep + TARGET_FIELDS.
-    // Synthetic input here mirrors the helper's contract.
+  // NOT annotated for AC-13, deliberately. AC-13 is covered above, on the
+  // test that inspects FieldMapperStep itself.
+  //
+  // This one imports nothing from the application: it builds a mappings
+  // array and re-implements the required-field check inline, so it asserts
+  // its own three lines and would keep passing if FieldMapperStep stopped
+  // requiring either field. Annotating a criterion here pointed at evidence
+  // that cannot fail.
+  test('add-host bulk — the required-field rule as restated here rejects an unmapped hostname', () => {
     const mappings = [
       { source_column: 'host', target_field: 'hostname' },
       { source_column: 'ip', target_field: '' },

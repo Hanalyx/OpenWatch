@@ -13,8 +13,8 @@ repeat those steps; it focuses on production concerns the install guide only
 touches lightly: process layout, TLS, the background worker, backups, upgrades,
 and incident runbooks.
 
-> Verify the version you deploy. The current general-availability release is
-> `v0.5.0`. Confirm with `openwatch --version` before and after an upgrade.
+> Verify the version you deploy. Confirm it with `openwatch --version` before
+> and after an upgrade, and compare the two.
 
 ---
 
@@ -116,7 +116,7 @@ running with a silent fallback.
 ### Set the report signing key before issuing evidence
 
 `[reports].signing_key_file` behaves differently from those two, and the
-difference matters if anyone outside your organisation will verify a report.
+difference matters if anyone outside your organization will verify a report.
 
 Leave it unset and the service does not refuse to start. It generates a fresh
 key each boot, logs a warning, and carries on signing reports normally. Nothing
@@ -132,14 +132,38 @@ Set a durable key before the first report anyone keeps:
 
 ```bash
 sudo install -d -m 0750 -o root -g openwatch /etc/openwatch/keys
-sudo openssl genpkey -algorithm ed25519 -out /etc/openwatch/keys/report_signing.pem
-sudo chown root:openwatch /etc/openwatch/keys/report_signing.pem
-sudo chmod 0640 /etc/openwatch/keys/report_signing.pem
+sudo sh -c 'umask 027; head -c 32 /dev/urandom > /etc/openwatch/keys/report_signing.key'
+sudo chown root:openwatch /etc/openwatch/keys/report_signing.key
+sudo chmod 0640 /etc/openwatch/keys/report_signing.key
 ```
 
-Then set `signing_key_file = "/etc/openwatch/keys/report_signing.pem"` under
+**The file must be 32 raw bytes, not a PEM.** OpenWatch reads the Ed25519 seed
+directly. A key written by `openssl genpkey` is PEM-encoded PKCS#8, about 119
+bytes of base64 text, and the service refuses it at startup with `signing key
+must be 32 raw bytes`.
+
+Then set `signing_key_file = "/etc/openwatch/keys/report_signing.key"` under
 `[reports]` and restart. Back the key up with your other secrets: losing it has
 the same effect as never having set one.
+
+Record the trust anchor somewhere the OpenWatch host cannot change. Derive it
+from the key file you just wrote, not from the running server:
+
+```bash
+sudo openssl pkey -inform DER -pubout -outform DER \
+  -in <(printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'; \
+        sudo cat /etc/openwatch/keys/report_signing.key) \
+  | tail -c 32 | sha256sum
+```
+
+Keep that SHA-256, or the complete base64 public key, with your other trust
+anchors. **Do not record only the `key_id`.** It is the first 8 bytes of that
+hash, 64 bits, and exists to correlate a report with a key rather than to
+anchor trust in one.
+
+Anyone verifying a report needs the anchor from a channel other than the server
+that served the report, or the check proves only that the server agrees with
+itself. See [Verifying a report](../runbooks/REPORT_VERIFICATION.md).
 
 Keep the database password out of the world-readable TOML by putting the DSN in
 `/etc/openwatch/secrets.env`, which the `systemd` unit loads via
@@ -300,7 +324,7 @@ you have never restored is a hypothesis, not a backup.
 
 Concise, single-binary runbooks follow. Diagnose with `systemctl`, `journalctl`,
 `psql`, `df`, and `top`: not `docker`. For the full incident runbooks, see
-[the runbooks directory](runbooks/).
+[the runbooks directory](../runbooks/).
 
 ### SERVICE_DOWN: service unavailable
 
@@ -447,4 +471,4 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
 - [Install guide](INSTALLATION.md): canonical install and provisioning.
 - [User roles](USER_ROLES.md): roles and permissions.
 - [API guide](API_GUIDE.md): every endpoint, its permission, and audit events.
-- [Operational runbooks](runbooks/): incident response procedures.
+- [Operational runbooks](../runbooks/): incident response procedures.

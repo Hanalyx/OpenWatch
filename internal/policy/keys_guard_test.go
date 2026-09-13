@@ -1,7 +1,7 @@
 // @spec system-policy
 //
 // AC traceability:
-// @ac AC-13  (TestEmbeddedPolicyKey_NotTestKey)
+//   AC-13  (TestEmbeddedPolicyKey_NotTestKey)
 
 package policy
 

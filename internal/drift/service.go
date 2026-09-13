@@ -81,7 +81,7 @@ func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (
 	if err != nil {
 		return Report{}, err
 	}
-	currentScore := ComplianceScore(currentPassed, currentFailed)
+	currentScore := Score(currentPassed, currentFailed)
 
 	// Prior score: the state BEFORE this scanID landed. We reconstruct
 	// it by inverting this scan's transactions. A transaction with
@@ -103,24 +103,40 @@ func (s *Service) DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (
 		return Report{}, fmt.Errorf("drift: commit: %w", err)
 	}
 
+	cur, curPresent := currentScore.Value()
 	report := Report{
-		HostID:           hostID,
-		ScanID:           scanID,
-		CurrentScore:     currentScore,
-		HasPriorBaseline: hadPrior,
+		HostID:              hostID,
+		ScanID:              scanID,
+		CurrentScore:        cur,
+		CurrentScorePresent: curPresent,
+		HasPriorBaseline:    hadPrior,
 	}
 	report.fillTransitions(transitions)
 
-	// First-ever scan: no baseline to drift from.
-	if !hadPrior || totalRows == 0 {
+	priorScore := Score(priorPassed, priorFailed)
+	pri, priPresent := priorScore.Value()
+	// Set before the early return: a caller reading the report must be able to
+	// tell "no comparison was made" from "the comparison found no change", and
+	// both leave ScoreDelta at zero.
+	report.PriorScorePresent = priPresent
+	report.ComparisonPresent = hadPrior && totalRows > 0 && curPresent && priPresent
+
+	// Nothing to compare. Three separate reasons, one outcome.
+	//
+	// totalRows == 0 is the first-ever scan. The two presence checks are
+	// bugs/OW-023: this guard used to test totalRows alone, which counts every
+	// row including skipped, while the score's denominator counts only pass and
+	// fail. A scan returning 769 skipped rows and no verdict therefore passed
+	// the guard, scored a fabricated 0, and classified as a major worsening
+	// against a real prior. Guard on the denominator the score actually uses.
+	if !hadPrior || totalRows == 0 || !curPresent || !priPresent {
 		report.Kind = DriftStable
 		return report, nil
 	}
 
-	priorScore := ComplianceScore(priorPassed, priorFailed)
-	report.PriorScore = priorScore
-	report.ScoreDelta = currentScore - priorScore
-	report.Kind = Classify(priorScore, currentScore, s.thresholds)
+	report.PriorScore = pri
+	report.ScoreDelta = cur - pri
+	report.Kind = Classify(pri, cur, s.thresholds)
 
 	// Emit on non-stable kinds (spec C-04).
 	if report.Kind != DriftStable {

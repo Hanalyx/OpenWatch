@@ -34,6 +34,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/version"
 )
 
 // TriggerSource records who initiated a scan run.
@@ -71,6 +73,12 @@ type Run struct {
 	Counts        *Counts // nil until completed
 	FailureReason string
 	CorrelationID string
+
+	// EngineVersion is the scan engine of the worker that produced this run's
+	// outcomes, stamped at completion. Empty on rows written before migration
+	// 0063, which means not recorded and must not be filled in from any
+	// running process. Spec C-06.
+	EngineVersion string
 }
 
 // Counts are the per-outcome rule totals recorded on completion.
@@ -123,9 +131,21 @@ func MarkCompleted(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, c Coun
 	_, err := pool.Exec(ctx, `
 		UPDATE scan_runs
 		SET status = 'completed', finished_at = now(),
-		    rules_pass = $2, rules_fail = $3, rules_skipped = $4, rules_error = $5
+		    rules_pass = $2, rules_fail = $3, rules_skipped = $4, rules_error = $5,
+		    -- The corpus identity is recorded as unreadable, not left NULL.
+		    -- NULL means the row predates migration 0062. A scan completing
+		    -- today HAS an identity; Kensa cannot report it until
+		    -- features/KN-KN-030 ships DescribeCorpus. Those are different
+		    -- facts, and the installed corpus is never used to guess.
+		    corpus_identity_status = 'unavailable',
+		    -- The engine that PRODUCED these outcomes, which is this process.
+		    -- Every reader copies it from here rather than reporting its own
+		    -- linked version: in a rolling or split deployment the API and the
+		    -- workers run different builds, so a reader describing itself names
+		    -- an engine that never touched the host. Spec system-scan-runs C-06.
+		    engine_version = $6
 		WHERE id = $1 AND status NOT IN ('completed', 'failed')`,
-		id, c.Pass, c.Fail, c.Skipped, c.Error)
+		id, c.Pass, c.Fail, c.Skipped, c.Error, version.Kensa())
 	if err != nil {
 		return fmt.Errorf("scanruns: mark completed: %w", err)
 	}
@@ -153,7 +173,8 @@ func Get(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID) (*Run, error) {
 		       queued_at, started_at, finished_at,
 		       COALESCE(policy_version, ''),
 		       rules_pass, rules_fail, rules_skipped, rules_error,
-		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, ''),
+		       COALESCE(engine_version, '')
 		FROM scan_runs WHERE id = $1`, id)
 	return scanRun(row)
 }
@@ -166,7 +187,8 @@ func LatestForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 		       queued_at, started_at, finished_at,
 		       COALESCE(policy_version, ''),
 		       rules_pass, rules_fail, rules_skipped, rules_error,
-		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, ''),
+		       COALESCE(engine_version, '')
 		FROM scan_runs WHERE host_id = $1
 		ORDER BY queued_at DESC LIMIT 1`, hostID)
 	return scanRun(row)
@@ -190,7 +212,8 @@ func LatestCompletedForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid
 		       queued_at, started_at, finished_at,
 		       COALESCE(policy_version, ''),
 		       rules_pass, rules_fail, rules_skipped, rules_error,
-		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, ''),
+		       COALESCE(engine_version, '')
 		FROM scan_runs
 		WHERE host_id = $1 AND status = 'completed'
 		ORDER BY finished_at DESC NULLS LAST, id DESC LIMIT 1`, hostID)
@@ -205,7 +228,8 @@ func ActiveForHost(ctx context.Context, pool *pgxpool.Pool, hostID uuid.UUID) (*
 		       queued_at, started_at, finished_at,
 		       COALESCE(policy_version, ''),
 		       rules_pass, rules_fail, rules_skipped, rules_error,
-		       COALESCE(failure_reason, ''), COALESCE(correlation_id, '')
+		       COALESCE(failure_reason, ''), COALESCE(correlation_id, ''),
+		       COALESCE(engine_version, '')
 		FROM scan_runs
 		WHERE host_id = $1 AND status IN ('queued', 'running')
 		ORDER BY queued_at DESC LIMIT 1`, hostID)
@@ -284,7 +308,8 @@ func scanRun(row pgx.Row) (*Run, error) {
 	)
 	err := row.Scan(&r.ID, &r.HostID, &trigger, &r.RequestedBy, &status,
 		&r.QueuedAt, &r.StartedAt, &r.FinishedAt, &r.PolicyVersion,
-		&pass, &fail, &skipped, &errCnt, &r.FailureReason, &r.CorrelationID)
+		&pass, &fail, &skipped, &errCnt, &r.FailureReason, &r.CorrelationID,
+		&r.EngineVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

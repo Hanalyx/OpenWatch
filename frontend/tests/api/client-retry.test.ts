@@ -1,5 +1,5 @@
 // @spec system-auth-identity
-// @ac AC-25
+//
 // AC-25 — transparent 401 retry middleware. On 401 the client calls
 // POST /api/v1/auth/refresh-cookie once; on success the original
 // request is replayed exactly once with the rotated cookies. On
@@ -99,6 +99,7 @@ describe('api/client — 401 retry middleware', () => {
     vi.restoreAllMocks();
   });
 
+  // @ac AC-25
   test('system-auth-identity/AC-25 — 401 → refresh-cookie 200 → original request replayed and succeeds', async () => {
     const mock = queueResponses(
       // 1. original GET — 401

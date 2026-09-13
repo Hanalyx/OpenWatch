@@ -1,7 +1,7 @@
 spec:
   id: api-compliance-trend
   title: Compliance trend endpoints (per-host + fleet)
-  version: "1.1.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -13,7 +13,7 @@ spec:
       host's daily posture points (date, score_pct, passing, failing,
       total) over the trailing window, oldest first. GET
       /api/v1/fleet/compliance/trend?days=N returns per-day fleet
-      aggregates (avg_score_pct, hosts, failing, critical_hosts).
+      aggregates (score_pct, hosts, failing, critical_hosts).
 
       days defaults to 30 and is CLAMPED into [1, 90] - never
       rejected. Days without snapshots are absent from the arrays
@@ -65,7 +65,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-03
-      description: 'The fleet endpoint aggregates per day across hosts (avg_score_pct to one decimal, hosts count, summed failing, critical_hosts count), excludes soft-deleted hosts, and returns {days: []} when no snapshots exist'
+      description: 'The fleet endpoint aggregates per day across hosts (score_pct to one decimal, hosts count, summed failing, critical_hosts count), excludes soft-deleted hosts, and returns {days: []} when no snapshots exist. Renamed from avg_score_pct on 2026-09-06, with no alias: every other surface calls this field score_pct, and the aggregation_method in the envelope already says it is an equal-host mean, so the avg_ prefix carried no information and cost a real integration mistake'
       priority: critical
       references_constraints: [C-02]
     - id: AC-04
@@ -76,3 +76,69 @@ spec:
       description: 'v1.1.0 lens-following: with the org default lens set to "stig" and a host carrying both a framework="stig" snapshot (e.g. score 88) and a framework="" all-rules snapshot (e.g. score 68), GET /hosts/{id}/compliance/trend returns the STIG series (88), not the all-rules series - proving the trend follows the effective lens server-side. With no org default set it returns the all-rules series'
       priority: high
       references_constraints: [C-03]
+    - id: AC-06
+      description: 'v1.3.0 - a day whose snapshot holds no score APPEARS with score_pct null and says why. This REPLACES the v1.2.0 interim rule, under which such a day was omitted because the field could not express absence; only a day with no snapshot at all is absent now. Every day carries formula_status: identified when its snapshots used formula 2, legacy_unknown when they predate it, mixed when they disagree. A mixed day carries score_pct null and formula_version null. The fleet endpoint reports null when no host that day produced a score, and the mean of the hosts that did otherwise, alongside hosts_scored and hosts_without_score'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        host_days:
+          - {days_ago: 1, score_pct: 70.0}
+          - {days_ago: 0, score_pct: null}
+        fleet_extra_host_today_score_pct: 90.0
+        fleet_all_unscored_day_days_ago: 3
+      expected_output:
+        host_days_returned: 2
+        host_scored_day_score_pct: 70.0
+        host_absent_day_score_pct: null
+        forbidden_host_score_pct: 0.0
+        fleet_today_present: true
+        fleet_today_score_pct: 90.0
+        forbidden_fleet_score_pct: 45.0
+        fleet_today_hosts: 2
+        fleet_all_unscored_day_present: true
+        fleet_all_unscored_day_score_pct: null
+    - id: AC-07
+      description: 'v1.3.0 - every day carries a formula_status, and formula_version follows it exactly: 2 for identified, null for legacy_unknown and null for mixed. A mixed day also carries score_pct null. A host point can only be identified or legacy_unknown, never mixed, because a posture_snapshots row is one host on one date under one lens and cannot hold two formulas; the fleet point is where versions can meet. Stating that keeps the third value from looking untested on the host endpoint'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        host_days:
+          - {days_ago: 2, formula: legacy, score_pct: 40.0}
+          - {days_ago: 1, formula: v2, passing: 8, failing: 2}
+        fleet_mixed_day: {days_ago: 0}
+      expected_output:
+        host_legacy_day: {formula_status: legacy_unknown, formula_version: null, score_pct: 40.0}
+        host_v2_day: {formula_status: identified, formula_version: 2, score_pct: 80.0}
+        host_mixed_reachable: false
+        fleet_mixed_day: {formula_status: mixed, formula_version: null, score_pct: null}
+    - id: AC-08
+      description: 'v1.4.0 - every trend point carries an envelope built from what the SNAPSHOT recorded, never from the process serving the request. A version-2 point names the engine that produced its outcomes, copied through the scan run. A LEGACY point carries a null formula version and an EMPTY engines list, because the release that wrote it recorded neither; substituting the current formula or the serving process''s engine would describe the point with provenance that does not belong to it. The fixture stamps the producing run with a version no running process reports, so an envelope built from the reader is visibly wrong rather than accidentally right'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        producer_engine_version: v0.0.2-producer
+        v2_day: {days_ago: 0, passing: 8, failing: 2}
+        legacy_day: {days_ago: 1, score_pct: 40.0}
+      expected_output:
+        v2_engines: [v0.0.2-producer]
+        v2_engine_version: v0.0.2-producer
+        v2_formula_version: 2
+        legacy_engines: []
+        legacy_engine_version: null
+        legacy_formula_version: null
+        aggregation_method: none
+        corpus_identity_status: unavailable
+    - id: AC-09
+      description: 'v1.4.0 - a fleet trend point''s envelope accounting reconciles with the hosts it says were scored. Three snapshots on one day: one scored whose corpus is named, one scored whose corpus is not, and one with no score. The point reports hosts_scored 2, so the envelope MUST describe exactly two contributors, of which one lacks a corpus identity. The three differ deliberately, because a fixture where hosts_scored and the missing-corpus count coincide cannot tell which one the handler passed. It described two: the total came from a count of snapshots lacking identified corpus provenance, which includes snapshots with no score, so the envelope claimed contributors the point itself said did not exist. The envelope counts contributors to a SCORE, and a snapshot with no score contributed to none'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        scored_snapshot: {passing: 8, failing: 2}
+        scored_snapshot_with_corpus: {passing: 6, failing: 4, corpus_digest: 'sha256:aaa'}
+        unscored_snapshot: {skipped: 5}
+      expected_output:
+        hosts_scored: 2
+        hosts_without_score: 1
+        hosts_without_corpus_identity: 1
+        forbidden_hosts_without_corpus_identity: 2
+        engine_contributors_sum_to_hosts_scored: true

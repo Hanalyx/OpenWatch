@@ -12,7 +12,7 @@ React UI over HTTPS on port `8443`. All API paths live under `/api/v1`. The
 running binary serves its own OpenAPI document as the contract source of truth,
 and `GET /api/v1/version` reports the build it came from.
 
-This guide reflects OpenWatch `v0.5.0`. The compliance
+The compliance
 surface (scan execution + results, remediation, exceptions, posture/drift, audit
 export, the rule browser) IS exposed over `/api/v1`. See [the compliance API surface
 (now live)](#compliance-api-surface-now-live). The genuinely-absent pieces (a
@@ -192,6 +192,33 @@ These endpoints back the dashboard and require read access.
 | `GET` | `/api/v1/fleet/recent-changes` | Recent compliance state transitions. |
 | `GET` | `/api/v1/fleet/connectivity/breakdown` | Connectivity status counts. |
 
+### Reading a score field
+
+`score_pct` is **nullable** on every surface that carries it, and a client has
+to handle the null.
+
+| Value | Meaning |
+|---|---|
+| `null` | No rule produced a pass or a fail. Nothing was measured. |
+| `0` | Rules produced verdicts and all of them failed. |
+
+Do not coerce `null` to `0`. They are different answers, and a client that
+merges them reports an unscanned host as a totally failing one.
+
+The score counts pass and fail only. Skipped, not-applicable and errored rules
+change neither the numerator nor the denominator. Aggregates are the mean of
+the scored hosts, each host counting once, with unscored hosts excluded from
+the mean and still reported in `hosts_total`, `hosts_scored` and
+`hosts_without_score`.
+
+`coverage_status` travels beside the score and is one of `available`,
+`unavailable_unclassified_skips` or `unavailable_no_outcomes`. A coverage
+percentage is present only when the status is `available`.
+
+See [Scanning and compliance](SCANNING_AND_COMPLIANCE.md#what-the-score-means)
+for what the numbers mean, and [the OpenAPI contract](../../api/openapi.yaml)
+for the complete envelope including the provenance fields.
+
 ---
 
 ## Alerts
@@ -292,7 +319,7 @@ curl -s --cacert /etc/openwatch/tls/cert.pem https://localhost:8443/api/v1/healt
 ```
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.5.0"}
+{"status": "healthy", "db_connected": true, "version": "<release version>"}
 ```
 
 A healthy response is always `status: "healthy"`, `db_connected: true`. When

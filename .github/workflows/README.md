@@ -151,9 +151,11 @@ make packages      # build RPM + DEB for amd64 and arm64
 
 ## Related documentation
 
-- Install and configuration: `docs/engineering/install_guide.md`
+- Install and configuration: `docs/guides/INSTALLATION.md`,
+  `docs/guides/PRODUCTION_DEPLOYMENT.md`, `docs/guides/ENVIRONMENT_REFERENCE.md`
 - Branch policy: `.github/BRANCH_MANAGEMENT.md`
 - Release procedure: `docs/runbooks/RELEASING.md`
 - CI gate spec: `specs/release/ci-gates.spec.yaml`
 - Supply-chain spec: `specs/system/supply-chain.spec.yaml`
-- Kensa boundary: `docs/KENSA_OPENWATCH_BOUNDARY.md`
+- Kensa boundary: Context Plane record `projects/kensa/KENSA_OPENWATCH_BOUNDARY`
+  (the repository copy is a local-only mirror)

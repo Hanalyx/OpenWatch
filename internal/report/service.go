@@ -11,6 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/db"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -59,6 +63,12 @@ const allHostsLabel = "All hosts"
 // Service satisfies it via ScopeGroup.
 type GroupScoper interface {
 	ScopeGroup(ctx context.Context, groupID uuid.UUID) (name string, hostIDs []uuid.UUID, err error)
+
+	// ScopeGroupIn resolves the same thing inside a caller-supplied
+	// transaction, so a signed artifact's scope and its content come from one
+	// snapshot. Resolving membership on the pool first let a host join or
+	// leave in between, and nothing in the artifact would say so.
+	ScopeGroupIn(ctx context.Context, q db.Queryer, groupID uuid.UUID) (name string, hostIDs []uuid.UUID, err error)
 }
 
 // Service owns the reports library: generating an executive summary
@@ -151,65 +161,88 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 	}
 
 	scope := Scope{Framework: req.Framework}
-	var hostIDs []uuid.UUID // nil = all hosts (no host filter)
-	if req.GroupID != nil {
-		if s.groups == nil {
-			return Report{}, ErrGroupScopeUnavailable
-		}
-		name, ids, err := s.groups.ScopeGroup(ctx, *req.GroupID)
-		if err != nil {
-			return Report{}, err // group.ErrNotFound propagates; handler maps to 400
-		}
-		scope.GroupID = req.GroupID
-		scope.GroupName = name
-		// A resolved group always filters by host id — even an empty
-		// group, which must read as zero hosts (not "all hosts").
-		hostIDs = ids
-		if hostIDs == nil {
-			hostIDs = []uuid.UUID{}
-		}
+	if req.GroupID != nil && s.groups == nil {
+		return Report{}, ErrGroupScopeUnavailable
 	}
 
-	// Compute the kind's frozen content.
+	// Compute the kind's frozen content, entirely inside ONE snapshot.
+	//
+	// Every read below sees the same fleet at the same instant. Before this,
+	// each statement took its own snapshot, so a scan completing during
+	// generation could freeze a score, a coverage block and a top-failing list
+	// describing three different states into one signed artifact.
 	var content any
+	var dataAsOf time.Time
 	title := executiveTitle
-	switch kind {
-	case KindAttestation:
-		c, err := s.computeAttestation(ctx, hostIDs, scope.Framework)
-		if err != nil {
-			return Report{}, err
+	err := s.withFrozenSnapshot(ctx, func(q queryer) error {
+		// The sampling instant is the SNAPSHOT's, read from inside it. Taken
+		// after the transaction closed, it stamped the artifact with a moment
+		// later than the data it describes; under repeatable read now() is
+		// the transaction's start, which is exactly what the content samples.
+		if err := q.QueryRow(ctx, "SELECT now()").Scan(&dataAsOf); err != nil {
+			return fmt.Errorf("report: sampling instant: %w", err)
 		}
-		content = c
-		title = attestationTitle
-	case KindException:
-		c, err := s.computeExceptionRegister(ctx, hostIDs)
-		if err != nil {
-			return Report{}, err
+		dataAsOf = dataAsOf.UTC()
+
+		// Membership resolved HERE, in the same snapshot as the content it
+		// scopes.
+		var hostIDs []uuid.UUID // nil = all hosts (no host filter)
+		if req.GroupID != nil {
+			name, ids, serr := s.groups.ScopeGroupIn(ctx, q, *req.GroupID)
+			if serr != nil {
+				return serr // group.ErrNotFound propagates; handler maps to 400
+			}
+			scope.GroupID = req.GroupID
+			scope.GroupName = name
+			// A resolved group always filters by host id, even an empty group,
+			// which must read as zero hosts and not as "all hosts".
+			hostIDs = ids
+			if hostIDs == nil {
+				hostIDs = []uuid.UUID{}
+			}
 		}
-		content = c
-		title = exceptionTitle
-	case KindRemediation:
-		days := req.PeriodDays
-		if days <= 0 {
-			days = defaultPeriodDays
+		switch kind {
+		case KindAttestation:
+			c, err := s.computeAttestation(ctx, q, hostIDs, scope.Framework)
+			if err != nil {
+				return err
+			}
+			content = c
+			title = attestationTitle
+		case KindException:
+			c, err := s.computeExceptionRegister(ctx, q, hostIDs)
+			if err != nil {
+				return err
+			}
+			content = c
+			title = exceptionTitle
+		case KindRemediation:
+			days := req.PeriodDays
+			if days <= 0 {
+				days = defaultPeriodDays
+			}
+			if days > maxPeriodDays {
+				days = maxPeriodDays
+			}
+			to := time.Now().UTC()
+			from := to.AddDate(0, 0, -days)
+			c, err := s.computeRemediationActivity(ctx, q, hostIDs, from, to)
+			if err != nil {
+				return err
+			}
+			content = c
+			title = remediationTitle
+		default:
+			c, err := s.computeExecutive(ctx, q, hostIDs, scope.Framework)
+			if err != nil {
+				return err
+			}
+			content = c
 		}
-		if days > maxPeriodDays {
-			days = maxPeriodDays
-		}
-		to := time.Now().UTC()
-		from := to.AddDate(0, 0, -days)
-		c, err := s.computeRemediationActivity(ctx, hostIDs, from, to)
-		if err != nil {
-			return Report{}, err
-		}
-		content = c
-		title = remediationTitle
-	default:
-		c, err := s.computeExecutive(ctx, hostIDs, scope.Framework)
-		if err != nil {
-			return Report{}, err
-		}
-		content = c
+		return nil
+	})
+	if err != nil {
+		return Report{}, err
 	}
 
 	raw, err := json.Marshal(content)
@@ -236,7 +269,6 @@ func (s *Service) Generate(ctx context.Context, generatedBy string, req Generate
 		signingKeyID = &keyID
 	}
 
-	dataAsOf := time.Now().UTC()
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO report_snapshots (id, title, kind, scope_label, scope, data_as_of, generated_by, format, content, content_sha256, signature, signing_key_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -296,7 +328,7 @@ func (s *Service) Frameworks(ctx context.Context) ([]FrameworkCount, error) {
 // reconstruct per-(host, rule) outcomes from these frozen scan ids on
 // demand. The framework lens narrows the rows in the faces, not which
 // hosts are attested (a host is attested if it has any completed scan).
-func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, framework string) (AttestationContent, error) {
+func (s *Service) computeAttestation(ctx context.Context, q queryer, hostIDs []uuid.UUID, framework string) (AttestationContent, error) {
 	c := AttestationContent{Framework: framework, Attested: []AttestedHost{}}
 
 	// Active in-scope host count (whether or not scanned).
@@ -306,7 +338,7 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 		hostQ += " AND id = ANY($1)"
 		hostArgs = append(hostArgs, hostIDs)
 	}
-	if err := s.pool.QueryRow(ctx, hostQ, hostArgs...).Scan(&c.HostsTotal); err != nil {
+	if err := q.QueryRow(ctx, hostQ, hostArgs...).Scan(&c.HostsTotal); err != nil {
 		return AttestationContent{}, fmt.Errorf("report: attestation host count: %w", err)
 	}
 
@@ -322,7 +354,7 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 		scanArgs = append(scanArgs, hostIDs)
 	}
 	scanQ += " ORDER BY sr.host_id, sr.finished_at DESC"
-	rows, err := s.pool.Query(ctx, scanQ, scanArgs...)
+	rows, err := q.Query(ctx, scanQ, scanArgs...)
 	if err != nil {
 		return AttestationContent{}, fmt.Errorf("report: attestation scans: %w", err)
 	}
@@ -343,7 +375,7 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 	// query set over the frozen scans, framework-lensed). This makes the
 	// in-app number, the PDF cover, and the signature agree, and keeps the
 	// rollup immutable + reproducible like the rest of the snapshot.
-	rollup, err := s.computeAttestationRollup(ctx, scanIDsOf(c), framework)
+	rollup, err := s.computeAttestationRollup(ctx, q, hostIDs, scanIDsOf(c), framework, false)
 	if err != nil {
 		return AttestationContent{}, err
 	}
@@ -357,8 +389,8 @@ func (s *Service) computeAttestation(ctx context.Context, hostIDs []uuid.UUID, f
 // register rows (one per waiver, requester/reviewer resolved to usernames),
 // scoped to hostIDs when set. Active = approved and not past expiry;
 // ExpiringSoon = active with an expiry within the next 30 days.
-func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.UUID) (ExceptionContent, error) {
-	c := ExceptionContent{Exceptions: []ExceptionRow{}}
+func (s *Service) computeExceptionRegister(ctx context.Context, q queryer, hostIDs []uuid.UUID) (ExceptionContent, error) {
+	c := ExceptionContent{Exceptions: []ExceptionRow{}, Provenance: NewReadModelProvenance()}
 
 	// Summary aggregate (exact, independent of the row cap).
 	sumQ := `
@@ -380,7 +412,7 @@ func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.U
 		sumArgs = append(sumArgs, hostIDs)
 	}
 	sm := &c.Summary
-	if err := s.pool.QueryRow(ctx, sumQ, sumArgs...).Scan(
+	if err := q.QueryRow(ctx, sumQ, sumArgs...).Scan(
 		&sm.Total, &sm.Active, &sm.Requested, &sm.Approved,
 		&sm.Rejected, &sm.Revoked, &sm.Expired, &sm.ExpiringSoon); err != nil {
 		return ExceptionContent{}, fmt.Errorf("report: exception summary: %w", err)
@@ -403,7 +435,7 @@ func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.U
 		rowArgs = append(rowArgs, hostIDs)
 	}
 	rowQ += fmt.Sprintf(" ORDER BY e.requested_at DESC LIMIT %d", maxRegisterRows)
-	rows, err := s.pool.Query(ctx, rowQ, rowArgs...)
+	rows, err := q.Query(ctx, rowQ, rowArgs...)
 	if err != nil {
 		return ExceptionContent{}, fmt.Errorf("report: exception rows: %w", err)
 	}
@@ -428,8 +460,11 @@ func (s *Service) computeExceptionRegister(ctx context.Context, hostIDs []uuid.U
 // plus the activity rows (one per request, requester/reviewer resolved to
 // usernames), scoped to hostIDs when set. The window is filtered on
 // requested_at (when the request was filed).
-func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid.UUID, from, to time.Time) (RemediationContent, error) {
-	c := RemediationContent{PeriodFrom: from, PeriodTo: to, Activities: []RemediationActRow{}}
+func (s *Service) computeRemediationActivity(ctx context.Context, q queryer, hostIDs []uuid.UUID, from, to time.Time) (RemediationContent, error) {
+	c := RemediationContent{
+		PeriodFrom: from, PeriodTo: to, Activities: []RemediationActRow{},
+		Provenance: NewReadModelProvenance(),
+	}
 
 	// Summary aggregate by outcome (exact, independent of the row cap).
 	sumQ := `
@@ -448,7 +483,7 @@ func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid
 		sumArgs = append(sumArgs, hostIDs)
 	}
 	sm := &c.Summary
-	if err := s.pool.QueryRow(ctx, sumQ, sumArgs...).Scan(
+	if err := q.QueryRow(ctx, sumQ, sumArgs...).Scan(
 		&sm.Total, &sm.Executed, &sm.RolledBack, &sm.Failed, &sm.Rejected, &sm.Pending); err != nil {
 		return RemediationContent{}, fmt.Errorf("report: remediation summary: %w", err)
 	}
@@ -469,7 +504,7 @@ func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid
 		rowArgs = append(rowArgs, hostIDs)
 	}
 	rowQ += fmt.Sprintf(" ORDER BY r.requested_at DESC LIMIT %d", maxRegisterRows)
-	rows, err := s.pool.Query(ctx, rowQ, rowArgs...)
+	rows, err := q.Query(ctx, rowQ, rowArgs...)
 	if err != nil {
 		return RemediationContent{}, fmt.Errorf("report: remediation rows: %w", err)
 	}
@@ -488,6 +523,38 @@ func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid
 	return c, nil
 }
 
+// queryer is the read subset of pgx the frozen-content readers use.
+//
+// It is db.Queryer, not a local copy: the group service resolves membership
+// inside this package's transaction, and Go matches interface methods by
+// exact parameter type, so both sides have to name the same one.
+type queryer = db.Queryer
+
+// withFrozenSnapshot runs fn against ONE repeatable-read, read-only snapshot.
+//
+// Every number in a signed artifact has to describe the same fleet at the
+// same instant. Under Read Committed each statement takes its own snapshot,
+// so a scan completing mid-generation produced an artifact whose score,
+// coverage and top-failing list described three different fleet states. That
+// is unfixable after the fact: the artifact is immutable and signed, so no
+// reader can tell which parts to believe.
+//
+// Read-only, because content generation reads. The INSERT that stores the
+// artifact happens after this returns, outside the snapshot.
+func (s *Service) withFrozenSnapshot(ctx context.Context, fn func(q queryer) error) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return fmt.Errorf("report: open snapshot: %w", err)
+	}
+	// Rollback, not commit: nothing was written, and rolling back a read-only
+	// transaction is how it is released.
+	defer func() { _ = tx.Rollback(ctx) }()
+	return fn(tx)
+}
+
 // computeExecutive samples the fleet posture from host_rule_state and
 // the hosts table. Same shape as the Groups fleet rollup and
 // fleetrollup.TopFailingRules so the numbers agree across the app. When
@@ -495,7 +562,7 @@ func (s *Service) computeRemediationActivity(ctx context.Context, hostIDs []uuid
 // slice yields zero rows); when framework is non-empty only rules whose
 // framework_refs contain that key are counted (the same `?` lens as
 // fleetrollup.WithFramework).
-func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, framework string) (ExecutiveContent, error) {
+func (s *Service) computeExecutive(ctx context.Context, q queryer, hostIDs []uuid.UUID, framework string) (ExecutiveContent, error) {
 	var c ExecutiveContent
 
 	// Shared host_rule_state filters, parameterized so the scoped and
@@ -507,34 +574,124 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
+	// The population is EVERY ACTIVE IN-SCOPE HOST, left-joined to its rule
+	// state, not the hosts that happen to have rows.
+	//
+	// Starting from host_rule_state_current made a host vanish rather than
+	// count: never scanned, scanned and produced nothing, or carrying no rule
+	// that matches the lens all yielded no row at all. The participation
+	// counts then described only the hosts with rows, so an unscanned fleet
+	// reported hosts_total 0 beside a host_count of 2, and the artifact was
+	// signed saying so.
+	//
+	// The lens predicate therefore belongs in the JOIN condition. In WHERE it
+	// turns the outer join back into an inner one and undoes exactly this.
+	var hostWhere string
 	if hostIDs != nil {
-		hrsWhere.WriteString(" AND host_id = ANY(" + addArg(hostIDs) + ")")
+		hostWhere = " AND hh.id = ANY(" + addArg(hostIDs) + ")"
+	}
+	lensJoin := ""
+	if framework != "" {
+		lensJoin = " AND hrs.framework_refs ? " + addArg(framework)
+	}
+	// The top-failing query reads rule state directly and keeps the same
+	// filters, expressed against its own alias.
+	if hostIDs != nil {
+		hrsWhere.WriteString(" AND hrs.host_id = ANY($1)")
 	}
 	if framework != "" {
-		hrsWhere.WriteString(" AND framework_refs ? " + addArg(framework))
+		hrsWhere.WriteString(fmt.Sprintf(" AND hrs.framework_refs ? $%d", len(args)))
 	}
 
-	var passing, failing, critical, evaluated int
-	err := s.pool.QueryRow(ctx, `
-		SELECT
-		  count(*) FILTER (WHERE current_status = 'pass'),
-		  count(*) FILTER (WHERE current_status = 'fail'),
-		  count(*) FILTER (WHERE current_status = 'fail' AND severity ILIKE 'critical'),
-		  count(*) FILTER (WHERE current_status IN ('pass','fail'))
-		FROM host_rule_state_current
-		WHERE true`+hrsWhere.String(), args...).Scan(&passing, &failing, &critical, &evaluated)
+	// ONE query, per host, and the engine that produced each host's rows.
+	//
+	// The score and the provenance beside it must come from a single database
+	// snapshot. Computing the mean here and reading the engine versions in a
+	// second statement would freeze internally contradictory evidence: under
+	// Read Committed the two statements see different snapshots, so a signed
+	// artifact could name an engine that did not produce the outcomes the
+	// score was taken over. It is signed, so nobody can go back and check.
+	//
+	// Grouping by host is what makes the mean equal-host. The replaced query
+	// summed pass and fail across the whole scope and divided once, which
+	// weighted every host by how many rules it happened to carry.
+	rows, err := q.Query(ctx, `
+		SELECT hh.id,
+		       count(*) FILTER (WHERE hrs.current_status = 'pass')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'fail')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'skipped')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'error')::int,
+		       count(*) FILTER (WHERE hrs.current_status = 'fail'
+		                          AND hrs.severity ILIKE 'critical')::int,
+		       COALESCE(MIN(sr.engine_version), '')
+		  FROM hosts hh
+		  LEFT JOIN host_rule_state_current hrs
+		    ON hrs.host_id = hh.id`+lensJoin+`
+		  LEFT JOIN scan_runs sr ON sr.id = hrs.last_scan_id
+		 WHERE hh.deleted_at IS NULL`+hostWhere+`
+		 GROUP BY hh.id`, args...)
 	if err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: posture counts: %w", err)
 	}
-	c.PassingRules = passing
-	c.FailingRules = failing
-	c.CriticalIssues = critical
-	c.CompliancePct = compliancePct(passing, evaluated)
+	defer rows.Close()
+
+	var (
+		hostScores []compliance.Score
+		engines    []compliance.EngineContributor
+		noEngine   int
+	)
+	for rows.Next() {
+		var (
+			hostID                            uuid.UUID
+			pass, fail, skipped, errored, cri int
+			engine                            string
+		)
+		if err := rows.Scan(&hostID, &pass, &fail, &skipped, &errored, &cri, &engine); err != nil {
+			return ExecutiveContent{}, fmt.Errorf("report: posture host: %w", err)
+		}
+		c.PassingRules += pass
+		c.FailingRules += fail
+		c.CriticalIssues += cri
+		score := compliance.HostScore(compliance.Counts{
+			Pass: pass, Fail: fail, Skipped: skipped, Error: errored,
+		})
+		hostScores = append(hostScores, score)
+		// The envelope counts contributors to a SCORE. A host that produced no
+		// verdict contributes nothing, so it names no engine and is not
+		// counted as lacking one either.
+		if !score.Present() {
+			continue
+		}
+		if engine == "" {
+			noEngine++
+			continue
+		}
+		engines = append(engines, compliance.EngineContributor{
+			EngineVersion: engine, ContributorsScored: 1,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return ExecutiveContent{}, fmt.Errorf("report: posture iterate: %w", err)
+	}
+
+	agg := compliance.MeanOfHostScores(hostScores)
+	c.ScorePct = scorePtr(agg.Score)
+
+	env, err := compliance.ScoreBearingEnvelope(lensName(framework),
+		compliance.AggregationEqualHostMean, engines, noEngine, nil,
+		agg.HostsScored, agg.HostsScored)
+	if err != nil {
+		// Propagated, never swallowed. A provenance failure must not quietly
+		// downgrade a score-bearing artifact into something else; refusing to
+		// generate is the only honest outcome.
+		return ExecutiveContent{}, fmt.Errorf("report: executive provenance: %w", err)
+	}
+	c.Provenance = NewScoreProvenance(env, agg)
 
 	// Coverage over the same scope. hosts_total is the active host count
 	// (all non-deleted hosts, or the scoped subset), so host_count is
 	// derived from it rather than queried twice.
-	cov, err := s.computeCoverage(ctx, hostIDs)
+	cov, err := s.computeCoverage(ctx, q, hostIDs)
 	if err != nil {
 		return ExecutiveContent{}, err
 	}
@@ -545,26 +702,26 @@ func (s *Service) computeExecutive(ctx context.Context, hostIDs []uuid.UUID, fra
 	// LIMIT as the next placeholder.
 	limitPH := fmt.Sprintf("$%d", len(args)+1)
 	topArgs := append(append([]any{}, args...), topFailingLimit)
-	rows, err := s.pool.Query(ctx, `
-		SELECT rule_id, count(*)::int AS failing_host_count
-		  FROM host_rule_state_current
-		 WHERE current_status = 'fail'`+hrsWhere.String()+`
-		 GROUP BY rule_id
+	topRows, err := q.Query(ctx, `
+		SELECT hrs.rule_id, count(*)::int AS failing_host_count
+		  FROM host_rule_state_current hrs
+		 WHERE hrs.current_status = 'fail'`+hrsWhere.String()+`
+		 GROUP BY hrs.rule_id
 		 ORDER BY failing_host_count DESC, rule_id ASC
 		 LIMIT `+limitPH, topArgs...)
 	if err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: top failing rules: %w", err)
 	}
-	defer rows.Close()
+	defer topRows.Close()
 	c.TopFailingRules = []TopFailingRule{}
-	for rows.Next() {
+	for topRows.Next() {
 		var t TopFailingRule
-		if err := rows.Scan(&t.RuleID, &t.FailingHostCount); err != nil {
+		if err := topRows.Scan(&t.RuleID, &t.FailingHostCount); err != nil {
 			return ExecutiveContent{}, fmt.Errorf("report: top failing scan: %w", err)
 		}
 		c.TopFailingRules = append(c.TopFailingRules, t)
 	}
-	if err := rows.Err(); err != nil {
+	if err := topRows.Err(); err != nil {
 		return ExecutiveContent{}, fmt.Errorf("report: top failing iterate: %w", err)
 	}
 	return c, nil
@@ -590,7 +747,7 @@ const freshnessWindow = 24 * time.Hour
 // host with no completed scan reads as never-scanned. Retired rows carry
 // a stale last_checked_at and would otherwise date a host by a check it
 // has not had in months.
-func (s *Service) computeCoverage(ctx context.Context, hostIDs []uuid.UUID) (Coverage, error) {
+func (s *Service) computeCoverage(ctx context.Context, q queryer, hostIDs []uuid.UUID) (Coverage, error) {
 	cutoff := time.Now().Add(-freshnessWindow)
 	args := []any{cutoff}
 	hostFilter := ""
@@ -600,7 +757,7 @@ func (s *Service) computeCoverage(ctx context.Context, hostIDs []uuid.UUID) (Cov
 	}
 
 	var cov Coverage
-	err := s.pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		WITH scoped AS (
 		  SELECT h.id,
 		         (SELECT max(hrs.last_checked_at) FROM host_rule_state_current hrs
@@ -656,12 +813,30 @@ func frameworkFamilyLabel(framework string) string {
 // up). It returns nil when nothing has been evaluated yet, so the
 // executive summary distinguishes "0% compliant" from "never scanned".
 // Pure (no DB), so the rounding contract is unit-tested directly.
-func compliancePct(passing, evaluated int) *int {
-	if evaluated <= 0 {
+// scorePtr renders a score for the wire: the canonical one-decimal value, or
+// null when there is none.
+//
+// It replaced compliancePct, which pooled every rule outcome in the scope and
+// returned a whole percent. Two things were wrong with that. Pooling weights
+// a host by how many rules it carries, so the number tracked the biggest
+// corpus rather than the fleet; and a whole percent can never equal the
+// one-decimal score every other surface reports, so a signed artifact
+// disagreed with the app by construction (system-compliance-scoring C-14).
+func scorePtr(score compliance.Score) *float64 {
+	pct, ok := score.Rounded()
+	if !ok {
 		return nil
 	}
-	pct := (passing*100 + evaluated/2) / evaluated
 	return &pct
+}
+
+// lensName is the lens an artifact was scored under. Empty means no framework
+// narrowed the rule set, which is the resolved lens all_rules, not an absence.
+func lensName(framework string) string {
+	if framework == "" {
+		return "all_rules"
+	}
+	return framework
 }
 
 // List returns every report, newest first.

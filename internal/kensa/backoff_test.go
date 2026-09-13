@@ -335,3 +335,152 @@ func TestRecordSuccess_ResetsCountAndClearsSuppressUntil(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------
+// Probe isolation. Migration 0064 made (host_id, probe_type) the key, so
+// a host can carry a scan ladder and an intelligence ladder at once.
+// Before it the key was host_id alone and these two ladders shared one
+// row: a scan failure overwrote intelligence state while leaving it
+// labeled 'intel', and a scan success cleared an intelligence
+// suppression it knew nothing about. CP bugs/OW-032.
+// ---------------------------------------------------------------------
+
+// seedIntelBackoff writes an intelligence backoff row directly. The scan
+// path must never read or write it.
+func seedIntelBackoff(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, suppressUntil time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO host_backoff_state
+			(host_id, probe_type, consecutive_failures, suppress_until, last_error_code, last_failure_at, updated_at)
+		VALUES ($1, 'intel', 7, $2, 'intel-collector-timeout', now(), now())`,
+		hostID, suppressUntil)
+	if err != nil {
+		t.Fatalf("seed intel backoff: %v", err)
+	}
+}
+
+type backoffRow struct {
+	failures int
+	suppress *time.Time
+	errCode  *string
+	present  bool
+}
+
+func readBackoff(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, probe string) backoffRow {
+	t.Helper()
+	var r backoffRow
+	err := pool.QueryRow(context.Background(), `
+		SELECT consecutive_failures, suppress_until, last_error_code
+		  FROM host_backoff_state WHERE host_id = $1 AND probe_type = $2`,
+		hostID, probe).Scan(&r.failures, &r.suppress, &r.errCode)
+	if err != nil {
+		return backoffRow{}
+	}
+	r.present = true
+	return r
+}
+
+// Both ladders exist at once for one host. This is the property the old
+// primary key made impossible, so it is asserted before anything is
+// built on top of it.
+// @ac AC-16
+func TestBackoff_ScanAndIntelRowsCoexistForOneHost(t *testing.T) {
+	t.Run("system-kensa-executor/AC-16", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		hostID := seedHost(t, pool, user)
+		intelUntil := time.Now().UTC().Add(3 * time.Hour)
+		seedIntelBackoff(t, pool, hostID, intelUntil)
+
+		exec := &Executor{clock: time.Now}
+		if _, _, err := exec.RecordFailure(context.Background(), pool, hostID,
+			BackoffPolicy{FailureThreshold: 3, MaxSuppressDuration: 24 * time.Hour}, ReasonKensaError); err != nil {
+			t.Fatalf("RecordFailure: %v", err)
+		}
+
+		var n int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM host_backoff_state WHERE host_id = $1`, hostID).Scan(&n); err != nil {
+			t.Fatalf("count rows: %v", err)
+		}
+		if n != 2 {
+			t.Fatalf("host carries %d backoff rows, want 2 (one scan, one intel). "+
+				"A single row means the composite key is gone and the two ladders "+
+				"are sharing storage again.", n)
+		}
+		if got := readBackoff(t, pool, hostID, "scan"); !got.present || got.failures != 1 {
+			t.Errorf("scan row = %+v, want present with consecutive_failures=1", got)
+		}
+	})
+}
+
+// A scan failure writes the scan row and leaves the intelligence row
+// byte-for-byte alone.
+// @ac AC-16
+func TestBackoff_ScanFailureLeavesTheIntelRowAlone(t *testing.T) {
+	t.Run("system-kensa-executor/AC-16", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		hostID := seedHost(t, pool, user)
+		intelUntil := time.Now().UTC().Add(3 * time.Hour)
+		seedIntelBackoff(t, pool, hostID, intelUntil)
+		before := readBackoff(t, pool, hostID, "intel")
+
+		exec := &Executor{clock: time.Now}
+		policy := BackoffPolicy{FailureThreshold: 1, MaxSuppressDuration: 24 * time.Hour}
+		for i := 0; i < 3; i++ {
+			if _, _, err := exec.RecordFailure(context.Background(), pool, hostID, policy, ReasonKensaError); err != nil {
+				t.Fatalf("RecordFailure %d: %v", i, err)
+			}
+		}
+
+		after := readBackoff(t, pool, hostID, "intel")
+		if !after.present {
+			t.Fatal("the intel row is gone after three scan failures")
+		}
+		if after.failures != before.failures {
+			t.Errorf("intel consecutive_failures moved %d -> %d on a SCAN failure",
+				before.failures, after.failures)
+		}
+		if after.errCode == nil || *after.errCode != "intel-collector-timeout" {
+			t.Errorf("intel last_error_code = %v, want the seeded intel value; a scan "+
+				"reason written here means the scan path reached the intel row", after.errCode)
+		}
+		if after.suppress == nil || !after.suppress.Equal(before.suppress.UTC()) {
+			t.Errorf("intel suppress_until moved %v -> %v on a SCAN failure", before.suppress, after.suppress)
+		}
+	})
+}
+
+// A scan success clears the scan ladder and only the scan ladder.
+// @ac AC-16
+func TestBackoff_ScanSuccessClearsOnlyTheScanRow(t *testing.T) {
+	t.Run("system-kensa-executor/AC-16", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		hostID := seedHost(t, pool, user)
+		intelUntil := time.Now().UTC().Add(3 * time.Hour)
+		seedIntelBackoff(t, pool, hostID, intelUntil)
+
+		exec := &Executor{clock: time.Now}
+		policy := BackoffPolicy{FailureThreshold: 1, MaxSuppressDuration: 24 * time.Hour}
+		for i := 0; i < 3; i++ {
+			if _, _, err := exec.RecordFailure(context.Background(), pool, hostID, policy, ReasonKensaError); err != nil {
+				t.Fatalf("RecordFailure %d: %v", i, err)
+			}
+		}
+		if err := exec.RecordSuccess(context.Background(), pool, hostID); err != nil {
+			t.Fatalf("RecordSuccess: %v", err)
+		}
+
+		scan := readBackoff(t, pool, hostID, "scan")
+		if scan.failures != 0 || scan.suppress != nil {
+			t.Errorf("scan row = %+v, want failures=0 and suppress_until NULL", scan)
+		}
+		intel := readBackoff(t, pool, hostID, "intel")
+		if !intel.present || intel.failures != 7 || intel.suppress == nil {
+			t.Errorf("intel row = %+v, want it untouched at failures=7 with its suppression intact. "+
+				"A successful scan must not lift an intelligence suppression.", intel)
+		}
+	})
+}

@@ -1,7 +1,7 @@
 spec:
   id: frontend-dashboard
   title: Dashboard (authenticated fleet overview)
-  version: "1.1.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -105,3 +105,110 @@ spec:
       description: 'v1.1.0 source-inspection — WidgetComplianceTrend renders the shared TrendChart (not the auto-scaled Sparkline) with a fleet tooltip carrying avg score, hosts, failing rules, and hosts with critical findings, colored by trend direction; it no longer labels endpoints as "Nd ago" or "today".'
       priority: high
       references_constraints: [C-04]
+    - id: AC-06
+      description: 'v1.2.0 - the trend chart BREAKS its line at every formula boundary and never joins a legacy_unknown point to an identified one. Two scores produced by different formulas are different quantities, so a line between them draws a slope nobody measured. The API already reports this correctly; carrying the enum without changing the rendering would preserve the invalid comparison visually. A day with no score is drawn as a hollow marker in a GUTTER strictly below the score plot, separated by a divider. Not at the baseline: y(0) IS the bottom of the plot, so a marker there sits exactly on the zero-percent axis and reads as total failure however the comment describes it. The two coordinates MUST differ, and hovering it says whether the day mixed formulas or could not be assessed. The accessible summary names the same facts, because a viewer who cannot see a broken line still needs to know the window is not comparable end to end'
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        points:
+          - {date: day1, formula_status: legacy_unknown, score_pct: 40.0}
+          - {date: day2, formula_status: legacy_unknown, score_pct: 50.0}
+          - {date: day3, formula_status: identified, score_pct: 60.0}
+          - {date: day4, formula_status: identified, score_pct: 70.0}
+          - {date: day5, formula_status: mixed, score_pct: null}
+      expected_output:
+        segments: 2
+        forbidden_segments: 1
+        points_on_a_line: 4
+        gutter_markers: 1
+        aria_mentions_legacy: true
+        aria_mentions_mixed: true
+    - id: AC-07
+      description: >-
+        v1.3.0 - the compliance trend widget makes NO comparison across a
+        formula boundary. AC-06 breaks the chart LINE at a boundary; this
+        criterion covers everything else the widget says about direction.
+
+        The widget derived its direction from the first and last scored days
+        regardless of formula state, so a legacy_unknown day and an identified
+        day were subtracted from each other and the result colored the chart
+        line and the latest-value caption green or red. That difference is a
+        change of measurement, not a change in posture, and coloring it states
+        a claim about the fleet that nothing measured.
+
+        When the compared endpoints share a formula state and it is not mixed,
+        the widget may show direction and directional color. Otherwise it shows
+        neutral color, no direction, no delta, and no improved, declined or
+        versus wording, and it says visibly that the formulas differ. A mixed
+        day carries no score at all and never participates in a comparison.
+
+        Asserted on the RENDERED widget: the caption text, the chart stroke
+        color, and the caption color. Same-formula and cross-formula fixtures
+        are both present, so an implementation that simply disables every
+        comparison fails the same-formula case.
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        cases:
+          - id: same_formula_up
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            expect_direction: up
+            expect_color_token: 'var(--ow-ok)'
+            expect_line_segments: 1
+            expect_explanation: null
+          - id: same_formula_down
+            days:
+              - {date: '2026-09-01', score_pct: 80.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 70.0, formula_status: identified}
+            expect_direction: down
+            expect_color_token: 'var(--ow-crit)'
+            expect_line_segments: 1
+            expect_explanation: null
+          # Equal scores are FLAT. Comparable, but nothing improved, so the
+          # widget must not paint it green. >= made equal read as up.
+          - id: same_formula_flat
+            days:
+              - {date: '2026-09-01', score_pct: 75.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: 75.0, formula_status: identified}
+            expect_direction: flat
+            expect_color_token: 'var(--ow-fg-3)'
+            expect_line_segments: 1
+            expect_explanation: null
+          - id: cross_formula
+            days:
+              - {date: '2026-09-01', score_pct: 40.0, formula_status: legacy_unknown}
+              - {date: '2026-09-02', score_pct: 80.0, formula_status: identified}
+            expect_direction: none
+            expect_color_token: 'var(--ow-fg-3)'
+            # The line BREAKS at the boundary, so the two points are never joined.
+            expect_line_segments: 0
+            expect_explanation: 'No trend direction: these days were scored by different formulas.'
+          - id: mixed_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: mixed}
+            expect_direction: none
+            expect_color_token: 'var(--ow-fg-3)'
+            expect_line_segments: 0
+            expect_explanation: 'No trend direction: a day in this window mixes scoring formulas.'
+          # One scored day beside a scoreless day that is NOT mixed. There are
+          # not two scored points to compare, and the reason is neither a
+          # formula mismatch nor a mixed day.
+          - id: one_scored_day
+            days:
+              - {date: '2026-09-01', score_pct: 70.0, formula_status: identified}
+              - {date: '2026-09-02', score_pct: null, formula_status: identified}
+            expect_direction: none
+            expect_color_token: 'var(--ow-fg-3)'
+            expect_line_segments: 0
+            expect_explanation: 'No trend direction: at least two scored days are needed.'
+        forbidden_when_incomparable: ['improved', 'declined', 'vs yesterday', 'versus']
+        directional_color_tokens: ['var(--ow-ok)', 'var(--ow-crit)']
+      expected_output:
+        every_case_matches_its_expected_direction: true
+        every_case_matches_its_expected_color: true
+        every_case_matches_its_expected_explanation: true
+        line_segments_match_fixture: true
+        forbidden_wording_occurrences: 0

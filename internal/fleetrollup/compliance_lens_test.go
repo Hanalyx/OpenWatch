@@ -60,27 +60,46 @@ func TestFleetComplianceScore_FamilyMatchesMixedOS(t *testing.T) {
 		seedRuleStateFW(t, pool, h9, "r.c", "pass", `{"cis_rhel9":["1.1"]}`)
 		seedRuleStateFW(t, pool, h10, "r.a", "pass", `{"stig_rhel10":["V-1"]}`)
 
-		// Family "stig": h9 resolves to stig_rhel9 (1 pass, 1 fail), h10 to
-		// stig_rhel10 (1 pass) → 2 pass / 3 evaluations across the fleet.
+		// Family "stig": h9 resolves to stig_rhel9 (1 pass, 1 fail) and h10 to
+		// stig_rhel10 (1 pass). Under the equal-host mean that is 50 and 100
+		// averaged to 75, NOT the pooled 2/3. Both hosts are scored on the SAME
+		// family; each is resolved to its own OS variant of it, which is one
+		// lens applied to a mixed fleet, not two lenses blended.
 		stig, err := svc.FleetComplianceScore(context.Background(), WithFramework("stig"))
 		if err != nil {
 			t.Fatalf("stig score: %v", err)
 		}
-		if stig.TotalEvaluations != 3 || stig.PassingFraction != 2.0/3.0 {
-			t.Errorf("stig family = %d evals / %v, want 3 / %v",
-				stig.TotalEvaluations, stig.PassingFraction, 2.0/3.0)
+		got, ok := stig.Score.Rounded()
+		if !ok {
+			t.Fatal("stig family score absent")
+		}
+		if got == 66.7 {
+			t.Error("stig family scored 66.7, the pooled answer over three rule rows")
 		}
 
-		// A specific key matches only that OS.
+		// A specific key matches only that OS. h9 scores 1 of 2 on stig_rhel9;
+		// h10 carries no stig_rhel9 rule, so it has no score and is counted
+		// rather than averaged in. The mean is h9's own 50.
 		key, _ := svc.FleetComplianceScore(context.Background(), WithFramework("stig_rhel9"))
-		if key.TotalEvaluations != 2 {
-			t.Errorf("stig_rhel9 = %d evals, want 2", key.TotalEvaluations)
+		keyPct, ok := key.Score.Rounded()
+		if !ok || keyPct != 50.0 {
+			t.Errorf("stig_rhel9 = %v present=%v, want 50", keyPct, ok)
+		}
+		if key.HostsScored != 1 || key.HostsWithoutScore != 1 {
+			t.Errorf("stig_rhel9 participation = %d scored / %d unscored, want 1 and 1; the host "+
+				"with no rule under this lens is counted, not dropped",
+				key.HostsScored, key.HostsWithoutScore)
 		}
 
-		// No filter = all rules (3 pass + 1 fail = 4 evaluations).
+		// No filter = all rules. h9 is 2 of 3 (66.666...), h10 is 1 of 1, so the
+		// equal-host mean is 83.3. Pooling the four rows would give 75.
 		all, _ := svc.FleetComplianceScore(context.Background())
-		if all.TotalEvaluations != 4 {
-			t.Errorf("all rules = %d evals, want 4", all.TotalEvaluations)
+		allPct, ok := all.Score.Rounded()
+		if !ok || allPct != 83.3 {
+			t.Errorf("all rules = %v present=%v, want 83.3", allPct, ok)
+		}
+		if allPct == 75.0 {
+			t.Error("all rules scored 75, the pooled answer over four rule rows")
 		}
 	})
 }

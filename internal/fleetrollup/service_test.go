@@ -1,9 +1,10 @@
 // @spec system-fleet-rollup
 //
 // AC traceability (this file):
-//   AC-01  TestFleetComplianceScore_MixedPassFail_ReturnsFraction
-//   AC-02  TestFleetComplianceScore_EmptyFleet_ZeroNotError
+//   AC-01  TestFleetComplianceScore_EqualHostMeanNotPooled
+//   AC-02  TestFleetComplianceScore_EmptyFleetIsAbsentNotZero
 //   AC-03  TestFleetComplianceScore_SkipsAndErrorsExcluded
+//   AC-14  TestFleetComplianceScore_ParticipationCounts
 //   AC-04  TestFleetLiveness_FourBucketsSumToActiveHosts
 //   AC-05  TestTopFailingRules_OrderedDescByCount
 //   AC-06  TestTopFailingRules_ZeroLimit_EmptySlice
@@ -16,6 +17,7 @@ package fleetrollup
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
 // ---------------------------------------------------------------------
@@ -122,44 +125,150 @@ func seedTransaction(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, ruleID,
 	return id
 }
 
+// rollupCriteria loads this spec's fixtures.
+func rollupCriteria(t *testing.T) map[string]specfixture.Criterion {
+	t.Helper()
+	return specfixture.Load(t, "../../specs/system/fleet-rollup.spec.yaml", "system-fleet-rollup")
+}
+
 // ---------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------
 
 // @ac AC-01
-// AC-01: mixed pass/fail returns PassingFraction = passing / (pass+fail).
-func TestFleetComplianceScore_MixedPassFail_ReturnsFraction(t *testing.T) {
+// AC-01: the fleet score is the equal-host mean, not a pooled ratio.
+func TestFleetComplianceScore_EqualHostMeanNotPooled(t *testing.T) {
 	t.Run("system-fleet-rollup/AC-01", func(t *testing.T) {
 		pool := freshPool(t)
 		svc := NewService(pool)
 		user := seedUser(t, pool)
-		h1 := seedHost(t, pool, user)
-		h2 := seedHost(t, pool, user)
+		ac := specfixture.Get(t, rollupCriteria(t), "AC-01")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
 
-		// 3 passing + 2 failing across 2 hosts.
-		seedRuleState(t, pool, h1, "rule.a", "pass")
-		seedRuleState(t, pool, h1, "rule.b", "pass")
-		seedRuleState(t, pool, h1, "rule.c", "fail")
-		seedRuleState(t, pool, h2, "rule.a", "pass")
-		seedRuleState(t, pool, h2, "rule.b", "fail")
+		// Two hosts with DIFFERENT rule counts. Equal counts make the pooled
+		// ratio and the equal-host mean agree, so the fixture would prove
+		// nothing: host A carries five times host B's rules on purpose.
+		for _, h := range in.MapList("hosts") {
+			id := seedHost(t, pool, user)
+			// The label is read unconditionally. A host with no rules at all
+			// would otherwise never touch it, and the fixture's own id would go
+			// unconsumed on exactly the host this criterion is about.
+			label := h.Str("id")
+			for i := 0; i < h.Int("pass"); i++ {
+				seedRuleState(t, pool, id, fmt.Sprintf("%s.p%d", label, i), "pass")
+			}
+			for i := 0; i < h.Int("fail"); i++ {
+				seedRuleState(t, pool, id, fmt.Sprintf("%s.f%d", label, i), "fail")
+			}
+			if h.Has("skipped") {
+				for i := 0; i < h.Int("skipped"); i++ {
+					seedRuleState(t, pool, id, fmt.Sprintf("%s.s%d", label, i), "skipped")
+				}
+			}
+			h.AllConsumed()
+		}
 
 		score, err := svc.FleetComplianceScore(context.Background())
 		if err != nil {
 			t.Fatalf("FleetComplianceScore: %v", err)
 		}
-		if score.TotalEvaluations != 5 {
-			t.Errorf("TotalEvaluations = %d, want 5", score.TotalEvaluations)
+		got, ok := score.Score.Rounded()
+		if !ok {
+			t.Fatal("fleet score absent, but two hosts produced verdicts")
 		}
-		want := 3.0 / 5.0
-		if score.PassingFraction != want {
-			t.Errorf("PassingFraction = %v, want %v", score.PassingFraction, want)
+		if want := exp.Num("score_pct"); got != want {
+			t.Errorf("score = %v, want %v (equal-host mean)", got, want)
 		}
+		// The discriminating assertions. Pooling every rule row weights host A
+		// five to one over host B; averaging the unscored host in as zero pulls
+		// the mean down by a third.
+		if bad := exp.Num("forbidden_pooled_score_pct"); got == bad {
+			t.Errorf("score = %v, the POOLED answer; a host with more rules must not "+
+				"outweigh one with fewer", bad)
+		}
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}
+
+// @ac AC-14
+// AC-14: the participation counts are reported and differ from each other.
+func TestFleetComplianceScore_ParticipationCounts(t *testing.T) {
+	t.Run("system-fleet-rollup/AC-14", func(t *testing.T) {
+		pool := freshPool(t)
+		svc := NewService(pool)
+		user := seedUser(t, pool)
+		ac := specfixture.Get(t, rollupCriteria(t), "AC-14")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+
+		for _, h := range in.MapList("hosts") {
+			id := seedHost(t, pool, user)
+			// The label is read unconditionally. A host with no rules at all
+			// would otherwise never touch it, and the fixture's own id would go
+			// unconsumed on exactly the host this criterion is about.
+			label := h.Str("id")
+			for i := 0; i < h.Int("pass"); i++ {
+				seedRuleState(t, pool, id, fmt.Sprintf("%s.p%d", label, i), "pass")
+			}
+			for i := 0; i < h.Int("fail"); i++ {
+				seedRuleState(t, pool, id, fmt.Sprintf("%s.f%d", label, i), "fail")
+			}
+			if h.Has("skipped") {
+				for i := 0; i < h.Int("skipped"); i++ {
+					seedRuleState(t, pool, id, fmt.Sprintf("%s.s%d", label, i), "skipped")
+				}
+			}
+			h.AllConsumed()
+		}
+
+		score, err := svc.FleetComplianceScore(context.Background())
+		if err != nil {
+			t.Fatalf("FleetComplianceScore: %v", err)
+		}
+		if score.HostsScored != exp.Int("hosts_scored") {
+			t.Errorf("HostsScored = %d, want %d", score.HostsScored, exp.Int("hosts_scored"))
+		}
+		if score.HostsWithoutScore != exp.Int("hosts_without_score") {
+			t.Errorf("HostsWithoutScore = %d, want %d; the host that produced only skipped "+
+				"rows is counted, not averaged in", score.HostsWithoutScore,
+				exp.Int("hosts_without_score"))
+		}
+		if score.HostsTotal != exp.Int("hosts_total") {
+			t.Errorf("HostsTotal = %d, want %d", score.HostsTotal, exp.Int("hosts_total"))
+		}
+		// The invariant. Host D has never been scanned and has no rule state, so
+		// under the old query it fell out of the population entirely instead of
+		// being counted as unscored.
+		if score.HostsScored+score.HostsWithoutScore != score.HostsTotal {
+			t.Errorf("%d scored + %d unscored != %d total; a host vanished from the population",
+				score.HostsScored, score.HostsWithoutScore, score.HostsTotal)
+		}
+		got, ok := score.Score.Rounded()
+		if !ok {
+			t.Fatal("fleet score absent, but two hosts produced verdicts")
+		}
+		if want := exp.Num("score_pct"); got != want {
+			t.Errorf("score = %v, want %v", got, want)
+		}
+		// Reading a forbidden value is not asserting it. Each is compared with
+		// the actual result, so a regression to either aggregation is caught
+		// here and not only in AC-01.
+		if bad := exp.Num("forbidden_pooled_score_pct"); got == bad {
+			t.Errorf("score = %v, the POOLED answer over every rule row", bad)
+		}
+		if bad := exp.Num("forbidden_zero_averaged_score_pct"); got == bad {
+			t.Errorf("score = %v, the answer produced by averaging the unscored hosts in as zero", bad)
+		}
+		in.AllConsumed()
+		exp.AllConsumed()
 	})
 }
 
 // @ac AC-02
-// AC-02: empty fleet → Score{0,0}, nil error.
-func TestFleetComplianceScore_EmptyFleet_ZeroNotError(t *testing.T) {
+// AC-02: an empty fleet has NO score, and a fleet that failed everything has 0.
+func TestFleetComplianceScore_EmptyFleetIsAbsentNotZero(t *testing.T) {
 	t.Run("system-fleet-rollup/AC-02", func(t *testing.T) {
 		pool := freshPool(t)
 		svc := NewService(pool)
@@ -168,17 +277,39 @@ func TestFleetComplianceScore_EmptyFleet_ZeroNotError(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FleetComplianceScore: %v", err)
 		}
-		if score.TotalEvaluations != 0 {
-			t.Errorf("TotalEvaluations = %d, want 0", score.TotalEvaluations)
+		if score.Score.Present() {
+			pct, _ := score.Score.Value()
+			t.Errorf("empty fleet scored %v; it must have no score at all", pct)
 		}
-		if score.PassingFraction != 0 {
-			t.Errorf("PassingFraction = %v, want 0", score.PassingFraction)
+
+		// The counterexample that makes the absence meaningful. A fleet whose
+		// every evaluated rule failed scores 0, and under the old Score{0,0}
+		// that was indistinguishable from the empty fleet above.
+		user := seedUser(t, pool)
+		h := seedHost(t, pool, user)
+		seedRuleState(t, pool, h, "rule.a", "fail")
+		seedRuleState(t, pool, h, "rule.b", "fail")
+
+		failed, err := svc.FleetComplianceScore(context.Background())
+		if err != nil {
+			t.Fatalf("FleetComplianceScore: %v", err)
+		}
+		pct, ok := failed.Score.Rounded()
+		if !ok {
+			t.Fatal("a fleet that failed every rule has a real score of 0, not an absent one")
+		}
+		if pct != 0 {
+			t.Errorf("all-failing fleet scored %v, want 0", pct)
+		}
+		if score.Score.Present() == failed.Score.Present() {
+			t.Error("an empty fleet and an all-failing fleet are indistinguishable")
 		}
 	})
 }
 
 // @ac AC-03
-// AC-03: skipped + error rows are excluded from numerator AND denominator.
+// AC-03: skipped and error rows are excluded per host, and a host with only
+// skipped rows has no score rather than a zero.
 func TestFleetComplianceScore_SkipsAndErrorsExcluded(t *testing.T) {
 	t.Run("system-fleet-rollup/AC-03", func(t *testing.T) {
 		pool := freshPool(t)
@@ -195,13 +326,30 @@ func TestFleetComplianceScore_SkipsAndErrorsExcluded(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FleetComplianceScore: %v", err)
 		}
-		// Only the pass + fail rows count.
-		if score.TotalEvaluations != 2 {
-			t.Errorf("TotalEvaluations = %d, want 2 (skipped + error excluded)",
-				score.TotalEvaluations)
+		// The SCORE is what proves the exclusion. Two verdicts of four rows, one
+		// passing, is 50; counting the skipped and errored rows would give 25.
+		pct, ok := score.Score.Rounded()
+		if !ok || pct != 50 {
+			t.Errorf("score = %v present=%v, want 50", pct, ok)
 		}
-		if score.PassingFraction != 0.5 {
-			t.Errorf("PassingFraction = %v, want 0.5", score.PassingFraction)
+
+		// A host whose rows are ALL skipped produces no score, and is counted
+		// rather than averaged in. Adding it must not move the mean.
+		quiet := seedHost(t, pool, user)
+		seedRuleState(t, pool, quiet, "rule.s1", "skipped")
+		seedRuleState(t, pool, quiet, "rule.s2", "error")
+
+		with, err := svc.FleetComplianceScore(context.Background())
+		if err != nil {
+			t.Fatalf("FleetComplianceScore: %v", err)
+		}
+		got, _ := with.Score.Rounded()
+		if got != pct {
+			t.Errorf("adding an unassessable host moved the mean from %v to %v", pct, got)
+		}
+		if with.HostsWithoutScore != 1 || with.HostsScored != 1 {
+			t.Errorf("scored=%d unscored=%d, want 1 and 1",
+				with.HostsScored, with.HostsWithoutScore)
 		}
 	})
 }

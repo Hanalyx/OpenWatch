@@ -1,7 +1,7 @@
 spec:
   id: system-fleet-rollup
   title: Fleet rollup queries
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -69,7 +69,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-05
-      description: FleetComplianceScore on an empty fleet (zero host_rule_state rows) MUST return a Score with PassingFraction=0 and TotalEvaluations=0 — never an error
+      description: 'v1.1.0 - FleetComplianceScore MUST return an ABSENT score on an empty fleet, never an error and never zero. It MUST be the equal-host mean over hosts scored on ONE lens, MUST exclude a host that produced no verdict from the mean while counting it in HostsWithoutScore, and MUST NOT honor per-host effective targets: an average over hosts each graded on a different benchmark measures nothing'
       type: technical
       enforcement: error
     - id: C-06
@@ -87,15 +87,22 @@ spec:
 
   acceptance_criteria:
     - id: AC-01
-      description: FleetComplianceScore on a fleet with mixed pass/fail returns PassingFraction = passing / (passing + failing) and TotalEvaluations = passing + failing. Verified with seeded host_rule_state rows.
+      description: 'v1.1.0 - FleetComplianceScore returns the EQUAL-HOST MEAN of the per-host scores, each host scored passing over passing plus failing, every host counting once whatever its rule count. This REPLACES the pooled ratio over every rule row, under which a host carrying many rules outweighed one carrying few and the fleet number was a weighted average of rule counts rather than of hosts.'
       priority: critical
       references_constraints: [C-05]
+      inputs:
+        hosts:
+          - {id: A, pass: 9, fail: 1}
+          - {id: B, pass: 1, fail: 1}
+      expected_output:
+        score_pct: 70.0
+        forbidden_pooled_score_pct: 83.3
     - id: AC-02
-      description: FleetComplianceScore on an empty fleet returns Score{PassingFraction=0, TotalEvaluations=0} with nil error — never ErrNoRows.
+      description: 'v1.1.0 - FleetComplianceScore on an empty fleet returns an ABSENT score with nil error, never ErrNoRows and never zero percent. The previous rule returned PassingFraction 0, which is the fabricated verdict bugs/OW-023 and OW-024 are about: a fleet nobody could assess and a fleet where every rule failed both read as 0. A fleet whose hosts all produced verdicts and all failed still scores 0, and the two MUST be distinguishable'
       priority: critical
       references_constraints: [C-05]
     - id: AC-03
-      description: FleetComplianceScore counts only current_status IN ('passing','failing') — skipped/error rows are excluded from both numerator and denominator.
+      description: 'v1.1.0 - FleetComplianceScore counts only current_status IN (pass, fail); skipped and error rows are excluded from both numerator and denominator, PER HOST. A host whose rows are all skipped therefore has no score and is excluded from the mean, while still counting in HostsWithoutScore, rather than being averaged in as zero'
       priority: critical
       references_constraints: [C-05]
     - id: AC-04
@@ -138,3 +145,20 @@ spec:
       description: All result types are typed Go structs — verified by reflection-style check that exported methods on Service return concrete struct types (not map[string]any).
       priority: high
       references_constraints: [C-08]
+    - id: AC-14
+      description: 'v1.1.0 - the mean is equal-host and the participation counts are reported. Three hosts: two produced verdicts with different rule counts, one produced only skipped rows. The fixture discriminates three ways. The equal-host answer is 70.0; pooling every rule row gives 83.3; averaging the unscored host in as zero gives 46.7. A fourth host has never been scanned and has no rule state at all. It MUST be counted as unscored rather than omitted from the population: hosts_scored plus hosts_without_score MUST equal hosts_total, or the counts describe a fleet that is not the one being reported on. A mean published without the population it was taken over cannot be told from a mean over every host'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        hosts:
+          - {id: A, pass: 9, fail: 1}
+          - {id: B, pass: 1, fail: 1}
+          - {id: C, pass: 0, fail: 0, skipped: 4}
+          - {id: D, pass: 0, fail: 0, skipped: 0}
+      expected_output:
+        score_pct: 70.0
+        forbidden_pooled_score_pct: 83.3
+        forbidden_zero_averaged_score_pct: 46.7
+        hosts_scored: 2
+        hosts_without_score: 2
+        hosts_total: 4

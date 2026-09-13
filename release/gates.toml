@@ -116,7 +116,7 @@ blocking = true
 [[gate]]
 id = "Q3"
 title = "Documentation style"
-proves = "Changed Markdown is free of em dashes, emojis and AI speak"
+proves = "Every tracked file the checker supports (Markdown, YAML, JSON and source comments) is free of em dashes, emojis, AI speak and British spellings, and each scored document is within the reading-level gate. Files git ignores are out of scope."
 evidence = "github-check"
 check = "Doc Style"
 blocking = true
@@ -255,3 +255,119 @@ evidence = "attestation"
 kind = "release-captain"
 human_required = true
 blocking = true
+
+# ------------------------------------------------- compliance score honesty
+
+# The v0.8 scoring arc removed one defect from seven subsystems: an absent
+# score rendered as a fact about the host, usually as a red zero. These gates
+# hold that closed.
+#
+# Each names the exact spec and acceptance criterion that proves it, and each
+# is satisfied by the same "Quality + security gates" check run, which runs the
+# frontend vitest suite, the Go tests and the 100% specter structural coverage
+# step. The citation is not decoration: scripts/test_release_status.py resolves
+# every spec and ac below against the tracked specs and against a test file
+# that annotates them, so a renamed criterion fails here rather than leaving a
+# gate quietly proving nothing.
+#
+# What these gates do NOT prove: that the scores are correct. They prove the
+# product does not manufacture a verdict it was not given.
+
+[[gate]]
+id = "S1"
+title = "An all-skipped scan renders no score"
+proves = "A host whose rules were all skipped shows no score, not 0%"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "frontend-host-compliance-tab"
+ac = "AC-11"
+blocking = true
+
+[[gate]]
+id = "S2"
+title = "Coverage-unavailable presentation is exercised"
+proves = "Both unavailable coverage states render distinctly, and neither is called not applicable"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "frontend-groups"
+ac = "AC-06"
+blocking = true
+
+[[gate]]
+id = "S3"
+title = "An authoritative fleet null overrides local data"
+proves = "Mounted HostsListPage: score_pct null renders no score even with host rows a mean could be computed from, and score_pct 0 renders a genuine zero"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "frontend-hosts-list"
+ac = "AC-26"
+blocking = true
+
+[[gate]]
+id = "S4"
+title = "Cross-formula points produce no delta, direction or color"
+proves = "Two days scored by different formulas yield no delta, no arrow, no directional color, and a visible explanation"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "frontend-dashboard"
+ac = "AC-07"
+blocking = true
+
+[[gate]]
+id = "S5"
+title = "Same-server verification states its trust limitation"
+proves = "A report verified against the key this server serves says it proves consistency, not authenticity, and never claims offline verification"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "frontend-reports"
+ac = "AC-08"
+blocking = true
+
+[[gate]]
+id = "S6"
+title = "The arithmetic guard recognizes the compliance alias"
+proves = "AC-31 scans the TypeScript field `compliance`, the host-view-model alias for a score, and not only the server-side field names"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "system-compliance-scoring"
+ac = "AC-31"
+blocking = true
+
+[[gate]]
+id = "S7"
+title = "The arithmetic guard handles postfix ! on either operand"
+proves = "AC-31 sees through TypeScript's non-null assertion, so `h.compliance! + n` and `n + h.compliance!` are both detected"
+evidence = "github-check"
+check = "Quality + security gates"
+spec = "system-compliance-scoring"
+ac = "AC-31"
+blocking = true
+
+# ------------------------------------------------ documentation review
+
+# Every tracked Markdown document in the candidate, read and attested by a
+# human against THOSE bytes. Scope is a path rule, not a judgment about which
+# documents matter: every tracked blob ending in .md, with no directory
+# exclusions, so .github, .claude and scripts/README.md are in scope like any
+# other. No document count is written here: a count has to be edited on every
+# addition and fails nothing when it is not, so the checker derives it from the
+# candidate and reports it beside the verdict.
+#
+# The attestation records a verdict per path and every verdict must be
+# "accurate". A recorded defect is a NO-GO rather than a note, because there is
+# no approved waiver mechanism; if one is wanted it is its own decision.
+#
+# Binding is to the candidate on three axes, not one: the tag, the commit, and
+# the published artifact digest. Freshness here means reviewed against these
+# exact bytes, never reviewed recently.
+
+[[gate]]
+id = "D1"
+title = "Tracked documentation reviewed against this candidate"
+proves = "A named human read every tracked .md blob at the candidate commit and found each accurate"
+evidence = "doc-review"
+kind = "documentation-review"
+human_required = true
+blocking = true
+spec = "release-ci-gates"
+ac = "AC-15"

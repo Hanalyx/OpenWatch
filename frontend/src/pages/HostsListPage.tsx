@@ -93,7 +93,12 @@ export interface ApiHost {
   updated_at: string;
   maintenance_mode?: boolean;
   check_priority?: number;
-  /** v1.5.0 — MAX(host_rule_state.last_checked_at); null when never scanned. */
+  /**
+   * v1.5.0 — MAX(host_rule_state.last_checked_at); null when the host has no
+   * rule state. That is not the same as never scanned: a completed scan that
+   * produced no outcome writes no rule state either, and the two look identical
+   * from here.
+   */
   last_scan_at?: string | null;
   /** v1.6.0 — id of the newest completed scan_run; null when none. Spec api-hosts C-13. */
   latest_scan_id?: string | null;
@@ -127,6 +132,8 @@ export interface ApiHostComplianceSummary {
   total: number;
   /** Rows with current_status=fail and critical severity. */
   critical_failing: number;
+  /** Server-computed score, null when the host produced no verdict. */
+  score_pct: number | null;
 }
 
 // Per-vendor accent for the OS chip. Widened to a string-keyed map so
@@ -141,8 +148,18 @@ const OS_COLOR: Record<string, string> = {
 };
 const OS_COLOR_FALLBACK = 'var(--ow-fg-dim)';
 
-function complianceTier(v: number | null): 'crit' | 'warn' | 'ok' {
-  if (v == null || v < 40) return 'crit';
+/**
+ * complianceTier colors a fleet score, and NO score is not a bad score.
+ *
+ * `v == null || v < 40` painted an absent score in the same critical red as a
+ * fleet at 12%. The server saying "this fleet has no score" then looked
+ * identical to the server saying "this fleet is failing", which is the defect
+ * this whole arc exists to remove. Absence is neutral; a genuine zero stays
+ * critical.
+ */
+function complianceTier(v: number | null): 'crit' | 'warn' | 'ok' | 'neutral' {
+  if (v == null) return 'neutral';
+  if (v < 40) return 'crit';
   if (v < 80) return 'warn';
   return 'ok';
 }
@@ -252,12 +269,15 @@ export function HostsListPage() {
   });
 
   // Avg-compliance KPI value: source the SAME fleet score the dashboard KPI
-  // uses (GET /api/v1/fleet/score = passing / (passing + failing), the
-  // canonical compliance metric that also drives the scheduler bands) so the
-  // two surfaces can never diverge. The client-side kpisFromHosts value (which
-  // divides by the all-status rule total) is only a fallback shown until this
-  // resolves. Shared queryKey with the dashboard widget, so it dedupes/caches.
-  // Spec frontend-hosts-list AC-26.
+  // uses, so the two surfaces can never diverge. GET /api/v1/fleet/score is the
+  // EQUAL-HOST MEAN of the per-host scores, each host scored passing over
+  // passing plus failing and counting once whatever its rule count. It is not a
+  // pooled fraction over every rule row; that is the shape it replaced.
+  //
+  // There is no client-side fallback. kpisFromHosts returns null for this KPI,
+  // so until the query resolves the card shows no score rather than a locally
+  // computed stand-in. Shared queryKey with the dashboard widget, so it
+  // dedupes and caches. Spec frontend-hosts-list AC-26.
   const fleetScoreQuery = useQuery({
     queryKey: ['fleet', 'score', lens],
     queryFn: async () => {
@@ -270,11 +290,19 @@ export function HostsListPage() {
   });
 
   const kpis = kpisFromHosts(hosts);
-  // Authoritative fleet score wins over the client-side aggregate so the
-  // /hosts headline equals the /dashboard headline exactly (same endpoint,
-  // same integer rounding). Spec frontend-hosts-list AC-26.
-  if (fleetScoreQuery.data && fleetScoreQuery.data.total_evaluations > 0) {
-    kpis.avgCompliance.value = Math.round(fleetScoreQuery.data.passing_fraction * 100);
+  // The authoritative fleet score is the only source for this KPI, so the
+  // /hosts headline equals the /dashboard headline exactly: same endpoint,
+  // same value, no rounding on either side. Spec frontend-hosts-list AC-26.
+  if (fleetScoreQuery.data) {
+    // Taken as sent, INCLUDING when it is null. The server already rounded it
+    // to one decimal; rounding a fraction here was a second implementation of
+    // the formula and could disagree with the dashboard by a whole point.
+    //
+    // The null case is the point. This condition used to require score_pct
+    // !== null, so an authoritative "this fleet has no score" left whatever
+    // the page had computed locally on screen: the one answer the server is
+    // certain about was the one it could not deliver.
+    kpis.avgCompliance.value = fleetScoreQuery.data.score_pct;
   }
   if (scanQueueQuery.data) {
     const q = scanQueueQuery.data.queued;
@@ -288,14 +316,10 @@ export function HostsListPage() {
   }
 
   if (fleetTrendQuery.data) {
-    const days = fleetTrendQuery.data.days;
-    if (days.length >= 2) {
-      const today = days[days.length - 1]!;
-      const prev = days[days.length - 2]!;
-      const diff = Math.round((today.avg_score_pct - prev.avg_score_pct) * 10) / 10;
-      kpis.avgCompliance.delta =
-        diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`;
-      kpis.avgCompliance.deltaTier = diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral';
+    const presented = fleetDeltaFromTrend(fleetTrendQuery.data.days);
+    if (presented) {
+      kpis.avgCompliance.delta = presented.delta;
+      kpis.avgCompliance.deltaTier = presented.tier;
     }
   }
 
@@ -399,12 +423,17 @@ export function HostsListPage() {
           }
         />
         <KPICard
+          testId="kpi-avg-compliance"
           icon={<Shield size={14} />}
           label="Avg. compliance"
-          value={kpis.avgCompliance.value}
-          unit="%"
+          value={kpis.avgCompliance.value ?? '—'}
+          unit={kpis.avgCompliance.value === null ? '' : '%'}
           tier={complianceTier(kpis.avgCompliance.value)}
-          metaLeft={`Target ≥ ${kpis.avgCompliance.target}%`}
+          metaLeft={
+            kpis.avgCompliance.value === null
+              ? 'No host scored yet'
+              : `Target ≥ ${kpis.avgCompliance.target}%`
+          }
           metaRight={kpis.avgCompliance.delta}
           metaRightTier={kpis.avgCompliance.deltaTier}
           barPct={kpis.avgCompliance.value}
@@ -513,6 +542,7 @@ export function HostsListPage() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function KPICard({
+  testId,
   icon,
   label,
   value,
@@ -523,18 +553,26 @@ function KPICard({
   metaRightTier,
   barPct,
 }: {
+  testId?: string;
   icon: React.ReactNode;
   label: string;
   value: number | string;
   unit: string;
-  tier: 'crit' | 'warn' | 'ok';
+  tier: 'crit' | 'warn' | 'ok' | 'neutral';
   metaLeft: string;
   metaRight: string;
   metaRightTier: 'crit' | 'warn' | 'ok' | 'neutral';
-  barPct: number;
+  /** null means there is no value to plot, which is not the same as zero. */
+  barPct: number | null;
 }) {
   const tierColor =
-    tier === 'crit' ? 'var(--ow-crit)' : tier === 'warn' ? 'var(--ow-warn)' : 'var(--ow-ok)';
+    tier === 'crit'
+      ? 'var(--ow-crit)'
+      : tier === 'warn'
+        ? 'var(--ow-warn)'
+        : tier === 'neutral'
+          ? 'var(--ow-fg-3)'
+          : 'var(--ow-ok)';
   const tierBg =
     tier === 'crit' ? 'var(--ow-crit-bg)' : tier === 'warn' ? 'var(--ow-warn-bg)' : null;
   // Prototype .kpi.crit / .kpi.warn — tinted gradient + saturated border.
@@ -559,6 +597,7 @@ function KPICard({
           : 'var(--ow-fg-2)';
   return (
     <div
+      data-testid={testId}
       style={{
         background: cardBg,
         border: `1px solid ${cardBorder}`,
@@ -584,6 +623,7 @@ function KPICard({
         {label}
       </div>
       <div
+        data-testid={testId ? `${testId}-value` : undefined}
         style={{
           marginTop: 10,
           fontSize: 30,
@@ -597,6 +637,7 @@ function KPICard({
         {value}
         {unit && (
           <span
+            data-testid={testId ? `${testId}-unit` : undefined}
             style={{
               fontSize: 16,
               color: 'var(--ow-fg-2)',
@@ -617,14 +658,17 @@ function KPICard({
           overflow: 'hidden',
         }}
       >
-        <span
-          style={{
-            display: 'block',
-            height: '100%',
-            width: `${Math.max(0, Math.min(100, barPct))}%`,
-            background: tierColor,
-          }}
-        />
+        {barPct !== null && (
+          <span
+            data-testid="kpi-bar-fill"
+            style={{
+              display: 'block',
+              height: '100%',
+              width: `${Math.max(0, Math.min(100, barPct))}%`,
+              background: tierColor,
+            }}
+          />
+        )}
       </div>
       <div
         style={{
@@ -635,7 +679,7 @@ function KPICard({
           color: 'var(--ow-fg-2)',
         }}
       >
-        <span>{metaLeft}</span>
+        <span data-testid={testId ? `${testId}-meta-left` : undefined}>{metaLeft}</span>
         <span style={{ color: metaRightColor }}>{metaRight}</span>
       </div>
     </div>
@@ -1896,7 +1940,9 @@ export function apiHostToDev(h: ApiHost): DevHost {
     status: reachable ? 'online' : 'down',
     monitoring,
     maintenance: h.maintenance_mode === true,
-    compliance: hasScanData ? Math.round((cs.passing / cs.total) * 1000) / 10 : null,
+    // Sent by the server. It used to be derived here as passing over TOTAL,
+    // which was both the replaced formula and a second implementation of it.
+    compliance: cs?.score_pct ?? null,
     passed: hasScanData ? cs.passing : null,
     failed: hasScanData ? cs.failing : null,
     total: hasScanData ? cs.total : 0,
@@ -1912,16 +1958,70 @@ export function apiHostToDev(h: ApiHost): DevHost {
   };
 }
 
+/** One day of the fleet compliance trend, as this page reads it. */
+export type FleetTrendDay = {
+  score_pct: number | null;
+  formula_status: 'identified' | 'legacy_unknown' | 'mixed';
+};
+
+/**
+ * fleetDeltaFromTrend turns the fleet trend into the KPI delta caption and its
+ * tier, or null when there is not even a pair of days to consider.
+ *
+ * A delta needs two days that both carry a score and share a formula state
+ * that is not mixed. Otherwise it says WHICH case applies rather than leaving
+ * a blank: the page previously explained only a mixed today, and said
+ * "yesterday mixes formulas" while naming the wrong day, so a mixed previous
+ * day and a formula mismatch both rendered an unexplained gap.
+ *
+ * Exported so the contract test drives the presenter the page actually calls
+ * rather than reading these sentences out of the source.
+ */
+export function fleetDeltaFromTrend(
+  days: FleetTrendDay[],
+): { delta: string; tier: 'ok' | 'crit' | 'neutral' } | null {
+  if (days.length < 2) return null;
+  const today = days[days.length - 1]!;
+  const prev = days[days.length - 2]!;
+  const comparable =
+    today.score_pct !== null &&
+    prev.score_pct !== null &&
+    today.formula_status === prev.formula_status &&
+    today.formula_status !== 'mixed';
+  if (comparable) {
+    const diff = Math.round((today.score_pct! - prev.score_pct!) * 10) / 10;
+    return {
+      delta: diff === 0 ? 'No change vs yesterday' : `${diff > 0 ? '+' : ''}${diff}% vs yesterday`,
+      tier: diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral',
+    };
+  }
+  const reason =
+    today.formula_status === 'mixed'
+      ? 'today mixes formulas'
+      : prev.formula_status === 'mixed'
+        ? 'yesterday mixes formulas'
+        : today.formula_status !== prev.formula_status
+          ? 'the two days were scored by different formulas'
+          : 'a day in this window has no score';
+  return { delta: `No comparison: ${reason}`, tier: 'neutral' };
+}
+
 export function kpisFromHosts(hosts: DevHost[]): DevKpis {
   const total = hosts.length;
   const online = hosts.filter((h) => h.status === 'online').length;
-  // v1.3.0 (AC-17): the fleet average is rule-weighted over hosts WITH
-  // scan data only. Never-scanned hosts (compliance null, total 0) are
-  // excluded entirely rather than dragging the average down as zeros.
-  const scanned = hosts.filter((h) => h.compliance != null && h.total > 0);
-  const totalRules = scanned.reduce((n, h) => n + h.total, 0);
-  const totalPassed = scanned.reduce((n, h) => n + (h.passed ?? 0), 0);
-  const avgCompliance = totalRules > 0 ? Math.round((totalPassed / totalRules) * 1000) / 10 : 0;
+  // NO fleet score is computed here. It is read from GET /api/v1/fleet/score
+  // and from nowhere else.
+  //
+  // This used to average the per-host scores locally as a placeholder until
+  // that query resolved. A placeholder is still a number an operator reads and
+  // acts on, and it was a SECOND implementation of the compliance formula in
+  // the browser, which system-compliance-scoring C-14 forbids. It also
+  // survived an authoritative null, so a fleet the server could not score
+  // showed a locally invented percentage instead of "no score".
+  //
+  // Until the fleet query resolves the KPI is null, which renders as no score
+  // rather than as a guess.
+  const avgCompliance: number | null = null;
   // v1.3.0 (AC-18): critical issues = sum of critical_failing across the
   // fleet; the scope counts how many hosts contribute at least one.
   const criticalIssues = hosts.reduce((n, h) => n + (h.criticalFailing ?? 0), 0);

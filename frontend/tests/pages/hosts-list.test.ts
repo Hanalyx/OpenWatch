@@ -11,9 +11,9 @@
 //   AC-14  test('frontend-hosts-list/AC-14 — scan-queue KPI wired')
 //   AC-15  test('frontend-hosts-list/AC-15 — no dead fleet Run scan header control')
 //   AC-16  test('frontend-hosts-list/AC-16 — compliance_summary maps to real compliance with null honesty')
-//   AC-17  test('frontend-hosts-list/AC-17 — avg compliance KPI excludes never-scanned hosts')
+//   AC-17  test('frontend-hosts-list/AC-17 — kpisFromHosts computes no fleet score')
 //   AC-18  test('frontend-hosts-list/AC-18 — critical issues KPI sums critical_failing with affected-hosts scope')
-//   AC-26  test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)')
+//   AC-26  hosts-list-fleet-score.test.tsx (mounted: absent score is not a zero score)
 
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -25,6 +25,8 @@ import {
   type ApiHostComplianceSummary,
 } from '@/pages/HostsListPage';
 import type { DevHost } from '@/api/host-view-model';
+import { fleetDeltaFromTrend, type FleetTrendDay } from '@/pages/HostsListPage';
+import { loadCriterion, trackFixture } from '../support/spec-fixture';
 
 const PAGE_SRC = readFileSync(resolve(process.cwd(), 'src/pages/HostsListPage.tsx'), 'utf8');
 
@@ -47,6 +49,7 @@ function makeSummary(overrides: Partial<ApiHostComplianceSummary> = {}): ApiHost
     error: 0,
     total: 0,
     critical_failing: 0,
+    score_pct: null,
     ...overrides,
   };
 }
@@ -127,23 +130,71 @@ test('frontend-hosts-list/AC-13 — per-host Scan buttons are live with idempote
   expect(btnSlice).not.toMatch(/setInterval/);
 });
 
-// @ac AC-26
-// AC-26: the Avg compliance KPI value is sourced from GET /api/v1/fleet/score
-// (the same fleet score, and the same round(passing_fraction*100) expression,
-// the dashboard KPI uses) so /hosts and /dashboard can never show a different
-// fleet-compliance number. The client-side kpisFromHosts aggregate (which
-// divides by the all-status rule total) is only a fallback.
-test('frontend-hosts-list/AC-26 — avg compliance KPI sourced from /fleet/score (matches dashboard)', () => {
-  // Shares the dashboard's query key + endpoint.
-  expect(PAGE_SRC).toContain("queryKey: ['fleet', 'score', lens]");
-  expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/score'");
-  // The KPI value is overridden with the canonical fleet score, same rounding
-  // as the dashboard widget (Math.round(passing_fraction * 100)).
-  expect(PAGE_SRC).toMatch(
-    /kpis\.avgCompliance\.value\s*=\s*Math\.round\(\s*fleetScoreQuery\.data\.passing_fraction\s*\*\s*100\s*\)/,
-  );
-  // Guarded so an empty fleet (no pass/fail evaluations) keeps the fallback.
-  expect(PAGE_SRC).toMatch(/fleetScoreQuery\.data\.total_evaluations\s*>\s*0/);
+// AC-26 is proven by MOUNTING the page, in hosts-list-fleet-score.test.tsx.
+//
+// What used to be here read the source and confirmed the query key, the
+// endpoint and the shape of the assignment. All three stayed true while the
+// rendered KPI painted an authoritative null in critical red, because source
+// text cannot tell an absent score from a bad one on screen. The structural
+// facts it checked are still worth holding, so they moved into the mounted
+// test's fixture as observable output rather than as string matches.
+
+// @ac AC-19
+// AC-19: the delta comes from the presenter the page calls, and every case
+// produces its own caption and tier. Reading the sentences out of the source
+// proved they exist, not that the right one renders for a given response.
+test('frontend-hosts-list/AC-19 — delta explains every case it cannot compare', () => {
+  const ac = loadCriterion('hosts-list', 'frontend-hosts-list', 'AC-19');
+  const inp = trackFixture(ac.inputs, 'AC-19 inputs');
+  const exp = trackFixture(ac.expected, 'AC-19 expected_output');
+
+  const cases = inp.get<Record<string, unknown>[]>('cases');
+  const directionalTiers = inp.get<string[]>('directional_tiers');
+  const checkDelta = exp.get<boolean>('every_case_matches_its_expected_delta');
+  const checkTier = exp.get<boolean>('every_case_matches_its_expected_tier');
+  const tierOnlyWhenComparable = exp.get<boolean>('directional_tier_only_when_comparable');
+  inp.allConsumed();
+  exp.allConsumed();
+  expect(checkDelta, 'AC-19 must require the delta comparison').toBe(true);
+  expect(checkTier, 'AC-19 must require the tier comparison').toBe(true);
+  expect(tierOnlyWhenComparable, 'AC-19 must restrict the directional tier').toBe(true);
+
+  for (const raw of cases) {
+    const c = trackFixture(raw, `AC-19 case ${String(raw.id)}`);
+    const id = c.get<string>('id');
+    const days = [
+      {
+        score_pct: c.get<number | null>('prev_score'),
+        formula_status: c.get<string>('prev_status') as FleetTrendDay['formula_status'],
+      },
+      {
+        score_pct: c.get<number | null>('today_score'),
+        formula_status: c.get<string>('today_status') as FleetTrendDay['formula_status'],
+      },
+    ];
+    const wantDelta = c.get<string>('expect_delta');
+    const wantTier = c.get<string>('expect_tier');
+    c.allConsumed();
+
+    const got = fleetDeltaFromTrend(days);
+    expect(got, `${id}: presenter returned nothing`).not.toBeNull();
+    expect(got!.delta, `${id}: caption`).toBe(wantDelta);
+    expect(got!.tier, `${id}: tier`).toBe(wantTier);
+
+    // A directional tier is a claim. Only a real rise or fall earns one, so a
+    // case that cannot be compared must never be colored.
+    const comparable = !wantDelta.startsWith('No comparison');
+    if (!comparable) {
+      expect(directionalTiers, `${id}: incomparable must not be colored`).not.toContain(got!.tier);
+    }
+  }
+
+  // Fewer than two days is not a case at all: there is nothing to say.
+  expect(fleetDeltaFromTrend([]), 'no days').toBeNull();
+  expect(
+    fleetDeltaFromTrend([{ score_pct: 70, formula_status: 'identified' }]),
+    'one day',
+  ).toBeNull();
 });
 
 // @ac AC-14
@@ -175,10 +226,15 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
           error: 3,
           total: 508,
           critical_failing: 4,
+          // Server-computed: 400 / (400 + 100) = 80.0. The browser used to
+          // derive 78.7 from passing over TOTAL, counting the 5 skipped and 3
+          // errored rules as failures.
+          score_pct: 80,
         }),
       }),
     );
-    expect(scanned.compliance).toBe(78.7); // round(400/508*1000)/10
+    expect(scanned.compliance).toBe(80);
+    expect(scanned.compliance).not.toBe(78.7); // the passing-over-total answer
     expect(scanned.passed).toBe(400);
     expect(scanned.failed).toBe(100);
     expect(scanned.total).toBe(508);
@@ -211,20 +267,37 @@ describe('frontend-hosts-list — v1.3.0 real fleet compliance', () => {
   });
 
   // @ac AC-17
-  test('frontend-hosts-list/AC-17 — avg compliance KPI excludes never-scanned hosts', () => {
-    const hosts: DevHost[] = [
+  // AC-17: kpisFromHosts derives NO compliance score. Any host data it is
+  // given must leave the KPI null, because the only source of that number is
+  // GET /api/v1/fleet/score.
+  test('frontend-hosts-list/AC-17 — kpisFromHosts computes no fleet score', () => {
+    // Hosts that WOULD average to something, if anything here averaged.
+    const scored = kpisFromHosts([
       makeDevHost({ id: 'a', compliance: 90, passed: 90, failed: 10, total: 100 }),
-      // Never scanned: must NOT drag the average toward zero.
-      makeDevHost({ id: 'b', compliance: null, passed: null, failed: null, total: 0 }),
-      makeDevHost({ id: 'c', compliance: null, passed: null, failed: null, total: 0 }),
-    ];
-    const kpis = kpisFromHosts(hosts);
-    // Weighted average over the single scanned host = 90, not 30.
-    expect(kpis.avgCompliance.value).toBe(90);
+      makeDevHost({ id: 'b', compliance: 50, passed: 1, failed: 1, total: 2 }),
+    ]);
+    expect(scored.avgCompliance.value).toBeNull();
+    // Named wrong answers, so a reintroduced formula is caught by value and
+    // not only by nullness: 70 is the equal-host mean, 89.9 the rule-weighted
+    // pool that preceded it.
+    expect(scored.avgCompliance.value).not.toBe(70);
+    expect(scored.avgCompliance.value).not.toBe(89.9);
 
-    // All-never-scanned fleet: average is 0, not NaN.
-    const noneScanned = kpisFromHosts([makeDevHost({ id: 'x' }), makeDevHost({ id: 'y' })]);
-    expect(noneScanned.avgCompliance.value).toBe(0);
+    // A genuine zero must not be manufactured either. A fleet of all-failing
+    // hosts still has no LOCAL score; zero comes from the server or nowhere.
+    const allFailing = kpisFromHosts([
+      makeDevHost({ id: 'z', compliance: 0, passed: 0, failed: 10, total: 10 }),
+    ]);
+    expect(allFailing.avgCompliance.value).toBeNull();
+    expect(allFailing.avgCompliance.value).not.toBe(0);
+
+    // Inventory KPIs still work: removing the score did not gut the function.
+    const inv = kpisFromHosts([
+      makeDevHost({ id: 'p', status: 'online', criticalFailing: 3 }),
+      makeDevHost({ id: 'q', status: 'down', criticalFailing: 0 }),
+    ]);
+    expect(inv.hostsOnline.value).toBe(1);
+    expect(inv.criticalIssues.value).toBe(3);
   });
 
   // @ac AC-18
@@ -255,11 +328,11 @@ describe('frontend-hosts-list v1.4.0 — fleet trend delta', () => {
   test('frontend-hosts-list/AC-19 — avg-compliance delta reads the fleet trend; empty below two days', () => {
     expect(PAGE_SRC).toContain("queryKey: ['fleet', 'compliance', 'trend']");
     expect(PAGE_SRC).toContain("api.GET('/api/v1/fleet/compliance/trend'");
-    // Delta only renders with >= 2 snapshot days.
-    expect(PAGE_SRC).toContain('if (days.length >= 2)');
-    expect(PAGE_SRC).toMatch(/vs yesterday/);
-    // Tier by direction.
-    expect(PAGE_SRC).toContain("diff > 0 ? 'ok' : diff < 0 ? 'crit' : 'neutral'");
+    // The page delegates to the exported presenter rather than inlining the
+    // comparison, so the behavior is asserted against fleetDeltaFromTrend in
+    // the criterion above rather than against this source text.
+    expect(PAGE_SRC).toContain('fleetDeltaFromTrend(fleetTrendQuery.data.days)');
+    expect(fleetDeltaFromTrend([]), 'fewer than two days yields no delta').toBeNull();
     // kpisFromHosts itself never fabricates a delta.
     expect(PAGE_SRC).toMatch(/avgCompliance: \{ value: avgCompliance, target: 80, delta: '',/);
   });

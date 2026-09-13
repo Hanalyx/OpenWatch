@@ -21,7 +21,7 @@ const (
 	ComplianceCheck Feature = "compliance_check"
 	// Saved and ad-hoc audit query DSL via POST /audit/events:query
 	AuditQuery Feature = "audit_query"
-	// Export audit data as JSON/CSV with signed bundles
+	// Fleet-scale audit export as signed bundles. Per-host audit export is free core
 	AuditExport Feature = "audit_export"
 	// Point-in-time compliance posture queries, drift forecasts, historical reconstruction from the transaction log
 	TemporalQueries Feature = "temporal_queries"
@@ -29,7 +29,7 @@ const (
 	RemediationExecution Feature = "remediation_execution"
 	// Policy-driven and scheduled auto-remediation across the fleet (severity routing, canary, guardrails, circuit breaker)
 	RemediationAuto Feature = "remediation_auto"
-	// Multi-stage exception approval workflow with policy enforcement
+	// Fleet-scale exception workflow with multi-stage approval and policy enforcement. Per-host exceptions are free core
 	StructuredExceptions Feature = "structured_exceptions"
 	// Early access to Kensa rule updates and framework mappings
 	PriorityUpdates Feature = "priority_updates"
@@ -68,7 +68,7 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	AuditExport: {
 		ID:          AuditExport,
 		Tier:        TierEnterprise,
-		Description: `Export audit data as JSON/CSV with signed bundles`,
+		Description: `Fleet-scale audit export as signed bundles. Per-host audit export is free core`,
 		Introduced:  "1.0.0",
 	},
 	TemporalQueries: {
@@ -92,7 +92,7 @@ var FeatureRegistry = map[Feature]FeatureMeta{
 	StructuredExceptions: {
 		ID:          StructuredExceptions,
 		Tier:        TierEnterprise,
-		Description: `Multi-stage exception approval workflow with policy enforcement`,
+		Description: `Fleet-scale exception workflow with multi-stage approval and policy enforcement. Per-host exceptions are free core`,
 		Introduced:  "1.0.0",
 	},
 	PriorityUpdates: {

@@ -141,9 +141,10 @@ describe('frontend-reports — reports library page', () => {
   });
 
   // @ac AC-08
-  test('frontend-reports/AC-08 — signed badge + offline Verify (hash + Ed25519)', () => {
+  test('frontend-reports/AC-08 — signed badge + same-server Verify (hash + Ed25519)', () => {
     // A verifyReport helper fetches the signing key, re-hashes the json
-    // face, and Ed25519-verifies the signature offline.
+    // face, and Ed25519-verifies the signature against the key this server
+    // serves. Not offline: the artifact, signature and key share one source.
     expect(PAGE_SRC).toContain('function verifyReport');
     expect(PAGE_SRC).toContain("fetch('/api/v1/reports/signing-key'");
     expect(PAGE_SRC).toMatch(/export\?format=json/);
@@ -224,7 +225,12 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toMatch(/const r = content\.rollup/);
     expect(PAGE_SRC).toContain('Hosts attested');
     expect(PAGE_SRC).toContain('Framework');
-    expect(PAGE_SRC).toMatch(/r\.compliance_pct/);
+    // The percent is chosen by the artifact's generation, not read from one
+    // field. A current artifact keeps its decimal; a legacy one keeps the
+    // whole percent it was signed with and says it is not comparable.
+    expect(PAGE_SRC).toMatch(/r\.is_legacy \? r\.legacy_pct : r\.score_pct/);
+    expect(PAGE_SRC).toContain('legacy formula, not comparable');
+    expect(PAGE_SRC).toMatch(/pct\.toFixed\(1\)/);
     expect(PAGE_SRC).toMatch(/r\.passing/);
     expect(PAGE_SRC).toMatch(/r\.failing/);
     expect(PAGE_SRC).toMatch(/r\.top_failing\.map/);

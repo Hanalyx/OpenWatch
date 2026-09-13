@@ -68,6 +68,27 @@ func (e ActivitySource) Valid() bool {
 	}
 }
 
+// Defines values for AggregateScoreCoverageStatus.
+const (
+	AggregateScoreCoverageStatusAvailable                    AggregateScoreCoverageStatus = "available"
+	AggregateScoreCoverageStatusUnavailableNoOutcomes        AggregateScoreCoverageStatus = "unavailable_no_outcomes"
+	AggregateScoreCoverageStatusUnavailableUnclassifiedSkips AggregateScoreCoverageStatus = "unavailable_unclassified_skips"
+)
+
+// Valid indicates whether the value is a known member of the AggregateScoreCoverageStatus enum.
+func (e AggregateScoreCoverageStatus) Valid() bool {
+	switch e {
+	case AggregateScoreCoverageStatusAvailable:
+		return true
+	case AggregateScoreCoverageStatusUnavailableNoOutcomes:
+		return true
+	case AggregateScoreCoverageStatusUnavailableUnclassifiedSkips:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AlertSeverity.
 const (
 	AlertSeverityCritical AlertSeverity = "critical"
@@ -449,6 +470,27 @@ func (e FleetComplianceStatesStatesState) Valid() bool {
 	}
 }
 
+// Defines values for FleetComplianceTrendDaysFormulaStatus.
+const (
+	FleetComplianceTrendDaysFormulaStatusIdentified    FleetComplianceTrendDaysFormulaStatus = "identified"
+	FleetComplianceTrendDaysFormulaStatusLegacyUnknown FleetComplianceTrendDaysFormulaStatus = "legacy_unknown"
+	FleetComplianceTrendDaysFormulaStatusMixed         FleetComplianceTrendDaysFormulaStatus = "mixed"
+)
+
+// Valid indicates whether the value is a known member of the FleetComplianceTrendDaysFormulaStatus enum.
+func (e FleetComplianceTrendDaysFormulaStatus) Valid() bool {
+	switch e {
+	case FleetComplianceTrendDaysFormulaStatusIdentified:
+		return true
+	case FleetComplianceTrendDaysFormulaStatusLegacyUnknown:
+		return true
+	case FleetComplianceTrendDaysFormulaStatusMixed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FleetTransactionChangeKind.
 const (
 	FirstSeen       FleetTransactionChangeKind = "first_seen"
@@ -683,6 +725,27 @@ func (e HealthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for HostComplianceLensSummaryCoverageStatus.
+const (
+	HostComplianceLensSummaryCoverageStatusAvailable                    HostComplianceLensSummaryCoverageStatus = "available"
+	HostComplianceLensSummaryCoverageStatusUnavailableNoOutcomes        HostComplianceLensSummaryCoverageStatus = "unavailable_no_outcomes"
+	HostComplianceLensSummaryCoverageStatusUnavailableUnclassifiedSkips HostComplianceLensSummaryCoverageStatus = "unavailable_unclassified_skips"
+)
+
+// Valid indicates whether the value is a known member of the HostComplianceLensSummaryCoverageStatus enum.
+func (e HostComplianceLensSummaryCoverageStatus) Valid() bool {
+	switch e {
+	case HostComplianceLensSummaryCoverageStatusAvailable:
+		return true
+	case HostComplianceLensSummaryCoverageStatusUnavailableNoOutcomes:
+		return true
+	case HostComplianceLensSummaryCoverageStatusUnavailableUnclassifiedSkips:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HostComplianceScheduleComplianceState.
 const (
 	HostComplianceScheduleComplianceStateCompliant       HostComplianceScheduleComplianceState = "compliant"
@@ -713,6 +776,48 @@ func (e HostComplianceScheduleComplianceState) Valid() bool {
 	}
 }
 
+// Defines values for HostComplianceSummaryCoverageStatus.
+const (
+	HostComplianceSummaryCoverageStatusAvailable                    HostComplianceSummaryCoverageStatus = "available"
+	HostComplianceSummaryCoverageStatusUnavailableNoOutcomes        HostComplianceSummaryCoverageStatus = "unavailable_no_outcomes"
+	HostComplianceSummaryCoverageStatusUnavailableUnclassifiedSkips HostComplianceSummaryCoverageStatus = "unavailable_unclassified_skips"
+)
+
+// Valid indicates whether the value is a known member of the HostComplianceSummaryCoverageStatus enum.
+func (e HostComplianceSummaryCoverageStatus) Valid() bool {
+	switch e {
+	case HostComplianceSummaryCoverageStatusAvailable:
+		return true
+	case HostComplianceSummaryCoverageStatusUnavailableNoOutcomes:
+		return true
+	case HostComplianceSummaryCoverageStatusUnavailableUnclassifiedSkips:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostComplianceTrendDaysFormulaStatus.
+const (
+	HostComplianceTrendDaysFormulaStatusIdentified    HostComplianceTrendDaysFormulaStatus = "identified"
+	HostComplianceTrendDaysFormulaStatusLegacyUnknown HostComplianceTrendDaysFormulaStatus = "legacy_unknown"
+	HostComplianceTrendDaysFormulaStatusMixed         HostComplianceTrendDaysFormulaStatus = "mixed"
+)
+
+// Valid indicates whether the value is a known member of the HostComplianceTrendDaysFormulaStatus enum.
+func (e HostComplianceTrendDaysFormulaStatus) Valid() bool {
+	switch e {
+	case HostComplianceTrendDaysFormulaStatusIdentified:
+		return true
+	case HostComplianceTrendDaysFormulaStatusLegacyUnknown:
+		return true
+	case HostComplianceTrendDaysFormulaStatusMixed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HostDetailResponseScanState.
 const (
 	HostDetailResponseScanStateQueued  HostDetailResponseScanState = "queued"
@@ -725,6 +830,27 @@ func (e HostDetailResponseScanState) Valid() bool {
 	case HostDetailResponseScanStateQueued:
 		return true
 	case HostDetailResponseScanStateRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostListComplianceSummaryCoverageStatus.
+const (
+	HostListComplianceSummaryCoverageStatusAvailable                    HostListComplianceSummaryCoverageStatus = "available"
+	HostListComplianceSummaryCoverageStatusUnavailableNoOutcomes        HostListComplianceSummaryCoverageStatus = "unavailable_no_outcomes"
+	HostListComplianceSummaryCoverageStatusUnavailableUnclassifiedSkips HostListComplianceSummaryCoverageStatus = "unavailable_unclassified_skips"
+)
+
+// Valid indicates whether the value is a known member of the HostListComplianceSummaryCoverageStatus enum.
+func (e HostListComplianceSummaryCoverageStatus) Valid() bool {
+	switch e {
+	case HostListComplianceSummaryCoverageStatusAvailable:
+		return true
+	case HostListComplianceSummaryCoverageStatusUnavailableNoOutcomes:
+		return true
+	case HostListComplianceSummaryCoverageStatusUnavailableUnclassifiedSkips:
 		return true
 	default:
 		return false
@@ -1259,6 +1385,75 @@ func (e ScanRunQueuedStatus) Valid() bool {
 	}
 }
 
+// Defines values for ScoreEnvelopeAggregationMethod.
+const (
+	EqualHostMean ScoreEnvelopeAggregationMethod = "equal_host_mean"
+	None          ScoreEnvelopeAggregationMethod = "none"
+)
+
+// Valid indicates whether the value is a known member of the ScoreEnvelopeAggregationMethod enum.
+func (e ScoreEnvelopeAggregationMethod) Valid() bool {
+	switch e {
+	case EqualHostMean:
+		return true
+	case None:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ScoreEnvelopeCorpusIdentityStatus.
+const (
+	ScoreEnvelopeCorpusIdentityStatusIdentified          ScoreEnvelopeCorpusIdentityStatus = "identified"
+	ScoreEnvelopeCorpusIdentityStatusMixed               ScoreEnvelopeCorpusIdentityStatus = "mixed"
+	ScoreEnvelopeCorpusIdentityStatusNotApplicable       ScoreEnvelopeCorpusIdentityStatus = "not_applicable"
+	ScoreEnvelopeCorpusIdentityStatusPartiallyIdentified ScoreEnvelopeCorpusIdentityStatus = "partially_identified"
+	ScoreEnvelopeCorpusIdentityStatusUnavailable         ScoreEnvelopeCorpusIdentityStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the ScoreEnvelopeCorpusIdentityStatus enum.
+func (e ScoreEnvelopeCorpusIdentityStatus) Valid() bool {
+	switch e {
+	case ScoreEnvelopeCorpusIdentityStatusIdentified:
+		return true
+	case ScoreEnvelopeCorpusIdentityStatusMixed:
+		return true
+	case ScoreEnvelopeCorpusIdentityStatusNotApplicable:
+		return true
+	case ScoreEnvelopeCorpusIdentityStatusPartiallyIdentified:
+		return true
+	case ScoreEnvelopeCorpusIdentityStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ScoreEnvelopeEngineIdentityStatus.
+const (
+	ScoreEnvelopeEngineIdentityStatusIdentified          ScoreEnvelopeEngineIdentityStatus = "identified"
+	ScoreEnvelopeEngineIdentityStatusMixed               ScoreEnvelopeEngineIdentityStatus = "mixed"
+	ScoreEnvelopeEngineIdentityStatusPartiallyIdentified ScoreEnvelopeEngineIdentityStatus = "partially_identified"
+	ScoreEnvelopeEngineIdentityStatusUnavailable         ScoreEnvelopeEngineIdentityStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the ScoreEnvelopeEngineIdentityStatus enum.
+func (e ScoreEnvelopeEngineIdentityStatus) Valid() bool {
+	switch e {
+	case ScoreEnvelopeEngineIdentityStatusIdentified:
+		return true
+	case ScoreEnvelopeEngineIdentityStatusMixed:
+		return true
+	case ScoreEnvelopeEngineIdentityStatusPartiallyIdentified:
+		return true
+	case ScoreEnvelopeEngineIdentityStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserPreferencesAccentColor.
 const (
 	UserPreferencesAccentColorBrand2 UserPreferencesAccentColor = "brand2"
@@ -1638,6 +1833,43 @@ type ActivityPage struct {
 type AdminRolesResponse struct {
 	Roles []RoleEntry `json:"roles"`
 }
+
+// AggregateScore defines model for AggregateScore.
+type AggregateScore struct {
+	// CoveragePct Share of in-scope rules that produced a verdict, to one decimal. Non-null if and only if coverage_status is available.
+	CoveragePct *float64 `json:"coverage_pct"`
+
+	// CoverageStatus Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why. unavailable_unclassified_skips means at least one skip carries no machine-readable reason, so an inapplicable rule cannot be told from an unevaluated one; the number is withheld rather than guessed.
+	CoverageStatus AggregateScoreCoverageStatus `json:"coverage_status"`
+	Envelope       ScoreEnvelope                `json:"envelope"`
+
+	// Error Outcomes that errored, summed across the population.
+	Error int64 `json:"error"`
+
+	// Failing Rule outcomes that failed, summed across the population.
+	Failing int64 `json:"failing"`
+
+	// HostsScored Hosts that produced a score. The population the mean is over.
+	HostsScored int `json:"hosts_scored"`
+
+	// HostsTotal Active hosts. Always hosts_scored + hosts_without_score.
+	HostsTotal int `json:"hosts_total"`
+
+	// HostsWithoutScore Active hosts that produced no score: never scanned, scanned with no verdict, or carrying no rule that matches the lens.
+	HostsWithoutScore int `json:"hosts_without_score"`
+
+	// Passing Rule outcomes that passed, summed across the population.
+	Passing int64 `json:"passing"`
+
+	// ScorePct Equal-host mean of the per-host scores, to one decimal, so each host counts once whatever its rule count. NULL when no host produced a verdict, which is a different fact from every host failing every rule (that scores 0). It replaces a pooled ratio that weighted hosts by rule count and could not express absence.
+	ScorePct *float64 `json:"score_pct"`
+
+	// Skipped Outcomes that produced no verdict, summed across the population. They enter neither side of score_pct.
+	Skipped int64 `json:"skipped"`
+}
+
+// AggregateScoreCoverageStatus Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why. unavailable_unclassified_skips means at least one skip carries no machine-readable reason, so an inapplicable rule cannot be told from an unevaluated one; the number is withheld rather than guessed.
+type AggregateScoreCoverageStatus string
 
 // Alert defines model for Alert.
 type Alert struct {
@@ -2253,13 +2485,33 @@ type FleetComplianceStatesStatesState string
 type FleetComplianceTrend struct {
 	// Days One entry per day with snapshots, oldest first
 	Days []struct {
-		AvgScorePct   float32            `json:"avg_score_pct"`
 		CriticalHosts int                `json:"critical_hosts"`
 		Date          openapi_types.Date `json:"date"`
+		Envelope      ScoreEnvelope      `json:"envelope"`
 		Failing       int                `json:"failing"`
-		Hosts         int                `json:"hosts"`
+
+		// FormulaStatus mixed means the day's snapshots were produced by MORE THAN ONE formula. Those measure different things, so the day reports no score rather than their average. legacy_unknown means every snapshot predates the current formula; its score is preserved and is not comparable with an identified one.
+		FormulaStatus FleetComplianceTrendDaysFormulaStatus `json:"formula_status"`
+
+		// FormulaVersion 2 when formula_status is identified, otherwise null.
+		FormulaVersion *int `json:"formula_version"`
+
+		// Hosts Every host with a snapshot that day, including hosts that produced no score and are therefore not in score_pct.
+		Hosts int `json:"hosts"`
+
+		// HostsScored Hosts that produced a score that day.
+		HostsScored int `json:"hosts_scored"`
+
+		// HostsWithoutScore Hosts with a snapshot that day but no score.
+		HostsWithoutScore int `json:"hosts_without_score"`
+
+		// ScorePct Equal-host mean over the hosts that produced a score that day, to one decimal. Not a pooled ratio, so a host with many rules does not outweigh one with few. NULL when no host produced a score, and NULL when formula_status is mixed.
+		ScorePct *float32 `json:"score_pct"`
 	} `json:"days"`
 }
+
+// FleetComplianceTrendDaysFormulaStatus mixed means the day's snapshots were produced by MORE THAN ONE formula. Those measure different things, so the day reports no score rather than their average. legacy_unknown means every snapshot predates the current formula; its score is preserved and is not comparable with an identified one.
+type FleetComplianceTrendDaysFormulaStatus string
 
 // FleetHostFailure defines model for FleetHostFailure.
 type FleetHostFailure struct {
@@ -2290,15 +2542,6 @@ type FleetRuleFailure struct {
 type FleetScanQueue struct {
 	Queued  int64 `json:"queued"`
 	Running int64 `json:"running"`
-}
-
-// FleetScore defines model for FleetScore.
-type FleetScore struct {
-	// PassingFraction Passing rules / (passing + failing) across all hosts. 0..1.
-	PassingFraction float64 `json:"passing_fraction"`
-
-	// TotalEvaluations Count of host_rule_state rows where current_status is pass or fail.
-	TotalEvaluations int64 `json:"total_evaluations"`
 }
 
 // FleetTopFailingHosts defines model for FleetTopFailingHosts.
@@ -2452,24 +2695,22 @@ type GroupMemberRequest struct {
 
 // GroupRollup defines model for GroupRollup.
 type GroupRollup struct {
-	// AvgCompliancePct Mean compliance across scanned members; null when none scanned
-	AvgCompliancePct *int          `json:"avg_compliance_pct,omitempty"`
-	CriticalHosts    int           `json:"critical_hosts"`
-	Down             int           `json:"down"`
-	Hosts            int           `json:"hosts"`
-	Members          []GroupMember `json:"members"`
-	Online           int           `json:"online"`
+	CriticalHosts int            `json:"critical_hosts"`
+	Down          int            `json:"down"`
+	Hosts         int            `json:"hosts"`
+	Members       []GroupMember  `json:"members"`
+	Online        int            `json:"online"`
+	Score         AggregateScore `json:"score"`
 }
 
 // GroupSummary defines model for GroupSummary.
 type GroupSummary struct {
-	// AvgCompliancePct Fleet mean compliance; null when nothing scanned
-	AvgCompliancePct *int `json:"avg_compliance_pct,omitempty"`
-	Groups           int  `json:"groups"`
-	HostsMaintenance int  `json:"hosts_maintenance"`
-	OsCategories     int  `json:"os_categories"`
-	Sites            int  `json:"sites"`
-	Ungrouped        int  `json:"ungrouped"`
+	Groups           int            `json:"groups"`
+	HostsMaintenance int            `json:"hosts_maintenance"`
+	OsCategories     int            `json:"os_categories"`
+	Score            AggregateScore `json:"score"`
+	Sites            int            `json:"sites"`
+	Ungrouped        int            `json:"ungrouped"`
 }
 
 // GroupTargetRequest defines model for GroupTargetRequest.
@@ -2530,11 +2771,16 @@ type HostComplianceCategory struct {
 	Category string `json:"category"`
 	Failing  int64  `json:"failing"`
 	Passing  int64  `json:"passing"`
-	Total    int64  `json:"total"`
+
+	// ScorePct Passing over passing plus failing within this category, to one decimal, computed server side. NULL when the category produced no verdict. Sent rather than derived so the browser holds no compliance arithmetic (system-compliance-scoring C-14).
+	ScorePct *float64 `json:"score_pct"`
+	Total    int64    `json:"total"`
 }
 
 // HostComplianceFramework defines model for HostComplianceFramework.
 type HostComplianceFramework struct {
+	Envelope ScoreEnvelope `json:"envelope"`
+
 	// Failing Rows mapped to this framework with current_status fail.
 	Failing     int    `json:"failing"`
 	FrameworkId string `json:"framework_id"`
@@ -2545,8 +2791,8 @@ type HostComplianceFramework struct {
 	// RuleCount Number of host_rule_state rows mapped to this framework.
 	RuleCount int64 `json:"rule_count"`
 
-	// ScorePct passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
-	ScorePct float32 `json:"score_pct"`
+	// ScorePct Passing over passing plus failing, to one decimal. NULL when this framework's rules produced no verdict. Not over rule_count, which counts rules that were skipped or errored. Powers the per-lens score on the View-as chips.
+	ScorePct *float32 `json:"score_pct"`
 }
 
 // HostComplianceFrameworksResponse defines model for HostComplianceFrameworksResponse.
@@ -2565,15 +2811,24 @@ type HostComplianceLensResponse struct {
 
 // HostComplianceLensSummary defines model for HostComplianceLensSummary.
 type HostComplianceLensSummary struct {
-	Error   int64 `json:"error"`
-	Failing int64 `json:"failing"`
-	Passing int64 `json:"passing"`
+	// CoveragePct Non-null if and only if coverage_status is available.
+	CoveragePct *float64 `json:"coverage_pct"`
 
-	// ScorePct passing/total as a percentage rounded to one decimal; 0 when total is 0.
-	ScorePct float64 `json:"score_pct"`
-	Skipped  int64   `json:"skipped"`
-	Total    int64   `json:"total"`
+	// CoverageStatus Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why.
+	CoverageStatus HostComplianceLensSummaryCoverageStatus `json:"coverage_status"`
+	Envelope       ScoreEnvelope                           `json:"envelope"`
+	Error          int64                                   `json:"error"`
+	Failing        int64                                   `json:"failing"`
+	Passing        int64                                   `json:"passing"`
+
+	// ScorePct Passing over passing plus failing, to one decimal. NULL when no rule produced a verdict, which is a different fact from every evaluated rule failing (that is 0).
+	ScorePct *float64 `json:"score_pct"`
+	Skipped  int64    `json:"skipped"`
+	Total    int64    `json:"total"`
 }
+
+// HostComplianceLensSummaryCoverageStatus Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why.
+type HostComplianceLensSummaryCoverageStatus string
 
 // HostComplianceRule defines model for HostComplianceRule.
 type HostComplianceRule struct {
@@ -2623,24 +2878,48 @@ type HostComplianceScheduleComplianceState string
 
 // HostComplianceSummary defines model for HostComplianceSummary.
 type HostComplianceSummary struct {
-	Error   int64 `json:"error"`
-	Failing int64 `json:"failing"`
-	Passing int64 `json:"passing"`
-	Skipped int64 `json:"skipped"`
-	Total   int64 `json:"total"`
+	// CoveragePct Non-null if and only if coverage_status is available.
+	CoveragePct *float64 `json:"coverage_pct"`
+
+	// CoverageStatus Whether coverage can be stated for this host, and if not, why.
+	CoverageStatus HostComplianceSummaryCoverageStatus `json:"coverage_status"`
+	Envelope       ScoreEnvelope                       `json:"envelope"`
+	Error          int64                               `json:"error"`
+	Failing        int64                               `json:"failing"`
+	Passing        int64                               `json:"passing"`
+
+	// ScorePct Passing over passing plus failing, to one decimal. NULL when no rule produced a verdict. This is the PRIMARY single-host score, and it is computed server side: the host detail page used to derive passing/total in the browser, so a host whose rules all skipped displayed 0% instead of no score.
+	ScorePct *float64 `json:"score_pct"`
+	Skipped  int64    `json:"skipped"`
+	Total    int64    `json:"total"`
 }
+
+// HostComplianceSummaryCoverageStatus Whether coverage can be stated for this host, and if not, why.
+type HostComplianceSummaryCoverageStatus string
 
 // HostComplianceTrend defines model for HostComplianceTrend.
 type HostComplianceTrend struct {
 	// Days One entry per day with a snapshot, oldest first
 	Days []struct {
 		Date     openapi_types.Date `json:"date"`
+		Envelope ScoreEnvelope      `json:"envelope"`
 		Failing  int                `json:"failing"`
-		Passing  int                `json:"passing"`
-		ScorePct float32            `json:"score_pct"`
-		Total    int                `json:"total"`
+
+		// FormulaStatus identified when the day's snapshot used the current formula; legacy_unknown when it predates it, in which case the score is preserved as stored and is NOT comparable with an identified one. mixed cannot occur on a host point: a snapshot is one host on one date under one lens and holds a single formula.
+		FormulaStatus HostComplianceTrendDaysFormulaStatus `json:"formula_status"`
+
+		// FormulaVersion 2 when formula_status is identified, otherwise null.
+		FormulaVersion *int `json:"formula_version"`
+		Passing        int  `json:"passing"`
+
+		// ScorePct Passing over passing plus failing, to one decimal. NULL when that day's rules produced no verdict. The day still appears, with its counts, so the absence is explained rather than shown as a gap.
+		ScorePct *float32 `json:"score_pct"`
+		Total    int      `json:"total"`
 	} `json:"days"`
 }
+
+// HostComplianceTrendDaysFormulaStatus identified when the day's snapshot used the current formula; legacy_unknown when it predates it, in which case the score is preserved as stored and is NOT comparable with an identified one. mixed cannot occur on a host point: a snapshot is one host on one date under one lens and holds a single formula.
+type HostComplianceTrendDaysFormulaStatus string
 
 // HostCreateRequest defines model for HostCreateRequest.
 type HostCreateRequest struct {
@@ -2697,21 +2976,34 @@ type HostFailedRulesResponse struct {
 
 // HostListComplianceSummary defines model for HostListComplianceSummary.
 type HostListComplianceSummary struct {
+	// CoveragePct Non-null if and only if coverage_status is available.
+	CoveragePct *float64 `json:"coverage_pct"`
+
+	// CoverageStatus Whether coverage can be stated for this host, and if not, why.
+	CoverageStatus HostListComplianceSummaryCoverageStatus `json:"coverage_status"`
+
 	// CriticalFailing Rows with current_status=fail and critical severity (case-insensitive).
-	CriticalFailing int64 `json:"critical_failing"`
-	Error           int64 `json:"error"`
-	Failing         int64 `json:"failing"`
-	Passing         int64 `json:"passing"`
-	Skipped         int64 `json:"skipped"`
-	Total           int64 `json:"total"`
+	CriticalFailing int64         `json:"critical_failing"`
+	Envelope        ScoreEnvelope `json:"envelope"`
+	Error           int64         `json:"error"`
+	Failing         int64         `json:"failing"`
+	Passing         int64         `json:"passing"`
+
+	// ScorePct Passing over passing plus failing, to one decimal, computed server side. NULL when the host produced no verdict. Added so the hosts list stops deriving a compliance percentage in the browser, which produced a second formula the rest of the product could not agree with (system-compliance-scoring C-14).
+	ScorePct *float64 `json:"score_pct"`
+	Skipped  int64    `json:"skipped"`
+	Total    int64    `json:"total"`
 }
+
+// HostListComplianceSummaryCoverageStatus Whether coverage can be stated for this host, and if not, why.
+type HostListComplianceSummaryCoverageStatus string
 
 // HostListItem defines model for HostListItem.
 type HostListItem struct {
 	Architecture  *string `json:"architecture,omitempty"`
 	CheckPriority *int    `json:"check_priority,omitempty"`
 
-	// ComplianceSummary Null when the host has no host_rule_state rows (never scanned).
+	// ComplianceSummary Null when the host has no rows in its current corpus. That is not the same as never scanned: a completed scan that produced no outcome writes no rule state either, and the two are indistinguishable from this field alone.
 	ComplianceSummary *HostListComplianceSummary `json:"compliance_summary,omitempty"`
 	CreatedAt         *time.Time                 `json:"created_at,omitempty"`
 	CreatedBy         *openapi_types.UUID        `json:"created_by,omitempty"`
@@ -3373,9 +3665,23 @@ type RemediationStepList struct {
 // Report defines model for Report.
 type Report struct {
 	// Content The rendered JSON posture document. For an executive summary:
-	// compliance_pct, host_count, passing_rules, failing_rules,
-	// critical_issues, top_failing_rules, and coverage (hosts_total,
-	// hosts_fresh, hosts_stale, hosts_unreachable).
+	// score_pct, host_count, passing_rules, failing_rules,
+	// critical_issues, top_failing_rules, coverage (hosts_total,
+	// hosts_fresh, hosts_stale, hosts_unreachable), and provenance.
+	//
+	// score_pct is the equal-host mean of the in-scope hosts' scores,
+	// to one decimal, null when no host produced a verdict. Null is not
+	// zero: zero means every evaluated rule failed.
+	//
+	// provenance carries artifact_class and the frozen envelope. Its
+	// ABSENCE identifies an artifact signed before 2026-09-03, which
+	// instead carries compliance_pct: a pooled whole percent computed
+	// over every rule outcome in scope. The two are not comparable and
+	// a client must label a legacy artifact as such rather than
+	// plotting it beside a current one. Nothing backfills provenance,
+	// and a legacy artifact's bytes, content address and signature are
+	// never rewritten. A current artifact never carries
+	// compliance_pct.
 	Content map[string]interface{} `json:"content"`
 
 	// ContentSha256 The snapshot's content address: hex SHA-256 of the canonical
@@ -3400,7 +3706,11 @@ type Report struct {
 	// GET /api/v1/reports/signing-key.
 	Signature *string `json:"signature,omitempty"`
 
-	// SigningKeyId Fingerprint of the key that produced the signature.
+	// SigningKeyId Short correlation identifier of the key that produced the
+	// signature: the first 8 bytes of SHA-256 over the public key.
+	// It matches a report to a served key. It is NOT an authenticity
+	// anchor; 64 bits is within reach of a collision search. Anchor
+	// trust on the complete public key or its full SHA-256.
 	SigningKeyId *string `json:"signing_key_id,omitempty"`
 	Title        string  `json:"title"`
 }
@@ -3493,10 +3803,18 @@ type ReportSigningKey struct {
 
 	// Ephemeral True when the server runs a per-boot development key (no durable
 	// key configured); such signatures do not verify across restarts.
-	Ephemeral bool   `json:"ephemeral"`
-	KeyId     string `json:"key_id"`
+	Ephemeral bool `json:"ephemeral"`
 
-	// PublicKey Base64-encoded Ed25519 public key.
+	// KeyId Short correlation identifier: the first 8 bytes of SHA-256 over
+	// public_key, hex encoded, prefixed `ed25519-`. Use it to match a
+	// report's signing_key_id to this key. It is NOT an authenticity
+	// anchor; compare the complete public_key, or its full SHA-256,
+	// against a copy obtained independently of this server.
+	KeyId string `json:"key_id"`
+
+	// PublicKey Base64-encoded Ed25519 public key, 32 bytes when decoded. This,
+	// or its lowercase hex SHA-256, is the value to compare against an
+	// independently trusted copy.
 	PublicKey string `json:"public_key"`
 }
 
@@ -3817,6 +4135,63 @@ type ScanVariablesResponse struct {
 		Value string `json:"value"`
 	} `json:"variables"`
 }
+
+// ScoreEnvelope defines model for ScoreEnvelope.
+type ScoreEnvelope struct {
+	// AggregationMethod none for a single host; equal_host_mean for an aggregate, where each host counts once whatever its rule count.
+	AggregationMethod ScoreEnvelopeAggregationMethod `json:"aggregation_method"`
+
+	// Corpora One entry per distinct corpus that contributed. Empty when unavailable.
+	Corpora []struct {
+		ContributorsScored int    `json:"contributors_scored"`
+		CorpusDigest       string `json:"corpus_digest"`
+
+		// CorpusVersion Null for a curated corpus, which has a digest and no version.
+		CorpusVersion *string `json:"corpus_version"`
+	} `json:"corpora"`
+
+	// CorpusDigest Convenience field, non-null ONLY when corpus_identity_status is identified. See corpus_version.
+	CorpusDigest *string `json:"corpus_digest"`
+
+	// CorpusIdentityStatus Whether the rule corpus behind the score can be named. unavailable until the scan engine can report it; never inferred from the corpus installed now.
+	CorpusIdentityStatus ScoreEnvelopeCorpusIdentityStatus `json:"corpus_identity_status"`
+
+	// CorpusVersion Convenience field, non-null ONLY when corpus_identity_status is identified. One entry in corpora is not sufficient: partially_identified also has one, alongside contributors whose corpus could not be named, and reporting that one as THE corpus would name an identity for hosts that have none. The durable record is corpora.
+	CorpusVersion *string `json:"corpus_version"`
+
+	// EngineIdentityStatus Whether the engine behind the score can be named. partially_identified means some scored hosts named an engine and some did not, which is what a fleet part way through an upgrade looks like and what a bare version list reported as agreement.
+	EngineIdentityStatus ScoreEnvelopeEngineIdentityStatus `json:"engine_identity_status"`
+
+	// EngineVersion Convenience field, non-null ONLY when engine_identity_status is identified: one engine version, and every scored host accounted for by it. Null under partially_identified even though exactly one version appears in engines, because that version does not speak for the hosts that recorded none. The durable record is engines. It is COPIED from the scan runs, never taken from the process answering the request: in a rolling or split deployment the API, the rollup and the workers run different builds, so a process describing itself names an engine that never touched the host.
+	EngineVersion *string `json:"engine_version"`
+
+	// Engines One entry per engine version that produced contributing outcomes, with how many scored hosts it covers, sorted by version. Empty when none was recorded. The counts plus hosts_without_engine_identity always equal hosts_scored.
+	Engines []struct {
+		ContributorsScored int    `json:"contributors_scored"`
+		EngineVersion      string `json:"engine_version"`
+	} `json:"engines"`
+
+	// FormulaVersion 2 for the current formula (passing over passing plus failing). Null on an aggregate whose contributors disagree, or that predates the formula.
+	FormulaVersion *int `json:"formula_version"`
+
+	// HostsWithoutCorpusIdentity Scored hosts whose corpus could not be named.
+	HostsWithoutCorpusIdentity int `json:"hosts_without_corpus_identity"`
+
+	// HostsWithoutEngineIdentity Scored hosts whose scan run recorded no engine version.
+	HostsWithoutEngineIdentity int `json:"hosts_without_engine_identity"`
+
+	// Lens The single framework family every host was scored against, OS-resolved per host. "all_rules" when no lens narrows the set. An aggregate never blends per-host lenses.
+	Lens string `json:"lens"`
+}
+
+// ScoreEnvelopeAggregationMethod none for a single host; equal_host_mean for an aggregate, where each host counts once whatever its rule count.
+type ScoreEnvelopeAggregationMethod string
+
+// ScoreEnvelopeCorpusIdentityStatus Whether the rule corpus behind the score can be named. unavailable until the scan engine can report it; never inferred from the corpus installed now.
+type ScoreEnvelopeCorpusIdentityStatus string
+
+// ScoreEnvelopeEngineIdentityStatus Whether the engine behind the score can be named. partially_identified means some scored hosts named an engine and some did not, which is what a fleet part way through an upgrade looks like and what a bare version list reported as agreement.
+type ScoreEnvelopeEngineIdentityStatus string
 
 // UpdateReportScheduleRequest defines model for UpdateReportScheduleRequest.
 type UpdateReportScheduleRequest struct {
@@ -4510,7 +4885,7 @@ type ServerInterface interface {
 	// Scan-queue depth split by lifecycle state
 	// (GET /api/v1/fleet/scan-queue)
 	GetFleetScanQueue(w http.ResponseWriter, r *http.Request)
-	// Fleet-wide compliance score (passing/total)
+	// Fleet-wide compliance score (equal-host mean)
 	// (GET /api/v1/fleet/score)
 	GetFleetScore(w http.ResponseWriter, r *http.Request, params GetFleetScoreParams)
 	// Hosts with the most failing rules (descending)
@@ -5146,7 +5521,7 @@ func (_ Unimplemented) GetFleetScanQueue(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Fleet-wide compliance score (passing/total)
+// Fleet-wide compliance score (equal-host mean)
 // (GET /api/v1/fleet/score)
 func (_ Unimplemented) GetFleetScore(w http.ResponseWriter, r *http.Request, params GetFleetScoreParams) {
 	w.WriteHeader(http.StatusNotImplemented)

@@ -166,9 +166,12 @@ func TestGenerate_ComputesPostureFromState(t *testing.T) {
 		if c.CriticalIssues != 1 {
 			t.Errorf("critical_issues = %d, want 1", c.CriticalIssues)
 		}
-		// 3 pass / 6 evaluated = 50%.
-		if c.CompliancePct == nil || *c.CompliancePct != 50 {
-			t.Errorf("compliance_pct = %v, want 50", c.CompliancePct)
+		// h1 scores 1 of 2 and h2 scores 2 of 4, so each host is 50.0 and the
+		// equal-host mean is 50.0. Pooling would also give 50.0 here, so this
+		// fixture does not tell the two rules apart; the case that does is
+		// system-compliance-scoring AC-05.
+		if c.ScorePct == nil || *c.ScorePct != 50.0 {
+			t.Errorf("score_pct = %v, want 50", c.ScorePct)
 		}
 		// rule-x fails on 2 hosts and must lead; rule-v fails on 1.
 		if len(c.TopFailingRules) != 2 {
@@ -213,8 +216,8 @@ func TestGenerate_UnscannedFleet(t *testing.T) {
 		if c.PassingRules != 0 || c.FailingRules != 0 || c.CriticalIssues != 0 {
 			t.Errorf("counts = %+v, want all zero", c)
 		}
-		if c.CompliancePct != nil {
-			t.Errorf("compliance_pct = %v, want nil (unscanned)", *c.CompliancePct)
+		if c.ScorePct != nil {
+			t.Errorf("score_pct = %v, want null (unscanned)", *c.ScorePct)
 		}
 		if c.TopFailingRules == nil {
 			t.Errorf("top_failing_rules is nil, want empty slice")
@@ -482,8 +485,9 @@ func TestGenerate_GroupScoped(t *testing.T) {
 		if c.CriticalIssues != 1 {
 			t.Errorf("critical_issues = %d, want 1", c.CriticalIssues)
 		}
-		if c.CompliancePct == nil || *c.CompliancePct != 50 {
-			t.Errorf("compliance_pct = %v, want 50", c.CompliancePct)
+		// The one in-group host scores 1 of 2.
+		if c.ScorePct == nil || *c.ScorePct != 50.0 {
+			t.Errorf("score_pct = %v, want 50", c.ScorePct)
 		}
 		if len(c.TopFailingRules) != 1 || c.TopFailingRules[0].RuleID != "r2" {
 			t.Errorf("top_failing_rules = %+v, want [r2]", c.TopFailingRules)
@@ -532,8 +536,9 @@ func TestGenerate_FrameworkScoped(t *testing.T) {
 		if c.CriticalIssues != 0 {
 			t.Errorf("critical_issues = %d, want 0 (STIG critical excluded by lens)", c.CriticalIssues)
 		}
-		if c.CompliancePct == nil || *c.CompliancePct != 50 {
-			t.Errorf("compliance_pct = %v, want 50", c.CompliancePct)
+		// One host, 1 pass and 1 fail under the CIS lens.
+		if c.ScorePct == nil || *c.ScorePct != 50.0 {
+			t.Errorf("score_pct = %v, want 50", c.ScorePct)
 		}
 		if len(c.TopFailingRules) != 1 || c.TopFailingRules[0].RuleID != "c2" {
 			t.Errorf("top_failing_rules = %+v, want [c2]", c.TopFailingRules)
@@ -1033,8 +1038,10 @@ func TestExport_AttestationPDF(t *testing.T) {
 		if r.TotalChecks != 4 || r.Passing != 1 || r.Failing != 3 {
 			t.Errorf("frozen rollup = total %d / pass %d / fail %d, want 4/1/3", r.TotalChecks, r.Passing, r.Failing)
 		}
-		if r.CompliancePct == nil || *r.CompliancePct != 25 {
-			t.Errorf("compliance = %v, want 25", r.CompliancePct)
+		// h1 scores 1 of 2 and h2 scores 0 of 2, so the equal-host mean is
+		// 25.0: each host counts once whatever it carried.
+		if r.ScorePct == nil || *r.ScorePct != 25.0 {
+			t.Errorf("rollup score_pct = %v, want 25", r.ScorePct)
 		}
 		if len(r.TopFailing) != 2 || r.TopFailing[0].RuleID != "r2" || r.TopFailing[0].FailingHostCount != 2 {
 			t.Errorf("top failing = %+v, want r2 (2 hosts) first", r.TopFailing)

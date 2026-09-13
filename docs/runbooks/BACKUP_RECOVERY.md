@@ -9,7 +9,7 @@ PostgreSQL and managed by `systemd`. There is no container runtime, no Redis,
 and no separate web tier to back up.
 
 For install and first-run setup, see
-[Installation](INSTALLATION.md). This
+[Installation](../guides/INSTALLATION.md). This
 document assumes the layout that guide produces.
 
 ## What you need to back up
@@ -177,7 +177,7 @@ sudo systemctl restart openwatch
 ## Disaster recovery (rebuild on a new host)
 
 1. Install the OpenWatch package on the new host (`dnf install` or `apt
-   install`) per [Installation](INSTALLATION.md). This
+   install`) per [Installation](../guides/INSTALLATION.md). This
    creates the `openwatch` user, the binary, `/etc/openwatch/`, and the
    `systemd` unit.
 2. Provision PostgreSQL and create the database. The package does not provision
@@ -310,7 +310,7 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 
 4. **Review access.** Audit user accounts and role assignments. Roles and
    permissions are defined in
-   [User roles](USER_ROLES.md).
+   [User roles](../guides/USER_ROLES.md).
 
 5. **Recover.** If integrity is in doubt, rebuild on a clean host from a
    known-good backup using the disaster-recovery procedure above, then rotate
@@ -345,5 +345,5 @@ The following are not part of OpenWatch today. Do not script against them.
 | Migrate | `sudo -u openwatch env $(cat /etc/openwatch/secrets.env \| xargs) openwatch migrate` |
 | Logs | `journalctl -u openwatch -f` |
 
-See also: [Installation](INSTALLATION.md),
-[User roles](USER_ROLES.md), and the API contract under `/api/v1`.
+See also: [Installation](../guides/INSTALLATION.md),
+[User roles](../guides/USER_ROLES.md), and the API contract under `/api/v1`.

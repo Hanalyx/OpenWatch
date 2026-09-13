@@ -1,0 +1,1127 @@
+spec:
+  id: system-compliance-scoring
+  title: Compliance scoring, one score per lens with explicit absence
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: The single definition of a compliance score, its aggregation, and the provenance envelope carried by signed evidence
+    description: >
+      OpenWatch computed a compliance score in at least five places with at
+      least three different formulas. The host lens divided passing by every
+      outcome, so a rule that did not apply to the host counted as a failure.
+      The fleet rollup pooled pass and fail rows across the estate, so a host
+      with 700 rules outvoted one with 50. The posture snapshot used a third
+      formula and the fleet trend averaged it, so the live fleet number and its
+      own trend line disagreed by roughly 20 percentage points on the
+      development fleet.
+
+      This spec makes one definition authoritative. A host score under one lens
+      is passing over passing plus failing. A fleet or group score is the
+      equal-host mean of eligible member scores. A score that cannot be
+      computed is null, never zero percent, because zero is a real verdict
+      meaning every evaluated rule failed.
+
+      It also fixes the class of defect behind the disagreement rather than the
+      instances. A score type that cannot express absence lets a caller read a
+      zero value as an answer, which is how an unassessable host came to be
+      reported as fully non-compliant on two independent code paths.
+
+      Scope note, and it is narrow on purpose. This version covers only
+      behavior with no external dependency. **It publishes no assessment_state
+      at all.** Telling out_of_scope from not_assessed requires knowing why a
+      rule was skipped, which is exactly what Kensa request KN-OW-021 gates, so
+      a five-value state enum could emit at most two values here. Publishing it
+      early would be the declared-surface-carrying-nothing defect this spec
+      exists to prevent. The state vocabulary lands in 1.1.0 with the typed
+      reason. Corpus identity values land in 1.2.0 with KN-KN-030. The
+      provenance envelope SHAPE is in this version deliberately, so signed
+      evidence changes shape once rather than three times.
+    related_specs:
+      - system-fleet-rollup
+      - system-posture-snapshots
+      - system-drift-detector
+      - system-scheduler
+      - system-compliance-lens
+      - api-fleet-observability
+      - api-host-compliance
+      - api-compliance-trend
+      - api-groups
+      - api-hosts
+      - api-reports
+      - frontend-hosts-list
+      - frontend-host-compliance-tab
+      - frontend-groups
+
+  objective:
+    summary: >
+      One pure package computes every compliance score in the product. It takes
+      typed outcome counts and returns a nullable score, a nullable coverage
+      percentage with a required coverage status, and a provenance envelope. Query layers produce counts per host
+      and lens and call it. No handler and no frontend component recomputes a
+      percentage. PostgreSQL may aggregate at scale, but only by producing one
+      exact numeric fraction per host and averaging those, and its result is
+      conformance-tested against the pure Go implementation.
+    scope:
+      includes:
+        - The host score formula and its null cases
+        - Equal-host mean aggregation for fleet and group
+        - Canonical one-decimal rounding, half away from zero
+        - "The full coverage contract: available, and both unavailable reasons"
+        - The provenance envelope shape, including its aggregate form
+        - Cross-surface equality of the rendered score
+        - Named values for formula_version and aggregation_method
+      excludes:
+        - assessment_state in any form, which needs KN-OW-021 (1.1.0)
+        - Typed skip-reason classification and reason-specific coverage (1.1.0)
+        - Reason-specific retry and operator-action policy (1.1.0)
+        - Corpus identity VALUES, which need KN-KN-030 (1.2.0)
+        - Cross-corpus drift suppression (1.2.0)
+        - Mixed-fleet cohorts and the cohort widget
+        - Compliance-score staleness, which has no observable in the product.
+          The design invariant was amended on 2026-09-01 to require preservation
+          only, so the spec and the design now agree
+        - Drift and scheduler consumption of an absent score, owned by
+          system-drift-detector and system-scheduler so the assertion sits on
+          the code path that reads it
+
+  constraints:
+    - id: C-01
+      description: A host score under one lens MUST be passing / (passing + failing). No other denominator is permitted on any surface
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: Only pass and fail outcomes MAY change a score. not_applicable, not_assessed and error MUST NOT enter the numerator or the denominator
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: A score MUST be representable as absent. The type MUST NOT force a caller to receive 0 for both "no verdict" and "every verdict failed"
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: A fleet or group score MUST be the arithmetic mean of eligible member host scores, computed on unrounded fractions. Pooling rule rows across hosts is forbidden
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: 'Every aggregate percentage MUST name exactly one lens and one aggregation method. Every aggregate resolves EXACTLY ONE NAMED LENS. An omitted request lens follows endpoint precedence, terminating at all_rules; the resolved lens MUST never be empty. Amended 2026-09-03: the previous wording required a request with no resolvable lens to be REJECTED, which contradicted AC-07''s own fixture where all_rules is a lens. all_rules is a resolved lens, not an absence, so the default path returns 200 naming it. Rejection semantics for an explicitly unknown framework are NOT defined here: Kensa''s framework vocabulary is extensible and the API has not said what invalid means'
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Rounding MUST be half away from zero to one decimal place, applied once at the API boundary. Aggregation MUST use unrounded values
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: 'coverage_status MUST be exactly one of available, unavailable_unclassified_skips, or unavailable_no_outcomes. A coverage percentage MUST be present if and only if the status is available, and the CORE response MUST carry that percentage: an earlier field list named the status without the number it qualifies, which left a status saying a percentage exists beside no percentage. No assessment_state or reason-specific field may be published in this version; typed reason breakdowns stay gated on features/KN-OW-021'
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: Every reader of skip_reason MUST be enumerated in a registry with a stated reason, and the registry MUST NOT admit a reader that feeds a score, a coverage value or a persisted state. A new unlisted reader fails the build
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: Every new SCORE-BEARING signed artifact MUST carry the complete provenance envelope. A read-model artifact MUST carry artifact_class, corpus_identity_status not_applicable, and the two singular corpus fields both null. In either class a declared field MUST NOT be omitted because its value is unavailable, and a missing value MUST be null rather than an empty string
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: On a SCORE-BEARING artifact, corpus_identity_status MUST be one of unavailable, identified, mixed or partially_identified, MUST agree with the corpora list and the unidentified-host count it summarizes, and MUST be derivable from them. not_applicable is the read-model value only and MUST NOT appear on a score-bearing artifact, and the four score-bearing values MUST NOT appear on a read model
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: Provenance MUST be read from what the artifact recorded. Corpus identity MUST NOT be reconstructed from the corpus installed at read time
+      type: security
+      enforcement: error
+    - id: C-12
+      description: The all-rules baseline MUST NOT be clamped to the lowest framework score, and a framework score MUST NOT be clamped to the baseline
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: The scoring package MUST NOT import HTTP, Kensa transport, group, report or frontend types. It accepts typed counts and returns derived values
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: Compliance arithmetic MUST NOT appear in an HTTP handler or a frontend component. A SQL aggregate MAY compute one exact numeric fraction per host and average them, and MUST agree with the Go implementation
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: 'Every score-bearing response and signed artifact MUST carry lens, aggregation_method (none for a single host, equal_host_mean for an aggregate), the formula version and the ENGINE IDENTITY, including responses whose score is null or zero. Amended 2026-09-03 on two points. (1) Engine identity takes the SAME SHAPE as corpus identity: an engine_identity_status of unavailable, identified, mixed or partially_identified; an engines list of version plus contributors_scored, sorted; hosts_without_engine_identity; and a singular engine_version that carries a value under IDENTIFIED ONLY. The counts MUST reconcile with hosts_scored. A bare list of distinct versions is insufficient and was rejected: one host recording v0.9.0 beside one recording nothing yields a single entry, and the singular field then publishes agreement that does not exist, which is the ordinary state of a fleet part way through an upgrade. Ratified 2026-09-03; see decision record 13. (2) The engine version MUST be COPIED from the scan run that produced the outcomes, never reported by the process answering the request: the API, the rollup and the workers run different builds during a rolling or split deployment, so a process describing itself names an engine that never touched the host. A HISTORICAL artifact, such as a trend point whose snapshot predates the recording, carries a null formula version and an empty engines list. That absence is the honest shape; substituting current values would describe the point with provenance that does not belong to it'
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: 'Report kinds executive and attestation are score-bearing and MUST carry the full envelope. Kinds exception and remediation are read models that aggregate no scan set, so contributor accounting has no referent. They MUST carry artifact_class read_model, corpus_identity_status not_applicable, and corpus_version and corpus_digest both null, and MUST omit score, lens, formula_version, aggregation_method, corpora, the ENGINE IDENTITY FIELDS (engine_version, engine_identity_status, engines, hosts_without_engine_identity) and every contributor count. The engine fields are omitted for the same reason as the corpus ones: a read model aggregates no scan set, so there is no producing engine to name'
+      type: technical
+      enforcement: error
+  acceptance_criteria:
+    - id: AC-01
+      description: The host score counts only confirmed verdicts. The legacy denominator counted every outcome and returned 53.3 for this fixture, treating three inapplicable rules and two unknown ones as failures.
+      priority: critical
+      references_constraints: [C-01, C-02, C-15]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        counts: {pass: 8, fail: 2, skipped: 3, error: 2}
+      expected_output:
+        score_pct: 80.0
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: none
+        engine_identity_status: identified
+        engines: [{engine_version: <seeded>, contributors_scored: 1}]
+        hosts_without_engine_identity: 0
+        engine_version: <seeded>
+        forbidden_score_pct: 53.3
+    - id: AC-02
+      description: A host that produced no verdict has no score. The response carries the raw counts and the interim coverage status, and no assessment_state, which is gated on KN-OW-021.
+      priority: critical
+      references_constraints: [C-01, C-03, C-07]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        counts: {pass: 0, fail: 0, skipped: 769, error: 0}
+      expected_output:
+        score_pct: null
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: none
+        engine_identity_status: unavailable
+        engines: []
+        hosts_without_engine_identity: 0
+        engine_version: null
+        skipped: 769
+        coverage_status: unavailable_unclassified_skips
+        assessment_coverage_pct: null
+        absent_fields: [assessment_state]
+        forbidden_score_pct: 0.0
+    - id: AC-03
+      description: Counterexample, genuine zero percent. Every evaluated rule failed, which is a real verdict and not an absence. This fixture and AC-02 MUST be distinguishable by score_pct alone.
+      priority: critical
+      references_constraints: [C-01, C-03]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        counts: {pass: 0, fail: 5, skipped: 0, error: 0}
+      expected_output:
+        score_pct: 0.0
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: none
+        engine_identity_status: identified
+        engines: [{engine_version: <seeded>, contributors_scored: 1}]
+        hosts_without_engine_identity: 0
+        engine_version: <seeded>
+        absent_fields: [assessment_state]
+    - id: AC-04
+      description: >
+        Absence is representable in the type, not signalled by a sentinel
+        number. The rule: an exported accessor on the score receiver must return
+        an optional or a value-plus-ok pair, never a bare float64. This is the
+        shape defect behind OW-023 and OW-024, which produced the same
+        fabricated zero on two independent paths. Every input below is executable
+        and consumed by the test; prose that no test reads belongs here, not in
+        an inputs field.
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        source_path: internal/compliance
+        receiver_type: Score
+        forbidden_result_type: float64
+        synthetic_method_name: FixtureBareFloatScore
+        synthetic_result_type_forms:
+          - direct
+          - alias
+          - named
+      expected_output:
+        violations: []
+        mutation_fixture_detected: true
+        mutation_fixture_reported_symbol: Score.FixtureBareFloatScore
+        forms_detected: 3
+    - id: AC-05
+      description: Counterexample, pooled versus equal-host aggregation. Host A contributes ten rule rows and host B two, so pooling gives A five times the weight. The equal-host mean gives each host one vote.
+      priority: critical
+      references_constraints: [C-04, C-15]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        hosts:
+          - {id: A, counts: {pass: 9, fail: 1}}
+          - {id: B, counts: {pass: 1, fail: 1}}
+      expected_output:
+        fleet_score_pct: 70.0
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: equal_host_mean
+        engine_identity_status: identified
+        engines: [{engine_version: <seeded>, contributors_scored: 2}]
+        hosts_without_engine_identity: 0
+        engine_version: <seeded>
+        forbidden_fleet_score_pct: 83.3
+    - id: AC-06
+      description: An unscored host is omitted from the mean and counted separately. It MUST NOT be averaged in as zero, which would drag the fleet number down for a host nothing could measure.
+      priority: critical
+      references_constraints: [C-03, C-04]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        hosts:
+          - {id: A, counts: {pass: 9, fail: 1}}
+          - {id: B, counts: {pass: 1, fail: 1}}
+          - {id: C, counts: {pass: 0, fail: 0, skipped: 40}}
+      expected_output:
+        fleet_score_pct: 70.0
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: equal_host_mean
+        engine_identity_status: identified
+        engines: [{engine_version: <seeded>, contributors_scored: 2}]
+        hosts_without_engine_identity: 0
+        engine_version: <seeded>
+        hosts_scored: 2
+        hosts_without_score: 1
+        forbidden_fleet_score_pct: 46.7
+    - id: AC-07
+      description: A group aggregate uses the same rule as a fleet aggregate, so the two agree for the same members and lens.
+      priority: high
+      references_constraints: [C-04]
+      inputs:
+        lens: all_rules
+        engine_version: <seeded>
+        group_members:
+          - {id: A, counts: {pass: 9, fail: 1}}
+          - {id: B, counts: {pass: 1, fail: 1}}
+      expected_output:
+        group_score_pct: 70.0
+        lens: all_rules
+        formula_version: 2
+        aggregation_method: equal_host_mean
+        engine_identity_status: identified
+        engines: [{engine_version: <seeded>, contributors_scored: 2}]
+        hosts_without_engine_identity: 0
+        engine_version: <seeded>
+    - id: AC-08
+      description: "Cross-surface equality means surfaces of the SAME scope agree, asserted on the rendered one-decimal value rather than on raw floats. A host and a fleet are different scopes and are expected to differ; an earlier wording said \"one number everywhere\", which contradicted its own expected values."
+      priority: critical
+      references_constraints: [C-01, C-04, C-06]
+      inputs:
+        lens: stig_rhel9
+        hosts:
+          - {id: A, counts: {pass: 9, fail: 1}}
+          - {id: B, counts: {pass: 1, fail: 1}}
+        group_membership: [A, B]
+        pairs:
+          - [host_A_current, host_A_trend_today]
+          - [fleet_current, fleet_trend_today]
+          - [group_current, fleet_current]
+          - [executive_report_fleet_score, fleet_trend_at_freeze]
+          - [attestation_report_fleet_score, fleet_trend_at_freeze]
+      expected_output:
+        host_A_current: 90.0
+        host_A_trend_today: 90.0
+        fleet_current: 70.0
+        fleet_trend_today: 70.0
+        group_current: 70.0
+        executive_report_fleet_score: 70.0
+        attestation_report_fleet_score: 70.0
+        all_pairs_equal: true
+    - id: AC-09
+      description: "Rounding is half away from zero, proven on named fixtures rather than on a described boundary. The first three straddle a one-decimal half boundary: 4095/65536 sits just below, 4096/65536 sits exactly on it, 4097/65536 just above. All dyadic fixtures are exact in float64 and in numeric. The last two are NOT dyadic and are included as repeating-fraction conformance cases; an earlier version of this criterion called all six dyadic, which was wrong. The SQL aggregate path and the Go path return the same value for every row."
+      priority: critical
+      references_constraints: [C-06]
+      inputs:
+        fixtures:
+          - {counts: {pass: 4095, fail: 61441}, fraction: 4095/65536, kind: dyadic, position: below_half_boundary}
+          - {counts: {pass: 4096, fail: 61440}, fraction: 4096/65536, kind: dyadic, position: on_half_boundary}
+          - {counts: {pass: 4097, fail: 61439}, fraction: 4097/65536, kind: dyadic, position: above_half_boundary}
+          - {counts: {pass: 3, fail: 13}, fraction: 3/16, kind: dyadic, position: on_half_boundary}
+          - {counts: {pass: 1, fail: 7}, fraction: 1/8, kind: dyadic, position: exact_one_decimal}
+          - {counts: {pass: 1, fail: 2}, fraction: 1/3, kind: repeating, position: not_a_boundary}
+          - {counts: {pass: 2, fail: 1}, fraction: 2/3, kind: repeating, position: not_a_boundary}
+      expected_output:
+        score_pct: [6.2, 6.3, 6.3, 18.8, 12.5, 33.3, 66.7]
+        go_and_sql_agree: true
+    - id: AC-10
+      description: 'Counterexample, lens blending. Two lenses over one host give two different scores, and no response carries their mean, because a percentage that names no lens cannot be reconciled with any rule list. An aggregate request with NO request lens is not an absence: it follows endpoint precedence and terminates at all_rules, returning 200 with that lens named. Amended 2026-09-03 from a 400: all_rules is a resolved lens, and rejecting the default path would fail every deployment with no org default set.'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        host_counts_by_lens:
+          cis_rhel9: {pass: 8, fail: 2}
+          stig_rhel9: {pass: 2, fail: 8}
+        aggregate_request_lens: null
+      expected_output:
+        cis_rhel9_score_pct: 80.0
+        stig_rhel9_score_pct: 20.0
+        forbidden_score_pct: 50.0
+        aggregate_no_lens_http_status: 200
+        aggregate_no_lens_resolved_lens: all_rules
+    - id: AC-11
+      description: Counterexample, the all-rules floor misconception. A narrow framework can score below the broad baseline, because a small rule set concentrates a failure. Neither number may be clamped toward the other.
+      priority: critical
+      references_constraints: [C-12]
+      inputs:
+        host_counts_by_lens:
+          all_rules: {pass: 9, fail: 1}
+          framework_F: {pass: 0, fail: 1}
+      expected_output:
+        all_rules_score_pct: 90.0
+        framework_F_score_pct: 0.0
+        forbidden_all_rules_score_pct: 0.0
+        forbidden_framework_F_score_pct: 90.0
+    - id: AC-12
+      description: Coverage is computable when nothing was skipped. With no skipped outcomes there is no unclassified reason to block on, so in_scope is pass plus fail plus error and the percentage is published.
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        lens: all_rules
+        counts: {pass: 8, fail: 2, skipped: 0, error: 2}
+      expected_output:
+        score_pct: 80.0
+        assessment_coverage_pct: 83.3
+        coverage_status: available
+    - id: AC-13
+      description: >
+        Coverage is null when a lens produced no outcomes at all, with its own
+        status so the reason is stated rather than inferred from a null. The
+        status is named unavailable_no_outcomes and NOT no_in_scope_rules,
+        because zero counts cannot tell "no rule applies to this host" from
+        "never scanned" from "the scan aborted". Claiming out-of-scope would
+        assert what the inputs do not prove, and that distinction stays gated
+        on KN-OW-021 with the rest of the reason vocabulary. The lens produced
+        no outcomes, so there is no score and therefore no engine contributor:
+        the identity is unavailable with an empty list and a null version, even
+        though the seeded scan recorded an engine.
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        lens: framework_G
+        engine_version: <seeded>
+        counts: {pass: 0, fail: 0, skipped: 0, error: 0}
+      expected_output:
+        score_pct: null
+        lens: framework_G
+        formula_version: 2
+        aggregation_method: none
+        engine_identity_status: unavailable
+        engines: []
+        hosts_without_engine_identity: 0
+        engine_version: null
+        assessment_coverage_pct: null
+        coverage_status: unavailable_no_outcomes
+    - id: AC-14
+      description: Coverage is withheld rather than guessed while any skip is untyped. OpenWatch cannot tell an inapplicable rule from an unevaluated one, so it publishes no number instead of a wrong one.
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        lens: all_rules
+        counts: {pass: 8, fail: 2, skipped: 5, error: 0}
+        skip_reasons_typed: false
+      expected_output:
+        score_pct: 80.0
+        assessment_coverage_pct: null
+        coverage_status: unavailable_unclassified_skips
+    - id: AC-15
+      description: Withholding coverage does not withhold the counts. A reader must still see that five rules produced no verdict, even when the product cannot say why.
+      priority: high
+      references_constraints: [C-07]
+      inputs:
+        lens: all_rules
+        counts: {pass: 8, fail: 2, skipped: 5, error: 1}
+        skip_reasons_typed: false
+      expected_output:
+        skipped: 5
+        error: 1
+    - id: AC-16
+      description: No reason-specific fact is published or inferred while skips are untyped. Every field listed here begins in 1.1.0 with KN-OW-021 and MUST be absent from the response, not null and not defaulted.
+      priority: critical
+      references_constraints: [C-07, C-08]
+      inputs:
+        lens: all_rules
+        counts: {pass: 8, fail: 2, skipped: 5}
+        skip_reasons_typed: false
+      expected_output:
+        absent_fields:
+          - assessment_state
+          - assessment_complete
+          - operator_action_required
+          - retry_required
+          - not_applicable
+          - not_assessed
+          - not_assessed_by_reason
+          - hosts_out_of_scope
+          - hosts_not_assessed
+    - id: AC-17
+      description: Every reader of skip_reason is enumerated in a registry with a stated reason, modelled on corpus.Registry. An unlisted reader fails the build and the failure names the file and symbol. A registry is used rather than a textual search for prose feeding a score, because proving data flow from text is semantic analysis a grep cannot do and would pass vacuously.
+      priority: critical
+      references_constraints: [C-08]
+      inputs:
+        registry: internal/compliance/skipreason_registry.go
+        source_scope: [internal, cmd, frontend/src]
+        mutation_fixture: a temporary unlisted reader of skip_reason in internal/compliance
+      expected_output:
+        unlisted_readers: []
+        readers_feeding_a_score: []
+        mutation_fixture_detected: true
+        mutation_fixture_reported_symbol: internal/compliance.fixtureUnlistedSkipReasonReader
+    - id: AC-18
+      description: Envelope completeness on a score-bearing artifact. Serializing one with any envelope field absent fails. A value that is unknown is null and never an empty string, which is the defect recorded in OW-009 where an empty non-nil slice became indistinguishable from a real value.
+      priority: critical
+      references_constraints: [C-09]
+      inputs:
+        artifact_kinds: [executive, attestation]
+      expected_output:
+        required_fields:
+          - formula_version
+          - aggregation_method
+          - lens
+          - engine_version
+          - engine_identity_status
+          - engines
+          - hosts_without_engine_identity
+          - corpus_identity_status
+          - corpora
+          - hosts_without_corpus_identity
+          - corpus_version
+          - corpus_digest
+        formula_version: 2
+        empty_string_values: []
+    - id: AC-19
+      description: Envelope before KN-KN-030. No scan carries corpus identity, so the envelope says so explicitly rather than omitting the fields.
+      priority: critical
+      references_constraints: [C-09, C-10]
+      inputs:
+        hosts_with_corpus_identity: 0
+        hosts_scored: 3
+      expected_output:
+        corpus_identity_status: unavailable
+        corpora: []
+        hosts_without_corpus_identity: 3
+        corpus_version: null
+        corpus_digest: null
+    - id: AC-20
+      description: >
+        Envelope, single corpus, on a score-bearing artifact. Applies to the
+        executive and attestation report kinds and to the fleet and group score
+        responses. It is the degenerate case where every contributor agrees, and
+        the only case where the singular convenience fields carry a value.
+      priority: critical
+      references_constraints: [C-10]
+      inputs:
+        artifact_kinds: [executive, attestation, fleet_score, group_score]
+        contributors:
+          - {hosts: 3, corpus_version: "0.10.0", corpus_digest: "aaa"}
+        hosts_without_corpus_identity: 0
+      expected_output:
+        corpus_identity_status: identified
+        corpora:
+          - {corpus_version: "0.10.0", corpus_digest: "aaa", contributors_scored: 3}
+        hosts_without_corpus_identity: 0
+        corpus_version: "0.10.0"
+        corpus_digest: "aaa"
+    - id: AC-21
+      description: Counterexample, mixed provenance. Two corpora contributed, so no single version or digest describes the artifact. A singular field MUST NOT be populated from either entry, which is the tempting wrong answer.
+      priority: critical
+      references_constraints: [C-10]
+      inputs:
+        contributors:
+          - {hosts: 2, corpus_version: "0.10.0", corpus_digest: "bbb"}
+          - {hosts: 1, corpus_version: "0.9.0", corpus_digest: "aaa"}
+        hosts_without_corpus_identity: 0
+      expected_output:
+        corpus_identity_status: mixed
+        corpora:
+          - {corpus_version: "0.9.0", corpus_digest: "aaa", contributors_scored: 1}
+          - {corpus_version: "0.10.0", corpus_digest: "bbb", contributors_scored: 2}
+        hosts_without_corpus_identity: 0
+        corpus_version: null
+        corpus_digest: null
+        forbidden_corpus_digest: ["aaa", "bbb"]
+    - id: AC-22
+      description: Counterexample, partially identified provenance. Identified and unidentified contributors coexist, which is the state a rollout passes through and the one most likely to be collapsed into identified.
+      priority: critical
+      references_constraints: [C-10]
+      inputs:
+        contributors:
+          - {hosts: 2, corpus_version: "0.10.0", corpus_digest: "bbb"}
+        hosts_without_corpus_identity: 1
+      expected_output:
+        corpus_identity_status: partially_identified
+        corpora:
+          - {corpus_version: "0.10.0", corpus_digest: "bbb", contributors_scored: 2}
+        hosts_without_corpus_identity: 1
+        corpus_version: null
+        corpus_digest: null
+        forbidden_corpus_identity_status: [identified, unavailable]
+    - id: AC-23
+      description: The zero-scored-host case, which the design says falls out of the unavailable row rather than needing a status of its own. An empty fleet is not an error and not a mixed corpus.
+      priority: high
+      references_constraints: [C-10]
+      inputs:
+        contributors: []
+        hosts_without_corpus_identity: 0
+        hosts_scored: 0
+      expected_output:
+        corpus_identity_status: unavailable
+        corpora: []
+        hosts_without_corpus_identity: 0
+        corpus_version: null
+        corpus_digest: null
+    - id: AC-24
+      description: Envelope counts reconcile, on every fixture above. An artifact whose two count sets do not add up is the same defect as a mean displayed beside pooled totals it cannot be derived from.
+      priority: critical
+      references_constraints: [C-10]
+      inputs:
+        fixtures: [AC-19, AC-20, AC-21, AC-22, AC-23]
+      expected_output:
+        sum_contributors_scored_plus_unidentified_equals_hosts_scored: true
+        entries_with_zero_contributors: []
+    - id: AC-25
+      description: Envelope ordering is deterministic. The canonical signed payload is compared with generation time and artifact id pinned, so the only variable is contributor input order. corpora is sorted by digest before signing, so the two payloads are byte-identical.
+      priority: critical
+      references_constraints: [C-09, C-10]
+      inputs:
+        contributors_order_1:
+          - {corpus_version: "0.10.0", corpus_digest: "bbb", contributors_scored: 2}
+          - {corpus_version: "0.9.0", corpus_digest: "aaa", contributors_scored: 1}
+        contributors_order_2:
+          - {corpus_version: "0.9.0", corpus_digest: "aaa", contributors_scored: 1}
+          - {corpus_version: "0.10.0", corpus_digest: "bbb", contributors_scored: 2}
+        pinned: {generated_at: "2026-01-01T00:00:00Z", artifact_id: "00000000-0000-0000-0000-000000000001"}
+        compare: canonical_signed_payload
+      expected_output:
+        payloads_byte_identical: true
+        corpora_digest_order: ["aaa", "bbb"]
+    - id: AC-26
+      description: Provenance is never reconstructed. A stored artifact whose recorded corpus differs from the one installed today renders its recorded value, and no read path consults the live corpus descriptor.
+      priority: critical
+      references_constraints: [C-11]
+      inputs:
+        stored_artifact_corpus_digest: "old"
+        installed_corpus_digest: "new"
+        source_scope: [internal/report, internal/posture]
+      expected_output:
+        rendered_corpus_digest: "old"
+        read_paths_consulting_live_descriptor: []
+    - id: AC-27
+      description: Historical points keep their values. The migration adds nullable columns, so a legacy row is not byte-identical and MUST NOT be asserted as such. What must not change is every pre-existing column value, and the bytes of any artifact already signed.
+      priority: critical
+      references_constraints: [C-09, C-11]
+      inputs:
+        pre_migration_snapshot: {score_pct: 53.3, passing: 8, failing: 2, skipped: 3, error: 2}
+        pre_migration_signed_artifact_sha256: 11d5aea4db12111464226cea5409ab302002205fa8c6fe8c91f1f263f6acf7f1  # pragma: allowlist secret
+      expected_output:
+        legacy_column_values_unchanged: {score_pct: 53.3, passing: 8, failing: 2, skipped: 3, error: 2}
+        signed_artifact_sha256_after_migration: 11d5aea4db12111464226cea5409ab302002205fa8c6fe8c91f1f263f6acf7f1  # pragma: allowlist secret
+        new_columns_on_legacy_rows:
+          formula_version: null
+          aggregation_method: null
+          corpus_identity_status: null
+          corpus_version: null
+          corpus_digest: null
+        post_boundary_formula_version: 2
+    - id: AC-28
+      description: A current score uses only the latest completed scan corpus, so rule state left behind by a superseded scan cannot vote.
+      priority: high
+      references_constraints: [C-01]
+      inputs:
+        latest_scan_counts: {pass: 8, fail: 2}
+        superseded_scan_rows: {fail: 40}
+      expected_output:
+        score_pct: 80.0
+        forbidden_score_pct: 16.0
+    - id: AC-29
+      description: >
+        A scan-level failure fabricates nothing. It writes no rule outcome rows
+        and leaves the stored score untouched. Design invariant 7 was amended on
+        2026-09-01 to require preservation only. It previously also required the
+        score to be marked stale, which OpenWatch has no observable for.
+        Surfacing staleness is planned work that needs a freshness field defined
+        first, so the spec and the design now agree rather than one asserting
+        what the other excludes.
+      priority: critical
+      references_constraints: [C-03]
+      inputs:
+        pre_failure_stored_score_pct: 80.0
+        scan_outcome: aborted_before_rule_evaluation
+      expected_output:
+        rule_outcome_rows_written: 0
+        stored_score_pct: 80.0
+    - id: AC-30
+      description: The scoring package is pure, so it can be tested without a database, a server or a network.
+      priority: high
+      references_constraints: [C-13]
+      inputs:
+        source_scope: [internal/compliance]
+        forbidden_import_prefixes:
+          - net/http
+          - database/sql
+          - github.com/jackc/pgx/v5
+          - github.com/Hanalyx/kensa
+          - github.com/Hanalyx/openwatch/internal/kensa
+          - github.com/Hanalyx/openwatch/internal/group
+          - github.com/Hanalyx/openwatch/internal/report
+          - github.com/Hanalyx/openwatch/internal/server
+        rule: no transitive import matching a prefix, checked with go list -deps, which emits full module paths and never a bare internal/kensa
+        mutation_fixture: >
+          a temporary file in internal/compliance importing a temporary
+          INTERMEDIARY package, which imports database/sql. The chain is
+          deliberate. A fixture importing database/sql directly is found by a
+          direct-import scan too, so it would pass a guard that never runs
+          go list -deps, and the mutation would prove nothing about the
+          instrument this criterion names. Only transitive inspection finds it
+          through the intermediary.
+
+          Deliberately not internal/server either. Once the server imports
+          internal/compliance, a fixture importing the server would fail as
+          an import cycle rather than as a forbidden import, which is a pass
+          for the wrong reason.
+      expected_output:
+        violations: []
+        mutation_fixture_detected: true
+        mutation_fixture_reported_import: database/sql
+    - id: AC-31
+      description: >
+        No compliance arithmetic outside the scoring package, enforced
+        mechanically rather than by judging what an expression produces.
+        Recognizing that a division yields a compliance percentage needs
+        data-flow analysis, which is the same reason AC-17 uses a registry.
+        Two enforceable halves instead: an AST rule flagging any arithmetic
+        operator applied to an identifier from the score-field name list, and a
+        registry of permitted compliance-arithmetic sites. The approved SQL path
+        is a registry entry, not an exception to the rule.
+      priority: critical
+      references_constraints: [C-14]
+      inputs:
+        source_scope: [internal, cmd, frontend/src]
+        excluded_packages: [internal/compliance]
+        ast_rule: >
+          binary arithmetic where either operand RESOLVES to a score field. The
+          operand may be a bare identifier, a member expression, or wrapped in
+          conversions or calls. A rule matching bare identifiers only misses
+          both shapes present in the tree today. passed and failed are on the
+          field list because the browser's own host shape renames passing and
+          failing to them, and a list stopping at the wire names would let the
+          same arithmetic through under a client-side alias.
+
+          Go is parsed with go/ast, so a comment or a string literal is not an
+          expression and never matches. That distinction is load-bearing rather
+          than cosmetic: the generated client carries prose naming these fields
+          on dozens of lines, and a textual search reports every one of them.
+
+          TypeScript is scanned at the token level over the same operand forms,
+          after comments and string literals are stripped, because the Go
+          toolchain has no TypeScript parser and shelling out to node would make
+          this guard depend on the frontend toolchain being installed to run.
+          The token scan is narrower than a parser, and the registry is what
+          covers the difference: a site it cannot classify is listed with a
+          reason rather than silently permitted.
+
+          Amended 2026-09-08. compliance joins the field list because
+          HostsListPage maps score_pct onto that name and then computes a fleet
+          mean from it, so C-14's prohibition had one live violation the guard
+          could not see. A detector that cannot observe a rule does not narrow
+          the rule: the silence was an enforcement defect, not permission.
+
+          The scope is every production location, not a chosen few. It read
+          internal/server and frontend/src until 2026-09-03, and internal/report
+          held two pooled whole-percent formulas that whole time: compliancePct
+          and computeAttestationRollup. C-14 says nothing outside this package
+          computes a percentage, so a criterion that cannot see two thirds of the
+          tree asserts something it never checked. internal/compliance is
+          excluded by exact PACKAGE IDENTITY rather than by being left out of the
+          list, because the formula legitimately lives there and a path-prefix
+          exclusion would also silence anything nested beneath it.
+
+          A registry entry authorizes ONE SITE, keyed by file, enclosing symbol
+          and normalized operand, never a whole file. HostsListPage already
+          carries two legitimate expressions, so a file-shaped entry would let a
+          compliance formula added there tomorrow inherit an exemption written
+          for a stacked bar.
+        operand_forms_that_must_match:
+          - passing / total
+          - q.data.passing_fraction * 100
+          - float64(passing) / float64(evaluations)
+          - Math.round(fleetScoreQuery.data.passing_fraction * 100)
+          - h.compliance! + n
+          - n + h.compliance!
+        score_field_names: [score_pct, passing, failing, passed, failed, passing_fraction, total_evaluations, assessment_coverage_pct, rules_pass, rules_fail]
+        # Names that are score fields ONLY in the browser. compliance is a
+        # frontend rename of score_pct; in Go it is the scoring PACKAGE, so
+        # putting it in the shared list made every `compliance.ScorePctSQL(...)
+        # + ...` string concatenation in fleetrollup read as arithmetic on a
+        # score. A browser-only alias belongs in a browser-only list.
+        ts_only_score_field_names: [compliance]
+        # A postfix non-null assertion is not part of the operand's identity.
+        # The operand chain excluded it, so a score field carrying one was
+        # invisible on the LEFT of an operator while the same expression with
+        # the operands swapped was caught. Whether a violation is seen must not
+        # depend on which side of a plus the author wrote.
+        postfix_assertion_transparent: true
+        bang_operand_orders:
+          - {expr: 'h.compliance! + n', side: left}
+          - {expr: 'n + h.compliance!', side: right}
+        registry: internal/compliance/arithmetic_registry.go
+        mutation_fixtures:
+          - {file: internal/server/x_fixture.go, expr: float64(passing) / float64(evaluations)}
+          - {file: frontend/src/x_fixture.tsx, expr: q.data.passing_fraction * 100}
+        two_sites_one_line: score_pct / 2 + failing * 3
+        newly_supplied_field: zz_probe_score
+        second_site_in_registered_file:
+          file: frontend/src/pages/HostsListPage.tsx
+          expr: host.passing * 7
+      expected_output:
+        ast_violations: []
+        unlisted_arithmetic_sites: []
+        registry_entries_without_reason: []
+        mutation_fixtures_detected: 2
+        two_sites_one_line_detected: 2
+        newly_supplied_field_detected: true
+        second_site_in_registered_file_rejected: true
+        bang_orders_detected: 2
+        mutation_fixtures_reported:
+          - internal/server/x_fixture.go
+          - frontend/src/x_fixture.tsx
+    - id: AC-32
+      description: The removed fields are gone from the contract and from both generated clients, which is what makes the break detectable by a client at compile or parse time rather than silently at runtime.
+      priority: critical
+      references_constraints: [C-01, C-14]
+      inputs:
+        artifacts:
+          - api/openapi.yaml
+          - internal/server/api/server.gen.go
+          - frontend/src/api/schema.d.ts
+      expected_output:
+        occurrences_of_passing_fraction: 0
+        occurrences_of_total_evaluations: 0
+    - id: AC-33
+      description: >
+        Signed report kinds carry the envelope their content justifies.
+        executive and attestation compute a fleet score, so they carry the full
+        envelope. exception and remediation are read models that aggregate no
+        scan set at all: compliance_exceptions carries host_id and rule_id and
+        no scan id, so contributors_scored and hosts_without_corpus_identity
+        have no referent there. Attributing a corpus to one could only mean the
+        corpus installed at generation time, which invariant 12 forbids. They
+        carry artifact_class read_model, corpus_identity_status not_applicable,
+        and the two singular corpus fields both null. Ratified by the founder on
+        2026-09-01 and recorded as decision 10. Keeping the nullable corpus
+        fields honors DEC-6's always-present rule; omitting them would narrow
+        DEC-6 and would need a superseding decision. not_applicable is the right
+        word rather than unavailable, because corpus identity does not apply to
+        a read model rather than being missing from it. What they omit is only
+        what has no referent: score, lens, engine_version, formula_version,
+        aggregation_method, corpora and every contributor count.
+      priority: critical
+      references_constraints: [C-09, C-16]
+      inputs:
+        kinds: [executive, attestation, exception, remediation]
+      expected_output:
+        executive: {artifact_class: score_bearing, full_envelope: true, formula_version: 2, aggregation_method: equal_host_mean}
+        attestation: {artifact_class: score_bearing, full_envelope: true, formula_version: 2, aggregation_method: equal_host_mean}
+        exception:
+          artifact_class: read_model
+          corpus_identity_status: not_applicable
+          corpus_version: null
+          corpus_digest: null
+          absent_fields: [score_pct, formula_version, aggregation_method, lens, engine_version, engine_identity_status, engines, hosts_without_engine_identity, corpora, hosts_without_corpus_identity]
+        remediation:
+          artifact_class: read_model
+          corpus_identity_status: not_applicable
+          corpus_version: null
+          corpus_digest: null
+          absent_fields: [score_pct, formula_version, aggregation_method, lens, engine_version, engine_identity_status, engines, hosts_without_engine_identity, corpora, hosts_without_corpus_identity]
+    - id: AC-34
+      description: >
+        An artifact signed before this change carries no artifact_class and
+        stays valid and unrewritten. Verification does not require the field,
+        nothing backfills it, and the stored bytes are unchanged after the
+        migration. A discriminated contract that invalidated its own history
+        would be worse than the ambiguity it replaced.
+
+        Fixture amended 2026-09-03. It described a legacy artifact as carrying
+        score_pct and lens, which was written before the report contract was
+        settled. A legacy artifact carries compliance_pct, the POOLED whole
+        percent, and no score_pct at all, because score_pct arrived in the same
+        change as artifact_class. Listing score_pct as present on a legacy
+        artifact would have let this criterion pass against an implementation
+        that rewrote history, which is the one thing it exists to forbid.
+      priority: critical
+      references_constraints: [C-09, C-11]
+      inputs:
+        legacy_artifact_sha256: 11d5aea4db12111464226cea5409ab302002205fa8c6fe8c91f1f263f6acf7f1  # pragma: allowlist secret
+        legacy_artifact_fields_present: [compliance_pct, host_count]
+        legacy_artifact_fields_absent: [artifact_class, corpus_identity_status, score_pct]
+        legacy_shape_amended: '2026-09-03'
+      expected_output:
+        verifies: true
+        sha256_after_migration: 11d5aea4db12111464226cea5409ab302002205fa8c6fe8c91f1f263f6acf7f1  # pragma: allowlist secret
+        artifact_class_backfilled: false
+        corpus_identity_status_backfilled: false
+    - id: AC-35
+      description: 'Aggregation averages UNROUNDED host fractions and rounds once, on every surface that aggregates. The fixture is chosen so the two orders disagree: a host at 0 of 1 scores 0, a host at 2 of 3 scores 66.666..., their true mean is 33.333... which rounds to 33.3, and rounding each host first averages 0.0 and 66.7 to 33.35 which rounds to 33.4. Asserted against the Go implementation, the fleet score, the group rollup and the fleet trend, because each computes the mean in its own place and a rule enforced in one of them is a rule that holds until someone writes from another. C-06 required this before the SQL implemented it'
+      priority: critical
+      references_constraints: [C-06, C-14]
+      inputs:
+        hosts:
+          - {id: A, pass: 0, fail: 1}
+          - {id: B, pass: 2, fail: 1}
+        surfaces: [go, fleet_score, group_rollup, fleet_trend]
+      expected_output:
+        mean_score_pct: 33.3
+        forbidden_round_then_average_pct: 33.4
+        host_a_score_pct: 0.0
+        host_b_score_pct: 66.7
+        all_surfaces_agree: true
+    - id: AC-36
+      description: 'Engine identity has four states and each is reachable. known plus unknown is partially_identified with a NULL singular engine_version: that is the case a bare version list reported as identified, because it held one entry and nothing said a contributor had named nothing. Two known versions is mixed, also with a null singular field. All unknown is unavailable with an empty list. Zero scored hosts is unavailable, not an error and not mixed. In every state the contributor counts plus hosts_without_engine_identity equal hosts_scored, and construction refuses an envelope where they do not. The returned LIST and the returned hosts_without_engine_identity are asserted in every state, not only the status. Reading back the count matters separately from validating it: a constructor could check the input and then serialize a different value, and nothing downstream would notice. And each entry inside the list is fully consumed, so an unused key added to a fixture entry fails as unread rather than passing silently: a status derived correctly from a list nobody reads would still let the list itself be wrong. Entries are SORTED by version, because a signature is taken over the canonical face and input order must not change the bytes, and duplicate versions are MERGED with their counts summed, because two entries naming one engine would otherwise report mixed for a fleet that agreed'
+      priority: critical
+      references_constraints: [C-15]
+      inputs:
+        identified:
+          engines: [{engine_version: v0.9.0, contributors_scored: 3}]
+          hosts_without_engine_identity: 0
+          hosts_scored: 3
+        known_plus_unknown:
+          engines: [{engine_version: v0.9.0, contributors_scored: 1}]
+          hosts_without_engine_identity: 1
+          hosts_scored: 2
+        two_known:
+          engines: [{engine_version: v0.9.0, contributors_scored: 1}, {engine_version: v0.10.0, contributors_scored: 2}]
+          hosts_without_engine_identity: 0
+          hosts_scored: 3
+        all_unknown:
+          engines: []
+          hosts_without_engine_identity: 3
+          hosts_scored: 3
+        zero_scored:
+          engines: []
+          hosts_without_engine_identity: 0
+          hosts_scored: 0
+        does_not_reconcile:
+          engines: [{engine_version: v0.9.0, contributors_scored: 1}]
+          hosts_without_engine_identity: 0
+          hosts_scored: 5
+        unsorted_input:
+          engines: [{engine_version: v0.10.0, contributors_scored: 1}, {engine_version: v0.9.0, contributors_scored: 2}]
+          hosts_without_engine_identity: 0
+          hosts_scored: 3
+        duplicate_versions:
+          engines: [{engine_version: v0.9.0, contributors_scored: 2}, {engine_version: v0.9.0, contributors_scored: 1}]
+          hosts_without_engine_identity: 0
+          hosts_scored: 3
+      expected_output:
+        identified_status: identified
+        identified_engine_version: v0.9.0
+        identified_engines: [{engine_version: v0.9.0, contributors_scored: 3}]
+        identified_hosts_without_engine_identity: 0
+        known_plus_unknown_status: partially_identified
+        known_plus_unknown_engine_version: null
+        known_plus_unknown_engines: [{engine_version: v0.9.0, contributors_scored: 1}]
+        known_plus_unknown_hosts_without_engine_identity: 1
+        two_known_status: mixed
+        two_known_engine_version: null
+        two_known_engines: [{engine_version: v0.10.0, contributors_scored: 2}, {engine_version: v0.9.0, contributors_scored: 1}]
+        two_known_hosts_without_engine_identity: 0
+        all_unknown_status: unavailable
+        all_unknown_engine_version: null
+        all_unknown_engines: []
+        all_unknown_hosts_without_engine_identity: 3
+        zero_scored_status: unavailable
+        zero_scored_engine_version: null
+        zero_scored_engines: []
+        zero_scored_hosts_without_engine_identity: 0
+        does_not_reconcile_rejected: true
+        sorted_order: [v0.10.0, v0.9.0]
+        duplicate_versions_merged_to: [{engine_version: v0.9.0, contributors_scored: 3}]
+    - id: AC-37
+      description: >-
+        Participation counts on a signed artifact account for EVERY active
+        in-scope host, not only the hosts that happen to have rows.
+
+        Added 2026-09-04. The executive query read host_rule_state_current and
+        the attestation rollup read scan_results, so a host with no matching
+        rows produced no entry at all: never scanned, completed with zero
+        outcomes, or carrying nothing the lens matches. The counts then
+        described a smaller fleet than the artifact's own host_count, and an
+        unscanned two-host fleet was signed carrying host_count 2 beside
+        hosts_total 0 and hosts_without_score 0. A reader cannot detect that
+        after the fact, because the artifact is immutable.
+
+        Both readers are population-first: the active in-scope hosts,
+        left-joined to their lensed rule state or to the results of their
+        frozen scan. The lens predicate belongs in the JOIN condition, because
+        in WHERE it turns the outer join back into an inner one and restores
+        the defect. A soft-deleted host is not in the population at all.
+      priority: critical
+      references_constraints: [C-09, C-15]
+      inputs:
+        kinds: [executive, attestation]
+        hosts:
+          - {id: scored, counts: {pass: 9, fail: 1}}
+          - {id: all_skipped, counts: {pass: 0, fail: 0, skipped: 4}}
+          - {id: never_scanned, counts: {}}
+          - {id: other_framework, counts: {pass: 2, fail: 2}, framework: framework_other}
+          - {id: soft_deleted, counts: {pass: 1, fail: 1}, deleted: true}
+        lens: framework_scored
+      expected_output:
+        hosts_total: 4
+        hosts_scored: 1
+        hosts_without_score: 3
+        score_pct: 90.0
+        participation_reconciles: true
+        soft_deleted_counted: false
+    - id: AC-38
+      description: >-
+        Generation discrimination is strict. ONLY the absence of the
+        provenance key means legacy; provenance that is present but unusable
+        is rejected rather than read as history.
+
+        Added 2026-09-04. The check decoded provenance into a pointer and
+        treated a null envelope, an empty envelope and an empty artifact_class
+        as legacy, so a malformed current artifact was rendered as a
+        historical one under whichever score it happened to carry. The
+        forbidden-field check had the matching defect: it tested the decoded
+        pointer rather than key presence, so "compliance_pct": null passed on a
+        current artifact, and it inspected the top level for every kind, so an
+        attestation carrying rollup.compliance_pct beside a valid
+        artifact_class was never detected.
+
+        Score fields and provenance are inspected at the level the KIND stores
+        them: top level for an executive or a read model, under rollup for an
+        attestation.
+
+        The class is validated AGAINST THE KIND, not merely against the set of
+        known classes. C-16 says executive and attestation are score-bearing
+        and exception and remediation are read models, so an executive
+        declaring read_model, or an exception declaring score_bearing, is a
+        contradiction the check must reject. Accepting either globally known
+        value for every kind let an artifact deny the class its own kind
+        requires.
+      priority: critical
+      references_constraints: [C-09, C-16]
+      inputs:
+        legacy_shape: {kind: executive, provenance_key_present: false}
+        rejected_shapes:
+          - {kind: executive, case: provenance_null}
+          - {kind: executive, case: provenance_empty_object}
+          - {kind: executive, case: artifact_class_empty}
+          - {kind: executive, case: artifact_class_unknown}
+          - {kind: executive, case: compliance_pct_null_on_current}
+          - {kind: attestation, case: rollup_compliance_pct_on_current}
+          - {kind: executive, case: score_bearing_kind_declares_read_model}
+          - {kind: attestation, case: score_bearing_kind_declares_read_model}
+          - {kind: exception, case: read_model_kind_declares_score_bearing}
+          - {kind: remediation, case: read_model_kind_declares_score_bearing}
+        expected_class_by_kind:
+          executive: score_bearing
+          attestation: score_bearing
+          exception: read_model
+          remediation: read_model
+      expected_output:
+        legacy_accepted: true
+        rejected_count: 10
+        legacy_requires_absent_key: true
+        class_is_kind_specific: true
+    - id: AC-39
+      description: >-
+        The whole frozen content of a signed artifact comes from ONE database
+        snapshot.
+
+        Added 2026-09-04. The score and the engine identity shared a statement,
+        but coverage and the top-failing list were queried separately under
+        Read Committed, and the attestation host count, scan selection and
+        rollup were three more. A scan completing between them produced one
+        signed artifact whose score, coverage and top-failing list described
+        different fleet states, with nothing in the artifact saying so.
+
+        Generation runs in a single REPEATABLE READ, READ ONLY transaction, so
+        every read sees the same fleet at the same instant. Read-only because
+        generation reads; the artifact is stored after the snapshot closes.
+
+        Group membership, the group name and the sampling timestamp are inside
+        that snapshot too. Resolving membership before it let a host join or
+        leave between the scope decision and the content, and taking
+        data_as_of after it stamped the artifact with an instant later than
+        the data it describes. The criterion is asserted THROUGH Generate,
+        because a test that called the transaction helper directly would stay
+        green if Generate stopped using it.
+
+        The behavior test proves the queryer Generate hands out is a
+        transaction. It cannot prove that EVERY content reader receives that
+        same queryer rather than reaching for the pool itself, so a source
+        guard states the other half: inside Generate, no call to a compute
+        function may take s.pool as an argument.
+      priority: critical
+      references_constraints: [C-09]
+      inputs:
+        kinds: [executive, attestation]
+        concurrent_write: a host gains rule state after the first content read
+        driven_through: Generate
+        inside_the_snapshot: [group_membership, group_name, content_reads, data_as_of]
+        source_guard:
+          file: internal/report/service.go
+          function: Generate
+          call_prefix: compute
+          forbidden_argument: s.pool
+      expected_output:
+        isolation_level: repeatable read
+        access_mode: read only
+        content_reads_share_one_snapshot: true
+        concurrent_write_invisible: true
+        generate_uses_the_snapshot: true
+        data_as_of_is_the_snapshot_instant: true
+        content_calls_taking_the_pool: []
+    - id: AC-40
+      description: >-
+        A stored artifact renders the same numbers however the fleet changes
+        after it was signed.
+
+        Added 2026-09-04. The back-compat path that recomputes a rollup for a
+        pre-rollup attestation passed the artifact's own frozen host ids, but
+        reused the generation query, which filters on hosts.deleted_at IS
+        NULL. Soft-deleting an attested host therefore changed the numbers on
+        an already-signed artifact's rendered face. A signed artifact records
+        what was true when it was signed; the current deletion state of a host
+        is not part of that record.
+
+        The compatibility population comes from the frozen host ids
+        themselves, independent of the hosts table and of any current deletion
+        state.
+
+        Which path renders is decided by GENERATION, never by data values. The
+        selector was an outcome count, TotalChecks == 0 with attested hosts,
+        which misclassifies a current, correctly signed attestation whose
+        completed scans genuinely produced zero outcomes: it carries a frozen
+        rollup saying exactly that, and the count-based guess discarded it and
+        recomputed. Generation is the presence or absence of the provenance
+        key, as AC-38 requires.
+
+        Asserted on the RENDERED CONTENT: the visible text the PDF face draws,
+        recovered by inflating its content streams. Comparing a value returned
+        by the recomputation helper leaves the rendering call site free to pass
+        a different population, which is the defect this criterion exists for,
+        so the observable has to come from the rendered artifact.
+
+        Not the raw bytes. The PDF writer stamps CreationDate and ModDate, so
+        two renders of identical content differ and a byte comparison would
+        fail on correct code. The drawn text is the thing a reader actually
+        sees, and it is stable.
+      priority: critical
+      references_constraints: [C-11]
+      inputs:
+        artifact: pre_rollup_attestation
+        hosts:
+          - {id: kept, counts: {pass: 1, fail: 1}}
+          - {id: deleted_after_signing, counts: {pass: 4, fail: 0}}
+        mutation: soft delete the second host AFTER the artifact is signed
+        current_zero_outcome_artifact:
+          kind: attestation
+          completed_scan_with_no_outcomes: true
+      expected_output:
+        score_pct_before: 75.0
+        score_pct_after: 75.0
+        hosts_total_before: 2
+        hosts_total_after: 2
+        identical_after_deletion: true
+        rendered_content_identical: true
+        current_zero_outcome_uses_frozen_rollup: true
+        current_zero_outcome_recomputed: false

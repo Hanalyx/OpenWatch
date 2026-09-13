@@ -31,7 +31,15 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('summary.os_categories');
     expect(SRC).toContain('summary.hosts_maintenance');
     expect(SRC).toContain('summary.ungrouped');
-    expect(SRC).toContain('summary.avg_compliance_pct');
+    // The score OBJECT, not a bare integer, handed whole to the shared
+    // presenter. The field reads moved there when the fleet KPI and the group
+    // cards stopped presenting the aggregate two different ways.
+    expect(SRC).toContain('scorePresentation(summary.score)');
+    expect(SRC).toContain('score.score_pct');
+    expect(SRC).toContain('score.hosts_scored');
+    expect(SRC).toContain('score.hosts_without_score');
+    expect(SRC).toContain('score.hosts_total');
+    expect(SRC).not.toContain('avg_compliance_pct');
   });
 
   // @ac AC-02
@@ -41,7 +49,9 @@ describe('frontend-groups — source inspection', () => {
     expect(SRC).toContain('r.online');
     expect(SRC).toContain('r.down');
     expect(SRC).toContain('r.critical_hosts');
-    expect(SRC).toContain('r.avg_compliance_pct');
+    // The card uses the SAME presenter as the fleet KPI, so a group scored
+    // over 2 of 200 hosts cannot read like one scored over all 200.
+    expect(SRC).toContain('scorePresentation(r.score)');
     // Bounded member chip preview off rollup.members.
     expect(SRC).toContain('r.members.slice(0, 4)');
     expect(SRC).toContain('<HostChip');
@@ -80,17 +90,17 @@ describe('frontend-groups — source inspection', () => {
     // Empty sections render an explicit empty string, not a blank grid.
     expect(SRC).toContain('groups.length === 0');
     expect(SRC).toContain('emptyText');
-    // No prose copy carries an em-dash. The only '—' occurrences are the
-    // shared single-glyph no-data value placeholder (avg compliance with
-    // nothing scanned), which is not prose copy: assert every '—' sits in
-    // a `== null ? '—'` placeholder ternary.
+    // No prose copy carries an em-dash, and no score renders as one either.
+    //
+    // The page used a bare '—' as the no-data value for an absent score. It
+    // now says "No score", which names the state instead of leaving a glyph
+    // the reader has to interpret, so the placeholder ternaries are gone.
     const emDashes = SRC.match(/—/g) ?? [];
     const placeholders = SRC.match(/== null \? '—'/g) ?? [];
-    // GroupsPage has one em-dash in a leading code comment (exempt) plus
-    // the two placeholder ternaries. Assert no em-dash appears inside a
-    // JSX/string literal other than the value-placeholder ternary.
-    expect(placeholders.length).toBe(2);
-    // Comment line + 2 placeholders = 3 total; nothing else.
-    expect(emDashes.length).toBe(3);
+    expect(placeholders.length, 'no em-dash score placeholders remain').toBe(0);
+    // Only the file's leading code comment, which is exempt.
+    expect(emDashes.length, 'em-dashes outside the header comment').toBe(1);
+    // And the absent score names itself.
+    expect(SRC).toContain("'No score'");
   });
 });

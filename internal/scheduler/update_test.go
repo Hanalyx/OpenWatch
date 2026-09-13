@@ -22,15 +22,15 @@ import (
 func TestStateFromScore_HasCriticalAlwaysCritical(t *testing.T) {
 	t.Run("system-scheduler/AC-08", func(t *testing.T) {
 		// 100% score + critical finding still means critical.
-		if got := StateFromScore(100, true); got != StateCritical {
+		if got := StateFromScore(mustScore(t, 100), true); got != StateCritical {
 			t.Errorf("score=100, hasCritical=true: got %q, want %q", got, StateCritical)
 		}
 		// 0% score + critical finding obviously critical.
-		if got := StateFromScore(0, true); got != StateCritical {
+		if got := StateFromScore(mustScore(t, 0), true); got != StateCritical {
 			t.Errorf("score=0, hasCritical=true: got %q, want %q", got, StateCritical)
 		}
 		// Mid-range score + critical: still critical.
-		if got := StateFromScore(75.5, true); got != StateCritical {
+		if got := StateFromScore(mustScore(t, 75.5), true); got != StateCritical {
 			t.Errorf("score=75.5, hasCritical=true: got %q, want %q", got, StateCritical)
 		}
 	})
@@ -58,11 +58,16 @@ func TestStateFromScore_ScoreBuckets(t *testing.T) {
 			{"exactly 20 → NonCompliant", 20, StateNonCompliant},
 			{"just below 20 → Critical", 19.999, StateCritical},
 			{"0 → Critical", 0, StateCritical},
-			{"negative (sanity) → Critical", -10, StateCritical},
+			// The old "negative (sanity) → Critical" case is gone. A score of
+			// -10 was only reachable because StateFromScore took a bare
+			// float64; compliance.ScoreFromPercent now rejects anything outside
+			// 0 to 100, so the case asserts behavior the product cannot reach.
+			// Absence, which is what that case was really standing in for, is
+			// covered by AC-18 and is NOT critical.
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				if got := StateFromScore(c.score, false); got != c.want {
+				if got := StateFromScore(mustScore(t, c.score), false); got != c.want {
 					t.Errorf("score=%v: got %q, want %q", c.score, got, c.want)
 				}
 			})
@@ -78,7 +83,7 @@ func TestUpdateAfterScan_CompliantScore_Schedules24h(t *testing.T) {
 		ladder := LoadIntervals(validTiers()).Ladder
 		completed := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
 
-		got := UpdateAfterScan(100, false, completed, ladder)
+		got := UpdateAfterScan(mustScore(t, 100), false, completed, ladder)
 
 		if got.State != StateCompliant {
 			t.Errorf("State = %q, want %q", got.State, StateCompliant)
@@ -98,7 +103,7 @@ func TestUpdateAfterScan_HasCritical_Schedules1h(t *testing.T) {
 		ladder := LoadIntervals(validTiers()).Ladder
 		completed := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
 
-		got := UpdateAfterScan(85, true, completed, ladder)
+		got := UpdateAfterScan(mustScore(t, 85), true, completed, ladder)
 
 		if got.State != StateCritical {
 			t.Errorf("State = %q, want %q (hasCritical overrides score)", got.State, StateCritical)
@@ -118,7 +123,7 @@ func TestUpdateAfterScan_ZeroScore_TreatsAsCritical(t *testing.T) {
 		ladder := LoadIntervals(validTiers()).Ladder
 		completed := time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC)
 
-		got := UpdateAfterScan(0, false, completed, ladder)
+		got := UpdateAfterScan(mustScore(t, 0), false, completed, ladder)
 
 		if got.State != StateCritical {
 			t.Errorf("State = %q, want %q (score < 50 with no override)", got.State, StateCritical)

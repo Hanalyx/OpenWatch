@@ -253,7 +253,7 @@ paths:
       description: |
         Returns categories, permissions (with the dangerous marker), and
         built-in role definitions. Frontends use this to render permission
-        selectors and role editors. Non-secret: any authenticated user can read.
+        selectors and role editors. Any authenticated user can read this registry.
       x-required-permission: auth:read
       responses:
         '200': {description: Full registry.}

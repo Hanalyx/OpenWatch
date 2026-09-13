@@ -197,14 +197,16 @@ check-generated: generate-api generate-api-types
 	       exit 1; }
 	@echo "check-generated: server.gen.go and schema.d.ts are in sync"
 
-# spec-check: run the Specter gates CI enforces (annotation hygiene + structural
-# coverage) so spec drift is caught before pushing. Skips cleanly if specter is
+# spec-check: run the Specter gate CI enforces (pinned version + annotation
+# hygiene + structural coverage) so spec drift is caught before pushing. The
+# policy lives in scripts/specter-gate.py and NOT here: this target and the
+# workflow used to carry their own greps over specter's text output, which is
+# two policies that drift apart in silence. Skips cleanly if specter is
 # not on PATH; CI runs the authoritative gate regardless.
 .PHONY: spec-check
 spec-check:
 	@command -v specter >/dev/null 2>&1 || { echo "spec-check: specter not on PATH; skipping (CI enforces it)"; exit 0; }
-	specter check --test
-	specter coverage --strictness annotation
+	python3 -S scripts/specter-gate.py
 
 # release-status: render release/gates.toml for a candidate and return a
 # go/no-go verdict. Needs `gh` authenticated to read check runs and assets.
@@ -221,17 +223,41 @@ release-status:
 
 # release-status-test: the checker's own guards. Stdlib only, no network,
 # runs in milliseconds. CI runs this in the Quality gates job.
+#
+# -S disables site packages, which makes "stdlib only" a fact the target
+# enforces rather than a comment. A third-party import fails here instead of
+# on the one CI runner that has not got the package.
 .PHONY: release-status-test
 release-status-test:
-	python3 scripts/test_release_status.py
+	python3 -S scripts/test_release_status.py
+	python3 -S scripts/test_specter_gate.py
+	python3 -S scripts/test_doc_style_gate.py
 
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
-# speak). Mirrors CI's "Doc Style" job. Single-file python3 script, no
-# dependencies. Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
-# Use DOC_STYLE_ARGS=--all to sweep the whole tree instead of changed files.
+# speak, US English, reading level). The ONE shared invocation: CI's "Doc Style"
+# job and the pre-commit hook both run this target rather than rebuilding the
+# command, so the three cannot drift into different policies.
+# Canonical rules: Context Plane dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE.
+#
+# The gate verifies the checker before it runs it. The checker is a SHARED tool
+# refetched wholesale on an upgrade, and nothing used to record which version
+# this repo ran, so a superseded copy stayed authoritative for a month while
+# four defects we had reported ourselves were already fixed upstream.
+# `.doc-style-version` is now the single source and the gate fails closed if it
+# is missing or disagrees. The version number lives ONLY in that file. This
+# comment deliberately does not repeat it: the comment that did went stale and
+# named a version two releases behind the one actually running.
+#
+# The scan is --all, not --changed. `--changed` resolves a commit RANGE and
+# falls back to the index only when that range is empty, so it never reads the
+# working tree: a hook keyed on it is blind to the files being committed. The
+# full sweep is ~4s over ~1000 tracked files, cheap enough to be the default.
+# Checked types are the checker's fifteen extensions, source comments included.
+# Files git ignores are outside this gate; see specs/release/ci-gates C-08.
+# Single-file python3 scripts, no dependencies; -S enforces that.
 .PHONY: docs-style
 docs-style:
-	python3 scripts/check-doc-style.py $(or $(DOC_STYLE_ARGS),--changed)
+	python3 -S scripts/doc-style-gate.py
 
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone

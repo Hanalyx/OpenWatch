@@ -16,7 +16,7 @@
 //      changes.
 //   3. score + result-mix + scan panels (three columns): donut score
 //      with the status legend (Executed = pass + fail; Error only when
-//      present); Compliant / Non-compliant bars with an N/A note; scan
+//      present); Compliant / Non-compliant bars with a no-verdict note; scan
 //      metadata (framework, ran at, duration, coverage).
 //   4. numbered category rows: passing / failing over EXECUTED rules
 //      with a banded pass percentage.
@@ -27,7 +27,7 @@
 //      rules max), so search and filtering never refetch.
 //
 // Status wording follows the prototype: Compliant / Non-compliant /
-// N/A (skipped) / Error.
+// No verdict (skipped) / Error.
 //
 // Data flow: ONE GET /hosts/{id}/compliance response renders sections
 // 1 and 3-5; GET /hosts/{id}/compliance/frameworks feeds the lens bar
@@ -61,12 +61,15 @@ type FrameworksResponse = components['schemas']['HostComplianceFrameworksRespons
 
 type StatusFilter = 'all' | 'fail' | 'pass' | 'skipped' | 'error';
 
-// Prototype status wording. skipped renders as N/A ("not applicable").
+// Status wording. A skipped rule is NOT "N/A": that word claims the rule does
+// not apply to this host, which is one of the two things a bare skip could
+// mean. The other is that it could not be evaluated. Telling them apart needs
+// the typed skip reason from KN-OW-021.
 const FILTER_ORDER: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'fail', label: 'Non-compliant' },
   { id: 'pass', label: 'Compliant' },
-  { id: 'skipped', label: 'N/A' },
+  { id: 'skipped', label: 'No verdict' },
   { id: 'error', label: 'Error' },
 ];
 
@@ -490,7 +493,7 @@ function LensBar({
       <LensChip active={!framework} onClick={() => onFrameworkChange(undefined)}>
         <span>All rules</span>
         <span style={lensChipMeta}>every mapped control</span>
-        {options ? <span style={lensChipScore}>{options.overall.score_pct}%</span> : null}
+        {options ? <span style={lensChipScore}>{chipScore(options.overall.score_pct)}</span> : null}
       </LensChip>
       {(options?.frameworks ?? []).map((opt) => (
         <LensChip
@@ -500,11 +503,22 @@ function LensBar({
         >
           <span>{frameworkLabel(opt.framework_id)}</span>
           <span style={lensChipMeta}>{opt.rule_count} rules</span>
-          <span style={lensChipScore}>{opt.score_pct}%</span>
+          <span style={lensChipScore}>{chipScore(opt.score_pct)}</span>
         </LensChip>
       ))}
     </div>
   );
+}
+
+// chipScore renders a framework chip's score, or a dash when the lens
+// produced no verdict.
+//
+// A chip interpolated score_pct straight into a template, so a framework whose
+// rules all skipped displayed "null%". A dash is the same empty state the hero
+// card and the donut use, and it keeps a chip narrow enough not to reflow the
+// row.
+function chipScore(pct: number | null): string {
+  return pct === null ? '—' : `${pct}%`;
 }
 
 const lensChipMeta: CSSProperties = {
@@ -560,15 +574,52 @@ function LensChip({
 // ─────────────────────────────────────────────────────────────────────────
 // 3. Score donut + Result mix + Scan panels (prototype three-column
 //    block). The donut panel carries the status legend; the result-mix
-//    panel renders just the Compliant / Non-compliant bars + N/A note.
+//    panel renders just the Compliant / Non-compliant bars + no-verdict note.
 // ─────────────────────────────────────────────────────────────────────────
+
+// coverageLine renders assessment coverage in the three states the contract
+// defines, and never invents a number for the two that have none.
+//
+// Coverage answers a different question from the score: the score says how the
+// rules that ran came out, coverage says how much of the intended set ran at
+// all. Both interim states exist because OpenWatch cannot yet classify a skip,
+// so it withholds the figure rather than guessing in either direction.
+function coverageLine(summary: LensResponse['summary']): { text: string; detail: string } {
+  switch (summary.coverage_status) {
+    case 'available':
+      return {
+        text: `${summary.coverage_pct}% of in-scope rules assessed`,
+        detail: 'Every in-scope rule is accounted for.',
+      };
+    case 'unavailable_unclassified_skips':
+      return {
+        text: 'Assessment coverage unavailable',
+        detail:
+          'Some rules were skipped without a machine-readable reason, so an ' +
+          'inapplicable rule cannot be told from an unevaluated one. The figure ' +
+          'is withheld rather than guessed.',
+      };
+    case 'unavailable_no_outcomes':
+      return {
+        text: 'Assessment coverage unavailable',
+        detail:
+          'This lens produced no outcomes, so there is nothing to measure ' + 'coverage over.',
+      };
+    default:
+      return { text: 'Assessment coverage unavailable', detail: '' };
+  }
+}
 
 function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
   const executed = summary.passing + summary.failing;
   const legend: { label: string; value: number; color: string }[] = [
     { label: 'Compliant', value: summary.passing, color: 'var(--ow-ok)' },
     { label: 'Non-compliant', value: summary.failing, color: 'var(--ow-crit)' },
-    { label: 'Not applicable', value: summary.skipped, color: 'var(--ow-fg-1)' },
+    // NOT "Not applicable". OpenWatch cannot yet tell an inapplicable rule
+    // from an unevaluated one: that distinction needs the typed skip reason
+    // from KN-OW-021. Calling every skip "not applicable" asserts a
+    // classification no scan produced.
+    { label: 'No verdict', value: summary.skipped, color: 'var(--ow-fg-1)' },
     // Error is the exception path — surfaced only when present, like
     // the prototype (its zero-error host shows no Error row).
     ...(summary.error > 0
@@ -579,7 +630,9 @@ function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
   // Donut: green arc = compliant share of the lens, red remainder.
   const r = 34;
   const c = 2 * Math.PI * r;
-  const frac = Math.max(0, Math.min(100, summary.score_pct)) / 100;
+  // A host with no verdict has no score, and the donut shows an empty ring
+  // rather than a full red one. Coercing null to 0 would draw total failure.
+  const frac = summary.score_pct === null ? 0 : Math.max(0, Math.min(100, summary.score_pct)) / 100;
   return (
     <section
       aria-label="Compliance score"
@@ -618,14 +671,17 @@ function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
         >
           <span
             style={{
-              fontSize: 19,
+              fontSize: summary.score_pct === null ? 11 : 19,
               fontWeight: 700,
               lineHeight: 1,
-              color: 'var(--ow-fg-0)',
+              color: summary.score_pct === null ? 'var(--ow-fg-2)' : 'var(--ow-fg-0)',
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {summary.score_pct}%
+            {/* Never `null%`. A host whose rules produced no verdict has no
+                score, and interpolating the null straight into the template
+                printed the word null next to a percent sign. */}
+            {summary.score_pct === null ? 'No score' : `${summary.score_pct}%`}
           </span>
           <span
             style={{
@@ -636,7 +692,7 @@ function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
               marginTop: 3,
             }}
           >
-            Compliant
+            {summary.score_pct === null ? 'No verdict' : 'Compliant'}
           </span>
         </div>
       </div>
@@ -739,6 +795,21 @@ function ResultMixPanel({
           </span>
         </div>
       ))}
+      {/* Assessment coverage, always stated. It is a separate fact from the
+          score, and the two interim unavailable states each say WHY there is
+          no figure rather than leaving a blank a reader fills in. */}
+      <div
+        role="status"
+        style={{
+          marginTop: 12,
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: 'var(--ow-fg-2)',
+        }}
+      >
+        <strong style={{ color: 'var(--ow-fg-1)' }}>{coverageLine(summary).text}</strong>
+        {coverageLine(summary).detail ? ` ${coverageLine(summary).detail}` : null}
+      </div>
       {summary.skipped > 0 ? (
         <div
           style={{
@@ -753,9 +824,16 @@ function ResultMixPanel({
           }}
         >
           <strong style={{ color: 'var(--ow-fg-1)' }}>
-            {summary.skipped} rules not applicable
+            {summary.skipped} rules produced no verdict
           </strong>
-          : dropped by capability gates or missing a matching implementation on this host.
+          {/* The previous copy said "rules not applicable" and then explained
+              why they were inapplicable. Neither is known: the scan reports
+              that these rules were skipped and nothing more, and the reason
+              vocabulary that would separate "does not apply here" from "could
+              not be evaluated" arrives with KN-OW-021. Saying which one it was
+              publishes a classification no scan produced. */}
+          : skipped by the scan engine. OpenWatch cannot yet tell an inapplicable rule from one it
+          could not evaluate, so these are reported as a count and left unclassified.
         </div>
       ) : null}
     </section>
@@ -772,9 +850,13 @@ function ScanPanel({
   lensTotal: number;
 }) {
   const ran = scanContext.last_scan_at ? new Date(scanContext.last_scan_at).toLocaleString() : '';
+  // "in this view", not "evaluated". lensTotal is summary.total, which counts
+  // passing, failing, skipped AND errored rules. Calling that number evaluated
+  // claims a verdict for every rule the scan skipped or errored on, which is
+  // the same overclaim as labeling a skip "not applicable".
   const coverage = framework
     ? `${lensTotal} of this host's rules carry a ${frameworkLabel(framework)} ref`
-    : `${lensTotal} rules evaluated on this host`;
+    : `${lensTotal} rules in this view`;
   return (
     <section aria-label="Scan details" style={panel}>
       <h3 style={panelHead}>Scan</h3>
@@ -878,11 +960,14 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
       </div>
       <div role="list" aria-label="Category breakdown">
         {categories.map((c, i) => {
-          // Prototype semantics: counts and percentage cover EXECUTED
-          // rules only (pass + fail); not-applicable rows neither help
-          // nor hurt a category's score.
-          const executed = c.passing + c.failing;
-          const passPct = executed > 0 ? Math.round((c.passing / executed) * 100) : 0;
+          // Counts and percentage cover EXECUTED rules only (pass + fail);
+          // not-applicable rows neither help nor hurt a category's score.
+          //
+          // The percentage is SENT now. The formula here was already right, but
+          // a compliance percentage computed in a frontend component is one the
+          // rest of the product cannot agree with by construction
+          // (system-compliance-scoring C-14).
+          const passPct = c.score_pct;
           return (
             <div
               key={c.category}
@@ -928,7 +1013,7 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
                   display: 'flex',
                 }}
               >
-                {executed > 0 ? (
+                {passPct !== null ? (
                   <>
                     <span style={{ width: `${passPct}%`, background: 'var(--ow-ok)' }} />
                     <span style={{ width: `${100 - passPct}%`, background: 'var(--ow-crit)' }} />
@@ -953,14 +1038,14 @@ function CategoryRows({ categories }: { categories: LensCategory[] }) {
                 style={{
                   width: 44,
                   textAlign: 'right',
-                  color: scoreColor(passPct),
+                  color: passPct === null ? 'var(--ow-fg-3)' : scoreColor(passPct),
                   fontWeight: 700,
                   fontSize: 12,
                   fontVariantNumeric: 'tabular-nums',
                   flexShrink: 0,
                 }}
               >
-                {passPct}%
+                {passPct === null ? '—' : `${passPct}%`}
               </span>
             </div>
           );
@@ -1260,11 +1345,11 @@ function Th({ children, width }: { children: ReactNode; width?: number }) {
 }
 
 // StatusChip — prototype wording: Compliant (ok), Non-compliant
-// (crit), N/A (muted), Error (warn).
+// (crit), No verdict (muted), Error (warn).
 const STATUS_STYLE: Record<string, { fg: string; bg: string; label: string }> = {
   pass: { fg: 'var(--ow-ok)', bg: 'var(--ow-ok-bg)', label: 'Compliant' },
   fail: { fg: 'var(--ow-crit)', bg: 'var(--ow-crit-bg)', label: 'Non-compliant' },
-  skipped: { fg: 'var(--ow-fg-3)', bg: 'var(--ow-bg-2)', label: 'N/A' },
+  skipped: { fg: 'var(--ow-fg-3)', bg: 'var(--ow-bg-2)', label: 'No verdict' },
   error: { fg: 'var(--ow-warn)', bg: 'var(--ow-warn-bg)', label: 'Error' },
 };
 

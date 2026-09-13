@@ -1,7 +1,7 @@
 spec:
   id: system-posture-snapshots
   title: Daily compliance posture snapshots (trend substrate)
-  version: "1.1.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -52,7 +52,7 @@ spec:
 
   constraints:
     - id: C-01
-      description: 'The rollup MUST be a single aggregate UPSERT keyed (host_id, snapshot_date, framework): re-running within the same day updates rather than duplicates, and a day rollover starts a fresh row leaving prior days untouched. Soft-deleted hosts are excluded; hosts without host_rule_state rows produce no row'
+      description: 'v1.3.0 - the rollup MUST be a SINGLE SQL STATEMENT keyed (host_id, snapshot_date, framework), combining the aggregate UPSERT with the prune C-10 requires. One statement because both halves MUST read one database snapshot: under Read Committed two statements in a transaction take separate snapshots, so a scan completing between them commits a day reflecting neither. Re-running within the same day updates rather than duplicates, and a day rollover starts a fresh row leaving prior days untouched. Soft-deleted hosts are excluded. This REPLACES the v1.0.0 rules "a single aggregate UPSERT" and "hosts without host_rule_state rows produce no row": the second is now governed by C-10, under which such a host produces a row when its scan run proves the scan assessed nothing, and produces none otherwise'
       type: technical
       enforcement: error
     - id: C-04
@@ -60,24 +60,309 @@ spec:
       type: technical
       enforcement: error
     - id: C-02
-      description: 'score_pct MUST equal round(passing / total * 1000) / 10 over ALL statuses - identical to the compliance lens formula - and has_critical_findings MUST be true exactly when any failing row carries severity critical'
+      description: 'v1.3.0 - score_pct MUST equal round(passing / (passing + failing) * 1000) / 10, the one formula in internal/compliance, and MUST be NULL when passing + failing is zero. Skipped, error and not-applicable outcomes enter neither the numerator nor the denominator. This REPLACES the v1.0.0 passing-over-all-statuses rule, which counted a rule nothing could evaluate as a failure. has_critical_findings MUST be true exactly when any failing row carries severity critical'
       type: technical
+      enforcement: error
+    - id: C-08
+      description: 'v1.3.0 - every snapshot row the rollup writes MUST record formula_version 2, aggregation_method none (a snapshot is one host on one date and aggregates nothing) and the engine version COPIED FROM THE SCAN RUN that produced the outcomes, which is null when that run predates migration 0063 and recorded none (v1.3.0 amended: the rollup used to stamp its own linked version, so a rollup process on a different build from the workers reported an engine that never touched the host), and MUST record the corpus identity COPIED from the scan run its rule state came from, or unavailable when that run recorded none. The ON CONFLICT path MUST refresh all six alongside the score: a row first written by an earlier release and updated by this one MUST NOT keep provenance that does not describe the number now stored'
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: 'v1.3.0 - FleetTrend MUST average one score per host (equal-host mean), MUST omit a host with no score rather than average it in as zero, and MUST report how many hosts were scored and how many were not. A mean reported without the population that produced it cannot be told from a mean over every host'
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: 'v1.3.0 - the rollup MUST reconcile a scanned host that produced NO rule state, and the EVIDENCE MUST be the scan run rather than the missing rows. The latest completed scan_runs row MUST carry all four outcome counts non-null and all four zero before the rollup writes an all-rules point with zero counts, a null score and full v2 provenance. Missing rule state has several causes and only one is "the scan assessed nothing": NULL counts recorded no evidence either way, and non-zero counts with no rows is a broken write. Writing zero counts for either INVENTS the measurement, which is what migration 0061 exists to undo. Those hosts MUST fail closed, contributing no row at all, which also excludes them from the prune so the day is left exactly as it was. When the evidence does hold, the rollup MUST also remove any same-day series the current scan no longer produces. The absence of source rows MUST NOT leave an earlier scan''s score readable as current, and MUST NOT be treated as proof of zero outcomes. A host with no completed scan is out of scope and its rows MUST be left alone'
+      type: security
+      enforcement: error
+    - id: C-11
+      description: 'v1.3.0 - a fleet trend point whose snapshots carry MORE THAN ONE formula version MUST report no score. Two formulas produce two different quantities and their mean is a compliance score under neither, so the point MUST be marked as mixed rather than published as an average. This is reachable in normal operation and not only on upgrade day: the rollup rewrites a host to version 2 only when it can measure the host, so a host that fails closed keeps its legacy row indefinitely. The point MUST still report its host counts and its outcome counts, so a consumer can say why there is no number. It MUST report a formula status of identified (every row formula 2), legacy_unknown (every row predates the redesign, its stored score preserved) or mixed (no score). All three MUST stay distinguishable on the wire: a boolean cannot carry them, because a legacy day and a version-2 day would both read false with a score, and one is comparable with today''s numbers while the other is not. RATIFIED 2026-09-03. Stated in full here rather than cited, because the decision record lives under docs/engineering/, which is gitignored'
+      type: security
       enforcement: error
     - id: C-03
       description: 'Trend reads (HostTrend, FleetTrend) return points oldest-first over the trailing N-day window with absent days simply missing; FleetTrend excludes soft-deleted hosts even when their snapshot rows linger'
       type: technical
       enforcement: error
 
+    - id: C-05
+      description: score_pct MUST be nullable. NULL means no rule produced a verdict on that date and 0 means every evaluated rule failed. A schema that cannot tell them apart forces the same fabricated verdict that bugs/OW-023 and OW-024 produced at the application layer
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: Provenance columns MUST NOT be backfilled. Rows written before the scoring redesign keep their stored score and carry NULL formula and corpus provenance. Corpus identity MUST NOT be inferred from the corpus installed at migration or read time
+      type: security
+      enforcement: error
+    - id: C-07
+      description: Corpus provenance MUST hold a valid shape. A version never exists without a digest, identified requires a digest, unavailable forbids both, and an empty string is never a value. A per-host snapshot MUST NOT carry an aggregate status; mixed and partially_identified are derived at read time
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
-      description: 'Rollup over a host with mixed host_rule_state rows writes one row with the per-status counts, the lens-formula score_pct, and has_critical_findings reflecting a critical failing row; a second Rollup the same day UPDATEs the same row (no duplicate); a never-scanned host gets no row; a soft-deleted host gets no row'
+      description: 'Rollup writes one row per scanned host with the per-status counts, score_pct as passing over passing plus failing, has_critical_findings reflecting a critical failing row, and the full provenance from C-08; a second Rollup the same day UPDATEs the same row (no duplicate); a never-scanned host gets no row; a soft-deleted host gets no row. The mixed host proves the formula CHANGED: the same counts scored 50.0 under the v1.0.0 passing-over-all-statuses rule, which is the forbidden answer'
       priority: critical
-      references_constraints: [C-01, C-02]
+      references_constraints: [C-01, C-02, C-08]
+      inputs:
+        mixed_host_counts: {passing: 2, failing: 1, skipped: 1}
+        after_fix_counts: {passing: 3, failing: 0, skipped: 1}
+        unassessable_host_counts: {passing: 0, failing: 0, skipped: 3}
+        excluded_hosts: [never_scanned, soft_deleted]
+      expected_output:
+        score_pct: 66.7
+        forbidden_score_pct: 50.0
+        total: 4
+        has_critical_findings: true
+        rows_written: 2
+        after_fix_score_pct: 100.0
+        after_fix_row_count: 1
+        unassessable_score_pct: null
+        unassessable_forbidden_score_pct: 0.0
+        formula_version: 2
+        aggregation_method: none
+        engine_version_copied_from_scan_run: true
+        corpus_identity_status: unavailable
+        corpus_version: null
+        corpus_digest: null
     - id: AC-02
-      description: 'HostTrend returns only the requested trailing window oldest-first; FleetTrend aggregates per day (avg score to one decimal, host count, summed failing, critical-host count) and drops soft-deleted hosts'
+      description: 'HostTrend returns only the requested trailing window oldest-first; FleetTrend aggregates per day (avg score to one decimal, host count, summed failing, critical-host count) and drops soft-deleted hosts. v1.3.0: the average is the EQUAL-HOST MEAN over hosts that produced a score. A host with no score is counted in hosts and in hosts_without_score, and is omitted from the mean rather than averaged in as zero. The fixture discriminates: averaging the unscored host in as zero gives the forbidden answer'
       priority: critical
-      references_constraints: [C-03]
+      references_constraints: [C-03, C-09]
+      inputs:
+        day_host_scores: [90.0, 60.0]
+        day_unscored_hosts: 1
+      expected_output:
+        score_pct: 75.0
+        forbidden_score_pct: 50.0
+        hosts: 3
+        hosts_scored: 2
+        hosts_without_score: 1
     - id: AC-03
       description: 'v1.1.0 per-family OS-resolved series: after a rollup over a RHEL 9 host carrying stig_rhel9 (1 pass, 1 fail), stig_rhel10 (1 pass), cis_rhel9 (1 pass), nist_800_53 (1 pass), the framework="stig" row is 1/2 (stig_rhel9 only; stig_rhel10 EXCLUDED), framework="cis" is 1/1, framework="nist_800_53" is 1/1, and framework="" (all rules) is 4/5. HostTrend(lens="stig") and HostTrend(lens="stig_rhel9") both return the stig series; HostTrend(lens="") returns the all-rules series'
       priority: critical
       references_constraints: [C-01, C-04]
+    - id: AC-04
+      description: 'Migration 0062 reserves nullable storage without rewriting history. A snapshot written before it PRESERVES ITS CANONICAL ONE-DECIMAL SCORE and carries NULL for every new column, including formula_version. Not "exactly": the column changes from REAL to numeric(4,1), so the binary representation does change. What is preserved is the value the row has always meant and always been presented at. The migration may canonicalize that representation. It must not recompute a score from counts, assign a formula version, infer corpus identity, or alter a signed artifact. The score is NOT recomputed from the stored counts: that would produce a value consistent with the new formula and inconsistent with the corpus scope those counts were gathered under, which migration 0060 changed.'
+      priority: critical
+      references_constraints: [C-05, C-06]
+      inputs:
+        legacy_row: {passing: 8, failing: 2, skipped: 3, error: 2, score_pct: 53.3}
+      expected_output:
+        score_pct: 53.3
+        formula_version: null
+        aggregation_method: null
+        engine_version: null
+        corpus_identity_status: null
+        corpus_version: null
+        corpus_digest: null
+    - id: AC-05
+      description: 'The SCHEMA stores an absent score and a genuine zero distinguishably, and accepts a formula version alongside either. NULL means no rule produced a verdict; 0 means every evaluated rule failed and is a real result. Scope note: this criterion covers STORAGE only, which is why it drives the schema directly rather than through the rollup. AC-01 covers what the writer stores.'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        absent:
+          {passing: 0, failing: 0, skipped: 40, score_pct: null,
+           formula_version: 2, aggregation_method: none, engine_version: v0.9.0}
+        genuine_zero:
+          {passing: 0, failing: 5, skipped: 0, score_pct: 0.0,
+           formula_version: 2, aggregation_method: none, engine_version: v0.9.0}
+      expected_output:
+        absent_stored: {score_pct: null, passing: 0, failing: 0, skipped: 40, formula_version: 2}
+        genuine_zero_stored: {score_pct: 0.0, passing: 0, failing: 5, skipped: 0, formula_version: 2}
+        both_rows_stored: true
+    - id: AC-06
+      description: 'A curated corpus is accepted with a digest and no version, per decision record 09. The reverse, a version with no digest, is rejected by the schema: a version names a release whose contents hash to something, so it cannot exist alone. Two fixtures cover it, because with a status of identified the row is ALSO rejected by the identified-requires-a-digest rule, so that case alone cannot tell the two rules apart. The second fixture leaves the status null so only the version-needs-a-digest rule can reject it.'
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        curated: {status: identified, corpus_version: null, corpus_digest: sha256-curated}
+        version_without_digest: {status: identified, corpus_version: "0.10.0", corpus_digest: null}
+        version_without_digest_no_status: {status: null, corpus_version: "0.10.0", corpus_digest: null}
+      expected_output:
+        curated_accepted: true
+        version_without_digest_rejected: true
+        version_without_digest_no_status_rejected: true
+    - id: AC-07
+      description: 'An empty string is never a corpus value. Decision 08 says a missing value is null, and bugs/OW-009 is what an empty string becomes: indistinguishable from a real value.'
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        empty_digest: {status: identified, corpus_digest: ""}
+        empty_version: {status: identified, corpus_version: "", corpus_digest: sha256-x}
+      expected_output:
+        empty_digest_rejected: true
+        empty_version_rejected: true
+    - id: AC-08
+      description: 'A per-host snapshot cannot carry an aggregate corpus status. mixed and partially_identified describe an aggregate computed from many snapshots whose hosts sat on different corpora, and are derived at read time. Storing one on a single-host row would claim one corpus identity for something that never had one.'
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        rejected_statuses: [mixed, partially_identified]
+        accepted_statuses: [unavailable, identified]
+        tables: [posture_snapshots, scan_runs]
+      expected_output:
+        aggregate_statuses_rejected: true
+        per_host_statuses_accepted: true
+        enforced_on_both_tables: true
+    - id: AC-09
+      description: 'A null corpus status forbids both corpus values. A row with no status and a digest is a half-claim: it asserts a corpus while refusing to say whether the identity is known. NULL on these columns means only one thing, that the row predates them.'
+      priority: critical
+      references_constraints: [C-07]
+      inputs:
+        tables: [posture_snapshots, scan_runs]
+        null_status_with_digest: {status: null, corpus_digest: sha256-x}
+        null_status_with_version: {status: null, corpus_version: "0.10.0", corpus_digest: sha256-x}
+      expected_output:
+        null_status_with_digest_rejected: true
+        null_status_with_version_rejected: true
+        enforced_on_both_tables: true
+    - id: AC-10
+      description: 'The downgrade refuses while any snapshot holds a null score. Rolling back restores NOT NULL, and the only way to do that is to write those rows to a number, which is the fabricated verdict bugs/OW-023 and OW-024 are about, recreated by the code meant to undo them. The migration aborts instead, and the abort leaves both the schema and the null row intact so nothing is half-rolled-back.'
+      priority: critical
+      references_constraints: [C-05, C-06]
+      inputs:
+        seed_null_score: true
+      expected_output:
+        downgrade_rejected: true
+        score_pct_still_nullable: true
+        null_row_survives: true
+    - id: AC-11
+      description: 'Scoring metadata is all-or-nothing and its values are pinned. A legacy row carries no formula version, aggregation method or engine version. A row written under this formula carries formula_version 2, aggregation_method none because a snapshot aggregates nothing, and a non-empty engine version. Partial metadata describes half of how a number was produced and is not interpretable later. score_pct is null or between 0 and 100.'
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        legacy_all_null: {formula_version: null, aggregation_method: null, engine_version: null}
+        valid_new: {formula_version: 2, aggregation_method: none, engine_version: v0.9.0}
+        rejected:
+          - {case: formula without the rest, formula_version: 2, aggregation_method: null, engine_version: null}
+          - {case: unknown formula version, formula_version: 1, aggregation_method: none, engine_version: v0.9.0}
+          - {case: aggregate method on a per-host row, formula_version: 2, aggregation_method: equal_host_mean, engine_version: v0.9.0}
+          - {case: empty engine version, formula_version: 2, aggregation_method: none, engine_version: ""}
+        rejected_scores: [-0.1, 100.1]
+      expected_output:
+        legacy_accepted: true
+        valid_new_accepted: true
+        partial_or_invalid_rejected: true
+        out_of_range_scores_rejected: true
+    - id: AC-12
+      description: 'v1.3.0 - a today-row first written by an earlier release and then upserted by this one comes out fully v2-shaped. The score is recomputed under the new formula AND the provenance is refreshed with it. Leaving the six columns out of the ON CONFLICT SET list would leave a number this release computed described by provenance that does not belong to it, which is the same defect as a score with no formula at all. Seeded by writing a legacy-shaped row for today, then running Rollup'
+      priority: critical
+      references_constraints: [C-01, C-08]
+      inputs:
+        seeded_legacy_row:
+          score_pct: 50.0
+          formula_version: null
+          aggregation_method: null
+          engine_version: null
+          corpus_identity_status: null
+        live_counts: {passing: 2, failing: 1, skipped: 1}
+      expected_output:
+        row_count: 1
+        score_pct: 66.7
+        formula_version: 2
+        aggregation_method: none
+        engine_version_copied_from_scan_run: true
+        corpus_identity_status: unavailable
+    - id: AC-13
+      description: 'v1.3.0 - a completed scan that produced no rule state reconciles the day rather than leaving the previous scan''s verdict readable as current. Seeded by completing a scored scan, running the rollup, completing a NEWER scan whose four recorded outcome counts (rules_pass, rules_fail, rules_skipped, rules_error) are all zero and that writes no rule-state rows, and running the rollup again. The all-rules point must then carry a null score and zero passing, failing, skipped, error and total counts with full v2 provenance, and the framework series the earlier scan produced must not survive as a current value. This is the posture form of bugs/OW-024: the absence of source rows preserving a stale verdict. A host with NO completed scan is out of scope: the rollup covers it nowhere, so its same-day row MUST survive untouched. Pruning it would turn a rule about stale verdicts into data loss'
+      priority: critical
+      references_constraints: [C-01, C-08, C-10]
+      inputs:
+        first_scan:
+          passing: 3
+          failing: 1
+          framework_key: stig_rhel9
+        second_scan:
+          rules_pass: 0
+          rules_fail: 0
+          rules_skipped: 0
+          rules_error: 0
+          rule_state_rows: 0
+        unscanned_host_with_snapshot:
+          score_pct: 42.0
+      expected_output:
+        first_rollup_all_rules_score_pct: 75.0
+        first_rollup_framework_series: [stig]
+        all_rules_score_pct: null
+        forbidden_all_rules_score_pct: 75.0
+        passing: 0
+        failing: 0
+        skipped: 0
+        error: 0
+        total: 0
+        has_critical_findings: false
+        formula_version: 2
+        aggregation_method: none
+        corpus_identity_status: unavailable
+        surviving_framework_series: []
+        unscanned_host_row_survives: true
+        unscanned_host_score_pct: 42.0
+    - id: AC-14
+      description: 'v1.3.0 - missing rule state is not proof of zero outcomes, and a host whose scan run cannot prove it FAILS CLOSED. Five hosts, each with a same-day snapshot from an earlier scored scan and no current rule state. One latest run carries NULL outcome counts, and one each reports only passing, only failing, only skipped, or only errored outcomes whose rule-state write never persisted. All four of those are broken writes: a skipped or errored rule writes rule state like any other, so a run reporting outcomes of any kind with no rows is a write that did not finish. Each fixture disqualifies itself on ONE count, so removing any single predicate is caught by exactly one host rather than masked by another. All four counts must be zero, not just pass and fail: a run that produced no rule state at all is the only run that proves nothing was assessed. None may be rewritten as a zero-outcome snapshot: no null score, no zeroed counts, no v2 provenance stamped over the earlier row. All five are absent from the computed set, so the prune skips them and their earlier framework series survives untouched. Saying nothing is the only honest option when the evidence says nothing'
+      priority: critical
+      references_constraints: [C-01, C-10]
+      inputs:
+        earlier_scored_scan:
+          passing: 3
+          failing: 1
+          framework_key: stig_rhel9
+        null_counts_host:
+          rules_pass: null
+          rules_fail: null
+          rules_skipped: null
+          rules_error: null
+          rule_state_rows: 0
+        pass_only_host:
+          rules_pass: 5
+          rules_fail: 0
+          rules_skipped: 0
+          rules_error: 0
+          rule_state_rows: 0
+        fail_only_host:
+          rules_pass: 0
+          rules_fail: 2
+          rules_skipped: 0
+          rules_error: 0
+          rule_state_rows: 0
+        skipped_only_host:
+          rules_pass: 0
+          rules_fail: 0
+          rules_skipped: 40
+          rules_error: 0
+          rule_state_rows: 0
+        error_only_host:
+          rules_pass: 0
+          rules_fail: 0
+          rules_skipped: 0
+          rules_error: 7
+          rule_state_rows: 0
+      expected_output:
+        score_pct: 75.0
+        forbidden_score_pct: null
+        forbidden_zeroed_total: 0
+        surviving_framework_series: [stig]
+        rows_rewritten: 0
+    - id: AC-15
+      description: 'v1.3.0 - one legacy row and one version-2 row on the SAME DATE produce a point with NO score, marked mixed. Their arithmetic mean is forbidden: the legacy row means passing over every outcome and the version-2 row means passing over the verdicts, so averaging them produces a number that answers no question. A day holding only version-2 rows, and a day holding only legacy rows, both still score normally, which is what makes the refusal specific to mixing rather than a blanket failure. Each day reports a formula_status of identified, legacy_unknown or mixed. A boolean cannot carry this: a legacy-only day and a version-2 day would both read false with a score, and those are different claims, one comparable with today''s numbers and one not'
+      priority: critical
+      references_constraints: [C-03, C-11]
+      inputs:
+        mixed_day:
+          legacy_row: {score_pct: 40.0, formula_version: null}
+          v2_row: {passing: 8, failing: 2, formula_version: 2}
+        v2_only_day:
+          rows:
+            - {passing: 8, failing: 2}
+            - {passing: 6, failing: 4}
+        legacy_only_day:
+          rows:
+            - {score_pct: 40.0}
+            - {score_pct: 60.0}
+      expected_output:
+        mixed_day_score_pct: null
+        mixed_day_formula_status: mixed
+        forbidden_mixed_day_pct: 60.0
+        mixed_day_hosts: 2
+        v2_only_day_score_pct: 70.0
+        v2_only_day_formula_status: identified
+        legacy_only_day_score_pct: 50.0
+        legacy_only_day_formula_status: legacy_unknown

@@ -22,12 +22,12 @@ describe('frontend-notifications — durable notification bell', () => {
   test('frontend-notifications/AC-01 — useNotifications queries the feed + mark-read mutations', () => {
     // Feed query against the durable endpoint, under the shared key.
     expect(HOOK_SRC).toContain("api.GET('/api/v1/notifications/feed'");
-    expect(HOOK_SRC).toMatch(/\['notifications',\s*'feed'\]/);
+    expect(HOOK_SRC).toMatch(/\[\x27notifications\x27,\s*\x27feed\x27\]/);
     // Mark-read + mark-all mutations POST the :read endpoints.
     expect(HOOK_SRC).toContain("api.POST('/api/v1/notifications/feed/{id}:read'");
     expect(HOOK_SRC).toContain("api.POST('/api/v1/notifications/feed:read-all'");
     // And invalidate the feed key on success so the badge refreshes.
-    expect(HOOK_SRC).toMatch(/invalidateQueries\(\{\s*queryKey:\s*NOTIFICATIONS_KEY/);
+    expect(HOOK_SRC).toMatch(/invalidateQueries\x28\x7b\s*queryKey:\s*NOTIFICATIONS_KEY/);
   });
 
   // @ac AC-02
@@ -40,7 +40,7 @@ describe('frontend-notifications — durable notification bell', () => {
     // Drawer + read mutations are wired.
     expect(TOPBAR_SRC).toContain('useMarkNotificationRead');
     expect(TOPBAR_SRC).toContain('useMarkAllNotificationsRead');
-    expect(TOPBAR_SRC).toMatch(/role="dialog"/);
+    expect(TOPBAR_SRC).toMatch(/role=\x22dialog\x22/);
     // The old session-counter store is gone.
     expect(TOPBAR_SRC).not.toContain('useNotificationStore');
     // The bell is not the disabled "coming soon" stub.

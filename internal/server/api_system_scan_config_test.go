@@ -80,8 +80,12 @@ func TestAPI_SystemScanConfig_GET_ReturnsDefaultsWhenEmpty(t *testing.T) {
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
+		// unknown_mins matches critical_mins deliberately. A host nothing could
+		// assess now reports unknown instead of critical, so re-checking the
+		// unknown tier less often than the critical tier would make the fix to
+		// bugs/OW-024 lose the host visibility it was meant to restore.
 		want := map[string]float64{
-			"unknown_mins": 360, "critical_mins": 240, "non_compliant_mins": 480,
+			"unknown_mins": 240, "critical_mins": 240, "non_compliant_mins": 480,
 			"partial_mins": 720, "mostly_compliant_mins": 1440, "compliant_mins": 2880,
 			"rate_limit": 25,
 		}

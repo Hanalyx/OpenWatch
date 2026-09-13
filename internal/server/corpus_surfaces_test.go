@@ -23,10 +23,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/db/corpustest"
 	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	"github.com/Hanalyx/openwatch/internal/group"
 )
+
+// scoreIs reports whether a fleet score is present and equals want, to one
+// decimal. It fails a test on absence rather than treating it as 0, which is the
+// distinction the whole compliance-scoring change exists to keep.
+func scoreIs(s compliance.Score, want float64) bool {
+	got, ok := s.Rounded()
+	return ok && got == want
+}
 
 // The measured case from the spec: Kensa v0.10.0 merges two rules into
 // one. Both predecessors keep their last verdict forever unless the
@@ -133,10 +142,22 @@ func TestCorpusSurfaces_MergedRuleCountsOnceEverywhere(t *testing.T) {
 			if err != nil {
 				t.Fatalf("fleet score: %v", err)
 			}
-			if sc.TotalEvaluations != 1 || sc.PassingFraction != 1 {
-				t.Errorf("fleet score = %+v, want 1 evaluation and a passing fraction of 1. "+
-					"Three evaluations at one third is the same host graded on two rules that "+
-					"no longer exist", sc)
+			// The corpus this score reads holds exactly the one live rule. The
+			// score alone would be 100 either way if the host were graded on
+			// rules that no longer exist AND they all passed, so the corpus size
+			// is asserted directly rather than inferred from a denominator.
+			var inCorpus int
+			if err := pool.QueryRow(ctx,
+				`SELECT count(*) FROM host_rule_state_current`).Scan(&inCorpus); err != nil {
+				t.Fatalf("count current corpus: %v", err)
+			}
+			if inCorpus != 1 {
+				t.Errorf("current corpus holds %d rules, want 1; the two merged predecessors "+
+					"must not still be scored", inCorpus)
+			}
+			if !scoreIs(sc.Score, 100) {
+				t.Errorf("fleet score = %+v, want 100. 33.3 is the same host graded on two "+
+					"rules that no longer exist", sc)
 			}
 		})
 
@@ -155,19 +176,20 @@ func TestCorpusSurfaces_MergedRuleCountsOnceEverywhere(t *testing.T) {
 			if err != nil {
 				t.Fatalf("list groups: %v", err)
 			}
-			var avg *int
+			var avg compliance.Score
 			for _, gg := range groups {
 				if gg.ID == g.ID {
-					avg = gg.AvgCompliancePct
+					avg = gg.Rollup.Score.Score
 				}
 			}
-			if avg == nil {
-				t.Fatal("group average is nil for a group holding a scanned host")
+			pct, ok := avg.Rounded()
+			if !ok {
+				t.Fatal("group average is absent for a group holding a scanned host")
 			}
-			if *avg != 100 {
-				t.Errorf("group average = %d, want 100. The host's only current rule passes; "+
-					"33 is the two dead predecessors dragging the same host down on a third "+
-					"surface", *avg)
+			if pct != 100 {
+				t.Errorf("group average = %v, want 100. The host's only current rule passes; "+
+					"33.3 is the two dead predecessors dragging the same host down on a third "+
+					"surface", pct)
 			}
 		})
 	})
@@ -284,22 +306,23 @@ func TestCorpusSurfaces_EmptyCorpusReadsAsNeverScanned(t *testing.T) {
 			if err != nil {
 				t.Fatalf("list groups: %v", err)
 			}
-			var avg *int
+			var avg compliance.Score
 			for _, gg := range groups {
 				if gg.ID == g.ID {
-					avg = gg.AvgCompliancePct
+					avg = gg.Rollup.Score.Score
 				}
 			}
-			if avg == nil {
-				t.Fatal("group average is nil, but one member host was scanned and passes")
+			pct, ok := avg.Rounded()
+			if !ok {
+				t.Fatal("group average is absent, but one member host was scanned and passes")
 			}
-			if *avg != 100 {
-				t.Errorf("group average = %d, want 100, the scored host's own score. Anything "+
+			if pct != 100 {
+				t.Errorf("group average = %v, want 100, the scored host's own score. Anything "+
 					"lower means the unmeasured host entered the calculation, which reports an "+
 					"absence of data as a total failure and drags down a number an operator "+
-					"reads as their team's posture. Measured at 33 with the rollup unscoped, "+
-					"not the 50 a per-host average would give, because the rollup weights by "+
-					"rule rather than by host", *avg)
+					"reads as their team's posture. The member with no rule state contributes "+
+					"no row to the per-host set at all, so it neither moves the mean nor "+
+					"appears in the participation counts", pct)
 			}
 		})
 
@@ -308,14 +331,17 @@ func TestCorpusSurfaces_EmptyCorpusReadsAsNeverScanned(t *testing.T) {
 			if err != nil {
 				t.Fatalf("fleet score: %v", err)
 			}
-			// One evaluation, from the scored host alone. Two would mean
-			// the unmeasured host entered the denominator.
-			if sc.TotalEvaluations != 1 {
-				t.Errorf("fleet evaluations = %d, want 1. The host with no completed scan must "+
-					"contribute to neither the numerator nor the denominator", sc.TotalEvaluations)
+			// The mean is over the scored host alone. The host with no completed
+			// scan is COUNTED as unscored rather than dropped from the
+			// population, and it does not move the number.
+			if sc.HostsScored != 1 || sc.HostsWithoutScore != 1 {
+				t.Errorf("fleet participation = %d scored / %d unscored, want 1 and 1. The host "+
+					"with no completed scan must be reported, not averaged in and not omitted",
+					sc.HostsScored, sc.HostsWithoutScore)
 			}
-			if sc.PassingFraction != 1 {
-				t.Errorf("fleet passing fraction = %v, want 1", sc.PassingFraction)
+			if !scoreIs(sc.Score, 100) {
+				t.Errorf("fleet score = %v, want 100; anything lower means the unmeasured host "+
+					"entered the mean", sc.Score)
 			}
 		})
 	})

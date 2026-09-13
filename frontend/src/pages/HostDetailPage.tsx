@@ -130,6 +130,12 @@ interface ComplianceSummary {
   skipped: number;
   error: number;
   total: number;
+  /**
+   * The canonical single-host score, computed server side. Null when no rule
+   * produced a verdict, which is a different fact from every evaluated rule
+   * failing. It replaces a passing/total expression that lived here.
+   */
+  score_pct: number | null;
 }
 
 interface HostDetail {
@@ -208,6 +214,9 @@ const DEFAULT_SUMMARY: ComplianceSummary = {
   skipped: 0,
   error: 0,
   total: 0,
+  // Null, not 0. A host we have no summary for has no score; zero would say
+  // every rule it was measured on failed.
+  score_pct: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1890,7 +1899,9 @@ const remTd: CSSProperties = {
 // Hero stat strip — band 5
 // ─────────────────────────────────────────────────────────────────────────
 
-function HeroCompliance({
+// Exported so the contract test renders the PRODUCTION component rather than a
+// copy of its logic. HostDetailPage renders this same function.
+export function HeroCompliance({
   summary,
   lastScan,
   scanState,
@@ -1905,8 +1916,12 @@ function HeroCompliance({
   // v1.7.0: an in-flight scan replaces the LAST SCAN subhead with a live
   // "Running"/"Queued" badge until scan.completed clears it. Spec
   // frontend-host-detail AC-45.
-  const isEmpty = summary.total === 0;
-  const pct = isEmpty ? 0 : Math.round((summary.passing / summary.total) * 100);
+  // Taken as sent. It used to be round(passing / total * 100) computed here,
+  // which counted skipped and errored rules as failures and showed 0% for a
+  // host whose rules all skipped. There is now no score to show for that host,
+  // which is what the empty state is for.
+  const pct = summary.score_pct;
+  const isEmpty = pct === null;
   return (
     <article style={heroCard} aria-labelledby="hero-compliance-title">
       <header style={heroHead}>
@@ -1949,7 +1964,9 @@ function HeroCompliance({
       </header>
       {isEmpty ? (
         <div role="status" style={{ color: 'var(--ow-fg-2)', fontSize: 12 }}>
-          No compliance data for this host yet
+          {summary.total === 0
+            ? 'No compliance data for this host yet'
+            : 'No score: no rule on this host produced a verdict'}
         </div>
       ) : (
         <>
@@ -2545,7 +2562,9 @@ function CardTopFailed({
 // posture snapshot rollup (api-compliance-trend). The query key carries
 // the ['host', hostId] prefix so scan.completed SSE invalidation
 // refreshes it with the rest of the page.
-function CardComplianceTrend({ hostId }: { hostId: string }) {
+// Exported so the contract test renders the PRODUCTION card. HostDetailPage
+// renders this same function.
+export function CardComplianceTrend({ hostId }: { hostId: string }) {
   const trendQuery = useQuery({
     queryKey: ['host', hostId, 'compliance_trend'],
     queryFn: async () => {
@@ -2581,9 +2600,32 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
       />
     );
   } else {
-    const latest = days[days.length - 1]!;
-    const first = days[0]!;
-    const diff = Math.round((latest.score_pct - first.score_pct) * 10) / 10;
+    // Compare only days that HAVE a score, and only across days produced by
+    // the same formula. A legacy score minus a current one is not a change in
+    // posture, it is a change of measurement.
+    const scoredDays = days.filter((d) => d.score_pct !== null);
+    const latest = scoredDays[scoredDays.length - 1];
+    const first = scoredDays[0];
+    // A delta needs TWO DISTINCT scored days sharing a formula. With one
+    // scored day, first and latest are the same point: the card compared it
+    // with itself and rendered "0% since <its own date>", a measured flat
+    // trend drawn from a single measurement.
+    //
+    // Each impossible case names its own reason. A single sentence covering
+    // all three said an earlier formula scored part of the window, which is
+    // untrue when the window simply has one scored day.
+    let noCompareReason: string | null = null;
+    if (days.some((d) => d.formula_status === 'mixed')) {
+      noCompareReason = 'a day in this window mixes scoring formulas';
+    } else if (scoredDays.length < 2) {
+      noCompareReason = 'at least two scored days are needed';
+    } else if (latest!.formula_status !== first!.formula_status) {
+      noCompareReason = 'these days were scored by different formulas';
+    }
+    const diff =
+      noCompareReason === null
+        ? Math.round((latest!.score_pct! - first!.score_pct!) * 10) / 10
+        : null;
     body = (
       <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -2595,9 +2637,9 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
               color: 'var(--ow-fg-0)',
             }}
           >
-            {latest.score_pct}%
+            {latest ? `${latest.score_pct}%` : '—'}
           </span>
-          {days.length > 1 && (
+          {diff !== null && first !== undefined && (
             <span
               style={{
                 fontSize: 11,
@@ -2609,12 +2651,33 @@ function CardComplianceTrend({ hostId }: { hostId: string }) {
               {diff}% since {first.date}
             </span>
           )}
+          {/* Rendered whatever latest is. Requiring a scored day here meant a
+              window of entirely scoreless days computed the reason and then
+              suppressed it, leaving the one case most in need of explanation
+              with a blank where the delta had been. */}
+          {noCompareReason !== null && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ow-fg-3)' }}>
+              {`No comparison: ${noCompareReason}`}
+            </span>
+          )}
         </div>
         <TrendChart
           points={days.map((d) => ({
             date: d.date,
             scorePct: d.score_pct,
-            tooltip: [d.date, `${d.score_pct}% compliant`, `${d.passing}/${d.total} passing`],
+            formulaStatus: d.formula_status,
+            tooltip: [
+              d.date,
+              ...(d.score_pct === null
+                ? ['No score: nothing could be assessed']
+                : d.formula_status === 'legacy_unknown'
+                  ? [
+                      `${d.score_pct}% compliant`,
+                      'Earlier formula: not comparable with current days',
+                    ]
+                  : [`${d.score_pct}% compliant`]),
+              `${d.passing}/${d.total} passing`,
+            ],
           }))}
           windowDays={30}
         />

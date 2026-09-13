@@ -1,10 +1,10 @@
 // @spec system-http-server
 //
 // AC traceability:
-// @ac AC-04  (TestCertManager_CachesWithinWindow)
-// @ac AC-05  (TestCertManager_RefreshesAfterTTL)
-// @ac AC-06  (TestCertManager_HotReloadOnFileChange)
-// @ac AC-07  (TestCertManager_ErrorsOnMissingFile)
+//   AC-04  (TestCertManager_CachesWithinWindow)
+//   AC-05  (TestCertManager_RefreshesAfterTTL)
+//   AC-06  (TestCertManager_HotReloadOnFileChange)
+//   AC-07  (TestCertManager_ErrorsOnMissingFile)
 
 package server
 
@@ -59,7 +59,8 @@ func writeCert(t *testing.T, certPath, keyPath, cn string) {
 	}
 }
 
-// @ac AC-04  (Two calls within the cache TTL return the same cached cert; no)
+// @ac AC-04
+// AC-04: Two calls within the cache TTL return the same cached cert; no
 // second file read.
 func TestCertManager_CachesWithinWindow(t *testing.T) {
 	t.Run("system-http-server/AC-04", func(t *testing.T) {
@@ -90,7 +91,8 @@ func TestCertManager_CachesWithinWindow(t *testing.T) {
 	})
 }
 
-// @ac AC-05  (After the cache TTL expires, the next call re-reads from disk.)
+// @ac AC-05
+// AC-05: After the cache TTL expires, the next call re-reads from disk.
 func TestCertManager_RefreshesAfterTTL(t *testing.T) {
 	t.Run("system-http-server/AC-05", func(t *testing.T) {
 
@@ -127,7 +129,8 @@ func TestCertManager_RefreshesAfterTTL(t *testing.T) {
 	})
 }
 
-// @ac AC-06  (Replacing the file on disk causes the next post-TTL call to)
+// @ac AC-06
+// AC-06: Replacing the file on disk causes the next post-TTL call to
 // present the new certificate. (Same scenario as AC-5 but framed as the
 // operator workflow: rotate cert, wait, new cert served.)
 func TestCertManager_HotReloadOnFileChange(t *testing.T) {
@@ -159,7 +162,8 @@ func TestCertManager_HotReloadOnFileChange(t *testing.T) {
 	})
 }
 
-// @ac AC-07  (GetCertificate errors when the file is missing/unreadable; no)
+// @ac AC-07
+// AC-07: GetCertificate errors when the file is missing/unreadable; no
 // stale-cache fallback.
 func TestCertManager_ErrorsOnMissingFile(t *testing.T) {
 	t.Run("system-http-server/AC-07", func(t *testing.T) {

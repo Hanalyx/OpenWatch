@@ -1,12 +1,12 @@
 // @spec system-config
 //
 // AC traceability:
-// @ac AC-10  (TestValidate_DefaultsArePassable)
-// @ac AC-11  (TestValidate_Errors)
-// @ac AC-12  (TestValidate_AccumulatesErrors)
-// @ac AC-13  (TestRedactDSNExported (postgres URL with password))
-// @ac AC-14  (TestRedactDSNExported (no password / no userinfo))
-// @ac AC-15  (TestRedactDSNExported (unparseable input))
+//   AC-10  (TestValidate_DefaultsArePassable)
+//   AC-11  (TestValidate_Errors)
+//   AC-12  (TestValidate_AccumulatesErrors)
+//   AC-13  (TestRedactDSNExported (postgres URL with password))
+//   AC-14  (TestRedactDSNExported (no password / no userinfo))
+//   AC-15  (TestRedactDSNExported (unparseable input))
 
 package config
 
@@ -15,7 +15,8 @@ import (
 	"testing"
 )
 
-// @ac AC-10  (Defaults() passes Validate() with no errors.)
+// @ac AC-10
+// AC-10: Defaults() passes Validate() with no errors.
 func TestValidate_DefaultsArePassable(t *testing.T) {
 	t.Run("system-config/AC-10", func(t *testing.T) {
 
@@ -27,7 +28,8 @@ func TestValidate_DefaultsArePassable(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (Validate() rejects each invalid-field case with a specific error.)
+// @ac AC-11
+// AC-11: Validate() rejects each invalid-field case with a specific error.
 func TestValidate_Errors(t *testing.T) {
 	t.Run("system-config/AC-11", func(t *testing.T) {
 
@@ -64,7 +66,8 @@ func TestValidate_Errors(t *testing.T) {
 	})
 }
 
-// @ac AC-12  (Validate() accumulates and reports all errors.)
+// @ac AC-12
+// AC-12: Validate() accumulates and reports all errors.
 func TestValidate_AccumulatesErrors(t *testing.T) {
 	t.Run("system-config/AC-12", func(t *testing.T) {
 
@@ -85,7 +88,8 @@ func TestValidate_AccumulatesErrors(t *testing.T) {
 	})
 }
 
-// @ac AC-13  (RedactDSN redacts the password component to "***" while)
+// @ac AC-13
+// AC-13: RedactDSN redacts the password component to "***" while
 // preserving scheme/user/host/path.
 func TestRedactDSNExported(t *testing.T) {
 	t.Run("system-config/AC-13", func(t *testing.T) {
@@ -96,7 +100,8 @@ func TestRedactDSNExported(t *testing.T) {
 	})
 }
 
-// @ac AC-14  (RedactDSN preserves DSNs with no password unchanged.)
+// @ac AC-14
+// AC-14: RedactDSN preserves DSNs with no password unchanged.
 func TestRedactDSN_NoPasswordUnchanged(t *testing.T) {
 	t.Run("system-config/AC-14", func(t *testing.T) {
 		cases := []string{
@@ -111,7 +116,8 @@ func TestRedactDSN_NoPasswordUnchanged(t *testing.T) {
 	})
 }
 
-// @ac AC-15  (RedactDSN returns input unchanged when not parseable as URL.)
+// @ac AC-15
+// AC-15: RedactDSN returns input unchanged when not parseable as URL.
 func TestRedactDSN_UnparseableUnchanged(t *testing.T) {
 	t.Run("system-config/AC-15", func(t *testing.T) {
 		in := "not a url"

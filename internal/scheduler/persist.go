@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
+
 	"github.com/google/uuid"
 )
 
@@ -67,9 +69,18 @@ func (s *Service) snapshot() (TierLadder, string, int, bool) {
 // manual scans still bypass dispatch-time row locks and advancement).
 //
 // Emits scheduler.schedule.updated with prior/new state (C-09).
-func (s *Service) PersistAfterScan(ctx context.Context, hostID uuid.UUID, score float64, hasCritical bool, completedAt time.Time) (ScanResult, error) {
+func (s *Service) PersistAfterScan(ctx context.Context, hostID uuid.UUID, score compliance.Score, hasCritical bool, completedAt time.Time) (ScanResult, error) {
 	ladder, _, _, _ := s.snapshot()
 	res := UpdateAfterScan(score, hasCritical, completedAt, ladder)
+
+	// An absent score is stored as NULL, never as 0. compliance_score is
+	// already a nullable REAL, so this needs no schema change; before
+	// bugs/OW-024 the caller had no way to say "no score" and a fabricated 0
+	// was written instead.
+	var storedScore any
+	if pct, present := score.Value(); present {
+		storedScore = pct
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -96,7 +107,7 @@ func (s *Service) PersistAfterScan(ctx context.Context, hostID uuid.UUID, score 
 		       next_scheduled_scan      = EXCLUDED.next_scheduled_scan,
 		       last_scan_completed_at   = EXCLUDED.last_scan_completed_at,
 		       updated_at               = now()`,
-		hostID, string(res.State), score, hasCritical,
+		hostID, string(res.State), storedScore, hasCritical,
 		int(ladderInterval(ladder, res.State)/time.Minute), res.NextScheduled, completedAt,
 	); err != nil {
 		return res, fmt.Errorf("scheduler: persist after scan %s: %w", hostID, err)

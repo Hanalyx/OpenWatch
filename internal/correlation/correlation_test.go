@@ -1,14 +1,14 @@
 // @spec system-correlation
 //
 // AC traceability:
-// @ac AC-01  (TestGenerate_FormatPerPrefix)
-// @ac AC-02  (TestGenerate_UniquenessSequential)
-// @ac AC-03  (TestGenerate_UniquenessConcurrent)
-// @ac AC-04  (TestGenerate_TimestampEmbedded)
-// @ac AC-05  (TestSanitize_EmptyReturnsFresh)
-// @ac AC-06  (TestSanitize_ValidPassesThrough)
-// @ac AC-07  (TestSanitize_RejectsInvalid)
-// @ac AC-08  (TestSetFromRoundtrip)
+//   AC-01  (TestGenerate_FormatPerPrefix)
+//   AC-02  (TestGenerate_UniquenessSequential)
+//   AC-03  (TestGenerate_UniquenessConcurrent)
+//   AC-04  (TestGenerate_TimestampEmbedded)
+//   AC-05  (TestSanitize_EmptyReturnsFresh)
+//   AC-06  (TestSanitize_ValidPassesThrough)
+//   AC-07  (TestSanitize_RejectsInvalid)
+//   AC-08  (TestSetFromRoundtrip)
 //   (AC-9..AC-16 covered in http_test.go, log handler tests, httpclient tests)
 
 package correlation
@@ -23,7 +23,8 @@ import (
 	"time"
 )
 
-// @ac AC-01  (Format matches ^<prefix>-[0-9a-f]{16}$ for each prefix.)
+// @ac AC-01
+// AC-01: Format matches ^<prefix>-[0-9a-f]{16}$ for each prefix.
 func TestGenerate_FormatPerPrefix(t *testing.T) {
 	t.Run("system-correlation/AC-01", func(t *testing.T) {
 
@@ -45,7 +46,8 @@ func TestGenerate_FormatPerPrefix(t *testing.T) {
 	})
 }
 
-// @ac AC-02  (Sequential calls return distinct IDs (sampled across 10000).)
+// @ac AC-02
+// AC-02: Sequential calls return distinct IDs (sampled across 10000).
 func TestGenerate_UniquenessSequential(t *testing.T) {
 	t.Run("system-correlation/AC-02", func(t *testing.T) {
 
@@ -61,7 +63,8 @@ func TestGenerate_UniquenessSequential(t *testing.T) {
 	})
 }
 
-// @ac AC-03  (Concurrent calls produce distinct IDs (race detector + uniqueness check).)
+// @ac AC-03
+// AC-03: Concurrent calls produce distinct IDs (race detector + uniqueness check).
 func TestGenerate_UniquenessConcurrent(t *testing.T) {
 	t.Run("system-correlation/AC-03", func(t *testing.T) {
 
@@ -97,7 +100,8 @@ func TestGenerate_UniquenessConcurrent(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (The hex portion decodes as 8 bytes; first 48 bits are recent unix-millis.)
+// @ac AC-04
+// AC-04: The hex portion decodes as 8 bytes; first 48 bits are recent unix-millis.
 func TestGenerate_TimestampEmbedded(t *testing.T) {
 	t.Run("system-correlation/AC-04", func(t *testing.T) {
 
@@ -128,7 +132,8 @@ func TestGenerate_TimestampEmbedded(t *testing.T) {
 	})
 }
 
-// @ac AC-05  (Empty input → fresh req- ID, regenerated=false (absence isn't rejection).)
+// @ac AC-05
+// AC-05: Empty input → fresh req- ID, regenerated=false (absence isn't rejection).
 func TestSanitize_EmptyReturnsFresh(t *testing.T) {
 	t.Run("system-correlation/AC-05", func(t *testing.T) {
 
@@ -142,7 +147,8 @@ func TestSanitize_EmptyReturnsFresh(t *testing.T) {
 	})
 }
 
-// @ac AC-06  (Valid client header passes through unchanged.)
+// @ac AC-06
+// AC-06: Valid client header passes through unchanged.
 func TestSanitize_ValidPassesThrough(t *testing.T) {
 	t.Run("system-correlation/AC-06", func(t *testing.T) {
 
@@ -165,7 +171,8 @@ func TestSanitize_ValidPassesThrough(t *testing.T) {
 	})
 }
 
-// @ac AC-07  (Reject oversize, out-of-charset, and reserved-prefix inputs.)
+// @ac AC-07
+// AC-07: Reject oversize, out-of-charset, and reserved-prefix inputs.
 func TestSanitize_RejectsInvalid(t *testing.T) {
 	t.Run("system-correlation/AC-07", func(t *testing.T) {
 
@@ -194,7 +201,8 @@ func TestSanitize_RejectsInvalid(t *testing.T) {
 	})
 }
 
-// @ac AC-08  (Set/From round-trip; Background returns ("", false).)
+// @ac AC-08
+// AC-08: Set/From round-trip; Background returns ("", false).
 func TestSetFromRoundtrip(t *testing.T) {
 	t.Run("system-correlation/AC-08", func(t *testing.T) {
 

@@ -1,7 +1,7 @@
 spec:
   id: frontend-hosts-list
   title: Hosts list — fleet dashboard with search, filter, card/table views
-  version: "1.10.0"
+  version: "1.12.0"
   status: approved
   tier: 2
 
@@ -102,10 +102,14 @@ spec:
         same fleet score the dashboard KPI uses (GET /api/v1/fleet/score,
         passing / (passing + failing) — the canonical compliance metric that
         also drives the scheduler bands), so the /hosts and /dashboard surfaces
-        cannot show different fleet-compliance numbers. The client-side
-        kpisFromHosts average (which divides by the all-status rule total,
-        including skipped + error) is a fallback shown only until the fleet
-        score resolves, never the authoritative displayed value.
+        cannot show different fleet-compliance numbers. v1.12.0 - kpisFromHosts
+        computes NO fleet score at all, as a fallback or otherwise. The previous
+        wording permitted a client-side average until the fleet query resolved,
+        which system-compliance-scoring C-14 forbids: it was a second
+        implementation of the compliance formula in the browser, and a
+        placeholder is still a number an operator reads and acts on. While the
+        query is loading or has errored, the KPI shows no score. The
+        /fleet/score result is authoritative INCLUDING when score_pct is null.
       type: technical
       enforcement: error
 
@@ -170,11 +174,11 @@ spec:
       priority: medium
       references_constraints: [C-02]
     - id: AC-16
-      description: 'v1.3.0 — per-host compliance is real: apiHostToDev maps the list endpoint nullable compliance_summary into the host shape. compliance = round(passing/total*1000)/10 when total > 0, otherwise null; passed/failed/total come from the summary (passing/failing/total); critical_failing is carried as criticalFailing. A null summary (or a zero-rule summary) keeps compliance/passed/failed null so the card renders the honest "No scan data" state with the "Scan needed" hint (never-scanned hosts only) and the table cell renders a dash. No placeholder zeros. Card and table cells render the real percentage, the passing/failing counts, and the tier color via the existing complianceTier().'
+      description: 'v1.3.0 — per-host compliance is real: apiHostToDev maps the list endpoint nullable compliance_summary into the host shape. compliance is TAKEN from the summary''s server-computed score_pct and is null when the server sends null (v1.11.0; it was derived here as round(passing/total*1000)/10, which was both the replaced formula and a second implementation of it in the browser); passed/failed/total come from the summary (passing/failing/total); critical_failing is carried as criticalFailing. A null summary (or a zero-rule summary) keeps compliance/passed/failed null so the card renders the honest "No scan data" state with the "Scan needed" hint (never-scanned hosts only) and the table cell renders a dash. No placeholder zeros. Card and table cells render the real percentage, the passing/failing counts, and the tier color via the existing complianceTier().'
       priority: critical
       references_constraints: [C-02]
     - id: AC-17
-      description: 'v1.3.0 — the Avg. compliance KPI is a rule-weighted average over hosts WITH scan data only: kpisFromHosts filters to hosts whose compliance is non-null and total > 0 before summing passed/total. Never-scanned hosts are excluded from the average entirely, not counted as 0.'
+      description: 'v1.12.0 - kpisFromHosts derives NO compliance score. It returns a null avgCompliance value and computes only inventory KPIs (hosts online, critical issues, scan queue) from the host list. Source-inspection of HostsListPage: kpisFromHosts contains no arithmetic over any host compliance value, and system-compliance-scoring AC-31 detects the frontend alias so a reintroduction fails the build rather than review. It previously computed the equal-host mean locally as a placeholder. That was the second formula implementation C-14 exists to forbid, it survived an authoritative null so a fleet the server could not score displayed an invented percentage, and it rounded independently of the server. A fleet with no score renders a dash, which is now the ONLY way a dash is produced: from the absence of a server score, never from local arithmetic finding nothing to average.'
       priority: high
       references_constraints: [C-02]
     - id: AC-18
@@ -182,7 +186,28 @@ spec:
       priority: high
       references_constraints: [C-02]
     - id: AC-19
-      description: 'v1.4.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]): with two or more snapshot days it renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change); with fewer days the delta stays empty - never a fabricated zero'
+      description: 'v1.12.0 - the average-compliance KPI delta reads the fleet trend (GET /api/v1/fleet/compliance/trend, queryKey ["fleet", "compliance", "trend"]). It renders "(+/-)N% vs yesterday" (tier ok when rising, crit when falling, neutral on no change) ONLY when both days carry a score and share a formula state that is not mixed. Otherwise it renders no delta, a neutral tier, and a reason naming which of four cases applies: today mixes formulas, yesterday mixes formulas, the two days were scored by different formulas, or a day has no score. The earlier text required "vs yesterday" unconditionally, and the code explained only the case where TODAY is mixed while saying "yesterday mixes formulas", so a mixed previous day and a formula mismatch both produced an unexplained blank. The presentation lives in the exported fleetDeltaFromTrend, which the page calls, so the contract is asserted against the presenter rather than against the source text of its sentences.'
+      inputs:
+        cases:
+          - {id: rise, prev_score: 70.0, prev_status: identified, today_score: 80.0, today_status: identified,
+             expect_delta: '+10% vs yesterday', expect_tier: ok}
+          - {id: fall, prev_score: 80.0, prev_status: identified, today_score: 70.0, today_status: identified,
+             expect_delta: '-10% vs yesterday', expect_tier: crit}
+          - {id: flat, prev_score: 75.0, prev_status: identified, today_score: 75.0, today_status: identified,
+             expect_delta: 'No change vs yesterday', expect_tier: neutral}
+          - {id: mixed_today, prev_score: 70.0, prev_status: identified, today_score: null, today_status: mixed,
+             expect_delta: 'No comparison: today mixes formulas', expect_tier: neutral}
+          - {id: mixed_yesterday, prev_score: null, prev_status: mixed, today_score: 70.0, today_status: identified,
+             expect_delta: 'No comparison: yesterday mixes formulas', expect_tier: neutral}
+          - {id: formula_mismatch, prev_score: 40.0, prev_status: legacy_unknown, today_score: 80.0, today_status: identified,
+             expect_delta: 'No comparison: the two days were scored by different formulas', expect_tier: neutral}
+          - {id: scoreless_day, prev_score: 70.0, prev_status: identified, today_score: null, today_status: identified,
+             expect_delta: 'No comparison: a day in this window has no score', expect_tier: neutral}
+        directional_tiers: [ok, crit]
+      expected_output:
+        every_case_matches_its_expected_delta: true
+        every_case_matches_its_expected_tier: true
+        directional_tier_only_when_comparable: true
       priority: high
 
     - id: AC-20
@@ -212,22 +237,75 @@ spec:
       references_constraints: [C-12]
     - id: AC-26
       description: >-
-        v1.8.0 — the Avg compliance KPI value is taken from GET
-        /api/v1/fleet/score (queryKey ['fleet','score'], shared with the
-        dashboard KPI): when the fleet score has loaded with total_evaluations
-        > 0, kpis.avgCompliance.value is round(passing_fraction * 100) — the
-        same number and rounding the dashboard shows — overriding the
-        client-side kpisFromHosts aggregate so /hosts and /dashboard agree.
-        v1.10.0 — the key carries the org default lens (['fleet','score',lens])
-        and forwards it as ?framework= so the KPI reflects the default lens,
-        matching the dashboard.
-        Source-inspection of HostsListPage: a useQuery with queryKey
-        ['fleet','score',lens] hits GET /api/v1/fleet/score, and the avg-compliance
-        KPI value is set to round(passing_fraction * 100) from that query
-        (guarded on total_evaluations > 0), the same expression the dashboard
-        widget uses.
+        v1.8.0 - the Avg compliance KPI value is taken from GET /api/v1/fleet/score (queryKey
+        ['fleet','score'], shared with the dashboard KPI), overriding the client-side aggregate so /hosts
+        and /dashboard agree. v1.10.0 - the key carries the org default lens (['fleet','score',lens]) and
+        forwards it as ?framework=. v1.11.0 - the value is TAKEN AS SENT from score_pct, and
+        passing_fraction and total_evaluations are gone from the contract entirely. v1.12.0 - the
+        assignment is guarded on the QUERY having resolved, not on score_pct being non-null, so an
+        authoritative null reaches the KPI.
+
+        v1.13.0 - this criterion is proven by MOUNTING HostsListPage, not by reading it. The page is
+        rendered with host rows that carry per-host pass and fail counts, which is exactly the data a
+        local calculation would use, so a page that computed its own mean would show a number here.
+
+        An authoritative score_pct: null renders as NO SCORE: an em-dash value, no percent unit, neutral
+        tone, a "no host scored yet" note, and no bar fill at all. A genuine score_pct: 0 renders as a
+        real zero: the digit, a percent unit, critical tone, the target note, and a zero-width bar fill
+        that is present in the DOM. The two must differ on every one of those five, because the whole
+        defect class this criterion guards is an absent score rendered as a bad score. Painting null in
+        critical red said "this fleet is failing" when the server said "I cannot score this fleet".
+      inputs:
+        # The same host rows for both cases. They carry the counts a local mean
+        # would be computed from, so the fixture cannot pass by accident on a
+        # page that has no hosts to average.
+        hosts:
+          - id: 11111111-1111-4111-8111-111111111111
+            hostname: web-01
+            rules_passed: 93
+            rules_failed: 7
+          - id: 22222222-2222-4222-8222-222222222222
+            hostname: db-01
+            rules_passed: 71
+            rules_failed: 29
+        # What a browser-side mean over those rows would have produced. It must
+        # appear nowhere in the rendered KPI in either case.
+        #
+        # Deliberately not 80: the card's own "Target >= 80%" note contains
+        # that digit pair, so a mean of 80 would make this assertion fire on
+        # correct output and then get weakened to pass.
+        local_mean_would_be: '82'
+        cases:
+          - id: authoritative_null
+            fleet_score_pct: null
+            expect_value: '—'
+            expect_unit: ''
+            expect_tone: 'var(--ow-fg-3)'
+            expect_meta_left: 'No host scored yet'
+            expect_bar_fill: absent
+          - id: genuine_zero
+            fleet_score_pct: 0
+            expect_value: '0'
+            expect_unit: '%'
+            expect_tone: 'var(--ow-crit)'
+            expect_meta_left: 'Target ≥ 80%'
+            expect_bar_fill: 'present_at_0'
+        # The state that makes a client-side fallback visible at all. When the
+        # fleet endpoint is slower than the hosts endpoint, the page holds host
+        # rows it could average while it has no authoritative score. That
+        # window is the only place a local stand-in can be seen, because
+        # afterwards the authoritative value overwrites it.
+        pending_fleet_score:
+          hosts_have_loaded: true
+          expect_value: '—'
+      expected_output:
+        page_is_mounted_not_inspected: true
+        null_and_zero_differ_on_value_unit_tone_meta_and_bar: true
+        local_mean_never_rendered: true
+        no_local_score_while_the_fleet_query_is_pending: true
       priority: high
-      references_constraints: [C-13]
+      references_constraints:
+        - C-13
     - id: AC-27
       description: >-
         v1.9.0 source-inspection — an in-flight scan surfaces on the host

@@ -1,6 +1,10 @@
 package scheduler
 
-import "time"
+import (
+	"time"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
+)
 
 // ScanResult is the output of UpdateAfterScan — what the scheduler row
 // should look like after a scan completes. Service.PersistAfterScan
@@ -20,6 +24,7 @@ type ScanResult struct {
 // #5 resolved 2026-06-12):
 //
 //	hasCritical = true   → StateCritical
+//	absent score         → StateUnknown (bugs/OW-024)
 //	score >= 90          → StateCompliant
 //	70 <= score < 90     → StateMostlyCompliant
 //	50 <= score < 70     → StatePartial
@@ -27,18 +32,28 @@ type ScanResult struct {
 //	score < 20           → StateCritical
 //
 // Pure function: no I/O, no side effects.
-func StateFromScore(score float64, hasCritical bool) ComplianceState {
+func StateFromScore(score compliance.Score, hasCritical bool) ComplianceState {
 	if hasCritical {
 		return StateCritical
 	}
+	// An absent score is not a low score. Before bugs/OW-024 this function took
+	// a bare float64, internal/worker divided passing by every outcome, and a
+	// host whose scan produced no verdict arrived as 0.0 and fell through the
+	// default branch to Critical. It was then stored and reported as the worst
+	// compliance band for a scanning problem. StateUnknown is in the public API
+	// enum and had no producer for exactly the case that needed it.
+	pct, present := score.Value()
+	if !present {
+		return StateUnknown
+	}
 	switch {
-	case score >= 90:
+	case pct >= 90:
 		return StateCompliant
-	case score >= 70:
+	case pct >= 70:
 		return StateMostlyCompliant
-	case score >= 50:
+	case pct >= 50:
 		return StatePartial
-	case score >= 20:
+	case pct >= 20:
 		return StateNonCompliant
 	default:
 		return StateCritical
@@ -57,7 +72,7 @@ func StateFromScore(score float64, hasCritical bool) ComplianceState {
 //
 // Pure function — no DB write. Service.PersistAfterScan wraps this and
 // performs the UPSERT + audit emission against host_compliance_schedule.
-func UpdateAfterScan(score float64, hasCritical bool, scanCompletedAt time.Time, ladder TierLadder) ScanResult {
+func UpdateAfterScan(score compliance.Score, hasCritical bool, scanCompletedAt time.Time, ladder TierLadder) ScanResult {
 	state := StateFromScore(score, hasCritical)
 	return ScanResult{
 		State:         state,

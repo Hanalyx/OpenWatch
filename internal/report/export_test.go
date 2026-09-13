@@ -25,7 +25,7 @@ import (
 // (magic header + EOF trailer) from a report + its content. Pure: no DB.
 func TestRenderExecutivePDF(t *testing.T) {
 	t.Run("api-reports/AC-12", func(t *testing.T) {
-		pct := 65
+		pct := 65.0
 		rep := Report{
 			Title:         executiveTitle,
 			ScopeLabel:    "RHEL hosts · CIS",
@@ -34,7 +34,7 @@ func TestRenderExecutivePDF(t *testing.T) {
 			ContentSHA256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
 		}
 		c := ExecutiveContent{
-			CompliancePct:  &pct,
+			ScorePct:       &pct,
 			HostCount:      5,
 			PassingRules:   1812,
 			FailingRules:   821,

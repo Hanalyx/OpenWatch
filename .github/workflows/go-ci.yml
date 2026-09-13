@@ -135,12 +135,18 @@ jobs:
 
       - name: Set up specter
         if: steps.paths.outputs.go == 'true'
-        env:
-          # Pinned so CI is reproducible. Bump in lockstep with any
-          # spec-schema change required by specs/. 0.14.0 matches the
-          # local toolchain; all 116 specs validated against it.
-          SPECTER_VERSION: "0.14.0"
+        # The version is DERIVED from the tracked .specter-version file, never
+        # written here. An earlier revision declared it in `env:` and then
+        # compared the two, which detects drift but is still two places to
+        # edit; scripts/specter-gate.py reads the same file and refuses to run
+        # against any other build.
         run: |
+          SPECTER_VERSION="$(tr -d '[:space:]' < .specter-version)"
+          if [ -z "$SPECTER_VERSION" ]; then
+            echo "::error::.specter-version is missing or empty"
+            exit 1
+          fi
+          echo "Installing specter $SPECTER_VERSION (from .specter-version)"
           curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
               -o /tmp/specter.tar.gz
           tar -xzf /tmp/specter.tar.gz -C /tmp specter
@@ -196,53 +202,63 @@ jobs:
       # stale when the bits change, an unreadable checksum list fails closed,
       # and an agent cannot satisfy a gate that requires a human observer.
       # Stdlib only and no network, so this runs unconditionally and fast.
+      # -S disables site packages. The checker is standard library only by
+      # design (see release-status.py's header), and this runner happens to
+      # have PyYAML installed, so without -S an accidental third-party import
+      # would pass here and fail on a runner that does not.
       - name: release gate checker tests
-        run: python3 scripts/test_release_status.py
-
-      # Annotation hygiene: cross-reference every test's @spec / @ac
-      # annotation against the spec registry and fail on a dangling spec
-      # ref, unknown AC id, malformed AC id, or unreachable annotation
-      # error. This catches the class of drift where a spec is renamed or
-      # dropped but its test annotations linger (exactly what happened when
-      # the connectivity specs were lost in a squash-merge). Gate on the
-      # printed error count, not the exit code: `specter check --test`
-      # returns 0 on some builds even with errors present.
-      - name: specter check --test (annotation hygiene)
-        if: steps.paths.outputs.go == 'true'
         run: |
-          out=$(specter check --test 2>&1) || true
-          echo "$out"
-          n=$(echo "$out" | grep -cE 'error \[' || true)
-          if [ "$n" -gt 0 ]; then
-            echo "::error::specter check --test found $n test-annotation error(s) — fix the dangling @spec / @ac refs listed above."
-            exit 1
-          fi
+          python3 -S scripts/test_release_status.py
+          python3 -S scripts/test_specter_gate.py
 
-      # 100% structural coverage gate. Every acceptance criterion in every spec
-      # MUST have at least one test annotation — no AC may silently lose its
-      # test. This runs in annotation strictness (structural, no ingest) so it
-      # is independent of which tests run in this lane, and it fails fast and
-      # with a clear message before the heavier ingest-based outcome gate. The
-      # outcome gate (`specter sync` at the manifest's threshold strictness,
-      # tiers all 100, below) separately requires every AC's test to PASS; the
-      # ingest job provisions OPENWATCH_KENSA_RULES_DIR + OPENWATCH_PACKAGING_BUILD
-      # so the formerly env-gated tests run there instead of skipping.
+      # Node and the frontend install move AHEAD of the Specter gate because
+      # the gate asks Vitest for the real collected test titles rather than
+      # guessing them from source. The vitest run further down reuses this
+      # same install; nothing is installed twice.
+      - name: Set up Node.js
+        if: steps.paths.outputs.go == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.paths.outputs.go == 'true'
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      # The Specter gate: pinned version, zero annotation ERRORS and WARNINGS
+      # (info is not blocking), and 100% structural coverage. The policy lives in
+      # scripts/specter-gate.py, which `make spec-check` also runs, so the
+      # local and CI gates cannot drift into different rules. Spec
+      # release-ci-gates C-07 / AC-11.
       #
-      # NOTE: `specter sync --strictness annotation` would only enforce the
-      # per-tier thresholds, so we assert 100% directly: any per-spec row
-      # (a "… Tn …" line) not at 100% fails the build.
-      - name: specter structural coverage must be 100%
+      # Two things this replaced, and why. The old steps grepped specter's
+      # TEXT output ('error \[' and a coverage table shape); a formatting
+      # change upstream turns such a grep into a gate that matches nothing
+      # and reports success. And the old comment claimed the pinned build
+      # could exit 0 with annotation errors present. Re-measured on v0.15
+      # before deleting that claim: a planted unknown @spec produces
+      # error [unknown_spec_ref] and exit 1, and a planted unknown @ac
+      # produces error [unknown_ac_ref] and exit 1.
+      #
+      # Severity is not a safe filter here. v0.15 deliberately leaves
+      # unreachable_annotation_unknown at WARNING, and `specter check --test`
+      # exits 0 with warnings present, so neither the exit code nor --strict
+      # is sufficient on its own. The gate rejects any nonzero error or
+      # warning count AND a nonzero exit status, printing what it rejected.
+      # It runs under -S so its standard-library-only claim is enforced.
+      #
+      # The baseline this was measured against, stated once so the numbers
+      # are not mixed: 277 warnings, being 130 unreachable_annotation, 102
+      # unreachable_annotation_unknown and 45 domain_tier_conflict. Under
+      # --strict the first and third became errors, giving 175 errors and
+      # 102 warnings of the SAME 277. The 232 reachability annotations
+      # repaired are the first two kinds.
+      - name: specter gate (annotations + structural coverage)
         if: steps.paths.outputs.go == 'true'
-        run: |
-          report=$(specter coverage --strictness annotation 2>&1)
-          echo "$report"
-          below=$(echo "$report" | grep -E '\sT[0-9]+\s' | grep -vE '\s100%' || true)
-          if [ -n "$below" ]; then
-            echo "::error::Specter structural coverage is below 100% — every acceptance criterion must carry a // @ac (Go) or // @ac (frontend) annotation. Specs below 100%:"
-            echo "$below"
-            exit 1
-          fi
-          echo "All specs at 100% structural coverage."
+        run: python3 -S scripts/specter-gate.py
 
       # Single full-suite run that BOTH detects data races and emits the
       # JSON specter ingests — replacing the previous two end-to-end passes
@@ -288,19 +304,10 @@ jobs:
       # gate even though the tests pass. Vitest emits JUnit XML at
       # /tmp/vitest-junit.xml which specter ingest reads alongside the Go
       # test results.
-      - name: Set up Node.js
-        if: steps.paths.outputs.go == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
       - name: frontend vitest (junit) for specter ingest
         if: steps.paths.outputs.go == 'true'
         working-directory: frontend
         run: |
-          npm ci --no-audit --no-fund
           set +e
           npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
           EXIT=$?
@@ -374,7 +381,13 @@ jobs:
   # changed. Enforces the prohibited list from the Context Plane at
   # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
   # US English spelling, and a per-file reading level.
-  # Shared implementation: dev/tools/doc-style-check (this repo runs v3).
+  # Shared implementation: dev/tools/doc-style-check. The adopted version is
+  # pinned in .doc-style-version, and scripts/doc-style-gate.py refuses to scan
+  # with a checker that disagrees with it. That pin is the only place the number
+  # lives; this job deliberately carries none, because the comment here that
+  # once named a version was two releases out of date and nothing caught it.
+  # Provenance and the local edits are recorded in the checker's own header,
+  # which is replaced wholesale on every upgrade and so cannot drift from it.
   doc-style:
     name: Doc Style
     runs-on: ubuntu-latest
@@ -386,8 +399,10 @@ jobs:
       # rather than as a clean run. A gate nobody has watched fail is not
       # known to work.
       - name: Checker selftest
-        run: python3 scripts/check-doc-style.py --selftest
-      - name: Check changed files against the style guide
-        run: |
-          git fetch origin main --depth=1 2>/dev/null || true
-          python3 scripts/check-doc-style.py --changed
+        run: python3 -S scripts/check-doc-style.py --selftest
+      # Runs the Make target, not its own copy of the command. A workflow that
+      # rebuilds the invocation is a second policy wearing the first one's name,
+      # and it is how this job came to check only changed files while the
+      # contract claimed the tree was clean.
+      - name: Check the tracked tree against the style guide
+        run: make docs-style

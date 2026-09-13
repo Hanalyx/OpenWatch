@@ -47,10 +47,76 @@ function swatchColor(key: string): string {
 
 // Compliance band -> tone color. null (nothing scanned) reads as crit.
 function complianceTone(pct: number | null | undefined): string {
-  if (pct == null) return 'var(--ow-crit)';
+  // An ABSENT score is neutral, not critical. Returning the critical token
+  // for null painted a group nobody could measure exactly like a group that
+  // failed everything, which is bugs/OW-023 rendered in CSS: a measurement
+  // gap presented as the worst possible result. Zero still earns critical,
+  // because zero is a verdict.
+  if (pct == null) return 'var(--ow-fg-3)';
   if (pct < 40) return 'var(--ow-crit)';
   if (pct < 80) return 'var(--ow-warn)';
   return 'var(--ow-ok)';
+}
+
+/** The aggregate fields every score presentation on this page reads. */
+export type GroupAggregate = {
+  score_pct: number | null;
+  hosts_scored: number;
+  hosts_without_score: number;
+  hosts_total: number;
+  coverage_status?: string;
+  coverage_pct?: number | null;
+};
+
+/**
+ * scorePresentation turns a server aggregate into the value, tone,
+ * participation line and coverage line every score on this page shows.
+ *
+ * ONE function for the fleet KPI and for every group card. They used to
+ * differ: the KPI stated participation while a card showed a bare percentage,
+ * so a group scored over 2 of 200 hosts looked exactly as representative as
+ * one scored over all 200.
+ */
+export function scorePresentation(score: GroupAggregate): {
+  value: string;
+  tone: string;
+  participation: string;
+  coverage: string;
+} {
+  return {
+    value: score.score_pct == null ? 'No score' : `${score.score_pct}%`,
+    tone: complianceTone(score.score_pct),
+    // All THREE counts, explicitly. Naming only the scored and the total left
+    // the unscored population to be inferred by subtraction, and nothing read
+    // hosts_without_score at all, so a wrong value could not have been seen.
+    participation:
+      `${score.hosts_scored} scored · ${score.hosts_without_score} without score · ` +
+      `${score.hosts_total} total`,
+    coverage: coverageLine(score),
+  };
+}
+
+/**
+ * coverageLine renders assessment coverage in the three contract states.
+ *
+ * The two unavailable states say DIFFERENT things and must not collapse into
+ * one sentence: one means OpenWatch cannot yet classify a skip, the other that
+ * the lens produced no outcome at all. Collapsing them discards the reason
+ * coverage_status exists to carry.
+ */
+function coverageLine(score: { coverage_status?: string; coverage_pct?: number | null }): string {
+  switch (score.coverage_status) {
+    case 'available':
+      return score.coverage_pct == null
+        ? 'Coverage unavailable'
+        : `${score.coverage_pct}% coverage`;
+    case 'unavailable_unclassified_skips':
+      return 'Coverage unavailable: skips are not yet classified';
+    case 'unavailable_no_outcomes':
+      return 'Coverage unavailable: no rule produced an outcome';
+    default:
+      return 'Coverage unavailable';
+  }
 }
 
 function statusDotColor(status: string): string {
@@ -155,8 +221,13 @@ export function GroupsPage() {
 
 // ── KPI row ────────────────────────────────────────────────────────
 
-function KpiRow({ summary }: { summary: GroupSummary }) {
-  const avg = summary.avg_compliance_pct;
+// Exported so the contract test renders the PRODUCTION KPI row. GroupsPage
+// renders this same function.
+export function KpiRow({ summary }: { summary: GroupSummary }) {
+  // The score comes as a one-decimal number with its population. It used to be
+  // a whole integer with neither, so a group of ten hosts where two were scored
+  // showed the same "72%" as one where all ten were.
+  const fleetScore = scorePresentation(summary.score);
   return (
     <div
       style={{
@@ -179,9 +250,9 @@ function KpiRow({ summary }: { summary: GroupSummary }) {
       />
       <Kpi
         label="Avg compliance"
-        value={avg == null ? '—' : `${avg}%`}
-        sub="across scanned hosts"
-        tone={complianceTone(avg)}
+        value={fleetScore.value}
+        sub={`${fleetScore.participation} · ${fleetScore.coverage}`}
+        tone={fleetScore.tone}
       />
       <Kpi
         label="Ungrouped"
@@ -328,10 +399,13 @@ function GroupSection({
 
 // ── group card ─────────────────────────────────────────────────────
 
-function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: boolean }) {
+// Exported so the contract test renders the PRODUCTION card alongside the
+// fleet KPI, proving both surfaces use the same presentation.
+export function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: boolean }) {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const r = group.rollup;
+  const groupScore = scorePresentation(r.score);
   const total = r.hosts;
   const onPct = total ? (r.online / total) * 100 : 0;
   const downPct = total ? (r.down / total) * 100 : 0;
@@ -529,8 +603,9 @@ function GroupCard({ group, canWrite }: { group: GroupWithRollup; canWrite: bool
       >
         <Metric
           label="Avg compliance"
-          value={r.avg_compliance_pct == null ? '—' : `${r.avg_compliance_pct}%`}
-          tone={complianceTone(r.avg_compliance_pct)}
+          value={groupScore.value}
+          tone={groupScore.tone}
+          sub={`${groupScore.participation} · ${groupScore.coverage}`}
         />
         <Metric
           label="Critical hosts"
@@ -713,7 +788,17 @@ function GroupTargetControl({ group, canWrite }: { group: GroupWithRollup; canWr
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: React.ReactNode; tone: string }) {
+function Metric({
+  label,
+  value,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone: string;
+  sub?: string;
+}) {
   return (
     <div>
       <div
@@ -737,6 +822,11 @@ function Metric({ label, value, tone }: { label: string; value: React.ReactNode;
       >
         {value}
       </div>
+      {sub ? (
+        <div style={{ color: 'var(--ow-fg-3)', fontSize: 10, marginTop: 3, lineHeight: 1.4 }}>
+          {sub}
+        </div>
+      ) : null}
     </div>
   );
 }

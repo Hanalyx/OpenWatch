@@ -211,58 +211,129 @@ func TestRecordFailure_UpsertsIntelBackoff(t *testing.T) {
 	})
 }
 
+// seedScanBackoff writes a scan backoff row directly. The intelligence
+// path must never read or write it.
+func seedScanBackoff(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, suppressUntil time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO host_backoff_state
+			(host_id, probe_type, consecutive_failures, suppress_until, last_error_code, last_failure_at, updated_at)
+		VALUES ($1, 'scan', 4, $2, 'kensa_error', now(), now())`,
+		hostID, suppressUntil)
+	if err != nil {
+		t.Fatalf("seed scan backoff: %v", err)
+	}
+}
+
+func readProbeRow(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, probe string) (present bool, consec int, suppress *time.Time, errCode *string) {
+	t.Helper()
+	err := pool.QueryRow(context.Background(), `
+		SELECT consecutive_failures, suppress_until, last_error_code
+		  FROM host_backoff_state WHERE host_id = $1 AND probe_type = $2`,
+		hostID, probe).Scan(&consec, &suppress, &errCode)
+	if err != nil {
+		return false, 0, nil, nil
+	}
+	return true, consec, suppress, errCode
+}
+
 // @ac AC-11
-// AC-11: failing intel cycle does NOT touch (host_id, probe_type='scan').
+// AC-11: a failing intel cycle does NOT touch (host_id, probe_type='scan').
+//
+// This used to be a source-inspection substitute. It grepped recordFailure
+// for a `WHERE host_backoff_state.probe_type = 'intel'` guard, and its own
+// comment explained why: the table was keyed on host_id alone, so a host
+// could not hold both rows and the behavior could not be observed.
+//
+// The guard it asserted was worse than untested, it was harmful. With a
+// single key, that WHERE turned the conflict into a silent no-op whenever a
+// scan row already existed, so an intelligence failure on a host that had
+// ever failed a scan recorded no backoff at all. Migration 0064 keys the
+// table on (host_id, probe_type) and the guard is gone, so the real
+// behavior is now observable and is what this asserts.
 func TestRecordFailure_DoesNotTouchScanBackoff(t *testing.T) {
 	t.Run("system-intelligence-scheduler/AC-11", func(t *testing.T) {
 		pool := freshDBScheduler(t)
 		ctx := context.Background()
 		h := insertSchedHost(t, pool, "h-scan-protected")
+		scanUntil := time.Now().UTC().Add(6 * time.Hour).Truncate(time.Microsecond)
+		seedScanBackoff(t, pool, h, scanUntil)
 
-		// Pre-seed a SCAN backoff row so we can prove it's preserved.
-		// Note: host_backoff_state PK is host_id only (per migration
-		// 0011); the schema constrains probe_type but the row is
-		// keyed by host. So a scan + intel row for the same host
-		// cannot coexist in v1.0.0 of the table. The AC asserts the
-		// intent: scan cadence MUST NOT be disrupted by intel.
-		//
-		// We assert the upsert WHERE clause specifically only touches
-		// probe_type='intel' rows, leaving scan rows alone — source
-		// inspection is the strongest invariant here since the schema
-		// itself can't hold both rows.
-		src := readSchedulerSrc(t, "service.go")
-		body := extractFuncBody(t, src, "recordFailure")
-		if !contains(body, "WHERE host_backoff_state.probe_type = 'intel'") {
-			t.Errorf("recordFailure UPSERT missing WHERE probe_type='intel' guard — scan backoff could be overwritten")
-		}
-		if !contains(body, "'intel'") {
-			t.Errorf("recordFailure does not write probe_type='intel'")
-		}
-		// Belt-and-suspenders: kick off a fail and assert the row that
-		// lands has probe_type='intel'.
 		runner := &stubRunner{run: func(_ context.Context, _ uuid.UUID) error {
-			return errors.New("fail")
+			return errors.New("simulated probe failure")
 		}}
 		svc := NewService(pool, runner)
 		svc.dispatchHost(ctx, h)
-		var pt string
-		err := pool.QueryRow(ctx,
-			`SELECT probe_type FROM host_backoff_state WHERE host_id = $1`, h).Scan(&pt)
-		if err != nil {
-			t.Fatalf("read backoff: %v", err)
+
+		var n int
+		if err := pool.QueryRow(ctx,
+			`SELECT count(*) FROM host_backoff_state WHERE host_id = $1`, h).Scan(&n); err != nil {
+			t.Fatalf("count rows: %v", err)
 		}
-		if pt != "intel" {
-			t.Errorf("probe_type=%q, want 'intel'", pt)
+		if n != 2 {
+			t.Fatalf("host carries %d backoff rows, want 2. The intelligence failure either "+
+				"overwrote the scan row or was discarded.", n)
+		}
+
+		okIntel, intelConsec, intelSuppress, _ := readProbeRow(t, pool, h, "intel")
+		if !okIntel {
+			t.Fatal("no intel row after a failing intel cycle: the write was discarded")
+		}
+		if intelConsec != 1 || intelSuppress == nil || time.Until(*intelSuppress) <= 0 {
+			t.Errorf("intel row consec=%d suppress=%v, want 1 and a future timestamp",
+				intelConsec, intelSuppress)
+		}
+
+		okScan, scanConsec, scanSuppress, scanErr := readProbeRow(t, pool, h, "scan")
+		if !okScan {
+			t.Fatal("the scan row is gone after an intelligence failure")
+		}
+		if scanConsec != 4 {
+			t.Errorf("scan consecutive_failures moved 4 -> %d on an INTEL failure", scanConsec)
+		}
+		if scanSuppress == nil || !scanSuppress.Equal(scanUntil) {
+			t.Errorf("scan suppress_until moved %v -> %v on an INTEL failure", scanUntil, scanSuppress)
+		}
+		if scanErr == nil || *scanErr != "kensa_error" {
+			t.Errorf("scan last_error_code = %v, want the seeded scan value", scanErr)
 		}
 	})
 }
 
-// small in-test helper to keep imports minimal.
-func contains(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
+// @ac AC-11
+// A successful intel cycle clears the intel ladder and only that one.
+func TestRecordSuccess_ClearsOnlyIntelBackoff(t *testing.T) {
+	t.Run("system-intelligence-scheduler/AC-11", func(t *testing.T) {
+		pool := freshDBScheduler(t)
+		ctx := context.Background()
+		h := insertSchedHost(t, pool, "h-intel-success")
+		scanUntil := time.Now().UTC().Add(6 * time.Hour).Truncate(time.Microsecond)
+		seedScanBackoff(t, pool, h, scanUntil)
+
+		fail := &stubRunner{run: func(_ context.Context, _ uuid.UUID) error {
+			return errors.New("simulated probe failure")
+		}}
+		svc := NewService(pool, fail)
+		svc.dispatchHost(ctx, h)
+		if ok, _, _, _ := readProbeRow(t, pool, h, "intel"); !ok {
+			t.Fatal("no intel backoff to clear")
 		}
-	}
-	return false
+
+		okRunner := &stubRunner{run: func(_ context.Context, _ uuid.UUID) error { return nil }}
+		cfg := systemconfig.IntelligenceConfig{IntervalSec: 1800, RateLimit: 10}
+		svcOK := NewService(pool, okRunner).WithConfigLoader(func(context.Context) (systemconfig.IntelligenceConfig, error) {
+			return cfg, nil
+		})
+		svcOK.dispatchHost(ctx, h)
+
+		if ok, _, _, _ := readProbeRow(t, pool, h, "intel"); ok {
+			t.Error("the intel backoff row survived a successful intel cycle")
+		}
+		okScan, scanConsec, scanSuppress, _ := readProbeRow(t, pool, h, "scan")
+		if !okScan || scanConsec != 4 || scanSuppress == nil || !scanSuppress.Equal(scanUntil) {
+			t.Errorf("scan row present=%v consec=%d suppress=%v, want it untouched at 4 with its "+
+				"suppression intact. A successful intelligence cycle must not lift a scan "+
+				"suppression.", okScan, scanConsec, scanSuppress)
+		}
+	})
 }

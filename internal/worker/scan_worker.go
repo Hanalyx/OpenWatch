@@ -34,6 +34,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/compliance"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -402,10 +404,15 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 	// postpones the next auto scan rather than stacking onto it.
 	// Spec system-scheduler v3.0.0 AC-08.
 	if w.sched != nil {
-		score := 0.0
-		if total := len(result.Outcomes); total > 0 {
-			score = float64(counts.Pass) / float64(total) * 100
-		}
+		// One score definition, from internal/compliance. This divided
+		// counts.Pass by len(result.Outcomes), so every skipped and errored
+		// outcome counted as a failure and an all-skipped scan produced a
+		// fabricated 0.0 that the scheduler then stored as critically
+		// non-compliant (bugs/OW-024).
+		score := compliance.HostScore(compliance.Counts{
+			Pass: counts.Pass, Fail: counts.Fail,
+			Skipped: counts.Skipped, Error: counts.Error,
+		})
 		hasCritical := false
 		for _, o := range result.Outcomes {
 			if o.Status == kensa.StatusFail && o.Severity == "critical" {
@@ -561,7 +568,7 @@ func (w *ScanWorker) recordTransientFailure(ctx context.Context, jobID uuid.UUID
 	if _, err := w.pool.Exec(ctx, `
 		UPDATE host_backoff_state
 		   SET suppress_until = $1, updated_at = $2
-		 WHERE host_id = $3`,
+		 WHERE host_id = $3 AND probe_type = 'scan'`,
 		suppressUntil, w.clock(), hostID); err != nil {
 		slog.WarnContext(ctx, "worker update suppress_until failed",
 			slog.String("host_id", hostID.String()),

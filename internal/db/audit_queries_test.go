@@ -2,10 +2,10 @@
 //
 // AC traceability (DB integration tests; dbtest skips them when
 // OPENWATCH_TEST_DSN is unset):
-// @ac AC-01  (TestInsertAndGetAuditEvent: pool + migrate idempotent)
-// @ac AC-07  (TestInsertAndGetAuditEvent: insert returns row, round-trip)
-// @ac AC-09  (TestListAuditEvents: newest-first ordering, cursor)
-// @ac AC-11  (TestCountAuditEvents)
+//   AC-01  (TestInsertAndGetAuditEvent: pool + migrate idempotent)
+//   AC-07  (TestInsertAndGetAuditEvent: insert returns row, round-trip)
+//   AC-09  (TestListAuditEvents: newest-first ordering, cursor)
+//   AC-11  (TestCountAuditEvents)
 //   (AC-2 unreachable-host: not yet implemented as a test — Day 4 follow-up)
 //   (AC-5, AC-6 schema: verified by migrate-and-read in TestInsertAndGetAuditEvent
 //                       and TestCountAuditEvents; no dedicated schema test)
@@ -32,7 +32,8 @@ import (
 // without the column. Use dbtest.Pool, or dbtest.DSN when the test must open
 // the connection itself.
 
-// @ac AC-01  (pool ping; migrate apply + idempotent re-run)
+// @ac AC-01
+// AC-01: pool ping; migrate apply + idempotent re-run
 // insert returns row, round-trip via GetAuditEventByID.
 func TestInsertAndGetAuditEvent(t *testing.T) {
 	t.Run("system-db/AC-01", func(t *testing.T) {
@@ -127,7 +128,8 @@ func TestInsertAndGetAuditEvent(t *testing.T) {
 	})
 }
 
-// @ac AC-09  (newest-first ordering; cursor returns only older rows)
+// @ac AC-09
+// AC-09: newest-first ordering; cursor returns only older rows
 func TestListAuditEvents(t *testing.T) {
 	t.Run("system-db/AC-09", func(t *testing.T) {
 
@@ -167,7 +169,8 @@ func TestListAuditEvents(t *testing.T) {
 	})
 }
 
-// @ac AC-10  (Cursor returns only rows strictly older than Before.)
+// @ac AC-10
+// AC-10: Cursor returns only rows strictly older than Before.
 func TestListAuditEvents_CursorWithBefore(t *testing.T) {
 	t.Run("system-db/AC-10", func(t *testing.T) {
 		pool := dbtest.Pool(t)
@@ -210,7 +213,8 @@ func TestListAuditEvents_CursorWithBefore(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (count matches inserted row total.)
+// @ac AC-11
+// AC-11: count matches inserted row total.
 func TestCountAuditEvents(t *testing.T) {
 	t.Run("system-db/AC-11", func(t *testing.T) {
 

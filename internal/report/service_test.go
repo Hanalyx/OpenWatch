@@ -4,7 +4,7 @@
 // content-shaping and value contracts that do NOT touch Postgres:
 //
 //	AC-01  TestExecutiveContent_JSONShape   (stored JSON document shape)
-//	AC-02  TestCompliancePct_Rounding       (round-half-up + nil-when-unevaluated)
+//	AC-02  TestScorePct_OneDecimalOrNull    (equal-host mean, null when unscored)
 //	AC-03  TestExecutiveConstants_Derivation (fixed title/scope/kind/format)
 //	AC-07  TestScopeLabel_Derivation         (scope_label + framework family)
 //
@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 )
 
 // @ac AC-01
@@ -28,9 +30,9 @@ import (
 // top-failing list preserves the service's order (most-failing first).
 func TestExecutiveContent_JSONShape(t *testing.T) {
 	t.Run("api-reports/AC-01", func(t *testing.T) {
-		pct := 82
+		pct := 82.0
 		c := ExecutiveContent{
-			CompliancePct:  &pct,
+			ScorePct:       &pct,
 			HostCount:      7,
 			PassingRules:   140,
 			FailingRules:   31,
@@ -51,12 +53,19 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 			t.Fatalf("unmarshal to map: %v", err)
 		}
 		for _, key := range []string{
-			"compliance_pct", "host_count", "passing_rules",
+			"score_pct", "host_count", "passing_rules",
 			"failing_rules", "critical_issues", "top_failing_rules", "coverage",
 		} {
 			if _, ok := got[key]; !ok {
 				t.Errorf("missing JSON key %q in %s", key, raw)
 			}
+		}
+		// The replaced key must be gone from a current artifact, not merely
+		// unused. It is omitempty and decode-only, so a generated document
+		// carries exactly one score.
+		if _, present := got["compliance_pct"]; present {
+			t.Errorf("compliance_pct is still emitted in %s; a current artifact must expose "+
+				"one authoritative number, not two plausible ones", raw)
 		}
 		// coverage is an object carrying its own fixed keys.
 		var cov map[string]json.RawMessage
@@ -75,8 +84,15 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 		if err := json.Unmarshal(raw, &back); err != nil {
 			t.Fatalf("round-trip unmarshal: %v", err)
 		}
-		if back.CompliancePct == nil || *back.CompliancePct != 82 {
-			t.Errorf("compliance_pct round-trip = %v, want 82", back.CompliancePct)
+		if back.ScorePct == nil || *back.ScorePct != 82 {
+			t.Errorf("score_pct round-trip = %v, want 82", back.ScorePct)
+		}
+		// The replaced key must not reappear. It is decode-only, so nothing
+		// sets it and omitempty keeps it out of every generated artifact.
+		if back.LegacyCompliancePct != nil {
+			t.Errorf("compliance_pct = %v on a current artifact; the pooled whole percent is "+
+				"decode-only and a current artifact carries exactly one score",
+				*back.LegacyCompliancePct)
 		}
 		if back.HostCount != 7 || back.PassingRules != 140 ||
 			back.FailingRules != 31 || back.CriticalIssues != 4 {
@@ -100,8 +116,10 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 		if err := json.Unmarshal(nilRaw, &nilMap); err != nil {
 			t.Fatalf("unmarshal nil content: %v", err)
 		}
-		if string(nilMap["compliance_pct"]) != "null" {
-			t.Errorf("nil compliance_pct = %s, want null", nilMap["compliance_pct"])
+		// Null, not omitted and not zero. A fleet nothing could measure and a
+		// fleet that failed everything are different facts.
+		if string(nilMap["score_pct"]) != "null" {
+			t.Errorf("nil score_pct = %s, want null", nilMap["score_pct"])
 		}
 		// An unset top-failing slice still serializes as [] (never JSON null)
 		// is only guaranteed by the service initializing it; the zero value
@@ -120,41 +138,63 @@ func TestExecutiveContent_JSONShape(t *testing.T) {
 }
 
 // @ac AC-02
-// compliancePct is the rounding contract behind the headline number. It
-// must round half up and return nil (not 0) when nothing was evaluated, so
-// the document can distinguish an unscanned fleet from a fully failing one.
-func TestCompliancePct_Rounding(t *testing.T) {
+// scorePtr is the rendering contract behind the headline number: the
+// canonical one-decimal value, or null when no host produced a verdict.
+//
+// It replaced compliancePct, which returned a POOLED whole percent. Both
+// halves of that were wrong. Pooling weighted a host by how many rules it
+// carried, and a whole percent could never equal the one-decimal score the
+// rest of the product reports, so a signed artifact disagreed with the app
+// by construction.
+func TestScorePct_OneDecimalOrNull(t *testing.T) {
 	t.Run("api-reports/AC-02", func(t *testing.T) {
 		cases := []struct {
 			name    string
-			passing int
-			eval    int
+			hosts   []compliance.Counts
 			wantNil bool
-			wantPct int
+			wantPct float64
 		}{
-			{name: "unevaluated -> nil", passing: 0, eval: 0, wantNil: true},
-			{name: "all passing -> 100", passing: 4, eval: 4, wantPct: 100},
-			{name: "none passing -> 0 (not nil)", passing: 0, eval: 4, wantPct: 0},
-			{name: "exact 75", passing: 3, eval: 4, wantPct: 75},
-			{name: "round half up (1/3 = 33.3 -> 33)", passing: 1, eval: 3, wantPct: 33},
-			{name: "round half up (2/3 = 66.7 -> 67)", passing: 2, eval: 3, wantPct: 67},
-			{name: "round half up (1/8 = 12.5 -> 13)", passing: 1, eval: 8, wantPct: 13},
-			{name: "negative evaluated -> nil", passing: 5, eval: -1, wantNil: true},
+			{name: "no hosts -> null", wantNil: true},
+			{name: "no host produced a verdict -> null",
+				hosts: []compliance.Counts{{Skipped: 40}}, wantNil: true},
+			{name: "every evaluated rule failed -> 0, not null",
+				hosts: []compliance.Counts{{Fail: 5}}, wantPct: 0},
+			{name: "all passing -> 100",
+				hosts: []compliance.Counts{{Pass: 4}}, wantPct: 100},
+			// The counterexample the whole change exists for. Pooling gives
+			// 10 passes over 12 outcomes, 83.3; one host one vote gives 70.0.
+			{name: "equal-host mean, not pooled",
+				hosts:   []compliance.Counts{{Pass: 9, Fail: 1}, {Pass: 1, Fail: 1}},
+				wantPct: 70},
+			// One decimal is kept, not rounded away to a whole percent.
+			{name: "one decimal survives",
+				hosts: []compliance.Counts{{Pass: 2, Fail: 1}}, wantPct: 66.7},
+			// An unscored host is counted, never averaged in as zero.
+			{name: "unscored host omitted from the mean",
+				hosts: []compliance.Counts{{Pass: 9, Fail: 1}, {Pass: 1, Fail: 1},
+					{Skipped: 40}},
+				wantPct: 70},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				got := compliancePct(tc.passing, tc.eval)
+				scores := make([]compliance.Score, 0, len(tc.hosts))
+				for _, h := range tc.hosts {
+					scores = append(scores, compliance.HostScore(h))
+				}
+				got := scorePtr(compliance.MeanOfHostScores(scores).Score)
 				if tc.wantNil {
 					if got != nil {
-						t.Fatalf("compliancePct(%d,%d) = %v, want nil", tc.passing, tc.eval, *got)
+						t.Fatalf("score_pct = %v, want null; no host produced a verdict and "+
+							"a number here would report a measurement failure as a verdict",
+							*got)
 					}
 					return
 				}
 				if got == nil {
-					t.Fatalf("compliancePct(%d,%d) = nil, want %d", tc.passing, tc.eval, tc.wantPct)
+					t.Fatalf("score_pct = null, want %v", tc.wantPct)
 				}
 				if *got != tc.wantPct {
-					t.Errorf("compliancePct(%d,%d) = %d, want %d", tc.passing, tc.eval, *got, tc.wantPct)
+					t.Errorf("score_pct = %v, want %v", *got, tc.wantPct)
 				}
 			})
 		}

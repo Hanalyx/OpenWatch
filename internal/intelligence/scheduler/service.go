@@ -346,19 +346,23 @@ func (s *Service) recordFailure(ctx context.Context, tx pgx.Tx, hostID uuid.UUID
 		errCode = errCode[:64]
 	}
 
-	// Spec C-05: UPSERT only the intel row. The (host_id,
-	// probe_type='scan') row is left untouched — Spec AC-11.
+	// Spec C-05: UPSERT only the intel row. The (host_id, probe_type)
+	// primary key (migration 0064) is what makes that true. Before it, the
+	// conflict fired on host_id alone and a probe_type guard in the WHERE
+	// silently DISCARDED this write whenever a scan row already existed,
+	// so an intelligence failure on a host that had ever failed a scan
+	// recorded no backoff at all (CP bugs/OW-032). The scan row is now
+	// unreachable from here, which is Spec AC-11.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO host_backoff_state
 			(host_id, probe_type, consecutive_failures, suppress_until, last_error_code, last_failure_at, updated_at)
 		VALUES ($1, 'intel', $2, $3, $4, now(), now())
-		ON CONFLICT (host_id) DO UPDATE SET
+		ON CONFLICT (host_id, probe_type) DO UPDATE SET
 			consecutive_failures = EXCLUDED.consecutive_failures,
 			suppress_until       = EXCLUDED.suppress_until,
 			last_error_code      = EXCLUDED.last_error_code,
 			last_failure_at      = now(),
-			updated_at           = now()
-		WHERE host_backoff_state.probe_type = 'intel'`,
+			updated_at           = now()`,
 		hostID, consec, suppressUntil, errCode,
 	); err != nil {
 		return fmt.Errorf("scheduler: upsert intel backoff: %w", err)

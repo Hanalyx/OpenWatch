@@ -2,11 +2,11 @@
 //
 // AC traceability (this file):
 //
-//	@ac AC-19  (TestWatermark_MissingRowIsZero)
-//	@ac AC-20  (TestAdvanceWatermark_NeverMovesBackwards,
+//   AC-19  (TestWatermark_MissingRowIsZero)
+//   AC-20  (TestAdvanceWatermark_NeverMovesBackwards,
 //	            TestAdvanceWatermark_MovesForward,
 //	            TestAdvanceWatermark_ConcurrentAdvancesSettleOnTheMaximum)
-//	@ac AC-21  (TestLicenseClockWatermark_IsASingleton)
+//   AC-21  (TestLicenseClockWatermark_IsASingleton)
 //
 // These cover the persisted store. AC-16 and AC-18 cover the in-process
 // behavior of the same constraints, C-07 and C-13, and are annotated from

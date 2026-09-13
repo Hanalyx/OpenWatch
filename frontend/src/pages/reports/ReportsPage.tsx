@@ -16,7 +16,7 @@ import type { components } from '@/api/schema';
 // kind-aware body (ExecutiveBody / AttestationBody) over the frozen content.
 //
 // Live: kind selector, scope + framework pickers, coverage caveat, Ed25519
-// signing with a "Signed" badge + offline Verify, and downloadable faces
+// signing with a "Signed" badge + a Verify control, and downloadable faces
 // (PDF cover, CSV evidence, OSCAL SAR, canonical JSON). Still deferred
 // (honest "coming soon" states, NOT faked): the Templates gallery and the
 // Scheduled dispatcher.
@@ -33,7 +33,13 @@ interface Coverage {
 }
 
 interface ExecutiveContent {
-  compliance_pct: number | null;
+  // score_pct is the current field: the equal-host mean, one decimal, null
+  // when no host produced a verdict. legacy_pct is the pooled whole percent
+  // an artifact signed before 2026-09-03 carries instead. Exactly one is a
+  // number on any given artifact, and which one is decided by is_legacy.
+  score_pct: number | null;
+  legacy_pct: number | null;
+  is_legacy: boolean;
   host_count: number;
   passing_rules: number;
   failing_rules: number;
@@ -51,10 +57,25 @@ function asCoverage(c: Partial<Coverage> | undefined): Coverage {
   };
 }
 
+// A legacy artifact is the one carrying no provenance.artifact_class.
+// Nothing backfills it, so the absence is stable and means exactly "signed
+// before the formula changed". Choosing on which score field happens to be
+// present would make a malformed document look like whichever generation it
+// resembled.
+function isLegacyArtifact(c: { provenance?: { artifact_class?: unknown } }): boolean {
+  return typeof c?.provenance?.artifact_class !== 'string' || c.provenance.artifact_class === '';
+}
+
 function asExecutiveContent(content: Report['content']): ExecutiveContent {
-  const c = content as Partial<ExecutiveContent>;
+  const c = content as Partial<ExecutiveContent> & {
+    compliance_pct?: unknown;
+    provenance?: { artifact_class?: unknown };
+  };
+  const legacy = isLegacyArtifact(c);
   return {
-    compliance_pct: typeof c.compliance_pct === 'number' ? c.compliance_pct : null,
+    score_pct: !legacy && typeof c.score_pct === 'number' ? c.score_pct : null,
+    legacy_pct: legacy && typeof c.compliance_pct === 'number' ? c.compliance_pct : null,
+    is_legacy: legacy,
     host_count: typeof c.host_count === 'number' ? c.host_count : 0,
     passing_rules: typeof c.passing_rules === 'number' ? c.passing_rules : 0,
     failing_rules: typeof c.failing_rules === 'number' ? c.failing_rules : 0,
@@ -75,7 +96,9 @@ interface AttestedHostRef {
 }
 
 interface AttestationRollup {
-  compliance_pct: number | null;
+  score_pct: number | null;
+  legacy_pct: number | null;
+  is_legacy: boolean;
   total_checks: number;
   passing: number;
   failing: number;
@@ -92,9 +115,19 @@ interface AttestationContent {
   rollup: AttestationRollup;
 }
 
-function asAttestationRollup(r: Partial<AttestationRollup> | undefined): AttestationRollup {
+function asAttestationRollup(
+  r:
+    | (Partial<AttestationRollup> & {
+        compliance_pct?: unknown;
+        provenance?: { artifact_class?: unknown };
+      })
+    | undefined,
+): AttestationRollup {
+  const legacy = isLegacyArtifact(r ?? {});
   return {
-    compliance_pct: typeof r?.compliance_pct === 'number' ? r.compliance_pct : null,
+    score_pct: !legacy && typeof r?.score_pct === 'number' ? r.score_pct : null,
+    legacy_pct: legacy && typeof r?.compliance_pct === 'number' ? r.compliance_pct : null,
+    is_legacy: legacy,
     total_checks: typeof r?.total_checks === 'number' ? r.total_checks : 0,
     passing: typeof r?.passing === 'number' ? r.passing : 0,
     failing: typeof r?.failing === 'number' ? r.failing : 0,
@@ -714,43 +747,90 @@ function bytesToHex(buf: ArrayBuffer): string {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-interface VerifyResult {
-  ok: boolean;
+/**
+ * What a verification attempt established.
+ *
+ * Not a boolean. The content-only fallback used to return ok: true, so a run
+ * that never checked the signature rendered exactly like one that did.
+ */
+export type VerifyStatus = 'consistent' | 'content_only' | 'failed';
+
+export interface VerifyResult {
+  status: VerifyStatus;
   detail: string;
 }
 
-// verifyReport checks a signed report offline in the browser: it fetches
-// the published signing key, re-hashes the canonical JSON face and
-// compares it to content_sha256 (content integrity), then Ed25519-verifies
-// the signature over the same domain-separated payload the server signed.
-// The Ed25519 step degrades gracefully where Web Crypto lacks it (the
-// content hash is still verified).
-async function verifyReport(report: Report): Promise<VerifyResult> {
+/**
+ * TRUST_NOTE is the qualification every non-failure result carries.
+ *
+ * The artifact, the signature and the key all come from the same server, so
+ * this check proves they agree with each other and nothing more. A server
+ * able to serve a replacement artifact can serve a matching signature and key
+ * beside it.
+ */
+const TRUST_NOTE =
+  ' Authenticity requires comparing this key or its fingerprint with an ' +
+  'independently trusted copy, obtained outside this server.';
+
+/** verifyTone maps an outcome to its color. Only a checked signature is green. */
+export function verifyTone(status: VerifyStatus): string {
+  if (status === 'consistent') return 'var(--ow-ok, #2faf6a)';
+  if (status === 'content_only') return 'var(--ow-warn)';
+  return 'var(--ow-crit)';
+}
+
+// verifyReport checks a signed report IN THE BROWSER against the key this
+// same server serves: it fetches the signing key, re-hashes the canonical
+// JSON face and compares it to content_sha256, then Ed25519-verifies the
+// signature over the domain-separated payload the server signed.
+//
+// This is NOT offline verification and it does not establish authenticity.
+// The earlier wording said offline, which told a reader the check was
+// independent of the server it was checking.
+/**
+ * errorName reads the name off a thrown value.
+ *
+ * WebCrypto rejects with a DOMException. Narrowing with `instanceof Error`
+ * first drops it in engines where DOMException does not extend Error, which
+ * turned "this browser cannot do Ed25519" into "the signature is not usable".
+ */
+function errorName(err: unknown): string {
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    typeof (err as { name?: unknown }).name === 'string'
+  ) {
+    return (err as { name: string }).name;
+  }
+  return 'crypto error';
+}
+
+export async function verifyReport(report: Report): Promise<VerifyResult> {
   if (!report.signature || !report.signing_key_id) {
-    return { ok: false, detail: 'This report is not signed.' };
+    return { status: 'failed', detail: 'This report is not signed.' };
   }
   const keyRes = await fetch('/api/v1/reports/signing-key', { credentials: 'same-origin' });
   if (!keyRes.ok)
-    return { ok: false, detail: `Could not fetch the signing key (${keyRes.status}).` };
+    return { status: 'failed', detail: `Could not fetch the signing key (${keyRes.status}).` };
   const key = (await keyRes.json()) as {
     key_id: string;
     public_key: string;
     ephemeral: boolean;
   };
   if (key.key_id !== report.signing_key_id) {
-    return { ok: false, detail: 'The signing key does not match this report.' };
+    return { status: 'failed', detail: 'The signing key does not match this report.' };
   }
 
   const faceRes = await fetch(`/api/v1/reports/${report.id}/export?format=json`, {
     credentials: 'same-origin',
   });
   if (!faceRes.ok)
-    return { ok: false, detail: `Could not fetch the report content (${faceRes.status}).` };
+    return { status: 'failed', detail: `Could not fetch the report content (${faceRes.status}).` };
   const faceBuf = await faceRes.arrayBuffer();
   const hashHex = bytesToHex(await crypto.subtle.digest('SHA-256', faceBuf));
   if (hashHex !== report.content_sha256) {
     return {
-      ok: false,
+      status: 'failed',
       detail: 'Content hash mismatch: the content does not match the signed hash.',
     };
   }
@@ -771,18 +851,143 @@ async function verifyReport(report: Report): Promise<VerifyResult> {
       base64ToBuffer(report.signature),
       payload,
     );
-    if (!valid) return { ok: false, detail: 'Signature is INVALID.' };
+    if (!valid) return { status: 'failed', detail: 'Signature is INVALID.' };
     return {
-      ok: true,
-      detail: `Verified: content matches and the signature is valid${ephNote}. Key ${key.key_id}.`,
+      status: 'consistent',
+      detail:
+        `Content and signature are consistent with the signing key this server ` +
+        `served${ephNote}. Key ${key.key_id}.${TRUST_NOTE}`,
     };
-  } catch {
-    // This browser's Web Crypto lacks Ed25519; the content hash is verified.
+  } catch (err) {
+    // ONLY an unsupported algorithm produces content_only.
+    //
+    // A bare catch treated every crypto exception as "this browser lacks
+    // Ed25519", so a malformed key, a malformed signature, or any operational
+    // failure was reported as a browser limitation and rendered as a caution
+    // with the content hash intact. Those are verification FAILURES, and
+    // saying otherwise blamed the reader's browser for a bad artifact.
+    // Read .name off the thrown value directly. WebCrypto raises a
+    // DOMException, and a DOMException is NOT an instanceof Error in every
+    // engine, so the instanceof narrowing here reported a genuine
+    // unsupported-algorithm error as a verification failure.
+    const name = errorName(err);
+    if (name === 'NotSupportedError') {
+      return {
+        status: 'content_only',
+        detail:
+          `Content hash matches, but the signature was NOT checked: this browser ` +
+          `cannot verify Ed25519. Check it with key ${key.key_id}${ephNote} ` +
+          `elsewhere.${TRUST_NOTE}`,
+      };
+    }
     return {
-      ok: true,
-      detail: `Content hash verified. Signature check is unavailable in this browser; verify the signature offline with key ${key.key_id}${ephNote}.`,
+      status: 'failed',
+      detail:
+        `Signature could not be checked: ${name}. ` +
+        `The content hash matched, but the signature is not usable.`,
     };
   }
+}
+
+/**
+ * VerifyControl is the button that starts a verification.
+ *
+ * It is a component rather than inline JSX so its title can be asserted from a
+ * test. The title is a trust claim made before any check has run, and the
+ * forbidden-copy guard reached the result panel and the badge but not this
+ * button, so "Verify offline" could have been restored here without failing
+ * anything.
+ */
+export function VerifyControl({ busy, onVerify }: { busy: boolean; onVerify: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onVerify}
+      disabled={busy}
+      title="Check the content hash and signature against the key this server serves"
+      style={{
+        height: 32,
+        padding: '0 12px',
+        borderRadius: 6,
+        border: '1px solid var(--ow-line)',
+        background: 'var(--ow-bg-1)',
+        color: 'var(--ow-fg-1)',
+        fontFamily: 'inherit',
+        fontSize: 12,
+        fontWeight: 500,
+        cursor: busy ? 'default' : 'pointer',
+        opacity: busy ? 0.6 : 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {busy ? 'Verifying…' : 'Verify'}
+    </button>
+  );
+}
+
+/**
+ * SignedBadge states that a signature is PRESENT. Nothing more.
+ *
+ * It used to read "Signed by <key>" in success green, which is an attestation
+ * about who produced the report and a color that says the check passed. No
+ * check has run when this renders. Green is reserved for a verification
+ * result that actually completed, and even that one carries a qualification.
+ */
+export function SignedBadge({ keyId }: { keyId?: string | null }) {
+  return (
+    <span
+      title={
+        `A signature is present, made with key ${keyId ?? 'the report key'}. ` +
+        `Use Verify to check it against the key this server serves.`
+      }
+      style={{
+        marginLeft: 8,
+        padding: '1px 7px',
+        borderRadius: 999,
+        border: '1px solid var(--ow-fg-3)',
+        color: 'var(--ow-fg-3)',
+        fontSize: 11,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      Signature present
+    </span>
+  );
+}
+
+/**
+ * VerifyPanel renders one verification outcome.
+ *
+ * Exported so the contract test renders the PRODUCTION panel: a source-only
+ * criterion cannot tell a success color from a caution one, and telling those
+ * two apart is the point.
+ */
+export function VerifyPanel({ result }: { result: VerifyResult }) {
+  return (
+    <div
+      role="status"
+      style={{
+        marginBottom: 14,
+        padding: '8px 12px',
+        borderRadius: 'var(--ow-radius)',
+        // Three tones for three outcomes. A content-only run shows CAUTION,
+        // not success: the signature was never checked, and painting it green
+        // credited a check that did not run.
+        border: `1px solid ${verifyTone(result.status)}`,
+        background:
+          result.status === 'consistent'
+            ? 'var(--ow-ok-bg, rgba(47,175,106,0.12))'
+            : result.status === 'content_only'
+              ? 'var(--ow-warn-bg, rgba(214,158,46,0.12))'
+              : 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
+        color: verifyTone(result.status),
+        fontSize: 12.5,
+      }}
+    >
+      {result.detail}
+    </div>
+  );
 }
 
 function ReportDetail({
@@ -818,7 +1023,7 @@ function ReportDetail({
       setVerifyResult(await verifyReport(report));
     } catch (e) {
       setVerifyResult({
-        ok: false,
+        status: 'failed',
         detail: e instanceof Error ? e.message : 'Verification failed',
       });
     } finally {
@@ -927,51 +1132,14 @@ function ReportDetail({
               <div style={{ fontSize: 12, color: 'var(--ow-fg-3)', marginTop: 1 }}>
                 Data as of {formatDate(resolved.data_as_of)} . {resolved.scope_label} . generated by{' '}
                 {resolved.generated_by}
-                {resolved.signature && (
-                  <span
-                    title={`Signed by ${resolved.signing_key_id ?? 'the report key'}`}
-                    style={{
-                      marginLeft: 8,
-                      padding: '1px 7px',
-                      borderRadius: 999,
-                      border: '1px solid var(--ow-ok, #2faf6a)',
-                      color: 'var(--ow-ok, #2faf6a)',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Signed
-                  </span>
-                )}
+                {resolved.signature && <SignedBadge keyId={resolved.signing_key_id} />}
               </div>
             )}
           </div>
           {resolved && (
             <>
               {resolved.signature && (
-                <button
-                  type="button"
-                  onClick={() => onVerify(resolved)}
-                  disabled={verifying}
-                  title="Verify the signature and content hash offline"
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--ow-line)',
-                    background: 'var(--ow-bg-1)',
-                    color: 'var(--ow-fg-1)',
-                    fontFamily: 'inherit',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: verifying ? 'default' : 'pointer',
-                    opacity: verifying ? 0.6 : 1,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {verifying ? 'Verifying…' : 'Verify'}
-                </button>
+                <VerifyControl busy={verifying} onVerify={() => onVerify(resolved)} />
               )}
               <button
                 type="button"
@@ -1085,24 +1253,7 @@ function ReportDetail({
               {downloadError}
             </div>
           )}
-          {verifyResult && (
-            <div
-              role="status"
-              style={{
-                marginBottom: 14,
-                padding: '8px 12px',
-                borderRadius: 'var(--ow-radius)',
-                border: `1px solid ${verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)'}`,
-                background: verifyResult.ok
-                  ? 'var(--ow-ok-bg, rgba(47,175,106,0.12))'
-                  : 'var(--ow-crit-bg, rgba(220,60,60,0.12))',
-                color: verifyResult.ok ? 'var(--ow-ok, #2faf6a)' : 'var(--ow-crit)',
-                fontSize: 12.5,
-              }}
-            >
-              {verifyResult.detail}
-            </div>
-          )}
+          {verifyResult && <VerifyPanel result={verifyResult} />}
           {resolved &&
             (resolved.kind === 'attestation' ? (
               <AttestationBody content={asAttestationContent(resolved.content)} />
@@ -1167,8 +1318,23 @@ function CoverageCaveat({ coverage }: { coverage: Coverage }) {
   );
 }
 
+// scoreFace renders a compliance number and the label above it, choosing by
+// the artifact's own generation.
+//
+// A current score keeps its decimal: it is the equal-host mean and rounding
+// it to a whole number would put a different value on screen from the one
+// that was signed. A legacy score is already a whole percent, and it is
+// labeled as not comparable so nobody reads it beside a current one as if
+// the two answered the same question.
+function scoreFace(pct: number | null, isLegacy: boolean): { value: string; label: string } {
+  const label = isLegacy ? 'Compliance (legacy formula, not comparable)' : 'Compliance';
+  if (pct === null) return { value: 'n/a', label };
+  return { value: isLegacy ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`, label };
+}
+
 function ExecutiveBody({ content }: { content: ExecutiveContent }) {
-  const pct = content.compliance_pct;
+  const pct = content.is_legacy ? content.legacy_pct : content.score_pct;
+  const face = scoreFace(pct, content.is_legacy);
   const pctTone =
     pct === null
       ? 'var(--ow-fg-2)'
@@ -1189,11 +1355,7 @@ function ExecutiveBody({ content }: { content: ExecutiveContent }) {
             gap: 12,
           }}
         >
-          <Stat
-            label="Fleet compliance"
-            value={pct === null ? 'n/a' : `${Math.round(pct)}%`}
-            tone={pctTone}
-          />
+          <Stat label={face.label} value={face.value} tone={pctTone} />
           <Stat label="Hosts" value={`${content.host_count}`} />
           <Stat label="Passing rules" value={`${content.passing_rules}`} tone="var(--ow-ok)" />
           <Stat label="Failing rules" value={`${content.failing_rules}`} tone="var(--ow-warn)" />
@@ -1261,7 +1423,8 @@ function AttestationBody({ content }: { content: AttestationContent }) {
   const lens = content.framework || 'All frameworks';
   const notAttested = Math.max(0, content.hosts_total - content.hosts_attested);
   const r = content.rollup;
-  const pct = r.compliance_pct;
+  const pct = r.is_legacy ? r.legacy_pct : r.score_pct;
+  const face = scoreFace(pct, r.is_legacy);
   const pctTone =
     pct === null
       ? 'var(--ow-fg-2)'
@@ -1281,11 +1444,7 @@ function AttestationBody({ content }: { content: AttestationContent }) {
             gap: 12,
           }}
         >
-          <Stat
-            label="Compliance"
-            value={pct === null ? 'n/a' : `${Math.round(pct)}%`}
-            tone={pctTone}
-          />
+          <Stat label={face.label} value={face.value} tone={pctTone} />
           <Stat label="Framework" value={lens} />
           <Stat
             label="Hosts attested"

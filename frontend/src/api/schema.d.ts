@@ -810,7 +810,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Fleet-wide compliance score (passing/total) */
+        /** Fleet-wide compliance score (equal-host mean) */
         get: operations["getFleetScore"];
         put?: never;
         post?: never;
@@ -2103,8 +2103,10 @@ export interface paths {
          *     optional framework lens. scan_context carries the latest
          *     completed scan_runs row for the host (nulls when never
          *     scanned). summary counts every status plus a score_pct
-         *     (passing/total as a percentage, one decimal, 0 when total is
-         *     0). categories groups the same rows by kensa catalog category
+         *     (passing over passing plus failing, one decimal, NULL when no
+         *     rule produced a verdict), a coverage_status with its
+         *     percentage, and the envelope that says how the score was
+         *     produced. categories groups the same rows by kensa catalog category
          *     (uncategorized when unknown), sorted failing DESC then
          *     category ASC. rules lists EVERY row (pass/fail/skipped/error),
          *     severity-ordered then rule_id ASC, with control_ids projected
@@ -2157,9 +2159,12 @@ export interface paths {
         /**
          * Daily compliance posture trend for one host
          * @description Per-day posture snapshots over the trailing window (default 30
-         *     days, clamped 1..90): score_pct, passing, failing, total. Days
-         *     without a snapshot are absent from the array; history
-         *     accumulates from the daily rollup going forward. Spec
+         *     days, clamped 1..90): score_pct, passing, failing, total. A day
+         *     is absent from the array when it has no snapshot AND when its
+         *     snapshot holds no score, which happens when no rule produced a
+         *     verdict that day. score_pct cannot express that absence, so the
+         *     day is omitted rather than reported as 0.0; history accumulates
+         *     from the daily rollup going forward. Spec
          *     api-compliance-trend.
          */
         get: operations["getHostComplianceTrend"];
@@ -2181,9 +2186,20 @@ export interface paths {
         /**
          * Daily fleet compliance trend
          * @description Per-day fleet aggregates over the trailing window (default 30
-         *     days, clamped 1..90): average score across snapshotted hosts,
-         *     host count, total failing rules, and hosts carrying critical
-         *     findings. Powers the hosts-page average-compliance delta.
+         *     days, clamped 1..90): average score, host count, total failing
+         *     rules, and hosts carrying critical findings. Powers the
+         *     hosts-page average-compliance delta.
+         *
+         *     score_pct is the mean of the hosts that produced a SCORE
+         *     that day, counting each host once. hosts counts every host with
+         *     a snapshot that day, so the two differ whenever a host could not
+         *     be assessed; such a host is omitted from the average rather than
+         *     averaged in as zero. A day on which no host produced a score
+         *     still appears, carrying score_pct: null with its host counts and
+         *     formula_status, so a client can say WHY there is no number
+         *     instead of showing a gap. That day used to be dropped from the
+         *     array, because score_pct could not express absence; it is
+         *     nullable now, so it can.
          *     Spec api-compliance-trend.
          */
         get: operations["getFleetComplianceTrend"];
@@ -3227,6 +3243,23 @@ export interface components {
             error: number;
             /** Format: int64 */
             total: number;
+            /**
+             * Format: double
+             * @description Passing over passing plus failing, to one decimal. NULL when no rule produced a verdict. This is the PRIMARY single-host score, and it is computed server side: the host detail page used to derive passing/total in the browser, so a host whose rules all skipped displayed 0% instead of no score.
+             */
+            score_pct: number | null;
+            /**
+             * @description Whether coverage can be stated for this host, and if not, why.
+             * @enum {string}
+             */
+            coverage_status: "available" | "unavailable_unclassified_skips" | "unavailable_no_outcomes";
+            /**
+             * Format: double
+             * @description Non-null if and only if coverage_status is available.
+             */
+            coverage_pct: number | null;
+            /** @description How this host's score was produced. */
+            envelope: components["schemas"]["ScoreEnvelope"];
         };
         HostFailedRule: {
             rule_id: string;
@@ -3284,9 +3317,21 @@ export interface components {
             total: number;
             /**
              * Format: double
-             * @description passing/total as a percentage rounded to one decimal; 0 when total is 0.
+             * @description Passing over passing plus failing, to one decimal. NULL when no rule produced a verdict, which is a different fact from every evaluated rule failing (that is 0).
              */
-            score_pct: number;
+            score_pct: number | null;
+            /**
+             * @description Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why.
+             * @enum {string}
+             */
+            coverage_status: "available" | "unavailable_unclassified_skips" | "unavailable_no_outcomes";
+            /**
+             * Format: double
+             * @description Non-null if and only if coverage_status is available.
+             */
+            coverage_pct: number | null;
+            /** @description How this host's score was produced. aggregation_method is none: one host aggregates nothing. */
+            envelope: components["schemas"]["ScoreEnvelope"];
         };
         HostComplianceCategory: {
             /** @description Kensa catalog category; uncategorized when the catalog lacks the rule. */
@@ -3297,6 +3342,11 @@ export interface components {
             failing: number;
             /** Format: int64 */
             total: number;
+            /**
+             * Format: double
+             * @description Passing over passing plus failing within this category, to one decimal, computed server side. NULL when the category produced no verdict. Sent rather than derived so the browser holds no compliance arithmetic (system-compliance-scoring C-14).
+             */
+            score_pct: number | null;
         };
         HostComplianceRule: {
             rule_id: string;
@@ -3334,9 +3384,11 @@ export interface components {
             failing: number;
             /**
              * Format: float
-             * @description passing/rule_count as a percentage rounded to one decimal; 0 when rule_count is 0. Powers the per-lens score on the View-as chips.
+             * @description Passing over passing plus failing, to one decimal. NULL when this framework's rules produced no verdict. Not over rule_count, which counts rules that were skipped or errored. Powers the per-lens score on the View-as chips.
              */
-            score_pct: number;
+            score_pct: number | null;
+            /** @description How this chip's score was produced. Its lens is framework_id. */
+            envelope: components["schemas"]["ScoreEnvelope"];
         };
         HostComplianceFrameworksResponse: {
             /** @description The all-rules aggregate (framework_id "all"). Powers the All-rules chip score. */
@@ -3359,6 +3411,23 @@ export interface components {
              * @description Rows with current_status=fail and critical severity (case-insensitive).
              */
             critical_failing: number;
+            /**
+             * Format: double
+             * @description Passing over passing plus failing, to one decimal, computed server side. NULL when the host produced no verdict. Added so the hosts list stops deriving a compliance percentage in the browser, which produced a second formula the rest of the product could not agree with (system-compliance-scoring C-14).
+             */
+            score_pct: number | null;
+            /**
+             * @description Whether coverage can be stated for this host, and if not, why.
+             * @enum {string}
+             */
+            coverage_status: "available" | "unavailable_unclassified_skips" | "unavailable_no_outcomes";
+            /**
+             * Format: double
+             * @description Non-null if and only if coverage_status is available.
+             */
+            coverage_pct: number | null;
+            /** @description How this host's score was produced. */
+            envelope: components["schemas"]["ScoreEnvelope"];
         };
         FleetScanQueue: {
             /** Format: int64 */
@@ -3405,7 +3474,7 @@ export interface components {
             scan_state?: "queued" | "running" | null;
             /** @description Null when no liveness probe has ever run against this host. */
             liveness?: components["schemas"]["HostLiveness"] | null;
-            /** @description Null when the host has no host_rule_state rows (never scanned). */
+            /** @description Null when the host has no rows in its current corpus. That is not the same as never scanned: a completed scan that produced no outcome writes no rule state either, and the two are indistinguishable from this field alone. */
             compliance_summary?: components["schemas"]["HostListComplianceSummary"] | null;
             os_family?: string | null;
             os_version?: string | null;
@@ -3577,17 +3646,92 @@ export interface components {
             /** @description Opaque cursor; pass as ?cursor= to fetch the next page */
             next_cursor: string | null;
         };
-        FleetScore: {
+        ScoreEnvelope: {
+            /** @description The single framework family every host was scored against, OS-resolved per host. "all_rules" when no lens narrows the set. An aggregate never blends per-host lenses. */
+            lens: string;
+            /** @description 2 for the current formula (passing over passing plus failing). Null on an aggregate whose contributors disagree, or that predates the formula. */
+            formula_version: number | null;
+            /**
+             * @description none for a single host; equal_host_mean for an aggregate, where each host counts once whatever its rule count.
+             * @enum {string}
+             */
+            aggregation_method: "none" | "equal_host_mean";
+            /** @description Convenience field, non-null ONLY when engine_identity_status is identified: one engine version, and every scored host accounted for by it. Null under partially_identified even though exactly one version appears in engines, because that version does not speak for the hosts that recorded none. The durable record is engines. It is COPIED from the scan runs, never taken from the process answering the request: in a rolling or split deployment the API, the rollup and the workers run different builds, so a process describing itself names an engine that never touched the host. */
+            engine_version: string | null;
+            /**
+             * @description Whether the engine behind the score can be named. partially_identified means some scored hosts named an engine and some did not, which is what a fleet part way through an upgrade looks like and what a bare version list reported as agreement.
+             * @enum {string}
+             */
+            engine_identity_status: "unavailable" | "identified" | "mixed" | "partially_identified";
+            /** @description One entry per engine version that produced contributing outcomes, with how many scored hosts it covers, sorted by version. Empty when none was recorded. The counts plus hosts_without_engine_identity always equal hosts_scored. */
+            engines: {
+                engine_version: string;
+                contributors_scored: number;
+            }[];
+            /** @description Scored hosts whose scan run recorded no engine version. */
+            hosts_without_engine_identity: number;
+            /**
+             * @description Whether the rule corpus behind the score can be named. unavailable until the scan engine can report it; never inferred from the corpus installed now.
+             * @enum {string}
+             */
+            corpus_identity_status: "unavailable" | "identified" | "mixed" | "partially_identified" | "not_applicable";
+            /** @description One entry per distinct corpus that contributed. Empty when unavailable. */
+            corpora: {
+                /** @description Null for a curated corpus, which has a digest and no version. */
+                corpus_version: string | null;
+                corpus_digest: string;
+                contributors_scored: number;
+            }[];
+            /** @description Scored hosts whose corpus could not be named. */
+            hosts_without_corpus_identity: number;
+            /** @description Convenience field, non-null ONLY when corpus_identity_status is identified. One entry in corpora is not sufficient: partially_identified also has one, alongside contributors whose corpus could not be named, and reporting that one as THE corpus would name an identity for hosts that have none. The durable record is corpora. */
+            corpus_version: string | null;
+            /** @description Convenience field, non-null ONLY when corpus_identity_status is identified. See corpus_version. */
+            corpus_digest: string | null;
+        };
+        AggregateScore: {
             /**
              * Format: double
-             * @description Passing rules / (passing + failing) across all hosts. 0..1.
+             * @description Equal-host mean of the per-host scores, to one decimal, so each host counts once whatever its rule count. NULL when no host produced a verdict, which is a different fact from every host failing every rule (that scores 0). It replaces a pooled ratio that weighted hosts by rule count and could not express absence.
              */
-            passing_fraction: number;
+            score_pct: number | null;
+            /** @description Hosts that produced a score. The population the mean is over. */
+            hosts_scored: number;
+            /** @description Active hosts that produced no score: never scanned, scanned with no verdict, or carrying no rule that matches the lens. */
+            hosts_without_score: number;
+            /** @description Active hosts. Always hosts_scored + hosts_without_score. */
+            hosts_total: number;
             /**
              * Format: int64
-             * @description Count of host_rule_state rows where current_status is pass or fail.
+             * @description Rule outcomes that passed, summed across the population.
              */
-            total_evaluations: number;
+            passing: number;
+            /**
+             * Format: int64
+             * @description Rule outcomes that failed, summed across the population.
+             */
+            failing: number;
+            /**
+             * Format: int64
+             * @description Outcomes that produced no verdict, summed across the population. They enter neither side of score_pct.
+             */
+            skipped: number;
+            /**
+             * Format: int64
+             * @description Outcomes that errored, summed across the population.
+             */
+            error: number;
+            /**
+             * @description Whether the share of in-scope rules that produced a verdict can be stated, and when it cannot, why. unavailable_unclassified_skips means at least one skip carries no machine-readable reason, so an inapplicable rule cannot be told from an unevaluated one; the number is withheld rather than guessed.
+             * @enum {string}
+             */
+            coverage_status: "available" | "unavailable_unclassified_skips" | "unavailable_no_outcomes";
+            /**
+             * Format: double
+             * @description Share of in-scope rules that produced a verdict, to one decimal. Non-null if and only if coverage_status is available.
+             */
+            coverage_pct: number | null;
+            envelope: components["schemas"]["ScoreEnvelope"];
         };
         FleetLiveness: {
             /** Format: int64 */
@@ -4036,8 +4180,8 @@ export interface components {
             online: number;
             down: number;
             critical_hosts: number;
-            /** @description Mean compliance across scanned members; null when none scanned */
-            avg_compliance_pct?: number | null;
+            /** @description The group's compliance average with its population and envelope. It replaces a bare nullable integer, which rounded the canonical one decimal a second time and could not say which lens produced it. */
+            score: components["schemas"]["AggregateScore"];
             members: components["schemas"]["GroupMember"][];
         };
         GroupWithRollup: components["schemas"]["Group"] & {
@@ -4048,8 +4192,8 @@ export interface components {
             sites: number;
             os_categories: number;
             hosts_maintenance: number;
-            /** @description Fleet mean compliance; null when nothing scanned */
-            avg_compliance_pct?: number | null;
+            /** @description The Groups-page fleet KPI. It IS the GET /fleet/score answer, sent through the same mapper, so the two numbers cannot disagree. */
+            score: components["schemas"]["AggregateScore"];
             ungrouped: number;
         };
         GroupListResponse: {
@@ -4115,9 +4259,23 @@ export interface components {
             format: string;
             /**
              * @description The rendered JSON posture document. For an executive summary:
-             *     compliance_pct, host_count, passing_rules, failing_rules,
-             *     critical_issues, top_failing_rules, and coverage (hosts_total,
-             *     hosts_fresh, hosts_stale, hosts_unreachable).
+             *     score_pct, host_count, passing_rules, failing_rules,
+             *     critical_issues, top_failing_rules, coverage (hosts_total,
+             *     hosts_fresh, hosts_stale, hosts_unreachable), and provenance.
+             *
+             *     score_pct is the equal-host mean of the in-scope hosts' scores,
+             *     to one decimal, null when no host produced a verdict. Null is not
+             *     zero: zero means every evaluated rule failed.
+             *
+             *     provenance carries artifact_class and the frozen envelope. Its
+             *     ABSENCE identifies an artifact signed before 2026-09-03, which
+             *     instead carries compliance_pct: a pooled whole percent computed
+             *     over every rule outcome in scope. The two are not comparable and
+             *     a client must label a legacy artifact as such rather than
+             *     plotting it beside a current one. Nothing backfills provenance,
+             *     and a legacy artifact's bytes, content address and signature are
+             *     never rewritten. A current artifact never carries
+             *     compliance_pct.
              */
             content: {
                 [key: string]: unknown;
@@ -4133,7 +4291,13 @@ export interface components {
              *     GET /api/v1/reports/signing-key.
              */
             signature?: string;
-            /** @description Fingerprint of the key that produced the signature. */
+            /**
+             * @description Short correlation identifier of the key that produced the
+             *     signature: the first 8 bytes of SHA-256 over the public key.
+             *     It matches a report to a served key. It is NOT an authenticity
+             *     anchor; 64 bits is within reach of a collision search. Anchor
+             *     trust on the complete public key or its full SHA-256.
+             */
             signing_key_id?: string;
             /** Format: date-time */
             created_at: string;
@@ -4143,10 +4307,21 @@ export interface components {
          *     verification of a report's signature over its content_sha256.
          */
         ReportSigningKey: {
+            /**
+             * @description Short correlation identifier: the first 8 bytes of SHA-256 over
+             *     public_key, hex encoded, prefixed `ed25519-`. Use it to match a
+             *     report's signing_key_id to this key. It is NOT an authenticity
+             *     anchor; compare the complete public_key, or its full SHA-256,
+             *     against a copy obtained independently of this server.
+             */
             key_id: string;
             /** @enum {string} */
             algorithm: "ed25519";
-            /** @description Base64-encoded Ed25519 public key. */
+            /**
+             * @description Base64-encoded Ed25519 public key, 32 bytes when decoded. This,
+             *     or its lowercase hex SHA-256, is the value to compare against an
+             *     independently trusted copy.
+             */
             public_key: string;
             /**
              * @description True when the server runs a per-boot development key (no durable
@@ -4406,7 +4581,17 @@ export interface components {
             days: {
                 /** Format: date */
                 date: string;
-                score_pct: number;
+                /** @description Passing over passing plus failing, to one decimal. NULL when that day's rules produced no verdict. The day still appears, with its counts, so the absence is explained rather than shown as a gap. */
+                score_pct: number | null;
+                /**
+                 * @description identified when the day's snapshot used the current formula; legacy_unknown when it predates it, in which case the score is preserved as stored and is NOT comparable with an identified one. mixed cannot occur on a host point: a snapshot is one host on one date under one lens and holds a single formula.
+                 * @enum {string}
+                 */
+                formula_status: "identified" | "legacy_unknown" | "mixed";
+                /** @description 2 when formula_status is identified, otherwise null. */
+                formula_version: number | null;
+                /** @description Provenance recorded ON THE SNAPSHOT, not read from the process serving the request. A legacy point carries a null formula version and an empty engines list, because nothing recorded them; that absence is the honest historical shape rather than a substituted current value. */
+                envelope: components["schemas"]["ScoreEnvelope"];
                 passing: number;
                 failing: number;
                 total: number;
@@ -4417,7 +4602,22 @@ export interface components {
             days: {
                 /** Format: date */
                 date: string;
-                avg_score_pct: number;
+                /** @description Equal-host mean over the hosts that produced a score that day, to one decimal. Not a pooled ratio, so a host with many rules does not outweigh one with few. NULL when no host produced a score, and NULL when formula_status is mixed. */
+                score_pct: number | null;
+                /**
+                 * @description mixed means the day's snapshots were produced by MORE THAN ONE formula. Those measure different things, so the day reports no score rather than their average. legacy_unknown means every snapshot predates the current formula; its score is preserved and is not comparable with an identified one.
+                 * @enum {string}
+                 */
+                formula_status: "identified" | "legacy_unknown" | "mixed";
+                /** @description 2 when formula_status is identified, otherwise null. */
+                formula_version: number | null;
+                /** @description Provenance recorded on the day's snapshots. engines can carry several versions, which is normal while a fleet is part way through an upgrade. */
+                envelope: components["schemas"]["ScoreEnvelope"];
+                /** @description Hosts that produced a score that day. */
+                hosts_scored: number;
+                /** @description Hosts with a snapshot that day but no score. */
+                hosts_without_score: number;
+                /** @description Every host with a snapshot that day, including hosts that produced no score and are therefore not in score_pct. */
                 hosts: number;
                 failing: number;
                 critical_hosts: number;
@@ -6641,7 +6841,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FleetScore"];
+                    "application/json": components["schemas"]["AggregateScore"];
                 };
             };
             /** @description Authentication required */

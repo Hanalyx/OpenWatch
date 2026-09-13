@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/compliance"
+	"github.com/Hanalyx/openwatch/internal/fleetrollup"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/scanruns"
@@ -43,10 +45,130 @@ func (h *handlers) GetFleetScore(w http.ResponseWriter, r *http.Request, params 
 			"failed to compute fleet compliance score", true)
 		return
 	}
-	writeJSON(w, http.StatusOK, api.FleetScore{
-		PassingFraction:  score.PassingFraction,
-		TotalEvaluations: score.TotalEvaluations,
-	})
+	// The envelope, so the number says how it was produced.
+	env, err := aggregateEnvelope(lens, score.Engines, score.HostsWithoutEngine, score.HostsScored)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"failed to build the score envelope", true)
+		return
+	}
+	writeJSON(w, http.StatusOK, aggregateScoreWire(score, env))
+}
+
+// aggregateScoreWire is the ONE mapping from a fleet or group score onto the
+// contract.
+//
+// The Groups page and GET /fleet/score share it for the same reason
+// group.Summary shares the calculation: two mappers of one shape agree until
+// someone edits one. Every field the contract requires is filled here, so a new
+// caller cannot ship a number without the metadata that says what it measures.
+func aggregateScoreWire(score fleetrollup.Score, env compliance.Envelope) api.AggregateScore {
+	return api.AggregateScore{
+		ScorePct:          scorePct64(score.Score),
+		Passing:           int64(score.Counts.Pass),
+		Failing:           int64(score.Counts.Fail),
+		Skipped:           int64(score.Counts.Skipped),
+		Error:             int64(score.Counts.Error),
+		CoverageStatus:    api.AggregateScoreCoverageStatus(score.Coverage.Status),
+		CoveragePct:       scorePct64(score.Coverage.Pct),
+		HostsScored:       score.HostsScored,
+		HostsWithoutScore: score.HostsWithoutScore,
+		HostsTotal:        score.HostsTotal,
+		Envelope:          envelopeWire(env),
+	}
+}
+
+// aggregateEnvelope builds the envelope for a fleet or group average.
+//
+// No contributors are passed. Until the scan engine can report which corpus it
+// used (Kensa features/KN-KN-030) no host can name one, so every SCORED host is
+// counted in hosts_without_corpus_identity. The constructor derives the status
+// and that count from what it is given; an empty list is the truth, not a
+// shortcut.
+func aggregateEnvelope(
+	lens *string,
+	engines []compliance.EngineContributor,
+	hostsWithoutEngine, hostsScored int,
+) (compliance.Envelope, error) {
+	return compliance.ScoreBearingEnvelope(
+		lensName(lens),
+		compliance.AggregationEqualHostMean,
+		engines,
+		hostsWithoutEngine,
+		nil,
+		hostsScored,
+		hostsScored,
+	)
+}
+
+// lensName is what the envelope reports as the lens.
+//
+// An empty framework is not an absent lens: it means every rule in the host's
+// current corpus, which is a nameable scope. C-15 requires every score-bearing
+// response to say what it was measured against, and "all_rules" says it.
+func lensName(lens *string) string {
+	if lens == nil || *lens == "" {
+		return "all_rules"
+	}
+	return *lens
+}
+
+// envelopeWire renders the envelope onto the contract.
+//
+// Every field is sent even when the score is null. A response that cannot say
+// which lens and formula produced its number is not interpretable later, and
+// that is as true of an absent number as of a present one.
+func envelopeWire(e compliance.Envelope) api.ScoreEnvelope {
+	out := api.ScoreEnvelope{
+		Engines: []struct {
+			ContributorsScored int    `json:"contributors_scored"`
+			EngineVersion      string `json:"engine_version"`
+		}{},
+		EngineIdentityStatus: api.ScoreEnvelopeEngineIdentityStatus(e.EngineIdentityStatus),
+		CorpusIdentityStatus: api.ScoreEnvelopeCorpusIdentityStatus(e.Status),
+		Corpora: []struct {
+			ContributorsScored int     `json:"contributors_scored"`
+			CorpusDigest       string  `json:"corpus_digest"`
+			CorpusVersion      *string `json:"corpus_version"`
+		}{},
+		CorpusVersion: e.CorpusVersion,
+		CorpusDigest:  e.CorpusDigest,
+	}
+	if e.Lens != nil {
+		out.Lens = *e.Lens
+	}
+	if e.AggregationMethod != nil {
+		out.AggregationMethod = api.ScoreEnvelopeAggregationMethod(*e.AggregationMethod)
+	}
+	// The singular field carries a value in exactly one state, the same rule
+	// the corpus pair follows. Null under "several" is the point: naming one of
+	// them would be picking a value and calling it the artifact's.
+	out.EngineVersion = e.EngineVersion
+	for _, en := range e.Engines {
+		out.Engines = append(out.Engines, struct {
+			ContributorsScored int    `json:"contributors_scored"`
+			EngineVersion      string `json:"engine_version"`
+		}{ContributorsScored: en.ContributorsScored, EngineVersion: en.EngineVersion})
+	}
+	if e.HostsWithoutEngineIdentity != nil {
+		out.HostsWithoutEngineIdentity = *e.HostsWithoutEngineIdentity
+	}
+	out.FormulaVersion = e.FormulaVersion
+	if e.HostsWithoutCorpusIdentity != nil {
+		out.HostsWithoutCorpusIdentity = *e.HostsWithoutCorpusIdentity
+	}
+	for _, c := range e.Corpora {
+		out.Corpora = append(out.Corpora, struct {
+			ContributorsScored int     `json:"contributors_scored"`
+			CorpusDigest       string  `json:"corpus_digest"`
+			CorpusVersion      *string `json:"corpus_version"`
+		}{
+			ContributorsScored: c.ContributorsScored,
+			CorpusDigest:       c.Digest,
+			CorpusVersion:      c.Version,
+		})
+	}
+	return out
 }
 
 // GetFleetConnectivityBreakdown implements

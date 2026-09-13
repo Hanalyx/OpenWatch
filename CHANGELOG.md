@@ -10,7 +10,263 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Release promotion now has a blocking documentation-review gate. A named human
+  must verify every tracked Markdown file against the exact release-candidate
+  commit and artifact before GA promotion. Any document change invalidates that
+  evidence. The release runbook documents how to prepare, check, and preserve
+  the attestation without changing the reviewed commit.
+- [The report-verification runbook](docs/runbooks/REPORT_VERIFICATION.md) documents how
+  to check exported report content and signatures. Authenticity
+  requires a separately trusted complete public key or the full SHA-256 digest
+  of its decoded key bytes. The short signing-key identifier is only a
+  correlation value and is not a trust anchor.
+
 ### Changed
+
+- Incident response and other operational procedures previously filed under
+  `docs/guides/` now live under `docs/runbooks/`. Update saved links that point
+  at their former paths.
+- Root scratch-file patterns in `.gitignore` are now anchored to the repository
+  root, so similarly named documentation under nested tracked directories is
+  visible to Git. Secret-like filenames remain ignored at any depth, including
+  inside documentation example directories.
+
+- **BREAKING: `GET /api/v1/fleet/compliance/trend` renames `avg_score_pct` to
+  `score_pct`.** No alias, so a client reading the old name fails rather than
+  silently receiving nothing. Every other surface already called this field
+  `score_pct`, and the envelope's `aggregation_method` already says the value
+  is an equal-host mean, so the `avg_` prefix carried no information the
+  response did not otherwise state. The inconsistency was not cosmetic: it
+  caused a real integration mistake during development, where a reader that
+  looked for `score_pct` got null from this one endpoint and read it as a
+  fleet with no score.
+
+- **BREAKING: a newly generated executive or attestation report no longer
+  carries `compliance_pct`.** It carries `score_pct` instead: the equal-host
+  mean of the in-scope hosts' scores, to one decimal, and empty when no host
+  produced a verdict. `compliance_pct` was a pooled whole percent, passing over
+  every rule outcome in scope, so a host carrying 700 rules outvoted one
+  carrying 50 and the number tracked the largest corpus rather than the fleet.
+  Being a whole number, it also could never equal the one-decimal score every
+  other surface reports, so a signed report disagreed with the app by
+  construction. The two fields never appear together, and a report carrying
+  both is rejected rather than published with two plausible scores.
+- **Reports signed before this release keep working and are never rewritten.**
+  Such a report is recognized by carrying no `artifact_class`. Nothing backfills
+  one. It keeps its stored `compliance_pct`, its bytes, its content address and
+  its signature, it still verifies and still exports, and both the PDF and the
+  web page render it under a label saying the legacy formula is not comparable.
+  **If you compare report numbers over time, do not plot a legacy value beside
+  a current one.** They answer different questions.
+- **Every signed report now carries a `provenance` block.** An executive or
+  attestation report carries `artifact_class: score_bearing` plus the frozen
+  envelope: formula version, aggregation method, lens, the engine versions
+  behind the contributing scans with how many scored hosts each covers, corpus
+  identity, and the participation counts. An exception register or remediation
+  activity report carries `artifact_class: read_model`, because it aggregates no
+  scan set: it has `corpus_identity_status: not_applicable`, empty
+  `corpus_version` and `corpus_digest`, and no score or contributor count at
+  all. The engine is copied from the scan runs that produced the outcomes, never
+  from the process generating the report, so a rolling deployment cannot name an
+  engine that never touched the host.
+- The executive report now computes its score and its provenance from one
+  database snapshot. Reading them in two statements let a signed report name an
+  engine that did not produce the outcomes the score was taken over, and nobody
+  can check a signed artifact after the fact.
+
+- A host that a scan could not assess is now reported as unknown rather than as
+  critically non-compliant. When a scan returns no pass or fail verdict, because
+  every rule was skipped, OpenWatch used to record a compliance score of zero
+  and place the host in the worst compliance band. That was a scanning problem
+  wearing the appearance of a fleet emergency, and the two were indistinguishable
+  on the dashboard. **`compliance_state` now reports `unknown` and
+  `compliance_score` is empty for those hosts.** A host whose rules were all
+  evaluated and all failed still scores zero and still reports critical, because
+  that is a real result.
+- **Upgrading repairs the hosts already recorded that way.** Migration 0061
+  rewrites `host_compliance_schedule.compliance_state` to `unknown` and
+  `compliance_score` to NULL for every host whose most recent completed scan
+  produced no pass or fail verdict. It selects on that scan evidence and never
+  on the stored zero, so a genuinely zero-percent host keeps its score and its
+  critical state. It leaves `has_critical_findings`, `current_interval_minutes`
+  and `next_scheduled_scan` untouched, so no scheduled scan is postponed. It is
+  safe to re-run and changes nothing on a second pass. **If you read
+  `compliance_score` from that table, it can now be empty.**
+- Hosts that cannot be assessed are re-checked at least as often as hosts known
+  to be failing. The default interval for the unknown state moves from 6 hours
+  to 4, and a configured value slower than the critical interval is reduced to
+  match it. Without this, correcting the fabricated score above would have made
+  those hosts checked less often than before.
+- **Daily posture snapshots can now hold an empty score, and the score column is
+  no longer defaulted to zero.** Migration 0062 makes
+  `posture_snapshots.score_pct` nullable. Empty means no rule produced a verdict
+  that day. Zero means every evaluated rule failed. The old NOT NULL DEFAULT 0
+  could not tell those apart, which is the same defect as the host state above,
+  one layer down. **If you query that column, handle an empty value.** Existing
+  rows keep the number they already held, and nothing is recalculated.
+- **A scan that assesses nothing now clears the host's posture for that day
+  instead of leaving the previous scan's score in place.** When a scan completed
+  without producing a single pass or fail, it wrote no rule state, so the daily
+  rollup had nothing to update and yesterday's number stayed in today's slot
+  reading as current. The same held for a per-framework score after the host
+  stopped carrying rules for that framework. **The day now reports no score with
+  zero counts, and a framework series the current scan does not produce is
+  removed for that day.** The evidence is the scan run's own outcome counts, all
+  four of which must be recorded and zero. A host whose latest run recorded no
+  counts, or recorded outcomes whose results are missing, is left exactly as it
+  was rather than reported as unassessable. A host that has never completed a
+  scan is untouched.
+- **BREAKING: `GET /api/v1/fleet/score` no longer returns `passing_fraction` or
+  `total_evaluations`.** Both are gone with no alias, so a client that reads
+  them fails rather than silently receiving a different quantity.
+  `passing_fraction` named a pooled ratio the product no longer computes and
+  could not say "no score"; `total_evaluations` was its denominator. The
+  response now carries `score_pct` (nullable, one decimal), the outcome counts
+  behind it (`passing`, `failing`, `skipped`, `error`), `coverage_status` with
+  its percentage, `hosts_scored`, `hosts_without_score`, `hosts_total`, and an
+  `envelope` naming the lens, formula version, aggregation method, engine
+  version and rule-corpus identity.
+- **Every compliance score now names the scan engine that PRODUCED it**, not the
+  version linked into whichever process answered the request. A completed scan
+  records its worker's engine version, and the daily rollup, the fleet score,
+  the group averages, the host detail page and the trends all copy that value.
+  Before this, a rolling or split deployment could report an engine that never
+  touched the host it was describing. **Scans completed before this release
+  carry no engine version and report none**, which is a different fact from
+  naming the current one.
+- An aggregate reports engine identity the same way it reports the rule corpus:
+  `engine_identity_status` (`unavailable`, `identified`, `mixed`,
+  `partially_identified`), an `engines` list naming each version and how many
+  scored hosts it covers, and `hosts_without_engine_identity`. `engine_version`
+  carries a value only under `identified`. **A fleet where some hosts recorded
+  an engine and some did not reports `partially_identified`, not a version**,
+  which is what a fleet part way through an upgrade looks like.
+- **BREAKING: the single-host compliance score is computed server side.** The
+  host detail page and the scans list each derived a percentage in the browser
+  from `passing / total`, so a host whose rules all skipped displayed 0% instead
+  of no score. `score_pct` is now on the host compliance summary, the hosts
+  list, and each category, alongside `coverage_status` and the envelope.
+- **A soft-deleted host no longer counts toward the group it belonged to.**
+  Manual group membership did not filter deleted hosts, so a deleted member
+  still moved the group's average, its host and outcome counts, its online and
+  down tallies, and its critical-host count, while the member list on the card
+  correctly left it out. It also meant a bulk action scoped to a group resolved
+  a host set that included deleted hosts.
+- **BREAKING: group compliance averages are objects, not whole numbers.**
+  `avg_compliance_pct` is replaced by a `score` object on both the per-group
+  rollup and the Groups-page summary, in the same shape `GET /fleet/score`
+  returns and sent through the same code. The integer rounded the one-decimal
+  score a second time and could say nothing about which lens produced it or how
+  many members it covered.
+- Every score-bearing response now carries the envelope, not just the fleet
+  endpoint: the host compliance summary, the per-framework chips, the hosts
+  list, both group averages, and every trend point. Corpus identity reads `unavailable` on all of
+  them until the scan engine can report it, but the field is there now, so
+  adding that later does not reshape the API again.
+- **Every compliance score on the API can now be empty.** `score_pct` on the
+  host compliance summary, the per-framework chips, the daily trend, the hosts
+  list and the fleet trend is nullable. Empty means no rule produced a verdict;
+  0 means every evaluated rule failed. **If you read any of these, handle
+  null.**
+- Trend days now carry `formula_status` and `formula_version`, and **a day whose
+  snapshot has no score is returned rather than omitted**, so an unassessable
+  day is visible and explained instead of looking like a day with no data.
+- The hosts list returns a server-computed `score_pct` per host. The web UI was
+  deriving that percentage itself, with a formula that did not match the
+  server's.
+- **In the web UI, a compliance trend line now breaks at every formula
+  boundary**, and a legacy segment is dashed and labeled as not comparable with
+  current days. A day with no score is drawn as a hollow marker on the baseline,
+  in a gutter below the chart, separated by a divider, so it cannot be read as
+  zero percent. Hovering it says whether the day mixed formulas or could not be
+  assessed. Averages and KPIs show a dash instead of 0% when nothing could be
+  scored.
+- **A missing compliance score is no longer colored as a failing one.** The
+  Avg. compliance KPI on the Hosts page, the score on a group card and the
+  Groups summary all painted an absent score in the same critical red as a
+  fleet at 12%. Absence now reads as neutral. On the Hosts KPI, which also
+  draws a bar, an absent score draws no bar at all, while a genuine zero keeps
+  the critical color and draws a bar at zero, so the two are told apart at a
+  glance.
+- **The Hosts page no longer computes its own fleet average.** It showed a
+  locally calculated mean while the server's answer was still loading, and kept
+  showing it when the server answered that the fleet has no score. That was a
+  second implementation of the compliance formula in the browser, and it could
+  disagree with the dashboard. The page now shows no score until the server
+  answers, then shows what the server sent.
+- **Skipped rules are no longer described as "not applicable".** A skip means
+  the scan did not evaluate the rule, which is not the same as the rule not
+  applying to the host. The host compliance tab now says how many rules are in
+  the view rather than how many were evaluated, states which of the two reasons
+  made coverage unavailable, and shows "No score" rather than 0% when nothing
+  was assessed. Group cards state participation and coverage next to the score,
+  so a group average now says how many of its hosts it covers.
+- **A compliance delta is not shown across a scoring-formula boundary.** The
+  dashboard, the Hosts page and the host detail page compared two days whose
+  scores came from different formulas, then drew an arrow and a color from the
+  difference. Those numbers answer different questions, so subtracting them
+  produced a movement that never happened. Each surface now shows no delta, no
+  direction and no color in that case, and says why in plain words.
+- **Report verification says what it actually proves.** The Verify control
+  checks a report against the signing key this same server hands out, so a
+  successful check shows that the content and the signature agree with that
+  key. It is not offline verification and it does not establish authenticity.
+  The result now says so, and points out that authenticity needs the key or its
+  fingerprint compared against a copy you trust from somewhere other than this
+  server. **The cryptography is unchanged. Only the claim is corrected.** The
+  badge on a signed report now reads "Signature present" in a neutral color
+  rather than "Signed by" in green, because no check has run when it appears. A
+  browser that cannot verify Ed25519 is told the signature was not checked,
+  which is separate from a signature that was checked and failed.
+- **A daily fleet trend point reports no score when its snapshots were produced
+  by more than one scoring formula.** This happens while a fleet is part way
+  through the change: a host whose scans produce no usable evidence keeps its
+  old-formula snapshot, and the two formulas measure different things, so their
+  average answers no question. The counts are still reported, and each day now
+  says which formula produced it: `identified` when every snapshot used the new
+  formula, `legacy_unknown` when they all predate it, `mixed` when they
+  disagree. **A legacy day and a new-formula day both carry a score, and those
+  scores are not comparable**, which is why the status says which is which
+  rather than only flagging the mixed case.
+- **The compliance trend endpoints omit a day with no score**, rather than
+  drawing it as zero percent. The chart already leaves gaps for days
+  with no snapshot at all, so a day nothing could be measured now looks the same
+  as a day nothing was recorded. The fleet trend also stops averaging an
+  unassessable host in as zero: the daily average is the mean of the hosts that
+  produced a score, and the hosts that produced none are counted separately.
+- `posture_snapshots.score_pct` changes type from `REAL` to `numeric(4,1)`.
+  A compliance score is shown to one decimal and `REAL` cannot hold one: it
+  stored 66.7 as 66.69999694824219, so a score read back never equaled the score
+  computed. **If you query the column directly, it now returns an exact
+  one-decimal value.** Stored values keep the number they already meant.
+  Changing the column type rewrites the table and locks it while the
+  migration runs, so a large deployment should upgrade in a maintenance
+  window. The upgrade guide explains how to estimate the time.
+- Daily posture snapshots now record how the number was produced
+  (`formula_version`, `aggregation_method`, `engine_version`) and the rule corpus
+  it measured against (`corpus_identity_status`, `corpus_version`,
+  `corpus_digest`). Rows written before the upgrade carry none of the six, and a
+  later release will not fill them in. The arithmetic behind an old row is
+  knowable, but the rule corpus it measured against is not, and labeling those
+  rows would imply they compare with new ones on an axis they do not.
+- **A completed scan now records the rule corpus as `unavailable` rather than
+  naming the corpus installed at the time.** Until the Kensa scan engine can
+  report which corpus it used, naming one would assert a measurement nobody
+  made. This is not the same as empty: empty means the scan run predates the
+  columns, while `unavailable` means the scan happened and its corpus cannot be
+  identified.
+- Downgrading past this release is refused while any snapshot holds an empty
+  score. Rolling back restores the NOT NULL column, and the only way to do that
+  is to write those rows to zero, which is the fabricated verdict this release
+  exists to remove. Set an explicit value for those rows first.
+
+- A drift alert is no longer raised for a host whose scan produced no verdict.
+  A scan returning only skipped rules used to compare a fabricated zero against
+  the host's real previous score and report a major compliance collapse, routed
+  to Slack, email or a webhook. **Nothing to do:** such a scan now reports no
+  drift at all. Genuine score movements alert exactly as before.
 
 - Compliance scores now count only the rules a host's most recent completed
   scan actually evaluated. Before this, a rule that left the scan corpus, by
@@ -63,6 +319,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
   upgrade` between two candidates reported nothing to do and `rpm -q` could not
   tell them apart. **Release candidates now carry distinct package versions.**
+- CI pins Specter v0.15.0, and the spec gate now rejects annotation warnings
+  as well as errors, rather than errors alone. **This is a
+  contributor-facing change with no effect on a running install.** A test that
+  claims an acceptance criterion must name that criterion in a way the test
+  runner actually prints, so the evidence behind a criterion can be found. The
+  repository had 232 annotations that named no visible test, all now repaired.
+  The gate lives in one script that `make spec-check` and CI both run, so the
+  local check and the CI check cannot drift apart. Severity is not the filter:
+  `specter check --test` exits 0 with warnings present, and one diagnostic kind
+  stays a warning even in strict mode, so the gate reads the reported counts
+  instead of the exit status.
+- The Specter manifest drops two settings that v0.15 no longer applies.
+  `system.tier` is deprecated upstream and never set any spec's tier, and the
+  `default` domain's `tier` is a checked assertion rather than something it
+  hands down. That domain holds specs at three different tiers, so no single
+  assertion was true for 45 of them. **Each spec's own declared tier is
+  unchanged**; only the manifest stopped claiming otherwise.
 
 ### Removed
 
@@ -80,6 +353,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Scan backoff now prevents the scheduler from dispatching a host again until
+  its suppression window expires. Migration 0064 gives scan and intelligence
+  backoff independent rows, so a failure or success in one subsystem no longer
+  overwrites or clears the other's state. The normal upgrade migration applies
+  the schema change; no separate operator action is required.
 - License key rotation. The fallback to the previous signing key matched an
   error that only the HMAC path returns, so it could never run and rotation
   would have failed the first time a previous key shipped. **Nothing to do:** no

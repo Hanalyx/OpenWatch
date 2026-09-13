@@ -218,6 +218,14 @@ func (s *Server) WithVariableCatalog(c *kensa.VariableCatalog) *Server {
 // worker, so "scan" jobs claimed by the serve process execute instead
 // of dead-ending (queue.Dequeue is not type-filtered). Spec
 // api-host-scan / system-scan-runs.
+// ScanWorkerRegistered reports whether the in-process job worker carries a
+// scan processor. system-worker-subcommand AC-19 asserts it against a
+// server built the way serve builds one, which is how the criterion
+// notices a registration that is present in the source and never runs.
+func (s *Server) ScanWorkerRegistered() bool {
+	return s.wkr != nil && s.wkr.HasScanProcessor()
+}
+
 func (s *Server) WithScanWorker(sw *worker.ScanWorker) *Server {
 	if s.wkr != nil {
 		s.wkr.WithScanProcessor(sw)

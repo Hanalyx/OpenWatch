@@ -27,7 +27,7 @@ Kensa retrieves SSH credentials from OpenWatch's encrypted store
 SSH connection to target host
         |
         v
-769 rules in the corpus (Kensa v0.8.0; check commands, config values, file permissions). The number evaluated on a given host is lower: rules resolve per operating system
+Rules from the bundled corpus run: check commands, config values, permissions
         |
         v
 Each rule returns: pass/fail, severity, detail, evidence
@@ -56,7 +56,7 @@ Key points:
 |-----------|------------|-------|
 | CIS RHEL 9 v2.0.0 | cis-rhel9-v2.0.0 | 271 |
 | STIG RHEL 9 V2R7 | stig-rhel9-v2r7 | 338 |
-| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (Ubuntu rules: ~117 on 24.04, ~115 on 22.04) |
+| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (see Ubuntu rule applicability in the distribution support guide) |
 | STIG Ubuntu 22.04 | stig-ubuntu22 | (see Ubuntu rule applicability above) |
 | NIST 800-53 Rev 5 | nist-800-53-r5 | 87 |
 | PCI-DSS v4.0 | pci-dss-v4.0 | 45 |
@@ -99,6 +99,51 @@ to trigger scans manually unless you want immediate results. See the
 
 ---
 
+## Operating the scan engine
+
+The Kensa engine runs inside the OpenWatch binary. There is no separate engine
+service to start, stop, or restart.
+
+A packaged install runs one service, `openwatch serve`, and that process runs
+the scan worker in-process. You do not need to start anything else to scan.
+`openwatch worker` is a separate long-lived process for scaling scan capacity
+out to more hosts. It is optional, and several may run against one database.
+
+Check which engine version is linked into the running binary:
+
+```bash
+curl -sk https://localhost:8443/api/v1/health
+```
+
+The response carries a `kensa` field. The value is read from the binary's build
+information, so it always reports the engine actually linked in.
+
+Check the service state and follow its logs:
+
+```bash
+systemctl status openwatch.service
+journalctl -u openwatch.service -f
+```
+
+Scan jobs queue in PostgreSQL. The connection string lives in
+`/etc/openwatch/secrets.env`, which is mode `0640` and owned `root:openwatch`,
+so read it as the `openwatch` user rather than as yourself. Load the file inside
+the same command that uses it:
+
+```bash
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; \
+  psql "$OPENWATCH_DATABASE_DSN" -c \
+  "select id, status, created_at from job_queue order by created_at desc limit 10;"'
+```
+
+The single quotes matter. They keep `$OPENWATCH_DATABASE_DSN` unexpanded in your
+own shell, where it is empty, so it resolves after the file is loaded.
+
+A job that stays queued usually means the service is not running. Check the
+service first, then the logs.
+
+---
+
 ## Reading scan results
 
 After a scan completes, the results are displayed on the host detail page under
@@ -106,7 +151,8 @@ the **Compliance** tab.
 
 ### What you see
 
-- **Compliance score**: percentage of rules passing (for example, 85.0%)
+- **Compliance score**: passing rules over rules that reached a verdict (for
+  example, 85.0%). It can be absent; absent is not zero
 - **Summary bar**: pass, fail, error, and skipped counts
 - **Severity breakdown**: counts by critical, high, medium, low
 - **Findings table**: sortable, filterable list of all findings
@@ -138,14 +184,93 @@ Use the filter controls above the findings table to narrow results:
 
 ### What the score means
 
-The compliance score is the percentage of evaluated rules that passed:
+The compliance score counts only the rules that reached a verdict:
 
 ```
-compliance_score = (passed_rules / total_rules) * 100
+score_pct = passing / (passing + failing) * 100
 ```
 
-A score of 85.0 means 85% of rules passed. Skipped rules are excluded from
-the total.
+A score of 85.0 means 85% of the rules that produced a pass or a fail passed.
+
+**Only `pass` and `fail` count.** A rule that was skipped, that did not apply,
+or that errored stays out of the numerator and out of the denominator. It is
+not counted as a failure. A host where most rules were skipped is not scored
+low for it; see coverage below.
+
+The score is shown to one decimal place. Rounding happens once, when the API
+answers, so an aggregate is averaged before it is rounded.
+
+### A missing score is not a zero
+
+`score_pct` can be absent. Absence and zero mean different things, and the API
+keeps them apart:
+
+| Value | Meaning |
+|---|---|
+| `null` | No rule produced a pass or a fail. There is nothing to score. |
+| `0` | Rules produced verdicts and every one of them failed. |
+
+A zero is a real, measured result. Treat it as a finding. An absent score is
+the absence of a measurement, so do not render it as `0`, color it as a
+failure, or average it into a fleet number.
+
+### Coverage is a separate question
+
+Coverage says whether a score could be produced at all. It never changes the
+score itself. `coverage_status` is exactly one of three values:
+
+| `coverage_status` | Meaning |
+|---|---|
+| `available` | Enough rules reached a verdict. A coverage percentage is reported. |
+| `unavailable_unclassified_skips` | Rules were skipped for reasons the engine did not classify, so coverage cannot be computed. |
+| `unavailable_no_outcomes` | No rule produced any outcome at all. |
+
+**A coverage percentage exists only when the status is `available`.** For the
+other two the number is absent, because there is nothing honest to put in it.
+
+### Fleet and group scores
+
+A fleet or group score is an **equal-host mean**: the mean of the host scores,
+with every scored host counting once, whatever its rule count:
+
+```
+fleet score = mean(score of each scored host)
+```
+
+It is not a pooled ratio over rule rows. Pooling would let a host carrying 700
+rules outvote a host carrying 50, so two fleets with identical host postures
+would report different numbers.
+
+**Hosts with no score are left out of the mean, not counted as zero.** They
+stay visible in the participation counts that travel with the score, such as
+`hosts_total`, `hosts_scored` and `hosts_without_score`. Read those counts
+before reading the score: a 92.0 over three of two hundred hosts is not a fleet
+result.
+
+### Scores from older releases
+
+The formula has changed, and history records which one produced each point.
+Every trend day carries a `formula_status`:
+
+| `formula_status` | Meaning |
+|---|---|
+| `identified` | The day used the current formula. |
+| `legacy_unknown` | The day predates it, and the formula is not recorded. |
+| `mixed` | That day's snapshots disagree about the formula. |
+
+**A mixed day carries no score.** Its `score_pct` and `formula_version` are
+both `null`, and it must not produce a delta, a comparison, or an arrow. Two
+numbers from different formulas do not describe a change in posture.
+
+Reports signed before the change carry a `compliance_pct` field instead of
+`score_pct`. **The two are not comparable.** `compliance_pct` was a pooled
+whole percent over every rule outcome in scope. Those artifacts keep their
+original bytes so their signatures still verify, and nothing rewrites them.
+
+The full response envelope, including the provenance fields that record the
+engine and rule corpus behind a score, is in
+[the OpenAPI contract](../../api/openapi.yaml). It is the authority; this guide
+does not restate every field.
 
 ### Viewing posture in the dashboard
 

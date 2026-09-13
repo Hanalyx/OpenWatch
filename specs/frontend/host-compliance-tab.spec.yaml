@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.4.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -138,7 +138,7 @@ spec:
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-03
-      description: "Behavior: with a mixed-status lens fixture, the Compliance score panel renders score_pct with a legend of Compliant / Non-compliant / Not applicable / Executed (executed = passing + failing; an Error row only when error > 0), the Result mix panel renders the Compliant and Non-compliant bars plus the N/A note, the Scan details panel renders the scan metadata (ran at, coverage), the category rows render each category with 'passing / failing' over executed rules and the executed-only pass percentage, and the rules table renders one row per rules[] entry (severity pill, title, description, control_ids-or-rule_id, category, prototype-worded status chip, relative last_checked_at) — all from the single lens response, with legend numbers equal to the per-status aggregation of the rules array"
+      description: "Behavior: with a mixed-status lens fixture, the Compliance score panel renders score_pct with a legend of Compliant / Non-compliant / Not applicable / Executed (executed = passing + failing; an Error row only when error > 0), the Result mix panel renders the Compliant and Non-compliant bars plus the N/A note, the Scan details panel renders the scan metadata (ran at, coverage), the category rows render each category with 'passing / failing' over executed rules and the SERVER-SENT score_pct, rendering a dash when it is null (v1.5.0; the percentage was computed in the component, which put compliance arithmetic in the browser), and the rules table renders one row per rules[] entry (severity pill, title, description, control_ids-or-rule_id, category, prototype-worded status chip, relative last_checked_at) — all from the single lens response, with legend numbers equal to the per-status aggregation of the rules array"
       priority: critical
       references_constraints: [C-03]
     - id: AC-04
@@ -169,3 +169,56 @@ spec:
       description: 'v1.4.0 source-inspection - the scan-context strip Re-scan button reflects an in-flight scan: ScanContextStrip is passed scan_context.scan_state (queued|running) and forwards it to RescanButton, which stays disabled and shows "Running…"/"Queued…" for the whole scan (not just the request round-trip) and reverts to "Re-scan" when scanState is null. The state is kept live by the scan.started/scan.completed SSE invalidation of the ["host", hostId] lens query.'
       priority: high
       references_constraints: [C-01]
+    - id: AC-11
+      description: >-
+        v1.6.0 - absence is rendered as absence. The score donut renders
+        score_pct as sent and shows "No score" with a "No verdict" caption when
+        it is null, never the string "null%" and never a full or empty ring
+        that reads as zero percent. Framework chips do the same, rendering a
+        dash rather than interpolating a null into a percent template. A
+        completed all-skipped scan and a genuine zero-percent scan appear in the
+        same fixture, so an implementation that hardcodes either null or zero
+        fails one of them.
+
+        Assessment coverage is stated in all three contract states and never
+        invented: available shows the supplied percentage; both unavailable
+        states show no percentage and say why, one because skips carry no
+        machine-readable reason and one because the lens produced no outcomes.
+
+        No skipped outcome is called "not applicable" or "N/A" anywhere in the
+        rendered copy, including the status filter and the status pills.
+        OpenWatch cannot tell an inapplicable rule from an unevaluated one until
+        KN-OW-021 ships a typed reason, so the word asserts a classification no
+        scan produced. Skipped and errored outcomes are never described as
+        evaluated verdicts. The raw passing, failing, skipped and error counts
+        are all preserved.
+      priority: critical
+      references_constraints: [C-01]
+      inputs:
+        cases:
+          - {id: all_skipped, passing: 0, failing: 0, skipped: 40, error: 0, score_pct: null,
+             coverage_status: unavailable_unclassified_skips, renders: 'No score', forbids: '0%'}
+          # Five failing outcomes, nothing skipped and nothing errored, so every
+          # in-scope rule produced a verdict and coverage is 100.0. The score is
+          # 0 because all five verdicts were failures: coverage says how much
+          # ran, the score says how it came out, and they move independently.
+          - {id: genuine_zero, passing: 0, failing: 5, skipped: 0, error: 0, score_pct: 0,
+             coverage_status: available, coverage_pct: 100.0, renders: '0%', forbids: 'No score'}
+          - {id: no_outcomes, passing: 0, failing: 0, skipped: 0, error: 0, score_pct: null,
+             coverage_status: unavailable_no_outcomes, renders: 'No score', forbids: '0%'}
+          # Nonzero error, so the error count is proven preserved and the Error
+          # legend row is exercised rather than assumed: it renders only when
+          # errors exist. This case DOES have a score, 60, from its three
+          # passing and two failing verdicts. The four skipped and six errored
+          # outcomes stay outside the score denominator, which is why coverage
+          # is withheld here while the score is not.
+          - {id: mixed_with_errors, passing: 3, failing: 2, skipped: 4, error: 6, score_pct: 60,
+             coverage_status: unavailable_unclassified_skips, renders: '60%', forbids: 'No score'}
+        forbidden_copy: ['null%', 'not applicable', 'N/A', 'rules evaluated']
+        coverage_reason_pattern: 'machine-readable reason|produced no outcomes'
+      expected_output:
+        coverage_available_shows_percentage: true
+        coverage_unavailable_shows_reason: true
+        forbidden_copy_occurrences: 0
+        counts_preserved: true
+        counts_asserted: [passing, failing, skipped, error]

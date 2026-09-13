@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixture';
 
 const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock, POST: postMock } }));
@@ -40,10 +41,21 @@ const LENS = {
     scan_id: '0c9e2f5a-1111-4222-8333-444455556666',
     policy_version: 'v3',
   },
-  summary: { passing: 2, failing: 1, skipped: 1, error: 0, total: 4, score_pct: 50 },
+  summary: {
+    passing: 2,
+    failing: 1,
+    skipped: 1,
+    error: 0,
+    total: 4,
+    score_pct: 50,
+    coverage_status: 'unavailable_unclassified_skips',
+    coverage_pct: null,
+  },
   categories: [
-    { category: 'ssh', passing: 1, failing: 1, total: 2 },
-    { category: 'auth', passing: 1, failing: 0, total: 2 },
+    // score_pct is SENT by the server now, not derived in the component.
+    // ssh: 1 of 2 verdicts. auth: 1 of 1, its second rule having produced none.
+    { category: 'ssh', passing: 1, failing: 1, total: 2, score_pct: 50 },
+    { category: 'auth', passing: 1, failing: 0, total: 2, score_pct: 100 },
   ],
   rules: [
     {
@@ -271,14 +283,14 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const legend = within(scoreRegion).getByLabelText('Status totals');
     expect(legend).toHaveTextContent(/Compliant\s*2/);
     expect(legend).toHaveTextContent(/Non-compliant\s*1/);
-    expect(legend).toHaveTextContent(/Not applicable\s*1/);
+    expect(legend).toHaveTextContent(/No verdict\s*1/);
     expect(legend).toHaveTextContent(/Executed\s*3/);
     expect(within(legend).queryByText('Error')).toBeNull();
     // Result mix panel: Compliant / Non-compliant bars with counts.
     const summaryRegion = screen.getByLabelText('Result mix');
     expect(summaryRegion).toHaveTextContent('Compliant');
     expect(summaryRegion).toHaveTextContent('Non-compliant');
-    expect(summaryRegion).toHaveTextContent('1 rules not applicable');
+    expect(summaryRegion).toHaveTextContent('1 rules produced no verdict');
     // Scan panel (prototype right column) renders alongside.
     const scanRegion = screen.getByLabelText('Scan details');
     expect(scanRegion).toHaveTextContent('Ran');
@@ -304,7 +316,7 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('Non-compliant')).toBeInTheDocument();
     expect(within(table).getAllByText('Compliant').length).toBe(2);
-    expect(within(table).getByText('N/A')).toBeInTheDocument();
+    expect(within(table).getByText('No verdict')).toBeInTheDocument();
 
     // ONE lens request + ONE frameworks request — everything rendered
     // from a single lens response.
@@ -455,4 +467,183 @@ describe('frontend-host-compliance-tab v1.2.0 — exception overlay', () => {
     expect(TAB_SRC).toMatch(/disabled=\{busy \|\| active\}/);
     expect(TAB_SRC).toMatch(/scanState === 'running'\s*\?\s*'Running…'/);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// AC-11: absence renders as absence, coverage states are honest, and no
+// skipped outcome is called "not applicable".
+//
+// Every value below comes from the SPEC. The fixture is read through js-yaml
+// and every key is consumed, so editing the YAML changes what this test
+// asserts and an unread key fails it. A test that restated the cases inline
+// would let the spec drift without anything noticing.
+// ─────────────────────────────────────────────────────────────────────────
+
+// summaryFor builds a contract-shaped summary for one fixture case.
+function summaryFor(c: {
+  passing: number;
+  failing: number;
+  skipped: number;
+  error: number;
+  score_pct: number | null;
+  coverage_status: string;
+  coverage_pct?: number;
+}) {
+  return {
+    passing: c.passing,
+    failing: c.failing,
+    skipped: c.skipped,
+    error: c.error,
+    total: c.passing + c.failing + c.skipped + c.error,
+    score_pct: c.score_pct,
+    coverage_status: c.coverage_status,
+    coverage_pct: c.coverage_pct ?? null,
+  };
+}
+
+// @ac AC-11
+// AC-11: a completed all-skipped scan and a genuine zero appear in the same
+// fixture, so neither a hardcoded null nor a hardcoded zero survives.
+test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverage is honest, no "not applicable"', async () => {
+  const { inputs, expected } = loadCriterion(
+    'host-compliance-tab',
+    'frontend-host-compliance-tab',
+    'AC-11',
+  );
+  const inp = trackFixture(inputs, 'AC-11 inputs');
+  const exp = trackFixture(expected, 'AC-11 expected_output');
+
+  const cases = inp.get<AnyRec[]>('cases');
+  const forbidden = inp.get<string[]>('forbidden_copy');
+  const reasonPattern = new RegExp(inp.get<string>('coverage_reason_pattern'));
+  const wantCounts = exp.get<string[]>('counts_asserted');
+  const showsPct = exp.get<boolean>('coverage_available_shows_percentage');
+  const showsReason = exp.get<boolean>('coverage_unavailable_shows_reason');
+  const wantForbiddenCount = exp.get<number>('forbidden_copy_occurrences');
+  if (!exp.get<boolean>('counts_preserved')) {
+    throw new Error('fixture must require the raw counts to be preserved');
+  }
+  inp.allConsumed();
+  exp.allConsumed();
+
+  const rendered: string[] = [];
+  for (const raw of cases) {
+    const c = trackFixture(raw, `AC-11 case ${String(raw.id)}`);
+    const id = c.get<string>('id');
+    const counts = {
+      passing: c.get<number>('passing'),
+      failing: c.get<number>('failing'),
+      skipped: c.get<number>('skipped'),
+      error: c.get<number>('error'),
+    };
+    const scorePct = c.get<number | null>('score_pct');
+    const coverageStatus = c.get<string>('coverage_status');
+    const coveragePct = c.has('coverage_pct') ? c.get<number>('coverage_pct') : undefined;
+    const renders = c.get<string>('renders');
+    const forbids = c.get<string>('forbids');
+    c.allConsumed();
+
+    // The fixture must describe a response the SERVER could actually send.
+    // A render test cannot catch an impossible one, because the value drives
+    // both the mock and the expectation: genuine_zero once carried
+    // coverage_pct 83.3 while its own counts give 100.0, and every assertion
+    // still passed. Coverage is executed over in-scope, where in-scope is
+    // pass + fail + error (system-compliance-scoring C-07).
+    if (coverageStatus === 'available') {
+      const inScope = counts.passing + counts.failing + counts.error;
+      const executed = counts.passing + counts.failing;
+      const computed = Math.round((executed / inScope) * 1000) / 10;
+      expect(coveragePct, `${id}: coverage_pct must match its own counts`).toBe(computed);
+    } else {
+      expect(coveragePct, `${id}: an unavailable status carries no percentage`).toBeUndefined();
+    }
+
+    const summary = summaryFor({
+      ...counts,
+      score_pct: scorePct,
+      coverage_status: coverageStatus,
+      coverage_pct: coveragePct,
+    });
+
+    getMock.mockReset();
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/hosts/{id}/compliance/frameworks') {
+        return {
+          data: { overall: { ...summary, framework_id: null }, frameworks: [] },
+          error: undefined,
+          response: { ok: true, status: 200 },
+        };
+      }
+      return {
+        data: { ...LENS, summary, categories: [], rules: [] },
+        error: undefined,
+        response: { ok: true, status: 200 },
+      };
+    });
+
+    const { container, unmount } = renderTab();
+    // Wait for the SCORE PANEL, not the page heading: the heading renders
+    // during loading too, so awaiting it read the DOM mid-flight.
+    await screen.findByLabelText('Compliance score');
+    const text = container.textContent ?? '';
+    rendered.push(text);
+
+    expect(text, `${id}: expected ${renders}`).toContain(renders);
+    expect(text, `${id}: must not show ${forbids}`).not.toContain(forbids);
+
+    // Coverage: a percentage only when the contract says available, and a
+    // stated reason when it does not.
+    //
+    // Compared EXACTLY against the expectation rather than used as an if.
+    // Guarding the assertion on the boolean meant flipping the expectation to
+    // false disabled the check instead of failing it, so the two
+    // expected_output flags asserted nothing.
+    if (coverageStatus === 'available') {
+      const gotPct = text.includes(`${coveragePct}%`);
+      expect(gotPct, `${id}: coverage percentage shown`).toBe(showsPct);
+    } else {
+      const gotReason =
+        text.includes('Assessment coverage unavailable') && reasonPattern.test(text);
+      expect(gotReason, `${id}: coverage unavailable with a stated reason`).toBe(showsReason);
+    }
+
+    // ALL FOUR raw counts survive whatever the score does, asserted PER ROW.
+    // Searching the whole legend for the number was too weak: with several
+    // zero counts any digit matched something, so a component that rendered a
+    // constant would have passed.
+    const legend = within(container).getByRole('list', { name: 'Status totals' });
+    const rowLabel: Record<string, string> = {
+      passing: 'Compliant',
+      failing: 'Non-compliant',
+      skipped: 'No verdict',
+      error: 'Error',
+    };
+    for (const name of wantCounts) {
+      const n = counts[name as keyof typeof counts];
+      // The Error row renders only when there are errors, which is why the
+      // fixture carries a nonzero-error case.
+      if (name === 'error' && n === 0) continue;
+      const label = rowLabel[name] ?? '';
+      const row = within(legend)
+        .getAllByRole('listitem')
+        .find((el) => (el.textContent ?? '').startsWith(label));
+      expect(row, `${id}: legend row for ${name}`).toBeDefined();
+      expect(row?.textContent, `${id}: ${name} count is ${n}`).toBe(`${label}${n}`);
+    }
+
+    // Unmount between cases. Without it the next render lands beside this one
+    // and findByLabelText resolves against the stale panel.
+    unmount();
+  }
+
+  // Forbidden copy, from the fixture, across every rendered case.
+  const all = rendered.join(' ');
+  let hits = 0;
+  for (const phrase of forbidden) {
+    if (new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(all)) {
+      hits += 1;
+      expect.fail(`rendered copy contains the forbidden phrase ${phrase}`);
+    }
+  }
+  expect(hits).toBe(wantForbiddenCount);
 });

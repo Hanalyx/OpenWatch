@@ -1,8 +1,8 @@
 // @spec system-correlation
 //
 // AC traceability:
-// @ac AC-12  (TestCorrelationHandler_AddsAttrFromCtx)
-// @ac AC-13  (TestCorrelationHandler_OmitsWhenAbsent)
+//   AC-12  (TestCorrelationHandler_AddsAttrFromCtx)
+//   AC-13  (TestCorrelationHandler_OmitsWhenAbsent)
 
 package log
 
@@ -16,7 +16,8 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 )
 
-// @ac AC-12  (When ctx has a correlation ID, the emitted JSON record contains)
+// @ac AC-12
+// AC-12: When ctx has a correlation ID, the emitted JSON record contains
 // "correlation_id": "<the id>".
 func TestCorrelationHandler_AddsAttrFromCtx(t *testing.T) {
 	t.Run("system-correlation/AC-12", func(t *testing.T) {
@@ -42,7 +43,8 @@ func TestCorrelationHandler_AddsAttrFromCtx(t *testing.T) {
 	})
 }
 
-// @ac AC-13  (When ctx has no ID (e.g. Background()), correlation_id is NOT)
+// @ac AC-13
+// AC-13: When ctx has no ID (e.g. Background()), correlation_id is NOT
 // emitted as an empty-string attr.
 func TestCorrelationHandler_OmitsWhenAbsent(t *testing.T) {
 	t.Run("system-correlation/AC-13", func(t *testing.T) {
@@ -63,7 +65,8 @@ func TestCorrelationHandler_OmitsWhenAbsent(t *testing.T) {
 	})
 }
 
-// @ac AC-12  ((companion): WithAttrs preserves correlation tagging.)
+// @ac AC-12
+// AC-12: (companion): WithAttrs preserves correlation tagging.
 func TestCorrelationHandler_WithAttrsPreservesTagging(t *testing.T) {
 	t.Run("system-correlation/AC-12", func(t *testing.T) {
 

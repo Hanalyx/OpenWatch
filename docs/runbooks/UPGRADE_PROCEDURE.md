@@ -15,12 +15,13 @@ scriptlet backs up and migrates the database and restarts the service. The
 for production change windows. Both are documented here.
 
 For first-time install and configuration, see the
-[installation guide](INSTALLATION.md). For the database backup and restore
+[installation guide](../guides/INSTALLATION.md). For the database backup and restore
 commands referenced below, see the [backup and recovery guide](BACKUP_RECOVERY.md). For
 migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md).
 
-> Version note: `v0.5.0` is the current general-availability release. Always back
-> up before upgrading; the upgrade path runs database migrations automatically.
+> Always back up before upgrading; the upgrade path runs database migrations
+> automatically. Check the version you are on with `openwatch --version` before
+> you start, and again afterwards.
 
 ## Quick upgrade (automatic, recommended)
 
@@ -130,6 +131,39 @@ There is no down-migration or `downgrade` subcommand. Migrations are forward-onl
 To revert a schema change you restore the pre-upgrade database backup (see
 [Rollback](#rollback)). Plan upgrades accordingly: the database backup is your
 rollback path, not a reverse migration.
+
+### Migrations that lock a table
+
+A migration that changes an existing column's type rewrites the whole table and
+holds an ACCESS EXCLUSIVE lock while it does. Reads and writes of that table
+block until it finishes. Adding a column or an index to a large table can also
+take real time, so measure rather than assume.
+
+Plan for the downtime. The service is stopped during a standard upgrade anyway
+(Step 2), so the practical question is how long Step 5 takes.
+
+| Migration | Table | Why it locks |
+|---|---|---|
+| 0062 | `posture_snapshots` | `score_pct` changes from `REAL` to `numeric(4,1)`. A compliance score is shown to one decimal and `REAL` cannot hold one. |
+
+`posture_snapshots` holds one row per host, per day, per framework series, so
+the rewrite time scales with fleet size times how much history you keep. To
+estimate before you upgrade:
+
+```bash
+sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
+  psql "$OPENWATCH_DATABASE_DSN" \
+  -c "SELECT count(*) AS rows,
+             pg_size_pretty(pg_total_relation_size('posture_snapshots')) AS size
+        FROM posture_snapshots;"
+```
+
+How long the rewrite takes depends on the row count, the indexes, your storage,
+WAL settings, and what else the database is doing. There is no row count that
+predicts it. **Time the migration against a restored copy of your own database
+before you upgrade production**, and schedule a maintenance window based on what
+you measure. The hourly posture rollup simply runs late afterward; nothing is
+lost.
 
 ## Standard upgrade
 
@@ -273,20 +307,20 @@ Kensa is the SSH-based compliance engine, integrated as a Go dependency; its nat
 binary. Rules therefore travel with
 the binary: installing a new OpenWatch package is what updates the bundled
 rule set. There is no separate rule-pull or out-of-band rule-sync step. See
-[Scanning and compliance](SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
+[Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
 Kensa during a scan.
 
 ## Upgrading PostgreSQL
 
 PostgreSQL is provisioned and operated independently of the OpenWatch package
-(see the [installation guide](INSTALLATION.md)). A **PostgreSQL major-version upgrade**
+(see the [installation guide](../guides/INSTALLATION.md)). A **PostgreSQL major-version upgrade**
 (for example 15 to 16) is **never** performed by the OpenWatch package scriptlet. It is
 a data-directory migration (`pg_upgrade` or dump/restore) that needs both server
 versions and must be operator-supervised; doing it silently from a package
 upgrade would risk the whole database. Plan it separately, with its own backup:
 follow your distribution's procedure, stop `openwatch.service` first so no
 connections are open, then start it again afterward and run the
-[verification](#step-7--verify-the-upgrade) checks. (Minor PostgreSQL and
+[verification](#step-7-verify-the-upgrade) checks. (Minor PostgreSQL and
 dependency updates are handled by `dnf`/`apt` via package dependencies: nothing
 extra to do.)
 

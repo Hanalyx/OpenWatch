@@ -1,8 +1,8 @@
 # OpenWatch operator guides
 
-Operator and administrator documentation for OpenWatch. The current
-general-availability release is `v0.5.0`; confirm the version you are running with
-`GET /api/v1/health` or `openwatch --version`.
+Operator and administrator documentation for OpenWatch. Confirm the version
+you are running with `openwatch --version` or `GET /api/v1/health`; this
+documentation does not name a release, so it cannot go out of date about one.
 
 ## Getting started
 
@@ -15,15 +15,15 @@ general-availability release is `v0.5.0`; confirm the version you are running wi
 - [Production deployment](PRODUCTION_DEPLOYMENT.md): hardened production setup.
 - [Configuration and environment reference](ENVIRONMENT_REFERENCE.md): every setting.
 - [Monitoring and operations](MONITORING_SETUP.md): health, metrics, day-2 ops.
-- [Backup and recovery](BACKUP_RECOVERY.md): back up and restore data.
-- [Upgrade procedure](UPGRADE_PROCEDURE.md): move between releases safely.
-- [Database migrations](DATABASE_MIGRATIONS.md): how schema changes are applied.
+- [Backup and recovery](../runbooks/BACKUP_RECOVERY.md): back up and restore data.
+- [Upgrade procedure](../runbooks/UPGRADE_PROCEDURE.md): move between releases safely.
+- [Database migrations](../runbooks/DATABASE_MIGRATIONS.md): how schema changes are applied.
 - [Scaling guide](SCALING_GUIDE.md): grow with fleet size.
 
 ## Security
 
 - [Security hardening](SECURITY_HARDENING.md): lock down a deployment.
-- [Secret rotation](SECRET_ROTATION.md): rotate keys and credentials.
+- [Secret rotation](../runbooks/SECRET_ROTATION.md): rotate keys and credentials.
 - [User roles and permissions](USER_ROLES.md): the RBAC model.
 
 ## Compliance and scanning
@@ -38,5 +38,5 @@ general-availability release is `v0.5.0`; confirm the version you are running wi
 
 ## Runbooks
 
-Incident response procedures live in [runbooks/](runbooks/): service down, database
+Incident response procedures live in [runbooks/](../runbooks/): service down, database
 issues, disk full, high CPU, and security incident response.

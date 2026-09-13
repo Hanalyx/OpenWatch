@@ -11,13 +11,16 @@
 //          TestValidateThresholds_RejectsMajorBelowMinor
 //          TestValidateThresholds_AcceptsValid
 //   AC-13  TestKindEnum_HasExactlyFourValues
-//   AC-14  TestComplianceScore_ExcludesSkipped
+//   AC-14  TestScore_CountsOnlyConfirmedVerdicts
+//   AC-20  TestScore_CountsOnlyConfirmedVerdicts (counterexample subtest)
 
 package drift
 
 import (
 	"errors"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
 // @ac AC-01
@@ -172,21 +175,69 @@ func TestKindEnum_HasExactlyFourValues(t *testing.T) {
 }
 
 // @ac AC-14
-// AC-14: ComplianceScore excludes skipped from the denominator.
-// passed=80, failed=20, skipped=anything → 80%.
-func TestComplianceScore_ExcludesSkipped(t *testing.T) {
+// @ac AC-20
+// AC-14 is the formula. AC-20 is the counterexample: a host that failed every
+// evaluated rule has a real zero and must stay distinguishable from a host that
+// produced no verdict. AC-19, the no-emission half, is covered end to end in
+// ow023_test.go, because asserting it here would report coverage for behavior
+// this file cannot reach.
+//
+// Both fixtures come from the spec; nothing below restates a number.
+func TestScore_CountsOnlyConfirmedVerdicts(t *testing.T) {
+	all := driftCriteria(t)
+
 	t.Run("system-drift-detector/AC-14", func(t *testing.T) {
-		// 80 / (80 + 20) = 80%
-		if got := ComplianceScore(80, 20); got != 80 {
-			t.Errorf("ComplianceScore(80, 20) = %v, want 80", got)
+		ac := specfixture.Get(t, all, "AC-14")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+		counts := in.Map("counts")
+
+		got, ok := Score(counts.Int("passed"), counts.Int("failed")).Value()
+		if want := exp.Bool("score_present"); ok != want {
+			t.Errorf("score present = %v, want %v", ok, want)
 		}
-		// 0 / 0 → 0 (no scored rules).
-		if got := ComplianceScore(0, 0); got != 0 {
-			t.Errorf("ComplianceScore(0, 0) = %v, want 0", got)
+		if want := exp.Num("score_pct"); ok && got != want {
+			t.Errorf("score_pct = %v, want %v", got, want)
 		}
-		// All passing.
-		if got := ComplianceScore(10, 0); got != 100 {
-			t.Errorf("ComplianceScore(10, 0) = %v, want 100", got)
+		counts.AllConsumed()
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+
+	t.Run("unit-partial/absent-score", func(t *testing.T) {
+		// Not annotated: the absence half belongs to AC-19, whose no-emission
+		// requirement only DetectForScan can satisfy.
+		if _, ok := Score(0, 0).Value(); ok {
+			t.Error("Score(0, 0) reports a value; an empty denominator has no score")
 		}
 	})
+
+	t.Run("system-drift-detector/AC-20", func(t *testing.T) {
+		ac := specfixture.Get(t, all, "AC-20")
+		in := specfixture.InputsOf(t, ac)
+		exp := specfixture.ExpectedOf(t, ac)
+		counts := in.Map("counts")
+
+		zero, ok := Score(counts.Int("passed"), counts.Int("failed")).Value()
+		if want := exp.Bool("score_present"); ok != want {
+			t.Errorf("score present = %v, want %v", ok, want)
+		}
+		if want := exp.Num("score_pct"); zero != want {
+			t.Errorf("score_pct = %v, want %v", zero, want)
+		}
+		// The discriminating assertion: collapsing these two is what let an
+		// unassessable host alert as a compliance collapse.
+		if Score(0, 0).Present() == ok {
+			t.Error("absent and genuine-zero are indistinguishable")
+		}
+		counts.AllConsumed()
+		in.AllConsumed()
+		exp.AllConsumed()
+	})
+}
+
+// driftCriteria loads this spec's criteria.
+func driftCriteria(t *testing.T) map[string]specfixture.Criterion {
+	t.Helper()
+	return specfixture.Load(t, "../../specs/system/drift-detector.spec.yaml", "system-drift-detector")
 }

@@ -1,9 +1,9 @@
 // @spec system-audit-emission
 //
 // AC traceability:
-// @ac AC-08  (TestRedact_TopLevelPassword)
-// @ac AC-09  (TestRedact_AllSensitiveFields)
-// @ac AC-10  (TestRedact_RecursesNested)
+//   AC-08  (TestRedact_TopLevelPassword)
+//   AC-09  (TestRedact_AllSensitiveFields)
+//   AC-10  (TestRedact_RecursesNested)
 
 package audit
 
@@ -14,7 +14,8 @@ import (
 	"testing"
 )
 
-// @ac AC-08  (A top-level password is scrubbed; redactions contains "password".)
+// @ac AC-08
+// AC-08: A top-level password is scrubbed; redactions contains "password".
 func TestRedact_TopLevelPassword(t *testing.T) {
 	t.Run("system-audit-emission/AC-08", func(t *testing.T) {
 
@@ -38,7 +39,8 @@ func TestRedact_TopLevelPassword(t *testing.T) {
 	})
 }
 
-// @ac AC-09  (All six sensitive fields scrubbed; non-sensitive untouched.)
+// @ac AC-09
+// AC-09: All six sensitive fields scrubbed; non-sensitive untouched.
 func TestRedact_AllSensitiveFields(t *testing.T) {
 	t.Run("system-audit-emission/AC-09", func(t *testing.T) {
 
@@ -73,7 +75,8 @@ func TestRedact_AllSensitiveFields(t *testing.T) {
 	})
 }
 
-// @ac AC-10  (Nested object redaction; path uses dotted notation.)
+// @ac AC-10
+// AC-10: Nested object redaction; path uses dotted notation.
 func TestRedact_RecursesNested(t *testing.T) {
 	t.Run("system-audit-emission/AC-10", func(t *testing.T) {
 

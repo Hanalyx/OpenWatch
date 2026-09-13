@@ -1,18 +1,18 @@
 // @spec system-audit-emission
 //
 // AC traceability (integration tests; skipped without OPENWATCH_TEST_DSN):
-// @ac AC-04  (BenchmarkEmit_Async (asserts p99 in non-bench mode via TestEmit_Latency))
-// @ac AC-05  (TestEmit_BurstFlushes1000)
-// @ac AC-06  (TestEmitSync_Persists)
-// @ac AC-07  (BenchmarkEmitSync (asserts p99 in non-bench mode))
-// @ac AC-08  (redact_test.go (unit))
-// @ac AC-09  (redact_test.go (unit))
-// @ac AC-10  (redact_test.go (unit))
-// @ac AC-11  (TestEmit_CorrelationFromCtx)
-// @ac AC-12  (TestEmit_MissingCorrelationCounter)
-// @ac AC-13  (TestEmit_ChannelOverflow)
-// @ac AC-14  (TestShutdown_DrainsPending)
-// @ac AC-15  (TestEvent_UUIDv7Monotonic)
+//   AC-04  (BenchmarkEmit_Async (asserts p99 in non-bench mode via TestEmit_Latency))
+//   AC-05  (TestEmit_BurstFlushes1000)
+//   AC-06  (TestEmitSync_Persists)
+//   AC-07  (BenchmarkEmitSync (asserts p99 in non-bench mode))
+//   AC-08  (redact_test.go (unit))
+//   AC-09  (redact_test.go (unit))
+//   AC-10  (redact_test.go (unit))
+//   AC-11  (TestEmit_CorrelationFromCtx)
+//   AC-12  (TestEmit_MissingCorrelationCounter)
+//   AC-13  (TestEmit_ChannelOverflow)
+//   AC-14  (TestShutdown_DrainsPending)
+//   AC-15  (TestEvent_UUIDv7Monotonic)
 
 package audit
 
@@ -51,7 +51,8 @@ func setup(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// @ac AC-06  (EmitSync blocks until the row is committed and is readable)
+// @ac AC-06
+// AC-06: EmitSync blocks until the row is committed and is readable
 // immediately after return.
 func TestEmitSync_Persists(t *testing.T) {
 	t.Run("system-audit-emission/AC-06", func(t *testing.T) {
@@ -79,7 +80,8 @@ func TestEmitSync_Persists(t *testing.T) {
 	})
 }
 
-// @ac AC-07  (EmitSync p99 < 500µs against healthy local DB. Spec target;)
+// @ac AC-07
+// AC-07: EmitSync p99 < 500µs against healthy local DB. Spec target;
 // 2ms is the under-load ceiling — anything beyond signals a real regression.
 func TestEmitSync_Latency(t *testing.T) {
 	t.Run("system-audit-emission/AC-07", func(t *testing.T) {
@@ -112,7 +114,8 @@ func TestEmitSync_Latency(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (Emit reads correlation_id from ctx.)
+// @ac AC-11
+// AC-11: Emit reads correlation_id from ctx.
 func TestEmit_CorrelationFromCtx(t *testing.T) {
 	t.Run("system-audit-emission/AC-11", func(t *testing.T) {
 
@@ -129,7 +132,8 @@ func TestEmit_CorrelationFromCtx(t *testing.T) {
 	})
 }
 
-// @ac AC-12  (Emit with ctx that has NO correlation_id sets empty value and)
+// @ac AC-12
+// AC-12: Emit with ctx that has NO correlation_id sets empty value and
 // increments the missing-correlation counter.
 func TestEmit_MissingCorrelationCounter(t *testing.T) {
 	t.Run("system-audit-emission/AC-12", func(t *testing.T) {
@@ -148,7 +152,8 @@ func TestEmit_MissingCorrelationCounter(t *testing.T) {
 	})
 }
 
-// @ac AC-13  (Channel overflow drops events and increments the dropped counter.)
+// @ac AC-13
+// AC-13: Channel overflow drops events and increments the dropped counter.
 // We force overflow by emitting faster than the writer can drain.
 func TestEmit_ChannelOverflow(t *testing.T) {
 	t.Run("system-audit-emission/AC-13", func(t *testing.T) {
@@ -181,7 +186,8 @@ func TestEmit_ChannelOverflow(t *testing.T) {
 	})
 }
 
-// @ac AC-14  (Shutdown drains pending events to storage before returning.)
+// @ac AC-14
+// AC-14: Shutdown drains pending events to storage before returning.
 func TestShutdown_DrainsPending(t *testing.T) {
 	t.Run("system-audit-emission/AC-14", func(t *testing.T) {
 
@@ -208,7 +214,8 @@ func TestShutdown_DrainsPending(t *testing.T) {
 	})
 }
 
-// @ac AC-05  (1000 emits persist within 200ms wall-clock.)
+// @ac AC-05
+// AC-05: 1000 emits persist within 200ms wall-clock.
 func TestEmit_BurstFlushes1000(t *testing.T) {
 	t.Run("system-audit-emission/AC-05", func(t *testing.T) {
 
@@ -239,7 +246,8 @@ func TestEmit_BurstFlushes1000(t *testing.T) {
 	})
 }
 
-// @ac AC-15  (Event IDs are UUIDv7 (time-ordered). Two consecutive emits)
+// @ac AC-15
+// AC-15: Event IDs are UUIDv7 (time-ordered). Two consecutive emits
 // produce IDs that sort lexicographically in emit order.
 func TestEvent_UUIDv7Monotonic(t *testing.T) {
 	t.Run("system-audit-emission/AC-15", func(t *testing.T) {
@@ -278,7 +286,8 @@ func TestEvent_UUIDv7Monotonic(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (Emit p99 latency budget; measured via per-call)
+// @ac AC-04
+// AC-04: Emit p99 latency budget; measured via per-call
 // wall-clock timing over 1000 calls; channel send is the dominant cost.
 func TestEmit_Latency(t *testing.T) {
 	t.Run("system-audit-emission/AC-04", func(t *testing.T) {

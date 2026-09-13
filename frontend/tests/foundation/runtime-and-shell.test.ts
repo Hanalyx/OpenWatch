@@ -42,11 +42,11 @@ describe('frontend-foundation — runtime + shell', () => {
     expect(COLOR_SCHEME_SRC).toMatch(
       /matchMedia\(\s*['"]\(prefers-color-scheme:\s*dark\)['"]\s*\)/,
     );
-    expect(COLOR_SCHEME_SRC).toMatch(/addEventListener\(\s*['"]change['"]/);
+    expect(COLOR_SCHEME_SRC).toMatch(/addEventListener\x28\s*[\x27\x22]change[\x27\x22]/);
     // The listener body MUST re-resolve and apply only when the user's
     // chosen mode is "system" — overrides MUST NOT be clobbered.
-    expect(COLOR_SCHEME_SRC).toMatch(/current\s*===\s*['"]system['"]/);
-    expect(COLOR_SCHEME_SRC).toMatch(/setAttribute\(/);
+    expect(COLOR_SCHEME_SRC).toMatch(/current\s*===\s*[\x27\x22]system[\x27\x22]/);
+    expect(COLOR_SCHEME_SRC).toMatch(/setAttribute\x28/);
   });
 
   // @ac AC-08
@@ -56,8 +56,8 @@ describe('frontend-foundation — runtime + shell', () => {
     // return_to. No silent fall-through, no thrown exception.
     expect(ROUTER_SRC).toContain('protectedRoute');
     expect(ROUTER_SRC).toMatch(/beforeLoad:/);
-    expect(ROUTER_SRC).toMatch(/throw\s+redirect\(/);
-    expect(ROUTER_SRC).toMatch(/to:\s*['"]\/login['"]/);
+    expect(ROUTER_SRC).toMatch(/throw\s+redirect\x28/);
+    expect(ROUTER_SRC).toMatch(/to:\s*[\x27\x22]\/login[\x27\x22]/);
     expect(ROUTER_SRC).toMatch(/return_to:/);
     // The guard reads identity from useAuthStore — NOT a route-time
     // synchronous network call.
@@ -95,7 +95,7 @@ describe('frontend-foundation — runtime + shell', () => {
     // Source-walk: every <button> / clickable in topbar + sidebar
     // either carries an aria-label OR has a visible text child. A
     // bare <button> with no label fails the screen-reader contract.
-    const interactiveLineRe = /(<button[^>]*>|onClick=\{|role=["']button["'])/g;
+    const interactiveLineRe = /(<button[^>]*>|onClick=\x7b|role=[\x22\x27]button[\x22\x27])/g;
     // Sidebar: nav buttons reference aria-label or text content.
     expect(SIDEBAR_SRC).toMatch(/aria-label=/);
     // Topbar: at least one aria-label on the menu/scheme controls.
@@ -104,7 +104,7 @@ describe('frontend-foundation — runtime + shell', () => {
     // through three modes and the icon alone is not screen-reader
     // friendly. The label literal `Theme: ${mode}` is what the topbar
     // attaches to the toggle.
-    expect(TOPBAR_SRC).toMatch(/Theme:\s*\$\{mode\}/);
+    expect(TOPBAR_SRC).toMatch(/Theme:\s*\$\x7bmode\x7d/);
     // Sanity: there is at least one onClick in shell components.
     expect((TOPBAR_SRC + SIDEBAR_SRC).match(interactiveLineRe)?.length ?? 0).toBeGreaterThan(0);
   });
@@ -123,21 +123,21 @@ describe('frontend-foundation — runtime + shell', () => {
     const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
     expect(deps['axe-core']).toBeTruthy();
     expect(deps['@axe-core/playwright']).toBeTruthy();
-    expect(THEME_SRC).toMatch(/\bdark\s*:\s*\{/);
+    expect(THEME_SRC).toMatch(/\bdark\s*:\s*\x7b/);
   });
 
   // @ac AC-13
   test('frontend-foundation/AC-13 — light colorScheme present for light-mode axe scan', () => {
     // Symmetry with AC-12: light mode must have its own colorScheme so
     // the Playwright axe path has something to scan against in light.
-    expect(THEME_SRC).toMatch(/\blight\s*:\s*\{/);
+    expect(THEME_SRC).toMatch(/\blight\s*:\s*\x7b/);
     expect(THEME_SRC).toMatch(/colorSchemes\s*:/);
   });
 
   // @ac AC-16
   test('frontend-foundation/AC-16 — extendTheme cssVarPrefix:"ow" + colorSchemes light/dark + system default', () => {
     expect(THEME_SRC).toContain('extendTheme');
-    expect(THEME_SRC).toMatch(/cssVarPrefix:\s*['"]ow['"]/);
+    expect(THEME_SRC).toMatch(/cssVarPrefix:\s*[\x27\x22]ow[\x27\x22]/);
     expect(THEME_SRC).toMatch(/colorSchemes\s*:/);
     expect(THEME_SRC).toMatch(/light\s*:/);
     expect(THEME_SRC).toMatch(/dark\s*:/);
@@ -147,7 +147,7 @@ describe('frontend-foundation — runtime + shell', () => {
   test('frontend-foundation/AC-17 — route table includes /login + at least one guarded route', () => {
     // /login is anonymous (no beforeLoad).
     expect(ROUTER_SRC).toContain('loginRoute');
-    expect(ROUTER_SRC).toMatch(/path:\s*['"]\/login['"]/);
+    expect(ROUTER_SRC).toMatch(/path:\s*[\x27\x22]\/login[\x27\x22]/);
     // The guarded subtree (protectedRoute) wraps at least one route
     // and the redirect path uses return_to to round-trip the user
     // back to where they came from after login.

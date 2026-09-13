@@ -1,22 +1,22 @@
 // @spec system-license-validation
 //
 // AC traceability:
-// @ac AC-01  (TestVerify_ValidJWT)
-// @ac AC-02  (TestVerify_TamperedSignature)
-// @ac AC-03  (TestVerify_PrevKey)
-// @ac AC-04  (TestVerify_WrongIssuer)
-// @ac AC-05  (TestVerify_WrongAudience)
-// @ac AC-06  (TestVerify_HardExpired)
-// @ac AC-07  (TestVerify_GracePeriod)
-// @ac AC-08  (TestVerify_IatInFuture (NotYetValid via iat tampering))
-// @ac AC-09  (TestVerify_ClockRollback)
-// @ac AC-10  (TestVerify_FingerprintMismatch)
-// @ac AC-11  (TestVerify_UnknownFeature)
-// @ac AC-12  (TestVerify_MalformedJWT)
-// @ac AC-13  (TestVerify_P99Latency)
-// @ac AC-15  (TestVerify_ClockRollbackTolerance)
-// @ac AC-16  (TestVerify_ZeroWatermark)
-// @ac AC-17  (TestVerify_OlderLicenseIsNotRollback)
+//   AC-01  (TestVerify_ValidJWT)
+//   AC-02  (TestVerify_TamperedSignature)
+//   AC-03  (TestVerify_PrevKey)
+//   AC-04  (TestVerify_WrongIssuer)
+//   AC-05  (TestVerify_WrongAudience)
+//   AC-06  (TestVerify_HardExpired)
+//   AC-07  (TestVerify_GracePeriod)
+//   AC-08  (TestVerify_IatInFuture (NotYetValid via iat tampering))
+//   AC-09  (TestVerify_ClockRollback)
+//   AC-10  (TestVerify_FingerprintMismatch)
+//   AC-11  (TestVerify_UnknownFeature)
+//   AC-12  (TestVerify_MalformedJWT)
+//   AC-13  (TestVerify_P99Latency)
+//   AC-15  (TestVerify_ClockRollbackTolerance)
+//   AC-16  (TestVerify_ZeroWatermark)
+//   AC-17  (TestVerify_OlderLicenseIsNotRollback)
 
 package license
 
@@ -114,7 +114,8 @@ func mustRing(t *testing.T) *publicKeyRing {
 	return &publicKeyRing{current: testKeyPublic(t, "license-privkey-test.pem")}
 }
 
-// @ac AC-01  (Valid JWT validates and returns a populated License.)
+// @ac AC-01
+// AC-01: Valid JWT validates and returns a populated License.
 func TestVerify_ValidJWT(t *testing.T) {
 	t.Run("system-license-validation/AC-01", func(t *testing.T) {
 
@@ -138,7 +139,8 @@ func TestVerify_ValidJWT(t *testing.T) {
 	})
 }
 
-// @ac AC-02  (Tampered signature returns SignatureInvalid.)
+// @ac AC-02
+// AC-02: Tampered signature returns SignatureInvalid.
 func TestVerify_TamperedSignature(t *testing.T) {
 	t.Run("system-license-validation/AC-02", func(t *testing.T) {
 
@@ -153,7 +155,8 @@ func TestVerify_TamperedSignature(t *testing.T) {
 	})
 }
 
-// @ac AC-04  (Wrong issuer returns IssuerInvalid.)
+// @ac AC-04
+// AC-04: Wrong issuer returns IssuerInvalid.
 func TestVerify_WrongIssuer(t *testing.T) {
 	t.Run("system-license-validation/AC-04", func(t *testing.T) {
 
@@ -167,7 +170,8 @@ func TestVerify_WrongIssuer(t *testing.T) {
 	})
 }
 
-// @ac AC-05  (Wrong audience returns AudienceInvalid.)
+// @ac AC-05
+// AC-05: Wrong audience returns AudienceInvalid.
 func TestVerify_WrongAudience(t *testing.T) {
 	t.Run("system-license-validation/AC-05", func(t *testing.T) {
 
@@ -181,7 +185,8 @@ func TestVerify_WrongAudience(t *testing.T) {
 	})
 }
 
-// @ac AC-06  (Expired beyond grace returns Expired.)
+// @ac AC-06
+// AC-06: Expired beyond grace returns Expired.
 func TestVerify_HardExpired(t *testing.T) {
 	t.Run("system-license-validation/AC-06", func(t *testing.T) {
 
@@ -196,7 +201,8 @@ func TestVerify_HardExpired(t *testing.T) {
 	})
 }
 
-// @ac AC-07  (Expired but within grace validates with InGracePeriod=true.)
+// @ac AC-07
+// AC-07: Expired but within grace validates with InGracePeriod=true.
 func TestVerify_GracePeriod(t *testing.T) {
 	t.Run("system-license-validation/AC-07", func(t *testing.T) {
 
@@ -216,7 +222,8 @@ func TestVerify_GracePeriod(t *testing.T) {
 	})
 }
 
-// @ac AC-08  (iat in the future (beyond clock-skew budget) returns NotYetValid.)
+// @ac AC-08
+// AC-08: iat in the future (beyond clock-skew budget) returns NotYetValid.
 func TestVerify_IatInFuture(t *testing.T) {
 	t.Run("system-license-validation/AC-08", func(t *testing.T) {
 
@@ -231,7 +238,8 @@ func TestVerify_IatInFuture(t *testing.T) {
 	})
 }
 
-// @ac AC-09  (now more than an hour behind LastKnownGood returns ClockRollback.)
+// @ac AC-09
+// AC-09: now more than an hour behind LastKnownGood returns ClockRollback.
 func TestVerify_ClockRollback(t *testing.T) {
 	t.Run("system-license-validation/AC-09", func(t *testing.T) {
 		// The clock has been wound back two hours, well past the one-hour
@@ -254,7 +262,8 @@ func TestVerify_ClockRollback(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (An unknown feature id stays Valid, is carried, and enables nothing.)
+// @ac AC-11
+// AC-11: An unknown feature id stays Valid, is carried, and enables nothing.
 func TestVerify_UnknownFeature(t *testing.T) {
 	t.Run("system-license-validation/AC-11", func(t *testing.T) {
 		restoreStateAfter(t)
@@ -291,7 +300,8 @@ func TestVerify_UnknownFeature(t *testing.T) {
 	})
 }
 
-// @ac AC-12  (Malformed JWT returns MalformedJWT without panicking.)
+// @ac AC-12
+// AC-12: Malformed JWT returns MalformedJWT without panicking.
 func TestVerify_MalformedJWT(t *testing.T) {
 	t.Run("system-license-validation/AC-12", func(t *testing.T) {
 
@@ -303,7 +313,8 @@ func TestVerify_MalformedJWT(t *testing.T) {
 	})
 }
 
-// @ac AC-03  (A JWT signed with the prev key validates and sets UsingPrevKey.)
+// @ac AC-03
+// AC-03: A JWT signed with the prev key validates and sets UsingPrevKey.
 func TestVerify_PrevKey(t *testing.T) {
 	t.Run("system-license-validation/AC-03", func(t *testing.T) {
 		// The current slot holds a key nothing here signs with, so verification
@@ -334,7 +345,8 @@ func TestVerify_PrevKey(t *testing.T) {
 	})
 }
 
-// @ac AC-15  (Inside the one-hour tolerance stays Valid; outside it is a rollback.)
+// @ac AC-15
+// AC-15: Inside the one-hour tolerance stays Valid; outside it is a rollback.
 func TestVerify_ClockRollbackTolerance(t *testing.T) {
 	t.Run("system-license-validation/AC-15", func(t *testing.T) {
 		lkg := time.Now()
@@ -367,7 +379,8 @@ func TestVerify_ClockRollbackTolerance(t *testing.T) {
 	})
 }
 
-// @ac AC-16  (A zero LastKnownGood never reports a rollback.)
+// @ac AC-16
+// AC-16: A zero LastKnownGood never reports a rollback.
 func TestVerify_ZeroWatermark(t *testing.T) {
 	t.Run("system-license-validation/AC-16", func(t *testing.T) {
 		// The injected clock sits five years before the real one, which is what
@@ -392,7 +405,8 @@ func TestVerify_ZeroWatermark(t *testing.T) {
 	})
 }
 
-// @ac AC-17  (A license issued before the watermark is not a rollback.)
+// @ac AC-17
+// AC-17: A license issued before the watermark is not a rollback.
 func TestVerify_OlderLicenseIsNotRollback(t *testing.T) {
 	t.Run("system-license-validation/AC-17", func(t *testing.T) {
 		// iat sits 200 days behind the watermark while now sits on it. The old
@@ -419,7 +433,8 @@ func TestVerify_OlderLicenseIsNotRollback(t *testing.T) {
 	})
 }
 
-// @ac AC-10  (Mismatched fingerprint returns FingerprintMismatch.)
+// @ac AC-10
+// AC-10: Mismatched fingerprint returns FingerprintMismatch.
 func TestVerify_FingerprintMismatch(t *testing.T) {
 	t.Run("system-license-validation/AC-10", func(t *testing.T) {
 		c := validClaims()
@@ -437,7 +452,8 @@ func TestVerify_FingerprintMismatch(t *testing.T) {
 	})
 }
 
-// @ac AC-13  (Validator latency p99 < 1ms for a single JWT signature verify.)
+// @ac AC-13
+// AC-13: Validator latency p99 < 1ms for a single JWT signature verify.
 func TestVerify_P99Latency(t *testing.T) {
 	t.Run("system-license-validation/AC-13", func(t *testing.T) {
 

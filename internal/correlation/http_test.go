@@ -1,9 +1,9 @@
 // @spec system-correlation
 //
 // AC traceability:
-// @ac AC-09  (TestHTTPMiddleware_SetsResponseHeader, TestHTTPMiddleware_SetsContext)
-// @ac AC-10  (TestHTTPMiddleware_EchoesValidClient)
-// @ac AC-11  (TestHTTPMiddleware_RegeneratesInvalid)
+//   AC-09  (TestHTTPMiddleware_SetsResponseHeader, TestHTTPMiddleware_SetsContext)
+//   AC-10  (TestHTTPMiddleware_EchoesValidClient)
+//   AC-11  (TestHTTPMiddleware_RegeneratesInvalid)
 
 package correlation
 
@@ -14,7 +14,8 @@ import (
 	"testing"
 )
 
-// @ac AC-09  (Middleware sets X-Correlation-Id response header to the same value)
+// @ac AC-09
+// AC-09: Middleware sets X-Correlation-Id response header to the same value
 // that From(r.Context()) returns inside the next handler.
 func TestHTTPMiddleware_SetsResponseHeader(t *testing.T) {
 	t.Run("system-correlation/AC-09", func(t *testing.T) {
@@ -46,7 +47,8 @@ func TestHTTPMiddleware_SetsResponseHeader(t *testing.T) {
 	})
 }
 
-// @ac AC-09  ((companion): handler-side context has the id.)
+// @ac AC-09
+// AC-09: (companion): handler-side context has the id.
 func TestHTTPMiddleware_SetsContext(t *testing.T) {
 	t.Run("system-correlation/AC-09", func(t *testing.T) {
 
@@ -65,7 +67,8 @@ func TestHTTPMiddleware_SetsContext(t *testing.T) {
 	})
 }
 
-// @ac AC-10  (Valid client X-Correlation-Id is echoed unchanged.)
+// @ac AC-10
+// AC-10: Valid client X-Correlation-Id is echoed unchanged.
 func TestHTTPMiddleware_EchoesValidClient(t *testing.T) {
 	t.Run("system-correlation/AC-10", func(t *testing.T) {
 
@@ -91,7 +94,8 @@ func TestHTTPMiddleware_EchoesValidClient(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (Invalid client header regenerates and the response carries a req- ID.)
+// @ac AC-11
+// AC-11: Invalid client header regenerates and the response carries a req- ID.
 // Also verifies handler-side context has the regenerated value, not the bad input.
 func TestHTTPMiddleware_RegeneratesInvalid(t *testing.T) {
 	t.Run("system-correlation/AC-11", func(t *testing.T) {

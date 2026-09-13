@@ -6,7 +6,8 @@ sources rather than restating them. Restated facts rot. For live counts
 (version, package count, spec count) run **`scripts/repo-facts.sh`** instead of
 trusting a number written here.
 
-> **Note on `CLAUDE.md` and `docs/engineering/`.** `CLAUDE.md` and everything
+> **Note on two local-only paths, `CLAUDE.md` and `docs/engineering/`.** Both
+> are gitignored. `CLAUDE.md` and everything
 > under `docs/engineering/` are **gitignored / local-only** by policy
 > (`.gitignore`), so they are not reviewed and may drift per-machine. Treat them
 > as personal scratch, not shared truth. Durable guidance that should be shared
@@ -71,11 +72,29 @@ don't turn embedded-spec back on without reading the comment there.
 
 Specs in `specs/` are the SSOT; the registry is [specter.yaml](specter.yaml).
 Every acceptance criterion (`AC-NN`) must be covered by a test carrying a literal
-`// @spec <id>` + `// @ac AC-NN` annotation, and Go subtests also use a
-`t.Run("<spec-id>/AC-NN", …)` token. CI enforces annotation hygiene
-(`specter check --test`), 100% **structural** coverage
-(`specter coverage --strictness annotation`; the literal `// @ac` is required,
-the `t.Run` token alone is not enough), and 100% **outcome** coverage
+`// @spec <id>` + `// @ac AC-NN` annotation, AND the test's own runner-visible
+name must contain the literal token `<spec-id>/AC-NN`: `t.Run("<spec-id>/AC-NN",
+…)` in Go, and the test title in Vitest. Both halves are required and neither
+substitutes for the other. The token has to be a literal, so
+`t.Run("<spec-id>/AC-"+n, …)` does not count: a static scan cannot see it, and
+the point is that a reader can find the evidence behind a criterion.
+
+Put the `// @ac` on the test, never in a file-header index, and give the
+directive its own line: trailing prose after the id is read as part of the id.
+
+Two upstream scanner defects are worked around in `frontend/tests/`. A regex or
+string literal holding an unbalanced `(`/`{` or a quote makes Specter lose its
+place for the rest of the file, so a few literals are written with `\x28`,
+`\x7b`, `\x27` and `\x22`, which are the same characters to the regex engine
+(SP-OW-083). And Specter does not scan `.test.tsx` at all, so `make spec-check`
+does that check locally (SP-OW-082). Both are temporary.
+
+CI runs one gate, `scripts/specter-gate.py`, which `make spec-check` runs too so
+the two cannot drift. It pins the Specter version from `.specter-version`,
+rejects every annotation ERROR and WARNING (info is not blocking), and requires
+100% **structural** coverage. Do not gate on `specter check --test`'s exit
+status alone: it exits 0 with warnings present. Do not gate on the reported
+counts alone either: a failed run can still print zeroed counters. Outcome coverage stays a separate CI step
 (`specter sync`; the annotated test must pass). Run `make spec-check` locally
 first. If the spec and code disagree, the (human-approved) spec wins.
 
@@ -88,15 +107,30 @@ first. If the spec and code disagree, the (human-approved) spec wins.
 - **No em dashes in docs or user-facing UI copy.** Restructure with periods,
   colons, or parentheses. Commit messages are unaffected.
 - **Developer docs follow the Hanalyx style guide**, and CI enforces its hard
-  rules. `make docs-style` runs the same check locally that the "Doc Style" job
-  runs on changed Markdown. The three gates are: no em dashes, no emojis, no AI
+  rules. `make docs-style` is the one gate: the pre-commit hook and the "Doc
+  Style" job both run that target, so all three see the same policy. It checks
+  every tracked file the checker supports, which is Markdown, YAML, JSON and
+  whole-line source comments, not only the files you changed. The sweep takes
+  about four seconds. It is deliberately not `--changed`: that mode resolves a
+  commit range, so it cannot see your working tree, and it once reported 182
+  files clean while an edited file carried a real violation. Files git ignores
+  are outside the gate, including the extensionless roadmap documents under
+  the gitignored, local-only `docs/engineering/roadmap/`. The gates are: no em dashes, no emojis, no AI
   speak (hype adjectives, filler openers, padding verbs such as `leverage` and
-  `utilize`). Write "we" only for real team actions, never for the product, and
-  state capabilities as team facts with numbers. The guide is the source of
-  truth and lives in the Hanalyx Context Plane at
-  `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives at
-  `dev/tools/doc-style-check`. Fix a finding rather than suppress it. A cleared
-  term can carry `<!-- doc-style: allow -->` on its line, with a reason.
+  `utilize`), US English, and a per-file reading level. Write "we" only for real
+  team actions, never for the product, and state capabilities as team facts with
+  numbers. The guide is the source of truth and lives in the Hanalyx Context
+  Plane at `dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE`; the shared checker lives
+  at `dev/tools/doc-style-check`. **The adopted checker version is pinned in
+  `.doc-style-version`**, and the gate refuses to scan with a checker that
+  disagrees with it. That pin is the single source: no Makefile target, workflow
+  or hook repeats the number. It exists because the checker is refetched whole
+  on an upgrade, and a superseded copy once stayed authoritative here for a
+  month while four already-fixed defects were live. Change the pin only together
+  with the checker, and re-derive `READING_GATE` when you do, because a new
+  version can change what the grades mean. Fix a finding rather than suppress
+  it. A cleared term can carry `<!-- doc-style: allow -->` on its line, with a
+  reason.
 - **Security is not optional**: parameterized SQL only, argument-list exec (never
   a shell), RBAC + license gates on handlers, audit auth/authz events, secrets
   from env/files only. `.golangci.yml` forbidigo encodes several of these

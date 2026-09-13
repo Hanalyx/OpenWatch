@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.1.0"
+  version: "1.14.0"
   status: approved
   tier: 1
 
@@ -62,6 +62,184 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-07
+      description: >-
+        The Specter gate MUST pin an exact version in ONE tracked file, MUST reject every ERROR and WARNING
+        annotation diagnostic, and MUST be the SAME implementation locally and in CI. Info diagnostics are
+        not blocking.
+
+        Severity is not a safe filter for the rest: v0.15 leaves unreachable_annotation_unknown at warning,
+        and `specter check --test` exits 0 with warnings present, so a gate keyed on the exit code or on
+        --strict alone passes with an annotation that names no reachable test. The exit status MUST still
+        be checked alongside the reported counts, because a run that fails while printing a zeroed summary
+        would otherwise be read as clean.
+
+        Structural coverage MUST stay at 100% and outcome coverage MUST stay at the manifest threshold with
+        every tier at 100.
+      type: technical
+      enforcement: error
+    - id: C-08
+      description: >-
+        The documentation style gate MUST be ONE shared invocation behind a single Make target, and that
+        SAME target MUST run locally, in pre-commit, and in CI. A caller that rebuilds the command itself
+        is a second policy wearing the first one's name.
+
+        The gate MUST check every tracked file of a type the checker supports, not only the files
+        `--changed` selects. `--changed` resolves a commit RANGE, `{base}...HEAD`, and falls back to the
+        index only when that range is empty, so it never reads the working tree. A pre-commit hook keyed on
+        it is vacuous at exactly the moment it is supposed to fire: the files being committed are the files
+        it cannot see. This is not hypothetical. A `--changed` run reported 182 files clean while eleven
+        edited files carrying a real violation sat unread (Context Plane bugs/OW-027, upstream SP-HP-030).
+
+        The checker supports fifteen tracked extensions, source comments included, so the gate is not a
+        Markdown gate and MUST NOT be described as one.
+
+        The checker is a SHARED tool, refetched whole on an upgrade, so the gate MUST pin the adopted
+        version in ONE tracked file and MUST compare it against the version the checker reports BEFORE
+        scanning anything. A missing, empty, malformed or mismatched pin MUST fail, never skip. No caller
+        may repeat the version: a second literal is a second source of truth, and the one comment that
+        carried a version named a release two behind what was running, while four already-fixed defects
+        stayed live here for a month.
+
+        Scope boundary, stated so it is not mistaken for coverage: files git ignores are outside this gate.
+        That includes the 18 extensionless roadmap documents under docs/engineering/roadmap, which the
+        checker cannot select because it walks tracked paths by extension. They remain taxonomy debt in the
+        Context Plane inventory and are NOT enforced by CI.
+
+        A reading-level exemption MAY cap a named file that is not continuous prose, and MUST cap ONLY that
+        file and ONLY the reading level. Every other rule stays binding inside an exempt file, and no other
+        path inherits its cap.
+      type: technical
+      enforcement: error
+    - id: C-09
+      description: >-
+        The shipped compliance-score semantics and the report-verification trust boundary MUST be
+        documented in TRACKED, reachable operator documentation, and those statements MUST be
+        testable against the published files rather than reviewed by reading.
+
+        Scoring. The published text MUST state that score_pct is nullable and that absence means no
+        rule produced a pass or fail verdict, which is not zero; that a genuine zero is a scored
+        result; that the formula is passing over passing plus failing, so a skipped, inapplicable or
+        errored rule enters neither side; that coverage is a separate axis carrying exactly the three
+        contract statuses, with a percentage only under available; that a fleet or group score is an
+        equal-host mean over scored hosts and never a pooled rule-row ratio, with unscored hosts
+        excluded from the mean but still counted in participation; and that a mixed-formula day has
+        no score and yields no delta, comparison or direction. Legacy compliance_pct and current
+        score_pct MUST be described as not comparable. The complete envelope stays in OpenAPI; the
+        guides MUST refer to it rather than duplicate evolving provenance fields.
+
+        Verification. A TRACKED operator procedure MUST exist, be reachable from the documentation
+        index, and be based on the current canonical JSON export. It MUST verify that the canonical
+        bytes hash to content_sha256 and that the Ed25519 signature covers the domain-separated
+        payload the approved contract defines, NOT the report bytes. It MUST name
+        /api/v1/reports/signing-key and MUST NOT name the obsolete plural endpoint. It MUST state
+        that a key fetched from the server that served the report proves internal consistency only,
+        and that authenticity requires a TRUST ANCHOR obtained through an independently trusted
+        channel. That anchor is the complete base64 public key, or the lowercase hex SHA-256 of the
+        decoded 32-byte key. The short key_id and signing_key_id are 64-bit CORRELATION identifiers
+        and MUST NOT be published as the value an operator compares to establish authenticity
+        (api-reports C-11). Ephemeral keys and unsigned artifacts MUST be described accurately, and
+        a committed example key MUST be labeled test-only, with its private seed described as
+        derivable rather than secret.
+
+        Every command in that procedure MUST be exercised against a PRODUCTION-GENERATED artifact.
+        A hand-built fixture proves the example agrees with itself, which is the one thing nobody
+        needs to know.
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >-
+        The tracked documentation boundary MUST be reliable in both directions, and MUST be provable
+        against candidate paths rather than against the files that happen to exist.
+
+        VISIBILITY. A `.gitignore` pattern written for a repository-root artifact MUST be anchored
+        with a leading `/`. Unanchored, it matches by BASENAME at every depth, so it hides files under
+        docs/guides, docs/runbooks and docs/images without saying so; `git status` reports nothing
+        about an ignored path. Seventy-four such patterns were anchored on 2026-09-11, among them the
+        working-document families (`*_REPORT.md`, `*_SUMMARY.md`, `*_STATUS.md`, `*_VERIFICATION*.md`
+        and nine more), the screenshot families, and `examples/`.
+
+        SECURITY. Patterns that protect key material and credentials MUST stay UNANCHORED, so they
+        keep matching at every depth INCLUDING inside tracked documentation. A per-file or per-
+        directory re-include under docs MUST NOT be used to work around a naming collision: a
+        `!docs/guides/examples/**` negation added on 2026-09-11 un-ignored `*private_key*`,
+        `*credential*`, `*api_key*`, `*passwd*`, `*secret*` and `**/*.key` beneath that directory, so
+        a private key dropped there would have been staged without complaint. Anchor the colliding
+        pattern instead.
+
+        REACHABILITY. Tracked contributor and workflow documentation MUST cite only paths a reader
+        can open, or an explicitly named Context Plane record. Where an ignored path is named, the
+        line MUST say it is unavailable. Pointing a reader at a gitignored file is a dead end that
+        looks like a reference, and `docs/engineering/install_guide.md` was cited that way from the
+        workflow README for months.
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >-
+        A release candidate MUST carry a DOCUMENTATION REVIEW attestation bound to that
+        candidate, and the gate MUST be blocking.
+
+        SCOPE IS A PATH RULE. Every tracked blob whose path ends in `.md` at the candidate
+        commit is in scope. There are NO directory exclusions: `.github`, `.claude` and
+        `scripts/README.md` are documentation a reader can reach, so they are reviewed like
+        any other. NO CORPUS COUNT APPEARS IN THIS CONTRACT. A count is a reading of one
+        commit that has to be edited on every addition and fails nothing when it is not.
+        Counts belong in a generated skeleton and in the checker's own result line, where
+        they are derived from the tree in hand.
+
+        ENUMERATION IS FROM THE COMMIT. `git ls-tree -r -z <commit>`, filtered to blob
+        entries whose path ends in the exact suffix `.md`, with raw path BYTES preserved
+        through sorting. Not the working tree and not the index, because neither is what
+        ships. A path that is not valid UTF-8 MUST fail with a clear ERROR rather than be
+        mangled: a TOML string is UTF-8, so such a path cannot be written into an
+        attestation and read back as itself.
+
+        THE ATTESTATION MUST CARRY kind, tag, commit, artifact identity and digest, human
+        identity and date, docs_sha256, and reviewed entries. Each reviewed entry carries
+        EXACTLY path, blob and verdict. Every verdict MUST be `accurate`; a defect or any
+        other value is NO-GO, because no waiver mechanism is approved and a gate that
+        accepts a recorded defect is a gate that records defects rather than one that
+        stops them.
+
+        THE REVIEW MUST DESCRIBE THIS TREE. The reviewed set MUST equal the candidate set
+        exactly, with no missing, extra or duplicate path, and the stored blob for every
+        path MUST equal the candidate's. Canonical bytes are `path NUL blob NUL verdict
+        NUL` ordered by raw path bytes, and docs_sha256 over those bytes MUST be recomputed
+        and compared. NUL delimiting rather than newline because a newline is legal in a
+        git path, and a newline-delimited manifest cannot tell one path containing a
+        newline from two paths.
+
+        BINDING IS TO THE CANDIDATE ON THREE AXES: attested tag, attested commit, and an
+        artifact digest present in the candidate's published SHA256SUMS. Freshness here
+        means reviewed against THESE bytes, never reviewed recently.
+
+        SELECTION IS BY BINDING, NEVER BY FILENAME ORDER. Where several documentation
+        attestations exist, the one that binds to this candidate is the evidence, so a
+        stale file whose name sorts later cannot hide a valid one. Two attestations binding
+        to the same candidate are an ambiguity to REPORT, not a tie to break.
+
+        DIAGNOSTICS MUST NAME added, removed and edited paths. A rename MAY be reported
+        ONLY for an unambiguous one-to-one identical-blob move; anything else stays an add
+        plus a remove, because a blob appearing twice cannot say which path became which.
+        Missing or unreadable candidate inputs MUST fail closed.
+
+        A HUMAN MUST ATTEST, AND MUST BE NAMED. `performed_by` and `artifact` MUST be
+        nonempty, an identity ending in `-agent` is refused, and `performed_at` MUST be a
+        valid ISO calendar date that is not in the future. `artifact` and
+        `artifact_sha256` are ONE fact and MUST match as an exact pair in the candidate's
+        SHA256SUMS, at selection as well as at final evaluation: a digest present under a
+        different filename means the reviewer held an artifact other than the one they
+        named. An unreadable SHA256SUMS MUST return ERROR through the whole selection
+        path, never STALE, because nothing could be compared rather than the evidence
+        describing another candidate. A generator MAY produce an unsigned skeleton with
+        every verdict `pending`, and MUST NOT fill in a human identity or a verdict.
+
+        THE GATE MUST CITE THIS CONTRACT. The gate entry MUST carry `spec` and `ac`
+        naming the criterion it rests on, so a reader of `release/gates.toml` can reach
+        the rule and a reader of the rule can find its gate.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: make vet target exists and runs `go vet ./...` against the full module.
@@ -101,3 +279,712 @@ spec:
     - id: AC-10
       description: The workflow runs on both push to main and pull_request targeting main; uses `set -e` semantics so any step's non-zero exit fails the job.
       priority: high
+    - id: AC-11
+      description: >-
+        One shared gate enforces the Specter contract, and `make spec-check` and the workflow both invoke it,
+        so the two cannot drift into different policies. The gate reads the pinned version from a single
+        tracked file, refuses to run against any other Specter build, fails on a NONZERO WARNING COUNT as
+        well as on errors, and asserts 100% structural coverage.
+
+        It reads the JSON summary AND the process exit code, because neither alone is sufficient.
+        `specter check --test` returned 0 against 277 warnings on this tree, of which 232 were reachability
+        and 45 were domain-tier conflicts; `--strict` promoted 175 of those 277 to errors and left the 102
+        unreachable_annotation_unknown at warning. A gate reading only the exit code passes the first case,
+        and a gate reading only the summary passes a failed run that prints zeroed counters.
+
+        The gate prints the diagnostics it rejected. A gate that reports only a count tells a reader that
+        something is wrong without telling them what.
+
+        It also checks the exit status, not only the summary, and both callers invoke it under `python3 -S`
+        so that its standard-library-only claim is enforced rather than asserted. The workflow DERIVES the
+        version from the pin file instead of declaring its own copy: comparing two literals detects drift
+        but still leaves two places to edit.
+      inputs:
+        pin_file: .specter-version
+        pinned_version: 0.15.0
+        shared_gate: scripts/specter-gate.py
+        # Each caller names the file inspected and the exact invocation it must
+        # contain, so the fixture drives the check instead of describing it.
+        callers:
+          - path: Makefile
+            invocation: 'python3 -S scripts/specter-gate.py'
+            kind: recipe
+          - path: .github/workflows/go-ci.yml
+            invocation: 'python3 -S scripts/specter-gate.py'
+            kind: run_step
+        # The policy is severity-based and deliberately KIND-INDEPENDENT: any
+        # error or warning fails, whatever its kind. An earlier fixture listed
+        # four kinds, which read like a contract and drove nothing.
+        rejected_severities:
+          - error
+          - warning
+        nonblocking_severities:
+          - info
+        structural_coverage_pct: 100
+        # A caller must run the WHOLE gate. `--only` exists so the gate's own
+        # guards can drive one stage against a stubbed specter; a caller using
+        # it would be running a subset and calling it the gate.
+        forbidden_in_callers: '--only'
+      expected_output:
+        both_callers_invoke_the_same_gate: true
+        gate_reads_the_json_summary: true
+        warnings_are_rejected_not_only_errors: true
+        version_pin_is_read_from_one_file: true
+        diagnostics_are_printed_not_just_counted: true
+        exit_status_is_checked_alongside_the_summary: true
+        gate_runs_with_site_packages_disabled: true
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-12
+      description: >-
+        One shared documentation style gate exists as a Make target, and the Makefile, the CI workflow and
+        the pre-commit configuration all reach the full tracked tree through it. The target checks every
+        tracked supported file by default, so no caller has to remember a flag to get the real gate.
+
+        Each caller is bound to the target rather than to a copy of its command: the workflow runs the Make
+        target instead of reconstructing the checker invocation, and the pre-commit hook runs it with
+        `pass_filenames: false` so a staged-file list cannot narrow it back down to the vacuous case.
+
+        Every invocation uses `python3 -S`, so the checker's standard-library-only claim is enforced rather
+        than asserted, the same way the Specter gate is.
+
+        The binding is behavioral, not textual. The gate is exercised against a throwaway Git repository
+        holding a clean tracked file, a tracked violation nobody is editing, a newly staged violation, and a
+        violation inside a source-code comment. The tracked violation nobody is editing is the case that
+        separates this gate from the old one: `--changed` passes it and `--all` does not.
+
+        The version pin is bound against a COPY of the gate rather than by reading its source: the pin
+        missing, empty, malformed, or naming a version the checker does not report must each fail, and the
+        passing case must fail when either side is changed alone. No caller may carry the version, checked
+        over code lines with comments stripped, because every caller explains the pin in prose.
+
+        Key identity is bound by DERIVATION. The identifier is `ed25519-` plus the first 16 lowercase
+        hex characters of SHA-256 over the decoded 32-byte key, and both the key response's key_id and
+        the report's signing_key_id must equal it. Comparing the two published values with each other
+        is not sufficient and is tested as insufficient: a bundle carrying the SAME fabricated
+        identifier in both places must fail.
+
+        The signed and unsigned states are bound as a PAIR. signature and signing_key_id are both
+        present or both absent; one without the other is malformed metadata and fails distinctly from
+        both. An unsigned artifact must verify with the report and its metadata alone, reaching the
+        unsigned exit rather than a usage error or a missing-file error, and a signed one must still
+        require the key.
+
+        The reading-level exemption is bound as a SCOPE, not as a value. The exempt form passes at its
+        recorded cap; prose of the same grade at any other path fails; and an em dash, an emoji, AI speak
+        or a British spelling inside the exempt file still fails, because the cap covers the reading level
+        and nothing else.
+      inputs:
+        checker: scripts/check-doc-style.py
+        shared_gate: scripts/doc-style-gate.py
+        pin_file: .doc-style-version
+        pinned_version: '6'
+        make_target: docs-style
+        precommit_hook_id: doc-style
+        default_mode: '--all'
+        interpreter_flag: '-S'
+        # The exempt file and its cap, so the guard drives on the fixture rather
+        # than on a literal copied into the test.
+        reading_exempt_path: .github/pull_request_template.md
+        reading_exempt_cap: '12.1'
+        callers:
+          - path: Makefile
+            invocation: 'python3 -S scripts/doc-style-gate.py'
+            kind: recipe
+          - path: .github/workflows/go-ci.yml
+            invocation: 'make docs-style'
+            kind: run_step
+          - path: .pre-commit-config.yaml
+            invocation: 'make docs-style'
+            kind: hook
+        # The mode the gate must NOT fall back to. Named so the check drives on
+        # it instead of describing it.
+        forbidden_in_callers: '--changed'
+        # Ignored paths are out of scope by construction, not by oversight.
+        excluded_from_gate: docs/engineering/roadmap
+      expected_output:
+        every_caller_reaches_the_same_make_target: true
+        default_mode_is_the_full_tracked_tree: true
+        precommit_hook_ignores_passed_filenames: true
+        pin_is_read_from_one_file: true
+        checker_version_is_compared_before_scanning: true
+        no_caller_repeats_the_version: true
+        exemption_is_reading_level_only: true
+        unchanged_tracked_violation_is_caught: true
+        staged_violation_is_caught: true
+        source_comment_violation_is_caught: true
+        clean_tree_passes: true
+        gate_runs_with_site_packages_disabled: true
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-13
+      description: >-
+        The score semantics and the verification trust boundary are published, tracked and reachable,
+        and the published procedure is executed rather than read.
+
+        The example script is run against an artifact produced by the report service's own Generate
+        and Export calls, and it passes. Then each input is mutated independently and each must fail
+        for its own reason: the content, the declared hash, the signature, the payload prefix, and the
+        trusted key. The payload mutations include the two shapes a reader is most likely to try,
+        the bare hash with no domain tag and the canonical JSON itself, because a procedure that
+        accepted either would be verifying something other than what was signed.
+
+        The scan set is DISCOVERED from directory ROOTS, not from a hand-maintained list of path globs.
+        The earlier list named `docs/*.md`, `docs/guides/*.md` and `docs/guides/runbooks/*.md`, and it
+        omitted `docs/runbooks/` entirely, so `RELEASING.md` was never scanned and the documents
+        moved into that directory would have left the scan silently while the gate stayed green.
+
+        The defect was the MISSING ROOT, not the glob depth. A plain git pathspec `*` matches `/`, so
+        those globs already recursed; only `:(glob)` magic limits a pathspec to one level. Both
+        properties are bound below, because either can break the scan: a root that is not listed, and a
+        walk that stops at depth one.
+
+        Today's document count is NOT the guard. A count changes for legitimate reasons and would have
+        to be edited on every move, which makes it an editing chore rather than a check.
+
+        Required statements are matched in the published files. Forbidden claims are matched over EVERY
+        line, with no negation heuristic: a line that reads as a forbidden claim fails unless it is
+        allowlisted by exact path and exact text. Each allowlist entry must EXIST in its file and must
+        itself match a forbidden pattern, so an exemption that outlived the sentence it covered fails
+        instead of sitting there. The earlier negation skip was removed because it excused any line
+        carrying a negation word, including one that denied a claim in its first half and made a
+        stronger one in its second.
+      inputs:
+        # Recursive roots. Every tracked Markdown document beneath these is
+        # scanned, at any depth.
+        scan_roots:
+          - docs/guides
+          - docs/runbooks
+        scan_index: docs/README.md
+        # Named members the discovered set must contain. RELEASING.md is listed
+        # because dropping the second root would otherwise go unnoticed.
+        required_members:
+          - docs/README.md
+          - docs/runbooks/RELEASING.md
+        # Planted behaviorally, with intent-to-add so tracked-file discovery
+        # sees them, then removed. A nested document proves recursion; a claim
+        # in each root proves both roots are actually scanned.
+        nested_probe: docs/runbooks/examples/ac13-probe/NESTED_GUIDE.md
+        claim_probes:
+          - docs/guides/ac13-claim-probe.md
+          - docs/runbooks/ac13-claim-probe.md
+        claim_probe_text: 'Fetching the signing-key endpoint proves authenticity of the report.'
+        verification_guide: docs/runbooks/REPORT_VERIFICATION.md
+        scoring_guide: docs/guides/SCANNING_AND_COMPLIANCE.md
+        api_guide: docs/guides/API_GUIDE.md
+        index: docs/README.md
+        example_script: docs/runbooks/examples/report-verification/verify.sh
+        fixture_dir: docs/runbooks/examples/report-verification
+        counterexample_dir: docs/runbooks/examples/report-verification/counterexample
+        unsigned_dir: docs/runbooks/examples/report-verification/unsigned
+        trusted_anchor_file: docs/runbooks/examples/report-verification/trusted-key.sha256
+        signing_key_file: signing-key.json
+        # The exact shape of the published key document. Enforced field by
+        # field because this file is the one excluded from secret scanning.
+        signing_key_fields:
+          - key_id
+          - algorithm
+          - public_key
+          - ephemeral
+        signing_key_algorithm: ed25519
+        signing_key_bytes: 32
+        key_id_prefix: ed25519-
+        # key_id is `ed25519-` plus the first 16 lowercase hex characters of
+        # SHA-256 over the decoded public key. Stated here so the test DERIVES
+        # it rather than trusting the published value.
+        key_id_hex_chars: 16
+        signing_key_endpoint: /api/v1/reports/signing-key
+        obsolete_endpoint: /api/signing/public-keys
+        signing_domain: 'openwatch/report-snapshot/v1'
+        coverage_statuses:
+          - available
+          - unavailable_unclassified_skips
+          - unavailable_no_outcomes
+        # Each entry names the file and a literal that must appear in it, so the
+        # fixture drives the check instead of describing it.
+        required_statements:
+          - doc: scoring_guide
+            contains: 'passing / (passing + failing)'
+          - doc: scoring_guide
+            contains: 'A missing score is not a zero'
+          - doc: scoring_guide
+            contains: 'equal-host mean'
+          - doc: scoring_guide
+            contains: 'not comparable'
+          - doc: scoring_guide
+            contains: 'A mixed day carries no score'
+          - doc: api_guide
+            contains: 'Do not coerce `null` to `0`'
+          - doc: verification_guide
+            contains: 'proves consistency, not authenticity'
+          - doc: verification_guide
+            contains: 'independently trusted'
+          - doc: verification_guide
+            contains: 'correlation identifiers, not anchors'
+          - doc: verification_guide
+            contains: 'test-only, and its private half is'
+        forbidden_claims:
+          - id: absent_score_is_zero
+            pattern: '(?i)(missing|absent|no)\s+score[^.\n]{0,40}\b(is|as|equals?)\b[^.\n]{0,12}\b(0|zero)\b'
+          - id: skipped_counts_as_failure
+            pattern: '(?i)skipped[^.\n]{0,60}(count|treated|scored)[^.\n]{0,20}(as|toward)[^.\n]{0,20}fail'
+          - id: old_pooled_formula
+            pattern: 'passed_rules\s*/\s*total_rules'
+          - id: pooled_fleet_arithmetic
+            pattern: '(?i)pooled[^.\n]{0,30}(fleet|aggregate|score)'
+          - id: same_server_key_proves_authenticity
+            pattern: '(?i)signing-key[^.\n]{0,60}(proves|confirms|establishes)[^.\n]{0,20}authentic'
+          - id: obsolete_signing_endpoint
+            pattern: '/api/signing/public-keys'
+          - id: key_id_as_authenticity_anchor
+            pattern: '(?i)(\bkey_?id\b[^.\n]{0,70}\b(fingerprint|anchors?|authenticity|authentic)\b|\b(fingerprint|anchors?|authenticity)\b[^.\n]{0,70}\bkey_?id\b)'
+        # Legitimate warnings, by EXACT path and EXACT text. Each must exist and
+        # must match a forbidden pattern; a stale entry fails the gate.
+        allowed_mentions:
+          - doc: verification_guide
+            text: 'server has no signer wired. The plural `/api/signing/public-keys` path does not'
+          - doc: verification_guide
+            text: '### Do not anchor on `key_id`'
+          - doc: verification_guide
+            text: '**`key_id` and `signing_key_id` are correlation identifiers, not anchors.**'
+          - doc: scoring_guide
+            text: '### A missing score is not a zero'
+          - doc: scoring_guide
+            text: '**Hosts with no score are left out of the mean, not counted as zero.** They'
+      expected_output:
+        guide_is_tracked_and_reachable_from_the_index: true
+        example_verifies_a_production_generated_artifact: true
+        content_mutation_fails: true
+        declared_hash_mutation_fails: true
+        signature_mutation_fails: true
+        payload_prefix_mutation_fails: true
+        untrusted_key_fails: true
+        unsigned_artifact_is_reported_distinctly: true
+        algorithm_mismatch_fails: true
+        malformed_key_length_fails: true
+        key_id_mismatch_fails: true
+        consistency_only_says_so: true
+        counterexample_passes_consistency_and_fails_the_anchor: true
+        signed_metadata_requires_both_identifiers: true
+        identifiers_are_derived_not_merely_compared: true
+        metadata_pair_is_all_or_nothing: true
+        unsigned_artifact_verifies_without_a_key_file: true
+        signing_key_document_shape_is_enforced: true
+        forbidden_claims_absent: true
+        allowlisted_mentions_are_live: true
+        scan_is_discovered_from_both_roots: true
+        scan_discovers_nested_documents: true
+        forbidden_claims_detected_in_every_root: true
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: >-
+        The documentation boundary is proved with `git check-ignore` over CANDIDATE paths that do not
+        exist, so the answer comes from the ignore rules rather than from what happens to be tracked
+        already. Three sets are driven: documentation that must be visible, root-only artifacts that
+        must stay ignored at the root, and secret file names that must stay ignored at every depth
+        beneath the tracked documentation tree.
+
+        The check-ignore answer is read from the EXIT STATUS, not from whether `-v` printed a line. A
+        negated pattern prints too, so a `!` rule read as a match reports the opposite of the truth.
+
+        Two files are then PLANTED and removed under a guaranteed cleanup: a nested guide, which
+        `git status --short` must see, and a private key beside it, which git must ignore. The probe
+        paths and the planted paths are distinct from anything committed.
+
+        The old unanchored patterns must not return: each is asserted absent from `.gitignore` as a
+        bare line, so re-adding `*_REPORT.md` without its leading `/` fails.
+
+        The anchored set is declared EXACTLY rather than counted or synthesized. `anchored_rules` lists
+        every leading-slash rule with a concrete root probe, and the multiset read out of `.gitignore`
+        must equal the multiset in the fixture: a rule deleted, a rule added without declaring it, a
+        rule duplicated, and a rule de-anchored all fail, and a swap that keeps the total unchanged
+        fails too. A self-derived floor could not catch any of those, which is why it is gone.
+
+        Each root probe is still run through `git check-ignore`, so the declaration is checked against
+        behavior rather than against itself.
+
+        Nested probes carry their EXPECTED visibility rather than assuming it. Most are visible,
+        which is the point of anchoring. `/dist/` is not, because a separate depth-wide rule ignores
+        it everywhere and should; that exception is recorded in the fixture with its reason instead of
+        being silently omitted. Every filename family anchored in `5e12c4ff` has a nested probe:
+        analysis, complete, fix, implementation, phase, report, status, summary, tracking,
+        verification, assessment, the test script and JSON shapes, and the screenshot names.
+
+        Reachability is scanned over tracked contributor and workflow documentation. A line naming an
+        ignored path passes only when it also says the path is unavailable, or when the exact line is
+        allowlisted. Each allowlist entry must exist and must still name an ignored path, so a stale
+        exemption fails rather than widening.
+      inputs:
+        gitignore: .gitignore
+        visible_paths:
+          - docs/guides/NEW_GUIDE.md
+          - docs/guides/FOO_VERIFICATION.md
+          - docs/guides/SOMETHING_REPORT.md
+          - docs/guides/SOMETHING_SUMMARY.md
+          - docs/guides/MIGRATION_STATUS.md
+          - docs/guides/RBAC_IMPLEMENTATION.md
+          - docs/runbooks/examples/widget/run.sh
+          - docs/runbooks/examples/deep/nested/NOTES.md
+          - docs/runbooks/NEW_RUNBOOK.md
+          - docs/images/content_layout.png
+          - docs/images/login_error.png
+        secret_names:
+          - id_rsa
+          - id_ed25519
+          - private_key.pem
+          - tls.key
+          - api_key.txt
+          - db_credential.json
+          - passwd.txt
+          - my_secret.txt
+          - config.local.toml
+        secret_depths:
+          - docs/guides
+          - docs/runbooks/examples
+          - docs/runbooks/examples/deep/nested
+          - docs/runbooks
+        # These must never reappear unanchored. A bare line equal to one of
+        # these is the defect this criterion exists to prevent.
+        forbidden_unanchored:
+          - '*_VERIFICATION*.md'
+          - '*_REPORT.md'
+          - '*_SUMMARY.md'
+          - '*_STATUS.md'
+          - '*_ASSESSMENT.md'
+          - '*test*.md'
+          - 'examples/'
+        # A per-directory re-include under docs is how the security hole was
+        # opened. None of these may appear.
+        forbidden_negations:
+          - '!docs/guides/examples/**'
+          - '!docs/guides/examples/'
+          - '!docs/guides/REPORT_VERIFICATION.md'
+          - '!docs/runbooks/examples/**'
+          - '!docs/runbooks/examples/'
+          - '!docs/runbooks/REPORT_VERIFICATION.md'
+        # The EXACT policy. Every leading-slash rule in .gitignore is declared
+        # here with a concrete root probe, and the two multisets must match
+        # exactly: a missing rule, an undeclared rule, a duplicate and a
+        # de-anchored rule all fail. Where a rule's family was anchored in
+        # 5e12c4ff, a nested probe records what must happen under the tracked
+        # documentation tree. Nested visibility is NOT assumed true: `/dist/`
+        # carries an explicit exception because a separate depth-wide rule
+        # ignores it everywhere, and should.
+        anchored_rules:
+          - pattern: '/nbproject/private/'
+            root_probe: nbproject/private/probe.md
+          - pattern: '/nbbuild/'
+            root_probe: nbbuild/probe.md
+          - pattern: '/dist/'
+            root_probe: dist/probe.md
+            nested_probe: docs/guides/dist/probe.md
+            nested_visible: false
+            nested_exception: 'dist/ is ignored at every depth by a separate build rule, and should be'
+          - pattern: '/nbdist/'
+            root_probe: nbdist/probe.md
+          - pattern: '/.nb-gradle/'
+            root_probe: .nb-gradle/probe.md
+          - pattern: '/.emacs.desktop'
+            root_probe: .emacs.desktop
+          - pattern: '/.emacs.desktop.lock'
+            root_probe: .emacs.desktop.lock
+          - pattern: '/test/'
+            root_probe: test/probe.md
+            nested_probe: docs/guides/test/probe.md
+            nested_visible: true
+          - pattern: '/*test*.py'
+            root_probe: xtestx.py
+            nested_probe: docs/runbooks/examples/run_test.py
+            nested_visible: true
+          - pattern: '/*test*.sh'
+            root_probe: xtestx.sh
+            nested_probe: docs/runbooks/examples/smoke_test.sh
+            nested_visible: true
+          - pattern: '/*test*.md'
+            root_probe: xtestx.md
+            nested_probe: docs/guides/my_test_guide.md
+            nested_visible: true
+          - pattern: '/*test*.js'
+            root_probe: xtestx.js
+            nested_probe: docs/runbooks/examples/test_helper.js
+            nested_visible: true
+          - pattern: '/*test*.cjs'
+            root_probe: xtestx.cjs
+            nested_probe: docs/runbooks/examples/test_helper.cjs
+            nested_visible: true
+          - pattern: '/*_test_results.json'
+            root_probe: x_test_results.json
+            nested_probe: docs/runbooks/examples/rule_test_results.json
+            nested_visible: true
+          - pattern: '/*_test_result.png'
+            root_probe: x_test_result.png
+            nested_probe: docs/images/rule_test_result.png
+            nested_visible: true
+          - pattern: '/*_results.json'
+            root_probe: x_results.json
+            nested_probe: docs/runbooks/examples/scan_results.json
+            nested_visible: true
+          - pattern: '/*_error.png'
+            root_probe: x_error.png
+            nested_probe: docs/images/scan_error.png
+            nested_visible: true
+          - pattern: '/*_debug.png'
+            root_probe: x_debug.png
+            nested_probe: docs/images/scan_debug.png
+            nested_visible: true
+          - pattern: '/*_demo_*.png'
+            root_probe: x_demo_x.png
+          - pattern: '/*_comparison_*.png'
+            root_probe: x_comparison_x.png
+          - pattern: '/*_integration_*.json'
+            root_probe: x_integration_x.json
+          - pattern: '/*_e2e_*.json'
+            root_probe: x_e2e_x.json
+          - pattern: '/*_e2e_*.png'
+            root_probe: x_e2e_x.png
+          - pattern: '/responsive_*.png'
+            root_probe: responsive_x.png
+            nested_probe: docs/images/responsive_hosts.png
+            nested_visible: true
+          - pattern: '/pagination_*.png'
+            root_probe: pagination_x.png
+          - pattern: '/content_*.png'
+            root_probe: content_x.png
+            nested_probe: docs/images/content_layout.png
+            nested_visible: true
+          - pattern: '/login_*.png'
+            root_probe: login_x.png
+            nested_probe: docs/images/login_flow.png
+            nested_visible: true
+          - pattern: '/mongodb_*.png'
+            root_probe: mongodb_x.png
+          - pattern: '/rules_explorer_*.png'
+            root_probe: rules_explorer_x.png
+          - pattern: '/scrolling_*.png'
+            root_probe: scrolling_x.png
+          - pattern: '/tab_*.png'
+            root_probe: tab_x.png
+            nested_probe: docs/images/tab_compliance.png
+            nested_visible: true
+          - pattern: '/compliance_rules/'
+            root_probe: compliance_rules/probe.md
+          - pattern: '/*_TEST_REPORT.md'
+            root_probe: x_TEST_REPORT.md
+            nested_probe: docs/guides/SCAN_TEST_REPORT.md
+            nested_visible: true
+          - pattern: '/*_TEST_SUMMARY.md'
+            root_probe: x_TEST_SUMMARY.md
+            nested_probe: docs/guides/SCAN_TEST_SUMMARY.md
+            nested_visible: true
+          - pattern: '/COMPREHENSIVE_TEST_REPORT.md'
+            root_probe: COMPREHENSIVE_TEST_REPORT.md
+          - pattern: '/TROUBLESHOOTING_SUMMARY.md'
+            root_probe: TROUBLESHOOTING_SUMMARY.md
+          - pattern: '/gitignore_recommendations.md'
+            root_probe: gitignore_recommendations.md
+          - pattern: '/*_ui_error.png'
+            root_probe: x_ui_error.png
+            nested_probe: docs/images/panel_ui_error.png
+            nested_visible: true
+          - pattern: '/login_error.png'
+            root_probe: login_error.png
+            nested_probe: docs/images/login_error.png
+            nested_visible: true
+          - pattern: '/dashboard_error.png'
+            root_probe: dashboard_error.png
+          - pattern: '/hosts_error.png'
+            root_probe: hosts_error.png
+          - pattern: '/hosts_ui_error.png'
+            root_probe: hosts_ui_error.png
+          - pattern: '/host_groups_ui_error.png'
+            root_probe: host_groups_ui_error.png
+          - pattern: '/content_ui_error.png'
+            root_probe: content_ui_error.png
+          - pattern: '/scanning_ui_error.png'
+            root_probe: scanning_ui_error.png
+          - pattern: '/results_ui_error.png'
+            root_probe: results_ui_error.png
+          - pattern: '/gitignore_*.md'
+            root_probe: gitignore_x.md
+            nested_probe: docs/guides/gitignore_policy.md
+            nested_visible: true
+          - pattern: '/create-rpm.sh'
+            root_probe: create-rpm.sh
+          - pattern: '/mock_backend.py'
+            root_probe: mock_backend.py
+          - pattern: '/*phase*.py'
+            root_probe: xphasex.py
+          - pattern: '/*demo*.py'
+            root_probe: xdemox.py
+          - pattern: '/*_ASSESSMENT.md'
+            root_probe: x_ASSESSMENT.md
+            nested_probe: docs/guides/SYSTEM_ASSESSMENT.md
+            nested_visible: true
+          - pattern: '/*_ANALYSIS.md'
+            root_probe: x_ANALYSIS.md
+            nested_probe: docs/guides/API_ANALYSIS.md
+            nested_visible: true
+          - pattern: '/*_COMPLETE.md'
+            root_probe: x_COMPLETE.md
+            nested_probe: docs/guides/UPGRADE_COMPLETE.md
+            nested_visible: true
+          - pattern: '/*_FIX*.md'
+            root_probe: x_FIXx.md
+            nested_probe: docs/guides/AUTH_FIX_NOTES.md
+            nested_visible: true
+          - pattern: '/*_IMPLEMENTATION*.md'
+            root_probe: x_IMPLEMENTATIONx.md
+            nested_probe: docs/guides/RBAC_IMPLEMENTATION.md
+            nested_visible: true
+          - pattern: '/*_PHASE*.md'
+            root_probe: x_PHASEx.md
+            nested_probe: docs/guides/ROLLOUT_PHASE2.md
+            nested_visible: true
+          - pattern: '/*_REPORT.md'
+            root_probe: x_REPORT.md
+            nested_probe: docs/guides/SOMETHING_REPORT.md
+            nested_visible: true
+          - pattern: '/*_STATUS.md'
+            root_probe: x_STATUS.md
+            nested_probe: docs/guides/MIGRATION_STATUS.md
+            nested_visible: true
+          - pattern: '/*_SUMMARY.md'
+            root_probe: x_SUMMARY.md
+            nested_probe: docs/guides/RELEASE_SUMMARY.md
+            nested_visible: true
+          - pattern: '/*_VERIFICATION*.md'
+            root_probe: x_VERIFICATIONx.md
+            nested_probe: docs/runbooks/REPORT_VERIFICATION.md
+            nested_visible: true
+          - pattern: '/*_TRACKING*.md'
+            root_probe: x_TRACKINGx.md
+            nested_probe: docs/guides/CHANGE_TRACKING.md
+            nested_visible: true
+          - pattern: '/CHANGES_SUMMARY.md'
+            root_probe: CHANGES_SUMMARY.md
+          - pattern: '/TABPANEL_*.md'
+            root_probe: TABPANEL_x.md
+          - pattern: '/test-*.js'
+            root_probe: test-x.js
+            nested_probe: docs/runbooks/examples/test-harness.js
+            nested_visible: true
+          - pattern: '/test-*.json'
+            root_probe: test-x.json
+            nested_probe: docs/runbooks/examples/test-fixture.json
+            nested_visible: true
+          - pattern: '/test-results.json'
+            root_probe: test-results.json
+            nested_probe: docs/runbooks/examples/test-results.json
+            nested_visible: true
+          - pattern: '/CLAUDE.md'
+            root_probe: CLAUDE.md
+            nested_probe: docs/guides/CLAUDE.md
+            nested_visible: true
+          - pattern: '/BACKLOG.md'
+            root_probe: BACKLOG.md
+            nested_probe: docs/guides/BACKLOG.md
+            nested_visible: true
+          - pattern: '/SESSION_LOG.md'
+            root_probe: SESSION_LOG.md
+          - pattern: '/MONGODB_INDEX_MIGRATION_PLAN.md'
+            root_probe: MONGODB_INDEX_MIGRATION_PLAN.md
+          - pattern: '/DEPENDENCY_UPGRADES_STATUS.md'
+            root_probe: DEPENDENCY_UPGRADES_STATUS.md
+          - pattern: '/NPM_GROUPS_UPGRADE_VERIFICATION.md'
+            root_probe: NPM_GROUPS_UPGRADE_VERIFICATION.md
+          - pattern: '/VITEST_4_UPGRADE_VERIFICATION.md'
+            root_probe: VITEST_4_UPGRADE_VERIFICATION.md
+          - pattern: '/UNTESTED_DEPENDENCY_UPGRADES.md'
+            root_probe: UNTESTED_DEPENDENCY_UPGRADES.md
+          - pattern: '/REDIS_7_UPGRADE_*.md'
+            root_probe: REDIS_7_UPGRADE_x.md
+          - pattern: '/test_phase*.sh'
+            root_probe: test_phasex.sh
+            nested_probe: docs/runbooks/examples/test_phase2.sh
+            nested_visible: true
+          - pattern: '/verify_deployment.py'
+            root_probe: verify_deployment.py
+          - pattern: '/monitor_ssh_validation.py'
+            root_probe: monitor_ssh_validation.py
+          - pattern: '/scap_json_to_openwatch_converter_enhanced.py'
+            root_probe: scap_json_to_openwatch_converter_enhanced.py
+          - pattern: '/examples/'
+            root_probe: examples/probe.md
+            nested_probe: docs/runbooks/examples/widget/run.sh
+            nested_visible: true
+          - pattern: '/openwatch'
+            root_probe: openwatch
+        planted_guide: docs/runbooks/examples/ac14-probe/NESTED_GUIDE.md
+        # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
+        # to be one the security rules match, or the test would prove nothing.
+        planted_secret: docs/runbooks/examples/ac14-probe/id_rsa  # pragma: allowlist secret
+        ignored_path_prefixes:
+          - docs/engineering/
+          - docs/architecture/
+          - docs/INTRODUCTION
+          - docs/OPENWATCH_VISION
+          - docs/EVIDENCE_VERIFICATION
+          - docs/KENSA_OPENWATCH_BOUNDARY
+          - docs/handoff/
+        honesty_markers:
+          - gitignored
+          - local-only
+          - not tracked
+          - untracked
+          - Context Plane
+        # Historical entries. A changelog records what a release did; rewriting
+        # a past entry to satisfy a present rule would falsify the record.
+        allowed_references:
+          - doc: CHANGELOG.md
+            text: '  upgrade docs into one, and left `docs/engineering/` for internal design docs.'
+          - doc: CHANGELOG.md
+            text: '  required). See `docs/engineering/remediation_governance_adr.md` ("A-keep").'
+      expected_output:
+        tracked_documentation_is_visible: true
+        anchored_rules_match_gitignore_exactly: true
+        every_anchored_root_probe_is_ignored: true
+        nested_probes_match_declared_visibility: true
+        secrets_stay_ignored_at_every_depth: true
+        unanchored_patterns_do_not_return: true
+        directory_reincludes_under_docs_are_absent: true
+        planted_guide_is_seen_by_git_status: true
+        planted_secret_is_ignored: true
+        tracked_docs_cite_only_reachable_paths: true
+        allowed_references_are_live: true
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-15
+      description: >-
+        The documentation-review gate exists, blocks, and rests on candidate-bound
+        evidence. `release/gates.toml` carries exactly one blocking gate whose evidence
+        kind is the documentation review and which requires a human observer. The checker
+        enumerates the candidate from `git ls-tree -r -z`, includes root and nested
+        Markdown and the `.github`, `.claude` and `scripts` paths, and excludes
+        non-Markdown, ignored and untracked files. Clean matching evidence passes. Each of
+        these fails with a diagnostic naming the cause: a document added, removed or
+        edited since the review; a duplicated blob that cannot be called a rename; a wrong
+        tag, commit, artifact digest, stored blob or manifest digest; an agent identity; a
+        verdict that is not `accurate`; and a missing, extra, duplicate or malformed
+        reviewed entry. A stale attestation whose filename sorts later does not hide a
+        valid candidate-bound one, and two that both bind are reported as ambiguous. A
+        tracked path that is not valid UTF-8 is an ERROR. Every top-level scalar the
+        evaluator reads is type-checked, an identity that is empty or whitespace-only is
+        refused, the `-agent` test applies to the TRIMMED identity so trailing whitespace
+        cannot carry an agent past it, and a malformed scalar type produces a verdict
+        rather than a traceback. The skeleton generator leaves every verdict `pending`,
+        writes no human identity, and escapes every control character TOML forbids, so a
+        path Git permits round-trips through `tomllib` unchanged.
+
+        THE TRACKED RUNBOOK IS PART OF THIS CONTRACT. `docs/runbooks/RELEASING.md` MUST
+        carry the D1 procedure, and it MUST invoke the real
+        `scripts/doc-review-skeleton.py` and `scripts/release-status.py` rather than
+        describe them. It MUST resolve the candidate commit explicitly and tag GA from
+        that commit by name: an implicit `git tag v<version>` takes whatever HEAD happens
+        to be, which is the reviewed commit only by luck and is indistinguishable
+        afterward. It MUST keep the attestation untracked while the decision is open and
+        commit it only after promotion, so the audit commit cannot change what was
+        released. Removing the skeleton command, or the check that the resolved candidate
+        commit is the one being promoted, MUST fail.
+      priority: critical
+      references_constraints: [C-11]

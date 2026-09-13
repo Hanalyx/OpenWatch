@@ -21,7 +21,7 @@ This runbook covers the three processes that can saturate CPU on an OpenWatch ho
 | `postgres` | Expensive queries, missing indexes, autovacuum on large tables |
 
 For install and configuration details, see the
-[install guide](../INSTALLATION.md).
+[install guide](../guides/INSTALLATION.md).
 
 ---
 

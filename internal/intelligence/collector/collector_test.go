@@ -121,8 +121,8 @@ func TestMigration_HasClosedEnumCheckOnEventCode(t *testing.T) {
 	})
 }
 
-// @ac AC-11 (sanity — exercised end-to-end by collector_db_test.go)
-// @ac AC-12 (sanity — exercised end-to-end by collector_db_test.go)
+// AC-11: sanity — exercised end-to-end by collector_db_test.go
+// AC-12: sanity — exercised end-to-end by collector_db_test.go
 // publishEvent + emitAuditFor exercised here without DB so the unit
 // tests catch logic regressions even if the integration tests can't
 // run (no OPENWATCH_TEST_DSN).

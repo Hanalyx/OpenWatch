@@ -268,7 +268,7 @@ type ScanConfig struct {
 func DefaultScan() ScanConfig {
 	return ScanConfig{
 		Enabled:             true,
-		UnknownMins:         360,
+		UnknownMins:         240,
 		CriticalMins:        240,
 		NonCompliantMins:    480,
 		PartialMins:         720,

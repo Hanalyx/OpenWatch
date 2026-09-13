@@ -93,15 +93,25 @@ func (h *handlers) reportSvcReady(w http.ResponseWriter) bool {
 	return true
 }
 
-// reportActor returns the human-readable identifier recorded on a
-// generated artifact (the calling principal's id, or "system" when the
-// request is anonymous).
-func reportActor(r *http.Request) string {
+// reportActor returns the principal recorded on a generated artifact, and
+// whether one could be established.
+//
+// It FAILS CLOSED. It used to return "system" for an anonymous or empty
+// principal, which was unreachable over HTTP because the permission bar
+// rejects an anonymous caller before generation, and wrong if it ever were
+// reached: generated_by is part of the SIGNED artifact, so a placeholder
+// there fabricates audit provenance that no later reader can correct or
+// even detect. An authorized request with no principal is a defect in the
+// identity layer, and the honest response is to generate nothing.
+//
+// Scheduled generation does not come through here. The dispatcher calls
+// the service directly with an explicit "scheduler" actor.
+func reportActor(r *http.Request) (string, bool) {
 	id := auth.FromContext(r.Context())
 	if id.IsAnonymous || id.ID == "" {
-		return "system"
+		return "", false
 	}
-	return id.ID
+	return id.ID, true
 }
 
 // GetReports implements api.ServerInterface.
@@ -221,7 +231,15 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rep, err := h.reportSvc.Generate(r.Context(), reportActor(r), req)
+	actor, ok := reportActor(r)
+	if !ok {
+		// Authorization passed but no principal reached the handler. Refuse
+		// rather than sign an artifact attributed to nobody.
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"no principal to attribute this report to", true)
+		return
+	}
+	rep, err := h.reportSvc.Generate(r.Context(), actor, req)
 	if errors.Is(err, report.ErrInvalidKind) {
 		writeError(w, http.StatusBadRequest, "reports.invalid_kind", "client",
 			"kind must be executive, attestation, exception, or remediation", false)

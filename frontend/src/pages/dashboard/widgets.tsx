@@ -79,16 +79,25 @@ export function KpiAvgCompliance() {
         <WidgetState kind="loading" />
       ) : q.isError ? (
         <WidgetState kind="error" />
-      ) : q.data.total_evaluations === 0 ? (
-        <WidgetState kind="empty" message="No scans yet" />
+      ) : q.data.score_pct === null ? (
+        // No score is not zero percent. The fleet either has no hosts to
+        // assess or none of them produced a verdict, and showing 0 would
+        // report an absence of data as a total failure.
+        <WidgetState
+          kind="empty"
+          message={q.data.hosts_total === 0 ? 'No hosts yet' : 'No host could be scored yet'}
+        />
       ) : (
         (() => {
-          const pct = Math.round(q.data.passing_fraction * 100);
+          // Taken as sent. The server computes the percentage; multiplying a
+          // fraction here was a second implementation of the formula.
+          const pct = q.data.score_pct;
           return (
             <>
               <KpiValue value={pct} unit="%" tone={scoreTone(pct)} />
               <KpiSub>
-                {q.data.total_evaluations.toLocaleString()} evaluations · target ≥ 80%
+                {q.data.hosts_scored.toLocaleString()} of {q.data.hosts_total.toLocaleString()}{' '}
+                hosts scored · target ≥ 80%
               </KpiSub>
             </>
           );
@@ -149,26 +158,74 @@ export function WidgetComplianceTrend() {
       ) : (
         (() => {
           const days = q.data.days;
-          // Guarded by days.length < 2 above, so both ends exist.
-          const first = days[0]!;
-          const last = days[days.length - 1]!;
-          const up = last.avg_score_pct >= first.avg_score_pct;
+          // Direction compares the first and last days that have a score AND
+          // were produced by the same formula.
+          //
+          // It used to compare them whatever formula each came from, so a
+          // legacy_unknown day and an identified day were subtracted and the
+          // result colored the chart line and the latest caption green or red.
+          // That difference is a change of MEASUREMENT, not a change in
+          // posture, and coloring it asserts something about the fleet that
+          // nothing measured. A mixed day carries no score at all, so the
+          // null filter already keeps it out of the comparison.
+          const scoredDays = days.filter((d) => d.score_pct !== null);
+          const first = scoredDays[0];
+          const last = scoredDays[scoredDays.length - 1];
+          // TWO DISTINCT scored days, sharing a formula state. With only one
+          // scored day first and last are the same point, and comparing it
+          // with itself yielded "up" and painted the widget green: a claim of
+          // improvement from a single measurement.
+          // Direction is up, down, flat, or none with a stated reason. Each
+          // reason names a different situation, because "no direction" alone
+          // leaves a reader guessing which of three things happened.
+          //
+          // A mixed day is checked first: it carries no score, so it would
+          // otherwise present as "not enough scored days" and hide the more
+          // specific fact that a day in the window mixes formulas.
+          let direction: 'up' | 'down' | 'flat' | null = null;
+          let reason: string | null = null;
+          if (days.some((d) => d.formula_status === 'mixed')) {
+            reason = 'a day in this window mixes scoring formulas';
+          } else if (scoredDays.length < 2) {
+            // With one scored day, first and last are the same point.
+            // Comparing it with itself yielded "up" and painted the widget
+            // green: a claim of improvement from a single measurement.
+            reason = 'at least two scored days are needed';
+          } else if (first!.formula_status !== last!.formula_status) {
+            reason = 'these days were scored by different formulas';
+          } else if (last!.score_pct! > first!.score_pct!) {
+            direction = 'up';
+          } else if (last!.score_pct! < first!.score_pct!) {
+            direction = 'down';
+          } else {
+            // EQUAL is flat, not up. >= painted two identical scores green,
+            // which claims an improvement that did not happen.
+            direction = 'flat';
+          }
+          // Green and red are the claim. Only a real rise or fall earns one.
+          const lineColor =
+            direction === 'up'
+              ? 'var(--ow-ok)'
+              : direction === 'down'
+                ? 'var(--ow-crit)'
+                : 'var(--ow-fg-3)';
           return (
             <>
               <TrendChart
                 points={days.map((d) => ({
                   date: d.date,
-                  scorePct: d.avg_score_pct,
+                  scorePct: d.score_pct,
+                  formulaStatus: d.formula_status,
                   tooltip: [
                     d.date,
-                    `${Math.round(d.avg_score_pct)}% avg compliant`,
+                    ...fleetDayLines(d),
                     `${d.hosts} hosts`,
                     `${d.failing} failing rules`,
                     `${d.critical_hosts} with critical`,
                   ],
                 }))}
                 windowDays={30}
-                color={up ? 'var(--ow-ok)' : 'var(--ow-crit)'}
+                color={lineColor}
                 height={70}
               />
               <div
@@ -180,11 +237,14 @@ export function WidgetComplianceTrend() {
                   color: 'var(--ow-fg-3)',
                 }}
               >
-                <span>oldest {Math.round(first.avg_score_pct)}%</span>
-                <span style={{ color: up ? 'var(--ow-ok)' : 'var(--ow-crit)' }}>
-                  latest {Math.round(last.avg_score_pct)}%
-                </span>
+                <span>{first ? `oldest ${first.score_pct}%` : 'no scored day'}</span>
+                <span style={{ color: lineColor }}>{last ? `latest ${last.score_pct}%` : ''}</span>
               </div>
+              {reason !== null ? (
+                <div role="note" style={{ marginTop: 4, fontSize: 11, color: 'var(--ow-fg-3)' }}>
+                  {`No trend direction: ${reason}.`}
+                </div>
+              ) : null}
             </>
           );
         })()
@@ -402,4 +462,28 @@ function Row({
       <span style={{ color: 'var(--ow-fg-2)', fontSize: 12, whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
+}
+
+// fleetDayLines explains a day's score, or its absence, in the tooltip.
+//
+// A null score has two different causes and a viewer needs to know which. A
+// mixed day HAS hosts and snapshots and deliberately publishes no number,
+// because the formulas behind them measure different things; a day where
+// nothing could be assessed is a scanning problem. Rendering both as an empty
+// point would hide the difference the API exists to report.
+function fleetDayLines(d: {
+  score_pct: number | null;
+  formula_status: 'identified' | 'legacy_unknown' | 'mixed';
+  hosts_scored: number;
+}): string[] {
+  if (d.formula_status === 'mixed') {
+    return ['No score: this day mixes scoring formulas', 'Their average would not be comparable'];
+  }
+  if (d.score_pct === null) {
+    return ['No score: no host could be assessed'];
+  }
+  const line = `${d.score_pct}% avg compliant (${d.hosts_scored} scored)`;
+  return d.formula_status === 'legacy_unknown'
+    ? [line, 'Earlier formula: not comparable with current days']
+    : [line];
 }

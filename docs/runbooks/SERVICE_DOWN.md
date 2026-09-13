@@ -14,7 +14,7 @@ service being stopped or crash-looping, a TLS or config error that prevents
 startup, or PostgreSQL being unreachable.
 
 For install and configuration layout, see the
-[install guide](../INSTALLATION.md).
+[install guide](../guides/INSTALLATION.md).
 
 ---
 
@@ -207,7 +207,7 @@ These all cause `serve` to exit non-zero during boot.
 - **Missing JWT or credential key**: the log names the missing key and the env
   var that sets it (`OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` /
   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`). Confirm the configured path exists
-  and is readable. See the [installation guide](../INSTALLATION.md)
+  and is readable. See the [installation guide](../guides/INSTALLATION.md)
   for how these keys are provisioned.
 
 After correcting the file:
@@ -363,8 +363,8 @@ Include when escalating:
 
 ## Not yet implemented
 
-As of OpenWatch `v0.5.0`, the following do not exist in the current code and
-must not be relied on in this runbook:
+Verified against the tree on 2026-09-11. The following do not exist and must
+not be relied on in this runbook:
 
 - **A packaged systemd unit for the scan worker.** Only `openwatch.service`
   (running `serve`) ships today. Running `openwatch worker` under systemd is the
@@ -375,5 +375,5 @@ must not be relied on in this runbook:
 - **Separate `/livez` / `/readyz` probes.** Liveness and readiness are combined in
   the single `GET /api/v1/health` endpoint.
 - **A backup/restore subcommand.** Use standard PostgreSQL tooling
-  (`pg_dump` / `pg_basebackup`). The CLI subcommands are `serve`, `worker`,
-  `migrate`, `create-admin`, and `check-config`.
+  (`pg_dump` / `pg_basebackup`). Run `openwatch --help` for the current
+  subcommand list rather than trusting one written down here.

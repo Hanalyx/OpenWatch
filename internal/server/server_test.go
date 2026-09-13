@@ -1,12 +1,12 @@
 // @spec system-http-server
 //
 // AC traceability:
-// @ac AC-02  (TestServer_TimeoutsLocked)
-// @ac AC-03  (TestServer_TLSMinVersion)
-// @ac AC-08  (TestServer_CorrelationMiddlewareMounted)
-// @ac AC-09  (TestServer_CorrelationHeaderEchoed)
+//   AC-02  (TestServer_TimeoutsLocked)
+//   AC-03  (TestServer_TLSMinVersion)
+//   AC-08  (TestServer_CorrelationMiddlewareMounted)
+//   AC-09  (TestServer_CorrelationHeaderEchoed)
 //
-// @ac AC-01  (real bind; graceful shutdown, error propagation)
+//   AC-01  (real bind; graceful shutdown, error propagation)
 // require live TLS listener tests and are exercised in main.go integration
 // via the Day-4 acceptance scenarios.
 
@@ -101,7 +101,8 @@ func strconvI(p int) string {
 	return string(out)
 }
 
-// @ac AC-02  (http.Server timeouts match the locked values from the spec.)
+// @ac AC-02
+// AC-02: http.Server timeouts match the locked values from the spec.
 func TestServer_TimeoutsLocked(t *testing.T) {
 	t.Run("system-http-server/AC-02", func(t *testing.T) {
 
@@ -129,7 +130,8 @@ func TestServer_TimeoutsLocked(t *testing.T) {
 	})
 }
 
-// @ac AC-03  (TLS MinVersion is TLS 1.2 or higher.)
+// @ac AC-03
+// AC-03: TLS MinVersion is TLS 1.2 or higher.
 func TestServer_TLSMinVersion(t *testing.T) {
 	t.Run("system-http-server/AC-03", func(t *testing.T) {
 
@@ -144,7 +146,8 @@ func TestServer_TLSMinVersion(t *testing.T) {
 	})
 }
 
-// @ac AC-08  (chi router has correlation middleware mounted first;)
+// @ac AC-08
+// AC-08: chi router has correlation middleware mounted first;
 // every response carries X-Correlation-Id.
 func TestServer_CorrelationHeaderEchoed(t *testing.T) {
 	t.Run("system-http-server/AC-08", func(t *testing.T) {
@@ -173,7 +176,8 @@ func TestServer_CorrelationHeaderEchoed(t *testing.T) {
 	})
 }
 
-// @ac AC-01  (Server.Run binds to cfg.Server.Listen and accepts HTTPS
+// @ac AC-01
+// AC-01: (Server.Run binds to cfg.Server.Listen and accepts HTTPS
 // connections using GetCertificate.) Minted self-signed cert; arbitrary
 // port via net.Listen probe before Run.
 func TestServer_RunBindsAndAcceptsHTTPS(t *testing.T) {
@@ -229,7 +233,8 @@ func TestServer_RunBindsAndAcceptsHTTPS(t *testing.T) {
 	})
 }
 
-// @ac AC-10  (In-flight request during ctx cancellation is served to)
+// @ac AC-10
+// AC-10: In-flight request during ctx cancellation is served to
 // completion or rejected cleanly — no panic.
 func TestServer_RunHandlesInflightDuringShutdown(t *testing.T) {
 	t.Run("system-http-server/AC-10", func(t *testing.T) {
@@ -299,7 +304,8 @@ func TestServer_RunHandlesInflightDuringShutdown(t *testing.T) {
 	})
 }
 
-// @ac AC-11  (Run returns the first non-nil error from ListenAndServeTLS)
+// @ac AC-11
+// AC-11: Run returns the first non-nil error from ListenAndServeTLS
 // that is not http.ErrServerClosed.
 func TestServer_RunReturnsListenerError(t *testing.T) {
 	t.Run("system-http-server/AC-11", func(t *testing.T) {
@@ -323,7 +329,8 @@ func TestServer_RunReturnsListenerError(t *testing.T) {
 	})
 }
 
-// @ac AC-09  ((companion): valid client header is echoed unchanged through chi.)
+// @ac AC-09
+// AC-09: (companion): valid client header is echoed unchanged through chi.
 func TestServer_CorrelationClientEcho(t *testing.T) {
 	t.Run("system-http-server/AC-09", func(t *testing.T) {
 

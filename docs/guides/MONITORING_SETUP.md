@@ -52,7 +52,7 @@ curl -k https://localhost:8443/api/v1/health
 A healthy response returns `200 OK`:
 
 ```json
-{"status": "healthy", "db_connected": true, "version": "0.5.0"}
+{"status": "healthy", "db_connected": true, "version": "<release version>"}
 ```
 
 When the database ping fails, the endpoint returns `503 Service Unavailable`
@@ -76,7 +76,7 @@ curl -k https://localhost:8443/api/v1/version
 
 ```json
 {
-  "openwatch": "0.5.0",
+  "openwatch": "<release version>",
   "kensa": "<embedded engine version>",
   "go": "<go toolchain>",
   "commit": "<abbrev commit>",
