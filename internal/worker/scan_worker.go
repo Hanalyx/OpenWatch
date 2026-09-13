@@ -29,11 +29,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Hanalyx/openwatch/internal/compliance"
 	"log/slog"
 	"math/rand/v2"
 	"sync/atomic"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

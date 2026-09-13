@@ -60,8 +60,9 @@ import (
 	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/transactionlog"
 
-	"github.com/Hanalyx/openwatch/internal/compliance"
 	"sync/atomic"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 )
 
 // scoreIs reports whether a fleet score is present and equals want, to one
