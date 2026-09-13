@@ -903,9 +903,23 @@ func TestCIGates_ScoreAndVerificationDocsAreShipped(t *testing.T) {
 					t.Fatalf("git add -N %s: %v\n%s", rel, err, out)
 				}
 				t.Cleanup(func() {
-					exec.Command("git", "-C", dir, "rm", "-q", "--cached", "--force", rel).Run()
-					os.Remove(full)
-					os.Remove(filepath.Dir(full))
+					// This runs against the REAL repository, so a failed cleanup
+					// leaves a planted file in the index and the next command a
+					// developer runs reports a dirty tree it cannot explain.
+					// Report it instead of discarding it.
+					rm := exec.Command("git", "-C", dir, "rm", "-q", "--cached", "--force", rel)
+					if out, err := rm.CombinedOutput(); err != nil {
+						t.Errorf("cleanup: git rm --cached %s failed: %v\n%s\n"+
+							"The planted probe is still in the index; run it by hand "+
+							"before trusting `git status`.", rel, err, out)
+					}
+					if err := os.Remove(full); err != nil {
+						t.Errorf("cleanup: removing the planted file %s failed: %v", rel, err)
+					}
+					// The parent directory is best-effort on purpose. A probe
+					// planted beside real files shares their directory, so a
+					// non-empty error here is the expected case, not a fault.
+					_ = os.Remove(filepath.Dir(full))
 				})
 			}
 

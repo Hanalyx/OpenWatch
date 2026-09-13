@@ -554,16 +554,6 @@ func (p *snapshotProbe) ScopeGroupIn(ctx context.Context, q db.Queryer,
 	return "Probed", []uuid.UUID{}, nil
 }
 
-func activeHostCount(t *testing.T, pool *pgxpool.Pool) int {
-	t.Helper()
-	var n int
-	if err := pool.QueryRow(context.Background(),
-		`SELECT count(*)::int FROM hosts WHERE deleted_at IS NULL`).Scan(&n); err != nil {
-		t.Fatalf("count hosts: %v", err)
-	}
-	return n
-}
-
 // pdfStreamRe finds the compressed content streams in a rendered PDF.
 var pdfStreamRe = regexp.MustCompile(`(?s)stream\r?\n(.*?)\r?\nendstream`)
 

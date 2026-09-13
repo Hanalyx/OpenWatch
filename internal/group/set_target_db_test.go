@@ -8,8 +8,9 @@ package group
 
 import (
 	"context"
-	"github.com/Hanalyx/openwatch/internal/compliance"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 
 	"github.com/Hanalyx/openwatch/internal/db/corpustest"
 

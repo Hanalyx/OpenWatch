@@ -337,13 +337,3 @@ func TestRecordSuccess_ClearsOnlyIntelBackoff(t *testing.T) {
 		}
 	})
 }
-
-// small in-test helper to keep imports minimal.
-func contains(haystack, needle string) bool {
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
-}

@@ -8,9 +8,10 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/Hanalyx/openwatch/internal/compliance"
 	"sync"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/compliance"
 
 	"github.com/google/uuid"
 )

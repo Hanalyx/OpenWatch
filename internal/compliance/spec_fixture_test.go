@@ -176,25 +176,6 @@ func (e *expectations) boolean(k string) bool {
 	return v
 }
 
-// isNull asserts the spec expects an explicit null. A missing key and a null
-// are different claims, so get fails on the former.
-func (e *expectations) isNull(k string) {
-	e.t.Helper()
-	if v := e.get(k); v != nil {
-		e.t.Fatalf("%s: %s = %v, want null", e.id, k, v)
-	}
-}
-
-// list reads a list expectation.
-func (e *expectations) list(k string) []any {
-	e.t.Helper()
-	v, ok := e.get(k).([]any)
-	if !ok {
-		e.t.Fatalf("%s: %s is not a list", e.id, k)
-	}
-	return v
-}
-
 // emptyList asserts a key holds an actual empty list.
 //
 // null is rejected rather than treated as empty. Accepting it would let

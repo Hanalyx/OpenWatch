@@ -18,8 +18,9 @@ package drift
 
 import (
 	"errors"
-	"github.com/Hanalyx/openwatch/internal/specfixture"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
 // @ac AC-01
