@@ -17,8 +17,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   commit and artifact before GA promotion. Any document change invalidates that
   evidence. The release runbook documents how to prepare, check, and preserve
   the attestation without changing the reviewed commit.
-- [The report-verification runbook](docs/runbooks/REPORT_VERIFICATION.md)
-  documents how to check exported report content and signatures. Authenticity
+- [The report-verification runbook](docs/runbooks/REPORT_VERIFICATION.md) documents how
+  to check exported report content and signatures. Authenticity
   requires a separately trusted complete public key or the full SHA-256 digest
   of its decoded key bytes. The short signing-key identifier is only a
   correlation value and is not a trust anchor.
