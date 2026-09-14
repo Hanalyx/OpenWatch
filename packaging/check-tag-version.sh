@@ -55,7 +55,8 @@ If this is a release candidate, the pre-release suffix belongs in version.env
 too, exactly as the v0.2.0 series did (0.2.0-rc.16, 0.2.0-rc.17, then 0.2.0 at
 GA). Set VERSION="$tag_version", update the README version phrase and the
 newest CHANGELOG heading to match (packaging/tests enforces all three agree),
-then move the tag.
+merge that, and tag the merged commit under the NEXT candidate number. A tag
+that has been pushed is a record of a failed candidate; never move it.
 
 Two pre-releases that share a VERSION produce two different builds with one
 package identity, and dnf or apt will refuse to move between them.

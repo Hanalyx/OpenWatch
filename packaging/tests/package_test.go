@@ -16,6 +16,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/isotree"
 )
 
 // appDir is the project root (one directory up from packaging/tests/).
@@ -917,11 +919,29 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 		if err := run("v" + version); err != nil {
 			t.Errorf("gate rejected the matching tag v%s: %v", version, err)
 		}
-		for _, bad := range []string{
+		// The two shapes that have actually happened, derived from whatever
+		// version.env carries today so the case survives the GA bump: an RC
+		// tag against a bare VERSION (v0.7.0-rc.1, v0.7.0-rc.2 and then
+		// v0.8.0-rc.1), and a bare GA tag against an RC VERSION, which is
+		// what tagging GA on the reviewed RC commit would do.
+		base := version
+		if i := strings.IndexByte(base, '-'); i >= 0 {
+			base = base[:i]
+		}
+		bads := []string{
 			"v" + version + "-rc.2", // the exact v0.7.0 defect
+			"v" + base + "-rc.1",
+			"v" + base + "-rc.99",
 			"v0.0.1-rc.1",
 			"v99.99.99",
-		} {
+		}
+		if base != version {
+			bads = append(bads, "v"+base) // GA tag on an RC commit
+		}
+		for _, bad := range bads {
+			if bad == "v"+version {
+				t.Fatalf("test bug: %q is the matching tag, not a mismatch", bad)
+			}
 			if err := run(bad); err == nil {
 				t.Errorf("gate ACCEPTED tag %q against VERSION=%q; it must refuse, "+
 					"because VERSION is what reaches the package metadata", bad, version)
@@ -932,6 +952,104 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 		cmd.Env = append(os.Environ(), "RELEASE_REF=")
 		if err := cmd.Run(); err == nil {
 			t.Error("gate accepted an empty RELEASE_REF; a missing ref must fail loudly")
+		}
+	})
+}
+
+// @ac AC-25
+// AC-25: the runbook's RC commands cannot produce a tag that disagrees with
+// version.env.
+//
+// AC-24 proves the gate refuses a mismatch. It cannot prove the procedure
+// never creates one, and on 2026-09-14 the procedure did: Stage 1 set
+// VERSION="0.8.0", Stage 2 said `git tag v<version>-rc.N`, and v0.8.0-rc.1
+// was signed and pushed before the hosted gate refused it (OW-037). Reading
+// the runbook for the right strings would pass a block that has them in the
+// wrong order. So this test extracts the Stage 2 block and RUNS it, with git
+// replaced by a recorder, against two private copies of the tree carrying
+// different versions. The tag each copy receives must be its own version.
+func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
+	t.Run("release-package-build/AC-25", func(t *testing.T) {
+		dir := appDir(t)
+		book, err := os.ReadFile(filepath.Join(dir, "docs", "runbooks", "RELEASING.md"))
+		if err != nil {
+			t.Fatalf("read RELEASING.md: %v", err)
+		}
+		block := regexp.MustCompile("(?s)\n## Stage 2: Cut the release candidate\n.*?```bash\n(.*?)```")
+		m := block.FindSubmatch(book)
+		if m == nil {
+			t.Fatal("docs/runbooks/RELEASING.md has no bash block under Stage 2")
+		}
+		stage2 := string(m[1])
+
+		// The block must never contain a version an operator types.
+		if strings.Contains(stage2, "<version>") {
+			t.Errorf("Stage 2 still asks the operator to type the version:\n%s", stage2)
+		}
+		checkAt := strings.Index(stage2, "packaging/check-tag-version.sh")
+		tagAt := strings.Index(stage2, "git tag")
+		switch {
+		case checkAt < 0:
+			t.Error("Stage 2 never runs packaging/check-tag-version.sh before tagging")
+		case tagAt < 0:
+			t.Error("Stage 2 never tags, so there is nothing to check")
+		case tagAt < checkAt:
+			t.Error("Stage 2 tags BEFORE it runs check-tag-version.sh; the check must come first")
+		}
+
+		// A git recorder: every invocation is appended to $GIT_LOG, nothing
+		// touches a real repository. `status --porcelain` reports clean.
+		stub := t.TempDir()
+		gitStub := filepath.Join(stub, "git")
+		if err := os.WriteFile(gitStub, []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$GIT_LOG\"\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		run := func(version string) (tagged, pushed string) {
+			t.Helper()
+			copyDir := isotree.Copy(t, dir, "packaging")
+			env := filepath.Join(copyDir, "packaging", "version.env")
+			if err := os.WriteFile(env, []byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(t.TempDir(), "git.log")
+			cmd := exec.Command("bash", "-e", "-c", stage2)
+			cmd.Dir = copyDir
+			cmd.Env = append(os.Environ(), "PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"), "GIT_LOG="+log)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("Stage 2 block failed with VERSION=%q: %v\n%s", version, err, out)
+			}
+			calls, _ := os.ReadFile(log)
+			for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+				f := strings.Fields(line)
+				if len(f) == 0 {
+					continue
+				}
+				switch f[0] {
+				case "tag":
+					tagged = f[len(f)-1]
+					// `-s NAME -m NAME`: the name is the argument after -s.
+					for i, a := range f {
+						if a == "-s" && i+1 < len(f) {
+							tagged = f[i+1]
+						}
+					}
+				case "push":
+					pushed = f[len(f)-1]
+				}
+			}
+			return tagged, pushed
+		}
+
+		for _, v := range []string{"0.8.0-rc.2", "3.1.4-rc.7", "3.1.4"} {
+			tagged, pushed := run(v)
+			if tagged != "v"+v {
+				t.Errorf("VERSION=%q: the block tagged %q; the tag must be derived from version.env", v, tagged)
+			}
+			if pushed != "v"+v {
+				t.Errorf("VERSION=%q: the block pushed %q, tagged %q; they must be the same name", v, pushed, tagged)
+			}
 		}
 	})
 }

@@ -13,9 +13,14 @@ and a human signs off.
   [`packaging/version.env`](../../packaging/version.env) (`VERSION`, `CODENAME`).
   The Go binary reads it via the Makefile `ldflags`, and the RPM/DEB build
   scripts source it for the package version.
-- Release candidates use a `-rc.N` suffix (e.g. `0.2.0-rc.5`). The RPM version
-  field strips the suffix; the DEB and the binary keep it.
-- Tags are `v<version>` (e.g. `v0.2.0-rc.5`, `v0.2.0`).
+- Release candidates use a `-rc.N` suffix (e.g. `0.2.0-rc.5`). Both packages
+  encode it with a tilde (`0.2.0~rc.5`), which sorts below the final release;
+  the binary reports the true semver. The suffix is never stripped
+  (`release-package-build` C-12).
+- Tags are `v<version>` (e.g. `v0.2.0-rc.5`, `v0.2.0`), and `release.yml`
+  refuses any tag whose version is not exactly `VERSION` in `version.env`
+  (`packaging/check-tag-version.sh`, C-14). Every candidate and the GA are
+  therefore distinct commits, each carrying its own version.
 
 ## The pipeline at a glance
 
@@ -29,7 +34,11 @@ and a human signs off.
 
 ## Stage 1: Docs freeze (before any tag)
 
-1. Bump `packaging/version.env` (`VERSION`, `CODENAME`).
+1. Set the candidate version, suffix included, in the three places that must
+   agree: `VERSION="<version>-rc.N"` in `packaging/version.env`, the README
+   version phrase, and the newest `CHANGELOG.md` heading
+   (`## [<version>-rc.N] <codename> (<date>)`). `CODENAME` stays as decided.
+   `go test ./packaging/tests/ -run TestRepoHygiene` fails while they disagree.
 2. Update `CHANGELOG.md` for the version (GitHub auto-notes supplement this).
 3. Refresh user-facing docs that changed this cycle:
    - `README.md` (version/badges, install flow)
@@ -40,13 +49,28 @@ and a human signs off.
 
 ## Stage 2: Cut the release candidate
 
+The tag is read from `packaging/version.env`, never typed. The Stage 1 commit
+must be merged first, so the tag names a commit on `main` whose `version.env`
+carries the candidate version. `v0.8.0-rc.1` was tagged by hand against
+`VERSION="0.8.0"` and refused by the hosted check after it had been signed and
+pushed (CP `bugs/OW-037`). The local check below catches that before the tag
+exists.
+
 ```bash
-git tag v<version>-rc.N
-git push origin v<version>-rc.N
+git switch main
+git pull --ff-only origin main
+test -z "$(git status --porcelain)"   # tag a merged commit, not a working tree
+. packaging/version.env
+RC="v$VERSION"                        # derived from the file, never typed
+RELEASE_REF="$RC" bash packaging/check-tag-version.sh
+git tag -s "$RC" -m "$RC"
+git push origin "$RC"
 ```
 
-This triggers `release.yml` (builds + SBOMs + publishes a pre-release) and
-`package-smoke.yml` (per-distro install matrix).
+Pushing the tag triggers `release.yml` (builds + SBOMs + publishes a
+pre-release) and `package-smoke.yml` (per-distro install matrix). A refused
+candidate is a failed candidate: leave its tag in place as a record, file the
+cause, and cut the next number. Never move a tag.
 
 ## Stage 3: Verification gate (must all pass before GA)
 
@@ -184,6 +208,13 @@ attestation relabeled with the GA tag would claim a review that never happened
 against that tag.
 
 ## Stage 4: Promote to GA
+
+> **This stage cannot succeed as written, and the sequence that replaces it is
+> awaiting approval (CP `bugs/OW-037`).** A commit whose `version.env` carries
+> `<version>-rc.N` cannot satisfy a `v<version>` tag: the C-14 check refuses
+> it. GA must be a new commit, and a new commit invalidates the D1 evidence
+> bound to the RC's documentation bytes and the fleet evidence bound to the
+> RC's artifact digests. Do not promote until this stage is rewritten.
 
 Tag the reviewed commit by name. `$RC_COMMIT` is the value resolved in Stage 3b,
 and it must equal the commit you are promoting.
