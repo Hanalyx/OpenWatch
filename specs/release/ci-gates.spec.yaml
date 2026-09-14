@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.14.0"
+  version: "1.15.0"
   status: approved
   tier: 1
 
@@ -239,6 +239,30 @@ spec:
         the rule and a reader of the rule can find its gate.
       type: technical
       enforcement: error
+    - id: C-12
+      description: >-
+        A change to a PINNED GATE VERSION FILE MUST select the CI path that validates the pin.
+
+        Two tracked files pin the version of a gate this contract depends on: `.specter-version`
+        (C-07, AC-11) and `.doc-style-version` (C-08, AC-12). Each pin is asserted against its
+        contract fixture by `packaging/tests`, which runs inside the Go suite. The Go CI job selects
+        that suite with a job-level path filter, and a change that matches nothing in the filter
+        skips the suite and reports success.
+
+        On 2026-09-14 a pull request that changed only `.specter-version` reported "Quality +
+        security gates" green in 32 seconds, having skipped 19 of 26 steps including
+        `go test -race ./...`, and merged with the fixture still naming the previous version.
+        `main` was red on AC-11 from that merge until this repair. The workflow-level `on:` block
+        carries no `paths` filter, so the job always starts; the job-level step is the ONLY
+        selection point, and it is the one this constraint governs.
+
+        Both pin files MUST match the production filter. A regression test MUST read that filter
+        out of the workflow file itself and prove a pin-only change selects the validating path,
+        so that removing either pin from the filter fails the test. The test MUST NOT carry its own
+        copy of the filter: a duplicate can pass while the real one drifts, which is the failure
+        this constraint exists to prevent.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -301,7 +325,7 @@ spec:
         but still leaves two places to edit.
       inputs:
         pin_file: .specter-version
-        pinned_version: 0.15.0
+        pinned_version: 0.15.1
         shared_gate: scripts/specter-gate.py
         # Each caller names the file inspected and the exact invocation it must
         # contain, so the fixture drives the check instead of describing it.
@@ -988,3 +1012,14 @@ spec:
         commit is the one being promoted, MUST fail.
       priority: critical
       references_constraints: [C-11]
+    - id: AC-16
+      description: >-
+        The production Go-relevance filter in `.github/workflows/go-ci.yml` selects the validating
+        path for a pin-only change. The test extracts the `grep -qE` pattern from the "Detect
+        Go-relevant changes" step, compiles that pattern and no other, and asserts that a change
+        set consisting solely of `.specter-version` matches, that one consisting solely of
+        `.doc-style-version` matches, and that a documentation-only change such as `README.md`
+        does not. The pattern is anchored at line start, as `grep` applies it. Removing either pin
+        file from the production filter MUST fail this criterion.
+      priority: critical
+      references_constraints: [C-12]
