@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] Eyrie (2026-09-14)
+
 ### Added
 
 - Release promotion now has a blocking documentation-review gate. A named human
