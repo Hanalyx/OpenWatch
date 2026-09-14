@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/isotree"
 
 	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
@@ -48,17 +49,21 @@ var liveDescriptorNames = map[string]bool{
 //
 // It matches call expressions and selectors by identifier, so both a bare
 // DescribeCorpus() and a kensa.DescribeCorpus() are found.
-func liveDescriptorRefs(t *testing.T, scopes []string) []string {
+func liveDescriptorRefs(t *testing.T, root string, scopes []string) []string {
 	t.Helper()
 	var out []string
 	seen := map[string]bool{}
 	for _, dir := range scopes {
-		root := filepath.Join("..", "..", dir)
-		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		scopeRoot := filepath.Join(root, dir)
+		err := filepath.Walk(scopeRoot, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") {
 				return err
 			}
-			rel := filepath.ToSlash(strings.TrimPrefix(path, "../../"))
+			relPath, rerr := filepath.Rel(root, path)
+			if rerr != nil {
+				return rerr
+			}
+			rel := filepath.ToSlash(relPath)
 			fset := token.NewFileSet()
 			f, perr := parser.ParseFile(fset, path, nil, 0)
 			if perr != nil {
@@ -152,7 +157,8 @@ func TestProvenance_NeverReconstructedFromTheInstalledCorpus(t *testing.T) {
 			t.Fatal("fixture scopes no packages")
 		}
 		exp.EmptyList("read_paths_consulting_live_descriptor")
-		if refs := liveDescriptorRefs(t, scopes); len(refs) != 0 {
+		repoRoot := filepath.Join("..", "..")
+		if refs := liveDescriptorRefs(t, repoRoot, scopes); len(refs) != 0 {
 			t.Errorf("read paths consulting a live corpus descriptor:\n  %s\nA stored "+
 				"artifact's corpus is what the scan recorded, never what is installed now",
 				strings.Join(refs, "\n  "))
@@ -161,7 +167,13 @@ func TestProvenance_NeverReconstructedFromTheInstalledCorpus(t *testing.T) {
 		// The detector must SEE such a call. None exists yet, so without this
 		// the check above passes for the wrong reason and would keep passing
 		// after KN-KN-030 gives everyone a descriptor to call.
-		planted := filepath.Join("..", "..", scopes[0], "zz_livecorpus_fixture.go")
+		// Planted in a PRIVATE COPY of the scopes, not the checkout. A file
+		// written into the live tree races any test walking it at the same
+		// moment; the retention sweeper guard failed a documentation-only pull
+		// request on exactly that (CP bugs/OW-036). The copy lives under
+		// t.TempDir(), outside the repository.
+		copyRoot := isotree.Copy(t, repoRoot, scopes...)
+		planted := filepath.Join(copyRoot, scopes[0], "zz_livecorpus_fixture.go")
 		pkg := filepath.Base(scopes[0])
 		plantMissingFile(t, planted,
 			"package "+pkg+"\n\n"+
@@ -169,12 +181,7 @@ func TestProvenance_NeverReconstructedFromTheInstalledCorpus(t *testing.T) {
 				"// installed corpus what measured a stored artifact.\n"+
 				"func fixtureReadsLiveCorpus(d interface{ DescribeCorpus() string }) string {\n"+
 				"\treturn d.DescribeCorpus()\n}\n")
-		defer func() {
-			if err := os.Remove(planted); err != nil {
-				t.Errorf("remove planted fixture: %v; the tree is left dirty", err)
-			}
-		}()
-		after := liveDescriptorRefs(t, scopes)
+		after := liveDescriptorRefs(t, copyRoot, scopes)
 		found := false
 		for _, r := range after {
 			if strings.Contains(r, "fixtureReadsLiveCorpus") {

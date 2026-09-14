@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Hanalyx/openwatch/internal/isotree"
 	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
@@ -38,10 +39,13 @@ func TestCompliancePackage_HasNoForbiddenDependencies(t *testing.T) {
 			t.Fatalf("fixture rule no longer names go list -deps: %q", rule)
 		}
 
-		deps := func(dir string) []string {
+		// deps runs go list from a module ROOT the caller names. The clean scan
+		// runs from the real repository; the planted scan runs from a private
+		// copy, so nothing is written into the checkout (CP bugs/OW-036).
+		deps := func(root, dir string) []string {
 			t.Helper()
 			cmd := exec.Command("go", "list", "-deps", "./"+strings.TrimPrefix(dir, "internal/"))
-			cmd.Dir = filepath.Join("..", "..", "internal")
+			cmd.Dir = filepath.Join(root, "internal")
 			out, err := cmd.Output()
 			if err != nil {
 				t.Fatalf("go list -deps %s: %v", dir, err)
@@ -61,7 +65,8 @@ func TestCompliancePackage_HasNoForbiddenDependencies(t *testing.T) {
 		}
 
 		exp.EmptyList("violations")
-		if bad := violations(deps(pkg)); len(bad) != 0 {
+		repoRoot := filepath.Join("..", "..")
+		if bad := violations(deps(repoRoot, pkg)); len(bad) != 0 {
 			t.Errorf("%s transitively imports %v; the scoring package must be testable with no "+
 				"database, server or engine", pkg, bad)
 		}
@@ -84,30 +89,23 @@ func TestCompliancePackage_HasNoForbiddenDependencies(t *testing.T) {
 		// never runs go list -deps and prove nothing about the instrument this
 		// criterion names. The intermediary is what makes only transitive
 		// inspection succeed.
-		fixtureDir := filepath.Join("..", "..", pkg, "zzdepfixture")
+		// Planted in a PRIVATE COPY of the module, never the checkout. go.mod,
+		// go.sum and internal/ are enough for go list -deps: external modules
+		// resolve from the module cache, internal ones from the copy. Writing
+		// into the live tree raced the retention sweeper guard's tree walk
+		// under -p 4 (CP bugs/OW-036); the copy lives under t.TempDir(),
+		// outside the repository, so no walk can see it.
+		copyRoot := isotree.Copy(t, repoRoot, "internal")
+		fixtureDir := filepath.Join(copyRoot, pkg, "zzdepfixture")
 		if err := os.Mkdir(fixtureDir, 0o755); err != nil {
-			t.Fatalf("create fixture package dir: %v; a leftover from an earlier run must be "+
-				"removed by hand rather than overwritten", err)
+			t.Fatalf("create fixture package dir: %v", err)
 		}
-		defer func() {
-			if err := os.RemoveAll(fixtureDir); err != nil {
-				t.Errorf("remove fixture package: %v; the tree is left dirty", err)
-			}
-		}()
-		// Exclusive creation on every planted file. os.WriteFile would truncate
-		// a pre-existing file at this path and the deferred remove would then
-		// delete someone's work.
+		// Exclusive creation on every planted file, so a stray file at the
+		// path is refused rather than overwritten.
 		plantExclusive(t, filepath.Join(fixtureDir, "fixture.go"),
 			"package zzdepfixture\n\nimport _ \""+wantImport+"\"\n")
-
-		planted := filepath.Join("..", "..", pkg, "zz_dependency_guard_fixture.go")
-		plantExclusive(t, planted,
+		plantExclusive(t, filepath.Join(copyRoot, pkg, "zz_dependency_guard_fixture.go"),
 			"package compliance\n\nimport _ \"github.com/Hanalyx/openwatch/"+pkg+"/zzdepfixture\"\n")
-		defer func() {
-			if err := os.Remove(planted); err != nil {
-				t.Errorf("remove planted fixture: %v; the tree is left dirty", err)
-			}
-		}()
 
 		// The intermediary itself must NOT match the forbidden list, or the guard
 		// would fire on the wrong package and the chain would go untested.
@@ -119,7 +117,7 @@ func TestCompliancePackage_HasNoForbiddenDependencies(t *testing.T) {
 			}
 		}
 
-		bad := violations(deps(pkg))
+		bad := violations(deps(copyRoot, pkg))
 		found := false
 		for _, b := range bad {
 			if b == wantImport {

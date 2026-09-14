@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Hanalyx/openwatch/internal/isotree"
 	"github.com/Hanalyx/openwatch/internal/specfixture"
 )
 
@@ -50,6 +51,7 @@ func TestSkipReason_EveryReaderIsRegistered(t *testing.T) {
 			t.Fatalf("registry %s: %v", regPath, err)
 		}
 		scopes := in.StrList("source_scope")
+		repoRoot := filepath.Join("..", "..")
 
 		listed := map[readerID]SkipReasonReader{}
 		for _, e := range SkipReasonRegistry {
@@ -72,7 +74,7 @@ func TestSkipReason_EveryReaderIsRegistered(t *testing.T) {
 		}
 		exp.EmptyList("readers_feeding_a_score")
 
-		found := skipReasonReaders(t, scopes, regPath)
+		found := skipReasonReaders(t, repoRoot, scopes, regPath)
 
 		exp.EmptyList("unlisted_readers")
 		var unlisted []string
@@ -116,21 +118,23 @@ func TestSkipReason_EveryReaderIsRegistered(t *testing.T) {
 		if !ok {
 			t.Fatalf("fixture symbol %q is not package.Symbol", wantSymbol)
 		}
-		planted := filepath.Join("..", "..", pkgPath, "zz_skipreason_fixture.go")
+		// Planted in a PRIVATE COPY of the scopes, not in the checkout. Writing
+		// into the live tree races any test that walks it at the same moment:
+		// the retention sweeper guard failed a documentation-only pull request
+		// exactly that way (CP bugs/OW-036). The copy lives under t.TempDir(),
+		// outside the repository, so a repository-rooted walk never sees it and
+		// nothing is left behind if this test dies before its cleanup.
+		copyRoot := isotree.Copy(t, repoRoot, scopes...)
+		planted := filepath.Join(copyRoot, pkgPath, "zz_skipreason_fixture.go")
 		plantExclusive(t, planted,
 			"package compliance\n\n"+
 				"// "+fn+" reads SkipReason and is on no registry.\n"+
 				"func "+fn+"(s struct{ SkipReason string }) string {\n\treturn s.SkipReason\n}\n")
-		defer func() {
-			if err := os.Remove(planted); err != nil {
-				t.Errorf("remove planted fixture: %v; the tree is left dirty", err)
-			}
-		}()
 
 		wantID := readerID{filepath.ToSlash(filepath.Join(pkgPath, "zz_skipreason_fixture.go")), fn}
 		var after []string
 		detected := false
-		for _, id := range skipReasonReaders(t, scopes, regPath) {
+		for _, id := range skipReasonReaders(t, copyRoot, scopes, regPath) {
 			after = append(after, id.String())
 			if id == wantID {
 				detected = true
@@ -152,7 +156,7 @@ func TestSkipReason_EveryReaderIsRegistered(t *testing.T) {
 // Go is parsed, so the enclosing function or struct type names the symbol.
 // TypeScript is scanned with the enclosing declaration tracked, which is the
 // same instrument the arithmetic guard uses and carries the same limits.
-func skipReasonReaders(t *testing.T, scopes []string, regPath string) []readerID {
+func skipReasonReaders(t *testing.T, root string, scopes []string, regPath string) []readerID {
 	t.Helper()
 	var out []readerID
 	seen := map[readerID]bool{}
@@ -167,12 +171,16 @@ func skipReasonReaders(t *testing.T, scopes []string, regPath string) []readerID
 	}
 
 	for _, dir := range scopes {
-		root := filepath.Join("..", "..", dir)
-		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		scopeRoot := filepath.Join(root, dir)
+		err := filepath.Walk(scopeRoot, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return err
 			}
-			rel := filepath.ToSlash(strings.TrimPrefix(path, "../../"))
+			relPath, rerr := filepath.Rel(root, path)
+			if rerr != nil {
+				return rerr
+			}
+			rel := filepath.ToSlash(relPath)
 			// The registry and this guard describe the rule rather than reading
 			// the value.
 			if rel == regPath || strings.HasSuffix(path, "_test.go") ||
