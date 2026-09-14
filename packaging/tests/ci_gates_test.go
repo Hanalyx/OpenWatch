@@ -1864,3 +1864,77 @@ func tailOf(b []byte, n int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// AC-16 — a pin-only change selects the CI path that validates the pin.
+//
+// The Go CI job decides whether to run the Go suite with a job-level grep
+// over the changed paths. On 2026-09-14 a pull request changing only
+// .specter-version matched nothing in that pattern, skipped 19 of 26 steps
+// including go test ./..., reported green, and merged with the AC-11
+// fixture still naming the previous version. main was red until the
+// repair.
+//
+// This reads the pattern OUT OF THE WORKFLOW FILE and compiles that and
+// nothing else. A private copy of the filter would pass while the real one
+// drifted, which is the exact failure being guarded against.
+// @ac AC-16
+func TestCIGates_PinChangeSelectsTheValidatingPath(t *testing.T) {
+	t.Run("release-ci-gates/AC-16", func(t *testing.T) {
+		dir := appDir(t)
+		wf, err := os.ReadFile(filepath.Join(dir, ".github/workflows/go-ci.yml"))
+		if err != nil {
+			t.Fatalf("read go-ci.yml: %v", err)
+		}
+
+		// Locate the detection step, then the one grep it runs. Anchoring
+		// on the step name means a second, unrelated grep elsewhere in the
+		// workflow cannot be mistaken for the filter.
+		step := regexp.MustCompile(`(?s)name: Detect Go-relevant changes.*?grep -qE '([^']+)'`)
+		m := step.FindSubmatch(wf)
+		if m == nil {
+			t.Fatal("go-ci.yml has no 'Detect Go-relevant changes' step with a grep -qE pattern; " +
+				"the selection point this criterion binds has moved or been removed")
+		}
+		pattern := string(m[1])
+		if !strings.HasPrefix(pattern, "^") {
+			t.Errorf("the filter pattern is not anchored at line start: %q. grep applies it per "+
+				"changed path, and an unanchored pattern matches substrings of paths it never "+
+				"meant to select.", pattern)
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			t.Fatalf("the production filter does not compile as RE2: %v\n%s", err, pattern)
+		}
+
+		// The workflow-level trigger must not be the thing that stops the
+		// job, or the job-level check above is never reached. The `on:`
+		// block runs from its own line to the next top-level key; (?m)
+		// makes ^ match line starts, since `on:` is not at byte zero.
+		on := regexp.MustCompile(`(?ms)^on:\n(.*?)^\S`).FindSubmatch(wf)
+		if on == nil {
+			t.Fatal("go-ci.yml has no top-level `on:` block; the trigger this criterion reasons " +
+				"about has moved")
+		}
+		if regexp.MustCompile(`(?m)^\s+paths(-ignore)?:`).Match(on[1]) {
+			t.Error("go-ci.yml has a workflow-level paths filter; a pin-only change could be " +
+				"stopped there before the job-level step this criterion binds is reached")
+		}
+
+		for _, tc := range []struct {
+			path string
+			want bool
+			why  string
+		}{
+			{".specter-version", true, "pinned gate version asserted by AC-11 through packaging/tests"},
+			{".doc-style-version", true, "pinned gate version asserted by AC-12 through packaging/tests"},
+			{"README.md", false, "documentation only; the Go suite has nothing to say about it"},
+			{"docs/guides/QUICKSTART.md", false, "documentation only"},
+			{"CHANGELOG.md", false, "documentation only"},
+		} {
+			got := re.MatchString(tc.path)
+			if got != tc.want {
+				t.Errorf("filter selects Go suite for %q = %v, want %v: %s", tc.path, got, tc.want, tc.why)
+			}
+		}
+	})
+}

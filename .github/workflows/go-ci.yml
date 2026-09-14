@@ -82,7 +82,13 @@ jobs:
             head="${{ github.sha }}"
             changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
           fi
-          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.github/workflows/go-ci\.yml$)'; then
+          # The two pin files govern gates this job validates through
+          # packaging/tests. A pin-only change used to match nothing here,
+          # skip the Go suite, and report green having checked nothing:
+          # PR #839 merged that way and left main red on AC-11. Keep them in
+          # this pattern; release-ci-gates AC-16 reads it from this file and
+          # fails if either is removed.
+          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|\.github/workflows/go-ci\.yml$)'; then
             echo "go=true" >> "$GITHUB_OUTPUT"
             echo "Go-relevant changes detected — running full pipeline."
           else
