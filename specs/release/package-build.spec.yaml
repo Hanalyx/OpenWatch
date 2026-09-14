@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -183,6 +183,22 @@ spec:
         fills in.
       type: technical
       enforcement: error
+    - id: C-16
+      description: >
+        A script that names a built package by version MUST derive the name
+        with the C-12 encoding, never from the raw VERSION. The setup and
+        upgrade-from-GA harnesses pin the version on purpose, because a glob
+        over a developer's dist/ installs whichever historical build the
+        package manager prefers, and that is right. But they composed the name
+        from VERSION as read from version.env, so for any candidate the file
+        they looked for (openwatch-0.8.0-rc.2-1.x86_64.rpm) did not exist and
+        the file that did (openwatch-0.8.0~rc.2-1.x86_64.rpm) was never staged.
+        Every v0.7.x candidate carried a bare VERSION (C-14), so the harness
+        had never run with a suffix until v0.8.0-rc.2 (CP bugs/OW-038). I2 and
+        U2 are blocking per-platform gates, so this defect alone made every
+        correctly versioned candidate NO-GO.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -330,3 +346,13 @@ spec:
         tags before the check, fails this.
       priority: critical
       references_constraints: [C-14, C-15]
+    - id: AC-26
+      description: >-
+        The setup and upgrade-from-GA harnesses stage a suffixed candidate.
+        Run against a private copy of the tree whose version.env carries a
+        pre-release VERSION and whose dist/ holds only the tilde-named files
+        the build produces, with docker and gh stubbed, each script's staging
+        step reports the tilde-named openwatch package as staged. A harness
+        that composes the name from the raw VERSION fails to stage it.
+      priority: critical
+      references_constraints: [C-12, C-16]

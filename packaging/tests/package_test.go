@@ -1053,3 +1053,92 @@ func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-26
+// AC-26: the setup and upgrade-from-GA harnesses stage a suffixed candidate.
+//
+// Both scripts pin the version deliberately, and both composed the filename
+// from the raw VERSION while the build names the file with the C-12 tilde
+// encoding. No v0.7.x candidate carried a suffix, so the first correctly
+// versioned candidate, v0.8.0-rc.2, was the first time either script ran
+// against a file it could not find (OW-038). This runs each script's staging
+// step in a private copy with a fake dist/ named the way the build names it;
+// docker refuses everything so the script stops right after staging, and gh
+// succeeds so the upgrade script reaches its own cp.
+func TestPackaging_HarnessStagesASuffixedCandidate(t *testing.T) {
+	t.Run("release-package-build/AC-26", func(t *testing.T) {
+		dir := appDir(t)
+		if _, err := exec.LookPath("bash"); err != nil {
+			t.Skip("bash not available")
+		}
+
+		stub := t.TempDir()
+		for name, body := range map[string]string{
+			"docker": "#!/bin/sh\nexit 1\n",
+			"gh":     "#!/bin/sh\nexit 0\n",
+		} {
+			if err := os.WriteFile(filepath.Join(stub, name), []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		const version = "0.8.0-rc.2"
+		const rpm = "openwatch-0.8.0~rc.2-1.x86_64.rpm"
+		const deb = "openwatch_0.8.0~rc.2_amd64.deb"
+		if runtime.GOARCH != "amd64" {
+			t.Skip("the harness derives the package arch from the host; fixture names are amd64")
+		}
+
+		copyDir := isotree.Copy(t, dir, "packaging")
+		if err := os.WriteFile(filepath.Join(copyDir, "packaging", "version.env"),
+			[]byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		dist := filepath.Join(copyDir, "dist")
+		if err := os.MkdirAll(dist, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range []string{rpm, deb, "kensa-rules-0.9.0-1.noarch.rpm", "kensa-rules_0.9.0_all.deb"} {
+			if err := os.WriteFile(filepath.Join(dist, f), []byte("fixture"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		run := func(script string, args ...string) string {
+			t.Helper()
+			cmd := exec.Command("bash", append([]string{filepath.Join(copyDir, "packaging", "tests", script)}, args...)...)
+			cmd.Dir = copyDir
+			cmd.Env = append(os.Environ(), "PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out, _ := cmd.CombinedOutput() // docker's refusal makes the exit non-zero by design
+			return string(out)
+		}
+
+		// Each script prints one line listing what it staged; the order within
+		// the line is ls's, so match the file on that line rather than the
+		// whole line.
+		for _, tc := range []struct{ script, kind, line, file string }{
+			{"run-setup-container-test.sh", "rpm", ">> staged ", rpm},
+			{"run-setup-container-test.sh", "deb", ">> staged ", deb},
+			{"run-upgrade-from-ga-test.sh", "rpm", "new: ", rpm},
+			{"run-upgrade-from-ga-test.sh", "deb", "new: ", deb},
+		} {
+			args := []string{"fixture:latest", tc.kind}
+			if tc.script == "run-upgrade-from-ga-test.sh" {
+				args = append(args, "v0.7.1")
+			}
+			out := run(tc.script, args...)
+			var staged bool
+			for _, ln := range strings.Split(out, "\n") {
+				if strings.Contains(ln, tc.line) && strings.Contains(ln, " "+tc.file) {
+					staged = true
+				}
+			}
+			if !staged {
+				t.Errorf("%s %s did not stage the candidate; wanted %q on the %q line of:\n%s", tc.script, tc.kind, tc.file, strings.TrimSpace(tc.line), out)
+			}
+			if strings.Contains(out, "cannot stat") {
+				t.Errorf("%s %s looked for a file that does not exist:\n%s", tc.script, tc.kind, out)
+			}
+		}
+	})
+}
