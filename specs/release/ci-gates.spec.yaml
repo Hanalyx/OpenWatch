@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.15.0"
+  version: "1.16.0"
   status: approved
   tier: 1
 
@@ -261,6 +261,22 @@ spec:
         so that removing either pin from the filter fails the test. The test MUST NOT carry its own
         copy of the filter: a duplicate can pass while the real one drifts, which is the failure
         this constraint exists to prevent.
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >-
+        A test MUST NOT write a fixture into the checkout. The Go suite runs its packages in
+        parallel, and any test that walks the repository can list a file another test planted
+        and then fail to open it once it is removed. That is not hypothetical: a
+        documentation-only pull request with zero Go files went red on 2026-09-14 when the
+        retention sweeper guard's tree walk raced a fixture the skip-reason guard had planted in
+        `internal/compliance/` (CP bugs/OW-036).
+
+        A guard that must prove its detector can see a planted reader plants it in a PRIVATE COPY
+        under `t.TempDir()`, outside the repository, and runs the detector against the copy. The
+        clean scan still runs against the real tree; the copy is only for the mutation. The walker
+        is NOT changed to tolerate a vanished file, because that would hide the next test that
+        writes into the tree instead of surfacing it.
       type: technical
       enforcement: error
 
@@ -1023,3 +1039,12 @@ spec:
         file from the production filter MUST fail this criterion.
       priority: critical
       references_constraints: [C-12]
+    - id: AC-17
+      description: >-
+        The fixture-isolation helper places its copy outside the repository. A copy made from the
+        repository root resolves to a path that is not beneath that root, carries `go.mod` and the
+        requested directories at their relative paths, and a file planted in the copy does not
+        appear in the checkout. Bound in the helper's own tests, so a change that moved the copy
+        inside the tree would fail before any guard depended on it.
+      priority: high
+      references_constraints: [C-13]
