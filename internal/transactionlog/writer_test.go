@@ -20,6 +20,7 @@ package transactionlog
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -114,11 +115,16 @@ func emissionsByCode(mu *sync.Mutex, calls *[]emitCall, code audit.Code) int {
 // synthetic side is covered where it actually happens, in
 // internal/worker/remediation_corpus_test.go.
 
+// The index makes every id in one call distinct by construction; the random
+// tail keeps two calls with the same prefix from colliding, as before. Eight
+// hex characters alone are 32 bits, and 1000 draws repeat about once in 8,600
+// runs. When they did, the writer correctly treated the second occurrence as
+// "no change" (C-03) and AC-10 blamed it for the missing row (OW-039).
 func makeResults(n int, rulePrefix string) []Result {
 	out := make([]Result, n)
 	for i := 0; i < n; i++ {
 		out[i] = Result{
-			RuleID:   rulePrefix + "-" + uuid.NewString()[:8],
+			RuleID:   fmt.Sprintf("%s-%04d-%s", rulePrefix, i, uuid.NewString()[:8]),
 			Status:   StatusPass,
 			Severity: "medium",
 			Evidence: []byte(`{}`),
@@ -475,6 +481,17 @@ func TestApply_1000Rules_Under2Seconds(t *testing.T) {
 
 		batch := ApplyBatch{Origin: OriginScan, HostID: hostID, Results: makeResults(1000, "r")}
 		batch.ScanID, _ = uuid.NewV7()
+
+		// The row count below only means something if every input rule is
+		// distinct: a repeated id is "no change" on its second occurrence and
+		// is correctly not inserted. Fail on the fixture, not on the writer.
+		seen := make(map[string]struct{}, len(batch.Results))
+		for _, r := range batch.Results {
+			if _, dup := seen[r.RuleID]; dup {
+				t.Fatalf("fixture repeats rule id %q; the count assertion would blame the writer", r.RuleID)
+			}
+			seen[r.RuleID] = struct{}{}
+		}
 
 		start := time.Now()
 		if err := w.Apply(context.Background(), batch); err != nil {
