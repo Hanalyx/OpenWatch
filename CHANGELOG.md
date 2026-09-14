@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.8.0] Eyrie (2026-09-14)
+## [0.8.0-rc.2] Eyrie (2026-09-14)
 
 ### Added
 
