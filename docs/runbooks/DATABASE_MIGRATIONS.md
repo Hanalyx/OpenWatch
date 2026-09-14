@@ -1,6 +1,6 @@
 # Database migration guide
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.8.0 (Eyrie)
 
 This guide covers how OpenWatch's PostgreSQL schema is versioned, how migrations
 are applied in production, and how to add a new migration. OpenWatch is a single
@@ -104,10 +104,12 @@ That number corresponds to the `NNNN` prefix of the last applied migration file.
 
 ## Adding a new migration
 
-1. Create a new migration file named with the next ascending
-   integer, for example `0055_add_scan_findings.sql` (the current highest
-   applied migration is `0054`; use the next free number, not this example
-   literally). Migration order is driven by the filename prefix, not by
+1. Create a new migration file named with the next ascending integer, for
+   example `0065_add_scan_findings.sql`. Do not copy that number: read the
+   highest prefix in `internal/db/migrations/` and take the next free one.
+   This document deliberately does not state the current head, because a
+   number written here goes stale on the next migration and nothing fails
+   when it does. Migration order is driven by the filename prefix, not by
    dates.
 
 2. Write the `Up` and `Down` blocks using goose annotations:

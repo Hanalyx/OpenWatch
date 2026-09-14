@@ -1,6 +1,6 @@
 # OpenWatch install guide (native packages)
 
-**Last updated:** 2026-07-31 · **Applies to:** OpenWatch v0.7.1 (Eyrie)
+**Last updated:** 2026-07-31 · **Applies to:** OpenWatch v0.8.0 (Eyrie)
 
 This guide takes an administrator from a fresh Linux host to a running,
 logged-in OpenWatch. Install the packages and run `openwatch setup`, which does
@@ -57,10 +57,15 @@ On a host that already runs PostgreSQL, either takes about five minutes.
 
 ## Requirements
 
-- **OS:**
-  - RPM: RHEL 9, Rocky Linux 9, AlmaLinux 9, Oracle Linux 9, CentOS Stream 9
-    (binary-compatible rebuilds; CI smoke-tests the RPM in `rockylinux:9` and
-    `almalinux:9` containers, not CentOS Stream 9)
+- **OS:** four platforms are release-tested, meaning CI installs and runs
+  `openwatch setup` on each one on every push: **RHEL 9**, **AlmaLinux 10**,
+  **Ubuntu 24.04 LTS** and **Debian 12**. See
+  [Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md) for what that
+  claim covers and what it does not.
+  - RPM: RHEL 9 and its binary-compatible rebuilds (Rocky Linux 9, AlmaLinux 9,
+    Oracle Linux 9, CentOS Stream 9), and AlmaLinux 10. CI smoke-tests the RPM
+    in `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, `fedora:41` and
+    `almalinux:10` containers, not in CentOS Stream 9.
   - DEB: Ubuntu 24.04 LTS, Debian 12 (or a compatible `systemd` derivative)
 - **Architecture:** `x86_64`/`amd64` or `aarch64`/`arm64` (packages ship for both).
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
