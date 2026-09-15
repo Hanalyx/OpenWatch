@@ -342,8 +342,11 @@ spec:
         ref before any git tag command. Executed verbatim (with git stubbed and
         recorded) against two copies of the tree whose version.env carry
         different versions, the block tags each copy with exactly its own
-        version and pushes the same name. A block that types the tag, or that
-        tags before the check, fails this.
+        version and pushes the same name. The block carries its own failure
+        handling and is executed with a plain `bash -c`: a failed pull, a
+        dirty working tree or a refused check leaves no tag, and a failed tag
+        leaves nothing to push. A block that types the tag, that tags before
+        the check, or that continues past a failed line, fails this.
       priority: critical
       references_constraints: [C-14, C-15]
     - id: AC-26

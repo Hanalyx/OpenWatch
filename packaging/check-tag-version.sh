@@ -41,6 +41,22 @@ if [ "$tag_version" = "$VERSION" ]; then
     exit 0
 fi
 
+case "$tag_version" in
+    *-rc.[0-9]*)
+        n="${tag_version##*-rc.}"
+        next="${tag_version%-rc.*}-rc.$((n + 1))"
+        advice="  this tag is now a record of a failed candidate and is never moved. Take
+  the next unused number: set VERSION=\"$next\", README and CHANGELOG to
+  $next, merge, then run the Stage 2 block on that merged commit; it will
+  tag v$next."
+        ;;
+    *)
+        advice="  a GA tag is cut from the final-version commit, the one whose version.env
+  says VERSION=\"$tag_version\". Prepare that commit through review and merge
+  it. RELEASING.md Stage 4 says how an unpublished GA tag is replaced."
+        ;;
+esac
+
 cat >&2 <<EOF
 check-tag-version: REFUSING TO BUILD
 
@@ -51,12 +67,11 @@ These must be identical. VERSION is what reaches the RPM and DEB metadata, so
 building this tag would publish a package whose version is not the one you
 tagged.
 
-If this is a release candidate, the pre-release suffix belongs in version.env
-too, exactly as the v0.2.0 series did (0.2.0-rc.16, 0.2.0-rc.17, then 0.2.0 at
-GA). Set VERSION="$tag_version", update the README version phrase and the
-newest CHANGELOG heading to match (packaging/tests enforces all three agree),
-merge that, and tag the merged commit under the NEXT candidate number. A tag
-that has been pushed is a record of a failed candidate; never move it.
+A candidate names ONE version in four places: VERSION in version.env, the
+README version phrase, the newest CHANGELOG heading (packaging/tests enforces
+those three agree), and the tag, which RELEASING.md Stage 2 derives from
+version.env rather than typing. Recover with ONE version in all four places:
+$advice
 
 Two pre-releases that share a VERSION produce two different builds with one
 package identity, and dnf or apt will refuse to move between them.

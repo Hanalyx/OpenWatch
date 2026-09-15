@@ -57,20 +57,32 @@ pushed (CP `bugs/OW-037`). The local check below catches that before the tag
 exists.
 
 ```bash
-git switch main
-git pull --ff-only origin main
-test -z "$(git status --porcelain)"   # tag a merged commit, not a working tree
-. packaging/version.env
-RC="v$VERSION"                        # derived from the file, never typed
-RELEASE_REF="$RC" bash packaging/check-tag-version.sh
-git tag -s "$RC" -m "$RC"
-git push origin "$RC"
+(
+  set -euo pipefail                     # a failed line stops the cut here
+  git switch main
+  git pull --ff-only origin main
+  test -z "$(git status --porcelain)"   # tag a merged commit, not a working tree
+  . packaging/version.env
+  TAG="v$VERSION"                       # derived from the file, never typed
+  RELEASE_REF="$TAG" bash packaging/check-tag-version.sh
+  git tag -s "$TAG" -m "$TAG"
+  git push origin "$TAG"
+)
 ```
 
+The block is a subshell with `set -e`, so a failed pull, a dirty tree or a
+refused check leaves no tag, and a failed signature leaves nothing to push.
+Pasted into an interactive shell it stops the block, not the shell. The same
+block cuts the GA tag in Stage 4; only `version.env` differs.
+
 Pushing the tag triggers `release.yml` (builds + SBOMs + publishes a
-pre-release) and `package-smoke.yml` (per-distro install matrix). A refused
-candidate is a failed candidate: leave its tag in place as a record, file the
-cause, and cut the next number. Never move a tag.
+pre-release for a `-rc.N` tag) and `package-smoke.yml` (per-distro install
+matrix). A refused candidate is a failed candidate: leave its tag in place as
+a record, file the cause, and take the next number. Recovery names ONE version
+in all four places: `VERSION` in `version.env`, the README phrase, the newest
+CHANGELOG heading, and the tag the block derives from them. After `v0.8.0-rc.1`
+was refused, the next candidate was `0.8.0-rc.2` in all four, never
+`0.8.0-rc.1` in the files with `rc.2` on the tag.
 
 ## Stage 3: Verification gate (must all pass before GA)
 

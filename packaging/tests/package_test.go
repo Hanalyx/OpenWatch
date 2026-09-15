@@ -957,8 +957,8 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 }
 
 // @ac AC-25
-// AC-25: the runbook's RC commands cannot produce a tag that disagrees with
-// version.env.
+// AC-25: the runbook's candidate commands cannot produce a tag that disagrees
+// with version.env, and they stop when a prerequisite fails.
 //
 // AC-24 proves the gate refuses a mismatch. It cannot prove the procedure
 // never creates one, and on 2026-09-14 the procedure did: Stage 1 set
@@ -966,8 +966,11 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 // was signed and pushed before the hosted gate refused it (OW-037). Reading
 // the runbook for the right strings would pass a block that has them in the
 // wrong order. So this test extracts the Stage 2 block and RUNS it, with git
-// replaced by a recorder, against two private copies of the tree carrying
-// different versions. The tag each copy receives must be its own version.
+// replaced by a recorder, against private copies of the tree. It runs the
+// block with a plain `bash -c`: the block must carry its own failure
+// handling, because an operator pasting it into a terminal gets none from
+// anywhere else. A failed pull, a dirty tree or a refused check must leave
+// no tag; a failed signature must leave nothing to push.
 func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
 	t.Run("release-package-build/AC-25", func(t *testing.T) {
 		dir := appDir(t)
@@ -975,7 +978,7 @@ func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read RELEASING.md: %v", err)
 		}
-		block := regexp.MustCompile("(?s)\n## Stage 2: Cut the release candidate\n.*?```bash\n(.*?)```")
+		block := regexp.MustCompile("(?s)\\n## Stage 2: Cut the release candidate\\n.*?```bash\\n(.*?)```")
 		m := block.FindSubmatch(book)
 		if m == nil {
 			t.Fatal("docs/runbooks/RELEASING.md has no bash block under Stage 2")
@@ -997,29 +1000,47 @@ func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
 			t.Error("Stage 2 tags BEFORE it runs check-tag-version.sh; the check must come first")
 		}
 
-		// A git recorder: every invocation is appended to $GIT_LOG, nothing
-		// touches a real repository. `status --porcelain` reports clean.
+		// A git recorder. Every invocation is appended to $GIT_LOG. The
+		// subcommand named in $GIT_FAIL exits 1; with $GIT_DIRTY set,
+		// `status --porcelain` reports a modified file. Nothing touches a
+		// real repository.
 		stub := t.TempDir()
 		gitStub := filepath.Join(stub, "git")
-		if err := os.WriteFile(gitStub, []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$GIT_LOG\"\nexit 0\n"), 0o755); err != nil {
+		stubBody := "#!/bin/sh\n" +
+			"printf '%s\\n' \"$*\" >> \"$GIT_LOG\"\n" +
+			"[ \"$1\" = \"${GIT_FAIL:-}\" ] && exit 1\n" +
+			"if [ \"$1 $2\" = \"status --porcelain\" ] && [ -n \"${GIT_DIRTY:-}\" ]; then echo ' M x'; fi\n" +
+			"exit 0\n"
+		if err := os.WriteFile(gitStub, []byte(stubBody), 0o755); err != nil {
 			t.Fatal(err)
 		}
 
-		run := func(version string) (tagged, pushed string) {
+		type outcome struct {
+			exit   error
+			tagged string // the name passed to `git tag -s`, "" if never tagged
+			pushed string // the name passed to `git push`, "" if never pushed
+		}
+		run := func(version string, breakCheck bool, env ...string) outcome {
 			t.Helper()
 			copyDir := isotree.Copy(t, dir, "packaging")
-			env := filepath.Join(copyDir, "packaging", "version.env")
-			if err := os.WriteFile(env, []byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
+			envFile := filepath.Join(copyDir, "packaging", "version.env")
+			if err := os.WriteFile(envFile, []byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
+			if breakCheck {
+				// The real check cannot fail on a derived tag, so stand in a
+				// check that refuses everything: the block must honor it.
+				if err := os.WriteFile(filepath.Join(copyDir, "packaging", "check-tag-version.sh"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
 			log := filepath.Join(t.TempDir(), "git.log")
-			cmd := exec.Command("bash", "-e", "-c", stage2)
+			cmd := exec.Command("bash", "-c", stage2) // no -e: the block brings its own
 			cmd.Dir = copyDir
 			cmd.Env = append(os.Environ(), "PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"), "GIT_LOG="+log)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("Stage 2 block failed with VERSION=%q: %v\n%s", version, err, out)
-			}
+			cmd.Env = append(cmd.Env, env...)
+			var o outcome
+			_, o.exit = cmd.CombinedOutput()
 			calls, _ := os.ReadFile(log)
 			for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
 				f := strings.Fields(line)
@@ -1028,28 +1049,62 @@ func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
 				}
 				switch f[0] {
 				case "tag":
-					tagged = f[len(f)-1]
-					// `-s NAME -m NAME`: the name is the argument after -s.
 					for i, a := range f {
 						if a == "-s" && i+1 < len(f) {
-							tagged = f[i+1]
+							o.tagged = f[i+1]
 						}
 					}
 				case "push":
-					pushed = f[len(f)-1]
+					o.pushed = f[len(f)-1]
 				}
 			}
-			return tagged, pushed
+			return o
 		}
 
+		// Derivation: each copy is tagged and pushed with exactly its own
+		// version, and the block exits 0 when everything succeeds.
 		for _, v := range []string{"0.8.0-rc.2", "3.1.4-rc.7", "3.1.4"} {
-			tagged, pushed := run(v)
-			if tagged != "v"+v {
-				t.Errorf("VERSION=%q: the block tagged %q; the tag must be derived from version.env", v, tagged)
+			o := run(v, false)
+			if o.exit != nil {
+				t.Errorf("VERSION=%q: the block failed with every prerequisite satisfied: %v", v, o.exit)
 			}
-			if pushed != "v"+v {
-				t.Errorf("VERSION=%q: the block pushed %q, tagged %q; they must be the same name", v, pushed, tagged)
+			if o.tagged != "v"+v {
+				t.Errorf("VERSION=%q: the block tagged %q; the tag must be derived from version.env", v, o.tagged)
 			}
+			if o.pushed != "v"+v {
+				t.Errorf("VERSION=%q: the block pushed %q, tagged %q; they must be the same name", v, o.pushed, o.tagged)
+			}
+		}
+
+		// Prerequisites: each failure must stop the block before the tag.
+		for _, tc := range []struct {
+			name       string
+			breakCheck bool
+			env        []string
+		}{
+			{"pull fails", false, []string{"GIT_FAIL=pull"}},
+			{"working tree is dirty", false, []string{"GIT_DIRTY=1"}},
+			{"check refuses", true, nil},
+		} {
+			o := run("0.8.0-rc.2", tc.breakCheck, tc.env...)
+			if o.exit == nil {
+				t.Errorf("%s: the block exited 0; it must report the failure", tc.name)
+			}
+			if o.tagged != "" {
+				t.Errorf("%s: the block still tagged %q; a failed prerequisite must prevent tagging", tc.name, o.tagged)
+			}
+			if o.pushed != "" {
+				t.Errorf("%s: the block still pushed %q", tc.name, o.pushed)
+			}
+		}
+
+		// A failed signature must leave nothing to push.
+		o := run("0.8.0-rc.2", false, "GIT_FAIL=tag")
+		if o.exit == nil {
+			t.Error("tag fails: the block exited 0; it must report the failure")
+		}
+		if o.pushed != "" {
+			t.Errorf("tag fails: the block still pushed %q; a failed tag must prevent pushing", o.pushed)
 		}
 	})
 }
