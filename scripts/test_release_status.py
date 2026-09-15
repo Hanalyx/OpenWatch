@@ -413,7 +413,8 @@ class ManifestIsLoadable(unittest.TestCase):
     silently never applies."""
 
     KINDS = {"github-check", "github-check-all", "release-asset",
-             "signed-tag", "per-platform", "attestation", "doc-review"}
+             "signed-tag", "per-platform", "attestation", "doc-review",
+             "asset-digests", "checksums-signature", "tag-identity"}
 
     def setUp(self):
         import tomllib
@@ -1060,6 +1061,342 @@ class ManifestCanonicalization(unittest.TestCase):
         other = [(p, b, "pending") for p, b, _ in ACCURATE]
         self.assertNotEqual(rs.docs_manifest_digest(ACCURATE),
                             rs.docs_manifest_digest(other))
+
+
+# ---------------------------------------------------- GA draft verification
+
+
+import hashlib
+import json
+import shutil
+import tempfile
+
+
+class FakeGH:
+    """Stand in for rs.sh / rs.sh_bytes: serves a releases listing and asset
+    bytes by id, and records every call. No network."""
+
+    def __init__(self, releases, assets_bytes, tag_commit="d" * 40, annotated=True):
+        self.releases = releases          # list of release dicts (GitHub shape)
+        self.assets_bytes = assets_bytes  # asset id -> bytes
+        self.tag_commit = tag_commit      # what refs/tags/<tag> resolves to on origin
+        self.annotated = annotated        # annotated tags need a second dereference
+        self.tag_readable = True
+        self.calls = []
+
+    def sh(self, *args, check=False):
+        self.calls.append(args)
+        for a in args:
+            if a.startswith("repos/{owner}/{repo}/git/ref/tags/"):
+                if not self.tag_readable or self.tag_commit is None:
+                    return 1, "Not Found"
+                if self.annotated:
+                    return 0, "tag\t" + "t" * 40
+                return 0, "commit\t" + self.tag_commit
+            if a.startswith("repos/{owner}/{repo}/git/tags/"):
+                return 0, self.tag_commit
+        if "repos/{owner}/{repo}/releases" in args and "--paginate" in args:
+            jq = args[args.index("--jq") + 1]
+            tag = jq.split('"')[1]
+            lines = [json.dumps(r) for r in self.releases if r["tag_name"] == tag]
+            return 0, "\n".join(lines)
+        if "-X" in args and "PATCH" in args:
+            rid = int(args[args.index("PATCH") + 1].rsplit("/", 1)[1])
+            for r in self.releases:
+                if r["id"] == rid:
+                    r["draft"] = False
+                    return 0, json.dumps(r)
+            return 1, "not found"
+        return 1, f"unexpected call {args}"
+
+    def sh_bytes(self, *args):
+        self.calls.append(args)
+        for a in args:
+            if a.startswith("repos/{owner}/{repo}/releases/assets/"):
+                aid = int(a.rsplit("/", 1)[1])
+                if aid in self.assets_bytes:
+                    return 0, self.assets_bytes[aid]
+                return 1, b""
+        return 1, b""
+
+
+def _sha(b):
+    return hashlib.sha256(b).hexdigest()
+
+
+def draft_fixture(tag="v0.8.0", draft=True):
+    """A draft release with two packages, one SBOM, a manifest over them and
+    the manifest's (fake) signature, plus KEYS."""
+    files = {
+        "openwatch-0.8.0-1.x86_64.rpm": b"rpm-bytes",
+        "openwatch_0.8.0_amd64.deb": b"deb-bytes",
+        "openwatch-0.8.0-1.x86_64.rpm.cdx.json": b"{}",
+    }
+    sums = "".join(f"{_sha(b)}  {n}\n" for n, b in files.items()).encode()
+    files["SHA256SUMS"] = sums
+    files["SHA256SUMS.asc"] = b"-----BEGIN PGP SIGNATURE-----\nfake\n-----END PGP SIGNATURE-----\n"
+    files["KEYS"] = b"keys"
+    assets, blobs = [], {}
+    for i, (n, b) in enumerate(files.items(), start=100):
+        assets.append({"id": i, "name": n, "size": len(b)})
+        blobs[i] = b
+    release = {"id": 7, "tag_name": tag, "draft": draft, "prerelease": False,
+               "target_commitish": "main", "assets": assets}
+    return release, blobs
+
+
+class DraftReleasesAreVisible(unittest.TestCase):
+    """A GA candidate lives in a draft until it is published. The evaluator
+    has to see it there, and has to say which state it found."""
+
+    def setUp(self):
+        self.release, self.blobs = draft_fixture()
+        self.gh = FakeGH([self.release], self.blobs)
+        self._sh, self._shb = rs.sh, rs.sh_bytes
+        rs.sh, rs.sh_bytes = self.gh.sh, self.gh.sh_bytes
+
+    def tearDown(self):
+        rs.sh, rs.sh_bytes = self._sh, self._shb
+
+    def test_a_draft_is_found_through_the_listing_not_the_tag_endpoint(self):
+        info = rs.release_info("v0.8.0")
+        self.assertTrue(info["exists"])
+        self.assertTrue(info["draft"])
+        self.assertEqual(rs.release_state("v0.8.0", info), "draft")
+        for call in self.gh.calls:
+            self.assertNotIn("releases/tags", " ".join(call),
+                             "releases/tags/<tag> never returns a draft")
+
+    def test_assets_and_checksums_are_read_from_the_draft(self):
+        info = rs.release_info("v0.8.0")
+        self.assertIn("SHA256SUMS", rs.release_assets("v0.8.0", info))
+        digests = rs.release_digests("v0.8.0", info)
+        self.assertEqual(len(digests), 3)
+        self.assertIn(_sha(b"rpm-bytes"), digests)
+
+    def test_no_release_and_two_releases_are_distinct_facts(self):
+        self.assertEqual(rs.release_state("v9.9.9", rs.release_info("v9.9.9")), "none")
+        self.gh.releases.append(dict(self.release, id=8))
+        info = rs.release_info("v0.8.0")
+        self.assertEqual(info.get("ambiguous"), 2)
+        self.assertIsNone(rs.release_digests("v0.8.0", info))
+        self.assertEqual(rs.release_state("v0.8.0", info), "ambiguous")
+
+    def test_published_state_is_reported_as_such(self):
+        self.release["draft"] = False
+        self.assertEqual(rs.release_state("v0.8.0"), "published")
+        self.release["prerelease"] = True
+        self.assertEqual(rs.release_state("v0.8.0"), "pre-release")
+
+
+class AssetDigestsAreHashedNotTrusted(unittest.TestCase):
+    """A1: the bytes the release serves hash to what SHA256SUMS says. The
+    release page's asset list is a list of names; only a download can say
+    what the names carry."""
+
+    def setUp(self):
+        self.release, self.blobs = draft_fixture()
+        self.gh = FakeGH([self.release], self.blobs)
+        self._sh, self._shb = rs.sh, rs.sh_bytes
+        rs.sh, rs.sh_bytes = self.gh.sh, self.gh.sh_bytes
+        self.work = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        rs.sh, rs.sh_bytes = self._sh, self._shb
+        shutil.rmtree(self.work, ignore_errors=True)
+
+    def run_a1(self):
+        info = rs.release_info("v0.8.0")
+        return rs.verify_asset_digests(info, rs.release_digests("v0.8.0", info), self.work)
+
+    def test_matching_bytes_pass(self):
+        status, note = self.run_a1()
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("3 assets hashed", note)
+
+    def test_one_changed_byte_fails_and_names_the_asset(self):
+        aid = next(a["id"] for a in self.release["assets"] if a["name"].endswith(".deb"))
+        self.blobs[aid] = b"deb-bytes-rebuilt"
+        status, note = self.run_a1()
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("openwatch_0.8.0_amd64.deb", note)
+        self.assertIn("digest mismatch", note)
+
+    def test_a_manifested_asset_missing_from_the_release_fails(self):
+        self.release["assets"] = [a for a in self.release["assets"] if not a["name"].endswith(".deb")]
+        status, note = self.run_a1()
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not on the release", note)
+        self.assertIn("openwatch_0.8.0_amd64.deb", note)
+
+    def test_a_package_on_the_release_but_not_in_the_manifest_fails(self):
+        self.release["assets"].append({"id": 999, "name": "openwatch-0.8.0-1.aarch64.rpm", "size": 3})
+        self.blobs[999] = b"arm"
+        status, note = self.run_a1()
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not in SHA256SUMS", note)
+        self.assertIn("aarch64", note)
+
+    def test_unreadable_manifest_is_an_error_not_a_pass(self):
+        info = rs.release_info("v0.8.0")
+        status, _ = rs.verify_asset_digests(info, None, self.work)
+        self.assertEqual(status, rs.ERROR)
+
+    def test_no_release_is_missing(self):
+        status, _ = rs.verify_asset_digests({"exists": False}, {}, self.work)
+        self.assertEqual(status, rs.MISSING)
+
+
+class ChecksumSignatureIsVerified(unittest.TestCase):
+    """A2: SHA256SUMS.asc is a good signature by a key in security/KEYS. Only
+    gpg's machine status is read."""
+
+    def test_good_signature_passes_and_names_the_signer(self):
+        status, note = rs.interpret_gpg_status(0, "[GNUPG:] NEWSIG\n[GNUPG:] GOODSIG 4AA0538FE239E50C Hanalyx LLC (release signing) <ops@hanalyx.com>\n[GNUPG:] VALIDSIG ...\n")
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("Hanalyx LLC", note)
+
+    def test_bad_signature_fails(self):
+        status, note = rs.interpret_gpg_status(1, "[GNUPG:] NEWSIG\n[GNUPG:] BADSIG 4AA0538FE239E50C x\n")
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("BAD signature", note)
+
+    def test_unknown_key_fails(self):
+        status, note = rs.interpret_gpg_status(2, "[GNUPG:] NEWSIG\n[GNUPG:] ERRSIG DEADBEEFDEADBEEF 1 8 00 1 9\n[GNUPG:] NO_PUBKEY DEADBEEFDEADBEEF\n")
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not in security/KEYS", note)
+
+    def test_exit_zero_without_goodsig_is_not_a_pass(self):
+        status, _ = rs.interpret_gpg_status(0, "")
+        self.assertEqual(status, rs.FAIL)
+
+    def test_missing_signature_asset_fails_before_any_download(self):
+        release, blobs = draft_fixture()
+        release["assets"] = [a for a in release["assets"] if a["name"] != "SHA256SUMS.asc"]
+        status, note = rs.verify_checksums_signature(release | {"exists": True, "draft": True}, tempfile.mkdtemp())
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("unsigned", note)
+
+    @unittest.skipIf(shutil.which("gpg") is None, "gpg not installed")
+    def test_a_real_signature_verifies_against_an_exported_key_and_tampering_fails(self):
+        work = Path(tempfile.mkdtemp())
+        try:
+            signer = work / "signer"
+            signer.mkdir()
+            signer.chmod(0o700)
+            env = {"GNUPGHOME": str(signer), "PATH": os.environ.get("PATH", "")}
+            gen = subprocess.run(["gpg", "--batch", "--quiet", "--pinentry-mode", "loopback",
+                                  "--passphrase", "", "--quick-gen-key",
+                                  "Test Signer <test@example.invalid>", "default", "default", "0"],
+                                 capture_output=True, text=True, env=env)
+            self.assertEqual(gen.returncode, 0, gen.stderr)
+            keys = work / "KEYS"
+            subprocess.run(["gpg", "--batch", "--armor", "--export", "--output", str(keys)],
+                           check=True, env=env)
+            sums = work / "SHA256SUMS"
+            sums.write_bytes(b"deadbeef  a.rpm\n")
+            asc = work / "SHA256SUMS.asc"
+            subprocess.run(["gpg", "--batch", "--pinentry-mode", "loopback", "--passphrase", "",
+                            "--armor", "--detach-sign", "--output", str(asc), str(sums)],
+                           check=True, env=env)
+            home = work / "verifier"
+            home.mkdir()
+            home.chmod(0o700)
+            status, note = rs.gpg_verify(home, keys, asc, sums)
+            self.assertEqual(status, rs.PASS, note)
+            self.assertIn("Test Signer", note)
+            sums.write_bytes(b"deadbeef  a.rpm\n# tampered\n")
+            status, note = rs.gpg_verify(home, keys, asc, sums)
+            self.assertEqual(status, rs.FAIL, note)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+class StaleEvidenceInTheGAFlow(unittest.TestCase):
+    """Option C: nothing is inherited. Evidence from the RC does not describe
+    the GA candidate, and evidence from a replaced GA candidate does not
+    describe its replacement."""
+
+    GA_TAG, GA_COMMIT = "v0.8.0", "d" * 40
+    GA_DIGESTS = {"e" * 64: "openwatch-0.8.0-1.x86_64.rpm"}
+
+    def test_the_rc_documentation_review_is_stale_against_the_ga_tag(self):
+        # Same reviewer, same verdicts, same bytes even; the candidate is not.
+        status, note = run_doc(doc_att(ACCURATE), tag=self.GA_TAG,
+                               commit=self.GA_COMMIT, digests=self.GA_DIGESTS)
+        self.assertEqual(status, rs.STALE, note)
+        self.assertIn("attests tag v0.8.0-rc.1", note)
+
+    def test_an_rc_fleet_attestation_is_stale_against_the_ga_digests(self):
+        status, note = rs.eval_attestation(att(kind="fleet-scan", artifact_sha256=GOOD_SHA),
+                                           self.GA_DIGESTS, True)
+        self.assertEqual(status, rs.STALE, note)
+
+    def test_a_ga_review_of_a_replaced_candidate_is_stale_against_the_replacement(self):
+        # The candidate was replaced (a changed CHANGELOG date is enough):
+        # new commit, new build, new digests. The old GA review names the old
+        # commit and the old artifact.
+        old = doc_att(ACCURATE, tag=self.GA_TAG, commit=self.GA_COMMIT,
+                      artifact="openwatch-0.8.0-1.x86_64.rpm", artifact_sha256="e" * 64)
+        new_commit, new_digests = "f" * 40, {"9" * 64: "openwatch-0.8.0-1.x86_64.rpm"}
+        status, note = run_doc(old, tag=self.GA_TAG, commit=new_commit, digests=new_digests)
+        self.assertEqual(status, rs.STALE, note)
+        self.assertIn("attests commit", note)
+
+    def test_a_ga_fleet_attestation_of_a_replaced_candidate_is_stale(self):
+        old = att(kind="fleet-scan", artifact_sha256="e" * 64)
+        status, note = rs.eval_attestation(old, {"9" * 64: "openwatch-0.8.0-1.x86_64.rpm"}, True)
+        self.assertEqual(status, rs.STALE, note)
+
+    def test_the_evaluator_has_no_promotion_or_inheritance_path(self):
+        # Option D was not approved. There is no flag, field or function that
+        # carries an RC verdict onto a GA candidate.
+        src = (Path(__file__).resolve().parent / "release-status.py").read_text(encoding="utf-8")
+        for token in ("--promotes", "promotes", "basis_docs_sha256", "carried_from"):
+            self.assertNotIn(token, src, f"{token!r} would be an inheritance path")
+        self.assertNotIn("promotes", rs.DOC_SCALARS)
+
+
+class TagIdentityIsCheckedOnOrigin(unittest.TestCase):
+    """R4: the commit the gates were evaluated against is the commit the tag
+    names on origin. Evaluation resolves the tag locally, which is right only
+    while the two agree."""
+
+    def setUp(self):
+        self.release, self.blobs = draft_fixture()
+        self.gh = FakeGH([self.release], self.blobs)
+        self._sh = rs.sh
+        rs.sh = self.gh.sh
+
+    def tearDown(self):
+        rs.sh = self._sh
+
+    def test_an_annotated_tag_is_dereferenced_to_its_commit(self):
+        self.assertEqual(rs.remote_tag_commit("v0.8.0"), "d" * 40)
+        self.assertTrue(any("git/tags/" in " ".join(c) for c in self.gh.calls),
+                        "an annotated tag object must be dereferenced")
+
+    def test_a_lightweight_tag_resolves_directly(self):
+        self.gh.annotated = False
+        self.assertEqual(rs.remote_tag_commit("v0.8.0"), "d" * 40)
+
+    def test_matching_commits_pass(self):
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_moved_or_stale_tag_fails_and_names_both_commits(self):
+        self.gh.tag_commit = "e" * 40
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("e" * 12, note)
+        self.assertIn("d" * 12, note)
+        self.assertIn("different candidate", note)
+
+    def test_an_unreadable_tag_is_an_error_not_a_pass(self):
+        self.gh.tag_readable = False
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.ERROR)
+        self.assertIn("origin", note)
 
 
 if __name__ == "__main__":

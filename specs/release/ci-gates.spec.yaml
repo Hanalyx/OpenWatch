@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.16.0"
+  version: "1.17.0"
   status: approved
   tier: 1
 
@@ -210,7 +210,8 @@ spec:
         newline from two paths.
 
         BINDING IS TO THE CANDIDATE ON THREE AXES: attested tag, attested commit, and an
-        artifact digest present in the candidate's published SHA256SUMS. Freshness here
+        artifact digest present in the SHA256SUMS on the candidate's release, draft or
+        published. Freshness here
         means reviewed against THESE bytes, never reviewed recently.
 
         SELECTION IS BY BINDING, NEVER BY FILENAME ORDER. Where several documentation
@@ -277,6 +278,69 @@ spec:
         clean scan still runs against the real tree; the copy is only for the mutation. The walker
         is NOT changed to tolerate a vanished file, because that would hide the next test that
         writes into the tree instead of surfacing it.
+      type: technical
+      enforcement: error
+    - id: C-14
+      description: >-
+        A GA release is a DISTINCT final-version commit, built ONCE into a DRAFT, verified as
+        a whole against that exact build, and published without rebuilding. Decided by the
+        founder on 2026-09-14 for v0.8 (option C in CP bugs/OW-037): a commit carrying
+        `X.Y.Z-rc.N` cannot satisfy a `vX.Y.Z` tag (release-package-build C-14), so GA is a
+        new commit, and a new commit and new artifacts carry NO evidence forward. Nothing is
+        inherited from any release candidate: no promotion flag, no carried verdict, no
+        per-blob reuse of a documentation review.
+
+        THE FINAL-VERSION COMMIT sets `VERSION="X.Y.Z"` in `packaging/version.env`, the README
+        version phrase and the newest CHANGELOG heading `[X.Y.Z] <codename> (<date>)`, where
+        the date is the INTENDED PUBLICATION DATE, and is prepared through review and merged.
+        The tag is cut from it by the same version-derived block a candidate uses.
+
+        BUILT ONCE INTO A DRAFT. For a bare tag `release.yml` MUST publish the assets into a
+        draft release, and MUST REFUSE TO BUILD any tag for which a release, draft or
+        published, already carries assets, so no re-run or dispatch can replace the bytes
+        the evidence describes while the tag looks unchanged. Runs of the workflow for one
+        tag MUST be serialized by a concurrency group keyed on the tag and MUST NOT be
+        canceled, because two runs that both pass the "no release yet" guard would both
+        upload and a canceled run can leave a half-uploaded draft; and the guard MUST run
+        again immediately before the upload, so a release created by any other means
+        during the build is not uploaded over.
+
+        VERIFIED AGAINST THOSE BYTES. The evaluator MUST read the draft (the releases list,
+        because the tag endpoint never returns a draft), MUST download every asset the
+        manifest names and hash it against SHA256SUMS, MUST report a package or SBOM on the
+        release that the manifest omits, and MUST verify SHA256SUMS.asc against
+        `security/KEYS` in a throwaway keyring, reading only gpg's machine status. The
+        evaluator MUST resolve the tag on origin through the API, dereferencing an annotated
+        tag, and MUST fail when it names a commit other than the one under evaluation: a
+        moved or stale tag is a different candidate. Fresh F1, F2, F3, H1 and a full D1 are
+        performed by the founder against the GA tag, commit and digests. The evaluator MUST
+        report the release state (draft, pre-release, published) with its verdict.
+
+        PUBLISHED ONLY ON GO AND ONLY BY THE FLIP. `scripts/release-publish.py` MUST refuse
+        unless the release exists, is a draft and carries assets; MUST refuse on any verdict
+        but GO; MUST record every asset id, name and size, the manifest bytes, and the commit
+        the tag names on origin, and refuse when that commit is not the evaluated one; MUST
+        re-read and refuse if any of that changed; MUST change nothing but the `draft` flag;
+        and MUST re-read afterward and report, as a distinct outcome, a published release
+        that differs from what was verified. It MUST NOT upload, delete, rename, rebuild or
+        tag. Running it with `--yes` is the founder's separate authorization, and GO is a
+        precondition of it, not a substitute for it.
+
+        A CHANGED CANDIDATE INVALIDATES ITS EVIDENCE. Any change to the commit the tag names
+        or to any asset makes every attestation naming the old commit or old digests STALE,
+        by the existing binding rules. A changed intended publication date is such a
+        change.
+
+        TAGS ARE IMMUTABLE. Founder-approved policy, 2026-09-14, recorded in CP bugs/OW-037.
+        Once pushed, an RC or GA tag is never moved or deleted, and nothing is rebuilt under
+        it. A candidate that must change is recorded as FAILED: its tag and version remain
+        reserved as the record of that candidate, and any draft stays unpublished. The next
+        version is prepared through review as a new final-version commit, with its own
+        intended publication date and fresh verification evidence; a failed 0.8.0 GA
+        candidate therefore advances to 0.8.1. The failure is recorded in the appropriate
+        bug record and in the next version's changelog. Diagnostic tests MAY run against a
+        failed candidate provided they do not alter the tag, the release draft or the
+        candidate assets. A published release is never rebuilt.
       type: technical
       enforcement: error
 
@@ -1019,13 +1083,16 @@ spec:
         THE TRACKED RUNBOOK IS PART OF THIS CONTRACT. `docs/runbooks/RELEASING.md` MUST
         carry the D1 procedure, and it MUST invoke the real
         `scripts/doc-review-skeleton.py` and `scripts/release-status.py` rather than
-        describe them. It MUST resolve the candidate commit explicitly and tag GA from
-        that commit by name: an implicit `git tag v<version>` takes whatever HEAD happens
-        to be, which is the reviewed commit only by luck and is indistinguishable
-        afterward. It MUST keep the attestation untracked while the decision is open and
-        commit it only after promotion, so the audit commit cannot change what was
-        released. Removing the skeleton command, or the check that the resolved candidate
-        commit is the one being promoted, MUST fail.
+        describe them. It MUST resolve the candidate commit explicitly from the tag
+        (`git rev-list -n 1`) and generate the skeleton for that commit, never for a
+        branch name or for whatever HEAD happens to be. It MUST keep the attestation
+        untracked while the decision is open and commit it only after publication, so
+        the audit commit cannot change what was released. The GA stage MUST cut its tag
+        with the same version-derived block as a candidate, from the final-version
+        commit, and MUST publish through `scripts/release-publish.py` rather than by
+        any command that could rebuild or re-upload (C-14). Removing the skeleton
+        command, the explicit commit resolution, or the publish-script invocation MUST
+        fail.
       priority: critical
       references_constraints: [C-11]
     - id: AC-16
@@ -1048,3 +1115,71 @@ spec:
         inside the tree would fail before any guard depended on it.
       priority: high
       references_constraints: [C-13]
+    - id: AC-18
+      description: >-
+        `release.yml` drafts a GA candidate, publishes a pre-release at once, and refuses to
+        rebuild. The publish step's `draft` input is true exactly when the tag carries no
+        pre-release hyphen and `prerelease` is true exactly when it does. A step that runs
+        `packaging/check-no-existing-release.sh` precedes the package build. Run with a
+        stubbed `gh`, that script exits 0 when no release names the tag or the release
+        carries no assets, exits non-zero when a draft or a published release already
+        carries assets, and exits non-zero when the release list cannot be read.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-19
+      description: >-
+        The evaluator verifies a draft's bytes. A draft release is found through the
+        releases listing and its state is reported. With every asset downloaded and hashed,
+        matching bytes PASS; one changed byte FAILs naming the asset; a manifested asset
+        absent from the release FAILs; a package or SBOM on the release but absent from the
+        manifest FAILs; an unreadable manifest is ERROR; no release is MISSING. The
+        signature check reads gpg's machine status: GOODSIG by a key in `security/KEYS`
+        passes naming the signer; BADSIG, NO_PUBKEY, an expired or revoked key, and a zero
+        exit without GOODSIG each FAIL; a missing `SHA256SUMS.asc` FAILs before any
+        download. A real detached signature made with a throwaway key verifies against
+        that key's export and fails after the manifest is tampered.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-20
+      description: >-
+        Publication is the flip and nothing else. With the evaluator's GitHub access
+        replaced by an in-memory release: no release, an already published release, and
+        a NO-GO verdict are each refused with nothing changed, `--yes` included; a dry run
+        flips nothing; GO with `--yes` issues exactly one request carrying only
+        `draft=false`, after which the same asset ids are public; an asset or manifest
+        replaced between the verdict and the flip is refused with the draft intact; a
+        change observed after the flip is reported as a distinct CHANGED outcome, not as
+        success; and no call the script makes uploads, deletes or dispatches a workflow.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-21
+      description: >-
+        Nothing is inherited. A release candidate's documentation review and fleet
+        attestations evaluate STALE against the GA tag, commit and digests; a GA
+        candidate's own review and attestations evaluate STALE against a replacement
+        candidate's commit and digests; and the evaluator's source carries no promotion
+        flag, inherited-verdict field or carry-forward function.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-22
+      description: >-
+        Two builds of one tag cannot race. `release.yml` carries a workflow-level
+        concurrency group whose key includes the tag and sets `cancel-in-progress: false`,
+        and runs `packaging/check-no-existing-release.sh` a second time between the
+        package build and the upload. Setting cancel-in-progress to true, removing the
+        second guard, and removing the concurrency block each fail.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-23
+      description: >-
+        A tag that changes after evaluation cannot be published. The evaluator resolves the
+        tag on origin through the API, dereferencing an annotated tag object; the
+        tag-identity gate passes on a matching commit, FAILs naming both commits when
+        origin names another, and is ERROR when the ref cannot be read. The publish script
+        records the commit the tag names on origin in its snapshot: a tag that names a
+        commit other than the verdict's is refused, a tag moved between the verdict and the
+        flip is refused with the draft intact and no request sent, and a tag moved after
+        the flip is reported as CHANGED. Dropping the commit from the snapshot, or making
+        the evaluator ignore the remote commit, fails.
+      priority: critical
+      references_constraints: [C-14]

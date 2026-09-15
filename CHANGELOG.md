@@ -10,13 +10,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.8.0] Eyrie (2026-09-14)
+## [0.8.0-rc.2] Eyrie (2026-09-14)
 
 ### Added
 
+- A GA release is now a distinct final-version commit built once into a draft
+  release, verified in full against that exact build, and published by
+  flipping the draft. The checker downloads every asset and hashes it against
+  `SHA256SUMS` and verifies the manifest signature against `security/KEYS`
+  (gates A1 and A2). `scripts/release-publish.py` publishes only on GO and
+  changes nothing but the draft flag. `release.yml` refuses to rebuild a tag
+  that already has assets. Nothing is inherited from a release candidate: a
+  GA candidate gets fresh fleet, captain and documentation evidence.
 - Release promotion now has a blocking documentation-review gate. A named human
-  must verify every tracked Markdown file against the exact release-candidate
-  commit and artifact before GA promotion. Any document change invalidates that
+  must verify every tracked Markdown file against the exact candidate commit
+  and artifact before publication. Any document change invalidates that
   evidence. The release runbook documents how to prepare, check, and preserve
   the attestation without changing the reviewed commit.
 - [The report-verification runbook](docs/runbooks/REPORT_VERIFICATION.md) documents how
@@ -354,6 +362,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a request.
 
 ### Fixed
+
+- The release runbook had the operator set `VERSION` in one step and type the
+  tag in another, so `v0.8.0-rc.1` was signed and pushed against
+  `VERSION="0.8.0"` and refused by the hosted tag check before any asset was
+  built. The candidate block now derives the tag from `packaging/version.env`,
+  runs the check first, and stops on any failed prerequisite; a test executes
+  the documented block against differently versioned copies of the tree.
+- The `setup` and `upgrade-from-ga` package harnesses looked for a candidate
+  package by its raw version and could not find the tilde-encoded file the
+  build produces, so every correctly versioned candidate failed those gates.
+  They now derive the on-disk name with the build's own encoding.
 
 - Scan backoff now prevents the scheduler from dispatching a host again until
   its suppression window expires. Migration 0064 gives scan and intelligence
