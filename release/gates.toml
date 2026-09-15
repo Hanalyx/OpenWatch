@@ -13,6 +13,7 @@
 #   release-asset an asset on the candidate's release, draft or published
 #   asset-digests every manifested asset downloaded and hashed against SHA256SUMS
 #   checksums-signature  SHA256SUMS.asc verified against security/KEYS
+#   tag-identity  the tag on origin names the evaluated commit
 #   per-platform  expands over [[platform]] below; satisfied by a container
 #                 job or a human attestation, either scoped to the artifact
 #   attestation   a file in release/attestations/ naming what was observed
@@ -200,6 +201,15 @@ title = "Tag is GPG signed"
 proves = "The candidate tag carries a good signature from the release key"
 evidence = "signed-tag"
 blocking = true
+
+[[gate]]
+id = "R4"
+title = "Tag names the evaluated commit on origin"
+proves = "The tag on origin, dereferenced through the API, resolves to the commit every other gate was evaluated against; a moved or stale tag is a different candidate"
+evidence = "tag-identity"
+blocking = true
+spec = "release-ci-gates"
+ac = "AC-23"
 
 # Install and upgrade. These expand over [[platform]].
 

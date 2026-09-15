@@ -78,7 +78,8 @@ block cuts the GA tag in Stage 4; only `version.env` differs.
 Pushing the tag triggers `release.yml` (builds + SBOMs + publishes a
 pre-release for a `-rc.N` tag) and `package-smoke.yml` (per-distro install
 matrix). A refused candidate is a failed candidate: leave its tag in place as
-a record, file the cause, and take the next number. Recovery names ONE version
+a record, file the cause, and take the next number. That holds for a GA tag
+too; see "When a GA candidate fails" under Stage 4. Recovery names ONE version
 in all four places: `VERSION` in `version.env`, the README phrase, the newest
 CHANGELOG heading, and the tag the block derives from them. After `v0.8.0-rc.1`
 was refused, the next candidate was `0.8.0-rc.2` in all four, never
@@ -260,33 +261,45 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
    python3 -S scripts/release-publish.py --tag "$TAG" --yes    # publish
    ```
 
-   The script re-evaluates, records every asset id, name and size and the
-   manifest bytes, re-reads the draft, refuses if anything changed, flips the
-   single `draft` flag, and re-reads again. It never uploads, deletes, renames,
-   rebuilds or tags. `--yes` is the founder's authorization; GO is a
-   precondition of it, not a substitute for it. A `PUBLISHED BUT CHANGED`
-   outcome means what is public is not what was verified: treat every
-   attestation for the tag as stale and investigate before announcing.
+   The script re-evaluates, records every asset id, name and size, the
+   manifest bytes and the commit the tag names on `origin`, re-reads all of
+   that, refuses if anything changed, flips the single `draft` flag, and
+   re-reads again. It never uploads, deletes, renames, rebuilds or tags.
+   `--yes` is the founder's authorization; GO is a precondition of it, not a
+   substitute for it. A `PUBLISHED BUT CHANGED` outcome means what is public
+   is not what was verified: treat every attestation for the tag as stale and
+   investigate before announcing.
 
 5. **Commit the attestations** (D1 and the fleet files) after publication.
 
-### Replacing an unpublished GA candidate
+### When a GA candidate fails
 
 Any change to the candidate commit or to any asset invalidates the evidence
 that names the old commit or the old digests; the checker reports it STALE. A
-changed intended publication date is such a change. The candidate is then
-replaced, never patched in place:
+changed intended publication date is such a change, and so is a defect found
+during Stage 3 or 3b.
 
-1. Delete the draft release. Its assets were never published.
-2. Delete the tag, locally and on `origin`. Nothing was ever released under
-   it, which is what distinguishes it from a refused or failed RC tag, whose
-   number is simply skipped.
-3. Prepare a new final-version commit through review (step 1 above), with the
-   new date if that is what changed.
-4. Cut again with the Stage 2 block and run Stages 3 and 3b in full.
+**Tags are immutable.** A pushed tag is never moved, deleted or rebuilt, for a
+release candidate or a GA candidate alike, whether or not anything was built
+under it (`release-ci-gates` C-14). A GA candidate that must change has
+failed, and the path is the same one an RC takes, one level up:
 
-A published release is never rebuilt. If a defect is found after publication,
-it is a new version.
+1. Leave the tag and its draft where they are. The tag is the record of the
+   failed candidate; the draft is never published (`release-publish.py`
+   refuses anything that is not GO) and its assets are never re-cut.
+2. Record the failure: the cause in a CP `bugs/` entry, and a line in the next
+   version's changelog saying that number was not released and why.
+3. Prepare the NEXT version through review as a new final-version commit
+   (step 1 above): `0.8.1` after a failed `0.8.0`, with its own intended
+   publication date.
+4. Cut it with the Stage 2 block and run Stages 3 and 3b in full against it.
+
+Version numbers are cheap; a tag that means one thing forever is not. This
+policy was proposed on 2026-09-14 (CP `bugs/OW-037`) and stands as written
+once the founder confirms it there.
+
+A published release is never rebuilt. A defect found after publication is a
+new version.
 
 ## Stage 5: Post-release smoke
 

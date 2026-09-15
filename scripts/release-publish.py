@@ -11,7 +11,8 @@ making that exact draft visible. This script:
 
   1. refuses unless the release for the tag exists and is a draft;
   2. runs the full readiness evaluation and refuses on anything but GO;
-  3. records every asset's id, name and size and the SHA256SUMS content;
+  3. records every asset's id, name and size, the SHA256SUMS content, and
+     the commit the tag names on origin;
   4. re-reads the release and refuses if anything in (3) changed meanwhile;
   5. flips the single `draft` flag through the GitHub API;
   6. re-reads the release and reports, loudly, if what is now published is
@@ -48,11 +49,15 @@ class Changed(Exception):
     is published and does not match what was verified: say so."""
 
 
-def snapshot(info, sums_text):
+def snapshot(tag, info, sums_text):
+    """Everything publication exposes: which release, which assets, what the
+    manifest says, and which commit the tag names on origin. A change to any
+    of these between the verdict and the flip is a different candidate."""
     return {
         "id": info["id"],
         "assets": sorted((a["id"], a["name"], a["size"]) for a in info["assets"]),
         "sums": sums_text,
+        "commit": rs.remote_tag_commit(tag),
     }
 
 
@@ -114,7 +119,13 @@ def publish(tag, gates, confirm, workdir, out=print):
         sums = read_sums(info)
         if sums is None:
             raise Refuse("could not read SHA256SUMS from the draft")
-        before = snapshot(info, sums)
+        before = snapshot(tag, info, sums)
+        if before["commit"] is None:
+            raise Refuse(f"cannot resolve {tag} on origin; a tag that cannot be read "
+                         "cannot be published")
+        if before["commit"] != commit:
+            raise Refuse(f"{tag} names {before['commit'][:12]} on origin but the verdict "
+                         f"was for {commit[:12]}; the tag moved or the local tag is stale")
         out(f"\nDraft release {before['id']} for {tag} ({commit[:8]}): "
             f"{len(before['assets'])} assets, verdict GO.")
         for _, name, size in before["assets"]:
@@ -126,8 +137,9 @@ def publish(tag, gates, confirm, workdir, out=print):
         # The window between GO and the flip is where a re-run of release.yml
         # would substitute bytes. Re-read and compare before acting.
         again = require_draft(tag)
-        if snapshot(again, read_sums(again)) != before:
-            raise Refuse("the draft changed since it was verified; nothing published")
+        if snapshot(tag, again, read_sums(again)) != before:
+            raise Refuse("the draft, its manifest or the tag changed since it was "
+                         "verified; nothing published")
         flip(before["id"])
     except Refuse as e:
         out(f"\nrelease-publish: REFUSED: {e}")
@@ -138,7 +150,7 @@ def publish(tag, gates, confirm, workdir, out=print):
         out(f"\nrelease-publish: the flip did not take; release state is "
             f"{rs.release_state(tag, after)}")
         return CHANGED
-    now = snapshot(after, read_sums(after))
+    now = snapshot(tag, after, read_sums(after))
     if now != before:
         out(f"\nrelease-publish: PUBLISHED BUT CHANGED: what is now public for {tag} "
             "is not what was verified. Treat every attestation for this tag as "

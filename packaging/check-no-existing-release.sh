@@ -6,8 +6,9 @@
 # build under the same tag would replace the bytes the evidence describes
 # while leaving the tag, the release page and the evidence looking unchanged.
 # That is exactly the silent substitution the release contract forbids
-# (release-ci-gates C-14). A candidate that must change is replaced under the
-# procedure in docs/runbooks/RELEASING.md Stage 4, never rebuilt in place.
+# (release-ci-gates C-14). A candidate that must change has failed; the next
+# version is prepared under docs/runbooks/RELEASING.md Stage 4. Nothing is
+# rebuilt in place and no pushed tag is moved.
 #
 # Usage: RELEASE_REF=v0.8.0 bash packaging/check-no-existing-release.sh
 # Needs: gh, authenticated with push access (drafts are only listed to it).
@@ -44,10 +45,10 @@ check-no-existing-release: REFUSING TO BUILD
 
 A candidate is built once; its evidence binds to the digests of that build.
 Building again would replace those bytes under the same tag and leave every
-attestation describing artifacts that no longer exist. If this candidate must
-change, replace it under RELEASING.md Stage 4 (delete the unpublished draft
-and its tag, prepare a new final-version commit, cut again). A published
-release is never rebuilt.
+attestation describing artifacts that no longer exist. A pushed tag is never
+moved, deleted or rebuilt. If this candidate must change, it has failed: keep
+its tag as the record, prepare the NEXT version through review, cut that, and
+establish fresh evidence against it (RELEASING.md Stage 4).
 MSG
         exit 1
     fi

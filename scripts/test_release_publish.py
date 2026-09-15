@@ -152,6 +152,33 @@ class PublicationRefusesAChangedDraft(unittest.TestCase):
             self.assertEqual(sc.run(True), rp.REFUSED)
             self.assertEqual(sc.patched, [])
 
+    def test_a_tag_moved_between_go_and_the_flip_is_refused(self):
+        # The assets are untouched; only the commit the tag names changed.
+        # Verified bytes under an unverified commit is a different candidate.
+        def move_tag(release, blobs):
+            self_gh.tag_commit = "e" * 40
+        with Scenario(mutate_before_flip=move_tag) as sc:
+            self_gh = sc.gh
+            self.assertEqual(sc.run(True), rp.REFUSED)
+            self.assertEqual(sc.patched, [])
+            self.assertTrue(sc.release["draft"])
+            self.assertIn("tag changed", sc.out.getvalue())
+
+    def test_a_tag_that_never_matched_the_verdict_is_refused(self):
+        with Scenario() as sc:
+            sc.gh.tag_commit = "e" * 40  # origin disagrees with the evaluated commit
+            self.assertEqual(sc.run(True), rp.REFUSED)
+            self.assertEqual(sc.patched, [])
+            self.assertIn("moved or the local tag is stale", sc.out.getvalue())
+
+    def test_a_tag_moved_after_the_flip_is_reported_as_changed(self):
+        def move_tag(release, blobs):
+            self_gh.tag_commit = "e" * 40
+        with Scenario(mutate_after_flip=move_tag) as sc:
+            self_gh = sc.gh
+            self.assertEqual(sc.run(True), rp.CHANGED)
+            self.assertIn("PUBLISHED BUT CHANGED", sc.out.getvalue())
+
     def test_a_change_after_the_flip_is_reported_as_changed_not_success(self):
         def rebuild(release, blobs):
             a = next(x for x in release["assets"] if x["name"].endswith(".rpm"))

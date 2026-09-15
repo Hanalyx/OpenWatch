@@ -414,7 +414,7 @@ class ManifestIsLoadable(unittest.TestCase):
 
     KINDS = {"github-check", "github-check-all", "release-asset",
              "signed-tag", "per-platform", "attestation", "doc-review",
-             "asset-digests", "checksums-signature"}
+             "asset-digests", "checksums-signature", "tag-identity"}
 
     def setUp(self):
         import tomllib
@@ -1076,13 +1076,25 @@ class FakeGH:
     """Stand in for rs.sh / rs.sh_bytes: serves a releases listing and asset
     bytes by id, and records every call. No network."""
 
-    def __init__(self, releases, assets_bytes):
+    def __init__(self, releases, assets_bytes, tag_commit="d" * 40, annotated=True):
         self.releases = releases          # list of release dicts (GitHub shape)
         self.assets_bytes = assets_bytes  # asset id -> bytes
+        self.tag_commit = tag_commit      # what refs/tags/<tag> resolves to on origin
+        self.annotated = annotated        # annotated tags need a second dereference
+        self.tag_readable = True
         self.calls = []
 
     def sh(self, *args, check=False):
         self.calls.append(args)
+        for a in args:
+            if a.startswith("repos/{owner}/{repo}/git/ref/tags/"):
+                if not self.tag_readable or self.tag_commit is None:
+                    return 1, "Not Found"
+                if self.annotated:
+                    return 0, "tag\t" + "t" * 40
+                return 0, "commit\t" + self.tag_commit
+            if a.startswith("repos/{owner}/{repo}/git/tags/"):
+                return 0, self.tag_commit
         if "repos/{owner}/{repo}/releases" in args and "--paginate" in args:
             jq = args[args.index("--jq") + 1]
             tag = jq.split('"')[1]
@@ -1343,6 +1355,48 @@ class StaleEvidenceInTheGAFlow(unittest.TestCase):
         for token in ("--promotes", "promotes", "basis_docs_sha256", "carried_from"):
             self.assertNotIn(token, src, f"{token!r} would be an inheritance path")
         self.assertNotIn("promotes", rs.DOC_SCALARS)
+
+
+class TagIdentityIsCheckedOnOrigin(unittest.TestCase):
+    """R4: the commit the gates were evaluated against is the commit the tag
+    names on origin. Evaluation resolves the tag locally, which is right only
+    while the two agree."""
+
+    def setUp(self):
+        self.release, self.blobs = draft_fixture()
+        self.gh = FakeGH([self.release], self.blobs)
+        self._sh = rs.sh
+        rs.sh = self.gh.sh
+
+    def tearDown(self):
+        rs.sh = self._sh
+
+    def test_an_annotated_tag_is_dereferenced_to_its_commit(self):
+        self.assertEqual(rs.remote_tag_commit("v0.8.0"), "d" * 40)
+        self.assertTrue(any("git/tags/" in " ".join(c) for c in self.gh.calls),
+                        "an annotated tag object must be dereferenced")
+
+    def test_a_lightweight_tag_resolves_directly(self):
+        self.gh.annotated = False
+        self.assertEqual(rs.remote_tag_commit("v0.8.0"), "d" * 40)
+
+    def test_matching_commits_pass(self):
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_moved_or_stale_tag_fails_and_names_both_commits(self):
+        self.gh.tag_commit = "e" * 40
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("e" * 12, note)
+        self.assertIn("d" * 12, note)
+        self.assertIn("different candidate", note)
+
+    def test_an_unreadable_tag_is_an_error_not_a_pass(self):
+        self.gh.tag_readable = False
+        status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
+        self.assertEqual(status, rs.ERROR)
+        self.assertIn("origin", note)
 
 
 if __name__ == "__main__":

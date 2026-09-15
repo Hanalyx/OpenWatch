@@ -635,6 +635,40 @@ def interpret_gpg_status(rc, status_lines):
     return FAIL, "SHA256SUMS.asc did not verify"
 
 
+def remote_tag_commit(tag):
+    """The commit the tag names on origin, read through the API so a stale or
+    locally rewritten tag cannot stand in for it. An annotated tag is
+    dereferenced to its commit. None when the ref cannot be read."""
+    rc, out = sh("gh", "api", f"repos/{{owner}}/{{repo}}/git/ref/tags/{tag}",
+                 "--jq", "[.object.type, .object.sha] | @tsv")
+    if rc != 0 or "\t" not in out:
+        return None
+    kind, sha = out.split("\t", 1)
+    if kind == "commit":
+        return sha
+    if kind == "tag":
+        rc, out = sh("gh", "api", f"repos/{{owner}}/{{repo}}/git/tags/{sha}",
+                     "--jq", ".object.sha")
+        return out if rc == 0 and out else None
+    return None
+
+
+def verify_tag_identity(tag, commit, remote=None):
+    """The commit under evaluation is the commit the tag names on origin.
+    Evaluation resolves the tag locally, which is only right while the local
+    tag and the remote one agree. A tag moved after evaluation, or a local
+    tag that never caught up, would otherwise let evidence about one commit
+    publish another. Returns (status, note)."""
+    remote = remote_tag_commit(tag) if remote is None else remote
+    if remote is None:
+        return ERROR, f"cannot resolve {tag} on origin (gh auth, or the tag is not pushed)"
+    if remote != commit:
+        return FAIL, (f"{tag} names {remote[:12]} on origin but {commit[:12]} here; "
+                      "the tag moved or the local tag is stale. Fetch and re-evaluate; "
+                      "a moved tag is a different candidate")
+    return PASS, f"{tag} names {commit[:12]} on origin and here"
+
+
 def tag_is_signed(tag):
     rc, _ = sh("git", "tag", "-v", tag)
     return rc == 0
@@ -750,6 +784,10 @@ def evaluate(gates, tag, commit, workdir=None):
 
         elif kind == "checksums-signature":
             status, note = verify_checksums_signature(info, Path(workdir) / "sig")
+            yield gid, g["title"], status, note
+
+        elif kind == "tag-identity":
+            status, note = verify_tag_identity(tag, commit)
             yield gid, g["title"], status, note
 
         elif kind == "signed-tag":

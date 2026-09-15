@@ -1963,7 +1963,8 @@ func TestCIGates_ReleaseDraftsGAAndRefusesToRebuild(t *testing.T) {
 				"the two halves of one decision", dm[1], pm[1])
 		}
 
-		// The guard precedes the build.
+		// The guard precedes the build. AC-22 covers the second guard and
+		// the concurrency group.
 		guardAt := strings.Index(flow, "packaging/check-no-existing-release.sh")
 		buildAt := strings.Index(flow, "make packages")
 		switch {
@@ -2063,4 +2064,73 @@ func runPythonSuite(t *testing.T, script string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("%s failed: %v\n%s", script, err, tailOf(out, 40))
 	}
+}
+
+// @ac AC-22
+// AC-22: two builds of one tag cannot race.
+//
+// The rebuild guard refuses a tag that already has assets. Two runs that
+// both pass it before either has published would both upload, and the
+// second would replace the first's assets under an unchanged tag. The
+// workflow serializes runs per tag and never cancels one, and runs the guard
+// again at the last moment before the upload.
+func TestCIGates_BuildsOfOneTagAreSerialized(t *testing.T) {
+	t.Run("release-ci-gates/AC-22", func(t *testing.T) {
+		dir := appDir(t)
+		wf, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "release.yml"))
+		if err != nil {
+			t.Fatalf("read release.yml: %v", err)
+		}
+		flow := string(wf)
+
+		// The guard runs twice: before the build, and again immediately
+		// before the upload. The first refuses a rebuild; the second closes
+		// the window in which a release created by other means during the
+		// build would be uploaded over.
+		guards := regexp.MustCompile(`packaging/check-no-existing-release\.sh`).FindAllStringIndex(flow, -1)
+		buildAt := strings.Index(flow, "make packages")
+		publishAt := strings.Index(flow, "softprops/action-gh-release")
+		switch {
+		case len(guards) < 2:
+			t.Errorf("release.yml runs packaging/check-no-existing-release.sh %d time(s); "+
+				"it must run before the build and again before the upload", len(guards))
+		case buildAt < 0 || publishAt < 0:
+			t.Error("release.yml no longer runs `make packages` or the publish action; this ordering check is stale")
+		case guards[0][0] > buildAt:
+			t.Error("release.yml runs the first rebuild guard AFTER the build; it protects nothing there")
+		case guards[len(guards)-1][0] < buildAt || guards[len(guards)-1][0] > publishAt:
+			t.Error("release.yml has no rebuild guard between the build and the upload")
+		}
+
+		// Concurrent builds of one tag serialize and are never canceled. Two
+		// runs that both pass the "no release yet" guard would both upload,
+		// and the second would replace the first's assets under an
+		// unchanged tag. A canceled run could leave a half-uploaded draft.
+		conc := regexp.MustCompile(`(?ms)^concurrency:\n((?:[ \t]+.*\n)+)`).FindStringSubmatch(flow)
+		if conc == nil {
+			t.Error("release.yml has no workflow-level concurrency block; two builds of one tag can race")
+		} else {
+			block := conc[1]
+			if !regexp.MustCompile(`group:.*github\.ref_name`).MatchString(block) {
+				t.Errorf("release.yml's concurrency group does not include the tag; builds of "+
+					"different tags may run together but two of one tag must not:\n%s", block)
+			}
+			if !regexp.MustCompile(`cancel-in-progress:\s*false`).MatchString(block) {
+				t.Errorf("release.yml must set cancel-in-progress: false; a canceled build can "+
+					"leave a half-uploaded draft:\n%s", block)
+			}
+		}
+
+	})
+}
+
+// @ac AC-23
+// AC-23: a tag that changes after evaluation cannot be published. The
+// evaluator's tag-identity gate and the publish script's snapshot live in
+// Python with their tests; this runs both suites.
+func TestCIGates_AMovedTagCannotBePublished(t *testing.T) {
+	t.Run("release-ci-gates/AC-23", func(t *testing.T) {
+		runPythonSuite(t, "scripts/test_release_status.py")
+		runPythonSuite(t, "scripts/test_release_publish.py")
+	})
 }
