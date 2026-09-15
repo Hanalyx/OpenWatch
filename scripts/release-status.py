@@ -29,8 +29,10 @@ import fnmatch
 import json
 import datetime
 import hashlib
+import os
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -418,31 +420,253 @@ def check_runs(commit):
     return runs
 
 
-def release_assets(tag):
-    rc, out = sh("gh", "release", "view", tag, "--json", "assets")
+KEYS = REPO / "security" / "KEYS"
+
+# Assets the manifest must account for. SHA256SUMS lists every package and
+# SBOM; the manifest itself, its signatures and the public keys are outside it
+# by construction.
+MANIFESTED = ("*.rpm", "*.deb", "*.cdx.json")
+
+
+def release_info(tag):
+    """The release for a tag, draft or published, or None when there is none.
+
+    Read from the releases list rather than `releases/tags/<tag>`, because
+    that endpoint never returns a draft, and a GA candidate lives in a draft
+    until scripts/release-publish.py publishes it (release-ci-gates C-14).
+    Drafts are listed only to a token with push access, which is the same
+    access the release captain needs anyway.
+    """
+    rc, out = sh(
+        "gh", "api", "--paginate", "repos/{owner}/{repo}/releases",
+        "--jq", ".[] | select(.tag_name == \"" + tag + "\") | @json",
+    )
     if rc != 0:
         return None
-    return [a["name"] for a in json.loads(out).get("assets", [])]
+    found = [json.loads(line) for line in out.splitlines() if line.strip()]
+    if not found:
+        return {"exists": False}
+    if len(found) > 1:
+        # Two releases naming one tag is a repository state nobody intended;
+        # report rather than pick.
+        return {"exists": True, "ambiguous": len(found)}
+    r = found[0]
+    return {
+        "exists": True,
+        "id": r["id"],
+        "draft": bool(r.get("draft")),
+        "prerelease": bool(r.get("prerelease")),
+        "target": r.get("target_commitish", ""),
+        "assets": [{"id": a["id"], "name": a["name"], "size": a.get("size", 0)}
+                   for a in r.get("assets", [])],
+    }
 
 
-def release_digests(tag):
-    """sha256 -> filename, from the candidate's published SHA256SUMS.
+def release_assets(tag, info=None):
+    info = release_info(tag) if info is None else info
+    if info is None or not info.get("exists") or info.get("ambiguous"):
+        return None
+    return [a["name"] for a in info["assets"]]
+
+
+def download_asset(asset_id, dest):
+    """Fetch one asset's bytes by id into dest. Works for a draft."""
+    rc, raw = sh_bytes(
+        "gh", "api", "-H", "Accept: application/octet-stream",
+        f"repos/{{owner}}/{{repo}}/releases/assets/{asset_id}",
+    )
+    if rc != 0:
+        return False
+    Path(dest).write_bytes(raw)
+    return True
+
+
+def _asset_by_name(info, name):
+    for a in info.get("assets", []):
+        if a["name"] == name:
+            return a
+    return None
+
+
+def release_digests(tag, info=None):
+    """sha256 -> filename, from the candidate's SHA256SUMS on its release,
+    draft or published.
 
     Returns None when the list could not be read at all, which callers must
     treat as "cannot verify" rather than "nothing to check against". An
     unreachable checksum list is the one case where a stale attestation would
     otherwise sail through as PASS.
     """
-    rc, out = sh("gh", "release", "download", tag, "--pattern", "SHA256SUMS",
-                 "--output", "-")
+    info = release_info(tag) if info is None else info
+    if info is None or not info.get("exists") or info.get("ambiguous"):
+        return None
+    sums = _asset_by_name(info, "SHA256SUMS")
+    if sums is None:
+        return None
+    rc, raw = sh_bytes(
+        "gh", "api", "-H", "Accept: application/octet-stream",
+        f"repos/{{owner}}/{{repo}}/releases/assets/{sums['id']}",
+    )
     if rc != 0:
         return None
+    return parse_sums(raw.decode("utf-8", "replace"))
+
+
+def parse_sums(text):
     digests = {}
-    for line in out.splitlines():
+    for line in text.splitlines():
         parts = line.split()
         if len(parts) == 2:
             digests[parts[0]] = parts[1]
     return digests
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_asset_digests(info, digests, workdir):
+    """Every asset the manifest names is on the release and hashes to the
+    digest the manifest gives it, and every package or SBOM on the release
+    is in the manifest. Bytes are downloaded and hashed here; the checker
+    does not take the release page's word for what it serves.
+
+    Returns (status, note).
+    """
+    if info is None or not info.get("exists"):
+        return MISSING, "no release for this tag"
+    if info.get("ambiguous"):
+        return ERROR, f"{info['ambiguous']} releases name this tag"
+    if digests is None:
+        return ERROR, "cannot read SHA256SUMS, so nothing can be verified"
+    if not digests:
+        return FAIL, "SHA256SUMS lists nothing"
+    names = {a["name"] for a in info["assets"]}
+    missing = sorted(n for n in digests.values() if n not in names)
+    if missing:
+        return FAIL, "in SHA256SUMS but not on the release: " + ", ".join(missing)
+    unlisted = sorted(n for n in names
+                      if any(fnmatch.fnmatch(n, p) for p in MANIFESTED)
+                      and n not in digests.values())
+    if unlisted:
+        return FAIL, "on the release but not in SHA256SUMS: " + ", ".join(unlisted)
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    bad = []
+    for want, name in sorted(digests.items(), key=lambda kv: kv[1]):
+        dest = workdir / name
+        asset = _asset_by_name(info, name)
+        if not download_asset(asset["id"], dest):
+            return ERROR, f"could not download {name}"
+        got = sha256_file(dest)
+        if got != want:
+            bad.append(f"{name} ({got[:12]} != {want[:12]})")
+    if bad:
+        return FAIL, "digest mismatch: " + ", ".join(bad)
+    return PASS, f"{len(digests)} assets hashed and match SHA256SUMS"
+
+
+def verify_checksums_signature(info, workdir, keys=KEYS):
+    """SHA256SUMS.asc is a good detached signature over SHA256SUMS by a key
+    in security/KEYS. Verified in a throwaway GNUPGHOME so the operator's own
+    keyring neither helps nor is touched.
+
+    Returns (status, note).
+    """
+    if info is None or not info.get("exists"):
+        return MISSING, "no release for this tag"
+    if info.get("ambiguous"):
+        return ERROR, f"{info['ambiguous']} releases name this tag"
+    sums = _asset_by_name(info, "SHA256SUMS")
+    asc = _asset_by_name(info, "SHA256SUMS.asc")
+    if sums is None:
+        return FAIL, "SHA256SUMS is not on the release"
+    if asc is None:
+        return FAIL, "SHA256SUMS.asc is not on the release; the manifest is unsigned"
+    if not Path(keys).is_file():
+        return ERROR, f"{keys} not found; nothing to verify against"
+    workdir = Path(workdir)
+    home = workdir / "gnupg"
+    home.mkdir(parents=True, exist_ok=True)
+    home.chmod(0o700)
+    sums_path, asc_path = workdir / "SHA256SUMS", workdir / "SHA256SUMS.asc"
+    for asset, dest in ((sums, sums_path), (asc, asc_path)):
+        if not download_asset(asset["id"], dest):
+            return ERROR, f"could not download {asset['name']}"
+    return gpg_verify(home, keys, asc_path, sums_path)
+
+
+def gpg_verify(home, keys, asc_path, sums_path):
+    """Import keys into home and verify. Split out so the parsing can be
+    exercised without a network and the gpg calls without a release."""
+    env = {"GNUPGHOME": str(home), "PATH": os.environ.get("PATH", "")}
+    p = subprocess.run(["gpg", "--batch", "--quiet", "--import", str(keys)],
+                       capture_output=True, text=True, env=env)
+    if p.returncode != 0:
+        return ERROR, f"could not import {keys}: {p.stderr.strip()[:120]}"
+    p = subprocess.run(["gpg", "--batch", "--status-fd", "1", "--verify",
+                        str(asc_path), str(sums_path)],
+                       capture_output=True, text=True, env=env)
+    return interpret_gpg_status(p.returncode, p.stdout)
+
+
+def interpret_gpg_status(rc, status_lines):
+    """gpg's machine-readable status is the only thing read; the human text
+    varies by locale and version. A missing key, a bad signature and a good
+    one are three different facts."""
+    good = None
+    for line in status_lines.splitlines():
+        parts = line.split(maxsplit=3)
+        if len(parts) >= 3 and parts[0] == "[GNUPG:]":
+            if parts[1] == "GOODSIG":
+                good = parts[3] if len(parts) > 3 else parts[2]
+            elif parts[1] == "BADSIG":
+                return FAIL, "BAD signature on SHA256SUMS"
+            elif parts[1] == "NO_PUBKEY":
+                return FAIL, f"signed by a key not in security/KEYS ({parts[2][-16:]})"
+            elif parts[1] in ("EXPKEYSIG", "REVKEYSIG"):
+                return FAIL, f"signed by an {parts[1][:3].lower()}ired or revoked key"
+    if rc == 0 and good:
+        return PASS, f"good signature by {good}"
+    return FAIL, "SHA256SUMS.asc did not verify"
+
+
+def remote_tag_commit(tag):
+    """The commit the tag names on origin, read through the API so a stale or
+    locally rewritten tag cannot stand in for it. An annotated tag is
+    dereferenced to its commit. None when the ref cannot be read."""
+    rc, out = sh("gh", "api", f"repos/{{owner}}/{{repo}}/git/ref/tags/{tag}",
+                 "--jq", "[.object.type, .object.sha] | @tsv")
+    if rc != 0 or "\t" not in out:
+        return None
+    kind, sha = out.split("\t", 1)
+    if kind == "commit":
+        return sha
+    if kind == "tag":
+        rc, out = sh("gh", "api", f"repos/{{owner}}/{{repo}}/git/tags/{sha}",
+                     "--jq", ".object.sha")
+        return out if rc == 0 and out else None
+    return None
+
+
+def verify_tag_identity(tag, commit, remote=None):
+    """The commit under evaluation is the commit the tag names on origin.
+    Evaluation resolves the tag locally, which is only right while the local
+    tag and the remote one agree. A tag moved after evaluation, or a local
+    tag that never caught up, would otherwise let evidence about one commit
+    publish another. Returns (status, note)."""
+    remote = remote_tag_commit(tag) if remote is None else remote
+    if remote is None:
+        return ERROR, f"cannot resolve {tag} on origin (gh auth, or the tag is not pushed)"
+    if remote != commit:
+        return FAIL, (f"{tag} names {remote[:12]} on origin but {commit[:12]} here; "
+                      "the tag moved or the local tag is stale. Fetch and re-evaluate; "
+                      "a moved tag is a different candidate")
+    return PASS, f"{tag} names {commit[:12]} on origin and here"
 
 
 def tag_is_signed(tag):
@@ -490,11 +714,18 @@ def eval_attestation(att, digests, human_required):
     return PASS, f"{att['_file']} ({who}, {when})"
 
 
-def evaluate(gates, tag, commit):
-    """Yield (gate_id, label, status, note) rows."""
+def evaluate(gates, tag, commit, workdir=None):
+    """Yield (gate_id, label, status, note) rows.
+
+    workdir receives downloaded assets for digest and signature checks; a
+    fresh temporary directory when None.
+    """
+    if workdir is None:
+        workdir = Path(tempfile.mkdtemp(prefix="release-status-"))
     runs = check_runs(commit)
-    assets = release_assets(tag)
-    digests = release_digests(tag)
+    info = release_info(tag)
+    assets = release_assets(tag, info)
+    digests = release_digests(tag, info)
     atts = load_attestations()
     platforms = gates.get("platform", [])
 
@@ -538,7 +769,7 @@ def evaluate(gates, tag, commit):
 
         elif kind == "release-asset":
             if assets is None:
-                yield gid, g["title"], MISSING, f"no published release for {tag}"
+                yield gid, g["title"], MISSING, f"no release (draft or published) for {tag}"
                 continue
             absent = [p for p in g["assets"]
                       if not any(fnmatch.fnmatch(a, p) for a in assets)]
@@ -546,6 +777,18 @@ def evaluate(gates, tag, commit):
                 yield gid, g["title"], FAIL, "missing: " + ", ".join(absent)
             else:
                 yield gid, g["title"], PASS, f"{len(g['assets'])} patterns matched"
+
+        elif kind == "asset-digests":
+            status, note = verify_asset_digests(info, digests, Path(workdir) / "assets")
+            yield gid, g["title"], status, note
+
+        elif kind == "checksums-signature":
+            status, note = verify_checksums_signature(info, Path(workdir) / "sig")
+            yield gid, g["title"], status, note
+
+        elif kind == "tag-identity":
+            status, note = verify_tag_identity(tag, commit)
+            yield gid, g["title"], status, note
 
         elif kind == "signed-tag":
             if tag_is_signed(tag):
@@ -633,6 +876,22 @@ def label_of(g):
     return g["title"]
 
 
+def release_state(tag, info=None):
+    """'draft', 'pre-release', 'published', 'none' or 'ambiguous'. A GA
+    candidate is verified as a draft and published only afterward, so the
+    state is part of the readiness picture rather than an aside."""
+    info = release_info(tag) if info is None else info
+    if info is None:
+        return "unreadable"
+    if not info.get("exists"):
+        return "none"
+    if info.get("ambiguous"):
+        return "ambiguous"
+    if info["draft"]:
+        return "draft"
+    return "pre-release" if info["prerelease"] else "published"
+
+
 # ------------------------------------------------------------------- output
 
 
@@ -658,7 +917,7 @@ def main():
     rows = list(evaluate(gates, tag, commit))
     width = max(len(r[1]) for r in rows) + 2
 
-    print(f"\nRelease readiness: {tag} ({commit[:8]})\n")
+    print(f"\nRelease readiness: {tag} ({commit[:8]}), release {release_state(tag)}\n")
     print(f"{'':4} {'GATE'.ljust(width)} {'STATUS':8} EVIDENCE")
     print("-" * (width + 60))
     for gid, label, status, note in rows:

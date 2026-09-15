@@ -25,6 +25,16 @@ on:
 permissions:
   contents: write # create the release + upload assets
 
+# One build per tag at a time. Two runs for the same tag (a re-run started
+# while the first is still building, or a dispatch racing a push) would both
+# pass the "no release yet" guard and the second would replace the first's
+# assets. Serialized, the second run reaches the guard after the first has
+# published and is refused. Never cancel: a canceled run could leave a
+# half-uploaded draft. Spec: release-ci-gates C-14 / AC-18.
+concurrency:
+  group: release-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build, SBOM, sign, publish
@@ -48,6 +58,17 @@ jobs:
         run: bash packaging/check-tag-version.sh
         env:
           RELEASE_REF: ${{ github.event.inputs.version || github.ref_name }}
+
+      # A candidate is built once. Every piece of release evidence binds to
+      # the digests of that build, so a second run for the same tag (a re-run,
+      # or workflow_dispatch with the same version) would replace the bytes
+      # the evidence describes while the tag and release page look unchanged.
+      # Spec: release-ci-gates C-14 / AC-18.
+      - name: Refuse to rebuild a tag that already has assets
+        run: bash packaging/check-no-existing-release.sh
+        env:
+          RELEASE_REF: ${{ github.event.inputs.version || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -203,6 +224,15 @@ jobs:
             --key env://COSIGN_PRIVATE_KEY \
             --output-signature dist/SHA256SUMS.cosign.sig dist/SHA256SUMS
 
+      # The same guard again, at the last moment before the upload. The
+      # concurrency group serializes this workflow's own runs; this catches
+      # a release created by any other means while the build ran.
+      - name: Refuse to upload over a release that gained assets meanwhile
+        run: bash packaging/check-no-existing-release.sh
+        env:
+          RELEASE_REF: ${{ github.event.inputs.version || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -210,8 +240,14 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
           # Any version with a pre-release suffix (e.g. -rc.4, -beta.1) is a
-          # pre-release; a bare vX.Y.Z (no hyphen) is a GA release.
+          # pre-release and is published at once. A bare vX.Y.Z (no hyphen)
+          # is a GA candidate: its assets land in a DRAFT release, verified
+          # as a whole by scripts/release-status.py against these exact
+          # bytes, and published by scripts/release-publish.py only on GO
+          # plus separate authorization, without rebuilding or replacing any
+          # asset. Spec: release-ci-gates C-14 / AC-18.
           prerelease: ${{ contains(github.event.inputs.version || github.ref_name, '-') }}
+          draft: ${{ !contains(github.event.inputs.version || github.ref_name, '-') }}
           files: |
             dist/openwatch-*.rpm
             dist/openwatch_*.deb

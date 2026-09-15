@@ -51,9 +51,10 @@ case "$tag_version" in
   tag v$next."
         ;;
     *)
-        advice="  a GA tag is cut from the final-version commit, the one whose version.env
-  says VERSION=\"$tag_version\". Prepare that commit through review and merge
-  it. RELEASING.md Stage 4 says how an unpublished GA tag is replaced."
+        advice="  this tag is now a record of a failed GA candidate and is never moved. A GA
+  tag is cut from a final-version commit whose version.env says the same
+  version, prepared through review and merged. Take the NEXT version number
+  for that commit (RELEASING.md Stage 4, \"When a GA candidate fails\")."
         ;;
 esac
 

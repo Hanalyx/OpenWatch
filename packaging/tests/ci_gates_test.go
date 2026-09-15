@@ -1789,8 +1789,8 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 		}
 
 		// The tracked runbook is part of the contract. It must drive the real
-		// scripts, resolve the candidate commit, and tag GA from that commit
-		// by name. An implicit `git tag v<version>` takes whatever HEAD is.
+		// scripts, resolve the candidate commit from the tag, cut the GA tag
+		// with the version-derived block, and publish through the flip.
 		book, err := os.ReadFile(filepath.Join(dir, "docs/runbooks/RELEASING.md"))
 		if err != nil {
 			t.Fatalf("read RELEASING.md: %v", err)
@@ -1800,39 +1800,28 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 				"the procedure must invoke the real generator, not describe it"},
 			{"scripts/release-status.py",
 				"the procedure must run the real checker against the completed attestation"},
-			{`RC_COMMIT=$(git rev-list -n 1 "$RC")`,
-				"the candidate commit must be resolved explicitly, not implied"},
+			{`COMMIT=$(git rev-list -n 1 "$TAG")`,
+				"the candidate commit must be resolved explicitly from the tag, not implied"},
+			{"scripts/release-publish.py",
+				"publication must go through the flip, which cannot rebuild or re-upload"},
 		} {
 			if !strings.Contains(string(book), want.frag) {
 				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
 			}
 		}
-		// EVERY GA tag command must name the commit. Checking that the string
-		// appears somewhere is not enough: the procedure mentions it twice, so
-		// one of them can revert to implicit HEAD while the other keeps the
-		// check green. That is how this assertion first passed a mutation.
-		gaTag := regexp.MustCompile(`(?m)^\s*git tag v<version>.*$`)
-		lines := gaTag.FindAllString(string(book), -1)
-		if len(lines) == 0 {
-			t.Error("docs/runbooks/RELEASING.md never tags GA")
+		// No typed tag anywhere. The Stage 2 block derives the name from
+		// version.env for a candidate and for GA alike; a second, typed
+		// path is how v0.8.0-rc.1 was cut against the wrong version.
+		typed := regexp.MustCompile(`(?m)^\s*git tag .*v<version>`)
+		for _, ln := range typed.FindAllString(string(book), -1) {
+			t.Errorf("docs/runbooks/RELEASING.md types a tag: %q; every tag is derived "+
+				"from version.env by the Stage 2 block", strings.TrimSpace(ln))
 		}
-		var gaLines int
-		for _, ln := range lines {
-			// Stage 2 cuts the RC with `git tag v<version>-rc.N`, which has no
-			// reviewed commit to name yet. Only the GA tag is in question.
-			if strings.Contains(ln, "v<version>-rc") {
-				continue
-			}
-			gaLines++
-			if !strings.Contains(ln, `"$RC_COMMIT"`) {
-				t.Errorf("docs/runbooks/RELEASING.md tags GA without naming the reviewed "+
-					"commit: %q. An implicit tag takes whatever HEAD is, which is the "+
-					"reviewed commit only by luck.", strings.TrimSpace(ln))
-			}
-		}
-		if gaLines == 0 {
-			t.Error("docs/runbooks/RELEASING.md never tags GA, so the check above " +
-				"would pass on a runbook that promotes nothing")
+		// Exactly one tagging block in the whole runbook, under Stage 2.
+		tagLines := regexp.MustCompile(`(?m)^\s*git tag `).FindAllString(string(book), -1)
+		if len(tagLines) != 1 {
+			t.Errorf("docs/runbooks/RELEASING.md has %d `git tag` lines; the single "+
+				"version-derived block is the only tagging path", len(tagLines))
 		}
 
 		// The attestation stays untracked until the release exists. A
@@ -1841,9 +1830,9 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 			t.Error("docs/runbooks/RELEASING.md does not tell the reviewer to leave the " +
 				"attestation untracked while the decision is open")
 		}
-		if !regexp.MustCompile(`(?i)commit the attestation after promotion`).MatchString(string(book)) {
+		if !regexp.MustCompile(`(?i)commit the attestation after publication`).MatchString(string(book)) {
 			t.Error("docs/runbooks/RELEASING.md does not defer committing the attestation " +
-				"until after promotion, so the audit commit could change the released commit")
+				"until after publication, so the audit commit could change the released commit")
 		}
 
 		// The behavior lives in Python. Run it rather than restate it.
@@ -1936,5 +1925,212 @@ func TestCIGates_PinChangeSelectsTheValidatingPath(t *testing.T) {
 				t.Errorf("filter selects Go suite for %q = %v, want %v: %s", tc.path, got, tc.want, tc.why)
 			}
 		}
+	})
+}
+
+// @ac AC-18
+// AC-18: release.yml drafts a GA candidate, publishes a pre-release at once,
+// and refuses to rebuild a tag that already has assets.
+//
+// Every piece of release evidence binds to the digests of one build. A
+// second run of release.yml for the same tag (a re-run, or workflow_dispatch
+// with the same version) would replace those bytes under an unchanged tag.
+// The guard runs before the build, and this test runs the guard itself with
+// a stubbed gh rather than reading it.
+func TestCIGates_ReleaseDraftsGAAndRefusesToRebuild(t *testing.T) {
+	t.Run("release-ci-gates/AC-18", func(t *testing.T) {
+		dir := appDir(t)
+		wf, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "release.yml"))
+		if err != nil {
+			t.Fatalf("read release.yml: %v", err)
+		}
+		flow := string(wf)
+
+		// The publish step: draft exactly when the tag has no hyphen,
+		// prerelease exactly when it has one. Read the expressions rather
+		// than the comments.
+		draft := regexp.MustCompile(`(?m)^\s*draft:\s*\$\{\{\s*!contains\((.+?),\s*'-'\)\s*\}\}`)
+		pre := regexp.MustCompile(`(?m)^\s*prerelease:\s*\$\{\{\s*contains\((.+?),\s*'-'\)\s*\}\}`)
+		dm, pm := draft.FindStringSubmatch(flow), pre.FindStringSubmatch(flow)
+		switch {
+		case dm == nil:
+			t.Error("release.yml has no `draft: ${{ !contains(<tag>, '-') }}` on the publish step; " +
+				"a GA candidate must land in a draft")
+		case pm == nil:
+			t.Error("release.yml has no `prerelease: ${{ contains(<tag>, '-') }}`")
+		case strings.TrimSpace(dm[1]) != strings.TrimSpace(pm[1]):
+			t.Errorf("draft and prerelease test different values (%q vs %q); they must be "+
+				"the two halves of one decision", dm[1], pm[1])
+		}
+
+		// The guard precedes the build. AC-22 covers the second guard and
+		// the concurrency group.
+		guardAt := strings.Index(flow, "packaging/check-no-existing-release.sh")
+		buildAt := strings.Index(flow, "make packages")
+		switch {
+		case guardAt < 0:
+			t.Error("release.yml does not run packaging/check-no-existing-release.sh")
+		case buildAt < 0:
+			t.Error("release.yml no longer runs `make packages`; this ordering check is stale")
+		case guardAt > buildAt:
+			t.Error("release.yml runs the rebuild guard AFTER the build; it protects nothing there")
+		}
+
+		// The guard's behavior, with gh replaced. $GH_RELEASES is the JSON
+		// lines the listing returns; GH_FAIL=1 makes the listing fail.
+		stub := t.TempDir()
+		ghStub := "#!/bin/sh\n" +
+			"[ -n \"${GH_FAIL:-}\" ] && exit 1\n" +
+			"case \"$*\" in\n" +
+			"  *'repo view'*) echo 'Hanalyx/OpenWatch'; exit 0;;\n" +
+			"  *releases*) printf '%s' \"${GH_RELEASES:-}\"; exit 0;;\n" +
+			"esac\n" +
+			"exit 1\n"
+		if err := os.WriteFile(filepath.Join(stub, "gh"), []byte(ghStub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		run := func(env ...string) (int, string) {
+			cmd := exec.Command("bash", filepath.Join(dir, "packaging", "check-no-existing-release.sh"))
+			cmd.Env = append(os.Environ(),
+				"PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"RELEASE_REF=v0.8.0", "GITHUB_REPOSITORY=Hanalyx/OpenWatch") // pragma: allowlist secret
+			cmd.Env = append(cmd.Env, env...)
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				return 0, string(out)
+			}
+			if ee, ok := err.(*exec.ExitError); ok {
+				return ee.ExitCode(), string(out)
+			}
+			t.Fatalf("run guard: %v", err)
+			return -1, ""
+		}
+		// The stub's jq is not real jq: the script asks gh for
+		// "id\tdraft\tcount" lines, so the fixture supplies those directly.
+		for _, tc := range []struct {
+			name     string
+			env      []string
+			wantExit int
+			wantOut  string
+		}{
+			{"no release", []string{"GH_RELEASES="}, 0, "no release exists"},
+			{"release without assets", []string{"GH_RELEASES=7\tfalse\t0\n"}, 0, "carries no assets"},
+			{"draft with assets", []string{"GH_RELEASES=7\ttrue\t9\n"}, 1, "draft release"},
+			{"published with assets", []string{"GH_RELEASES=7\tfalse\t9\n"}, 1, "published release"},
+			{"listing unreadable", []string{"GH_FAIL=1"}, 2, "refusing to build blind"},
+		} {
+			code, out := run(tc.env...)
+			if code != tc.wantExit {
+				t.Errorf("%s: exit %d, want %d:\n%s", tc.name, code, tc.wantExit, out)
+			}
+			if !strings.Contains(out, tc.wantOut) {
+				t.Errorf("%s: output lacks %q:\n%s", tc.name, tc.wantOut, out)
+			}
+		}
+	})
+}
+
+// @ac AC-19
+// AC-19: the evaluator verifies a draft's bytes and its manifest signature.
+// The behavior and its tests live in Python; this runs them so a Go-only CI
+// leg cannot report green with the checker broken.
+func TestCIGates_EvaluatorVerifiesDraftBytes(t *testing.T) {
+	t.Run("release-ci-gates/AC-19", func(t *testing.T) {
+		runPythonSuite(t, "scripts/test_release_status.py")
+	})
+}
+
+// @ac AC-20
+// AC-20: publication is the flip and nothing else.
+func TestCIGates_PublicationIsOnlyTheFlip(t *testing.T) {
+	t.Run("release-ci-gates/AC-20", func(t *testing.T) {
+		runPythonSuite(t, "scripts/test_release_publish.py")
+	})
+}
+
+// @ac AC-21
+// AC-21: nothing is inherited from a candidate to GA or from a replaced
+// candidate to its replacement.
+func TestCIGates_NothingIsInherited(t *testing.T) {
+	t.Run("release-ci-gates/AC-21", func(t *testing.T) {
+		runPythonSuite(t, "scripts/test_release_status.py")
+	})
+}
+
+func runPythonSuite(t *testing.T, script string) {
+	t.Helper()
+	cmd := exec.Command("python3", "-S", script)
+	cmd.Dir = appDir(t)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("%s failed: %v\n%s", script, err, tailOf(out, 40))
+	}
+}
+
+// @ac AC-22
+// AC-22: two builds of one tag cannot race.
+//
+// The rebuild guard refuses a tag that already has assets. Two runs that
+// both pass it before either has published would both upload, and the
+// second would replace the first's assets under an unchanged tag. The
+// workflow serializes runs per tag and never cancels one, and runs the guard
+// again at the last moment before the upload.
+func TestCIGates_BuildsOfOneTagAreSerialized(t *testing.T) {
+	t.Run("release-ci-gates/AC-22", func(t *testing.T) {
+		dir := appDir(t)
+		wf, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "release.yml"))
+		if err != nil {
+			t.Fatalf("read release.yml: %v", err)
+		}
+		flow := string(wf)
+
+		// The guard runs twice: before the build, and again immediately
+		// before the upload. The first refuses a rebuild; the second closes
+		// the window in which a release created by other means during the
+		// build would be uploaded over.
+		guards := regexp.MustCompile(`packaging/check-no-existing-release\.sh`).FindAllStringIndex(flow, -1)
+		buildAt := strings.Index(flow, "make packages")
+		publishAt := strings.Index(flow, "softprops/action-gh-release")
+		switch {
+		case len(guards) < 2:
+			t.Errorf("release.yml runs packaging/check-no-existing-release.sh %d time(s); "+
+				"it must run before the build and again before the upload", len(guards))
+		case buildAt < 0 || publishAt < 0:
+			t.Error("release.yml no longer runs `make packages` or the publish action; this ordering check is stale")
+		case guards[0][0] > buildAt:
+			t.Error("release.yml runs the first rebuild guard AFTER the build; it protects nothing there")
+		case guards[len(guards)-1][0] < buildAt || guards[len(guards)-1][0] > publishAt:
+			t.Error("release.yml has no rebuild guard between the build and the upload")
+		}
+
+		// Concurrent builds of one tag serialize and are never canceled. Two
+		// runs that both pass the "no release yet" guard would both upload,
+		// and the second would replace the first's assets under an
+		// unchanged tag. A canceled run could leave a half-uploaded draft.
+		conc := regexp.MustCompile(`(?ms)^concurrency:\n((?:[ \t]+.*\n)+)`).FindStringSubmatch(flow)
+		if conc == nil {
+			t.Error("release.yml has no workflow-level concurrency block; two builds of one tag can race")
+		} else {
+			block := conc[1]
+			if !regexp.MustCompile(`group:.*github\.ref_name`).MatchString(block) {
+				t.Errorf("release.yml's concurrency group does not include the tag; builds of "+
+					"different tags may run together but two of one tag must not:\n%s", block)
+			}
+			if !regexp.MustCompile(`cancel-in-progress:\s*false`).MatchString(block) {
+				t.Errorf("release.yml must set cancel-in-progress: false; a canceled build can "+
+					"leave a half-uploaded draft:\n%s", block)
+			}
+		}
+
+	})
+}
+
+// @ac AC-23
+// AC-23: a tag that changes after evaluation cannot be published. The
+// evaluator's tag-identity gate and the publish script's snapshot live in
+// Python with their tests; this runs both suites.
+func TestCIGates_AMovedTagCannotBePublished(t *testing.T) {
+	t.Run("release-ci-gates/AC-23", func(t *testing.T) {
+		runPythonSuite(t, "scripts/test_release_status.py")
+		runPythonSuite(t, "scripts/test_release_publish.py")
 	})
 }

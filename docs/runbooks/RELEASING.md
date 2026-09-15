@@ -26,7 +26,7 @@ and a human signs off.
 
 | Tag | Workflow | Produces |
 |-----|----------|----------|
-| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; RPMs GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS` → GitHub Release |
+| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; RPMs GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
 | every PR | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage |
 
@@ -78,13 +78,19 @@ block cuts the GA tag in Stage 4; only `version.env` differs.
 Pushing the tag triggers `release.yml` (builds + SBOMs + publishes a
 pre-release for a `-rc.N` tag) and `package-smoke.yml` (per-distro install
 matrix). A refused candidate is a failed candidate: leave its tag in place as
-a record, file the cause, and take the next number. Recovery names ONE version
+a record, file the cause, and take the next number. That holds for a GA tag
+too; see "When a GA candidate fails" under Stage 4. Recovery names ONE version
 in all four places: `VERSION` in `version.env`, the README phrase, the newest
 CHANGELOG heading, and the tag the block derives from them. After `v0.8.0-rc.1`
 was refused, the next candidate was `0.8.0-rc.2` in all four, never
 `0.8.0-rc.1` in the files with `rc.2` on the tag.
 
-## Stage 3: Verification gate (must all pass before GA)
+## Stage 3: Verification gate (every candidate, GA included)
+
+Stages 3 and 3b run against EVERY candidate: each `-rc.N`, and the GA candidate
+itself. Nothing carries over. A GA candidate is a new commit and a new build,
+so a review or a fleet result recorded against an RC describes bytes that are
+not the ones being published, and the checker reports it as STALE.
 
 **Automated (CI):**
 - `go-ci` green on `main` at the RC commit: includes `specter sync` at **100% AC
@@ -99,7 +105,10 @@ was refused, the next candidate was `0.8.0-rc.2` in all four, never
   `rpm -U` auto-migrate path. (amd64; arm64 install is covered by cross-build
   correctness until arm64 runners are wired in.)
 
-**Manual (on the RC, against a real fleet: CI cannot reach workstation hosts):**
+**Manual (on the candidate, against a real fleet: CI cannot reach workstation
+hosts). Founder-performed. For the GA candidate the packages come from the draft
+release, downloaded with `gh release download <tag>` or from the asset ids
+`scripts/release-status.py` lists:**
 1. Install the RC packages on a clean VM of at least one RHEL-family and one
    Debian-family distro: both the platform and the rule corpus, in one
    transaction (openwatch hard-depends on kensa-rules):
@@ -138,8 +147,9 @@ captain's signature. Those must never become auto-satisfiable.
 **Sign-off:** complete the `release-admin-signoff` Definition-of-Done. A release
 captain records pass/fail per DoD step and signs.
 
-> If any gate fails, fix on `main`, cut the next `-rc.N`, and repeat. Never
-> promote an RC that skipped a gate.
+> If any gate fails on an RC, fix on `main`, cut the next `-rc.N`, and repeat.
+> If any gate fails on the GA candidate, replace the candidate (Stage 4). Never
+> publish a candidate that skipped a gate.
 
 ## Stage 3b: Documentation review (gate D1)
 
@@ -149,33 +159,35 @@ whose path ends in `.md`, with no directory exclusions, so `.github`, `.claude`
 and `scripts/README.md` are reviewed like any other document.
 
 The evidence is bound to the candidate, not to a date. Reviewing recently
-proves nothing; reviewing these bytes does.
+proves nothing; reviewing these bytes does. The GA candidate gets its own full
+review: a verdict recorded against an RC describes a different commit.
 
-1. **Cut the RC first and wait for its assets.** The attestation names an
-   artifact and its digest, and both come from the published `SHA256SUMS`. There
-   is nothing to attest until `release.yml` has finished.
+1. **Cut the candidate first and wait for its assets.** The attestation names
+   an artifact and its digest, and both come from the candidate's `SHA256SUMS`
+   (on the pre-release for an RC, on the draft for GA). There is nothing to
+   attest until `release.yml` has finished.
 
-2. **Resolve and record the exact RC commit.** Do not work from a branch name
-   or from whatever `HEAD` happens to be.
+2. **Resolve and record the exact candidate commit.** Do not work from a
+   branch name or from whatever `HEAD` happens to be.
 
    ```bash
-   RC=v<version>-rc.N
-   RC_COMMIT=$(git rev-list -n 1 "$RC")
-   echo "$RC_COMMIT"
+   TAG=v<version>            # v0.8.0-rc.2 for a candidate, v0.8.0 for GA
+   COMMIT=$(git rev-list -n 1 "$TAG")
+   echo "$COMMIT"
    ```
 
 3. **Generate the skeleton for that commit.**
 
    ```bash
-   python3 -S scripts/doc-review-skeleton.py --commit "$RC_COMMIT" --tag "$RC" \
-     > /tmp/doc-review-$RC.toml
+   python3 -S scripts/doc-review-skeleton.py --commit "$COMMIT" --tag "$TAG" \
+     > /tmp/doc-review-$TAG.toml
    ```
 
    It writes one entry per document with `verdict = "pending"`, and leaves the
    human identity blank. It cannot fill either in for you.
 
 4. **Read the files as they are at that commit**, not as they are in your
-   working tree. `git show "$RC_COMMIT:path/to/doc.md"` is the safe way; a
+   working tree. `git show "$COMMIT:path/to/doc.md"` is the safe way; a
    checkout that has moved on is a different document.
 
 5. **Fill in every field.** Each verdict becomes `accurate` only for a document
@@ -188,56 +200,112 @@ proves nothing; reviewing these bytes does.
 6. **Run the checker with the completed attestation present.**
 
    ```bash
-   cp /tmp/doc-review-$RC.toml release/attestations/
-   python3 -S scripts/release-status.py --tag "$RC"
+   cp /tmp/doc-review-$TAG.toml release/attestations/
+   python3 -S scripts/release-status.py --tag "$TAG"
    ```
 
    **Leave that file untracked while the decision is open.** It is a working
    document until D1 passes; committing it earlier records a review that has not
    been accepted yet.
 
-7. **Do not commit anything between the verified RC and the GA tag.** The
-   evidence describes one commit. Any change after it, including a documentation
-   fix found during the review, means cutting a new RC and reviewing again.
+7. **Do not commit anything to the candidate between the review and
+   publication.** The evidence describes one commit. Any change after it,
+   including a documentation fix found during the review, means a new
+   candidate and a new review.
 
-8. **Tag GA explicitly from the verified commit.**
+8. **Commit the attestation after publication**, not before. By then the
+   released commit is fixed, so the audit commit that records the evidence
+   cannot change what was released.
+
+The attestation's `tag` is the tag it was performed against. A GA review says
+`v0.8.0`; an RC review says `v0.8.0-rc.N`. Relabeling one as the other would
+claim a review that never happened against that tag, and the checker's commit
+and digest binding would report it STALE anyway.
+
+## Stage 4: The GA candidate, its draft, and publication
+
+Decided by the founder on 2026-09-14 (CP `bugs/OW-037`, option C): the GA
+release is a distinct final-version commit, built once into a draft, verified
+in full against that exact build, and published by flipping the draft. Nothing
+is inherited from any RC. `release-ci-gates` C-14 is the contract.
+
+1. **Prepare the final-version commit through review.** A pull request that
+   sets the three bound places to the bare version: `VERSION="X.Y.Z"` in
+   `packaging/version.env`, the README phrase, and the newest CHANGELOG heading
+   `## [X.Y.Z] <codename> (<date>)`. **The date is the intended publication
+   date**, not the date of the commit. Nothing else changes in that pull
+   request. Merge it.
+
+2. **Cut the tag with the Stage 2 block, unchanged.** It reads `version.env`
+   on the merged commit and derives `vX.Y.Z`. Because the tag carries no
+   hyphen, `release.yml` builds the assets into a **draft** release. It refuses
+   to run for a tag that already has assets, so the build cannot be repeated.
+
+3. **Run Stage 3 and Stage 3b against the GA candidate.** Automated gates on
+   the GA commit; fresh F1, F2, F3 and H1 by the founder against the draft's
+   packages; a full D1 against the GA commit's documentation. The checker
+   downloads every asset from the draft, hashes it against `SHA256SUMS`, and
+   verifies `SHA256SUMS.asc` against `security/KEYS` (gates A1 and A2), then
+   reports the release state with the verdict:
 
    ```bash
-   git tag v<version> "$RC_COMMIT"
+   python3 -S scripts/release-status.py --tag "$TAG"
    ```
 
-   Never `git tag v<version>` on its own. That takes the current `HEAD`, which
-   is only the reviewed commit by luck, and the gate cannot tell the difference
-   afterward.
+   Until this says `VERDICT: GO`, there is nothing to publish.
 
-9. **Commit the attestation after promotion**, not before. By then the released
-   commit is fixed, so the audit commit that records the evidence cannot change
-   what was released.
+4. **Publish the verified draft, on GO and on separate founder authorization.**
 
-The attestation's `tag` stays the **RC tag**. It records which candidate's
-evidence authorized the promotion, and the GA tag points at the same commit. An
-attestation relabeled with the GA tag would claim a review that never happened
-against that tag.
+   ```bash
+   python3 -S scripts/release-publish.py --tag "$TAG"          # dry run
+   python3 -S scripts/release-publish.py --tag "$TAG" --yes    # publish
+   ```
 
-## Stage 4: Promote to GA
+   The script re-evaluates, records every asset id, name and size, the
+   manifest bytes and the commit the tag names on `origin`, re-reads all of
+   that, refuses if anything changed, flips the single `draft` flag, and
+   re-reads again. It never uploads, deletes, renames, rebuilds or tags.
+   `--yes` is the founder's authorization; GO is a precondition of it, not a
+   substitute for it. A `PUBLISHED BUT CHANGED` outcome means what is public
+   is not what was verified: treat every attestation for the tag as stale and
+   investigate before announcing.
 
-> **This stage cannot succeed as written, and the sequence that replaces it is
-> awaiting approval (CP `bugs/OW-037`).** A commit whose `version.env` carries
-> `<version>-rc.N` cannot satisfy a `v<version>` tag: the C-14 check refuses
-> it. GA must be a new commit, and a new commit invalidates the D1 evidence
-> bound to the RC's documentation bytes and the fleet evidence bound to the
-> RC's artifact digests. Do not promote until this stage is rewritten.
+5. **Commit the attestations** (D1 and the fleet files) after publication.
 
-Tag the reviewed commit by name. `$RC_COMMIT` is the value resolved in Stage 3b,
-and it must equal the commit you are promoting.
+### When a GA candidate fails
 
-```bash
-git tag v<version> "$RC_COMMIT"   # no -rc suffix, explicit commit
-git push origin v<version>
-```
+Any change to the candidate commit or to any asset invalidates the evidence
+that names the old commit or the old digests; the checker reports it STALE. A
+changed intended publication date is such a change, and so is a defect found
+during Stage 3 or 3b.
 
-`release.yml` builds the final signed artifacts + SBOMs and publishes the GA
-GitHub Release.
+**Tags are immutable.** Founder-approved policy, 2026-09-14 (CP
+`bugs/OW-037`; `release-ci-gates` C-14). Once pushed, an RC or GA tag is never
+moved or deleted, and nothing is rebuilt under it. A candidate that must
+change is recorded as failed, and the path is the same one an RC takes, one
+level up:
+
+1. Leave the tag and its draft where they are. The tag and version remain
+   reserved as the record of the failed candidate; the draft stays unpublished
+   (`release-publish.py` refuses anything that is not GO) and its assets are
+   never re-cut.
+2. Record the failure: the cause in the appropriate CP `bugs/` record, and a
+   line in the next version's changelog saying that number was not released
+   and why.
+3. Prepare the next version through review as a new final-version commit
+   (step 1 above), with its own intended publication date: a failed `0.8.0`
+   advances to `0.8.1`.
+4. Cut it with the Stage 2 block and run Stages 3 and 3b in full against it.
+   Nothing carries over from the failed candidate.
+
+Diagnostic tests may run against a failed candidate's draft (installing its
+packages on a scratch VM to characterize the defect, for example) provided
+they do not alter the tag, the release draft or the candidate assets.
+
+Version numbers are cheap; a tag that means one thing forever is not.
+
+A published release is never rebuilt. A defect found after publication is a
+new version.
 
 ## Stage 5: Post-release smoke
 
@@ -250,7 +318,8 @@ sudo openwatch setup
 curl -k https://localhost:8443/api/v1/health
 ```
 
-Then bump `packaging/version.env` to the next `-dev`/`-rc` and announce.
+Then bump `packaging/version.env` to the next `-dev`/`-rc` (and the README
+phrase and a fresh `[Unreleased]` heading with it) and announce.
 
 ---
 
