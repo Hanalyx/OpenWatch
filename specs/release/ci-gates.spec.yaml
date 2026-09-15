@@ -331,13 +331,16 @@ spec:
         by the existing binding rules. A changed intended publication date is such a
         change.
 
-        TAGS ARE IMMUTABLE. A pushed tag is never moved, deleted or rebuilt, whether it
-        names a release candidate or a GA candidate, and whether or not anything was built
-        under it. A GA candidate that must change has FAILED: its tag and its version number
-        remain as the record of that candidate, its draft is left unpublished, the NEXT
-        version is prepared through review as a new final-version commit, and fresh evidence
-        is established against that version. A published release is never rebuilt. (Policy
-        proposed 2026-09-14 in CP bugs/OW-037; the founder's confirmation is recorded there.)
+        TAGS ARE IMMUTABLE. Founder-approved policy, 2026-09-14, recorded in CP bugs/OW-037.
+        Once pushed, an RC or GA tag is never moved or deleted, and nothing is rebuilt under
+        it. A candidate that must change is recorded as FAILED: its tag and version remain
+        reserved as the record of that candidate, and any draft stays unpublished. The next
+        version is prepared through review as a new final-version commit, with its own
+        intended publication date and fresh verification evidence; a failed 0.8.0 GA
+        candidate therefore advances to 0.8.1. The failure is recorded in the appropriate
+        bug record and in the next version's changelog. Diagnostic tests MAY run against a
+        failed candidate provided they do not alter the tag, the release draft or the
+        candidate assets. A published release is never rebuilt.
       type: technical
       enforcement: error
 

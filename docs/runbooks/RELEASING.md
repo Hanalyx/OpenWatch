@@ -279,24 +279,30 @@ that names the old commit or the old digests; the checker reports it STALE. A
 changed intended publication date is such a change, and so is a defect found
 during Stage 3 or 3b.
 
-**Tags are immutable.** A pushed tag is never moved, deleted or rebuilt, for a
-release candidate or a GA candidate alike, whether or not anything was built
-under it (`release-ci-gates` C-14). A GA candidate that must change has
-failed, and the path is the same one an RC takes, one level up:
+**Tags are immutable.** Founder-approved policy, 2026-09-14 (CP
+`bugs/OW-037`; `release-ci-gates` C-14). Once pushed, an RC or GA tag is never
+moved or deleted, and nothing is rebuilt under it. A candidate that must
+change is recorded as failed, and the path is the same one an RC takes, one
+level up:
 
-1. Leave the tag and its draft where they are. The tag is the record of the
-   failed candidate; the draft is never published (`release-publish.py`
-   refuses anything that is not GO) and its assets are never re-cut.
-2. Record the failure: the cause in a CP `bugs/` entry, and a line in the next
-   version's changelog saying that number was not released and why.
-3. Prepare the NEXT version through review as a new final-version commit
-   (step 1 above): `0.8.1` after a failed `0.8.0`, with its own intended
-   publication date.
+1. Leave the tag and its draft where they are. The tag and version remain
+   reserved as the record of the failed candidate; the draft stays unpublished
+   (`release-publish.py` refuses anything that is not GO) and its assets are
+   never re-cut.
+2. Record the failure: the cause in the appropriate CP `bugs/` record, and a
+   line in the next version's changelog saying that number was not released
+   and why.
+3. Prepare the next version through review as a new final-version commit
+   (step 1 above), with its own intended publication date: a failed `0.8.0`
+   advances to `0.8.1`.
 4. Cut it with the Stage 2 block and run Stages 3 and 3b in full against it.
+   Nothing carries over from the failed candidate.
 
-Version numbers are cheap; a tag that means one thing forever is not. This
-policy was proposed on 2026-09-14 (CP `bugs/OW-037`) and stands as written
-once the founder confirms it there.
+Diagnostic tests may run against a failed candidate's draft (installing its
+packages on a scratch VM to characterize the defect, for example) provided
+they do not alter the tag, the release draft or the candidate assets.
+
+Version numbers are cheap; a tag that means one thing forever is not.
 
 A published release is never rebuilt. A defect found after publication is a
 new version.
