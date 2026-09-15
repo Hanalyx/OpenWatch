@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.3.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -166,6 +166,39 @@ spec:
         "dnf upgrade" a silent no-op.
       type: technical
       enforcement: error
+    - id: C-15
+      description: >
+        The documented release procedure MUST derive the candidate tag from
+        packaging/version.env and run the C-14 check before the tag exists. A
+        procedure that has the operator type the tag while a separate step sets
+        VERSION lets the two diverge with nothing in between to notice: on
+        2026-09-14 the runbook's Stage 1 set VERSION="0.8.0" and its Stage 2 said
+        to tag v<version>-rc.N, so v0.8.0-rc.1 was tagged against a version.env
+        that did not carry the suffix and release.yml refused it at the C-14
+        check, after signing and pushing (CP bugs/OW-037). The 0.2.0 series had
+        it right, one commit per candidate setting VERSION="0.2.0-rc.N", and
+        the procedure never said so. The suffix belongs in version.env, the
+        README phrase and the newest CHANGELOG heading BEFORE the tag, and the
+        tag is "v$VERSION" read from the file, never a placeholder the operator
+        fills in.
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: >
+        A script that names a built package by version MUST derive the name
+        with the C-12 encoding, never from the raw VERSION. The setup and
+        upgrade-from-GA harnesses pin the version on purpose, because a glob
+        over a developer's dist/ installs whichever historical build the
+        package manager prefers, and that is right. But they composed the name
+        from VERSION as read from version.env, so for any candidate the file
+        they looked for (openwatch-0.8.0-rc.2-1.x86_64.rpm) did not exist and
+        the file that did (openwatch-0.8.0~rc.2-1.x86_64.rpm) was never staged.
+        Every v0.7.x candidate carried a bare VERSION (C-14), so the harness
+        had never run with a suffix until v0.8.0-rc.2 (CP bugs/OW-038). I2 and
+        U2 are blocking per-platform gates, so this defect alone made every
+        correctly versioned candidate NO-GO.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -300,3 +333,29 @@ spec:
         so an operator can verify one RC believing it is the other.
       priority: critical
       references_constraints: [C-12, C-14]
+    - id: AC-25
+      description: >-
+        The runbook's release-candidate commands cannot produce a tag that
+        disagrees with packaging/version.env. The Stage 2 block in
+        docs/runbooks/RELEASING.md sources packaging/version.env, derives the
+        tag as "v$VERSION", and runs packaging/check-tag-version.sh with that
+        ref before any git tag command. Executed verbatim (with git stubbed and
+        recorded) against two copies of the tree whose version.env carry
+        different versions, the block tags each copy with exactly its own
+        version and pushes the same name. The block carries its own failure
+        handling and is executed with a plain `bash -c`: a failed pull, a
+        dirty working tree or a refused check leaves no tag, and a failed tag
+        leaves nothing to push. A block that types the tag, that tags before
+        the check, or that continues past a failed line, fails this.
+      priority: critical
+      references_constraints: [C-14, C-15]
+    - id: AC-26
+      description: >-
+        The setup and upgrade-from-GA harnesses stage a suffixed candidate.
+        Run against a private copy of the tree whose version.env carries a
+        pre-release VERSION and whose dist/ holds only the tilde-named files
+        the build produces, with docker and gh stubbed, each script's staging
+        step reports the tilde-named openwatch package as staged. A harness
+        that composes the name from the raw VERSION fails to stage it.
+      priority: critical
+      references_constraints: [C-12, C-16]

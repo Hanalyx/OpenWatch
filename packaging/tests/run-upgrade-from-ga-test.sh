@@ -71,18 +71,21 @@ wait_for_systemd() {
 
 OLD_VER="${PREV_TAG#v}"
 NEW_VER="$(. packaging/version.env && echo "$VERSION")"
+# On disk the candidate carries the C-12 package encoding of its suffix
+# (0.8.0-rc.2 -> 0.8.0~rc.2); a bare GA version is unchanged (OW-038).
+NEW_PKG_VER="${NEW_VER/-/\~}"
 [ "$OLD_VER" != "$NEW_VER" ] || { echo "previous GA and candidate are both $NEW_VER" >&2; exit 1; }
 
 echo ">> downloading the previous GA ($PREV_TAG) packages"
 if [ "$KIND" = deb ]; then
     gh release download "$PREV_TAG" -D "$OLD" \
         -p "openwatch_*_${DEB_ARCH}.deb" -p 'kensa-rules_*_all.deb'
-    cp "dist/openwatch_${NEW_VER}_${DEB_ARCH}.deb" \
+    cp "dist/openwatch_${NEW_PKG_VER}_${DEB_ARCH}.deb" \
        "$(ls -1 dist/kensa-rules_*_all.deb | sort -V | tail -1)" "$NEW/"
 else
     gh release download "$PREV_TAG" -D "$OLD" \
         -p "openwatch-*.${RPM_ARCH}.rpm" -p 'kensa-rules-*.noarch.rpm'
-    cp "dist/openwatch-${NEW_VER}-1.${RPM_ARCH}.rpm" \
+    cp "dist/openwatch-${NEW_PKG_VER}-1.${RPM_ARCH}.rpm" \
        "$(ls -1 dist/kensa-rules-*.noarch.rpm | sort -V | tail -1)" "$NEW/"
 fi
 echo "   old: $(ls "$OLD" | tr '\n' ' ')"

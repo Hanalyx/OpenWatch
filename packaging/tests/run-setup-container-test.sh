@@ -86,12 +86,18 @@ wait_for_systemd() {
 # glob that matches thirteen packages installs whichever the package manager
 # happens to prefer.
 VERSION="$(. packaging/version.env && echo "$VERSION")"
+# The file on disk carries the package encoding of a pre-release suffix
+# (0.8.0-rc.2 -> 0.8.0~rc.2), the same expression build-rpm.sh and
+# build-deb.sh use (release-package-build C-12). A bare GA version is
+# unchanged. Composing the name from the raw VERSION found nothing for every
+# candidate (OW-038).
+PKG_VERSION="${VERSION/-/\~}"
 KENSA_DEB="$(ls -1 dist/kensa-rules_*_all.deb | sort -V | tail -1)"
 KENSA_RPM="$(ls -1 dist/kensa-rules-*.noarch.rpm | sort -V | tail -1)"
 if [ "$KIND" = deb ]; then
-    cp "dist/openwatch_${VERSION}_${DEB_ARCH}.deb" "$KENSA_DEB" "$PKGS/"
+    cp "dist/openwatch_${PKG_VERSION}_${DEB_ARCH}.deb" "$KENSA_DEB" "$PKGS/"
 else
-    cp "dist/openwatch-${VERSION}-1.${RPM_ARCH}.rpm" "$KENSA_RPM" "$PKGS/"
+    cp "dist/openwatch-${PKG_VERSION}-1.${RPM_ARCH}.rpm" "$KENSA_RPM" "$PKGS/"
 fi
 echo ">> staged $(ls "$PKGS" | tr '\n' ' ')"
 

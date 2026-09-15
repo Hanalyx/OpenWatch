@@ -16,6 +16,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Hanalyx/openwatch/internal/isotree"
 )
 
 // appDir is the project root (one directory up from packaging/tests/).
@@ -917,11 +919,29 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 		if err := run("v" + version); err != nil {
 			t.Errorf("gate rejected the matching tag v%s: %v", version, err)
 		}
-		for _, bad := range []string{
+		// The two shapes that have actually happened, derived from whatever
+		// version.env carries today so the case survives the GA bump: an RC
+		// tag against a bare VERSION (v0.7.0-rc.1, v0.7.0-rc.2 and then
+		// v0.8.0-rc.1), and a bare GA tag against an RC VERSION, which is
+		// what tagging GA on the reviewed RC commit would do.
+		base := version
+		if i := strings.IndexByte(base, '-'); i >= 0 {
+			base = base[:i]
+		}
+		bads := []string{
 			"v" + version + "-rc.2", // the exact v0.7.0 defect
+			"v" + base + "-rc.1",
+			"v" + base + "-rc.99",
 			"v0.0.1-rc.1",
 			"v99.99.99",
-		} {
+		}
+		if base != version {
+			bads = append(bads, "v"+base) // GA tag on an RC commit
+		}
+		for _, bad := range bads {
+			if bad == "v"+version {
+				t.Fatalf("test bug: %q is the matching tag, not a mismatch", bad)
+			}
 			if err := run(bad); err == nil {
 				t.Errorf("gate ACCEPTED tag %q against VERSION=%q; it must refuse, "+
 					"because VERSION is what reaches the package metadata", bad, version)
@@ -932,6 +952,248 @@ func TestPackaging_ReleaseTagMatchesVersionEnv(t *testing.T) {
 		cmd.Env = append(os.Environ(), "RELEASE_REF=")
 		if err := cmd.Run(); err == nil {
 			t.Error("gate accepted an empty RELEASE_REF; a missing ref must fail loudly")
+		}
+	})
+}
+
+// @ac AC-25
+// AC-25: the runbook's candidate commands cannot produce a tag that disagrees
+// with version.env, and they stop when a prerequisite fails.
+//
+// AC-24 proves the gate refuses a mismatch. It cannot prove the procedure
+// never creates one, and on 2026-09-14 the procedure did: Stage 1 set
+// VERSION="0.8.0", Stage 2 said `git tag v<version>-rc.N`, and v0.8.0-rc.1
+// was signed and pushed before the hosted gate refused it (OW-037). Reading
+// the runbook for the right strings would pass a block that has them in the
+// wrong order. So this test extracts the Stage 2 block and RUNS it, with git
+// replaced by a recorder, against private copies of the tree. It runs the
+// block with a plain `bash -c`: the block must carry its own failure
+// handling, because an operator pasting it into a terminal gets none from
+// anywhere else. A failed pull, a dirty tree or a refused check must leave
+// no tag; a failed signature must leave nothing to push.
+func TestPackaging_RunbookDerivesTheCandidateTagFromVersionEnv(t *testing.T) {
+	t.Run("release-package-build/AC-25", func(t *testing.T) {
+		dir := appDir(t)
+		book, err := os.ReadFile(filepath.Join(dir, "docs", "runbooks", "RELEASING.md"))
+		if err != nil {
+			t.Fatalf("read RELEASING.md: %v", err)
+		}
+		block := regexp.MustCompile("(?s)\\n## Stage 2: Cut the release candidate\\n.*?```bash\\n(.*?)```")
+		m := block.FindSubmatch(book)
+		if m == nil {
+			t.Fatal("docs/runbooks/RELEASING.md has no bash block under Stage 2")
+		}
+		stage2 := string(m[1])
+
+		// The block must never contain a version an operator types.
+		if strings.Contains(stage2, "<version>") {
+			t.Errorf("Stage 2 still asks the operator to type the version:\n%s", stage2)
+		}
+		checkAt := strings.Index(stage2, "packaging/check-tag-version.sh")
+		tagAt := strings.Index(stage2, "git tag")
+		switch {
+		case checkAt < 0:
+			t.Error("Stage 2 never runs packaging/check-tag-version.sh before tagging")
+		case tagAt < 0:
+			t.Error("Stage 2 never tags, so there is nothing to check")
+		case tagAt < checkAt:
+			t.Error("Stage 2 tags BEFORE it runs check-tag-version.sh; the check must come first")
+		}
+
+		// A git recorder. Every invocation is appended to $GIT_LOG. The
+		// subcommand named in $GIT_FAIL exits 1; with $GIT_DIRTY set,
+		// `status --porcelain` reports a modified file. Nothing touches a
+		// real repository.
+		stub := t.TempDir()
+		gitStub := filepath.Join(stub, "git")
+		stubBody := "#!/bin/sh\n" +
+			"printf '%s\\n' \"$*\" >> \"$GIT_LOG\"\n" +
+			"[ \"$1\" = \"${GIT_FAIL:-}\" ] && exit 1\n" +
+			"if [ \"$1 $2\" = \"status --porcelain\" ] && [ -n \"${GIT_DIRTY:-}\" ]; then echo ' M x'; fi\n" +
+			"exit 0\n"
+		if err := os.WriteFile(gitStub, []byte(stubBody), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		type outcome struct {
+			exit   error
+			tagged string // the name passed to `git tag -s`, "" if never tagged
+			pushed string // the name passed to `git push`, "" if never pushed
+		}
+		run := func(version string, breakCheck bool, env ...string) outcome {
+			t.Helper()
+			copyDir := isotree.Copy(t, dir, "packaging")
+			envFile := filepath.Join(copyDir, "packaging", "version.env")
+			if err := os.WriteFile(envFile, []byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if breakCheck {
+				// The real check cannot fail on a derived tag, so stand in a
+				// check that refuses everything: the block must honor it.
+				if err := os.WriteFile(filepath.Join(copyDir, "packaging", "check-tag-version.sh"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			log := filepath.Join(t.TempDir(), "git.log")
+			cmd := exec.Command("bash", "-c", stage2) // no -e: the block brings its own
+			cmd.Dir = copyDir
+			cmd.Env = append(os.Environ(), "PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"), "GIT_LOG="+log)
+			cmd.Env = append(cmd.Env, env...)
+			var o outcome
+			_, o.exit = cmd.CombinedOutput()
+			calls, _ := os.ReadFile(log)
+			for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+				f := strings.Fields(line)
+				if len(f) == 0 {
+					continue
+				}
+				switch f[0] {
+				case "tag":
+					for i, a := range f {
+						if a == "-s" && i+1 < len(f) {
+							o.tagged = f[i+1]
+						}
+					}
+				case "push":
+					o.pushed = f[len(f)-1]
+				}
+			}
+			return o
+		}
+
+		// Derivation: each copy is tagged and pushed with exactly its own
+		// version, and the block exits 0 when everything succeeds.
+		for _, v := range []string{"0.8.0-rc.2", "3.1.4-rc.7", "3.1.4"} {
+			o := run(v, false)
+			if o.exit != nil {
+				t.Errorf("VERSION=%q: the block failed with every prerequisite satisfied: %v", v, o.exit)
+			}
+			if o.tagged != "v"+v {
+				t.Errorf("VERSION=%q: the block tagged %q; the tag must be derived from version.env", v, o.tagged)
+			}
+			if o.pushed != "v"+v {
+				t.Errorf("VERSION=%q: the block pushed %q, tagged %q; they must be the same name", v, o.pushed, o.tagged)
+			}
+		}
+
+		// Prerequisites: each failure must stop the block before the tag.
+		for _, tc := range []struct {
+			name       string
+			breakCheck bool
+			env        []string
+		}{
+			{"pull fails", false, []string{"GIT_FAIL=pull"}},
+			{"working tree is dirty", false, []string{"GIT_DIRTY=1"}},
+			{"check refuses", true, nil},
+		} {
+			o := run("0.8.0-rc.2", tc.breakCheck, tc.env...)
+			if o.exit == nil {
+				t.Errorf("%s: the block exited 0; it must report the failure", tc.name)
+			}
+			if o.tagged != "" {
+				t.Errorf("%s: the block still tagged %q; a failed prerequisite must prevent tagging", tc.name, o.tagged)
+			}
+			if o.pushed != "" {
+				t.Errorf("%s: the block still pushed %q", tc.name, o.pushed)
+			}
+		}
+
+		// A failed signature must leave nothing to push.
+		o := run("0.8.0-rc.2", false, "GIT_FAIL=tag")
+		if o.exit == nil {
+			t.Error("tag fails: the block exited 0; it must report the failure")
+		}
+		if o.pushed != "" {
+			t.Errorf("tag fails: the block still pushed %q; a failed tag must prevent pushing", o.pushed)
+		}
+	})
+}
+
+// @ac AC-26
+// AC-26: the setup and upgrade-from-GA harnesses stage a suffixed candidate.
+//
+// Both scripts pin the version deliberately, and both composed the filename
+// from the raw VERSION while the build names the file with the C-12 tilde
+// encoding. No v0.7.x candidate carried a suffix, so the first correctly
+// versioned candidate, v0.8.0-rc.2, was the first time either script ran
+// against a file it could not find (OW-038). This runs each script's staging
+// step in a private copy with a fake dist/ named the way the build names it;
+// docker refuses everything so the script stops right after staging, and gh
+// succeeds so the upgrade script reaches its own cp.
+func TestPackaging_HarnessStagesASuffixedCandidate(t *testing.T) {
+	t.Run("release-package-build/AC-26", func(t *testing.T) {
+		dir := appDir(t)
+		if _, err := exec.LookPath("bash"); err != nil {
+			t.Skip("bash not available")
+		}
+
+		stub := t.TempDir()
+		for name, body := range map[string]string{
+			"docker": "#!/bin/sh\nexit 1\n",
+			"gh":     "#!/bin/sh\nexit 0\n",
+		} {
+			if err := os.WriteFile(filepath.Join(stub, name), []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		const version = "0.8.0-rc.2"
+		const rpm = "openwatch-0.8.0~rc.2-1.x86_64.rpm"
+		const deb = "openwatch_0.8.0~rc.2_amd64.deb"
+		if runtime.GOARCH != "amd64" {
+			t.Skip("the harness derives the package arch from the host; fixture names are amd64")
+		}
+
+		copyDir := isotree.Copy(t, dir, "packaging")
+		if err := os.WriteFile(filepath.Join(copyDir, "packaging", "version.env"),
+			[]byte("VERSION=\""+version+"\"\nCODENAME=\"Test\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		dist := filepath.Join(copyDir, "dist")
+		if err := os.MkdirAll(dist, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range []string{rpm, deb, "kensa-rules-0.9.0-1.noarch.rpm", "kensa-rules_0.9.0_all.deb"} {
+			if err := os.WriteFile(filepath.Join(dist, f), []byte("fixture"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		run := func(script string, args ...string) string {
+			t.Helper()
+			cmd := exec.Command("bash", append([]string{filepath.Join(copyDir, "packaging", "tests", script)}, args...)...)
+			cmd.Dir = copyDir
+			cmd.Env = append(os.Environ(), "PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out, _ := cmd.CombinedOutput() // docker's refusal makes the exit non-zero by design
+			return string(out)
+		}
+
+		// Each script prints one line listing what it staged; the order within
+		// the line is ls's, so match the file on that line rather than the
+		// whole line.
+		for _, tc := range []struct{ script, kind, line, file string }{
+			{"run-setup-container-test.sh", "rpm", ">> staged ", rpm},
+			{"run-setup-container-test.sh", "deb", ">> staged ", deb},
+			{"run-upgrade-from-ga-test.sh", "rpm", "new: ", rpm},
+			{"run-upgrade-from-ga-test.sh", "deb", "new: ", deb},
+		} {
+			args := []string{"fixture:latest", tc.kind}
+			if tc.script == "run-upgrade-from-ga-test.sh" {
+				args = append(args, "v0.7.1")
+			}
+			out := run(tc.script, args...)
+			var staged bool
+			for _, ln := range strings.Split(out, "\n") {
+				if strings.Contains(ln, tc.line) && strings.Contains(ln, " "+tc.file) {
+					staged = true
+				}
+			}
+			if !staged {
+				t.Errorf("%s %s did not stage the candidate; wanted %q on the %q line of:\n%s", tc.script, tc.kind, tc.file, strings.TrimSpace(tc.line), out)
+			}
+			if strings.Contains(out, "cannot stat") {
+				t.Errorf("%s %s looked for a file that does not exist:\n%s", tc.script, tc.kind, out)
+			}
 		}
 	})
 }
