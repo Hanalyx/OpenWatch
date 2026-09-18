@@ -37,13 +37,29 @@ connection string, applies migrations, creates your first administrator, opens
 the firewall port, starts the service, and confirms the API answers. It shows
 you the whole plan and waits for confirmation before changing anything.
 
-**You do not need to pick a PostgreSQL version yourself.** On RHEL and its
-derivatives the default is still PostgreSQL 13, which is past end of life, so
-`setup` enables the `postgresql:16` module stream before installing. If you have
-already enabled a stream, it uses that one and does not overrule your choice.
-If PostgreSQL is already installed and older than 15, `setup` refuses and prints
-the commands to move it, because changing a cluster's major version needs
-`pg_upgrade` and is your decision rather than an installer's.
+**Two different things decide which PostgreSQL you get, and they run in that
+order.** First, `dnf install` resolves the package's dependency on
+`postgresql-server` from whatever your repositories offer by default. Second,
+`openwatch setup` provisions a database: it enables the `postgresql:16` module
+stream (unless you already enabled a stream, which it does not overrule),
+installs the server, and refuses to initialize a cluster on anything older
+than 15. `setup` validates a running server, not an installed package: a
+server package the first step pulled in but never initialized is invisible to
+it, and the stream it enables replaces that package.
+
+- On **RHEL 9** and its rebuilds that sequence works as written: the default
+  `postgresql-server` is 13, it is never initialized, and `setup` moves the
+  install to 16 before creating anything.
+- On **RHEL 8**, enable the stream **before** the first command:
+  `sudo dnf module enable -y postgresql:16`. The RHEL 8 default stream is
+  PostgreSQL 10, and enabling one stream while another is already active is a
+  stream switch that `dnf` does not perform on its own. RHEL 8 is not a
+  release-tested platform; `setup` needs `--allow-untested` there.
+- On **RHEL 10**, `postgresql-server` resolves to 16 and no stream exists.
+
+If a PostgreSQL cluster already exists and is older than 15, `setup` refuses
+and prints the commands to move it, because changing a cluster's major
+version needs `pg_upgrade` and is your decision rather than an installer's.
 
 **This is the supported way to install OpenWatch.** The
 [manual procedure](#manual-installation-rhel-family-rpm) documents every step
@@ -78,6 +94,8 @@ On a host that already runs PostgreSQL, either takes about five minutes.
   within this release's service life, so neither is a supported target for a new
   install. RHEL 9 still defaults to PostgreSQL 13: `openwatch setup` enables a
   supported module stream for you, and the manual path covers it in Step 1.
+  On RHEL 8 enable `postgresql:16` yourself before installing the package
+  (see the note under "At a glance").
 - **Network:**
   - TCP/8443 inbound for the API and UI.
   - TCP/22 outbound from this host to every managed host (Kensa scans over SSH).
@@ -99,6 +117,10 @@ On a host that already runs PostgreSQL, either takes about five minutes.
 ```bash
 sudo dnf install -y ./openwatch-*.x86_64.rpm ./kensa-rules-*.noarch.rpm
 ```
+
+On RHEL 8 only, run `sudo dnf module enable -y postgresql:16` first, so the
+package's PostgreSQL dependency resolves to a supported version (see "At a
+glance").
 
 On Debian and Ubuntu:
 
