@@ -153,11 +153,10 @@ func (w *RemediationWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 		return
 	}
 
-	// The user who invoked the action rides on the queue row's correlation
-	// chain; the audit actor is the request's requester/reviewer context.
-	// We attribute the system action to the request's host for traceability;
-	// the HTTP layer already emitted the intent. Actor is uuid.Nil here
-	// (system), with the request id in detail.
+	// The user who invoked the action rides in the signed payload as
+	// ActorID, so the terminal audit event names the same person the HTTP
+	// layer's intent event did. A payload with no actor is system work and
+	// is recorded as such; the worker never fabricates a user.
 	switch payload.Action {
 	case RemediationActionExecute:
 		w.processExecute(ctx, j, payload)
@@ -279,7 +278,7 @@ func (w *RemediationWorker) finishExecute(ctx context.Context, j *queue.Job,
 		}
 	}
 
-	w.svc.EmitExecuted(ctx, final, uuid.Nil, committed)
+	w.svc.EmitExecuted(ctx, final, p.ActorID)
 	w.publishCompleted(ctx, eventbus.RemediationCompleted{
 		RequestID:   final.ID,
 		HostID:      final.HostID,
@@ -368,7 +367,7 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 			_ = queue.Fail(ctx, w.pool, j.ID, "rollback mark: "+terr.Error())
 			return
 		}
-		w.svc.EmitRolledBack(ctx, final, uuid.Nil, status)
+		w.svc.EmitRolledBack(ctx, final, p.ActorID, status)
 		w.publishCompleted(ctx, eventbus.RemediationCompleted{
 			RequestID:   final.ID,
 			HostID:      final.HostID,
@@ -387,7 +386,7 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 
 	// Rollback did not cleanly restore: leave the request 'executed', audit
 	// the outcome, fail the job so the operator sees it did not revert.
-	w.svc.EmitRolledBack(ctx, rq, uuid.Nil, status)
+	w.svc.EmitRolledBack(ctx, rq, p.ActorID, status)
 	detail := status
 	if rbErr != nil {
 		detail = rbErr.Error()

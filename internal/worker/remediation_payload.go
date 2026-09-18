@@ -47,6 +47,12 @@ type RemediationPayload struct {
 	RuleID    string
 	Action    string    // execute | rollback
 	TxnID     uuid.UUID // rollback only; uuid.Nil for execute
+	// ActorID is the user who invoked :execute or :rollback, so the worker's
+	// terminal audit event names the same person the HTTP layer's intent
+	// event did. uuid.Nil means no user initiated this job (system work),
+	// and the worker then records a system actor rather than inventing one.
+	// Signed when present: a job cannot be re-attributed after enqueue.
+	ActorID uuid.UUID
 }
 
 // remediationJobBody is the wire shape stored in the queue row's JSONB. Mirror
@@ -57,16 +63,20 @@ type remediationJobBody struct {
 	RuleID    string `json:"rule_id"`
 	Action    string `json:"action"`
 	TxnID     string `json:"txn_id,omitempty"`
+	ActorID   string `json:"actor_id,omitempty"`
 	HMAC      string `json:"hmac"`
 }
 
 // encodeRemediation returns the canonical byte representation the HMAC signs.
 // Layout (big-endian lengths): domain || request_id || host_id || txn_id ||
-// len(action) || action || len(rule_id) || rule_id. UUIDs are raw 16 bytes.
+// len(action) || action || len(rule_id) || rule_id [|| actor_id]. UUIDs are
+// raw 16 bytes. actor_id is appended only when set, so a payload signed
+// before the field existed still verifies, while a payload signed with an
+// actor cannot have it stripped or swapped without breaking the tag.
 func encodeRemediation(p RemediationPayload) []byte {
 	action := []byte(p.Action)
 	rule := []byte(p.RuleID)
-	buf := make([]byte, 0, len(remediationHMACDomain)+16*3+4+len(action)+4+len(rule))
+	buf := make([]byte, 0, len(remediationHMACDomain)+16*4+4+len(action)+4+len(rule))
 	buf = append(buf, []byte(remediationHMACDomain)...)
 	buf = append(buf, p.RequestID[:]...)
 	buf = append(buf, p.HostID[:]...)
@@ -78,6 +88,9 @@ func encodeRemediation(p RemediationPayload) []byte {
 	binary.BigEndian.PutUint32(lenBuf, uint32(len(rule))) //nolint:gosec // bounded by field
 	buf = append(buf, lenBuf...)
 	buf = append(buf, rule...)
+	if p.ActorID != uuid.Nil {
+		buf = append(buf, p.ActorID[:]...)
+	}
 	return buf
 }
 
@@ -110,6 +123,9 @@ func MarshalRemediationJob(key []byte, p RemediationPayload) map[string]any {
 	}
 	if p.Action == RemediationActionRollback {
 		body["txn_id"] = p.TxnID.String()
+	}
+	if p.ActorID != uuid.Nil {
+		body["actor_id"] = p.ActorID.String()
 	}
 	return body
 }
@@ -153,6 +169,13 @@ func parseRemediationPayload(raw []byte) (RemediationPayload, [sha256.Size]byte,
 			return RemediationPayload{}, zero, fmt.Errorf("%w: txn_id: %v", errRemMalformed, terr)
 		}
 		p.TxnID = txnID
+	}
+	if body.ActorID != "" {
+		actorID, aerr := uuid.Parse(body.ActorID)
+		if aerr != nil {
+			return RemediationPayload{}, zero, fmt.Errorf("%w: actor_id: %v", errRemMalformed, aerr)
+		}
+		p.ActorID = actorID
 	}
 	if body.HMAC == "" {
 		return RemediationPayload{}, zero, errRemMissingHMAC

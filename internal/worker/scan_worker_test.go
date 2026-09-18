@@ -117,7 +117,8 @@ func (b stubBridge) Resolve(ctx context.Context, _ uuid.UUID) ([]byte, func(), e
 
 // emitCall captures an audit emission.
 type emitCall struct {
-	Code audit.Code
+	Code  audit.Code
+	Event audit.Event
 }
 
 type emitRecorder struct {
@@ -129,8 +130,21 @@ func (r *emitRecorder) Emit() EmitFunc {
 	return func(ctx context.Context, code audit.Code, ev audit.Event) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		r.calls = append(r.calls, emitCall{Code: code})
+		r.calls = append(r.calls, emitCall{Code: code, Event: ev})
 	}
+}
+
+// Events returns every recorded event with the given code, in order.
+func (r *emitRecorder) Events(code audit.Code) []audit.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []audit.Event
+	for _, c := range r.calls {
+		if c.Code == code {
+			out = append(out, c.Event)
+		}
+	}
+	return out
 }
 
 func (r *emitRecorder) executorEmit() kensa.EmitFunc {

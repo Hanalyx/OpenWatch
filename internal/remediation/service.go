@@ -395,13 +395,19 @@ func (s *Service) emitAudit(ctx context.Context, code audit.Code, rq Request, ac
 	if s.emit == nil {
 		return
 	}
-	s.emit(ctx, code, audit.Event{
-		ActorType:    "user",
-		ActorID:      actor.String(),
+	ev := audit.Event{
+		ActorType:    "system",
 		ResourceType: "remediation_request",
 		ResourceID:   rq.ID.String(),
 		Detail:       detail,
-	})
+	}
+	// A nil actor is the absence of a user, not a user with a nil id. Only a
+	// real principal is recorded as one.
+	if actor != uuid.Nil {
+		ev.ActorType = "user"
+		ev.ActorID = actor.String()
+	}
+	s.emit(ctx, code, ev)
 }
 
 // emitEvent records one remediation.* audit row. actor is the

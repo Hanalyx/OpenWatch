@@ -771,15 +771,37 @@ events:
 
   - code: remediation.executed
     severity: warning
+    # Emitted twice per execute: by the handler when the job is queued
+    # (outcome "queued", with action and job_id) and by the worker at the
+    # terminal state, where outcome equals the request's terminal status in
+    # the api-remediation C-09 vocabulary (C-10). Every key below is one the
+    # emitters write; the schema checker counts any other as a violation.
     detail_schema:
       type: object
       properties:
         dry_run: {type: boolean}
         steps_succeeded: {type: integer}
         steps_failed: {type: integer}
+        request_id: {type: string}
+        host_id: {type: string}
+        rule_id: {type: string}
+        action: {type: string}
+        job_id: {type: string}
+        outcome: {type: string, enum: [queued, executed, staged, reverted, not_applied, partially_applied, failed]}
+        status: {type: string}
 
   - code: remediation.rolled_back
     severity: warning
+    detail_schema:
+      type: object
+      properties:
+        request_id: {type: string}
+        host_id: {type: string}
+        rule_id: {type: string}
+        action: {type: string}
+        job_id: {type: string}
+        outcome: {type: string}
+        status: {type: string}
 
   # =========================================================================
   # reports — generation + scheduled delivery

@@ -216,6 +216,12 @@ func TestAPI_Remediation_ExecuteFreeCore(t *testing.T) {
 		if n := countRemediationJobs(t, pool); n != 1 {
 			t.Errorf("enqueued remediation jobs = %d, want 1", n)
 		}
+		// api-remediation/AC-17: the job carries the caller, signed, so the
+		// worker's terminal audit event names the same user as the intent.
+		if got := queuedRemediationActor(t, pool); got != roleUserIDs[auth.RoleSecurityAdmin].String() {
+			t.Errorf("queued job actor_id = %q, want the executing user %s",
+				got, roleUserIDs[auth.RoleSecurityAdmin])
+		}
 
 		// rollback on a not-executed request -> 409 (still approved/executing).
 		rb := doReq(t, asRole(t, "POST", base+"/"+created.ID+":rollback",
@@ -305,6 +311,18 @@ func seedPendingRemediation(t *testing.T, pool *pgxpool.Pool, hostID, requestedB
 		t.Fatalf("seed pending remediation: %v", err)
 	}
 	return id
+}
+
+// queuedRemediationActor reads actor_id from the newest remediation job body.
+func queuedRemediationActor(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var actor string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT coalesce(payload->>'actor_id', '') FROM job_queue
+		  WHERE job_type = 'remediation' ORDER BY created_at DESC LIMIT 1`).Scan(&actor); err != nil {
+		t.Fatalf("read remediation job actor: %v", err)
+	}
+	return actor
 }
 
 // countRemediationJobs counts pending remediation jobs on the queue.

@@ -1208,7 +1208,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
-		DetailKeys:  []string{"dry_run", "steps_failed", "steps_succeeded"},
+		DetailKeys:  []string{"action", "dry_run", "host_id", "job_id", "outcome", "request_id", "rule_id", "status", "steps_failed", "steps_succeeded"},
 	},
 	RemediationRolledBack: {
 		Code:        RemediationRolledBack,
@@ -1216,7 +1216,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityWarning,
 		Description: ``,
 		ActorTypes:  nil,
-		DetailKeys:  nil,
+		DetailKeys:  []string{"action", "host_id", "job_id", "outcome", "request_id", "rule_id", "status"},
 	},
 	ReportGenerated: {
 		Code:        ReportGenerated,

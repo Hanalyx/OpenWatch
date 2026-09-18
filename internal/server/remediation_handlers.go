@@ -369,6 +369,7 @@ func (h *handlers) ExecuteRemediation(w http.ResponseWriter, r *http.Request, ri
 		HostID:    rq.HostID,
 		RuleID:    rq.RuleID,
 		Action:    worker.RemediationActionExecute,
+		ActorID:   actorUUID(r),
 	})
 	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
 	if err != nil {
@@ -417,6 +418,7 @@ func (h *handlers) RollbackRemediation(w http.ResponseWriter, r *http.Request, r
 		HostID:    rq.HostID,
 		RuleID:    rq.RuleID,
 		Action:    worker.RemediationActionRollback,
+		ActorID:   actorUUID(r),
 	})
 	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
 	if err != nil {
@@ -436,6 +438,17 @@ func (h *handlers) writeRemediationAccepted(w http.ResponseWriter, rq remediatio
 		"job_id":     jobID.String(),
 		"status":     "queued",
 	})
+}
+
+// actorUUID is the calling user's id as a UUID, for the signed job payload.
+// A principal whose id is not a UUID (a Stage 0 role name) yields uuid.Nil,
+// and the worker records system work rather than a fabricated user.
+func actorUUID(r *http.Request) uuid.UUID {
+	id, err := uuid.Parse(auth.FromContext(r.Context()).ID)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
 }
 
 // emitRemediationActQueued records who asked for an execute/rollback, from
