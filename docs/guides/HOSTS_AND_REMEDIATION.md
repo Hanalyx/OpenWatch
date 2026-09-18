@@ -295,19 +295,30 @@ the same reason.
 ### From the UI
 
 1. Go to the **Remediation** tab on the host detail page.
-2. Find the remediation job you want to roll back.
-3. Select **Rollback**.
-4. Enter a reason for the rollback (logged for audit purposes).
-5. Select **Confirm Rollback**.
+2. Find the request you want to roll back. The **Roll back** button appears on
+   a request whose status is **Fixed** or **Staged, reboot required**.
+3. Select **Roll back**.
 
+The rollback runs immediately. There is no reason field and no confirmation
+step: one click queues the rollback job, and the row changes to **Rolled
+back** when it completes. Expand the row to see the captured pre-state the
+rollback restored.
+
+Every rollback is recorded in the audit log as `remediation.rolled_back`,
+carrying the request, host, rule, job id and the user who clicked, so the
+action is attributable without a typed reason. If your change process needs a
+written justification, record it in your ticketing system before you click.
 
 Rollback requires the `remediation:rollback` permission (`ops_lead`,
 `security_admin`, or `admin`).
 
 ### After rolling back
 
-After a rollback completes, run a follow-up compliance scan to verify the host
-returned to its previous state.
+Confirm the result on the host, not only in the UI: the file or setting the
+transaction changed should be back to its captured pre-state. Then run a
+follow-up compliance scan; the rule returns to the result it had before the
+fix. For a staged change that was rolled back before a reboot, the running
+host never changed, so nothing on it needs checking beyond the file.
 
 ---
 
