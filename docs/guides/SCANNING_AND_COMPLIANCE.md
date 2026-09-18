@@ -459,7 +459,8 @@ its drawer, where the actions live.
 Active --> Acknowledged --> Silenced --> Resolved
 ```
 
-The drawer offers the actions that apply to the alert's current state:
+The drawer offers the actions that apply to the alert's current state, to a
+user with `alert:write`:
 
 - **Active**: Alert generated, requires attention.
 - **Acknowledged**: Select **Acknowledge** to indicate you are investigating.

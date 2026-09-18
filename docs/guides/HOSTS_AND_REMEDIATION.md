@@ -123,9 +123,10 @@ reporting, a shared compliance target, and maintenance windows.
 
 An automatic group populates itself from each host's discovered OS family.
 A manual group's members are set through the API today,
-`POST /api/v1/groups/{id}/members` and `DELETE /api/v1/groups/{id}/members/{host_id}`;
-the Groups page shows the membership mode and the member count but does not
-yet offer an add-hosts control. A host can belong to more than one group.
+`POST /api/v1/groups/{id}/members` and `DELETE /api/v1/groups/{id}/members/{host_id}`,
+both requiring `host:write`; the Groups page shows the membership mode and
+the member count but does not yet offer an add-hosts control. A host can
+belong to more than one group.
 
 ### Per-group controls
 
