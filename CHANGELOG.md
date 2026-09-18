@@ -10,7 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.8.0-rc.2] Eyrie (2026-09-14)
+## [0.8.0-rc.3] Eyrie (2026-09-18)
+
+Candidates before this one, both preserved and neither released:
+`v0.8.0-rc.1` failed before any asset was built, refused by the tag-version
+check; `v0.8.0-rc.2` built and passed every machine gate and the staged
+remediation check, then failed the documentation review on guide passages
+that described controls the product does not have. Under the release
+policy a pushed tag is never moved, so both numbers are spent and the
+corrections landed here.
 
 ### Added
 
@@ -363,6 +371,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The remediation guide described a rollback reason prompt and a confirmation
+  dialog that do not exist; the shipped action is one click with immediate
+  effect, recorded as `remediation.rolled_back` with the clicking user. The
+  hosts, groups, discovery, remediation, drift and alert procedures in the
+  guides now name the controls that ship, and bulk remediation is named as an
+  OpenWatch Enterprise feature. The installation guide separates package
+  dependency resolution from what `openwatch setup` validates and states the
+  RHEL 8 PostgreSQL stream prerequisite. The backup runbook creates the backup
+  directory it writes to.
+- A staged remediation was audited as `"outcome":"failed"` beside
+  `"status":"staged"`, and the worker's terminal audit events carried a nil
+  actor as a user. The terminal outcome is now the request's six-outcome
+  status, the user who invoked the fix or rollback rides in the signed job
+  payload and is named on the terminal event, and work no user initiated is
+  recorded as system with no invented actor (`api-remediation` 1.7.0, C-10).
 - The release runbook had the operator set `VERSION` in one step and type the
   tag in another, so `v0.8.0-rc.1` was signed and pushed against
   `VERSION="0.8.0"` and refused by the hosted tag check before any asset was
