@@ -298,24 +298,22 @@ Drift occurs when a rule's status changes between two points in time. A rule
 that was passing and now fails is a **regression**. A rule that was failing
 and now passes is an **improvement**.
 
-### Viewing drift in the UI
+### Where drift shows in the UI
 
-1. Navigate to the host detail page.
-2. Select the **Drift** tab.
-3. Choose a date range (start date and end date).
+There is no separate drift tab. Drift reaches you three ways:
 
-The drift view shows:
+- **As alerts.** When a scan moves a host's score, the alert router raises a
+  `drift_major`, `drift_minor` or `drift_improvement` alert. They appear on
+  the **Activity** page (source: alert) and on the host's page.
+- **As per-rule changes.** Every rule whose status changed is a transaction
+  in the **Activity** feed, shown under the "COMPLIANCE & DRIFT" label, so a
+  regression can be traced to the rule and the scan that recorded it.
+- **As a trend.** The host page's compliance trend card plots the daily
+  score for the last 30 days, and the dashboard plots the fleet trend, so a
+  slow slide is visible even when no single scan crossed an alert threshold.
 
-- **Score delta**: how much the compliance score changed
-- **Drift type**: stable, minor, major, or improvement
-- **Rules improved** and **rules regressed**: counts with expandable lists
-- **Timeline**: when each drift event occurred
-
-### Field-level value drift
-
-Enable **Include value drift** to see rules where the underlying configuration
-value changed even though the pass/fail status did not. For example, a password
-minimum length changing from 14 to 12 while both still pass the threshold.
+Drift is computed on pass/fail status. A configuration value that changed
+while its rule kept passing is not reported as drift.
 
 ### What to do when drift is detected
 
@@ -377,8 +375,9 @@ detail page.
 
 ### Force scan
 
-To trigger an immediate scan outside the normal schedule, select **Force Scan**
-on the host detail page. This bypasses the schedule and runs at highest priority.
+To start a scan outside the normal schedule, select **Run scan** on the host
+detail page, or the run-scan action on a host's row in the hosts list. The
+scan is queued at once; the Scans page shows the fleet queue.
 
 ---
 
@@ -448,32 +447,28 @@ Alerts are generated automatically when scan results meet configured thresholds.
 
 ### Viewing alerts
 
-Navigate to **Alerts** in the sidebar. The alert list shows all active,
-acknowledged, and recently resolved alerts.
-
-Use filters to narrow by:
-
-- **Status**: active, acknowledged, silenced, resolved, dismissed
-- **Severity**: critical, high, medium, low, info
-- **Category**: compliance, operational, exception, drift
+Alerts are part of the **Activity** page in the sidebar, which is one feed
+of alerts, compliance transactions, intelligence, audit and host-lifecycle
+events. Narrow it with the **Severity** and **Source** filters (choose the
+source `alert`), the time range, and the search box. Select an alert to open
+its drawer, where the actions live.
 
 ### Alert lifecycle
 
 ```
-Active --> Acknowledged --> Silenced --> Resolved --> Dismissed
+Active --> Acknowledged --> Silenced --> Resolved
 ```
 
-Transitions do not have to pass through every state in order; each of
-Acknowledged, Silenced, Resolved, and Dismissed can follow directly from
-Active (see the state list above).
+The drawer offers the actions that apply to the alert's current state:
 
 - **Active**: Alert generated, requires attention.
 - **Acknowledged**: Select **Acknowledge** to indicate you are investigating.
-- **Silenced**: Select **Silence** to suppress an alert until a chosen time,
-  without resolving it.
+- **Silenced**: Select **Silence** to mute an active or acknowledged alert
+  without resolving it. Silence is indefinite; there is no duration picker.
 - **Resolved**: Select **Resolve** after the issue is fixed or accepted.
-- **Dismissed**: Select **Dismiss** to close an alert that requires no further
-  action (for example, a false positive).
+
+A fifth state, dismissed, exists in the API (`POST /api/v1/alerts/{id}:dismiss`)
+for closing an alert that needs no action; the UI does not offer it yet.
 
 ### Configuring thresholds
 

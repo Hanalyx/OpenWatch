@@ -13,37 +13,45 @@ compliance findings. Most of these tasks are performed in the web UI.
 ### From the UI
 
 1. Navigate to **Hosts** in the left sidebar.
-2. Select **Add Host**.
+2. Select **Add host**. The page opens on the **Single** tab.
 3. Fill in the host details:
 
 | Field | Required | Example |
 |-------|----------|---------|
 | Hostname | Yes | `web-01` |
-| IP Address | Yes | `192.168.1.10` |
-| SSH Port | Yes | `22` |
-| Display Name | No | `Web Server 01` |
-| Operating System | No | `RHEL 9` |
+| IP address | Yes | `192.168.1.10` |
+| Port | Yes | `22` |
 | Environment | No | `production` |
+| SSH username | Yes | `owadmin` |
+| Auth method | Yes | password, or SSH private key |
 
-4. Select **Save**.
+   Tick **Use system default credential** to skip the auth fields and use the
+   credential configured under Settings. The operating system is not entered
+   here; discovery fills it in (see "Host discovery" below).
 
+4. Select **Add host**.
 
 The host appears in the host list immediately after creation.
 
 ### Bulk import
 
-For adding many hosts at once:
+For adding many hosts at once, use the **Bulk** tab of the same Add host
+page. It is a three-step wizard: **Upload CSV**, **Map fields**, **Preview &
+import**.
 
-1. Navigate to **Hosts** and select **Bulk Import**.
-2. Download the CSV template.
-3. Fill in the template with your host data.
-4. Upload the CSV file.
-5. Review the auto-detected field mappings.
-6. Confirm the import.
+1. Upload a CSV file. There is no template to download: the wizard reads
+   your file's header row, shows a column analysis, and reports any shape it
+   recognizes under "Detected templates".
+2. Review the mappings from your columns to host fields. Columns it could
+   auto-map are marked; fix the rest. Choose the credential for the imported
+   hosts: **Use system default**, or **Clone an existing credential**.
+3. Preview the valid rows and import them.
 
-
-Set **Dry Run** to validate the file without creating hosts. Set **Update
-Existing** to overwrite hosts that match by hostname or IP address.
+Under **Import options**, **Dry run** validates the file without creating
+hosts; the button then reads "Dry-run N valid rows" instead of "Import N
+valid rows". **Update existing** is shown but not yet wired: the API has no
+per-host update by hostname or IP, so a matching row is reported rather than
+overwritten.
 
 ---
 
@@ -98,32 +106,34 @@ are never written to disk or logs.
 
 ## Host groups
 
-Host groups let you organize hosts into logical collections for group-level
-compliance reporting and batch scanning.
+Host groups organize hosts into collections for group-level compliance
+reporting, a shared compliance target, and maintenance windows.
 
 ### Creating a group
 
-1. Navigate to **Host Groups** in the sidebar.
-2. Select **Create Group**.
-3. Enter a name, description, OS family, and compliance framework.
-4. Select **Save**.
+1. Navigate to **Groups** in the sidebar.
+2. Select **New group**.
+3. Enter a **Name**, choose a **Kind** (**Site**, or **OS category**), an
+   optional **Subtype**, and the **Membership** mode: **Manual**, or **Auto
+   (OS family)** with the OS family to match, such as `rhel` or `ubuntu`.
+   Sites are always manual.
+4. Select **Create group**.
 
+### Membership
 
-### Assigning hosts
+An automatic group populates itself from each host's discovered OS family.
+A manual group's members are set through the API today,
+`POST /api/v1/groups/{id}/members` and `DELETE /api/v1/groups/{id}/members/{host_id}`;
+the Groups page shows the membership mode and the member count but does not
+yet offer an add-hosts control. A host can belong to more than one group.
 
-1. Open the group detail page.
-2. Select **Add Hosts**.
-3. Select hosts from the list.
-4. Select **Confirm**.
+### Per-group controls
 
-A host can belong to more than one group at a time; group membership is a
-many-to-many relationship.
-
-### Group scanning
-
-From the group detail page, select **Scan Group** to start a compliance scan
-for all hosts in the group simultaneously. Monitor progress on the group's
-scan session page.
+Each group card offers a **Maintenance** toggle, which pauses scans and
+alerts for every member, a **Compliance target** selector that sets the
+framework the group's score is measured against, and a delete control.
+There is no group-level scan: scans are started per host from the host
+page, or on the schedule, and the Scans page shows the fleet queue.
 
 ---
 
@@ -131,9 +141,12 @@ scan session page.
 
 ### OS detection
 
-OpenWatch automatically detects the operating system for hosts during scans.
-You can also trigger manual OS discovery from the host detail page by selecting
-**Discover OS**.
+OpenWatch detects each host's operating system by discovery, a short SSH
+session that reads OS facts without running a scan. To run it by hand, open
+the host detail page: **Re-run Discovery** on the System card of the
+**Overview** tab, or **Reconnect** in the connectivity area, which does the
+same thing and is the quickest way to validate a credential you just edited.
+Both need `host:write`.
 
 A background scheduler ticks every 60 seconds and enqueues discovery for any
 host whose OS has never been discovered or whose last discovery is older than
@@ -207,14 +220,20 @@ installed on target hosts.
 
 ### From the UI
 
-1. Navigate to the host detail page and view the scan results.
-2. Select the failing findings you want to remediate (use checkboxes).
-3. Select **Remediate Selected**.
+Remediation in OpenWatch Core is one rule on one host at a time.
 
+1. Open the host detail page and the **Compliance** tab.
+2. Find the failing rule and select **Request remediation** on its row. The
+   request is auto-approved and appears on the **Remediation** tab with the
+   status Approved.
+3. On the **Remediation** tab, expand the request to see what the fix will
+   do, then select **Fix**. The row shows Executing, then the outcome:
+   **Fixed**, **Staged, reboot required** for a change written but not yet
+   live, or one of the other outcomes described below.
 
-4. Review the proposed changes. Each finding shows what changes.
-5. Select **Start Remediation** to confirm.
-
+Selecting many rules at once and remediating them together is **Bulk
+remediation**, an OpenWatch Enterprise feature; the Remediation tab shows it
+as a disabled control in Core.
 
 Fixing one rule on one host, with rollback, is free. A single-rule remediation
 request auto-approves on submission. There is no separate approval step, and no
