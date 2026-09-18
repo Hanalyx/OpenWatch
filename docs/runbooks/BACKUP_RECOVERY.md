@@ -54,6 +54,16 @@ OpenWatch connects to an external PostgreSQL instance. Run `pg_dump` against
 that server. The DSN is in `/etc/openwatch/secrets.env` as
 `OPENWATCH_DATABASE_DSN`.
 
+The examples below write to `/var/backups/openwatch/`. Nothing creates that
+directory for you; the package creates only `/var/lib/openwatch/backups/`,
+where the upgrade scriptlet writes its own pre-upgrade dump (see the
+[upgrade procedure](UPGRADE_PROCEDURE.md)). Create it once, readable by no
+one but root:
+
+```bash
+sudo install -d -m 0700 /var/backups/openwatch
+```
+
 ### Database dump
 
 Use a compressed custom-format dump. It restores faster and supports selective
