@@ -316,3 +316,174 @@ func TestRemediationWorker_HMACMismatch_DeadLettered_NoExecutorCall(t *testing.T
 		}
 	})
 }
+
+// terminalDetail decodes the detail of the single event with the given code,
+// failing if there is not exactly one.
+func terminalDetail(t *testing.T, rec *emitRecorder, code audit.Code) (audit.Event, map[string]any) {
+	t.Helper()
+	evs := rec.Events(code)
+	if len(evs) != 1 {
+		t.Fatalf("%s events = %d, want exactly 1", code, len(evs))
+	}
+	var detail map[string]any
+	if err := json.Unmarshal(evs[0].Detail, &detail); err != nil {
+		t.Fatalf("%s detail is not JSON: %v", code, err)
+	}
+	return evs[0], detail
+}
+
+// runExecute drives one execute job through the real worker path with the
+// Kensa executor stubbed to return the given transaction status, and returns
+// the recorder. actor is placed in the signed payload; uuid.Nil means none.
+func runExecute(t *testing.T, kensaStatus string, actor uuid.UUID) (*emitRecorder, uuid.UUID, *pgxpool.Pool) {
+	t.Helper()
+	pool := freshPool(t)
+	user := seedUser(t, pool)
+	hostID := seedHost(t, pool, user)
+	const ruleID = "audit-sudo-log"
+
+	rec := &emitRecorder{}
+	svc := recordingSvc(pool, rec)
+	reqID := seedApprovedRequest(t, pool, svc, hostID, ruleID)
+
+	var calls atomic.Int64
+	exec := kensa.NewExecutor(stubBridge{plain: []byte("x")}, rec.executorEmit()).
+		WithRemediateFunc(fakeRemediate(kensaStatus, &calls), noopRollback())
+	writer := transactionlog.NewWriter(pool, rec.writerEmit())
+	key := remediationKey(t)
+	rw := NewRemediationWorker(RemediationConfig{
+		Pool: pool, Executor: exec, Service: svc, Writer: writer, QueueKey: key, Emit: rec.Emit(),
+	})
+
+	body := MarshalRemediationJob(key, RemediationPayload{
+		RequestID: reqID, HostID: hostID, RuleID: ruleID,
+		Action: RemediationActionExecute, ActorID: actor,
+	})
+	ctx := correlation.Set(context.Background(), correlation.Generate("test"))
+	if _, err := queue.Enqueue(ctx, pool, RemediationJobType, body); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	job, jobCtx, err := queue.Dequeue(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("dequeue: %v", err)
+	}
+	rw.ProcessJob(jobCtx, job)
+	if calls.Load() != 1 {
+		t.Fatalf("remediate calls = %d, want 1", calls.Load())
+	}
+	return rec, reqID, pool
+}
+
+// @ac AC-16
+// The terminal audit outcome mirrors the six-outcome status. On v0.8.0-rc.2
+// a staged remediation on an immutable-audit host was audited as
+// {"status":"staged","outcome":"failed"} because the emitter collapsed the
+// outcome to a boolean (CP bugs/OW-042). C-09 says staged is never a failure.
+func TestRemediationWorker_TerminalAuditOutcomeMirrorsStatus(t *testing.T) {
+	t.Run("api-remediation/AC-16", func(t *testing.T) {
+		actor := uuid.New()
+		for _, tc := range []struct{ kensa, wantOutcome, wantStatus string }{
+			{"staged", "staged", "staged"},
+			{"committed", "executed", "executed"},
+			{"errored", "failed", "failed"},
+		} {
+			t.Run(tc.kensa, func(t *testing.T) {
+				rec, reqID, pool := runExecute(t, tc.kensa, actor)
+				if st := requestStatus(t, pool, reqID); st != tc.wantStatus {
+					t.Fatalf("request status = %q, want %q", st, tc.wantStatus)
+				}
+				_, detail := terminalDetail(t, rec, audit.RemediationExecuted)
+				if detail["outcome"] != tc.wantOutcome {
+					t.Errorf("remediation.executed outcome = %v, want %q (status %v)",
+						detail["outcome"], tc.wantOutcome, detail["status"])
+				}
+				if detail["status"] != tc.wantStatus {
+					t.Errorf("remediation.executed status = %v, want %q", detail["status"], tc.wantStatus)
+				}
+				if tc.kensa == "staged" && detail["outcome"] == "failed" {
+					t.Error("a staged transaction was audited as failed")
+				}
+			})
+		}
+
+		// A clean rollback of a staged change: one rolled_back event, outcome
+		// rolled_back. The rollback job resolves the transaction from the
+		// journal the execute wrote.
+		t.Run("rollback", func(t *testing.T) {
+			rec, reqID, pool := runExecute(t, "staged", actor)
+			hostID, ruleID := requestHostAndRule(t, pool, reqID)
+			svc := recordingSvc(pool, rec)
+			exec := kensa.NewExecutor(stubBridge{plain: []byte("x")}, rec.executorEmit()).
+				WithRemediateFunc(fakeRemediate("staged", new(atomic.Int64)), noopRollback())
+			key := remediationKey(t)
+			rw := NewRemediationWorker(RemediationConfig{
+				Pool: pool, Executor: exec, Service: svc,
+				Writer: transactionlog.NewWriter(pool, rec.writerEmit()), QueueKey: key, Emit: rec.Emit(),
+			})
+			body := MarshalRemediationJob(key, RemediationPayload{
+				RequestID: reqID, HostID: hostID, RuleID: ruleID,
+				Action: RemediationActionRollback, ActorID: actor,
+			})
+			ctx := correlation.Set(context.Background(), correlation.Generate("test"))
+			if _, err := queue.Enqueue(ctx, pool, RemediationJobType, body); err != nil {
+				t.Fatalf("enqueue rollback: %v", err)
+			}
+			job, jobCtx, err := queue.Dequeue(context.Background(), pool)
+			if err != nil {
+				t.Fatalf("dequeue rollback: %v", err)
+			}
+			rw.ProcessJob(jobCtx, job)
+			if st := requestStatus(t, pool, reqID); st != "rolled_back" {
+				t.Fatalf("request status after rollback = %q, want rolled_back", st)
+			}
+			_, detail := terminalDetail(t, rec, audit.RemediationRolledBack)
+			if detail["outcome"] != "rolled_back" {
+				t.Errorf("remediation.rolled_back outcome = %v, want rolled_back", detail["outcome"])
+			}
+		})
+	})
+}
+
+// @ac AC-17
+// User-initiated terminal events retain the initiating actor; system work
+// is not attributed to a user. Both terminal events on v0.8.0-rc.2 carried
+// the nil UUID as a "user" actor (CP bugs/OW-042).
+func TestRemediationWorker_TerminalAuditRetainsInitiatingActor(t *testing.T) {
+	t.Run("api-remediation/AC-17", func(t *testing.T) {
+		actor := uuid.New()
+		for _, kensaStatus := range []string{"committed", "staged", "errored"} {
+			t.Run("user/"+kensaStatus, func(t *testing.T) {
+				rec, _, _ := runExecute(t, kensaStatus, actor)
+				ev, _ := terminalDetail(t, rec, audit.RemediationExecuted)
+				if ev.ActorType != "user" || ev.ActorID != actor.String() {
+					t.Errorf("terminal actor = (%q, %q), want (user, %s)", ev.ActorType, ev.ActorID, actor)
+				}
+			})
+		}
+		t.Run("system/no actor in payload", func(t *testing.T) {
+			rec, _, _ := runExecute(t, "committed", uuid.Nil)
+			ev, _ := terminalDetail(t, rec, audit.RemediationExecuted)
+			if ev.ActorType != "system" {
+				t.Errorf("actor type = %q, want system for work no user initiated", ev.ActorType)
+			}
+			if ev.ActorID != "" {
+				t.Errorf("actor id = %q, want empty; an actor must not be invented", ev.ActorID)
+			}
+			if ev.ActorID == uuid.Nil.String() {
+				t.Error("the nil UUID was recorded as an actor")
+			}
+		})
+	})
+}
+
+// requestHostAndRule reads a request's host and rule for a follow-on job.
+func requestHostAndRule(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) (uuid.UUID, string) {
+	t.Helper()
+	var hostID uuid.UUID
+	var ruleID string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT host_id, rule_id FROM remediation_requests WHERE id = $1`, id).Scan(&hostID, &ruleID); err != nil {
+		t.Fatalf("request lookup: %v", err)
+	}
+	return hostID, ruleID
+}

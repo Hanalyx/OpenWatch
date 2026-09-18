@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 1
 
@@ -111,7 +111,7 @@ spec:
       type: security
       enforcement: error
     - id: C-08
-      description: 'The worker drains ONE queue and dispatches by job_type. A remediation job HMAC-verifies its payload (request_id, host_id, rule_id, action, optional txn_id) before any host-mutating side effect; a missing/mismatched tag dead-letters the job (queue.Fail) and emits scheduler.job.hmac_rejected, with no executor call. The worker transitions approved -> executing (MarkExecuting, row-locked) -> executed | failed (RecordExecution), writes the remediation_transactions journal, and on a committed transaction flips that one rule to pass in host_rule_state via the transaction-log writer (idempotent on the request id as synthetic scan id). Rollback transitions executed -> rolled_back only on a clean restore. The worker emits remediation.executed / remediation.rolled_back and publishes remediation.completed on the event bus.'
+      description: 'The worker drains ONE queue and dispatches by job_type. A remediation job HMAC-verifies its payload (request_id, host_id, rule_id, action, optional txn_id, optional actor_id) before any host-mutating side effect; a missing/mismatched tag dead-letters the job (queue.Fail) and emits scheduler.job.hmac_rejected, with no executor call. The worker transitions approved -> executing (MarkExecuting, row-locked) -> executed | failed (RecordExecution), writes the remediation_transactions journal, and on a committed transaction flips that one rule to pass in host_rule_state via the transaction-log writer (idempotent on the request id as synthetic scan id). Rollback transitions executed -> rolled_back only on a clean restore. The worker emits remediation.executed / remediation.rolled_back and publishes remediation.completed on the event bus.'
       type: technical
       enforcement: error
     - id: C-07
@@ -135,6 +135,23 @@ spec:
         unrecognised TransactionStatus MUST be logged at WARN naming the
         status and MUST NOT be silently absorbed by a default branch.
       type: security
+      enforcement: error
+    - id: C-10
+      description: >
+        The audit record of a remediation MUST say what the request says. The
+        terminal remediation.executed event's outcome is the request's terminal
+        status in the C-09 vocabulary (executed, staged, reverted, not_applied,
+        partially_applied, failed), never a two-valued collapse: a staged
+        transaction is audited as staged, because an auditor reading "failed"
+        beside a host that was mutated is the false claim C-09 exists to
+        prevent. The terminal remediation.executed and remediation.rolled_back
+        events MUST name the user who invoked :execute or :rollback, the same
+        principal the HTTP layer's intent event named; the actor rides in the
+        signed job payload (C-08) so a job cannot be re-attributed after it is
+        queued. Work no user initiated is recorded with actor type system and
+        no actor id. An actor is never invented: a nil id is the absence of a
+        user, not a user.
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -261,3 +278,29 @@ spec:
         no Data key itself, in Go or in TypeScript.
       priority: critical
       references_constraints: [C-09]
+    - id: AC-16
+      description: >
+        The terminal audit outcome mirrors the six-outcome status. Driven through
+        the worker's real execution path with the Kensa executor stubbed, a
+        staged transaction produces one remediation.executed event whose detail
+        outcome is "staged" and whose status is "staged"; a committed transaction
+        produces outcome "executed"; an errored transaction produces outcome
+        "failed"; and a clean rollback produces one remediation.rolled_back event
+        whose outcome is "rolled_back". No terminal event for a staged
+        transaction carries outcome "failed".
+      priority: critical
+      references_constraints: [C-09, C-10]
+    - id: AC-17
+      description: >
+        User-initiated terminal events retain the initiating actor; system work
+        is not attributed to a user. A job whose signed payload carries actor_id
+        yields terminal remediation.executed and remediation.rolled_back events
+        with actor type "user" and that id, for committed, staged, errored and
+        rolled-back outcomes alike. A job whose payload carries no actor yields
+        events with actor type "system" and an empty actor id. The :execute and
+        :rollback handlers place the calling user's id in the payload. A payload
+        signed with one actor fails HMAC verification when the actor is removed
+        or replaced, and a payload signed without an actor (the pre-1.7.0 wire
+        shape) still verifies.
+      priority: critical
+      references_constraints: [C-08, C-10]

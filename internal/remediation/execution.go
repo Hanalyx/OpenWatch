@@ -228,21 +228,25 @@ func (s *Service) FirstReversibleTxn(ctx context.Context, id uuid.UUID) (uuid.UU
 }
 
 // EmitExecuted records the remediation.executed audit event. The worker calls
-// this (rather than the service emitting internally) so the actor — the user
-// who invoked :execute — is carried through from the HTTP request.
-func (s *Service) EmitExecuted(ctx context.Context, rq Request, actor uuid.UUID, committed bool) {
+// this (rather than the service emitting internally) so the actor, the user
+// who invoked :execute and rode the signed job payload, is the same person
+// the HTTP layer's intent event named. uuid.Nil means no user initiated the
+// work and the event is attributed to the system, not to a made-up user.
+//
+// The outcome is the request's terminal status, in the six-outcome
+// vocabulary C-09 defines (executed, staged, reverted, not_applied,
+// partially_applied, failed). It used to be a boolean collapsed to
+// "executed" or "failed", which audited a staged transaction as a failure
+// while the request said staged (api-remediation AC-09; CP bugs/OW-042).
+func (s *Service) EmitExecuted(ctx context.Context, rq Request, actor uuid.UUID) {
 	if s.emit == nil {
 		return
-	}
-	outcome := "failed"
-	if committed {
-		outcome = "executed"
 	}
 	detail, _ := json.Marshal(map[string]any{
 		"request_id": rq.ID.String(),
 		"host_id":    rq.HostID.String(),
 		"rule_id":    rq.RuleID,
-		"outcome":    outcome,
+		"outcome":    string(rq.Status),
 		"status":     string(rq.Status),
 	})
 	s.emitAudit(ctx, auditRemediationExecuted, rq, actor, detail)
