@@ -160,17 +160,21 @@ disk that is already full, free space with path A or C before attempting it.
 
 ### Path C: Apply retention to large tables
 
-OpenWatch does not ship an automated retention or pruning job today (see
-"Not yet implemented" below). If a table such as `audit_events` has grown beyond
-your retention requirement, delete old rows manually, then vacuum. Confirm the
-column names against your database before running a delete, and take a backup
-first if the data is subject to a compliance retention policy.
+A scheduled sweeper (`internal/retention`) prunes `idempotency_keys`,
+`sso_auth_states` and `auth_mfa_otp_uses`. It does not touch `audit_events`
+or the scan and posture history tables: audit retention is recorded as
+undecided, and the history tables are append-only. If one of those has grown
+beyond your retention requirement, delete old rows manually, then vacuum.
+Confirm the column names against your database before running a delete, and
+take a backup first if the data is subject to a compliance retention policy.
 
 ```bash
-# Example only — verify the table and timestamp column exist before running.
-psql -U openwatch -d openwatch -c "
-DELETE FROM audit_events WHERE occurred_at < now() - interval '365 days';
-VACUUM ANALYZE audit_events;"
+# Example only. Verify the table and timestamp column exist before running.
+# Two statements, two requests: VACUUM cannot run inside the transaction that
+# a single -c opens around both.
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "DELETE FROM audit_events WHERE occurred_at < now() - interval '"'"'365 days'"'"';" \
+                                 -c "VACUUM ANALYZE audit_events;"'
 ```
 
 Audit records are compliance-relevant (typically retained one year or longer for
@@ -212,9 +216,12 @@ curl -sk https://localhost:8443/api/v1/health
 ```
 
 A healthy response is HTTP `200` with a body of
-`{"status":"healthy","db_connected":true,"version":"..."}`. A `503` (an
-`ErrorEnvelope` with code `server.unavailable`) means PostgreSQL is still not
-writable.
+`{"status":"healthy","db_connected":true,"version":"..."}`. `db_connected` is
+the result of a connection ping: it says PostgreSQL answered, not that it has
+room to write. A `503` is an `ErrorEnvelope`,
+`{"error":{"code":"server.unavailable","fault":"server","human_message":"database is not reachable","retryable":true}}`,
+with no `db_connected` field: the ping failed. A full disk usually shows up
+as a `200` followed by write errors in the journal, not as a `503`.
 
 ### 4. Migrations are current (if you restarted after recovery)
 

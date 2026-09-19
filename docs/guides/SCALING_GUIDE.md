@@ -19,9 +19,9 @@ OpenWatch has two long-lived processes and one database:
 
 | Component | What it does | How you scale it today |
 |-----------|--------------|------------------------|
-| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Stateless apart from PostgreSQL. |
+| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Holds Kensa's remediation rollback store locally (`/var/lib/openwatch/kensa/`), so it is not stateless. |
 | `openwatch worker` | An **optional, additional** process that also drains the scan-job queue and runs Kensa scans over SSH | Run one or more for extra/off-box capacity. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so the serve worker and any `openwatch worker` processes cooperate without double-claiming a job. |
-| PostgreSQL | All state: hosts, scans, transactions, audit events, queue | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
+| PostgreSQL | Records: hosts, scans, transactions, audit events, queue (keys and the rollback store live on the serve host) | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
 
 `openwatch serve` runs an in-process worker that **does** drain the scan-job
 queue: the single-binary deployment scans with no extra process. By default it
@@ -217,11 +217,13 @@ There is no Prometheus endpoint and no Grafana stack in the current build (see
 Be explicit about what this stack does *not* offer today, so you do not plan
 around features that are absent:
 
-- **Horizontal API scaling is not packaged.** The `serve` process is stateless
-  apart from PostgreSQL (it uses stateless JWT auth), so running replicas behind
-  a load balancer is architecturally possible, but there is no shipped unit,
-  load-balancer config, or supported procedure for it. Treat `serve` as a single
-  vertically-scaled process for now.
+- **Horizontal API scaling is not packaged.** Sessions, refresh tokens and
+  API tokens live in PostgreSQL, so replicas would share sign-in state, but
+  `serve` is not stateless: Kensa's remediation rollback pre-state is a local
+  SQLite store (`/var/lib/openwatch/kensa/remediation.db`), and a rollback
+  must run on the instance that holds the capture. There is no shipped unit,
+  load-balancer config, or supported procedure for replicas. Treat `serve` as
+  a single vertically-scaled process for now.
 - **No packaged worker unit.** Only `openwatch.service` (running `serve`) ships
   in the RPM/DEB. Running additional scan workers requires the operator-authored
   unit shown above.

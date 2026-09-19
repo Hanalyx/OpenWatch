@@ -264,19 +264,45 @@ WHERE username = 'USERNAME' AND deleted_at IS NULL;
 
 ### Revoke every session (full re-authentication)
 
-To force all users to re-authenticate, rotate the JWT signing key. The signing key is the file at `/etc/openwatch/keys/jwt_private.pem`. Replacing it invalidates every issued access token because existing tokens no longer verify:
+Four kinds of credential keep a user signed in, and they are revoked in
+different places. Rotating the JWT signing key handles only the first.
+
+| Credential | Where it lives | Ended by |
+|---|---|---|
+| Access token (bearer JWT, 30 minutes) | Signed with `jwt_private.pem`, not stored | Rotating the signing key and restarting |
+| Browser session (`openwatch_session` cookie) | `sessions` table, hashed | Setting `revoked_at` on the row |
+| Refresh token (cookie or body) | `refresh_tokens` table, hashed | Setting `revoked_at` on the row |
+| API token (`/api/v1/tokens`) | `api_tokens` table, hashed | Deleting it through `/api/v1/tokens/{id}` |
+
+Verified on 0.8.0-rc.3: after a signing-key rotation and restart, a bearer
+token issued before it returned 401, while the same browser's session cookie
+and refresh cookie still returned 200. An open tab stays signed in until its
+row is revoked.
+
+To sign everyone out now, revoke the rows first (immediate, no restart), then
+rotate the key so that any access token still in flight dies within its
+30-minute lifetime rather than living out the rest of it:
 
 ```bash
-# Back up the current key, generate a replacement (RSA, matching the existing key type)
-sudo cp /etc/openwatch/keys/jwt_private.pem /etc/openwatch/keys/jwt_private.pem.bak
-sudo openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
-  -out /etc/openwatch/keys/jwt_private.pem
-sudo chown root:openwatch /etc/openwatch/keys/jwt_private.pem
-sudo chmod 0640 /etc/openwatch/keys/jwt_private.pem
+# 1. Sessions and refresh tokens: immediate, fleet-wide, no restart.
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" \
+    -c "UPDATE sessions SET revoked_at = now() WHERE revoked_at IS NULL;" \
+    -c "UPDATE refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL;"'
 
-# The key is loaded at startup; restart to pick up the new key
+# 2. Access tokens: rotate the signing key at a NEW path (never overwrite the
+#    old one, so you can roll back), point the service at it, restart.
+NEW_JWT="/etc/openwatch/keys/jwt_private-$(date -u +%Y%m%d)-incident.pem"
+sudo sh -c 'umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /root/jwt_private.new.pem'
+sudo install -m 0640 -o root -g openwatch /root/jwt_private.new.pem "$NEW_JWT"
+sudo shred -u /root/jwt_private.new.pem
+echo "OPENWATCH_IDENTITY_JWT_PRIVATE_KEY=$NEW_JWT" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
 sudo systemctl restart openwatch
 ```
+
+API tokens are not touched by either step; list and delete the ones that may
+be exposed through `/api/v1/tokens`. The full procedure, with rollback, is in
+the [secret rotation runbook](SECRET_ROTATION.md#rotate-the-jwt-signing-key).
 
 Confirm the configured path before generating a new key: `openwatch check-config` prints the resolved configuration with secrets redacted:
 

@@ -2134,3 +2134,113 @@ func TestCIGates_AMovedTagCannotBePublished(t *testing.T) {
 		runPythonSuite(t, "scripts/test_release_publish.py")
 	})
 }
+
+// @ac AC-24
+// AC-24: a failed signing-key safety gate prevents the upload.
+//
+// The runbook's export block used `... && echo OK || echo ABORT` and then
+// ran `gh secret set`; echo succeeds, so the block carried on past its own
+// gate (OW-047). This extracts the block and runs it with gpg and gh
+// replaced: gpg reports a stubbed master or a real one on request, gh
+// records every invocation. The block must upload in the first case and
+// must not in the second, and must leave no export on disk either way.
+func TestCIGates_SigningExportGateStopsTheUpload(t *testing.T) {
+	t.Run("release-ci-gates/AC-24", func(t *testing.T) {
+		dir := appDir(t)
+		book, err := os.ReadFile(filepath.Join(dir, "docs", "runbooks", "RELEASING.md"))
+		if err != nil {
+			t.Fatalf("read RELEASING.md: %v", err)
+		}
+		block := regexp.MustCompile("(?s)\\*\\*Export the signing subkey.*?```bash\\n(.*?)```")
+		m := block.FindSubmatch(book)
+		if m == nil {
+			t.Fatal("docs/runbooks/RELEASING.md has no signing-key export block")
+		}
+		script := string(m[1])
+		gateAt := strings.Index(script, "gnu-dummy")
+		uploadAt := strings.Index(script, "gh secret set GPG_PRIVATE_KEY")
+		if gateAt < 0 || uploadAt < 0 || gateAt > uploadAt {
+			t.Fatalf("the block must check for gnu-dummy before uploading (gate at %d, upload at %d)", gateAt, uploadAt)
+		}
+
+		// Stubs. gpg: --import and --export write nothing sensitive; the
+		// export writes a marker file; --list-secret-keys prints two fpr
+		// lines; --list-packets prints "gnu-dummy" only when $GPG_STUBBED=1.
+		// gh: appends its arguments to $GH_LOG. shred: real, or rm fallback.
+		stub := t.TempDir()
+		gpgStub := "#!/bin/sh\n" +
+			"case \"$*\" in\n" +
+			"  *--import*) exit 0;;\n" +
+			"  *--list-secret-keys*) printf 'fpr:::::::::AAAA:\\nfpr:::::::::BBBB:\\n'; exit 0;;\n" +
+			"  *--export-secret-subkeys*) echo 'exported-subkey-material'; exit 0;;\n" +
+			"  *--list-packets*) if [ \"${GPG_STUBBED:-0}\" = 1 ]; then echo ':secret sub key packet: gnu-dummy S2K'; else echo ':secret key packet: real'; fi; exit 0;;\n" +
+			"esac\nexit 1\n"
+		ghStub := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$GH_LOG\"\ncat >/dev/null 2>&1 || true\nexit 0\n"
+		for name, body := range map[string]string{"gpg": gpgStub, "gh": ghStub} {
+			if err := os.WriteFile(filepath.Join(stub, name), []byte(body), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		run := func(stubbedMaster bool) (exit int, ghCalls []string, exportsLeft int, out string) {
+			t.Helper()
+			work := t.TempDir()
+			log := filepath.Join(work, "gh.log")
+			cmd := exec.Command("bash", "-c", script) // plain bash: the block brings its own -e
+			cmd.Dir = work
+			flag := "0"
+			if stubbedMaster {
+				flag = "1"
+			}
+			cmd.Env = append(os.Environ(),
+				"PATH="+stub+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"GH_LOG="+log, "GPG_STUBBED="+flag, "VAULT="+work, "TMPDIR="+work,
+				"HOME="+work, "GNUPGHOME="+filepath.Join(work, "gnupg"))
+			raw, err := cmd.CombinedOutput()
+			out = string(raw)
+			if err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					exit = ee.ExitCode()
+				} else {
+					t.Fatalf("run block: %v", err)
+				}
+			}
+			if b, rerr := os.ReadFile(log); rerr == nil {
+				for _, l := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+					if l != "" {
+						ghCalls = append(ghCalls, l)
+					}
+				}
+			}
+			left, _ := filepath.Glob(filepath.Join(work, "ow-subkey.*"))
+			return exit, ghCalls, len(left), out
+		}
+
+		// Stubbed master: the block completes and uploads both GPG secrets.
+		exit, calls, left, out := run(true)
+		if exit != 0 {
+			t.Errorf("stubbed master: block exited %d:\n%s", exit, out)
+		}
+		if len(calls) != 2 || !strings.Contains(calls[0], "GPG_PRIVATE_KEY") || !strings.Contains(calls[1], "GPG_PASSPHRASE") {
+			t.Errorf("stubbed master: gh calls = %q, want the two GPG secrets in order", calls)
+		}
+		if left != 0 {
+			t.Errorf("stubbed master: %d export file(s) left on disk after the block", left)
+		}
+
+		// Real master: the gate fails, the block stops, nothing is uploaded.
+		exit, calls, left, out = run(false)
+		if exit == 0 {
+			t.Errorf("real master: block exited 0; the gate must end it")
+		}
+		if !strings.Contains(out, "ABORT") {
+			t.Errorf("real master: block did not report ABORT:\n%s", out)
+		}
+		if len(calls) != 0 {
+			t.Errorf("real master: gh was invoked %q; a failed gate must prevent every upload", calls)
+		}
+		if left != 0 {
+			t.Errorf("real master: %d export file(s) left on disk after the failed gate", left)
+		}
+	})
+}
