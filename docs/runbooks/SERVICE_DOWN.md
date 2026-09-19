@@ -248,15 +248,21 @@ systemd auto-restart. See the [high CPU runbook](HIGH_CPU.md) for load-related t
 
 ## Scan worker
 
-Scans run in a separate `openwatch worker` process that claims jobs from the
-PostgreSQL job queue (`SKIP LOCKED`) and runs Kensa checks. The `serve` process
-does not execute scan jobs, so the API and UI can be perfectly healthy while
-scans pile up because no worker is running.
+Scans run inside `serve`: it starts an in-process worker that claims jobs
+from the PostgreSQL job queue (`SKIP LOCKED`) with `[server].scan_concurrency`
+loops (default 4) and runs Kensa checks. So if `openwatch.service` is up,
+scans are being executed; a backlog with the API healthy means the loops are
+saturated or every host is locked or backing off, not that nothing is
+running. Check the queue:
 
-The package does not ship a systemd unit for the worker today (only
-`openwatch.service`, which runs `serve`). If your deployment runs a worker
-(through your own unit, a supervisor, or manually), check and restart it
-independently:
+```bash
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT status, count(*) FROM job_queue GROUP BY status;"'
+```
+
+An `openwatch worker` process is optional extra capacity that shares the
+same queue. The package does not ship a systemd unit for it. If your
+deployment runs one (through your own unit, a supervisor, or manually),
+check and restart it independently:
 
 ```bash
 # If you manage the worker with your own systemd unit, e.g. openwatch-worker:

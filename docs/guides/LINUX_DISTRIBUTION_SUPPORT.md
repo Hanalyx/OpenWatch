@@ -99,7 +99,7 @@ major version falls outside the 8 to 10 range the setup code models. SUSE is
 not recognized as any family, so it is unsupported too. The Fedora entry in
 the package-install list above proves only that the RPM unpacks there.
 
-Any distribution may run the server from source (Go 1.26 + PostgreSQL 14 or
+Any distribution may run the server from source (Go 1.26 + PostgreSQL 15 or
 newer). That is unsupported in the sense above: nothing in CI proves it.
 
 > The server OS is **independent** of the managed-host OS. You can run the
