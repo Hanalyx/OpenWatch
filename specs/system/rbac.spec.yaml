@@ -1,7 +1,15 @@
 spec:
   id: system-rbac
   title: RBAC permission registry and middleware
-  version: "2.2.0"
+  # Version 2.3.0 (was 2.2.0). Minor: C-11 binds the identity binder to
+  # resolve a custom role's stored permission set into the identity, with
+  # AC-27 and AC-28. Until now a custom role could be created (api-users
+  # AC-11), assigned, and bound, and conferred nothing at request time,
+  # because Identity.HasPermission consulted BuiltInRoles alone (CP
+  # bugs/OW-054, reproduced 2026-09-19). AC-05's text is unchanged; it was
+  # always the requirement and is now met for custom roles. Primary-role
+  # binding (system-user-management C-06) is unchanged.
+  version: "2.3.0"
   status: approved
   tier: 1
 
@@ -86,6 +94,24 @@ spec:
     - id: C-10
       description: "A mutating operation is never anonymously open by default. Every POST, PUT, PATCH and DELETE in api/openapi.yaml MUST resolve to exactly one of two states. Either its handler provably enforces the caller (an RBAC check on a typed permission, or an authentication check for a route that needs no specific permission), or its operationId appears on the named anonymous allowlist that api/openapi.yaml carries. An operation that is on neither is a defect, and the rule is written so the next author has a question to answer rather than a list to keep. The allowlist is the small side on purpose: it holds the pre-auth routes such as login and setup, and nothing joins it without a reason recorded next to it. This constraint is about REACHABILITY, not documentation. It does not claim the contract describes the gate: today many operations enforce inside the handler while declaring no x-required-permission, so a rule written against the annotation alone would report a contract gap as if it were an open route. Closing that annotation gap is separate work, and C-09 plus AC-18 govern the declarations that do exist."
       type: security
+      enforcement: error
+    - id: C-11
+      description: >
+        A bound identity whose role is not a built-in role carries that
+        role's stored permission set, resolved at bind time. The identity
+        binder resolves it through the roles table for every binding path
+        (session cookie, session JWT, API token) and attaches it to
+        auth.Identity as Grants; HasPermission and Permissions() consult
+        Grants for a non-built-in role and BuiltInRoles for a built-in one,
+        never both. A role that is provably absent, or a lookup that fails,
+        binds an identity with no permissions and is logged at warn with the
+        role id; it is not a 401 and not a 403 with a different code,
+        because the credential itself was valid. Which role binds when a
+        user holds several is unchanged (system-user-management C-06: the
+        highest-precedence built-in role; a custom role only when the user
+        holds no built-in role). Combining roles is a separate request
+        (features/OW-007). v2.3.0 NEW
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -339,3 +365,26 @@ spec:
         review because a silent contract reads exactly like a safe one.
       priority: critical
       references_constraints: [C-10]
+    - id: AC-27
+      description: >
+        Through the real binder on a real session: a user whose only role is
+        a custom role granting host:read gets 200 on GET /api/v1/hosts and
+        403 authz.permission_denied on POST /api/v1/hosts (host:write), and
+        GET /api/v1/auth/me/permissions reports the custom role id with
+        exactly the stored permission set. An API token minted for that
+        custom role binds the same grants. A session JWT whose role claim
+        names a custom role deleted after the JWT was minted (the only path
+        to a deleted role: user_roles and api_tokens reference roles with
+        ON DELETE RESTRICT) binds an identity with no permissions on the
+        next request: 403, not 401.
+      priority: critical
+      references_constraints: [C-11]
+    - id: AC-28
+      description: >
+        Precedence is preserved. A user holding viewer and a custom role
+        granting host:write binds as viewer: GET /api/v1/auth/me/permissions
+        reports role viewer and the viewer set, POST /api/v1/hosts is 403.
+        The custom grant is not added; that is features/OW-007's question,
+        not this contract's.
+      priority: critical
+      references_constraints: [C-11]
