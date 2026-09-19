@@ -73,6 +73,13 @@ exist; do not use it.
 
 ## Step 1: check the content hash
 
+> **Before you start**
+> - **You need:** the three files from [What you need](#what-you-need), and the tools from [Dependencies](#dependencies).
+> - **Run as:** anyone; the check runs offline on copies and needs no OpenWatch permission beyond fetching the files (`host:read`).
+> - **What changes:** nothing; verification only reads.
+> - **Verify with:** every step's expected output, ending with `Signature Verified Successfully` in Step 4.
+> - **Recover by:** nothing to recover; a failed check means the report is not what it claims, see [What this does not prove](#what-this-does-not-prove).
+
 ```bash
 sha256sum report.json
 ```

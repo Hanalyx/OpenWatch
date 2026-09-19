@@ -56,6 +56,13 @@ configured through `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`.
 
 ## Diagnosis
 
+> **Before you start**
+> - **You need:** shell access to the host that holds the full filesystem (the OpenWatch host, the PostgreSQL host, or both).
+> - **Run as:** a sudo-capable administrator; `psql` as the `openwatch` role for the database-size query.
+> - **What changes:** nothing; every step here reads state.
+> - **Verify with:** `df -h` showing headroom and `/api/v1/health` returning `200` once a path in [Resolution](#resolution) has run.
+> - **Recover by:** nothing to recover from a diagnosis.
+
 ### Step 1: Check filesystem usage
 
 ```bash
@@ -120,6 +127,13 @@ table names against your database before acting on any specific table.
 ---
 
 ## Resolution
+
+> **Before you start**
+> - **You need:** the diagnosis naming which filesystem is full and what is consuming it.
+> - **Run as:** a sudo-capable administrator for the journal and filesystem paths; `psql` as the `openwatch` role for the database paths, one `-c` per statement.
+> - **What changes:** journal retention, table contents (Path C deletes rows), or filesystem size, per path.
+> - **Verify with:** [Recovery verification](#recovery-verification).
+> - **Recover by:** a database restore per [Backup and recovery](BACKUP_RECOVERY.md) if Path C removed rows you needed; the other paths remove nothing you can want back.
 
 Reclaim space starting with the safest, fastest options. The goal is at least
 15-20% free space on every affected filesystem.

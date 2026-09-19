@@ -378,15 +378,8 @@ the limit. There is no `422` validation status: validation failures return
 ## Operations: the CLI and systemd
 
 Automation that manages the deployment itself (rather than calling the API) uses
-the `openwatch` binary and `systemd`, not Docker. The subcommands are:
-
-| Command | Purpose |
-|---------|---------|
-| `openwatch serve` | Run the HTTPS API + UI server (the default subcommand; what `systemd` starts). |
-| `openwatch worker` | Run the background job worker (PostgreSQL `SKIP LOCKED` queue). |
-| `openwatch migrate` | Apply database migrations. |
-| `openwatch create-admin` | Create the first admin user. |
-| `openwatch check-config` | Validate `/etc/openwatch/openwatch.toml` and exit. |
+the `openwatch` binary and `systemd`, not Docker. The subcommands are listed
+once, in the [environment reference](ENVIRONMENT_REFERENCE.md#cli-subcommands).
 
 Day-to-day lifecycle:
 

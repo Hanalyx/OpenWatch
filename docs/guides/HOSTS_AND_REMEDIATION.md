@@ -303,6 +303,44 @@ status alone: a step that rollback will not reverse, a change that was written
 but is not live until the host reboots, and a step that cannot be rolled back
 at all.
 
+### Worked example: staged versus applied
+
+A request to fix a kernel parameter on a host, followed through the states it
+can reach. The request status is what the **Remediation** tab shows; the audit
+event is what `GET /api/v1/audit/events` records; the host state is what a
+rescan finds.
+
+| Moment | Request status | Audit event (`outcome`) | What the host has |
+|---|---|---|---|
+| You select **Request remediation** | `approved` (auto-approved in Core) | `remediation.requested`, then `remediation.approved` | Nothing changed |
+| You select **Fix** and the job is queued | `executing` | `remediation.executed` (`queued`) | Nothing changed yet |
+| The fix writes `/etc/sysctl.d/…` and the running value | `executed` (shown as **Fixed**) | `remediation.executed` (`executed`) | The new value, live now |
+| The fix writes a GRUB parameter that needs a reboot | `staged` (shown as **Staged, reboot required**) | `remediation.executed` (`staged`) | The new value on disk, the old value running until reboot |
+| The rule's own check fails after apply and the captured state is restored | `reverted` (shown as **Reverted, host unchanged**) | `remediation.executed` (`reverted`) | The captured state, restored by the engine |
+| Some steps applied and one could not be reversed | `partially_applied` (shown as **Partially applied**) | `remediation.executed` (`partially_applied`) | A mix; the transaction view names the step |
+| The host already satisfied the rule | `not_applied` (shown as **Not applied**) | `remediation.executed` (`not_applied`) | Unchanged, and no rollback is offered |
+
+A rescan after a **Fixed** result shows the rule passing. A rescan after a
+**Staged** result still shows it failing until the host reboots, because the
+scan reads the running value; that is not a failed fix.
+
+### Worked example: rollback state versus the audit record
+
+The captured pre-state and the audit log answer different questions. The
+pre-state is *what will be put back*: it lives in the rollback store on the
+server (`/var/lib/openwatch/kensa/`, see the
+[backup runbook](../runbooks/BACKUP_RECOVERY.md)) and is what **Roll back**
+restores. The audit event is *who did what, when*: `remediation.rolled_back`
+carries the request, host, rule, job id and the user, and is written whether
+the restore succeeded or not.
+
+So after a rollback: the request row reads **Rolled back**; expanding it shows
+the pre-state that was restored; the audit log has a `remediation.rolled_back`
+row attributed to you. If the rollback store was lost (restored from an older
+backup, for example), the audit record still exists and the **Roll back**
+control does not, because there is nothing to restore. The record proves the
+action; only the store makes the action possible.
+
 ---
 
 ## Rollback
@@ -397,7 +435,7 @@ authoritative role-to-permission mapping is served by the roles API,
 For operators who want to script host management or integrate with CI/CD
 pipelines, here are the key API endpoints. OpenWatch serves the REST API over
 HTTPS on port `8443`; every path lives under `/api/v1`. The contract source of
-truth is the served `/api/v1` OpenAPI document. Replace `openwatch.example.com` with your host.
+truth is the served OpenAPI document, `/api/v1/openapi.yaml` (viewer at `/docs`). Replace `openwatch.example.com` with your host.
 
 ### Add a host
 

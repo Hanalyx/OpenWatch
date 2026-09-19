@@ -25,6 +25,13 @@ migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md)
 
 ## Quick upgrade (automatic, recommended)
 
+> **Before you start**
+> - **You need:** the [Before you upgrade](#before-you-upgrade) checklist done, including the full backup.
+> - **Run as:** a sudo-capable administrator; the package scriptlet runs the migration as the service user.
+> - **What changes:** the installed packages, the database schema (migrated inside the package transaction), and the service (stopped and started by the scriptlet).
+> - **Verify with:** `openwatch --version` showing the new version and `/api/v1/health` returning `200`.
+> - **Recover by:** [Rollback](#rollback): decided from the observed schema version, not from which step you reached.
+
 On a single-instance install an upgrade is **one command**. The package
 post-install scriptlet applies any pending database migrations automatically, taking a backup restore point first, and restarts the service.
 
@@ -87,6 +94,13 @@ To restore the pre-upgrade dump instead, see [Rollback](#rollback).
   `BACKUP_RETENTION_DAYS`.
 
 ## Controlled (manual) upgrade
+
+> **Before you start**
+> - **You need:** the same checklist, a maintenance window, and the understanding that installing the package is the migration.
+> - **Run as:** a sudo-capable administrator for the package and service steps; the `openwatch` service user with `secrets.env` loaded for `migrate --status`.
+> - **What changes:** the same things as the quick upgrade; the extra steps observe, they do not defer the migration.
+> - **Verify with:** the post-upgrade checklist at the end of this guide.
+> - **Recover by:** [Rollback](#rollback).
 
 The remaining sections are the step-at-a-time path for production change
 windows and multi-step validation. Read this first, because it changes what

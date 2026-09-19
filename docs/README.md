@@ -6,6 +6,14 @@ clone.
 
 Start here: [Introduction](../README.md) | [Quickstart](guides/QUICKSTART.md)
 
+Three starting points, in the order to read them:
+
+| If you are | Read, in order |
+|---|---|
+| **An operator** installing, scanning and fixing | [Installation](guides/INSTALLATION.md), then [Quickstart](guides/QUICKSTART.md), then [Scanning and compliance](guides/SCANNING_AND_COMPLIANCE.md) and [Hosts and remediation](guides/HOSTS_AND_REMEDIATION.md) |
+| **An administrator** running it day to day | [User roles](guides/USER_ROLES.md), then [Environment reference](guides/ENVIRONMENT_REFERENCE.md), [Secret rotation](runbooks/SECRET_ROTATION.md), [Backup and recovery](runbooks/BACKUP_RECOVERY.md) and [Upgrade procedure](runbooks/UPGRADE_PROCEDURE.md) |
+| **A contributor** changing the code | [AGENTS.md](../AGENTS.md), then [CONTRIBUTING.md](../CONTRIBUTING.md), then the contracts under [`specs/`](../specs/) and [Releasing](runbooks/RELEASING.md) |
+
 This index links documents rather than restating what they say. Version
 numbers, supported platforms, rule counts, permission counts and configuration
 values live in the guides themselves, so there is one place to correct each of

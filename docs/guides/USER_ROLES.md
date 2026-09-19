@@ -294,6 +294,6 @@ permissions, query the permissions-registry API endpoint.
 
 ## Related documentation
 
-- [Installation guide](INSTALLATION.md): install, `migrate`, `create-admin`, service start
-- The running binary serves its API contract under `/api/v1`; the permission and
+- [Installation guide](INSTALLATION.md): install the packages and run `openwatch setup`
+- The running binary serves its API contract at `/api/v1/openapi.yaml`; the permission and
   role registry is available from the permissions-registry API endpoint

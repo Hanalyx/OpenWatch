@@ -23,6 +23,13 @@ OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by systemd (
 
 ## Diagnosis
 
+> **Before you start**
+> - **You need:** shell access to the OpenWatch host and to the PostgreSQL server it uses.
+> - **Run as:** a sudo-capable administrator for service and journal commands; `psql` as the `openwatch` database role using the DSN from `/etc/openwatch/secrets.env`.
+> - **What changes:** nothing; every step here reads state.
+> - **Verify with:** the symptom you started from: `/api/v1/health` returning `200`.
+> - **Recover by:** nothing to recover from a diagnosis; move to [Resolution](#resolution).
+
 ### Step 1: Check PostgreSQL service status
 
 ```bash
@@ -159,6 +166,13 @@ If `dead_pct` exceeds 20% for any table, a manual vacuum may be needed.
 ---
 
 ## Resolution
+
+> **Before you start**
+> - **You need:** the diagnosis result naming which path applies.
+> - **Run as:** a sudo-capable administrator; PostgreSQL changes as the PostgreSQL superuser or the `openwatch` role as each command states.
+> - **What changes:** PostgreSQL settings, connections or the OpenWatch service state, per path.
+> - **Verify with:** [Recovery verification](#recovery-verification).
+> - **Recover by:** reverting the setting you changed and restarting the affected service; a database restore only if data was touched, per [Backup and recovery](BACKUP_RECOVERY.md).
 
 ### Path A: PostgreSQL is down
 

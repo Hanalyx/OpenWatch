@@ -49,6 +49,13 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 
 ## Stage 2: Cut the release candidate
 
+> **Before you start**
+> - **You need:** the Stage 1 commit merged on `main`, the signing key `4AA0538FE239E50C` unlocked in your own terminal, and a clean working tree.
+> - **Run as:** the release captain, from an interactive shell (signing cannot run from automation).
+> - **What changes:** one signed tag on `origin`; pushing it starts `release.yml` and `package-smoke.yml`.
+> - **Verify with:** the tag appears on `origin` and `release.yml` runs against it; `scripts/release-status.py --tag` reports PENDING then PASS per gate.
+> - **Recover by:** nothing that moves or deletes the tag. A refused or failed candidate keeps its tag; take the next number (see below).
+
 The tag is read from `packaging/version.env`, never typed. The Stage 1 commit
 must be merged first, so the tag names a commit on `main` whose `version.env`
 carries the candidate version. `v0.8.0-rc.1` was tagged by hand against
@@ -223,6 +230,13 @@ claim a review that never happened against that tag, and the checker's commit
 and digest binding would report it STALE anyway.
 
 ## Stage 4: The GA candidate, its draft, and publication
+
+> **Before you start**
+> - **You need:** every gate GO on the final-version commit: fresh F1 to F3, H1 and D1 against the draft's own assets.
+> - **Run as:** the release captain, with a separate founder authorization for the publish step.
+> - **What changes:** the draft release's single `draft` flag; nothing is uploaded, rebuilt, renamed or tagged.
+> - **Verify with:** `scripts/release-publish.py --tag` in dry run reports GO and the same asset set it will flip; after `--yes`, the release is public with unchanged digests.
+> - **Recover by:** not un-publishing. A defect found after publication is a new version.
 
 Decided by the founder on 2026-09-14 (CP `bugs/OW-037`, option C): the GA
 release is a distinct final-version commit, built once into a draft, verified

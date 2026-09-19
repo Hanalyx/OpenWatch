@@ -57,6 +57,13 @@ The default key paths above come from the shipped configuration; confirm yours w
 
 ## Backup procedure
 
+> **Before you start**
+> - **You need:** a reachable PostgreSQL server, `/var/backups/openwatch/` created `root 0700`, and a passphrase for the encrypted state archive kept in your secrets manager.
+> - **Run as:** root, with `/etc/openwatch/secrets.env` loaded into the shell (`set -a; . /etc/openwatch/secrets.env; set +a`).
+> - **What changes:** nothing on the OpenWatch host; it writes a dump and an encrypted archive under `/var/backups/openwatch/`.
+> - **Verify with:** `pg_restore --list` on the dump and a test restore into a scratch database, as in [Verify a backup](#verify-a-backup).
+> - **Recover by:** deleting a bad backup file; a backup never alters the running service.
+
 OpenWatch connects to an external PostgreSQL instance. Run `pg_dump` against
 that server. The DSN is in `/etc/openwatch/secrets.env` as
 `OPENWATCH_DATABASE_DSN`.
@@ -160,6 +167,13 @@ retention policy (for example, `find /var/backups/openwatch -name '*.dump'
 -mtime +30 -delete`) and copy backups off-host.
 
 ## Restore procedure
+
+> **Before you start**
+> - **You need:** the database dump and the state archive from the same backup generation, plus its passphrase.
+> - **Run as:** root, with `/etc/openwatch/secrets.env` loaded into the shell.
+> - **What changes:** the entire database (`--clean --if-exists` replaces current contents), `credential.key`, and the rollback store; the service is stopped for the duration.
+> - **Verify with:** `pg_restore` exit 0, then a `200` from `/api/v1/health` and a signed-in check that an executed remediation still offers **Roll back**.
+> - **Recover by:** restoring the previous generation the same way; take a fresh dump of the current state first if it has any value.
 
 ### Restore the database
 
@@ -373,10 +387,9 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 The following are not part of OpenWatch today. Do not script against them.
 
 - **No built-in backup command.** There is no `openwatch backup` or
-  `openwatch restore` subcommand. The subcommands are `setup`, `serve`,
-  `worker`, `migrate`, `create-admin`, and `check-config`
-  (`openwatch --help`). Use `pg_dump`/`pg_restore` and file copies as shown
-  above.
+  `openwatch restore` subcommand (the full list is in the
+  [environment reference](../guides/ENVIRONMENT_REFERENCE.md#cli-subcommands)).
+  Use `pg_dump`/`pg_restore` and file copies as shown above.
 - **No continuous WAL archiving or point-in-time recovery shipped by
   OpenWatch.** If you need PITR, configure it on your PostgreSQL server
   independently; it is a PostgreSQL feature, not an OpenWatch one.
@@ -399,4 +412,4 @@ The following are not part of OpenWatch today. Do not script against them.
 | Logs | `journalctl -u openwatch -f` |
 
 See also: [Installation](../guides/INSTALLATION.md),
-[User roles](../guides/USER_ROLES.md), and the API contract under `/api/v1`.
+[User roles](../guides/USER_ROLES.md), and the API contract the binary serves at `/api/v1/openapi.yaml`.

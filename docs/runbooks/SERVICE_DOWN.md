@@ -65,6 +65,13 @@ a degraded `HealthResponse` body. It returns HTTP `503` with the standard
 
 ## Diagnosis
 
+> **Before you start**
+> - **You need:** shell access to the OpenWatch host.
+> - **Run as:** a sudo-capable administrator; `check-config` runs as the `openwatch` service user with `secrets.env` loaded, as the step shows.
+> - **What changes:** nothing; every step here reads state.
+> - **Verify with:** `/api/v1/health` returning `200` once a path in [Resolution](#resolution) has run.
+> - **Recover by:** nothing to recover from a diagnosis.
+
 ### Step 1: Check the service state
 
 ```bash
@@ -133,6 +140,13 @@ Adjust the user, database, and host to match `OPENWATCH_DATABASE_DSN` in
 ---
 
 ## Resolution
+
+> **Before you start**
+> - **You need:** the diagnosis naming the boot failure or dependency.
+> - **Run as:** a sudo-capable administrator; root where a file under `/etc/openwatch/` must be edited.
+> - **What changes:** configuration, key or TLS files, or the service state, per path.
+> - **Verify with:** [Recovery verification](#recovery-verification).
+> - **Recover by:** restoring the file you changed from `/etc/openwatch` backups (see [Backup and recovery](BACKUP_RECOVERY.md)) and restarting.
 
 ### Path A: Process is down or crash-looping
 
