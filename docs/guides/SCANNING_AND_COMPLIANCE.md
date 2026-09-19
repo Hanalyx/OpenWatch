@@ -319,8 +319,11 @@ OpenWatch captures a posture snapshot rollup on an hourly tick (plus once
 immediately at boot). To view historical posture:
 
 1. Navigate to the host detail page.
-2. Select the **Posture History** tab.
-3. Choose a date range to view the compliance trend.
+2. Stay on the **Overview** tab. The compliance trend card plots the daily
+   score for the last 30 days.
+
+There is no Posture History tab and no date picker. The API behind the card,
+`GET /api/v1/hosts/{id}/compliance/trend`, takes `days` (1 to 90).
 
 ---
 
@@ -332,11 +335,14 @@ and now passes is an **improvement**.
 
 ### Where drift shows in the UI
 
-There is no separate drift tab. Drift reaches you three ways:
+There is no separate drift tab. Drift reaches you two ways today, with a
+third defined but not yet active:
 
-- **As alerts.** When a scan moves a host's score, the alert router raises a
-  `drift_major`, `drift_minor` or `drift_improvement` alert. They appear on
-  the **Activity** page (source: alert) and on the host's page.
+- **As alerts, once the detector runs.** The alert router defines
+  `drift_major`, `drift_minor` and `drift_improvement` alerts for a scan that
+  moves a host's score. The drift detector that raises them is not started in
+  this release, so none fires yet. When it does, they will appear on the
+  **Activity** page (source: alert).
 - **As per-rule changes.** Every rule whose status changed is a transaction
   in the **Activity** feed, shown under the "COMPLIANCE & DRIFT" label, so a
   regression can be traced to the rule and the scan that recorded it.
@@ -467,16 +473,24 @@ expiry passes are swept to **expired** automatically.
 
 ## Alert management
 
-Alerts are generated automatically when scan results meet configured thresholds.
+The alert router defines five kinds of alert. Two come from the liveness loop
+and fire today. Three come from the drift detector, which is not started in
+this release, so they are defined but never raised. Nothing else creates an
+alert.
 
-### Alert categories
+### Alert kinds
 
-| Category | Alert Types |
-|----------|-------------|
-| Compliance | Critical finding, high finding, score drop, non-compliant, degrading trend |
-| Operational | Host unreachable, scan failed, scheduler stopped, scan backlog |
-| Exception | Exception expiring, exception expired, exception requested |
-| Drift | Configuration drift, unexpected remediation, mass drift |
+| Kind | Raised when | Default severity |
+|------|-------------|------------------|
+| `host_unreachable` | The liveness loop flips a host from reachable to unreachable, after `unreachable_threshold` consecutive probe failures | high |
+| `host_recovered` | A host that was unreachable answers a probe again | info |
+| `drift_major` | A scan lowers the host's score by 10 points or more (detector not started) | high |
+| `drift_minor` | A scan lowers the score by at least 5 and under 10 points (detector not started) | medium |
+| `drift_improvement` | A scan raises the score by 5 points or more (detector not started) | info |
+
+There are no finding-count, score-band, scan-failure, scheduler, backlog,
+exception-expiry or mass-drift alerts. A failed scan is recorded in the
+host's scan history, not as an alert.
 
 ### Viewing alerts
 
@@ -506,16 +520,16 @@ for closing an alert that needs no action; the UI does not offer it yet.
 
 ### Configuring thresholds
 
-Navigate to **Settings > Alert Thresholds** to customize when alerts fire.
+There is no alert-thresholds page. Two settings shape what fires and what is
+delivered:
 
-| Setting | Default | Meaning |
-|---------|---------|---------|
-| Score drop threshold | 20 points | Alert if score drops 20+ points in 24h |
-| Non-compliant threshold | 80% | Alert if score falls below 80% |
-| Degrading trend scans | 3 | Alert after 3 consecutive declining scans |
-| Max scan age | 48 hours | Alert if host not scanned in 48 hours |
-| Exception expiry warning | 7 days | Warn 7 days before exception expires |
-| Mass drift threshold | 10 hosts | Alert if 10+ hosts drift simultaneously |
+| Setting | Where | Meaning |
+|---------|-------|---------|
+| `unreachable_threshold` | **Settings > Scanning & monitoring** | Consecutive probe failures before a reachable host flips to unreachable and `host_unreachable` fires. 1 to 10. |
+| Channel minimum severity (`tag_filter.severity`) | **Settings > Notifications**, per channel | The lowest severity a channel delivers. Alerts below it still appear on the Activity page; they are not sent. |
+
+The drift thresholds (10 points major, 5 points minor, 5 points improvement)
+are built into the detector and have no setting.
 
 ---
 
