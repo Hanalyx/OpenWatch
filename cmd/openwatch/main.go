@@ -39,6 +39,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 	"github.com/Hanalyx/openwatch/internal/db/migrations"
 	"github.com/Hanalyx/openwatch/internal/dbbackup"
+	"github.com/Hanalyx/openwatch/internal/drift"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/exception"
 	"github.com/Hanalyx/openwatch/internal/group"
@@ -363,9 +364,9 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 	//                              BEFORE any producer publishes (C-09)
 	//   3. Liveness probe loop   - producer: HeartbeatPulse on transitions
 	//
-	// drift service is constructed elsewhere with no long-lived loop;
-	// the worker subcommand calls DetectForScan per-scan-completion
-	// in a follow-up PR.
+	// drift service: constructed below, after router.Start, and handed to
+	// the in-process scan worker, which calls DetectForScan per scan
+	// completion. Spec system-drift-detector C-11 (1.3.0).
 	//
 	// OS Intelligence scheduler + on-demand Discovery service land
 	// further down (after credSvc + cfgStore are constructed).
@@ -400,6 +401,12 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Channel: notifyfeed.NewChannel(notifFeedStore),
 	})
 	router.Start(ctx) // C-09: subscriber active before any publisher.
+
+	// Compliance drift detector. Constructed after the router subscribes
+	// (C-03) so its first DriftDetected has a consumer, with the built-in
+	// 10/5/5 pp thresholds (system-drift-detector C-05, 1.3.0). The scan
+	// worker below calls it per completed scan (C-11).
+	driftSvc := drift.NewService(pool, audit.Emit, drift.DefaultThresholds(), bus)
 
 	// systemconfig store backs operator-tunable runtime values.
 	// Connectivity-monitor config (interval, timeout, threshold,
@@ -727,6 +734,7 @@ func cmdServe(cfg *config.Config, _ []string, stdout, stderr *os.File) int {
 		Bus:         bus,
 		Sched:       complianceSched,
 		Regressions: notifyfeed.NewProjector(notifFeedStore),
+		Drift:       driftSvc,
 	})
 
 	// Report signing key. Optional: an empty path yields an ephemeral

@@ -281,6 +281,14 @@ the bare `*` wildcard. Those exist only for the built-in roles. Every
 permission a custom role lists is validated against the registry; a wildcard
 or any permission not in the registry is rejected with `400`.
 
+A custom role grants exactly its stored list. When a request is bound to a
+user whose role is custom, the service reads that list from the `roles`
+table and the request carries those permissions; `GET
+/api/v1/auth/me/permissions` shows them. An API token minted for a custom
+role carries the same list. Precedence still applies: a user who also holds
+a built-in role is bound to that built-in role, and the custom role's list
+is not added.
+
 For the live permission registry, including category wildcards and newly added
 permissions, query the permissions-registry API endpoint.
 
