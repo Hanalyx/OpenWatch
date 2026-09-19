@@ -217,11 +217,13 @@ There is no Prometheus endpoint and no Grafana stack in the current build (see
 Be explicit about what this stack does *not* offer today, so you do not plan
 around features that are absent:
 
-- **Horizontal API scaling is not packaged.** The `serve` process is stateless
-  apart from PostgreSQL (it uses stateless JWT auth), so running replicas behind
-  a load balancer is architecturally possible, but there is no shipped unit,
-  load-balancer config, or supported procedure for it. Treat `serve` as a single
-  vertically-scaled process for now.
+- **Horizontal API scaling is not packaged.** Sessions, refresh tokens and
+  API tokens live in PostgreSQL, so replicas would share sign-in state, but
+  `serve` is not stateless: Kensa's remediation rollback pre-state is a local
+  SQLite store (`/var/lib/openwatch/kensa/remediation.db`), and a rollback
+  must run on the instance that holds the capture. There is no shipped unit,
+  load-balancer config, or supported procedure for replicas. Treat `serve` as
+  a single vertically-scaled process for now.
 - **No packaged worker unit.** Only `openwatch.service` (running `serve`) ships
   in the RPM/DEB. Running additional scan workers requires the operator-authored
   unit shown above.
