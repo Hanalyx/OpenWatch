@@ -33,14 +33,9 @@ OpenWatch and their licenses. It is generated; see "Regeneration" below.
 
 | Module | Version | License |
 |---|---|---|
-| `github.com/woodsbury/decimal128` | v1.3.0 | 0BSD |
 | `github.com/elastic/go-libaudit/v2` | v2.6.2 | Apache-2.0 |
-| `github.com/go-openapi/jsonpointer` | v0.21.0 | Apache-2.0 |
-| `github.com/go-openapi/swag` | v0.23.0 | Apache-2.0 |
 | `github.com/oapi-codegen/runtime` | v1.4.1 | Apache-2.0 |
-| `github.com/oasdiff/yaml3` | v0.0.13 | Apache-2.0 |
 | `github.com/pquerna/otp` | v1.5.0 | Apache-2.0 |
-| `github.com/santhosh-tekuri/jsonschema/v6` | v6.0.2 | Apache-2.0 |
 | `github.com/sethvargo/go-retry` | v0.3.0 | Apache-2.0 |
 | `github.com/swaggest/swgui` | v1.8.7 | Apache-2.0 |
 | `gopkg.in/yaml.v3` | v3.0.1 | Apache-2.0 |
@@ -60,7 +55,6 @@ OpenWatch and their licenses. It is generated; see "Regeneration" below.
 | `github.com/boombuler/barcode` | v1.1.0 | MIT |
 | `github.com/BurntSushi/toml` | v1.6.0 | MIT |
 | `github.com/dustin/go-humanize` | v1.0.1 | MIT |
-| `github.com/getkin/kin-openapi` | v0.139.0 | MIT |
 | `github.com/go-chi/chi/v5` | v5.3.0 | MIT |
 | `github.com/golang-jwt/jwt/v5` | v5.3.1 | MIT |
 | `github.com/go-pdf/fpdf` | v0.9.0 | MIT |
@@ -68,13 +62,8 @@ OpenWatch and their licenses. It is generated; see "Regeneration" below.
 | `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | MIT |
 | `github.com/jackc/pgx/v5` | v5.9.2 | MIT |
 | `github.com/jackc/puddle/v2` | v2.2.2 | MIT |
-| `github.com/josharian/intern` | v1.0.0 | MIT |
 | `github.com/kballard/go-shellquote` | v0.0.0-20180428030007-95032a82bc51 | MIT |
-| `github.com/mailru/easyjson` | v0.7.7 | MIT |
 | `github.com/mfridman/interpolate` | v0.0.2 | MIT |
-| `github.com/mohae/deepcopy` | v0.0.0-20170929034955-c48cc78d4826 | MIT |
-| `github.com/oasdiff/yaml` | v0.1.0 | MIT |
-| `github.com/perimeterx/marshmallow` | v1.1.5 | MIT |
 | `github.com/pressly/goose/v3` | v3.27.1 | MIT |
 | `github.com/vearutop/statigz` | v1.4.0 | MIT |
 | `go.uber.org/multierr` | v1.11.0 | MIT |
