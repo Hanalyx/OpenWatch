@@ -47,17 +47,26 @@ func scanOutcomes(n, failing int) []kensa.RuleOutcome {
 	return out
 }
 
+// scanBudget bounds one scan's trip through the worker: claim, stub scan,
+// Apply, durable results, logbook, drift detection and the alert router's
+// persist. Locally that is about a second; under the race detector on a
+// shared hosted runner it exceeded 3 seconds once (go-ci run 35471479821,
+// job still "processing" at the deadline), so the budget is generous. The
+// loop exits as soon as the job completes, so a large budget costs nothing
+// on a fast machine.
+const scanBudget = 30 * time.Second
+
 // runOneScan enqueues a job whose scan returns outcomes and drives the
 // worker until the job completes. Returns the scan id (== job id).
 func runOneScan(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, hostID uuid.UUID, key []byte, current *atomic.Pointer[[]kensa.RuleOutcome], outcomes []kensa.RuleOutcome) uuid.UUID {
 	t.Helper()
 	current.Store(&outcomes)
 	jobID := enqueueScanJob(t, pool, hostID, key)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), scanBudget)
 	defer cancel()
 	done := make(chan struct{})
 	go func() { _ = w.Run(ctx); close(done) }()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(scanBudget)
 	for time.Now().Before(deadline) {
 		if jobStatus(t, pool, jobID) == queue.StatusCompleted {
 			break
@@ -67,7 +76,7 @@ func runOneScan(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, hostID uuid.UUI
 	cancel()
 	<-done
 	if st := jobStatus(t, pool, jobID); st != queue.StatusCompleted {
-		t.Fatalf("job %s status = %q, want completed", jobID, st)
+		t.Fatalf("job %s status = %q after %s, want completed", jobID, st, scanBudget)
 	}
 	return jobID
 }
@@ -84,7 +93,7 @@ func countAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType s
 
 func waitForAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType string, want int) int {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(scanBudget)
 	for {
 		n := countAlerts(t, pool, hostID, alertType)
 		if n >= want || time.Now().After(deadline) {
@@ -169,7 +178,7 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 			if !ok || dd.DriftType != "major" || dd.HostID != hostID || dd.ScanID != scan2 {
 				t.Errorf("bus event = %#v, want DriftDetected major for host %s scan %s", ev, hostID, scan2)
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(scanBudget):
 			t.Fatal("no DriftDetected published on the bus after the worsening scan")
 		}
 		if n := waitForAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor), 1); n != 1 {
@@ -187,7 +196,7 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 		}
 		select {
 		case <-driftSub.Events():
-		case <-time.After(2 * time.Second):
+		case <-time.After(scanBudget):
 			t.Fatal("no DriftDetected on redelivery")
 		}
 		time.Sleep(300 * time.Millisecond)
@@ -252,7 +261,7 @@ func TestScanWorker_DriftDetectorFailureIsNonFatal(t *testing.T) {
 			if sc, ok := ev.(eventbus.ScanCompleted); !ok || sc.ScanID != jobID {
 				t.Errorf("ScanCompleted = %#v, want scan %s", ev, jobID)
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(scanBudget):
 			t.Fatal("ScanCompleted was not published after a detector failure")
 		}
 		if got := rec.Count(audit.ScanFailed); got != 0 {
