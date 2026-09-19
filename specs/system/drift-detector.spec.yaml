@@ -1,7 +1,16 @@
 spec:
   id: system-drift-detector
   title: Compliance drift detector
-  version: "1.2.0"
+  # Version 1.3.0 (was 1.2.0). Minor: C-05 rewritten to name the threshold
+  # source that exists, and three added constraints (C-11 to C-13) with four
+  # added acceptance criteria (AC-22 to AC-25) that bind a CALLER. AC-25 is
+  # the dedicated-worker shape, the approved v0.8 limitation (features/OW-057). Every
+  # criterion through 1.2.0 held inside this package while no build of
+  # cmd/openwatch linked it, so no scan ever ran the detector and no drift
+  # alert ever fired (CP bugs/OW-055, 2026-09-19). Nothing published here
+  # changed meaning for the package itself; the change is what the binary
+  # is required to do with it.
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -63,7 +72,17 @@ spec:
       type: technical
       enforcement: error
     - id: C-05
-      description: Thresholds MUST come from policy.AlertThresholds; defaults are major=10pp / minor=5pp / improvement=5pp; values must be in (0, 100]
+      description: >
+        Thresholds are drift.DefaultThresholds() (major=10pp, minor=5pp,
+        improvement=5pp) in this release, passed explicitly by the caller.
+        policy.AlertThresholds carries score BANDS (critical_below,
+        high_below, medium_below), a different quantity, and MUST NOT be
+        read as drift deltas; the 1.2.0 wording named it as the source and
+        no adapter could have satisfied that. An operator-facing drift
+        threshold setting is a separate request. Values MUST be in (0, 100]
+        and major MUST be >= minor (AC-07). Boundaries are inclusive on the
+        threshold side: a delta of exactly -major is major, exactly -minor
+        is minor, exactly +improvement is improvement (AC-01, AC-03).
       type: technical
       enforcement: error
     - id: C-06
@@ -84,6 +103,49 @@ spec:
       enforcement: error
     - id: C-10
       description: NewService signature is NewService(pool, emit, thresholds, bus). The bus parameter MAY be nil — in that case the service still emits audit events but skips bus publishes. v1.1.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >
+        The scan worker MUST call DetectForScan(ctx, hostID, scanID) on the
+        success path of every scan, after transactionlog.Writer.Apply has
+        committed (the detector reads host_rule_state and transactions for
+        that scan id) and before it publishes ScanCompleted, in both the
+        serve process's in-process worker and the openwatch worker
+        subcommand. cmd/openwatch MUST link internal/drift (AC-22). The
+        worker subcommand constructs the detector with a nil bus (C-10):
+        it emits compliance.drift.detected and publishes no bus event,
+        because the alert router runs in serve and cross-process bus
+        delivery is a known non-goal (system-worker-subcommand). Drift
+        ALERTS therefore fire for scans completed by serve's in-process
+        worker; a scan completed by a dedicated worker process is
+        recorded in the audit log only. v1.3.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: >
+        Detector failure is non-fatal to the scan. The outcomes are already
+        persisted and the run is already marked completed when DetectForScan
+        runs; an error from it MUST be logged at warn level with scan_id,
+        host_id and the error, MUST NOT fail or retry the job, MUST NOT
+        suppress the ScanCompleted publication, and is not retried on its
+        own (the next scan produces the next comparison). The
+        scan.completed audit and bus events are unaffected (AC-24).
+        v1.3.0 NEW
+      type: technical
+      enforcement: error
+    - id: C-13
+      description: >
+        Detection is at most once per scan id on the success path, and the
+        Apply idempotency rule (system-transaction-log AC-05) makes a
+        re-applied scan a no-op with no new transitions, so a job the queue
+        redelivers after Apply committed reaches DetectForScan with the same
+        transitions it recorded the first time and MAY emit a second
+        compliance.drift.detected for that scan id. The alert router's
+        dedup gate (system-alert-router, key type|host_id|rule_id within
+        DedupTTL) collapses the duplicate alert; the audit log keeps both
+        rows, which is the correct record of what the worker did. No
+        stronger guarantee is claimed. v1.3.0 NEW
       type: technical
       enforcement: error
 
@@ -201,3 +263,75 @@ spec:
         comparison_present: false
         drift_kind: stable
         audit_events_emitted: 0
+    - id: AC-22
+      description: >
+        internal/drift is a dependency of cmd/openwatch. The instrument is
+        the dependency graph the linker sees, go list -deps ./cmd/openwatch,
+        not a grep over tests: the package's own tests kept the coverage
+        gate at 100% for two releases while no binary called it.
+      priority: critical
+      references_constraints: [C-11]
+      expected_output:
+        linked: true
+    - id: AC-23
+      description: >
+        Two scans completed through the real ScanWorker on one host, the
+        first passing 10 rules and the second failing one of them, produce
+        exactly one compliance.drift.detected audit event with
+        drift_type=major and score_delta=-10 and exactly one DriftDetected
+        bus event. With an alert router and store subscribed to the same
+        bus, exactly one alerts row of type drift_major exists for the host.
+        Re-running DetectForScan for scan 2 before any newer scan (the
+        redelivery shape of C-13) emits a second audit event and a second
+        bus event, and the router's dedup gate leaves the alerts row count
+        at one. A third scan that changes nothing then emits neither an
+        audit nor a bus event.
+      priority: critical
+      references_constraints: [C-11, C-05, C-13]
+      inputs:
+        scan_1: {passed: 10, failed: 0}
+        scan_2: {passed: 9, failed: 1}
+        scan_3: {passed: 9, failed: 1}
+      expected_output:
+        audit_events_after_scan_2: 1
+        bus_events_after_scan_2: 1
+        drift_type: major
+        score_delta: -10
+        alert_rows_drift_major: 1
+        audit_events_after_redelivery: 2
+        alert_rows_after_redelivery: 1
+        audit_events_after_scan_3: 2
+    - id: AC-24
+      description: >
+        A detector that returns an error on a completed scan leaves the job
+        completed, the outcomes persisted, and ScanCompleted published; a
+        warn-level log line carries scan_id and host_id; no scan.failed is
+        emitted and no host_backoff_state row is written.
+      priority: critical
+      references_constraints: [C-12]
+      expected_output:
+        job_status: completed
+        scan_completed_published: true
+        scan_failed_emitted: 0
+    - id: AC-25
+      description: >
+        The dedicated-worker shape (C-11, second half). A ScanWorker
+        constructed the way cmdWorker constructs it, with no event bus and
+        no alert router, holding a detector built with a nil bus, completes
+        a scan that lowers the host's score by 10 points: exactly one
+        compliance.drift.detected audit event is emitted with
+        drift_type=major, no DriftDetected event exists anywhere (there is
+        no bus to carry one), and the alerts table holds no row for the
+        host. This is the approved v0.8 limitation (features/OW-057): a
+        dedicated worker records drift and does not alert or notify.
+      priority: critical
+      references_constraints: [C-11, C-10]
+      inputs:
+        scan_1: {passed: 10, failed: 0}
+        scan_2: {passed: 9, failed: 1}
+        bus: nil
+        alert_router: none
+      expected_output:
+        audit_events_emitted: 1
+        drift_type: major
+        alert_rows: 0

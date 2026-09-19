@@ -28,6 +28,17 @@ queue: the single-binary deployment scans with no extra process. By default it
 runs **`scan_concurrency` (4) scans concurrently**. A separate `openwatch worker`
 is optional, for additional or off-box capacity.
 
+**What a dedicated worker does not do.** A worker process has no event bus and
+no alert router (they live in `serve`), and processes share nothing but
+PostgreSQL. So a scan completed by `openwatch worker` is recorded in full
+(outcomes, transaction log, scan history, schedule, and the
+`compliance.drift.detected` audit event when the score moved), but it raises
+no `drift_*` alert, delivers nothing to a notification channel, and does not
+push a live refresh to open browser sessions. Scans completed by `serve`'s own
+worker do all of these. If drift alerts matter for every scan, keep scanning
+in `serve` and raise `scan_concurrency` instead of adding worker processes.
+This is a known v0.8 limitation, tracked as a deferred request.
+
 ## Scaling the scan workers
 
 Scans are the most resource-intensive work OpenWatch does: each one opens an SSH
