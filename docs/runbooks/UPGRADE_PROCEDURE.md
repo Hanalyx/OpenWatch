@@ -56,8 +56,7 @@ The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 Preview what would change before upgrading:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate --status
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 # -> "up to date — no migrations pending"  OR  "PENDING: N migration(s) ..."
 ```
 
@@ -69,8 +68,7 @@ rolled back). Recover with:
 ```bash
 # 1. read the error in the dnf/apt output or:  journalctl -u openwatch
 # 2. fix the cause, then re-apply:
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl start openwatch
 # on Debian, also clear the half-configured state:
 sudo dpkg --configure -a
@@ -136,9 +134,8 @@ Migrations are tracked in the `goose_db_version` table. Capture the current
 version so you know what the database looked like before the upgrade:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  psql "$OPENWATCH_DATABASE_DSN" \
-  -c "SELECT max(version_id) FROM goose_db_version;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT max(version_id) FROM goose_db_version;"'
 ```
 
 ## How migrations work
@@ -171,11 +168,10 @@ the rewrite time scales with fleet size times how much history you keep. To
 estimate before you upgrade:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  psql "$OPENWATCH_DATABASE_DSN" \
-  -c "SELECT count(*) AS rows,
-             pg_size_pretty(pg_total_relation_size('posture_snapshots')) AS size
-        FROM posture_snapshots;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT count(*) AS rows,
+             pg_size_pretty(pg_total_relation_size('\''posture_snapshots'\'')) AS size
+        FROM posture_snapshots;"'
 ```
 
 How long the rewrite takes depends on the row count, the indexes, your storage,
@@ -399,9 +395,16 @@ the schema is in an unexpected state, restore the pre-upgrade backup.
 
 ### Health endpoint returns 503
 
-A 503 from `/api/v1/health` means the service started but a dependency is
-unhealthy: typically the database. Check `db_connected` in the response body
-and confirm PostgreSQL is running and reachable.
+A 503 from `/api/v1/health` means the service started and cannot reach its
+database. The body is the standard error envelope, not the health object:
+
+```json
+{"error":{"code":"server.unavailable","fault":"server","human_message":"database is not reachable","retryable":true}}
+```
+
+There is no `db_connected` field in it; that field appears only on a 200.
+Confirm PostgreSQL is running and that the DSN in `/etc/openwatch/secrets.env`
+still names a reachable server with the right password.
 
 ## Post-upgrade checklist
 

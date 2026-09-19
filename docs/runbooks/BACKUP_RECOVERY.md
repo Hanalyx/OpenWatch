@@ -394,7 +394,7 @@ The following are not part of OpenWatch today. Do not script against them.
 | TLS | `/etc/openwatch/tls/{cert,key}.pem` |
 | Data / logs | `/var/lib/openwatch`, `/var/log/openwatch` (journal is primary) |
 | Health probe | `GET https://<host>:8443/api/v1/health` |
-| Migrate | `sudo -u openwatch env $(cat /etc/openwatch/secrets.env \| xargs) openwatch migrate` |
+| Migrate | `sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'` |
 | Logs | `journalctl -u openwatch -f` |
 
 See also: [Installation](../guides/INSTALLATION.md),
