@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.17.0"
+  version: "1.18.0"
   status: approved
   tier: 1
 
@@ -341,6 +341,17 @@ spec:
         bug record and in the next version's changelog. Diagnostic tests MAY run against a
         failed candidate provided they do not alter the tag, the release draft or the
         candidate assets. A published release is never rebuilt.
+      type: technical
+      enforcement: error
+    - id: C-15
+      description: >-
+        The release runbook's signing-key export block MUST NOT reach `gh secret set`
+        when its safety gate fails. The gate checks that the exported material stubs
+        the master key (a `gnu-dummy` packet); the earlier block printed "ABORT" and
+        continued to the upload, because `echo` succeeds (CP bugs/OW-047). The block is
+        a subshell with `set -e`, the gate ends it with a non-zero exit before any
+        upload, and the export is shredded on every exit path. Bound by executing the
+        block with `gpg` and `gh` stubbed, the same shape as AC-25.
       type: technical
       enforcement: error
 
@@ -1183,3 +1194,16 @@ spec:
         the evaluator ignore the remote commit, fails.
       priority: critical
       references_constraints: [C-14]
+    - id: AC-24
+      description: >-
+        A failed signing-key safety gate prevents the upload. The Stage "Configuring
+        the signing keys" export block in `docs/runbooks/RELEASING.md` is extracted and
+        executed with a plain `bash -c`, with `gpg` stubbed to report a stubbed master
+        (`gnu-dummy`) or a real one, and `gh` stubbed to record its invocations. With a
+        stubbed master the block exits 0 and `gh secret set` is recorded for the two GPG
+        secrets. With a real master the block exits non-zero, prints ABORT, and no `gh`
+        invocation is recorded. In both cases the exported file no longer exists after
+        the block. A block that prints ABORT and continues, or that leaves the export on
+        disk, fails.
+      priority: critical
+      references_constraints: [C-15]
