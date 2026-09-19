@@ -326,10 +326,14 @@ edge proxy, so the perimeter controls run in the application itself:
 
 ## 11. Database and backups
 
-OpenWatch stores all persistent state: hosts, credentials (AES-256-GCM
-encrypted), scans, transactions, the job queue, and the audit trail: in
-PostgreSQL. The package does not manage PostgreSQL and does not implement an
-in-product backup tool.
+OpenWatch stores its records (hosts, credentials encrypted with AES-256-GCM,
+scans, transactions, the job queue, the audit trail) in PostgreSQL, and two
+things outside it: the encryption keys under `/etc/openwatch/keys/` and
+Kensa's remediation rollback store under `/var/lib/openwatch/kensa/`. A
+backup that omits either cannot fully recover: without the key the stored
+credentials are unreadable, and without the store an executed remediation
+can no longer be rolled back. The package does not manage PostgreSQL and
+does not implement an in-product backup tool.
 
 Schema is applied with `openwatch migrate`, which runs the bundled database
 migrations.

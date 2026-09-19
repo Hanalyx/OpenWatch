@@ -14,17 +14,24 @@ document assumes the layout that guide produces.
 
 ## What you need to back up
 
-Two things must be backed up together. A database dump alone is not a complete
-backup.
+Three things must be backed up together, from the same moment, with the
+service stopped. A database dump alone is not a complete backup, and neither
+is a dump plus the configuration.
 
 | Item | Path | Why it matters | Recoverable without backup? |
 |------|------|----------------|-----------------------------|
 | PostgreSQL database | external PostgreSQL server | Hosts, scans, transactions, findings, users, roles, encrypted credentials, audit events, job queue, system config | No |
+| Remediation rollback store | `/var/lib/openwatch/kensa/` (`remediation.db` plus its `-wal` and `-shm` files) | Kensa's durable capture of each host's pre-change state. A rollback of an executed or staged fix reads it; PostgreSQL holds only the journal of what happened, not the bytes needed to undo it | No: a fix executed before the loss can no longer be rolled back |
 | Credential encryption key | `/etc/openwatch/keys/credential.key` | AES-256 key that encrypts stored SSH credentials and MFA secrets in the database | No |
-| JWT signing key | `/etc/openwatch/keys/jwt_private.pem` | Signs auth tokens; losing it invalidates all sessions (recoverable by re-issuing) | Partially |
+| JWT signing key | `/etc/openwatch/keys/jwt_private.pem` | Signs access tokens; losing it means clients re-authenticate (sessions and refresh tokens are in the database and survive) | Partially |
 | Database secret | `/etc/openwatch/secrets.env` | Holds `OPENWATCH_DATABASE_DSN` | No |
 | Configuration | `/etc/openwatch/openwatch.toml` | Server, database, and logging settings | Re-creatable by hand |
 | TLS certificate and key | `/etc/openwatch/tls/cert.pem`, `/etc/openwatch/tls/key.pem` | Serves HTTPS on `8443` | Re-issuable from your CA |
+
+> The rollback store is easy to forget because nothing in the UI names it. It
+> is set by the service unit (`OPENWATCH_KENSA_STORE_PATH`) and required by the
+> packaging contract to be durable, and it only matters on the day you need to
+> undo a remediation. Copy it with the service stopped so the WAL is quiescent.
 
 > The `credential.key` is the most important non-database item. SSH credentials
 > and MFA secrets in the database are encrypted with it. If you restore a
@@ -64,14 +71,27 @@ one but root:
 sudo install -d -m 0700 /var/backups/openwatch
 ```
 
+### Who runs these commands
+
+Run the backup and restore commands as **root**. `/etc/openwatch/secrets.env`
+is `root:openwatch 0640` and `/var/backups/openwatch/` is `root 0700`, so an
+ordinary administrator account can read neither, and the service user cannot
+read the backup directory. Root loads the DSN and connects as the `openwatch`
+database role it names. Load the file into the environment once per shell:
+
+```bash
+sudo -i
+set -a; . /etc/openwatch/secrets.env; set +a   # exports OPENWATCH_DATABASE_DSN
+```
+
+Every block below assumes that root shell.
+
 ### Database dump
 
 Use a compressed custom-format dump. It restores faster and supports selective
 restore.
 
 ```bash
-source /etc/openwatch/secrets.env   # sets OPENWATCH_DATABASE_DSN
-
 pg_dump "$OPENWATCH_DATABASE_DSN" \
     --format=custom \
     --file="/var/backups/openwatch/openwatch_$(date -u +%Y%m%dT%H%M%SZ).dump"
@@ -80,20 +100,26 @@ pg_dump "$OPENWATCH_DATABASE_DSN" \
 The timestamp uses UTC (ISO 8601). For a plain-text dump you can inspect, drop
 `--format=custom` and redirect to a `.sql` file.
 
-### Configuration and keys
+### Configuration, keys and the rollback store
 
-Back up the encryption keys and secrets alongside the database dump. These are
-secrets: store them encrypted and restrict access.
+Back up the keys, secrets and the Kensa rollback store alongside the database
+dump, from the same moment. These are secrets: store them encrypted and
+restrict access. Stop the service first so the SQLite store is not mid-write.
 
 ```bash
+systemctl stop openwatch
 tar czf - \
     /etc/openwatch/keys/ \
     /etc/openwatch/secrets.env \
     /etc/openwatch/openwatch.toml \
     /etc/openwatch/tls/ \
+    /var/lib/openwatch/kensa/ \
   | openssl enc -aes-256-cbc -salt -pbkdf2 \
-      -out "/var/backups/openwatch/config_$(date -u +%Y%m%dT%H%M%SZ).tar.gz.enc"
+      -out "/var/backups/openwatch/state_$(date -u +%Y%m%dT%H%M%SZ).tar.gz.enc"
+systemctl start openwatch
 ```
+
+For a consistent set, take the database dump inside the same stop window.
 
 ### Verify a backup
 
@@ -113,19 +139,23 @@ pg_restore --dbname="$RESTORE_DSN" --no-owner --no-privileges \
     /var/backups/openwatch/openwatch_<timestamp>.dump
 psql "$RESTORE_DSN" -c \
     "SELECT 'hosts' AS t, count(*) FROM hosts
-     UNION ALL SELECT 'scans', count(*) FROM scans
+     UNION ALL SELECT 'scan_runs', count(*) FROM scan_runs
      UNION ALL SELECT 'users', count(*) FROM users;"
 dropdb "$RESTORE_DSN_DB"
 ```
 
-Confirm table names against your installed schema before relying on them; the
-authoritative list is the set of migrations the binary applies.
+Scans live in `scan_runs` and `scan_results`; there is no `scans` table. If a
+query names a table your schema does not have, the authoritative list is the
+set of migrations the binary applied (`openwatch migrate --status`).
 
 ### Scheduling
 
-Run the database dump and config backup on a schedule that meets your recovery
-point objective. A `systemd` timer or `cron` entry that calls a wrapper script
-covering both the dump and the encrypted config archive is sufficient. Apply a
+Run the database dump and the state archive on a schedule that meets your
+recovery point objective. A `systemd` timer or `cron` entry that calls a
+wrapper script covering both, inside one stop window, is sufficient. The
+upgrade scriptlet also leaves a pre-upgrade dump in
+`/var/lib/openwatch/backups/` on every package upgrade; that is a restore
+point for the schema, not a substitute for this schedule. Apply a
 retention policy (for example, `find /var/backups/openwatch -name '*.dump'
 -mtime +30 -delete`) and copy backups off-host.
 
@@ -136,53 +166,65 @@ retention policy (for example, `find /var/backups/openwatch -name '*.dump'
 1. Stop the service so nothing writes while you restore:
 
    ```bash
-   sudo systemctl stop openwatch
+   systemctl stop openwatch
    ```
 
-2. Restore into the OpenWatch database. With a custom-format dump:
+2. Restore into the OpenWatch database. With a custom-format dump, the
+   connection goes in `--dbname` and the dump is the only positional
+   argument:
 
    ```bash
-   source /etc/openwatch/secrets.env
-
-   pg_restore "$OPENWATCH_DATABASE_DSN" \
+   pg_restore --dbname="$OPENWATCH_DATABASE_DSN" \
        --clean --if-exists --no-owner --no-privileges \
        /var/backups/openwatch/openwatch_<timestamp>.dump
+   echo "pg_restore exit $?"
    ```
 
-   `--clean --if-exists` drops existing objects first, so the restore replaces
-   current contents. If you restore into a fresh, empty database instead, omit
-   those flags.
+   The exit status must be 0. `--clean --if-exists` drops existing objects
+   first, so the restore replaces current contents. If you restore into a
+   fresh, empty database instead, omit those flags.
 
-3. Apply any migrations newer than the dump (safe no-op if the schema is
-   already current):
+3. Apply any migrations newer than the dump (a no-op when the schema is
+   already current; `migrate --status` tells you):
 
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-       openwatch migrate
+   openwatch migrate --status
+   openwatch migrate
    ```
 
-4. Start the service and confirm health:
+4. Start the service and confirm health. The listener takes a few seconds to
+   bind after `start`; a `Connection refused` on the first try is not a
+   failure, retry it:
 
    ```bash
-   sudo systemctl start openwatch
-   curl -k https://localhost:8443/api/v1/health
+   systemctl start openwatch
+   sleep 5; curl -k https://localhost:8443/api/v1/health
    # {"status":"healthy","db_connected":true,"version":"<installed version>"}
    ```
 
-### Restore configuration and keys
+### Restore configuration, keys and the rollback store
 
-Restore `credential.key` from the same backup generation as the database dump.
-A mismatched key cannot decrypt stored credentials.
+Restore `credential.key` and the rollback store from the same backup
+generation as the database dump. A mismatched key cannot decrypt stored
+credentials; a mismatched store describes host states the database does not
+know about.
 
 ```bash
+systemctl stop openwatch
 openssl enc -aes-256-cbc -d -pbkdf2 \
-    -in /var/backups/openwatch/config_<timestamp>.tar.gz.enc \
-  | sudo tar xzf - -C /
+    -in /var/backups/openwatch/state_<timestamp>.tar.gz.enc \
+  | tar xzf - -C /
 
-sudo chown openwatch:openwatch /etc/openwatch/keys/credential.key
-sudo chmod 0600 /etc/openwatch/keys/credential.key
-sudo systemctl restart openwatch
+chown openwatch:openwatch /etc/openwatch/keys/credential.key
+chmod 0600 /etc/openwatch/keys/credential.key
+chown -R openwatch:openwatch /var/lib/openwatch/kensa
+systemctl start openwatch
+sleep 5; curl -k https://localhost:8443/api/v1/health
 ```
+
+Then prove the recovery, not only the health line: sign in, open a host that
+had an executed remediation, and confirm its **Roll back** control is still
+offered. That control is what the rollback store buys you.
 
 ## Disaster recovery (rebuild on a new host)
 
@@ -193,8 +235,8 @@ sudo systemctl restart openwatch
 2. Provision PostgreSQL and create the database. The package does not provision
    PostgreSQL.
 3. Restore `/etc/openwatch/keys/`, `/etc/openwatch/secrets.env`,
-   `/etc/openwatch/openwatch.toml`, and `/etc/openwatch/tls/` from the encrypted
-   config backup.
+   `/etc/openwatch/openwatch.toml`, `/etc/openwatch/tls/` and
+   `/var/lib/openwatch/kensa/` from the encrypted state archive.
 4. Restore the database dump into the new PostgreSQL database (see above).
 5. Run `openwatch migrate` to apply any pending migrations.
 6. Validate config, then start:
