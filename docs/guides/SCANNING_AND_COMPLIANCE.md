@@ -335,14 +335,16 @@ and now passes is an **improvement**.
 
 ### Where drift shows in the UI
 
-There is no separate drift tab. Drift reaches you two ways today, with a
-third defined but not yet active:
+There is no separate drift tab. Drift reaches you three ways:
 
-- **As alerts, once the detector runs.** The alert router defines
-  `drift_major`, `drift_minor` and `drift_improvement` alerts for a scan that
-  moves a host's score. The drift detector that raises them is not started in
-  this release, so none fires yet. When it does, they will appear on the
-  **Activity** page (source: alert).
+- **As alerts.** After every completed scan the drift detector compares the
+  host's score with the score before that scan. A drop of 10 points or more
+  raises `drift_major`, a drop of at least 5 and under 10 raises
+  `drift_minor`, and a gain of 5 or more raises `drift_improvement`. They
+  appear on the **Activity** page (source: alert). Scans completed by a
+  separate `openwatch worker` process are recorded in the audit log
+  (`compliance.drift.detected`) but raise no alert, because the alert
+  router runs inside `serve`.
 - **As per-rule changes.** Every rule whose status changed is a transaction
   in the **Activity** feed, shown under the "COMPLIANCE & DRIFT" label, so a
   regression can be traced to the rule and the scan that recorded it.
@@ -473,10 +475,9 @@ expiry passes are swept to **expired** automatically.
 
 ## Alert management
 
-The alert router defines five kinds of alert. Two come from the liveness loop
-and fire today. Three come from the drift detector, which is not started in
-this release, so they are defined but never raised. Nothing else creates an
-alert.
+The alert router raises five kinds of alert. Two come from the liveness
+loop and three from the drift detector, which runs after every scan the
+`serve` process completes. Nothing else creates an alert.
 
 ### Alert kinds
 
@@ -484,9 +485,9 @@ alert.
 |------|-------------|------------------|
 | `host_unreachable` | The liveness loop flips a host from reachable to unreachable, after `unreachable_threshold` consecutive probe failures | high |
 | `host_recovered` | A host that was unreachable answers a probe again | info |
-| `drift_major` | A scan lowers the host's score by 10 points or more (detector not started) | high |
-| `drift_minor` | A scan lowers the score by at least 5 and under 10 points (detector not started) | medium |
-| `drift_improvement` | A scan raises the score by 5 points or more (detector not started) | info |
+| `drift_major` | A scan lowers the host's score by 10 points or more | high |
+| `drift_minor` | A scan lowers the score by at least 5 and under 10 points | medium |
+| `drift_improvement` | A scan raises the score by 5 points or more | info |
 
 There are no finding-count, score-band, scan-failure, scheduler, backlog,
 exception-expiry or mass-drift alerts. A failed scan is recorded in the
