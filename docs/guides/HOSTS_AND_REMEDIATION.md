@@ -344,10 +344,11 @@ host never changed, so nothing on it needs checking beyond the file.
 
 ## Required permissions
 
-Built-in roles, least to most privilege: `viewer` → `auditor` → `ops_lead` →
-`security_admin` → `admin` (`admin` holds every permission). The authoritative
-role-to-permission mapping is served by the roles API, `GET /api/v1/roles`; see
-[User roles](USER_ROLES.md) for the complete matrix.
+Built-in roles, in precedence order: `viewer` → `auditor` → `ops_lead` →
+`security_admin` → `admin` (`admin` holds every permission). A user with several
+roles is bound as the highest-precedence one, not as their union. The
+authoritative role-to-permission mapping is served by the roles API,
+`GET /api/v1/roles`; see [User roles](USER_ROLES.md) for the complete matrix.
 
 | Operation | Permission | Roles that hold it |
 |-----------|------------|--------------------|

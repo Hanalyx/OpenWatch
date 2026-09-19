@@ -52,15 +52,20 @@ permission set:
 - The browser session cookie (`openwatch_session`), used by the web UI. Cookie
   rotation and the on-401 refresh flow are UI concerns and are not covered here.
 
-Anonymous endpoints (`GET /api/v1/health`, `GET /api/v1/version`,
-`GET /api/v1/capabilities`, `POST /api/v1/auth/login`,
-`POST /api/v1/auth/refresh`) require no credential. Everything else requires a
-valid identity.
+The contract declares five operations credential-free: `GET /api/v1/health`,
+`GET /api/v1/version`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`
+and `POST /api/v1/auth/refresh-cookie`. Two more answer an anonymous caller by
+design: `GET /api/v1/capabilities`, and `GET /api/v1/license`, which returns
+only `tier`, `status` and `features` until the caller is authenticated.
+Everything else requires a valid identity. An anonymous caller gets `401`
+`auth.required`; an authenticated caller without the permission gets `403`
+`authz.permission_denied`.
 
 `GET /api/v1/capabilities` reports every capability this deployment has, with
 whether it is available here, so a client can present a locked control rather
 than discovering the gate from a `402`. It exposes no customer identity or
-license detail; `GET /api/v1/license` is the authenticated surface for that.
+license detail; `GET /api/v1/license` returns those to an authenticated caller
+and only `tier`, `status` and `features` to an anonymous one.
 
 ### Log in
 
@@ -115,8 +120,8 @@ bundle permission sets:
 
 A caller missing the required permission receives `403`. The full permission and
 role registry is the source of truth at
-[User roles](USER_ROLES.md); the running service exposes it through the
-permissions-registry endpoint under `/api/v1/auth`.
+[User roles](USER_ROLES.md); the running service exposes it at
+`GET /api/v1/auth/permissions:registry`.
 
 ---
 
@@ -131,10 +136,10 @@ permissions-registry endpoint under `/api/v1/auth`.
 | `DELETE` | `/api/v1/hosts/{id}` | `host:delete` | Soft-delete a host (`204`; sets `deleted_at`). |
 | `GET` | `/api/v1/hosts/{host_id}/monitoring/history` | `host:read` | Monitoring history. |
 | `PUT` | `/api/v1/hosts/{host_id}/maintenance` | `host:write` | Pause or resume liveness probes for the host (maintenance mode). |
-| `POST` | `/api/v1/hosts/{id}/connectivity:check` | `host:write` | Run a connectivity check (idempotent). |
+| `POST` | `/api/v1/hosts/{id}/connectivity:check` | `host:connectivity_check` | Run a connectivity check (idempotent). |
 | `GET` | `/api/v1/hosts/{id}/system-info` | `host:read` | Latest collected system intelligence. |
 | `POST` | `/api/v1/hosts/{id}/discovery:run` | `host:write` | Run host discovery (idempotent). |
-| `POST` | `/api/v1/hosts/{host_id}/credentials:resolve` | `host:read` | Resolve the effective credential for a host. |
+| `POST` | `/api/v1/hosts/{host_id}/credentials:resolve` | `credential:read` | Resolve the effective credential for a host. |
 
 ### Create a host
 
