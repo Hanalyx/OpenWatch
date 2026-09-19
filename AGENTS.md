@@ -135,8 +135,8 @@ first. If the spec and code disagree, the (human-approved) spec wins.
   a shell), RBAC + license gates on handlers, audit auth/authz events, secrets
   from env/files only. `.golangci.yml` forbidigo encodes several of these
   (context-carrying `slog`, no `http.DefaultClient`, no raw job-queue INSERTs).
-- **UUIDs, not integers**, for primary keys. Frontend auth token lives under the
-  `auth_token` localStorage key.
+- **UUIDs, not integers**, for primary keys. The frontend holds no auth token:
+  browser sessions are HttpOnly cookies (`openwatch_session`, `openwatch_refresh`).
 - **Git**: branch + PR, never push to `main`, never bypass branch protection or
   required checks. Don't add AI co-author trailers to commits.
 

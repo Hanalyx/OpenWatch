@@ -13,7 +13,7 @@ An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
 
 With manual processes, that question takes a week to answer. With point-in-time scanning tools, you can only answer if you happened to scan that day. With OpenWatch, it is a query: executed in seconds, backed by machine-verifiable evidence, exportable as CSV, JSON, or PDF.
 
-OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 630 compliance checks via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture: not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
+OpenWatch is the compliance operating system for teams managing Linux infrastructure under STIG, CIS, NIST 800-53, PCI-DSS, and FedRAMP. It connects to your servers over SSH, runs 769 compliance rules via the [Kensa](https://github.com/Hanalyx/kensa) engine, and provides continuous visibility into compliance posture: not just what's passing now, but what was passing last Tuesday, what drifted since your last assessment, and what needs attention before your next one.
 
 > **Project status: Go rebuild, generally available.** OpenWatch is a single Go
 > binary that serves both the REST API and the embedded React UI (the original
@@ -74,7 +74,7 @@ OpenWatch is a compliance *platform*. It manages the lifecycle of compliance acr
 | Drift detection | Automatic alerts | Manual discovery | Not available | Partial |
 | Exception workflows | Structured with audit trail | Spreadsheets and email | Not available | Not available |
 | Framework coverage | STIG + CIS + NIST + PCI + FedRAMP | Whatever you check | Per-benchmark profiles | CIS/STIG/PCI |
-| Remediation | 23 typed mechanisms with rollback | Run commands by hand | Basic scripts | Not available |
+| Remediation | 29 typed mechanisms with rollback | Run commands by hand | Basic scripts | Not available |
 | Evidence model | Structured JSON per check | Screenshots | Varies by tool | PDF reports |
 | Setup time | 10 minutes | N/A | Varies | Days + licensing |
 | Cost | Free (Community) / Paid (Pro) | Labor | Free - varies | $50K+/year |
@@ -87,14 +87,16 @@ OpenWatch is a compliance *platform*. It manages the lifecycle of compliance acr
 PostgreSQL, and 4 GB RAM. No Docker, Podman, or containers are required.
 
 ```bash
-sudo dnf install ./openwatch-*.rpm     # RHEL / Rocky / Fedora / Oracle
-sudo apt install ./openwatch_*.deb     # Ubuntu / Debian
+sudo dnf install ./openwatch-*.rpm ./kensa-rules-*.noarch.rpm   # RHEL / Rocky / Fedora / Oracle
+sudo apt install ./openwatch_*.deb ./kensa-rules_*.deb          # Ubuntu / Debian
 
-sudo openwatch migrate                 # apply database migrations
-sudo openwatch create-admin \          # create the first admin user
-  --username admin --email you@example.com --password '...'
-sudo systemctl enable --now openwatch  # start at boot
+sudo openwatch setup                   # provision PostgreSQL, migrate, create the admin, start
 ```
+
+`kensa-rules` is the rule corpus; the `openwatch` package requires it. `setup`
+shows its plan and waits for confirmation before changing anything; the
+[installation guide](docs/guides/INSTALLATION.md) covers every option and the
+manual path.
 
 Open **https://localhost:8443** and sign in with the admin user you created.
 
@@ -104,7 +106,7 @@ Open **https://localhost:8443** and sign in with the admin user you created.
 2. **Add a host**: Hosts > Add Host > enter IP, select credentials
 3. **Scan**: Click **Scan** on the host card
 
-Results appear in under a minute. OpenWatch ships with 630 built-in [Kensa](https://github.com/Hanalyx/kensa) rules: human-readable YAML, not XML: ready to go.
+Results appear in under a minute. OpenWatch ships with 769 built-in [Kensa](https://github.com/Hanalyx/kensa) rules: human-readable YAML, not XML: ready to go.
 
 ## Architecture
 
@@ -121,8 +123,8 @@ Results appear in under a minute. OpenWatch ships with 630 built-in [Kensa](http
 │  Auth · RBAC · Scheduling · Audit · Exports                 │
 ├────────────────────────┬────────────────────────────────────┤
 │  Kensa Engine          │  Worker (Go)                       │
-│  630 YAML rules        │  Async scanning                   │
-│  23 remediation types  │  Adaptive scheduling              │
+│  769 YAML rules        │  Async scanning                   │
+│  29 remediation types  │  Adaptive scheduling              │
 │  Evidence capture      │  Drift detection                  │
 ├────────────────────────┴────────────────────────────────────┤
 │  PostgreSQL                                                 │
@@ -193,8 +195,8 @@ journalctl -u openwatch -f       # follow logs
 
 # Admin operations (openwatch subcommands)
 openwatch migrate                # apply pending database migrations
-openwatch create-admin \         # create the first admin user
-  --username admin --email admin@example.com --password '...'
+# create the first admin user (needs the service's environment; see the installation guide)
+openwatch create-admin --username admin --email admin@example.com --password '...'
 openwatch check-config           # validate and print the resolved config
 openwatch --version              # build metadata
 
@@ -240,7 +242,7 @@ Prometheus `/metrics` endpoint is on the roadmap, not in the current build.)
 
 ## Part of the Hanalyx Compliance Platform
 
-OpenWatch is the compliance operating system: the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath: 630 rules, 27 remediation mechanisms, automatic rollback, all over SSH.
+OpenWatch is the compliance operating system: the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath: 769 rules, 29 remediation mechanisms, automatic rollback, all over SSH.
 
 If you want a CLI that integrates into scripts and pipelines, start with Kensa. If you want a platform for your team with a dashboard, scheduling, and audit workflows, start here.
 

@@ -248,10 +248,9 @@ corrections landed here.
   disagree. **A legacy day and a new-formula day both carry a score, and those
   scores are not comparable**, which is why the status says which is which
   rather than only flagging the mixed case.
-- **The compliance trend endpoints omit a day with no score**, rather than
-  drawing it as zero percent. The chart already leaves gaps for days
-  with no snapshot at all, so a day nothing could be measured now looks the same
-  as a day nothing was recorded. The fleet trend also stops averaging an
+- **The compliance trend endpoints return a day with no score as `null`**,
+  rather than drawing it as zero percent. The chart leaves a gap for it, the
+  same gap it leaves for a day with no snapshot at all. The fleet trend also stops averaging an
   unassessable host in as zero: the daily average is the mean of the hosts that
   produced a score, and the hosts that produced none are counted separately.
 - `posture_snapshots.score_pct` changes type from `REAL` to `numeric(4,1)`.
@@ -337,7 +336,7 @@ corrections landed here.
   Every v0.7.0 release candidate shipped as `openwatch-1:0.7.0-1`, so `dnf
   upgrade` between two candidates reported nothing to do and `rpm -q` could not
   tell them apart. **Release candidates now carry distinct package versions.**
-- CI pins Specter v0.15.0, and the spec gate now rejects annotation warnings
+- CI pins Specter to the version in `.specter-version` (0.15.1), and the spec gate now rejects annotation warnings
   as well as errors, rather than errors alone. **This is a
   contributor-facing change with no effect on a running install.** A test that
   claims an acceptance criterion must name that criterion in a way the test
