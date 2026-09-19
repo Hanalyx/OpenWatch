@@ -10,7 +10,46 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0-rc.4] Eyrie (2026-09-19)
+
+`v0.8.0-rc.3` built, passed every machine gate, and its fleet checks were
+observed; its documentation review was not attested. The founder's review
+of all 38 tracked documents found operational-safety defects in the secret
+rotation, backup and recovery, upgrade and release runbooks, and factual
+defects across the guides, the README and the contributor files. Under the
+release policy the rc.3 tag and assets stay where they are, and the
+corrections landed here, together with two product defects the corrections
+uncovered and one authorization change. Nothing below is inherited from
+rc.3; every gate runs again against this candidate.
+
 ### Fixed
+
+- **The operator documentation says what ships.** The secret-rotation
+  runbook backs the credential key up to a distinct path and switches by
+  config instead of overwriting it, and says that rotating the JWT key
+  invalidates access tokens only, with the session and refresh-token
+  revocation that ends sessions. The backup runbook names the three-item
+  recovery set (PostgreSQL, `/etc/openwatch`, the Kensa rollback store),
+  restores with `pg_restore --dbname`, and verifies against tables that
+  exist. The upgrade runbook states that installing the package is the
+  migration and decides rollback from the observed schema version. The
+  release runbook's signing-key export gate stops before any upload. Every
+  documented command that needs `secrets.env` loads it inside the service
+  user's shell. Runbooks pause a scheduler with a full-body `PUT`, say that
+  `serve` runs scans, name the retention sweeper's tables, split `DELETE`
+  and `VACUUM`, and read the health 503 as the error envelope it is. Guides
+  state the PostgreSQL 15 floor, the score and coverage formulas with a
+  worked example, the corpus framework keys and counts, the scheduler
+  defaults, the `kensa-rules` package as the rule corpus, one-role binding,
+  the five alert kinds and the two real threshold settings, and the host
+  page as built. The README's install recipe uses `openwatch setup` with
+  `kensa-rules`. Contributor files, the workflows README, the release
+  runbook intro, the security policy's supported line, the report
+  verification order, the changelog's own contradiction and the third-party
+  notices are corrected. Every runbook procedure opens with what you need,
+  who runs it, what it changes, how you verify it and how you recover, and
+  the documentation index names three starting points. CP `bugs/OW-045` to
+  `OW-053`, `features/OW-008`.
 
 - **Drift alerts now fire.** The drift detector existed, was covered by its
   own tests and approved contract, and was never linked into the binary: no
