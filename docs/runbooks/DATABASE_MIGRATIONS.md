@@ -51,8 +51,7 @@ Run the `migrate` subcommand. It connects with the configured database DSN,
 applies every pending `Up` migration, and prints the resulting schema version.
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 ```
 
 The DSN comes from `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` (or
@@ -77,7 +76,7 @@ A typical upgrade sequence:
 ```bash
 sudo systemctl stop openwatch
 sudo dnf upgrade openwatch          # or: sudo apt install --only-upgrade openwatch
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl start openwatch
 ```
 
@@ -88,8 +87,7 @@ schema state **without applying anything**, pass `--status`. It reports the
 current version and whether any migrations are pending, and makes no changes:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate --status
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 ```
 
 To inspect the version table directly with `psql`:
@@ -181,8 +179,7 @@ The `migrate` subcommand can take the pre-migration backup for you: pass
 This is the recommended path on production upgrades:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate --backup-dir /var/backups/openwatch
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --backup-dir /var/backups/openwatch'
 ```
 
 Because this dump is plain SQL, restore it with `psql`, not `pg_restore`:
@@ -226,8 +223,7 @@ Symptom: `openwatch migrate: connect postgres://…: …`.
 - Validate the resolved config without touching the database:
 
   ```bash
-  sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-      openwatch check-config
+  sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
   ```
 
 ### A migration fails partway
@@ -265,7 +261,7 @@ psql "$OPENWATCH_DATABASE_DSN" -c \
 If the version is behind the binary, run `openwatch migrate` and restart:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl restart openwatch
 journalctl -u openwatch -n 50 --no-pager
 ```

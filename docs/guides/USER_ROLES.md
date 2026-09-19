@@ -210,9 +210,7 @@ requires `--username` and `--email`; the password is read from stdin when
 `--password` is omitted, and is held to the 15-character admin policy.
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  openwatch --config /etc/openwatch/openwatch.toml \
-  create-admin --username admin --email admin@example.com
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml create-admin --username admin --email admin@example.com'
 ```
 
 The command connects to PostgreSQL using `OPENWATCH_DATABASE_DSN` from

@@ -373,7 +373,7 @@ curl -k https://localhost:8443/api/v1/health
    running, or an unreadable TLS cert. Validate config without starting:
 
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    ```
 
 3. If `/api/v1/health` returns 503, the database ping failed: check
