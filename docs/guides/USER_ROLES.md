@@ -29,10 +29,13 @@ For the live, authoritative role-to-permission mapping, query the roles API,
 
 ## Built-in roles
 
-OpenWatch ships five built-in roles. They form a single privilege ladder from
-read-only to full administration; there is no parallel "compliance officer" or
-"guest" track. Built-in roles are loaded into the `roles` table by migration with
-`is_built_in = true`, so the API rejects attempts to modify them.
+OpenWatch ships five built-in roles, ordered by precedence from `viewer` to
+`admin`; there is no parallel "compliance officer" or "guest" track. The order
+is not a nesting. `auditor` holds `audit:export` and `exception:approve`, which
+`ops_lead` does not; `viewer` holds `role:read`, which `auditor`, `ops_lead`
+and `security_admin` do not. Only `admin` holds everything. Built-in roles are
+loaded into the `roles` table by migration with `is_built_in = true`, so the
+API rejects attempts to modify them.
 
 | Role ID | Description | Permission count |
 |---------|-------------|------------------|
@@ -42,8 +45,15 @@ read-only to full administration; there is no parallel "compliance officer" or
 | `security_admin` | Full security operations, including dangerous actions and audit export | 56 |
 | `admin` | Full system administration | All permissions (bare `*` wildcard) |
 
-A user may hold more than one role. Their effective permission set is the union
-of every assigned role's permissions.
+A user may hold more than one role, but a request is bound to one of them.
+When a session or token is bound, the service picks the assigned role with the
+highest precedence (`admin` > `security_admin` > `ops_lead` > `auditor` >
+`viewer`; contract `system-user-management` C-06) and the request carries that
+role's permissions alone. The permissions are not combined. A user assigned
+both `auditor` and `ops_lead` is bound as `ops_lead`: they gain host and scan
+operations and lose `audit:export` and `exception:approve`. To give one person
+both sets, assign `security_admin`, which holds everything both roles hold.
+`GET /api/v1/auth/me/permissions` returns what the bound role grants.
 
 ### `viewer`
 
@@ -104,18 +114,20 @@ the `admin:*` bundle (`user_manage`, `role_manage`, `retention_policy`,
 
 Permissions are named `resource:action`, both lowercase
 (for example `host:read`, `scan:execute`, `remediation:rollback`). The registry
-defines 67 permissions across 20 categories. Two attributes carry extra meaning:
+defines 67 permissions across 20 categories. One attribute carries extra meaning:
 
 - `dangerous: true` marks destructive or high-impact actions (for example
   `host:delete`, `license:install`, `user:delete`). The UI uses this for
   confirmation prompts and the audit middleware records denials at high priority.
-- `license_gated: <feature>` names the license feature that covers a permission's
-  Enterprise scope. It does not narrow the permission itself. Today one
-  permission carries the marker: `audit:export`, tied to `audit_export`. Per-host
-  audit export is free, and `audit_export` covers fleet-scale signed bundles.
-  Remediation (`remediation:execute` / `remediation:rollback`) carries no marker.
-  Single-host, single-rule remediation with rollback is free; it is marked
-  `dangerous` instead.
+
+Licensing is not a permission attribute; the registry has no `license_gated`
+marker. An operation that needs a paid feature declares `x-required-feature`
+in the OpenAPI document, and its handler checks the entitlement after the
+permission check, answering `402` when the feature is not licensed. One
+permission can therefore cover a free per-host route and a paid fleet-scale
+route. Single-host, single-rule remediation with rollback
+(`remediation:execute` / `remediation:rollback`) is free; those permissions are
+marked `dangerous` instead.
 
 Enforcement happens centrally for every protected operation, so each endpoint
 checks the caller's permission before running. A request with a missing or
