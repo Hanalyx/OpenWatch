@@ -151,7 +151,7 @@ per-credential wrapped key, so changing the DEK without re-encrypting every row
 makes those secrets permanently unreadable.
 
 > **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
-> command. The CLI subcommands are `serve`, `worker`, `migrate`,
+> command. The CLI subcommands are `setup`, `serve`, `worker`, `migrate`,
 > `create-admin`, and `check-config`: none re-wraps stored secrets. Rotating
 > the DEK in place therefore requires either
 > re-entering the affected secrets by hand or a one-off migration written for

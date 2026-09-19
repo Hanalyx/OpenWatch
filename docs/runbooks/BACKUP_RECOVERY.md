@@ -331,9 +331,10 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 The following are not part of OpenWatch today. Do not script against them.
 
 - **No built-in backup command.** There is no `openwatch backup` or
-  `openwatch restore` subcommand. The subcommands are `serve`, `worker`,
-  `migrate`, `create-admin`, and `check-config` (`openwatch --help`). Use
-  `pg_dump`/`pg_restore` and file copies as shown above.
+  `openwatch restore` subcommand. The subcommands are `setup`, `serve`,
+  `worker`, `migrate`, `create-admin`, and `check-config`
+  (`openwatch --help`). Use `pg_dump`/`pg_restore` and file copies as shown
+  above.
 - **No continuous WAL archiving or point-in-time recovery shipped by
   OpenWatch.** If you need PITR, configure it on your PostgreSQL server
   independently; it is a PostgreSQL feature, not an OpenWatch one.

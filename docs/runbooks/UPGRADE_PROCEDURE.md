@@ -303,12 +303,25 @@ Keep the pre-upgrade dump until you have validated the upgrade in production
 
 ## Updating Kensa compliance rules
 
-Kensa is the SSH-based compliance engine, integrated as a Go dependency; its native YAML rules are compiled into the `openwatch`
-binary. Rules therefore travel with
-the binary: installing a new OpenWatch package is what updates the bundled
-rule set. There is no separate rule-pull or out-of-band rule-sync step. See
-[Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
-Kensa during a scan.
+Kensa is two things with two versions. The engine is a Go dependency compiled
+into the `openwatch` binary; `GET /api/v1/version` reports it in the `kensa`
+field. The rules are the separate `kensa-rules` package, installed at
+`/usr/share/kensa/rules` and loaded from there when the service starts. The
+`openwatch` package depends on `kensa-rules` but does not pin its version, so
+upgrading one does not upgrade the other.
+
+To update the rules, upgrade the package and restart the service so it loads
+the new corpus:
+
+```bash
+sudo dnf upgrade kensa-rules        # apt: sudo apt install --only-upgrade kensa-rules
+sudo systemctl restart openwatch
+rpm -q kensa-rules                  # apt: dpkg -s kensa-rules | grep Version
+```
+
+There is no rule-pull or rule-sync step, and no rule is compiled into the
+binary. See [Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md)
+for how OpenWatch invokes Kensa during a scan.
 
 ## Upgrading PostgreSQL
 

@@ -52,15 +52,31 @@ Key points:
 
 ## Available frameworks
 
-| Framework | Mapping ID | Rules |
-|-----------|------------|-------|
-| CIS RHEL 9 v2.0.0 | cis-rhel9-v2.0.0 | 271 |
-| STIG RHEL 9 V2R7 | stig-rhel9-v2r7 | 338 |
-| CIS Ubuntu 24.04 LTS | cis-ubuntu24 | (see Ubuntu rule applicability in the distribution support guide) |
-| STIG Ubuntu 22.04 | stig-ubuntu22 | (see Ubuntu rule applicability above) |
-| NIST 800-53 Rev 5 | nist-800-53-r5 | 87 |
-| PCI-DSS v4.0 | pci-dss-v4.0 | 45 |
-| FedRAMP Moderate | fedramp-moderate | 87 |
+Framework keys come from the rule corpus, the `kensa-rules` package that
+OpenWatch loads when the service starts. A key is a family plus the operating
+system the benchmark was written for, so a lens resolves per host: `stig` on a
+RHEL 9 host is `stig_rhel9`. `GET /api/v1/compliance/frameworks` lists the
+families present in your scanned fleet and the keys each one spans.
+
+The counts below are rules that reference each key in the corpus this release
+pins (Kensa v0.9.0, 769 rules). They change with the `kensa-rules` package,
+not with the OpenWatch binary.
+
+| Family | Key | Rules |
+|--------|-----|-------|
+| CIS | `cis_rhel8` | 327 |
+| CIS | `cis_rhel9` | 303 |
+| CIS | `cis_rhel10` | 321 |
+| CIS | `cis_ubuntu22` | 131 |
+| CIS | `cis_ubuntu24` | 132 |
+| STIG | `stig_rhel8` | 342 |
+| STIG | `stig_rhel9` | 391 |
+| STIG | `stig_rhel10` | 388 |
+| STIG | `stig_ubuntu22` | 159 |
+| STIG | `stig_ubuntu24` | 167 |
+| NIST 800-53 | `nist_800_53` | 750 |
+| PCI DSS 4 | `pci_dss_4` | 2 |
+| SRG | `srg` | 1 |
 
 RHEL and Ubuntu are both supported scan targets. See
 [Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md) for the full
@@ -112,11 +128,13 @@ out to more hosts. It is optional, and several may run against one database.
 Check which engine version is linked into the running binary:
 
 ```bash
-curl -sk https://localhost:8443/api/v1/health
+curl -sk https://localhost:8443/api/v1/version
 ```
 
-The response carries a `kensa` field. The value is read from the binary's build
-information, so it always reports the engine actually linked in.
+The response carries a `kensa` field, read from the binary's build information,
+so it always reports the engine linked in. `/api/v1/health` reports only
+`status`, `db_connected` and `version`. The engine is not the rule corpus:
+`rpm -q kensa-rules` (or `dpkg -s kensa-rules`) names the rules on disk.
 
 Check the service state and follow its logs:
 
@@ -221,12 +239,26 @@ score itself. `coverage_status` is exactly one of three values:
 
 | `coverage_status` | Meaning |
 |---|---|
-| `available` | Enough rules reached a verdict. A coverage percentage is reported. |
+| `available` | Every in-scope rule is accounted for: at least one rule was in scope and no skip is unclassified. A coverage percentage is reported. |
 | `unavailable_unclassified_skips` | Rules were skipped for reasons the engine did not classify, so coverage cannot be computed. |
 | `unavailable_no_outcomes` | No rule produced any outcome at all. |
 
 **A coverage percentage exists only when the status is `available`.** For the
 other two the number is absent, because there is nothing honest to put in it.
+
+The percentage is executed over in scope: rules that reached pass or fail,
+over those plus the rules that errored or were not assessed. It is not a
+threshold, so `available` says nothing about how many rules were scored. Three
+hosts show the difference:
+
+| Host | pass | fail | error | unclassified skips | `score_pct` | `coverage_status` | `coverage_pct` |
+|------|------|------|-------|--------------------|-------------|-------------------|----------------|
+| Scored | 170 | 30 | 0 | 0 | 85.0 | `available` | 100.0 |
+| Every rule errored | 0 | 0 | 200 | 0 | `null` | `available` | 0.0 |
+| Skips the engine did not classify | 170 | 30 | 0 | 5 | 85.0 | `unavailable_unclassified_skips` | `null` |
+
+The second host has a coverage figure and no score. The third has a score and
+no coverage figure. Read both before trusting either.
 
 ### Fleet and group scores
 
@@ -343,11 +375,12 @@ Compliance scanner**, clamped to a 5-minute floor and a 48-hour ceiling.
 | Partial | 50--69% | Every 12 hours |
 | Mostly compliant | 70--89% | Every 24 hours |
 | Compliant | >= 90% | Every 48 hours |
-| Unknown | Never scanned | Every 6 hours (due immediately on first sight) |
+| Unknown | Never scanned, or scanned without a score | Every 4 hours, never longer than the Critical interval (due immediately on first sight) |
 
-The maximum interval is 48 hours. No active host goes unscanned longer than
-that. A per-host or fleet-wide maintenance flag pauses scheduled scans without
-affecting on-demand Run Scan.
+The ceiling is 48 hours. An interval says when the next scan becomes due, not
+when it runs: a maintenance flag, a failure backoff on the host, and the
+per-tick `rate_limit` each defer a due scan. A per-host or fleet-wide
+maintenance flag pauses scheduled scans without affecting on-demand Run Scan.
 
 ### Viewing a host's schedule
 
@@ -538,7 +571,7 @@ curl -k -X POST https://localhost:8443/api/v1/hosts/HOST_UUID/scans \
 ### Query compliance (current lens)
 
 Per-host compliance is read from the host's lens, not a `/compliance/posture`
-endpoint. Add `?framework=cis-rhel9-v2.0.0` to project a specific framework.
+endpoint. Add `?framework=cis_rhel9` to project a specific corpus key.
 
 ```bash
 curl -k "https://localhost:8443/api/v1/hosts/HOST_UUID/compliance" \
