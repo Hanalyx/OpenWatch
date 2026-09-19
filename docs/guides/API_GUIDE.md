@@ -420,10 +420,10 @@ longer worker-internal only):
   `/api/v1/exceptions/{xid}:approve`, `:reject`, or `:revoke`.
 - **Posture + drift**: per-host `/api/v1/hosts/{id}/compliance` and
   `/api/v1/hosts/{id}/compliance/trend`; fleet `/api/v1/fleet/score`.
-- **Audit export**: `GET /api/v1/audit/events` (filterable via query
-  parameters, cursor-paginated) and `GET /api/v1/audit/events/export`, a
-  synchronous CSV/JSON download of the same filtered set (capped at 10,000
-  rows, newest-first).
+- **Audit export**: `GET /api/v1/audit/events` (`audit:read`; filterable
+  via query parameters, cursor-paginated) and `GET /api/v1/audit/events/export`
+  (`audit:export`: auditor, security_admin, admin), a synchronous CSV/JSON
+  download of the same filtered set (capped at 10,000 rows, newest-first).
 - **Rule browser**: `/api/v1/rules` (the Kensa rule-library read model).
 
 ## What is genuinely not in the API yet

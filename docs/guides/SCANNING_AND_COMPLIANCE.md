@@ -535,7 +535,7 @@ are built into the detector and have no setting.
 
 ## Exporting for audits
 
-For the audit trail itself, `GET /api/v1/audit/events/export` (`audit:read`)
+For the audit trail itself, `GET /api/v1/audit/events/export` (`audit:export`; reading the log needs `audit:read`)
 downloads the events matching the same filters as `GET /api/v1/audit/events`
 (`action`, `actor_type`, `resource_type`, `resource_id`, `since`, `until`) as a
 synchronous CSV or JSON attachment, capped at 10,000 rows newest-first. There

@@ -51,11 +51,10 @@ highest precedence (`admin` > `security_admin` > `ops_lead` > `auditor` >
 `viewer`; contract `system-user-management` C-06) and the request carries that
 role's permissions alone. The permissions are not combined. A user assigned
 both `auditor` and `ops_lead` is bound as `ops_lead`: they gain host and scan
-operations and lose `exception:approve`, so they can no longer approve or
-reject exceptions. They also lose `audit:export`, which today no route checks
-(the audit export endpoint requires `audit:read`, which `ops_lead` holds). To
-give one person both sets, assign `security_admin`, which holds everything
-both roles hold.
+operations and lose `exception:approve` and `audit:export`: they can no
+longer approve or reject exceptions or download the audit log, although
+they can still read it. To give one person both sets, assign
+`security_admin`, which holds everything both roles hold.
 `GET /api/v1/auth/me/permissions` returns what the bound role grants.
 
 ### `viewer`
@@ -72,10 +71,10 @@ Cannot write, execute, export, approve, or administer anything.
 Most of what `viewer` has (one exception: `auditor` does not hold
 `role:read`), plus the exception workflow authority an auditor needs:
 `exception:request`, `exception:comment`, and `exception:approve`. Adds
-`audit:export` and `auth:write` so the auditor can manage their own password,
-MFA, and sessions. `audit:export` is declared and granted but no route
-enforces it yet; `GET /api/v1/audit/events/export` requires `audit:read`. Per-host audit export is free; the `audit_export` feature
-covers fleet-scale signed bundles.
+`audit:export`, which gates `GET /api/v1/audit/events/export` (reading the
+log needs only `audit:read`), and `auth:write` so the auditor can manage
+their own password, MFA, and sessions. Per-host audit export is free; the
+`audit_export` feature covers fleet-scale signed bundles.
 
 Cannot create or modify hosts, run scans, or touch system configuration.
 
