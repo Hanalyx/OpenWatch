@@ -70,7 +70,7 @@ installed on target hosts.
 |--------|-------------|
 | **SSH Key** (recommended) | Paste or upload the private key. Stored encrypted. |
 | **Password** | Enter the SSH password. Stored encrypted with AES-256-GCM. |
-| **System Default** | Uses the credential configured in Settings > System Credentials. |
+| **System Default** | Uses the credential configured in Settings > SSH & credentials. |
 
 4. Enter the SSH username.
 5. Select **Save**.
@@ -92,7 +92,7 @@ Fix any connection issues before running a scan.
 For organizations where all hosts share the same SSH credentials, configure a
 system-wide default:
 
-1. Go to **Settings > System Credentials**.
+1. Go to **Settings > SSH & credentials**.
 2. Add the shared SSH key or password.
 3. When adding hosts, select **System Default** as the auth method.
 
@@ -170,7 +170,11 @@ host list.
 ## Server intelligence
 
 During compliance scans, OpenWatch collects detailed information about each host.
-This data is available on the host detail page under the **Intelligence** tab.
+This data is shown on the host detail page's **Overview** tab, in the
+**Server intelligence** card (packages installed, running services, user
+accounts, network interfaces, firewall rules, open exceptions). The Packages,
+Services, Users and Network tabs are placeholders until inventory collection
+ships.
 
 
 ### Data collected
@@ -406,7 +410,7 @@ curl -s -X POST https://openwatch.example.com:8443/api/v1/hosts \
 `hostname` and `ip_address` are required; `port` defaults to 22. Other optional
 fields: `display_name`, `description`, `tags`, `group_id`, `username`. There is
 no bulk-import or CSV-export API endpoint. Import many hosts from a CSV in the
-web UI (Hosts, Import), which validates each row before insert.
+web UI (**Add host**, **Bulk** tab), which validates each row before insert.
 
 ### Create a group
 
