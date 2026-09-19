@@ -165,5 +165,5 @@ curl https://localhost:8443/api/v1/fleet/score \
 
 > Per-host compliance posture and trend are also available directly:
 > `GET /api/v1/hosts/{id}/compliance` and `GET /api/v1/hosts/{id}/compliance/trend`.
-> The running binary serves its current API contract at `/api/v1`;
+> The running binary serves its current API contract at `/api/v1/openapi.yaml` (viewer at `/docs`);
 > `GET /api/v1/version` reports the build it came from.

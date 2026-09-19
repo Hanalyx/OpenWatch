@@ -38,13 +38,15 @@ disclosure until a fix ships or the 90 days elapse, whichever comes first.
 
 ## Supported versions
 
-OpenWatch is pre-1.0. Security fixes land on the most recent minor release line
-only; there are no long-term support branches yet.
+OpenWatch is pre-1.0. Security fixes land on the most recent GA minor release
+line only, at its latest patch; there are no long-term support branches yet.
+Support moves to 0.8.x when 0.8.0 GA ships.
 
 | Version | Supported |
 |---------|-----------|
-| 0.6.x   | Yes |
-| < 0.6.0 | No. Upgrade to the current release |
+| 0.7.x   | Yes, at the latest patch (0.7.1) |
+| 0.8.0 release candidates | No. Evaluation candidates, not supported releases |
+| < 0.7.0 | No. Upgrade to the current release |
 
 Upgrade instructions are in [docs/runbooks/](docs/runbooks/). Package upgrades
 migrate the database automatically and take a backup first.

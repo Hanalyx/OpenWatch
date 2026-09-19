@@ -244,4 +244,4 @@ around features that are absent:
 | Install and configuration | [Installation guide](INSTALLATION.md) |
 | Roles and permissions | [User roles](USER_ROLES.md) |
 | How Kensa scanning works | [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) |
-| API contract | Served by the running binary under `/api/v1` |
+| API contract | Served by the running binary at `/api/v1/openapi.yaml` (viewer at `/docs`) |

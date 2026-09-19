@@ -527,4 +527,4 @@ Source for every checklist item is cited in the section above that introduces it
 - How Kensa scanning works:
   [Scanning and compliance](SCANNING_AND_COMPLIANCE.md)
 - API contract (per-operation required permission, license gate, audit events):
-  served at `/api/v1`; `GET /api/v1/version` reports the running build
+  served at `/api/v1/openapi.yaml` (viewer at `/docs`); `GET /api/v1/version` reports the running build

@@ -68,7 +68,7 @@ Follow these rules from the spec constraints:
 - **Role names**: `admin`, `security_admin`, `ops_lead`, `auditor`, `viewer` (built-in roles from `internal/users/roles.go` / `internal/auth/roles.gen.go`; admins may also create custom roles)
 - **Framework data**: Use framework IDs and rule counts verified against `internal/kensa/` and `specs/system/kensa-executor.spec.yaml`
 - **API paths**: All REST endpoints use the `/api/v1` prefix. Verify against `api/openapi.yaml`.
-- **Auth**: Browser sessions use HttpOnly cookies (`openwatch_session` / `openwatch_refresh`). The first admin is created with `openwatch create-admin`. The frontend stores its auth token under the `auth_token` localStorage key.
+- **Auth**: Browser sessions use HttpOnly cookies (`openwatch_session` / `openwatch_refresh`). The first admin is created with `openwatch create-admin`. The frontend stores no token.
 
 ### Step 4: Verify
 

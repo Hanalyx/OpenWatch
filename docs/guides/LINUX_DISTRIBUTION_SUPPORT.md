@@ -60,7 +60,9 @@ numbered.
 
 OpenWatch ships as native packages. Four platforms are **release-tested**:
 each is a blocking platform in `release/gates.toml`, each has a CI job that
-runs `openwatch setup` on every push, and each returns `SupportTested` from
+runs `openwatch setup` on release tags, on pull requests that touch the
+packaging or installer paths, and on manual dispatch, and each returns
+`SupportTested` from
 `supportOf` in `internal/setup/platform.go`.
 
 | Release-tested platform | Form |
@@ -72,7 +74,7 @@ runs `openwatch setup` on every push, and each returns `SupportTested` from
 
 **"Release-tested" describes what CI proves, not a commercial support or
 service-level promise.** It means a job installs the package on that platform
-on every push and asserts the result, and that a release cannot be promoted
+on those triggers and asserts the result, and that a release cannot be promoted
 while that job is failing.
 
 **AlmaLinux 10 is release-tested; RHEL 10 is not.** The matrix has an

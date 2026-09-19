@@ -74,7 +74,9 @@ On a host that already runs PostgreSQL, either takes about five minutes.
 ## Requirements
 
 - **OS:** four platforms are release-tested, meaning CI installs and runs
-  `openwatch setup` on each one on every push: **RHEL 9**, **AlmaLinux 10**,
+  `openwatch setup` on each one for every release tag, for every pull request
+  that touches the packaging or installer paths, and on manual dispatch:
+  **RHEL 9**, **AlmaLinux 10**,
   **Ubuntu 24.04 LTS** and **Debian 12**. See
   [Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md) for what that
   claim covers and what it does not.

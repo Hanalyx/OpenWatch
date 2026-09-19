@@ -125,6 +125,18 @@ Check three things about the key before you use it:
 | The decoded key is exactly 32 bytes | Anything else is not an Ed25519 key, however well formed the base64 looks. |
 | Both identifiers equal the one you DERIVE from the key | See below. Comparing them only with each other proves the two documents agree, which whoever wrote them controls. |
 
+Decode the key first. `pub.raw` is the 32-byte key; `pub.pem` is the same key
+in the form `openssl` reads:
+
+```bash
+python3 -I -S -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
+  | base64 -d > pub.raw
+wc -c < pub.raw    # must be 32
+printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' > pub.der
+cat pub.raw >> pub.der
+openssl pkey -pubin -inform DER -in pub.der -out pub.pem
+```
+
 The identifier is `ed25519-` followed by the first 16 hex characters of the
 SHA-256 of the decoded key:
 
@@ -136,15 +148,6 @@ That value must equal `key_id` in the key response **and** `signing_key_id` on
 the report. Deriving it is what ties the identifier to real key material. Two
 documents can carry the same invented identifier and agree with each other
 perfectly.
-
-```bash
-python3 -I -S -c 'import json;print(json.load(open("signing-key.json"))["public_key"])' \
-  | base64 -d > pub.raw
-wc -c < pub.raw    # must be 32
-printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00' > pub.der
-cat pub.raw >> pub.der
-openssl pkey -pubin -inform DER -in pub.der -out pub.pem
-```
 
 ---
 

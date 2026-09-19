@@ -78,7 +78,9 @@ The workflow then:
 Distribution is via GitHub Releases. Operators install with
 `sudo dnf install ./openwatch-*.rpm` or `sudo apt install ./openwatch_*.deb`. A tag
 with a pre-release suffix (for example `-rc.5`) is marked as a pre-release; a bare
-`vX.Y.Z` is GA. The current version (`0.4.0`, Eyrie) is a GA release. See
+`vX.Y.Z` builds a draft that a separate publish step releases after verification
+(`docs/runbooks/RELEASING.md`, Stage 4). The current GA line is 0.7.1 (Eyrie);
+0.8.0 is in release candidates. See
 `specs/system/supply-chain.spec.yaml`, `specs/release/package-build.spec.yaml`, and
 `docs/runbooks/RELEASING.md`.
 

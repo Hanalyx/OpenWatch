@@ -268,7 +268,7 @@ counts to a single framework key.
 | Full install and configuration reference | [Installation](INSTALLATION.md) |
 | Roles and permissions | [User roles](USER_ROLES.md) |
 | How compliance scanning works | [Scanning and compliance](SCANNING_AND_COMPLIANCE.md) |
-| API contract (source of truth) | the served `/api/v1` OpenAPI document |
+| API contract (source of truth) | the served OpenAPI document, `/api/v1/openapi.yaml` (viewer at `/docs`) |
 
 ## Troubleshooting
 

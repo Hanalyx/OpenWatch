@@ -28,9 +28,14 @@ We are committed to providing a welcoming and inclusive environment for all cont
 3. **Set up development environment** (the Go tree is at the repo root):
    ```bash
    # Backend development (Go 1.26)
-   go build ./...
-   go build -o dist/openwatch ./cmd/openwatch
+   make build                        # builds the UI, embeds it, writes dist/openwatch
    ./dist/openwatch serve            # dev server on port 8443
+   ```
+   A bare `go build ./...` fails on a fresh clone: `internal/server/spa.go`
+   embeds a directory that only `make spa`, `make build` or the `make` test
+   targets create. Without Node, `make internal/server/spa/index.html` writes a
+   placeholder so `go build` and `go test` work.
+   ```bash
 
    # Frontend development (new terminal)
    cd frontend
@@ -48,7 +53,8 @@ We are committed to providing a welcoming and inclusive environment for all cont
    specter init --install-hook          # pre-push: block impl changes with no @spec/@ac annotation
    ```
    The pre-push hook delegates to `specter pre-push-check` and skips cleanly if
-   `specter` is not on your PATH. Bypass a single push with `git push --no-verify`.
+   `specter` is not on your PATH. Do not bypass it with `git push --no-verify`;
+   fix what it flags (see [AGENTS.md](AGENTS.md)).
    Spec coverage is enforced strictly in CI regardless (see [Testing](#testing)).
 
 ## How to Contribute
@@ -75,17 +81,22 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 #### Branch Strategy
 
-- **main**: Stable, production-ready code
-- **develop**: Integration branch for features
-- **feature/**: New features (`feature/host-liveness`)
+- **main**: the only long-lived branch (see
+  [`.github/BRANCH_MANAGEMENT.md`](.github/BRANCH_MANAGEMENT.md)); there is no
+  `develop`
+- **feat/**: New features (`feat/host-liveness`)
 - **fix/**: Bug fixes (`fix/auth-token-validation`)
 - **docs/**: Documentation updates (`docs/api-reference`)
+
+The branch-naming check accepts these prefixes: `feat`, `fix`, `chore`, `docs`,
+`refactor`, `perf`, `test`, `build`, `ci`, `revert`, `release`, `dependabot`.
+`feature/` is rejected.
 
 #### Development Workflow
 
 1. **Create a feature branch**:
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name
    ```
 
 2. **Make your changes** following our coding standards
@@ -103,7 +114,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 5. **Push to your fork**:
    ```bash
-   git push origin feature/your-feature-name
+   git push origin feat/your-feature-name
    ```
 
 6. **Create a Pull Request** with detailed description
@@ -142,9 +153,9 @@ docs(api): update scanning endpoint documentation
 
 ```bash
 # Backend tests (Go) — from the repo root
-go test ./internal/... -count=1     # add -p 1 for DB-touching packages
-specter check                        # spec schema validation
-specter coverage                     # spec AC coverage
+make ci-local                        # what CI runs: build, vet, tests, spec coverage, doc style
+make test                            # Go tests alone
+make spec-check                      # Specter structural coverage alone (CI requires 100%)
 
 # Frontend tests
 cd frontend
@@ -316,23 +327,16 @@ Contributors are recognized in several ways:
 
 ## GitHub Actions Setup (For Maintainers)
 
-### Required Repository Secrets
+### Repository secrets the workflows read
 
-To enable all GitHub Actions workflows, configure these secrets in repository settings:
+Only `release.yml` reads secrets: `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` sign <!-- pragma: allowlist secret -->
+the checksums, `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` sign the packages.
+How the GPG key is exported and set is in
+[`docs/runbooks/RELEASING.md`](docs/runbooks/RELEASING.md). Every other
+workflow runs with the automatic `GITHUB_TOKEN`.
 
-#### Essential Secrets
-
-1. **SONAR_TOKEN** (Required for code quality analysis)
-   - Visit [SonarCloud](https://sonarcloud.io)
-   - Create an organization: `hanalyx`
-   - Set up project: `Hanalyx_OpenWatch`
-   - Generate a project token
-   - Add to GitHub: Settings > Secrets and variables > Actions
-
-#### Configuration Files
-
-SonarCloud configuration lives in `sonar-project.properties`. SonarCloud is not currently
-wired into a GitHub Actions workflow; configure `SONAR_TOKEN` only if you re-enable it.
+No workflow uses SonarCloud. `sonar-project.properties` is kept for a future
+re-enable; `SONAR_TOKEN` is not required for anything today.
 
 #### Workflow Overview
 

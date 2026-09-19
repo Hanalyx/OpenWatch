@@ -1,9 +1,9 @@
 # Releasing OpenWatch
 
-The gated process for cutting an OpenWatch release. Nothing reaches a GA tag
-until the docs are frozen, every automated gate is green, the packages install
-and run on each target distro, a functional pass is done against a real fleet,
-and a human signs off.
+The gated process for cutting an OpenWatch release. A GA tag builds a draft
+that nobody can download. Nothing is published until the docs are frozen,
+every automated gate is green, the packages install and run on each target
+distro, a functional pass is done against a real fleet, and a human signs off.
 
 ---
 
