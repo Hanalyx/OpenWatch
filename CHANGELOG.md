@@ -12,6 +12,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Drift alerts now fire.** The drift detector existed, was covered by its
+  own tests and approved contract, and was never linked into the binary: no
+  scan called it, so `drift_major`, `drift_minor` and `drift_improvement`
+  could never be raised. `serve` and `openwatch worker` now run it after
+  every completed scan with the built-in thresholds (10, 5 and 5 points).
+  A scan completed by a separate `openwatch worker` process records
+  `compliance.drift.detected` in the audit log but raises no alert and sends
+  no notification, because the alert router runs inside `serve`; this is an
+  approved v0.8 limitation, and the scaling guide says how to avoid it. A
+  detector error is logged and never fails the scan. Contract `system-drift-detector` 1.3.0 (C-05
+  rewritten, C-11 to C-13, AC-22 to AC-24). CP `bugs/OW-055`.
+- **A custom role now grants its permissions.** A role created through
+  `POST /api/v1/roles:create` could be assigned and bound, and conferred
+  nothing: every request from a user whose only role was custom answered
+  403, and `GET /api/v1/auth/me/permissions` listed an empty set. The
+  identity binder now resolves a custom role's stored permission list on
+  every binding path (session cookie, session JWT, API token). Which role
+  binds when a user holds several is unchanged: the highest-precedence
+  built-in role, or the custom role only when no built-in role is held.
+  Contract `system-rbac` 2.3.0 (C-11, AC-27, AC-28). CP `bugs/OW-054`.
+
 ## [0.8.0-rc.3] Eyrie (2026-09-18)
 
 Candidates before this one, both preserved and neither released:
