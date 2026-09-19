@@ -172,11 +172,39 @@ same configuration layering.
 Global flags: `--config <path>`, `--listen <host:port>`, `--log-level <level>`,
 `--version`, `-h`/`--help`.
 
+### Running a subcommand with the service's environment
+
+The service gets its secrets from `EnvironmentFile=/etc/openwatch/secrets.env`
+in the systemd unit. A subcommand you run by hand does not: `migrate`,
+`create-admin` and `check-config` read the TOML file and the environment of
+the shell that starts them, and nothing loads `secrets.env` into that shell
+for you. Two things follow.
+
+The file is `root:openwatch 0640`, so only root and the `openwatch` user can
+read it. An administrator account in `wheel` cannot, even though it can
+`sudo`. So the file must be read **inside** the privileged shell, not in
+yours: a pattern such as `sudo -u openwatch env $(cat secrets.env | xargs)`
+runs the `cat` as you, gets "Permission denied", and hands the subcommand an
+empty environment. `check-config` then exits 0 and prints the built-in
+default DSN (`postgres://openwatch@localhost/openwatch`, no password), which
+is how a wrong command can look right.
+
+The pattern that works, for every subcommand:
+
+```bash
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'
+```
+
+`sh` runs as the service user, which can read the file; `set -a` exports
+every assignment in it, so an override you added (the credential key path
+after a rotation, a logging level) is loaded along with the DSN; the secret
+never appears on a command line, and `check-config` prints the DSN with its
+password redacted. Verified on a packaged install as a `wheel` administrator.
+
 Validate configuration before starting the service:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 ## Service control and verification
@@ -219,7 +247,7 @@ The service is not responding on `8443`.
    exist and are readable by the `openwatch` user:
 
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    sudo ls -l /etc/openwatch/tls/ /etc/openwatch/keys/
    ```
 
@@ -246,7 +274,7 @@ If the service fails immediately after a package upgrade, a migration may be
 pending. Run it as the service user, then restart:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl restart openwatch
 ```
 
