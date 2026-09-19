@@ -302,8 +302,13 @@ binary. Take a database backup before upgrading (see below). Config under
 
 ## Backup and restore
 
-OpenWatch keeps all durable state in PostgreSQL. Back up the database with the
-standard PostgreSQL tooling. There is no OpenWatch-specific backup command.
+OpenWatch keeps its durable state in PostgreSQL plus two things on the host:
+the keys and secrets under `/etc/openwatch/`, and Kensa's remediation
+rollback store under `/var/lib/openwatch/kensa/`, which holds the captured
+pre-change state a rollback restores. Back up the three together with the
+service stopped; the [backup and recovery runbook](../runbooks/BACKUP_RECOVERY.md)
+is the procedure. There is no OpenWatch-specific backup command. The database
+half of it:
 
 ```bash
 # Backup

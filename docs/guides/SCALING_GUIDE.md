@@ -19,9 +19,9 @@ OpenWatch has two long-lived processes and one database:
 
 | Component | What it does | How you scale it today |
 |-----------|--------------|------------------------|
-| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Stateless apart from PostgreSQL. |
+| `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Holds Kensa's remediation rollback store locally (`/var/lib/openwatch/kensa/`), so it is not stateless. |
 | `openwatch worker` | An **optional, additional** process that also drains the scan-job queue and runs Kensa scans over SSH | Run one or more for extra/off-box capacity. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so the serve worker and any `openwatch worker` processes cooperate without double-claiming a job. |
-| PostgreSQL | All state: hosts, scans, transactions, audit events, queue | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
+| PostgreSQL | Records: hosts, scans, transactions, audit events, queue (keys and the rollback store live on the serve host) | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
 
 `openwatch serve` runs an in-process worker that **does** drain the scan-job
 queue: the single-binary deployment scans with no extra process. By default it
