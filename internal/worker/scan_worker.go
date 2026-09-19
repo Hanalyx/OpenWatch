@@ -40,6 +40,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/drift"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/queue"
@@ -84,6 +85,7 @@ type ScanWorker struct {
 	sched       *scheduler.Service  // nil = no post-scan schedule update (legacy tests)
 	remProc     *RemediationWorker  // nil = "remediation" jobs fail (legacy tests)
 	regressions RegressionProjector // nil = no in-app rule-regression notifications
+	drift       DriftDetector       // nil = no drift detection (legacy tests)
 
 	pollInterval time.Duration
 
@@ -146,6 +148,13 @@ type Config struct {
 	// any boot path without the notification feed). Spec system-notifications.
 	Regressions RegressionProjector
 
+	// Drift, when non-nil, runs the compliance drift detector after every
+	// completed scan's outcomes have committed and before ScanCompleted is
+	// published. Production passes drift.NewService in both serve and the
+	// worker subcommand. A detector error is logged and never fails the
+	// scan. Spec system-drift-detector C-11, C-12.
+	Drift DriftDetector
+
 	// clock allows tests to inject a controllable time source.
 	// Production passes time.Now.
 	Clock func() time.Time
@@ -157,6 +166,15 @@ type Config struct {
 // to let tests stub it. Spec system-notifications (Slice 2).
 type RegressionProjector interface {
 	ProjectScan(ctx context.Context, scanID, hostID uuid.UUID) error
+}
+
+// DriftDetector compares a completed scan against the host's prior state
+// and emits compliance.drift.detected (and a DriftDetected bus event when
+// the detector holds a bus) for a non-stable change. drift.Service
+// implements it; the worker holds the interface so tests can stub a
+// failing detector. Spec system-drift-detector C-11.
+type DriftDetector interface {
+	DetectForScan(ctx context.Context, hostID, scanID uuid.UUID) (drift.Report, error)
 }
 
 // NewScanWorker wires a ScanWorker. The dependencies are constructed at
@@ -184,6 +202,7 @@ func NewScanWorker(cfg Config) *ScanWorker {
 		sched:        cfg.Sched,
 		remProc:      cfg.RemediationProcessor,
 		regressions:  cfg.Regressions,
+		drift:        cfg.Drift,
 		pollInterval: cfg.PollInterval,
 		clock:        cfg.Clock,
 		emit:         cfg.Emit,
@@ -425,6 +444,22 @@ func (w *ScanWorker) ProcessJob(ctx context.Context, j *queue.Job) {
 				slog.String("host_id", payload.HostID.String()),
 				slog.String("error", err.Error()))
 			// Non-fatal: the scan itself succeeded and persisted.
+		}
+	}
+
+	// Compliance drift: compare this scan against the host's prior state
+	// and emit compliance.drift.detected plus a DriftDetected bus event for
+	// a non-stable change. Runs after Apply committed (the detector reads
+	// host_rule_state and transactions for this scan id) and before
+	// ScanCompleted. A detector error is non-fatal: the outcomes are
+	// persisted and the run is completed; the next scan produces the next
+	// comparison. Spec system-drift-detector C-11, C-12, C-13.
+	if w.drift != nil {
+		if _, err := w.drift.DetectForScan(ctx, payload.HostID, j.ID); err != nil {
+			slog.WarnContext(ctx, "worker drift detection failed",
+				slog.String("scan_id", j.ID.String()),
+				slog.String("host_id", payload.HostID.String()),
+				slog.String("error", err.Error()))
 		}
 	}
 
