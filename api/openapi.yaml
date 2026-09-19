@@ -1289,13 +1289,15 @@ paths:
       description: >
         Downloads the audit trail matching the same filters as the list
         endpoint, as a CSV or JSON attachment (NIST 800-53 AU-7 audit
-        reduction + report generation). audit:read gated. Unlike the
+        reduction + report generation). audit:export gated (the list
+        endpoint stays audit:read; auditor, security_admin and admin hold
+        audit:export). Unlike the
         paginated list it returns the whole filtered set in one file, capped
         at 10000 rows newest-first (a larger window is paginated via the list
         endpoint). CSV columns: occurred_at, action, message, severity,
         actor_type, actor_label, actor_id, resource_type, resource_id,
         correlation_id.
-      x-required-permission: audit:read
+      x-required-permission: audit:export
       parameters:
         - name: format
           in: query
