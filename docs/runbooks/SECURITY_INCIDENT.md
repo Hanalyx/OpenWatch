@@ -28,6 +28,13 @@ The `security.*` and `account.*` threshold events above are produced by the OS i
 
 ## Immediate actions (first 15 minutes)
 
+> **Before you start**
+> - **You need:** shell access to the OpenWatch host and `psql` access to its database; a place outside the host to copy evidence to.
+> - **Run as:** a sudo-capable administrator for the host; `psql` as the `openwatch` role using the DSN from `/etc/openwatch/secrets.env` (the `psql -U openwatch -d openwatch` form below assumes local peer or password access to that role).
+> - **What changes:** nothing on the host in Steps 1 to 3; Step 4 isolates the host only if compromise is confirmed.
+> - **Verify with:** the evidence copies exist off-host with recorded hashes before anything is changed.
+> - **Recover by:** nothing to recover in the first 15 minutes; [Recovery](#recovery) comes after containment.
+
 Contain the threat and preserve evidence. Do not restart the service yet; an in-progress restart can rotate the journal and end the current session you are inspecting.
 
 ### Step 1: Confirm the incident

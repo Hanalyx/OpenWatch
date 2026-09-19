@@ -42,6 +42,13 @@ For install and configuration details, see the
 
 ## Diagnosis
 
+> **Before you start**
+> - **You need:** shell access to the OpenWatch host and the PostgreSQL host.
+> - **Run as:** a sudo-capable administrator; `psql` as the `openwatch` role for the query views.
+> - **What changes:** nothing; every step here reads state.
+> - **Verify with:** load back under the threshold that paged you, and `/api/v1/health` answering promptly.
+> - **Recover by:** nothing to recover from a diagnosis.
+
 ### Step 1: Identify which process is consuming CPU
 
 ```bash
@@ -153,6 +160,13 @@ WHERE query ILIKE '%vacuum%' OR query ILIKE '%analyze%';
 ---
 
 ## Resolution
+
+> **Before you start**
+> - **You need:** the diagnosis naming the process and the path that applies.
+> - **Run as:** an operator with `system:config_write` for the config `PUT`s (an API bearer token or a signed-in session), a sudo-capable administrator for host changes, the PostgreSQL superuser for autovacuum settings.
+> - **What changes:** scheduler intervals or maintenance flags, `scan_concurrency`, connection-pool size or PostgreSQL settings, per path.
+> - **Verify with:** [Recovery verification](#recovery-verification).
+> - **Recover by:** putting back the value you changed with the same `PUT` or setting and restarting the service.
 
 ### Path A: long-running database queries
 

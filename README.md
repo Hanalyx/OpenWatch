@@ -106,7 +106,7 @@ Open **https://localhost:8443** and sign in with the admin user you created.
 2. **Add a host**: Hosts > Add Host > enter IP, select credentials
 3. **Scan**: Click **Scan** on the host card
 
-Results appear in under a minute. OpenWatch ships with 769 built-in [Kensa](https://github.com/Hanalyx/kensa) rules: human-readable YAML, not XML: ready to go.
+Results appear in under a minute. OpenWatch ships with the built-in [Kensa](https://github.com/Hanalyx/kensa) rule corpus (the count per framework is kept in [one place](docs/guides/SCANNING_AND_COMPLIANCE.md#available-frameworks)): human-readable YAML, not XML, ready to go.
 
 ## Architecture
 
@@ -229,6 +229,13 @@ health/version endpoints, fleet liveness, and audit-event monitoring. (A
 Prometheus `/metrics` endpoint is on the roadmap, not in the current build.)
 
 ## Documentation
+
+Three starting points: an **operator** reads [Installation](docs/guides/INSTALLATION.md),
+then the [Quickstart](docs/guides/QUICKSTART.md), then
+[Scanning and compliance](docs/guides/SCANNING_AND_COMPLIANCE.md); an
+**administrator** reads [User roles](docs/guides/USER_ROLES.md) and the
+[runbooks](docs/runbooks/); a **contributor** reads [AGENTS.md](AGENTS.md) and
+[CONTRIBUTING.md](CONTRIBUTING.md). The full index is [docs/README.md](docs/README.md).
 
 | Topic | Link |
 |---|---|

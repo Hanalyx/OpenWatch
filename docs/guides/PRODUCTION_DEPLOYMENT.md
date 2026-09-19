@@ -55,8 +55,8 @@ See the [install guide requirements](INSTALLATION.md#requirements)
 for the authoritative list. In short:
 
 - A supported RHEL-family or Debian-family host with `systemd`.
-- PostgreSQL 15 or newer, reachable from the OpenWatch host. `openwatch setup`
-  refuses an older server: 13 and 14 are at or near end of life.
+- PostgreSQL 15 or newer, reachable from the OpenWatch host; the floor and
+  the reason are in the [installation guide](INSTALLATION.md#requirements).
 - TCP/8443 inbound (API + UI); TCP/22 outbound to every managed host (Kensa scans
   over SSH).
 - A CA-signed TLS certificate for any non-loopback use.

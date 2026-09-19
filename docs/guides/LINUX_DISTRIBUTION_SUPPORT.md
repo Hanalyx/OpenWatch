@@ -255,4 +255,6 @@ a compliance score.
   spanning RHEL 8/9/10 and Ubuntu 22.04/24.04, of which 677 apply to the RHEL
   family and 272 to Ubuntu. Rules can apply to more than one platform, so
   these overlap.
-- Framework mappings: CIS RHEL 9 v2.0.0, STIG RHEL 9 V2R7, plus CIS/STIG Ubuntu.
+- Framework keys and per-key rule counts: see
+  [Available frameworks](SCANNING_AND_COMPLIANCE.md#available-frameworks),
+  the one place they are kept.

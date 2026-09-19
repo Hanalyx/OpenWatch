@@ -47,6 +47,13 @@ subcommand (see [Rollback](#rollback)).
 
 ## Applying migrations in production
 
+> **Before you start**
+> - **You need:** a fresh database backup (see [Backup before migrating](#backup-before-migrating)) and the installed binary at the version whose migrations you intend to apply.
+> - **Run as:** the `openwatch` service user with `/etc/openwatch/secrets.env` loaded inside its shell, exactly as the command below does.
+> - **What changes:** the database schema, forward only; `goose_db_version` records the new version.
+> - **Verify with:** `openwatch migrate --status` reporting nothing pending, and the service healthy after start.
+> - **Recover by:** restoring the pre-migration backup; there is no `migrate down` (see [Rollback](#rollback)).
+
 Run the `migrate` subcommand. It connects with the configured database DSN,
 applies every pending `Up` migration, and prints the resulting schema version.
 

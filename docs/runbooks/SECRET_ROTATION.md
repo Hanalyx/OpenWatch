@@ -56,6 +56,13 @@ secrets) with AES-256-GCM. The previous Python build's
 
 ## Rotate the database password
 
+> **Before you start**
+> - **You need:** the new password recorded in your secrets manager, a maintenance window, and a healthy service (see [Before you rotate](#before-you-rotate)).
+> - **Run as:** root for the `secrets.env` edit and restart; the PostgreSQL superuser or the `openwatch` role for `ALTER ROLE`.
+> - **What changes:** the PostgreSQL role's password and the DSN line in `/etc/openwatch/secrets.env`; the service restarts.
+> - **Verify with:** `check-config` printing the redacted DSN and `/api/v1/health` returning `200` with `db_connected: true`.
+> - **Recover by:** setting the previous password back with `ALTER ROLE` and restoring the previous DSN line, then restarting.
+
 Impact: a brief restart while the service reconnects. The DSN lives in
 `/etc/openwatch/secrets.env`, which the systemd unit loads via
 `EnvironmentFile=-/etc/openwatch/secrets.env`.
@@ -98,6 +105,13 @@ Impact: a brief restart while the service reconnects. The DSN lives in
    ```
 
 ## Rotate the JWT signing key
+
+> **Before you start**
+> - **You need:** a maintenance window and a healthy service; a database backup if you will also revoke sessions.
+> - **Run as:** root for the key file (packaging creates `/etc/openwatch/keys` `root:openwatch 0750`) and the restart; `psql` as the `openwatch` role for the revocation.
+> - **What changes:** the RSA key file; every access token stops verifying. Sessions and refresh tokens survive unless you run the revocation step.
+> - **Verify with:** an old bearer token answering `401` and a fresh login answering `200`.
+> - **Recover by:** restoring the previous key file from your secrets manager and restarting; tokens issued under the new key then stop verifying instead.
 
 Impact: every **access token** stops verifying, so API clients holding a bearer
 token get 401 and must obtain a new one. That is all the key rotation does.
@@ -177,14 +191,21 @@ forced re-logins.
 
 ## Rotate the credential DEK
 
+> **Before you start**
+> - **You need:** a verified copy of the current DEK at a distinct protected path, a database backup, the list of every stored SSH credential and MFA secret you will re-enter, and a maintenance window.
+> - **Run as:** root for the key files, config and restart; a user with `credential:write` for the re-entry.
+> - **What changes:** the key path in `openwatch.toml`, then every stored credential and MFA secret as you re-enter them.
+> - **Verify with:** a scan succeeding on a host whose credential was re-entered, and MFA login for a re-enrolled user.
+> - **Recover by:** switching the config back to the backed-up key path and restarting; the copy you verified first is what makes this possible.
+
 Impact: high. The DEK is a single 32-byte AES-256 key that directly encrypts
 every stored SSH credential and every MFA secret with AES-256-GCM. There is no
 per-credential wrapped key, so changing the DEK without re-encrypting every row
 makes those secrets permanently unreadable.
 
 > **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
-> command. The CLI subcommands are `setup`, `serve`, `worker`, `migrate`,
-> `create-admin`, and `check-config`: none re-wraps stored secrets. Rotating
+> command. None of the [CLI subcommands](../guides/ENVIRONMENT_REFERENCE.md#cli-subcommands)
+> re-wraps stored secrets. Rotating
 > the DEK in place therefore requires either
 > re-entering the affected secrets by hand or a one-off migration written for
 > your deployment. An online rotation command is roadmap work; until it lands,
@@ -263,6 +284,13 @@ a `pg_dump` restore first.
 > unrecoverable. Back up before rotating.
 
 ## Rotate the TLS certificate
+
+> **Before you start**
+> - **You need:** the new certificate and key files.
+> - **Run as:** root.
+> - **What changes:** `/etc/openwatch/tls/cert.pem` and `key.pem`; existing keep-alive connections drop on restart.
+> - **Verify with:** `openssl s_client -connect localhost:8443` showing the new certificate's dates.
+> - **Recover by:** putting the previous files back and restarting.
 
 Impact: minimal. The server reads the cert and key on each TLS handshake, so new
 connections use the new material immediately; restart to drop existing
