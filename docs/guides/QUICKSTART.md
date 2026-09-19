@@ -251,7 +251,7 @@ endpoints include:
 
 | Endpoint | Returns |
 |----------|---------|
-| `GET /api/v1/fleet/score` | Fleet-wide passing/total score |
+| `GET /api/v1/fleet/score` | Fleet score: the equal-host mean of host scores, each host passing over passing plus failing. Absent when no host is scored. |
 | `GET /api/v1/fleet/liveness` | Host counts by reachability |
 | `GET /api/v1/fleet/top-failing-rules` | Rules failing across the fleet |
 | `GET /api/v1/fleet/top-failing-hosts` | Hosts with the most failures |

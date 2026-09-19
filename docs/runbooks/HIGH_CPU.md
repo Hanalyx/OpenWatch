@@ -91,9 +91,13 @@ correlation ID that appears disproportionately. The `serve` process also runs th
 liveness, intelligence, and discovery schedulers in-process; a misconfigured
 interval can drive steady CPU (see Resolution path C).
 
-#### If `openwatch worker` is high
+#### If scan work is high
 
-The worker runs Kensa SSH checks. Confirm how many scan jobs are queued or running:
+Scans run inside `serve`: its in-process worker drains the job queue with
+`[server].scan_concurrency` loops (default 4), each running Kensa SSH checks.
+An `openwatch worker` process is optional extra capacity that shares the same
+queue. Whichever process is hot, confirm how many scan jobs are queued or
+running:
 
 ```bash
 psql "$OPENWATCH_DATABASE_DSN" -c "
@@ -202,29 +206,35 @@ pause it through the operator-tunable system config (changes hot-load; no restar
 needed):
 
 ```bash
-# Pause intelligence collection
-curl -sk -X PUT https://localhost:8443/api/v1/system/intelligence/config \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"maintenance_global": true}'
+# Read the current config, flip only the maintenance flag, write it back.
+# Every field is required on PUT (a partial body is refused with
+# validation.range_exceeded, because a missing interval_sec reads as 0).
+curl -sk -H "Authorization: Bearer $TOKEN" \
+  https://localhost:8443/api/v1/system/intelligence/config \
+  | jq '.maintenance_global = true' \
+  | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+      --data-binary @- https://localhost:8443/api/v1/system/intelligence/config
 
-# Pause discovery sweeps
-curl -sk -X PUT https://localhost:8443/api/v1/system/discovery/config \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"maintenance_global": true}'
+# Verify, then unpause the same way with `.maintenance_global = false`.
+curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .maintenance_global
 ```
+
+Discovery pauses the same way through `/api/v1/system/discovery/config`. A
+body carrying only `maintenance_global` is refused: every field of the config
+is required on PUT.
 
 > These endpoints require an authenticated token with the appropriate role. Confirm
 > the exact request body and required permission against the API contract before use.
 > The schedulers log a warning at startup when paused.
 
-### Path D: slow the worker poll loop
+### Path D: lower scan concurrency, or slow an extra worker's poll loop
 
-The worker accepts a `--poll-interval` flag (default 1s, 5s max) that controls how
-often it polls an empty queue. There is no `MAX_CONCURRENT_SCANS` knob; concurrency
-is bounded by the per-host advisory lock and the number of worker processes you run.
-If the worker is busy-looping against an empty queue, raise the interval:
+Scan concurrency in `serve` is `[server].scan_concurrency` in
+`/etc/openwatch/openwatch.toml` (default 4; lower it and restart). Each loop
+also holds a per-host advisory lock, so one host is never scanned twice at
+once. A separate `openwatch worker` accepts a `--poll-interval` flag (default
+1s, 5s max) that controls how often it polls an empty queue; if an extra
+worker is busy-looping against an empty queue, raise the interval:
 
 ```bash
 openwatch --config /etc/openwatch/openwatch.toml worker --poll-interval 5s

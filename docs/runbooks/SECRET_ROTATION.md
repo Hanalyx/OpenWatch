@@ -24,8 +24,8 @@ file, then built-in defaults.
 | Secret | Where it lives | Loaded at | Rotation impact |
 |--------|----------------|-----------|-----------------|
 | Database DSN (incl. password) | `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` | Service start, `migrate`, `create-admin` | Brief restart |
-| JWT signing key (RSA private key) | `[identity].jwt_private_key` file (default `/etc/openwatch/keys/jwt_private.pem`) | Service start | Invalidates all sessions; users re-authenticate |
-| Credential DEK (AES-256 key) | `[identity].credential_key_file` file (default `/etc/openwatch/keys/credential.key`) | Service start | Stored SSH credentials and MFA secrets become unreadable unless re-encrypted |
+| JWT signing key (RSA private key) | `[identity].jwt_private_key` file (default `/etc/openwatch/keys/jwt_private.pem`) | Service start | Invalidates access tokens only. Browser sessions, refresh tokens and API tokens are database rows and survive; revoke them separately (see below) |
+| Credential DEK (AES-256 key) | `[identity].credential_key_file` file (default `/etc/openwatch/keys/credential.key`) | Service start | Every stored SSH credential and MFA secret is readable only under the key that encrypted it. Never overwrite the file in place |
 | TLS certificate and key | `[server].tls_cert` / `[server].tls_key` (default `/etc/openwatch/tls/{cert,key}.pem`) | Read on each TLS handshake | New connections pick up the new cert; restart to drop keep-alives |
 
 > The server refuses to start if either the credential DEK or the JWT key path
@@ -41,7 +41,10 @@ secrets) with AES-256-GCM. The previous Python build's
 
 1. Schedule a maintenance window. Every rotation here requires a service restart.
 2. Back up the database with `pg_dump` before rotating the credential DEK or the
-   JWT key, so you can recover if re-encryption goes wrong.
+   JWT key. For the DEK that is not enough on its own: a database dump holds
+   ciphertext, and ciphertext is only as recoverable as the key that made it.
+   The DEK procedure below takes a verified copy of the key before anything
+   else.
 3. Record the current and new secret values in a secrets manager, not a plaintext
    file on the host.
 4. Confirm the service is healthy first:
@@ -63,15 +66,15 @@ Impact: a brief restart while the service reconnects. The DSN lives in
    sudo -u postgres psql -c "ALTER ROLE openwatch WITH PASSWORD 'new-strong-password';"
    ```
 
-2. Update the DSN in `/etc/openwatch/secrets.env` (keep the file mode at `0640`,
-   owner `root:openwatch`):
+2. Replace only the DSN line in `/etc/openwatch/secrets.env`. The file can carry
+   other `OPENWATCH_*` overrides (the credential key path after a DEK rotation,
+   a logging level); rewriting the whole file drops them.
 
    ```bash
-   sudo tee /etc/openwatch/secrets.env >/dev/null <<'EOF'
-   OPENWATCH_DATABASE_DSN=postgres://openwatch:new-strong-password@127.0.0.1:5432/openwatch?sslmode=disable
-   EOF
+   sudo sed -i 's|^OPENWATCH_DATABASE_DSN=.*|OPENWATCH_DATABASE_DSN=postgres://openwatch:new-strong-password@127.0.0.1:5432/openwatch?sslmode=disable|' /etc/openwatch/secrets.env
    sudo chown root:openwatch /etc/openwatch/secrets.env
    sudo chmod 0640 /etc/openwatch/secrets.env
+   grep -c '^OPENWATCH_DATABASE_DSN=' /etc/openwatch/secrets.env   # must print 1
    ```
 
    Use `sslmode=require` or stronger for any PostgreSQL that is not on the
@@ -80,8 +83,7 @@ Impact: a brief restart while the service reconnects. The DSN lives in
 3. Validate the resolved config before restarting:
 
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-       openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    ```
 
    `check-config` prints the config with the DSN password redacted and exits
@@ -97,34 +99,46 @@ Impact: a brief restart while the service reconnects. The DSN lives in
 
 ## Rotate the JWT signing key
 
-Impact: all active sessions are invalidated and users must sign in again. The
-key is an RSA private key in PEM form (PKCS#1 or PKCS#8), and the service rejects
-keys smaller than 2048 bits at startup. Access tokens have a 30-minute lifetime,
-but rotating the key invalidates the refresh tokens too, so plan for a full
-re-login.
+Impact: every **access token** stops verifying, so API clients holding a bearer
+token get 401 and must obtain a new one. That is all the key rotation does.
+Browser sessions (the `openwatch_session` cookie), refresh tokens and API
+tokens are opaque values hashed into the `sessions`, `refresh_tokens` and
+`api_tokens` tables; they are not signed with this key and remain valid after
+it changes. Verified on 0.8.0-rc.3: after a key rotation and restart, the old
+bearer token returned 401 while the same browser's session cookie and refresh
+cookie both still returned 200. To force everyone to sign in again, rotate the
+key **and** revoke the rows, as the last step below does.
 
-1. Generate a new 2048-bit (or larger) RSA key as the `openwatch` user, mode
-   `0600`:
+The key is an RSA private key in PEM form (PKCS#1 or PKCS#8); the service
+rejects keys smaller than 2048 bits at startup.
+
+1. Generate the replacement at a new path. `/etc/openwatch/keys` is packaged as
+   `root:openwatch 0750`, so the `openwatch` user cannot create files there;
+   generate as root and install with the packaged ownership and mode
+   (`root:openwatch 0640`, the same as the key the installer laid down):
 
    ```bash
-   sudo install -d -m 0750 -o root -g openwatch /etc/openwatch/keys
-   sudo -u openwatch openssl genpkey -algorithm RSA \
-       -pkeyopt rsa_keygen_bits:2048 \
-       -out /etc/openwatch/keys/jwt_private.pem
-   sudo chmod 0600 /etc/openwatch/keys/jwt_private.pem
+   NEW_JWT="/etc/openwatch/keys/jwt_private-$(date -u +%Y%m%d).pem"
+   sudo sh -c 'umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /root/jwt_private.new.pem'
+   sudo install -m 0640 -o root -g openwatch /root/jwt_private.new.pem "$NEW_JWT"
+   sudo shred -u /root/jwt_private.new.pem
    ```
 
-   Write to a new path and update `[identity].jwt_private_key` if you prefer to
-   keep the old key around for rollback.
+   The old key stays at its path for rollback until the new one is confirmed.
 
-2. Point the config at the key. Either set it in `/etc/openwatch/openwatch.toml`:
+2. Point the config at the new key. Either set it in `/etc/openwatch/openwatch.toml`:
 
    ```toml
    [identity]
-   jwt_private_key = "/etc/openwatch/keys/jwt_private.pem"
+   jwt_private_key = "/etc/openwatch/keys/jwt_private-<date>.pem"
    ```
 
-   or set `OPENWATCH_IDENTITY_JWT_PRIVATE_KEY` in `/etc/openwatch/secrets.env`.
+   or append one line to `/etc/openwatch/secrets.env` (append; do not rewrite
+   the file):
+
+   ```bash
+   echo "OPENWATCH_IDENTITY_JWT_PRIVATE_KEY=$NEW_JWT" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
+   ```
 
 3. Restart and verify:
 
@@ -137,7 +151,25 @@ re-login.
    If the key is missing, unparseable, or under 2048 bits, the service logs
    `load jwt key failed` and exits: `journalctl -u openwatch` shows the reason.
 
-4. Confirm users can sign in. Existing tokens are no longer accepted.
+4. Confirm a fresh sign-in works, and that a bearer token issued before the
+   rotation is rejected (401).
+
+5. Revoke the sessions and refresh tokens the rotation did not touch. This is
+   the step that actually signs everyone out; without it, open browser tabs
+   keep working. Run as the service user with the service's own environment
+  :
+
+   ```bash
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+     psql "$OPENWATCH_DATABASE_DSN" -c "UPDATE sessions SET revoked_at = now() WHERE revoked_at IS NULL;" \
+                                   -c "UPDATE refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL;"'
+   ```
+
+   API tokens (`/api/v1/tokens`) are separate long-lived credentials; revoke
+   the ones you intend to through that API. A per-user sign-out exists in the
+   product (`RevokeAllSessionsForUser`) for the single-account case.
+
+6. Once sign-in is confirmed on the new key, remove the old key file.
 
 There is no dual-key (old + new) verification on this stack, so there is no
 zero-downtime overlap window. Rotate during low usage to limit the number of
@@ -151,7 +183,7 @@ per-credential wrapped key, so changing the DEK without re-encrypting every row
 makes those secrets permanently unreadable.
 
 > **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
-> command. The CLI subcommands are `serve`, `worker`, `migrate`,
+> command. The CLI subcommands are `setup`, `serve`, `worker`, `migrate`,
 > `create-admin`, and `check-config`: none re-wraps stored secrets. Rotating
 > the DEK in place therefore requires either
 > re-entering the affected secrets by hand or a one-off migration written for
@@ -162,26 +194,61 @@ makes those secrets permanently unreadable.
 
 This is the supported path when you have a manageable number of credentials.
 
-1. Back up the database (`pg_dump`) so you can roll back to the old DEK.
-2. Generate a new 32-byte key, mode `0600` (the loader rejects any file readable
-   by group or other):
+**Never overwrite `/etc/openwatch/keys/credential.key` in place.** The
+previous version of this procedure did, and told you afterwards to "keep the
+old key file": by then it no longer existed, and a database dump cannot bring
+it back. Verified on 0.8.0-rc.3: one in-place overwrite made every stored
+credential fail with `message authentication failed`, and only an
+out-of-band copy of the old key recovered them. Rotation is a new file plus a
+config change, so the old key is never touched.
+
+1. Back up the database (`pg_dump`), then take a verified copy of the current
+   key to a root-only location and confirm the two are byte-identical:
 
    ```bash
-   sudo -u openwatch sh -c 'umask 077; head -c 32 /dev/urandom > /etc/openwatch/keys/credential.key'
-   sudo chmod 0600 /etc/openwatch/keys/credential.key
+   sudo install -m 0600 -o root -g root /etc/openwatch/keys/credential.key /root/credential.key.pre-rotation
+   sudo sh -c 'sha256sum /etc/openwatch/keys/credential.key /root/credential.key.pre-rotation'
    ```
 
-3. Point `[identity].credential_key_file` (or
-   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE`) at the new key and restart:
+   Both digests must match. Do not continue until they do. Store that copy in
+   your secrets manager as well; it is the only thing that can read the
+   secrets you are about to abandon.
+
+2. Generate the new key at a **distinct path**. The DEK file is owned by the
+   service user, so generate as root and hand it over with mode `0600` (the
+   loader rejects any key readable by group or other):
 
    ```bash
+   NEW_DEK="/etc/openwatch/keys/credential-$(date -u +%Y%m%d).key"
+   sudo sh -c "umask 077; openssl rand -out '$NEW_DEK' 32"
+   sudo chown openwatch:openwatch "$NEW_DEK"
+   sudo chmod 0600 "$NEW_DEK"
+   ```
+
+3. Point the service at the new key and restart. Add a line to
+   `/etc/openwatch/secrets.env` (or set `[identity].credential_key_file` in
+   the TOML):
+
+   ```bash
+   echo "OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE=$NEW_DEK" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
    sudo systemctl restart openwatch
+   curl -k https://localhost:8443/api/v1/health
    ```
 
-4. Re-create the SSH credentials and re-enroll MFA through the UI or API
-   (`/api/v1/...`); secrets created before the swap will fail to decrypt and must
-   be replaced. Keep the old key file until you have confirmed every secret is
-   re-entered, in case you need to roll back.
+4. Re-create the SSH credentials and re-enroll MFA through the UI or API;
+   secrets created before the swap fail to decrypt under the new key and must
+   be replaced. **Administrator MFA first:** if the first admin has MFA
+   enrolled, its secret is one of the rows that just became unreadable, so
+   re-enroll it before signing out, or have a second administrator ready.
+
+5. Rollback, at any point before you delete the old key: remove the
+   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML value)
+   and restart. The old key was never modified, so every original secret
+   decrypts again. Verified on 0.8.0-rc.3 in both directions.
+
+6. Only after every secret is re-entered and an SSH-backed action succeeds
+   (post-rotation checklist): delete the old key file and the root-only copy,
+   and record the rotation in your secrets manager.
 
 ### Option B: offline re-encryption (custom)
 
@@ -231,9 +298,12 @@ enforced by the software.
 - [ ] `/health` reports healthy: `curl -k https://localhost:8443/api/v1/health`.
 - [ ] The unit is active: `sudo systemctl status openwatch`.
 - [ ] No startup errors: `sudo journalctl -u openwatch --since '5 min ago' -p err`.
-- [ ] For a JWT rotation: a fresh sign-in succeeds and old tokens are rejected.
+- [ ] For a JWT rotation: a fresh sign-in succeeds, an old bearer token is
+      rejected, and a browser tab that was open before the rotation is signed
+      out (that is the session revocation, not the key).
 - [ ] For a DEK rotation: an SSH-backed action (host liveness or a Kensa scan)
-      succeeds against a host whose credential you re-entered.
+      succeeds against a host whose credential you re-entered, and the verified
+      copy of the old key is still in your secrets manager until then.
 - [ ] The `system.startup` audit event recorded the restart (visible in the
       audit log / `journalctl -u openwatch`).
 - [ ] The new secret value is stored in your secrets manager and the rotation

@@ -288,14 +288,30 @@ The OpenWatch process is consuming excessive CPU.
    sudo journalctl -u openwatch --since '15 min ago' -o cat | jq -r '.msg' | sort | uniq -c | sort -rn | head
    ```
 
-3. Check whether background work is driving load. The liveness loop and the
-   intelligence and discovery schedulers run inside `serve`. If a scheduler is
-   misconfigured, pause it via its config endpoint, for example:
+3. Check whether background work is driving load. The liveness loop, the
+   intelligence and discovery schedulers, and the scan worker all run inside
+   `serve`. If a scheduler is misconfigured, pause it through its config
+   endpoint. `maintenance_global: true` keeps the scheduler loop ticking but
+   makes it run no cycles (intelligence), enqueue no jobs (discovery), or
+   dispatch no scans (scan); nothing else is suppressed. Needs
+   `system_config:write`.
 
-   ```bash
-   curl -k -H "Authorization: Bearer $TOKEN" \
-     https://localhost:8443/api/v1/system/intelligence/config
+```bash
+   # Read the current config, flip only the maintenance flag, write it back.
+   # Every field is required on PUT (a partial body is refused with
+   # validation.range_exceeded, because a missing interval_sec reads as 0).
+   curl -sk -H "Authorization: Bearer $TOKEN" \
+     https://localhost:8443/api/v1/system/intelligence/config \
+     | jq '.maintenance_global = true' \
+     | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+         --data-binary @- https://localhost:8443/api/v1/system/intelligence/config
+
+   # Verify, then unpause the same way with `.maintenance_global = false`.
+   curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .maintenance_global
    ```
+
+   The discovery and scan schedulers pause the same way through
+   `/api/v1/system/discovery/config` and `/api/v1/system/scan/config`.
 
 4. Check PostgreSQL for long-running or stuck queries:
 

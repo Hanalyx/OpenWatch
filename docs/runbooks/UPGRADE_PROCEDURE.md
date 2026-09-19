@@ -56,8 +56,7 @@ The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 Preview what would change before upgrading:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate --status
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 # -> "up to date — no migrations pending"  OR  "PENDING: N migration(s) ..."
 ```
 
@@ -69,8 +68,7 @@ rolled back). Recover with:
 ```bash
 # 1. read the error in the dnf/apt output or:  journalctl -u openwatch
 # 2. fix the cause, then re-apply:
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl start openwatch
 # on Debian, also clear the half-configured state:
 sudo dpkg --configure -a
@@ -90,8 +88,28 @@ To restore the pre-upgrade dump instead, see [Rollback](#rollback).
 
 ## Controlled (manual) upgrade
 
-The remaining sections are the manual, step-at-a-time path: for production
-change windows, multi-step validation, or when `AUTO_BACKUP=no`.
+The remaining sections are the step-at-a-time path for production change
+windows and multi-step validation. Read this first, because it changes what
+"manual" means here:
+
+**Installing the package is the migration.** The RPM and DEB post-install
+scriptlets run `/usr/lib/openwatch/openwatch-upgrade.sh` on every upgrade.
+It stops the service, writes the pre-upgrade dump, applies migrations, and
+starts the service, all inside the package transaction. `AUTO_BACKUP=no`
+disables only the dump. There is no setting that defers the migration or the
+restart to a later step. Verified on a rockylinux:9 host upgraded from 0.7.1
+to 0.8.0-rc.3: with the service stopped by hand before `dnf install`, the
+schema was at the new version and the service was `active` the moment `dnf`
+returned, before any later step ran.
+
+So the transaction boundary is Step 3. Everything before it is preparation
+you control; everything after it is verification of a migration that has
+already happened. A rollback decision is made from the observed schema
+version (`openwatch migrate --status`), never from which step you reached.
+If your change process requires a migration that runs as a separate,
+approved action, that needs a control the scriptlet does not have today;
+raise it as a product request rather than expecting the steps below to
+provide it.
 
 ## Before you upgrade
 
@@ -116,9 +134,8 @@ Migrations are tracked in the `goose_db_version` table. Capture the current
 version so you know what the database looked like before the upgrade:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  psql "$OPENWATCH_DATABASE_DSN" \
-  -c "SELECT max(version_id) FROM goose_db_version;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT max(version_id) FROM goose_db_version;"'
 ```
 
 ## How migrations work
@@ -151,11 +168,10 @@ the rewrite time scales with fleet size times how much history you keep. To
 estimate before you upgrade:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  psql "$OPENWATCH_DATABASE_DSN" \
-  -c "SELECT count(*) AS rows,
-             pg_size_pretty(pg_total_relation_size('posture_snapshots')) AS size
-        FROM posture_snapshots;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT count(*) AS rows,
+             pg_size_pretty(pg_total_relation_size('\''posture_snapshots'\'')) AS size
+        FROM posture_snapshots;"'
 ```
 
 How long the rewrite takes depends on the row count, the indexes, your storage,
@@ -177,14 +193,18 @@ Take a fresh dump immediately before the upgrade (commands in
 the [backup and recovery guide](BACKUP_RECOVERY.md)). Do not skip this: it is the only
 rollback path for schema changes.
 
-### Step 2: Stop the service
+### Step 2: Stop the service and record the state you can roll back to
 
 ```bash
 sudo systemctl stop openwatch
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 ```
 
 Stopping the service quiesces the API, the embedded worker loops, and the
-PostgreSQL-native job queue before the schema changes.
+PostgreSQL-native job queue. The scriptlet stops it again anyway; doing it
+here means the last writes happen before your Step 1 backup is taken, not
+after. Write down the migration version `migrate --status` prints: it is the
+number that decides which rollback applies later.
 
 ### Step 3: Install the new package
 
@@ -200,15 +220,21 @@ On Debian/Ubuntu hosts (DEB):
 sudo apt install ./openwatch_<new-version>_<arch>.deb
 ```
 
-Both packages replace `/usr/bin/openwatch`, refresh the systemd unit, and run
-`systemctl daemon-reload` in their post-install scripts. The config files under
-`/etc/openwatch/` are marked as config files and are not overwritten on upgrade;
-review the new package's default `openwatch.toml` against yours for new keys.
+Both packages replace `/usr/bin/openwatch`, refresh the systemd unit, run
+`systemctl daemon-reload`, and then run the upgrade scriptlet: dump (unless
+`AUTO_BACKUP=no`), migrate, start. When this command returns, the schema is
+at the new version and the service is running, or the scriptlet has left it
+stopped and printed the restore path. The config files under `/etc/openwatch/`
+are marked as config files and are not overwritten on upgrade; review the
+new package's default `openwatch.toml` against yours for new keys.
 
-Confirm the binary version:
+Confirm the binary, the schema, and the service state:
 
 ```bash
 openwatch --version
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
+sudo systemctl is-active openwatch
+ls -t /var/lib/openwatch/backups/ | head -1     # the pre-upgrade dump the scriptlet wrote
 ```
 
 ### Step 4: Validate the resolved config
@@ -223,20 +249,29 @@ This prints the resolved configuration with secrets redacted and exits non-zero
 if validation fails. Config layering, highest precedence first: CLI flags > env
 vars (`OPENWATCH_<SECTION>_<KEY>`) > the TOML file > built-in defaults.
 
-### Step 5: Apply migrations
+### Step 5: Confirm the migration the scriptlet applied
+
+The scriptlet already ran `openwatch migrate`. Running it again is a safe
+no-op and is the check that it finished:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  openwatch --config /etc/openwatch/openwatch.toml migrate'
 ```
 
-The command prints the current version, the count of migration files, and each
-filename, then `migrations applied`. If it fails, the service is still stopped: fix the cause or restore the backup (see [Rollback](#rollback)) before starting.
+It prints the current version and `no migrations to run` when the scriptlet
+completed. If instead it applies migrations now, the scriptlet did not finish
+(it leaves the service stopped and prints the restore path when a migration
+fails); read `journalctl -u openwatch` and the `dnf`/`apt` output before
+going on.
 
-### Step 6: Start the service
+### Step 6: Confirm the service is up
+
+The scriptlet started it. If it is not active, the scriptlet stopped on a
+failed migration: do not start it by hand against an unfinished schema; go to
+[Rollback](#rollback).
 
 ```bash
-sudo systemctl start openwatch
 sudo systemctl status openwatch
 ```
 
@@ -250,9 +285,8 @@ curl -k https://localhost:8443/api/v1/version
 # Watch the structured logs for the startup line and any errors.
 sudo journalctl -u openwatch -n 100 --no-pager
 
-# Confirm the database is reachable from the host.
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"
+# Confirm the database is reachable from the host, as the service user.
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"'
 ```
 
 The `version` field in both `/api/v1/health` and `/api/v1/version` should report
@@ -264,10 +298,15 @@ Because migrations are forward-only, rolling back a release that changed the
 schema means restoring the pre-upgrade database backup and reinstalling the
 previous package.
 
-### Code-only rollback (no migration ran)
+Which rollback applies is decided by the schema, not by the step you reached:
+compare `openwatch migrate --status` now with the version you recorded in
+Step 2. Same number, code-only rollback. Higher number, full rollback.
 
-If the upgrade failed before Step 5, or the target version applied no new
-migrations, reinstall the previous package and restart:
+### Code-only rollback (the schema did not advance)
+
+If the target version applied no new migrations (the version recorded in
+Step 2 is unchanged), reinstall the previous package. The previous package's
+scriptlet runs too, finds nothing to migrate, and starts the service:
 
 ```bash
 sudo systemctl stop openwatch
@@ -279,10 +318,12 @@ sudo systemctl start openwatch
 curl -k https://localhost:8443/api/v1/health
 ```
 
-### Full rollback (migrations ran)
+### Full rollback (the schema advanced)
 
-If Step 5 applied new migrations, restore the pre-upgrade database backup, then
-reinstall the previous binary:
+If the schema version is higher than the one recorded in Step 2, the new
+binary's migrations ran during Step 3. Restore the pre-upgrade database dump
+(the scriptlet's, in `/var/lib/openwatch/backups/`, or your Step 1 dump),
+then reinstall the previous binary:
 
 ```bash
 # 1. Stop the service.
@@ -303,12 +344,25 @@ Keep the pre-upgrade dump until you have validated the upgrade in production
 
 ## Updating Kensa compliance rules
 
-Kensa is the SSH-based compliance engine, integrated as a Go dependency; its native YAML rules are compiled into the `openwatch`
-binary. Rules therefore travel with
-the binary: installing a new OpenWatch package is what updates the bundled
-rule set. There is no separate rule-pull or out-of-band rule-sync step. See
-[Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md) for how OpenWatch invokes
-Kensa during a scan.
+Kensa is two things with two versions. The engine is a Go dependency compiled
+into the `openwatch` binary; `GET /api/v1/version` reports it in the `kensa`
+field. The rules are the separate `kensa-rules` package, installed at
+`/usr/share/kensa/rules` and loaded from there when the service starts. The
+`openwatch` package depends on `kensa-rules` but does not pin its version, so
+upgrading one does not upgrade the other.
+
+To update the rules, upgrade the package and restart the service so it loads
+the new corpus:
+
+```bash
+sudo dnf upgrade kensa-rules        # apt: sudo apt install --only-upgrade kensa-rules
+sudo systemctl restart openwatch
+rpm -q kensa-rules                  # apt: dpkg -s kensa-rules | grep Version
+```
+
+There is no rule-pull or rule-sync step, and no rule is compiled into the
+binary. See [Scanning and compliance](../guides/SCANNING_AND_COMPLIANCE.md)
+for how OpenWatch invokes Kensa during a scan.
 
 ## Upgrading PostgreSQL
 
@@ -354,9 +408,16 @@ the schema is in an unexpected state, restore the pre-upgrade backup.
 
 ### Health endpoint returns 503
 
-A 503 from `/api/v1/health` means the service started but a dependency is
-unhealthy: typically the database. Check `db_connected` in the response body
-and confirm PostgreSQL is running and reachable.
+A 503 from `/api/v1/health` means the service started and cannot reach its
+database. The body is the standard error envelope, not the health object:
+
+```json
+{"error":{"code":"server.unavailable","fault":"server","human_message":"database is not reachable","retryable":true}}
+```
+
+There is no `db_connected` field in it; that field appears only on a 200.
+Confirm PostgreSQL is running and that the DSN in `/etc/openwatch/secrets.env`
+still names a reachable server with the right password.
 
 ## Post-upgrade checklist
 

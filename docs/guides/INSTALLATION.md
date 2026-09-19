@@ -517,7 +517,7 @@ queue, and more). Run it as the `openwatch` user with the same DSN the service
 uses:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 ```
 
 The command applies every pending migration and reports the version it reached.
@@ -529,7 +529,7 @@ This is the account you sign in with. The admin password policy requires **at
 least 15 characters**; pick a single line with no spaces.
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email admin@example.com
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch create-admin --username admin --email admin@example.com'
 # Type the admin password at the prompt and press Enter.
 ```
 
@@ -540,7 +540,7 @@ screen is not observed or recorded, or pipe the password in. For automation,
 pipe it instead:
 
 ```bash
-printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email admin@example.com
+printf '%s' "$ADMIN_PASSWORD" | sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch create-admin --username admin --email admin@example.com'
 ```
 
 On success it prints `created admin user admin (admin@example.com) with id=…` and
@@ -731,7 +731,7 @@ sudo journalctl -u openwatch -o cat | jq .       # pretty-print JSON
 ### Inspect the resolved config
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
 ```
 
 ### Replace the demo TLS cert
@@ -794,8 +794,11 @@ layout and will not guess; use the manual procedure.
 
 ### `setup` reports PostgreSQL is too old
 
-The server is below the minimum of 13. On RHEL, the default stream is older
-than the supported version; enable a newer one and reinstall PostgreSQL:
+The running server is below PostgreSQL 15, the lowest major version `setup`
+accepts. The schema itself runs on 13, but 13 left support in November 2025
+and 14 does so in November 2026, so `setup` will not build an install on
+either. On RHEL 9 the default stream is 13; enable a newer one and reinstall
+PostgreSQL:
 
 ```bash
 dnf module list postgresql
@@ -910,7 +913,7 @@ path. Your data is intact (each migration runs in its own transaction and rolls
 back on error). After fixing the cause:
 
 ```bash
-openwatch migrate            # re-apply; reads the same DSN from secrets.env
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'   # re-apply, with the service's DSN
 sudo systemctl start openwatch
 ```
 
@@ -995,8 +998,8 @@ User/group     openwatch:openwatch
 Install        sudo openwatch setup                (--dry-run to preview)
 Re-run         sudo openwatch setup                (idempotent; resumes)
 Receipt        /var/lib/openwatch/setup-receipt.json
-Migrate        sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
-Create admin   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch create-admin --username admin --email you@example.com
+Migrate        sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
+Create admin   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch create-admin --username admin --email you@example.com'
 Logs           journalctl -u openwatch -f
 Restart        sudo systemctl restart openwatch
 Open port      sudo firewall-cmd --permanent --add-port=8443/tcp && sudo firewall-cmd --reload

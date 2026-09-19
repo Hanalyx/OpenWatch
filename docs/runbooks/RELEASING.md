@@ -396,34 +396,50 @@ two GPG secrets set, releases still get per-package GPG signatures **and** a
 GPG-signed `SHA256SUMS`: just no cosign `.sig`. Set the GPG pair first; add
 cosign once you have its private key.
 
-**Export the signing subkey (never the master) and set the GPG secrets:**
+**Export the signing subkey (never the master) and set the GPG secrets.**
+The block is one subshell with `set -e`: the safety gate at step 4 ends the
+block before any upload when the export carries the master's private key,
+and the export is shredded on every exit path. An earlier version printed
+`ABORT` and carried on to `gh secret set`; a test in `packaging/tests` now
+runs this block with `gpg` and `gh` stubbed and asserts that a failed gate
+records no upload.
 
 ```bash
-# 1. Import the existing Hanalyx master into your keyring (one-time).
-gpg --import "$VAULT"/hanalyx-key-backup/MASTER-secret.asc
+(
+  set -euo pipefail
+  export GNUPGHOME="${GNUPGHOME:-$HOME/.gnupg}"
+  EXPORT="$(mktemp -t ow-subkey.XXXXXX)"
+  trap 'shred -u "$EXPORT" 2>/dev/null || rm -f "$EXPORT"' EXIT
 
-# 2. Find the SIGNING SUBKEY fingerprint (the 2nd fpr line; the 1st is the master).
-gpg --list-secret-keys --with-colons ops@hanalyx.com \
-  | awk -F: '/^fpr:/{print $10}' | sed -n '2p'
+  # 1. Import the existing Hanalyx master into your keyring (one-time).
+  gpg --import "$VAULT"/hanalyx-key-backup/MASTER-secret.asc
 
-# 3. Export ONLY that subkey (note the trailing '!'). This stubs the master.
-SUBKEY_FPR=<paste from step 2>
-gpg --armor --export-secret-subkeys "${SUBKEY_FPR}!" > /tmp/ow-subkey.asc
+  # 2. The SIGNING SUBKEY fingerprint: the 2nd fpr line (the 1st is the master).
+  SUBKEY_FPR="$(gpg --list-secret-keys --with-colons ops@hanalyx.com \
+    | awk -F: '/^fpr:/{print $10}' | sed -n '2p')"
+  test -n "$SUBKEY_FPR"
 
-# 4. SAFETY GATE — must print a match, else STOP and shred the file.
-gpg --list-packets /tmp/ow-subkey.asc | grep -q gnu-dummy \
-  && echo "OK: master is stubbed" || echo "ABORT: master private present"
+  # 3. Export ONLY that subkey (the trailing '!'). This stubs the master.
+  gpg --armor --export-secret-subkeys "${SUBKEY_FPR}!" > "$EXPORT"
 
-# 5. Push the subkey + passphrase (passphrase via silent prompt — never on the CLI).
-gh secret set GPG_PRIVATE_KEY --repo Hanalyx/OpenWatch < /tmp/ow-subkey.asc
-gh secret set GPG_PASSPHRASE  --repo Hanalyx/OpenWatch   # paste at the prompt
+  # 4. SAFETY GATE. A stubbed master shows as a gnu-dummy packet; a real one
+  #    does not. Anything but a match ends the block here, before any upload.
+  if ! gpg --list-packets "$EXPORT" | grep -q gnu-dummy; then
+    echo "ABORT: master private key present in the export; nothing uploaded" >&2
+    exit 1
+  fi
+  echo "OK: master is stubbed"
 
-# 6. Shred the exported subkey.
-shred -u /tmp/ow-subkey.asc
+  # 5. Push the subkey + passphrase (passphrase via silent prompt; never on the CLI).
+  gh secret set GPG_PRIVATE_KEY --repo Hanalyx/OpenWatch < "$EXPORT"
+  gh secret set GPG_PASSPHRASE  --repo Hanalyx/OpenWatch   # paste at the prompt
 
-# 7. (optional) cosign, once you have its private key file:
-gh secret set COSIGN_PRIVATE_KEY --repo Hanalyx/OpenWatch < <cosign.key>
-gh secret set COSIGN_PASSWORD    --repo Hanalyx/OpenWatch  # paste at the prompt
+  # 6. The trap shreds the export on exit.
+
+  # 7. (optional) cosign, once you have its private key file:
+  # gh secret set COSIGN_PRIVATE_KEY --repo Hanalyx/OpenWatch < <cosign.key>
+  # gh secret set COSIGN_PASSWORD    --repo Hanalyx/OpenWatch  # paste at the prompt
+)
 ```
 
 Notes:
