@@ -14,6 +14,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -76,9 +78,61 @@ func runOneScan(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, hostID uuid.UUI
 	cancel()
 	<-done
 	if st := jobStatus(t, pool, jobID); st != queue.StatusCompleted {
-		t.Fatalf("job %s status = %q after %s, want completed", jobID, st, scanBudget)
+		t.Fatalf("job %s status = %q after %s, want completed\n%s", jobID, st, scanBudget, scanDiagnostics(t, pool, w, jobID, hostID))
 	}
 	return jobID
+}
+
+// scanDiagnostics describes where a scan stopped when a wait ran out: the
+// queue row, the scan_runs row, what reached host_rule_state and
+// transactions, the worker's own counters, and the alerts for the host.
+// A timeout without this is a number; with it, it is a place to look.
+func scanDiagnostics(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, jobID, hostID uuid.UUID) string {
+	t.Helper()
+	ctx := context.Background()
+	var b strings.Builder
+	var status string
+	var attempts int
+	var lastErr *string
+	if err := pool.QueryRow(ctx, `SELECT status, attempts, last_error FROM job_queue WHERE id = $1`, jobID).Scan(&status, &attempts, &lastErr); err == nil {
+		le := "<nil>"
+		if lastErr != nil {
+			le = *lastErr
+		}
+		fmt.Fprintf(&b, "  job_queue: status=%s attempts=%d last_error=%s\n", status, attempts, le)
+	} else {
+		fmt.Fprintf(&b, "  job_queue: %v\n", err)
+	}
+	var runStatus *string
+	var started, finished *time.Time
+	if err := pool.QueryRow(ctx, `SELECT status, started_at, finished_at FROM scan_runs WHERE id = $1`, jobID).Scan(&runStatus, &started, &finished); err == nil {
+		fmt.Fprintf(&b, "  scan_runs: status=%v started=%v finished=%v\n", deref(runStatus), started, finished)
+	} else {
+		fmt.Fprintf(&b, "  scan_runs: %v\n", err)
+	}
+	count := func(q string, args ...any) string {
+		var n int
+		if err := pool.QueryRow(ctx, q, args...).Scan(&n); err != nil {
+			return err.Error()
+		}
+		return fmt.Sprint(n)
+	}
+	fmt.Fprintf(&b, "  host_rule_state rows for host=%s (for this scan=%s)\n",
+		count(`SELECT count(*) FROM host_rule_state WHERE host_id = $1`, hostID),
+		count(`SELECT count(*) FROM host_rule_state WHERE host_id = $1 AND last_scan_id = $2`, hostID, jobID))
+	fmt.Fprintf(&b, "  transactions for this scan=%s alerts for host=%s\n",
+		count(`SELECT count(*) FROM transactions WHERE scan_id = $1`, jobID),
+		count(`SELECT count(*) FROM alerts WHERE host_id = $1`, hostID))
+	fmt.Fprintf(&b, "  worker counters: claimed=%d in_flight=%d completed=%d idle=%d\n",
+		w.claimedCount.Load(), w.inFlightCount.Load(), w.completedCount.Load(), w.idleCount.Load())
+	return b.String()
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
 }
 
 func countAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType string) int {
@@ -96,11 +150,36 @@ func waitForAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType
 	deadline := time.Now().Add(scanBudget)
 	for {
 		n := countAlerts(t, pool, hostID, alertType)
-		if n >= want || time.Now().After(deadline) {
+		if n >= want {
+			return n
+		}
+		if time.Now().After(deadline) {
+			t.Logf("waitForAlerts: %d %s rows after %s, wanted %d; alerts for host by type: %s",
+				n, alertType, scanBudget, want, alertsByType(t, pool, hostID))
 			return n
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+func alertsByType(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) string {
+	t.Helper()
+	rows, err := pool.Query(context.Background(), `SELECT alert_type, count(*) FROM alerts WHERE host_id = $1 GROUP BY alert_type`, hostID)
+	if err != nil {
+		return err.Error()
+	}
+	defer rows.Close()
+	var parts []string
+	for rows.Next() {
+		var typ string
+		var n int
+		_ = rows.Scan(&typ, &n)
+		parts = append(parts, fmt.Sprintf("%s=%d", typ, n))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, " ")
 }
 
 // @ac AC-23
@@ -179,7 +258,8 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 				t.Errorf("bus event = %#v, want DriftDetected major for host %s scan %s", ev, hostID, scan2)
 			}
 		case <-time.After(scanBudget):
-			t.Fatal("no DriftDetected published on the bus after the worsening scan")
+			t.Fatalf("no DriftDetected published on the bus after the worsening scan (subscriber delivered=%d)\n%s",
+				driftSub.Delivered(), scanDiagnostics(t, pool, w, scan2, hostID))
 		}
 		if n := waitForAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor), 1); n != 1 {
 			t.Fatalf("drift_major alert rows = %d, want 1", n)
@@ -197,7 +277,7 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 		select {
 		case <-driftSub.Events():
 		case <-time.After(scanBudget):
-			t.Fatal("no DriftDetected on redelivery")
+			t.Fatalf("no DriftDetected on redelivery (subscriber delivered=%d)", driftSub.Delivered())
 		}
 		time.Sleep(300 * time.Millisecond)
 		if n := countAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor)); n != 1 {
@@ -262,7 +342,8 @@ func TestScanWorker_DriftDetectorFailureIsNonFatal(t *testing.T) {
 				t.Errorf("ScanCompleted = %#v, want scan %s", ev, jobID)
 			}
 		case <-time.After(scanBudget):
-			t.Fatal("ScanCompleted was not published after a detector failure")
+			t.Fatalf("ScanCompleted was not published after a detector failure (subscriber delivered=%d)\n%s",
+				completedSub.Delivered(), scanDiagnostics(t, pool, w, jobID, hostID))
 		}
 		if got := rec.Count(audit.ScanFailed); got != 0 {
 			t.Errorf("scan.failed emitted %d times, want 0", got)
