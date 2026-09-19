@@ -14,6 +14,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -47,17 +49,26 @@ func scanOutcomes(n, failing int) []kensa.RuleOutcome {
 	return out
 }
 
+// scanBudget bounds one scan's trip through the worker: claim, stub scan,
+// Apply, durable results, logbook, drift detection and the alert router's
+// persist. Locally that is about a second; under the race detector on a
+// shared hosted runner it exceeded 3 seconds once (go-ci run 35471479821,
+// job still "processing" at the deadline), so the budget is generous. The
+// loop exits as soon as the job completes, so a large budget costs nothing
+// on a fast machine.
+const scanBudget = 30 * time.Second
+
 // runOneScan enqueues a job whose scan returns outcomes and drives the
 // worker until the job completes. Returns the scan id (== job id).
 func runOneScan(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, hostID uuid.UUID, key []byte, current *atomic.Pointer[[]kensa.RuleOutcome], outcomes []kensa.RuleOutcome) uuid.UUID {
 	t.Helper()
 	current.Store(&outcomes)
 	jobID := enqueueScanJob(t, pool, hostID, key)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), scanBudget)
 	defer cancel()
 	done := make(chan struct{})
 	go func() { _ = w.Run(ctx); close(done) }()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(scanBudget)
 	for time.Now().Before(deadline) {
 		if jobStatus(t, pool, jobID) == queue.StatusCompleted {
 			break
@@ -67,9 +78,61 @@ func runOneScan(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, hostID uuid.UUI
 	cancel()
 	<-done
 	if st := jobStatus(t, pool, jobID); st != queue.StatusCompleted {
-		t.Fatalf("job %s status = %q, want completed", jobID, st)
+		t.Fatalf("job %s status = %q after %s, want completed\n%s", jobID, st, scanBudget, scanDiagnostics(t, pool, w, jobID, hostID))
 	}
 	return jobID
+}
+
+// scanDiagnostics describes where a scan stopped when a wait ran out: the
+// queue row, the scan_runs row, what reached host_rule_state and
+// transactions, the worker's own counters, and the alerts for the host.
+// A timeout without this is a number; with it, it is a place to look.
+func scanDiagnostics(t *testing.T, pool *pgxpool.Pool, w *ScanWorker, jobID, hostID uuid.UUID) string {
+	t.Helper()
+	ctx := context.Background()
+	var b strings.Builder
+	var status string
+	var attempts int
+	var lastErr *string
+	if err := pool.QueryRow(ctx, `SELECT status, attempts, last_error FROM job_queue WHERE id = $1`, jobID).Scan(&status, &attempts, &lastErr); err == nil {
+		le := "<nil>"
+		if lastErr != nil {
+			le = *lastErr
+		}
+		fmt.Fprintf(&b, "  job_queue: status=%s attempts=%d last_error=%s\n", status, attempts, le)
+	} else {
+		fmt.Fprintf(&b, "  job_queue: %v\n", err)
+	}
+	var runStatus *string
+	var started, finished *time.Time
+	if err := pool.QueryRow(ctx, `SELECT status, started_at, finished_at FROM scan_runs WHERE id = $1`, jobID).Scan(&runStatus, &started, &finished); err == nil {
+		fmt.Fprintf(&b, "  scan_runs: status=%v started=%v finished=%v\n", deref(runStatus), started, finished)
+	} else {
+		fmt.Fprintf(&b, "  scan_runs: %v\n", err)
+	}
+	count := func(q string, args ...any) string {
+		var n int
+		if err := pool.QueryRow(ctx, q, args...).Scan(&n); err != nil {
+			return err.Error()
+		}
+		return fmt.Sprint(n)
+	}
+	fmt.Fprintf(&b, "  host_rule_state rows for host=%s (for this scan=%s)\n",
+		count(`SELECT count(*) FROM host_rule_state WHERE host_id = $1`, hostID),
+		count(`SELECT count(*) FROM host_rule_state WHERE host_id = $1 AND last_scan_id = $2`, hostID, jobID))
+	fmt.Fprintf(&b, "  transactions for this scan=%s alerts for host=%s\n",
+		count(`SELECT count(*) FROM transactions WHERE scan_id = $1`, jobID),
+		count(`SELECT count(*) FROM alerts WHERE host_id = $1`, hostID))
+	fmt.Fprintf(&b, "  worker counters: claimed=%d in_flight=%d completed=%d idle=%d\n",
+		w.claimedCount.Load(), w.inFlightCount.Load(), w.completedCount.Load(), w.idleCount.Load())
+	return b.String()
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
 }
 
 func countAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType string) int {
@@ -84,14 +147,39 @@ func countAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType s
 
 func waitForAlerts(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID, alertType string, want int) int {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(scanBudget)
 	for {
 		n := countAlerts(t, pool, hostID, alertType)
-		if n >= want || time.Now().After(deadline) {
+		if n >= want {
+			return n
+		}
+		if time.Now().After(deadline) {
+			t.Logf("waitForAlerts: %d %s rows after %s, wanted %d; alerts for host by type: %s",
+				n, alertType, scanBudget, want, alertsByType(t, pool, hostID))
 			return n
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+func alertsByType(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) string {
+	t.Helper()
+	rows, err := pool.Query(context.Background(), `SELECT alert_type, count(*) FROM alerts WHERE host_id = $1 GROUP BY alert_type`, hostID)
+	if err != nil {
+		return err.Error()
+	}
+	defer rows.Close()
+	var parts []string
+	for rows.Next() {
+		var typ string
+		var n int
+		_ = rows.Scan(&typ, &n)
+		parts = append(parts, fmt.Sprintf("%s=%d", typ, n))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, " ")
 }
 
 // @ac AC-23
@@ -169,8 +257,9 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 			if !ok || dd.DriftType != "major" || dd.HostID != hostID || dd.ScanID != scan2 {
 				t.Errorf("bus event = %#v, want DriftDetected major for host %s scan %s", ev, hostID, scan2)
 			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("no DriftDetected published on the bus after the worsening scan")
+		case <-time.After(scanBudget):
+			t.Fatalf("no DriftDetected published on the bus after the worsening scan (subscriber delivered=%d)\n%s",
+				driftSub.Delivered(), scanDiagnostics(t, pool, w, scan2, hostID))
 		}
 		if n := waitForAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor), 1); n != 1 {
 			t.Fatalf("drift_major alert rows = %d, want 1", n)
@@ -187,8 +276,8 @@ func TestScanWorker_DriftDetectedAfterCompletedScans(t *testing.T) {
 		}
 		select {
 		case <-driftSub.Events():
-		case <-time.After(2 * time.Second):
-			t.Fatal("no DriftDetected on redelivery")
+		case <-time.After(scanBudget):
+			t.Fatalf("no DriftDetected on redelivery (subscriber delivered=%d)", driftSub.Delivered())
 		}
 		time.Sleep(300 * time.Millisecond)
 		if n := countAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor)); n != 1 {
@@ -252,8 +341,9 @@ func TestScanWorker_DriftDetectorFailureIsNonFatal(t *testing.T) {
 			if sc, ok := ev.(eventbus.ScanCompleted); !ok || sc.ScanID != jobID {
 				t.Errorf("ScanCompleted = %#v, want scan %s", ev, jobID)
 			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("ScanCompleted was not published after a detector failure")
+		case <-time.After(scanBudget):
+			t.Fatalf("ScanCompleted was not published after a detector failure (subscriber delivered=%d)\n%s",
+				completedSub.Delivered(), scanDiagnostics(t, pool, w, jobID, hostID))
 		}
 		if got := rec.Count(audit.ScanFailed); got != 0 {
 			t.Errorf("scan.failed emitted %d times, want 0", got)
