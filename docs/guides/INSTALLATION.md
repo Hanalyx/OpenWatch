@@ -792,8 +792,11 @@ layout and will not guess; use the manual procedure.
 
 ### `setup` reports PostgreSQL is too old
 
-The server is below the minimum of 13. On RHEL, the default stream is older
-than the supported version; enable a newer one and reinstall PostgreSQL:
+The running server is below PostgreSQL 15, the lowest major version `setup`
+accepts. The schema itself runs on 13, but 13 left support in November 2025
+and 14 does so in November 2026, so `setup` will not build an install on
+either. On RHEL 9 the default stream is 13; enable a newer one and reinstall
+PostgreSQL:
 
 ```bash
 dnf module list postgresql

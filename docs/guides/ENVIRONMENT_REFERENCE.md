@@ -50,6 +50,7 @@ variable that overrides each one:
 | `server` | `listen` | `0.0.0.0:8443` | `OPENWATCH_SERVER_LISTEN` |
 | `server` | `tls_cert` | `/etc/openwatch/tls/cert.pem` | `OPENWATCH_SERVER_TLS_CERT` |
 | `server` | `tls_key` | `/etc/openwatch/tls/key.pem` | `OPENWATCH_SERVER_TLS_KEY` |
+| `server` | `scan_concurrency` | `4` | none; TOML only. How many scan loops the in-process worker in `serve` runs at once. |
 | `database` | `dsn` | `postgres://openwatch@localhost/openwatch?sslmode=disable` | `OPENWATCH_DATABASE_DSN` |
 | `database` | `max_connections` | `25` | `OPENWATCH_DATABASE_MAX_CONNECTIONS` |
 | `logging` | `level` | `info` | `OPENWATCH_LOGGING_LEVEL` |
@@ -71,6 +72,7 @@ Example `/etc/openwatch/openwatch.toml`:
 listen   = "0.0.0.0:8443"
 tls_cert = "/etc/openwatch/tls/cert.pem"
 tls_key  = "/etc/openwatch/tls/key.pem"
+scan_concurrency = 4
 
 [database]
 # Keep the password out of this file; set OPENWATCH_DATABASE_DSN in
@@ -163,6 +165,7 @@ same configuration layering.
 
 | Subcommand | Purpose |
 |------------|---------|
+| `setup` | Provision the database, write the configuration, and start the service. The documented install path; see the [installation guide](INSTALLATION.md). |
 | `serve` | Run the HTTPS API + UI server. This is the default when no subcommand is given, which is what the systemd unit invokes. |
 | `worker` | Run the scan-job claimer/dispatcher loop against the PostgreSQL-native queue. |
 | `migrate` | Apply pending database migrations and print the resulting version. |

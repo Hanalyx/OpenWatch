@@ -42,7 +42,7 @@ step today (write a unit that runs `ExecStart=/usr/bin/openwatch worker`).
 | Component | Where | Notes |
 |-----------|-------|-------|
 | API + UI | `https://<host>:8443/` | UI embedded via `go:embed`; API under `/api/v1/` |
-| Database | PostgreSQL 14+ | The only datastore. Not provisioned by the package. |
+| Database | PostgreSQL 15+ | The only datastore. Not provisioned by the package; `openwatch setup` provisions it or accepts an existing server. |
 | Job queue | PostgreSQL table, `SKIP LOCKED` | No external broker. Drained by `serve`/`worker`. |
 | Compliance engine | Kensa (Go), in-process | SSH-based checks against native YAML rules; runs inside the `serve`/`worker` process. |
 
@@ -55,7 +55,8 @@ See the [install guide requirements](INSTALLATION.md#requirements)
 for the authoritative list. In short:
 
 - A supported RHEL-family or Debian-family host with `systemd`.
-- PostgreSQL 14 or newer, reachable from the OpenWatch host.
+- PostgreSQL 15 or newer, reachable from the OpenWatch host. `openwatch setup`
+  refuses an older server: 13 and 14 are at or near end of life.
 - TCP/8443 inbound (API + UI); TCP/22 outbound to every managed host (Kensa scans
   over SSH).
 - A CA-signed TLS certificate for any non-loopback use.
