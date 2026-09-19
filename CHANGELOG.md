@@ -10,6 +10,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A custom role now grants its permissions.** A role created through
+  `POST /api/v1/roles:create` could be assigned and bound, and conferred
+  nothing: every request from a user whose only role was custom answered
+  403, and `GET /api/v1/auth/me/permissions` listed an empty set. The
+  identity binder now resolves a custom role's stored permission list on
+  every binding path (session cookie, session JWT, API token). Which role
+  binds when a user holds several is unchanged: the highest-precedence
+  built-in role, or the custom role only when no built-in role is held.
+  Contract `system-rbac` 2.3.0 (C-11, AC-27, AC-28). CP `bugs/OW-054`.
+
 ## [0.8.0-rc.3] Eyrie (2026-09-18)
 
 Candidates before this one, both preserved and neither released:
