@@ -102,7 +102,7 @@ produced enough rule outcomes to be scored. See
 | 6.3 | Centralized Log Collection | JSON logging, configurable log aggregation |
 | 8.2 | Audit Logging | All authentication and authorization events logged |
 | 8.5 | Access Control Logs | JWT validation events, RBAC enforcement logged |
-| 8.11 | Audit Log Retention | Configurable retention, export to CSV/JSON |
+| 8.11 | Audit Log Retention | Export to CSV or JSON (`GET /api/v1/audit/events/export`); retention is operator-managed, no built-in audit retention setting |
 | 9.1 | Email Security | SMTP TLS for notifications |
 | 13.1 | Network Monitoring | Health check endpoints, audit-event queries (no Prometheus endpoint) |
 | 16.1 | Application Security | Request validation at the API boundary, parameterized SQL (no raw SQL) |
