@@ -25,6 +25,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/db"
+	"github.com/Hanalyx/openwatch/internal/drift"
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/knownhosts"
@@ -307,6 +308,11 @@ func cmdWorker(cfg *config.Config, args []string, stdout, stderr *os.File) int {
 		Sched:                sched,
 		RemediationProcessor: remediationWorker,
 		Regressions:          notifyfeed.NewProjector(notifFeedStore),
+		// Nil bus: the dedicated worker has no alert router, so the
+		// detector records compliance.drift.detected in the audit log and
+		// publishes nothing. Drift alerts fire for scans completed by
+		// serve's in-process worker. Spec system-drift-detector C-10, C-11.
+		Drift: drift.NewService(pool, audit.Emit, drift.DefaultThresholds(), nil),
 	})
 
 	ctx, stop := signal.NotifyContext(bootCtx, syscall.SIGINT, syscall.SIGTERM)
