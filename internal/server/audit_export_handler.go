@@ -24,10 +24,11 @@ import (
 const auditExportCap = 10000
 
 // GetAuditEventsExport streams the filtered audit events as a downloadable
-// CSV (default) or JSON file. audit:read gated. Spec api-audit-events-query
-// v1.3.0 C-08 / AC-13.
+// CSV (default) or JSON file. audit:export gated, independently of the
+// audit:read list (v1.4.0; audit:read through 1.3.1, which let every reader
+// export, CP bugs/OW-056). Spec api-audit-events-query C-08 / AC-13 / AC-16.
 func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, params api.GetAuditEventsExportParams) {
-	if denied := auth.EnforcePermission(w, r, auth.AuditRead); denied {
+	if denied := auth.EnforcePermission(w, r, auth.AuditExport); denied {
 		return
 	}
 

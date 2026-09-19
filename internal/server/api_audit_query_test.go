@@ -609,3 +609,41 @@ func TestAPI_AuditEvents_CursorBoundaryTie(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-16
+// AC-16: export is gated on audit:export independently of reading. ops_lead
+// holds audit:read and not audit:export: list 200, export 403 naming
+// audit:export. auditor holds both: 200 and 200.
+func TestAPI_AuditEvents_ExportRequiresAuditExport(t *testing.T) {
+	t.Run("api-audit-events-query/AC-16", func(t *testing.T) {
+		url, _ := freshAPIServer(t)
+
+		list := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events", auth.RoleOpsLead, nil))
+		list.Body.Close()
+		if list.StatusCode != http.StatusOK {
+			t.Errorf("ops_lead GET /audit/events = %d, want 200 (audit:read is unchanged)", list.StatusCode)
+		}
+
+		exp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", auth.RoleOpsLead, nil))
+		body := readBody(t, exp)
+		if exp.StatusCode != http.StatusForbidden {
+			t.Fatalf("ops_lead GET /audit/events/export = %d, want 403; body=%s", exp.StatusCode, body)
+		}
+		if !strings.Contains(body, `"authz.permission_denied"`) || !strings.Contains(body, `"required_permission":"audit:export"`) {
+			t.Errorf("403 body must name authz.permission_denied and audit:export; got %s", body)
+		}
+
+		for _, role := range []auth.RoleID{auth.RoleAuditor, auth.RoleSecurityAdmin, auth.RoleAdmin} {
+			ok := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", role, nil))
+			ok.Body.Close()
+			if ok.StatusCode != http.StatusOK {
+				t.Errorf("%s GET /audit/events/export = %d, want 200 (holds audit:export)", role, ok.StatusCode)
+			}
+		}
+		viewer := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export", auth.RoleViewer, nil))
+		viewer.Body.Close()
+		if viewer.StatusCode != http.StatusForbidden {
+			t.Errorf("viewer GET /audit/events/export = %d, want 403", viewer.StatusCode)
+		}
+	})
+}
