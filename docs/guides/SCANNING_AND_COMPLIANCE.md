@@ -343,8 +343,9 @@ There is no separate drift tab. Drift reaches you three ways:
   `drift_minor`, and a gain of 5 or more raises `drift_improvement`. They
   appear on the **Activity** page (source: alert). Scans completed by a
   separate `openwatch worker` process are recorded in the audit log
-  (`compliance.drift.detected`) but raise no alert, because the alert
-  router runs inside `serve`.
+  (`compliance.drift.detected`) but raise no alert and send no
+  notification, because the alert router runs inside `serve`; see the
+  [scaling guide](SCALING_GUIDE.md) for what a dedicated worker does not do.
 - **As per-rule changes.** Every rule whose status changed is a transaction
   in the **Activity** feed, shown under the "COMPLIANCE & DRIFT" label, so a
   regression can be traced to the rule and the scan that recorded it.

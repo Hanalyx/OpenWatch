@@ -7,6 +7,7 @@
 //
 //	AC-23  TestScanWorker_DriftDetectedAfterCompletedScans
 //	AC-24  TestScanWorker_DriftDetectorFailureIsNonFatal
+//	AC-25  TestScanWorker_DedicatedWorkerRecordsDriftWithoutAlerting
 package worker
 
 import (
@@ -261,6 +262,71 @@ func TestScanWorker_DriftDetectorFailureIsNonFatal(t *testing.T) {
 		_ = pool.QueryRow(context.Background(), `SELECT count(*) FROM host_backoff_state WHERE host_id = $1`, hostID).Scan(&backoff)
 		if backoff != 0 {
 			t.Errorf("host_backoff_state rows = %d, want 0", backoff)
+		}
+	})
+}
+
+// @ac AC-25
+// AC-25: the dedicated-worker shape. The worker is built the way cmdWorker
+// builds it: no bus, no router, a detector with a nil bus. A worsening scan
+// emits exactly one compliance.drift.detected (major); nothing can carry a
+// DriftDetected event, and no alerts row appears. This is the approved v0.8
+// limitation (features/OW-057), proven rather than assumed.
+func TestScanWorker_DedicatedWorkerRecordsDriftWithoutAlerting(t *testing.T) {
+	t.Run("system-drift-detector/AC-25", func(t *testing.T) {
+		pool := freshPool(t)
+		user := seedUser(t, pool)
+		hostID := seedHost(t, pool, user)
+
+		rec := &emitRecorder{}
+		bridge := stubBridge{plain: []byte("dummy-key")}
+		var current atomic.Pointer[[]kensa.RuleOutcome]
+		exec := kensa.NewExecutor(bridge, rec.executorEmit()).WithScanFunc(
+			func(ctx context.Context, _ uuid.UUID, _ string, _ []byte) (*kensa.Result, kensa.FailureReason, error) {
+				return &kensa.Result{HostID: hostID, Outcomes: *current.Load()}, "", nil
+			})
+		writer := transactionlog.NewWriter(pool, rec.writerEmit())
+
+		// Exactly what cmd/openwatch/worker.go wires: a nil-bus detector, and
+		// a worker Config with no Bus. No alert router exists in this process.
+		driftSvc := drift.NewService(pool, drift.EmitFunc(rec.Emit()), drift.DefaultThresholds(), nil)
+		key := make([]byte, 32)
+		w := NewScanWorker(Config{
+			Pool: pool, Executor: exec, Writer: writer, QueueKey: key,
+			PollInterval: 50 * time.Millisecond, Emit: rec.Emit(), Drift: driftSvc,
+		})
+
+		runOneScan(t, pool, w, hostID, key, &current, scanOutcomes(10, 0))
+		if got := rec.Count(audit.ComplianceDriftDetected); got != 0 {
+			t.Fatalf("first scan emitted %d drift events, want 0", got)
+		}
+		scan2 := runOneScan(t, pool, w, hostID, key, &current, scanOutcomes(10, 1))
+
+		events := rec.Events(audit.ComplianceDriftDetected)
+		if len(events) != 1 {
+			t.Fatalf("compliance.drift.detected emitted %d times, want 1 (a dedicated worker still audits)", len(events))
+		}
+		var detail struct {
+			DriftType string `json:"drift_type"`
+			ScanID    string `json:"scan_id"`
+		}
+		if err := json.Unmarshal(events[0].Detail, &detail); err != nil {
+			t.Fatalf("decode detail: %v", err)
+		}
+		if detail.DriftType != "major" || detail.ScanID != scan2.String() {
+			t.Errorf("detail = %+v, want drift_type=major scan_id=%s", detail, scan2)
+		}
+		// The limitation, stated as an assertion: no alert row, and nothing
+		// for a notification channel to have received.
+		if n := countAlerts(t, pool, hostID, string(alertrouter.AlertTypeDriftMajor)); n != 0 {
+			t.Errorf("drift_major alert rows = %d, want 0 (a dedicated worker has no alert router)", n)
+		}
+		var anyAlerts int
+		if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM alerts WHERE host_id = $1`, hostID).Scan(&anyAlerts); err != nil {
+			t.Fatalf("count alerts: %v", err)
+		}
+		if anyAlerts != 0 {
+			t.Errorf("alerts rows for the host = %d, want 0", anyAlerts)
 		}
 	})
 }

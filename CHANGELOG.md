@@ -17,10 +17,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scan called it, so `drift_major`, `drift_minor` and `drift_improvement`
   could never be raised. `serve` and `openwatch worker` now run it after
   every completed scan with the built-in thresholds (10, 5 and 5 points).
-  A scan completed by a separate worker process records
-  `compliance.drift.detected` in the audit log but raises no alert, because
-  the alert router runs inside `serve`. A detector error is logged and
-  never fails the scan. Contract `system-drift-detector` 1.3.0 (C-05
+  A scan completed by a separate `openwatch worker` process records
+  `compliance.drift.detected` in the audit log but raises no alert and sends
+  no notification, because the alert router runs inside `serve`; this is an
+  approved v0.8 limitation, and the scaling guide says how to avoid it. A
+  detector error is logged and never fails the scan. Contract `system-drift-detector` 1.3.0 (C-05
   rewritten, C-11 to C-13, AC-22 to AC-24). CP `bugs/OW-055`.
 
 ## [0.8.0-rc.3] Eyrie (2026-09-18)

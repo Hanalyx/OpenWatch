@@ -2,8 +2,9 @@ spec:
   id: system-drift-detector
   title: Compliance drift detector
   # Version 1.3.0 (was 1.2.0). Minor: C-05 rewritten to name the threshold
-  # source that exists, and three added constraints (C-11 to C-13) with three
-  # added acceptance criteria (AC-22 to AC-24) that bind a CALLER. Every
+  # source that exists, and three added constraints (C-11 to C-13) with four
+  # added acceptance criteria (AC-22 to AC-25) that bind a CALLER. AC-25 is
+  # the dedicated-worker shape, the approved v0.8 limitation (features/OW-057). Every
   # criterion through 1.2.0 held inside this package while no build of
   # cmd/openwatch linked it, so no scan ever ran the detector and no drift
   # alert ever fired (CP bugs/OW-055, 2026-09-19). Nothing published here
@@ -312,3 +313,25 @@ spec:
         job_status: completed
         scan_completed_published: true
         scan_failed_emitted: 0
+    - id: AC-25
+      description: >
+        The dedicated-worker shape (C-11, second half). A ScanWorker
+        constructed the way cmdWorker constructs it, with no event bus and
+        no alert router, holding a detector built with a nil bus, completes
+        a scan that lowers the host's score by 10 points: exactly one
+        compliance.drift.detected audit event is emitted with
+        drift_type=major, no DriftDetected event exists anywhere (there is
+        no bus to carry one), and the alerts table holds no row for the
+        host. This is the approved v0.8 limitation (features/OW-057): a
+        dedicated worker records drift and does not alert or notify.
+      priority: critical
+      references_constraints: [C-11, C-10]
+      inputs:
+        scan_1: {passed: 10, failed: 0}
+        scan_2: {passed: 9, failed: 1}
+        bus: nil
+        alert_router: none
+      expected_output:
+        audit_events_emitted: 1
+        drift_type: major
+        alert_rows: 0
