@@ -83,8 +83,7 @@ Impact: a brief restart while the service reconnects. The DSN lives in
 3. Validate the resolved config before restarting:
 
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-       openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    ```
 
    `check-config` prints the config with the DSN password redacted and exits
