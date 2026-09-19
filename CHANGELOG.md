@@ -10,6 +10,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Downloading the audit log now requires `audit:export`.** `GET
+  /api/v1/audit/events/export` was gated on `audit:read`, so every role
+  that could read the log could download it, while the permission registry
+  declared `audit:export` for exactly that and granted it to `auditor`,
+  `security_admin` and `admin` only. The route now enforces `audit:export`.
+  `viewer` and `ops_lead` keep `GET /api/v1/audit/events` and lose the
+  download; the Audit log page's Export buttons answer "Export failed
+  (403)" for them. Contract `api-audit-events-query` 1.4.0 (C-08, AC-16).
+  CP `bugs/OW-056`.
+
 ## [0.8.0-rc.3] Eyrie (2026-09-18)
 
 Candidates before this one, both preserved and neither released:
