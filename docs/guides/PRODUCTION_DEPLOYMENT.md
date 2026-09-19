@@ -77,8 +77,7 @@ Follow the [install guide](INSTALLATION.md) end to end:
 Before starting the service, validate the resolved configuration:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
 ```
 
 It prints the effective config with secrets redacted and exits non-zero if the
@@ -263,8 +262,7 @@ needs nothing extra. To run scan execution as a dedicated process (separate
 resource limits, or a separate host), run the `worker` subcommand:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) \
-    openwatch worker --poll-interval 1s
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch worker --poll-interval 1s'
 ```
 
 `--poll-interval` controls the empty-queue sleep between dequeue attempts
@@ -289,7 +287,7 @@ sudo apt install ./openwatch_<new-version>_amd64.deb
 After the package upgrade:
 
 ```bash
-sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
 sudo systemctl restart openwatch
 ```
 
@@ -302,8 +300,13 @@ binary. Take a database backup before upgrading (see below). Config under
 
 ## Backup and restore
 
-OpenWatch keeps all durable state in PostgreSQL. Back up the database with the
-standard PostgreSQL tooling. There is no OpenWatch-specific backup command.
+OpenWatch keeps its durable state in PostgreSQL plus two things on the host:
+the keys and secrets under `/etc/openwatch/`, and Kensa's remediation
+rollback store under `/var/lib/openwatch/kensa/`, which holds the captured
+pre-change state a rollback restores. Back up the three together with the
+service stopped; the [backup and recovery runbook](../runbooks/BACKUP_RECOVERY.md)
+is the procedure. There is no OpenWatch-specific backup command. The database
+half of it:
 
 ```bash
 # Backup
@@ -345,7 +348,7 @@ curl -k https://localhost:8443/api/v1/health
    below).
 3. Confirm the config is valid, then restart:
    ```bash
-   sudo -u openwatch env $(cat /etc/openwatch/secrets.env | xargs) openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    sudo systemctl restart openwatch
    ```
 4. Verify recovery: `curl -k https://localhost:8443/api/v1/health` returns `200`.
