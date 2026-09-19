@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -55,6 +56,20 @@ var authBypassPaths = map[string]struct{}{
 // Implementation lives in Slice A Week 1 Day 2 (`internal/users`).
 type Lookups interface {
 	RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error)
+}
+
+// GrantLookups is the optional second half of Lookups: what a CUSTOM role
+// (one auth.BuiltInRoles does not resolve) confers, read from the roles
+// table. users.Service implements it. When the binder's Lookups value
+// also implements this, every binding path (session cookie, session JWT,
+// API token) resolves a non-built-in role's permission set into
+// auth.Identity.Grants. Without it a custom role binds with no
+// permissions, which is the pre-2.3.0 behavior and is logged.
+//
+// The three-state result mirrors users.Service.RolePermissions: found with
+// perms, provably absent, or indeterminate (err). Spec system-rbac C-11.
+type GrantLookups interface {
+	RolePermissions(ctx context.Context, roleID string) ([]string, bool, error)
 }
 
 // TokenAuthenticator resolves a raw API token (auth.APITokenPrefix-prefixed
@@ -174,10 +189,10 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		if err != nil {
 			return anon(), "session_user_lookup_failed"
 		}
-		return auth.Identity{
+		return withGrants(ctx, lookups, auth.Identity{
 			ID:     sess.UserID.String(),
 			RoleID: role,
-		}, ""
+		}), ""
 	}
 
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
@@ -189,7 +204,7 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			if err != nil {
 				return anon(), "invalid_api_token"
 			}
-			return id, ""
+			return withGrants(ctx, lookups, id), ""
 		}
 		claims, err := VerifyJWT(token)
 		switch {
@@ -204,13 +219,48 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		// downstream re-evaluates whether that role actually grants the
 		// request's required permission — so a stale role still gets
 		// caught by the registry.
-		return auth.Identity{
+		return withGrants(ctx, lookups, auth.Identity{
 			ID:     claims.Subject,
 			RoleID: auth.RoleID(claims.Role),
-		}, ""
+		}), ""
 	}
 
 	return anon(), "" // genuinely unauthenticated; no audit
+}
+
+// withGrants attaches a custom role's stored permission set to id. A
+// built-in role is returned untouched: its permissions come from the
+// registry (system-rbac C-02) and Grants is ignored for it. A custom role
+// whose lookup is unavailable, fails, or finds no row binds with nil
+// Grants, so the identity is authenticated and holds nothing; the warn
+// line is the only trace, because the credential itself was valid.
+// Spec system-rbac C-11.
+func withGrants(ctx context.Context, lookups Lookups, id auth.Identity) auth.Identity {
+	if _, builtIn := auth.BuiltInRoles[id.RoleID]; builtIn {
+		return id
+	}
+	gl, ok := lookups.(GrantLookups)
+	if !ok {
+		slog.WarnContext(ctx, "identity: custom role bound without a grant lookup; it confers nothing",
+			slog.String("role_id", string(id.RoleID)))
+		return id
+	}
+	perms, found, err := gl.RolePermissions(ctx, string(id.RoleID))
+	switch {
+	case err != nil:
+		slog.WarnContext(ctx, "identity: custom role permission lookup failed; binding with no permissions",
+			slog.String("role_id", string(id.RoleID)), slog.String("error", err.Error()))
+		return id
+	case !found:
+		slog.WarnContext(ctx, "identity: bound role no longer exists; binding with no permissions",
+			slog.String("role_id", string(id.RoleID)))
+		return id
+	}
+	id.Grants = make([]auth.Permission, 0, len(perms))
+	for _, p := range perms {
+		id.Grants = append(id.Grants, auth.Permission(p))
+	}
+	return id
 }
 
 func anon() auth.Identity { return auth.Identity{IsAnonymous: true} }

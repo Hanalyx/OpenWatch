@@ -28,6 +28,29 @@ type Identity struct {
 	// to short-circuit the permission lookup; an anonymous identity has
 	// no permissions.
 	IsAnonymous bool
+
+	// Grants is the stored permission set of a CUSTOM role (one that
+	// BuiltInRoles does not resolve), attached by the identity binder at
+	// bind time from the roles table. It is consulted only when RoleID is
+	// not built in; a built-in role's permissions come from the registry
+	// and Grants is ignored. nil means "nothing resolved": a custom role
+	// that is absent or whose lookup failed binds with no permissions.
+	//
+	// Spec system-rbac C-11.
+	Grants []Permission
+}
+
+// grants returns the permission list this identity's role confers: the
+// registry entry for a built-in role, the bound Grants for a custom one,
+// nil for anonymous. Spec system-rbac AC-05, C-11.
+func (i Identity) grants() []Permission {
+	if i.IsAnonymous {
+		return nil
+	}
+	if role, ok := BuiltInRoles[i.RoleID]; ok {
+		return role.Permissions
+	}
+	return i.Grants
 }
 
 // HasPermission returns true iff this identity's role grants p.
@@ -35,14 +58,7 @@ type Identity struct {
 //
 // Spec system-rbac AC-05.
 func (i Identity) HasPermission(p Permission) bool {
-	if i.IsAnonymous {
-		return false
-	}
-	role, ok := BuiltInRoles[i.RoleID]
-	if !ok {
-		return false
-	}
-	for _, granted := range role.Permissions {
+	for _, granted := range i.grants() {
 		if granted == p {
 			return true
 		}
@@ -55,15 +71,12 @@ func (i Identity) HasPermission(p Permission) bool {
 //
 // Spec system-rbac AC-13.
 func (i Identity) Permissions() []Permission {
-	if i.IsAnonymous {
+	src := i.grants()
+	if src == nil {
 		return nil
 	}
-	role, ok := BuiltInRoles[i.RoleID]
-	if !ok {
-		return nil
-	}
-	out := make([]Permission, len(role.Permissions))
-	copy(out, role.Permissions)
+	out := make([]Permission, len(src))
+	copy(out, src)
 	return out
 }
 
