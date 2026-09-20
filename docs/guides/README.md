@@ -6,6 +6,7 @@ documentation does not name a release, so it cannot go out of date about one.
 
 ## Getting started
 
+- [Introduction](INTRODUCTION.md): what OpenWatch does, how it compares, how it is built.
 - [Quickstart](QUICKSTART.md): install and reach a working server fast.
 - [Install guide](INSTALLATION.md): native RPM and DEB packages, step by step.
 - [Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md): tested targets.
