@@ -10,6 +10,49 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0-rc.5] Eyrie (2026-09-19)
+
+`v0.8.0-rc.4` built, passed every machine gate, and its assets were
+published as a pre-release. Its fleet checks and documentation review were
+not attested: no human verdict was recorded for it. After the cut, three
+defects were confirmed in its tracked documentation and corrected on
+`main` (below). Under the release policy the rc.4 tag and assets stay
+where they are, and this candidate carries the corrections. The sections
+for rc.4 and rc.3 below remain the record of what each candidate changed;
+everything in them is in this candidate as well. Nothing is inherited
+from rc.4: every gate runs again against this candidate.
+
+### Added
+
+- **A tracked product introduction.** `docs/guides/INTRODUCTION.md` states
+  the problem, what OpenWatch does, how it compares, the architecture and
+  the security model, with every claim checked against the contract or
+  code it describes. It exists in a clean clone and is part of the
+  documentation set a release review covers. The README is now a landing
+  page (install recipe, starting points, community, license) that links
+  to it, so one document carries the product description. The
+  documentation indexes and the writing skill point at it. An enhancement:
+  rc.4 had no introduction, and its absence was not a defect. CP
+  `features/OW-060`.
+
+### Fixed
+
+- **The writing skill's migration guardrail names the Kensa rollback
+  store.** It said data lives in PostgreSQL only; Kensa remediation keeps
+  rollback pre-state in a durable SQLite store that the backup runbook
+  already tells operators to preserve. The retired-architecture warning
+  (no Python-era layout, Docker Compose, Redis, Celery or MongoDB in
+  current guidance) stays and is now explicit. CP `bugs/OW-059`.
+- **The README and the scanning guide no longer claim what does not
+  ship.** FedRAMP as a scan framework (the corpus has no such key; the
+  guide's own framework table lists the keys it has), MFA "backup codes"
+  (TOTP ships, recovery codes do not), and "saved queries" (nothing ships)
+  are removed, and the README's contributor recipe says `make build`,
+  since a bare `go build` fails on a fresh clone. The FedRAMP rows in the
+  compliance-controls guide and two runbooks describe OpenWatch's own
+  control mapping and an operator's regulatory context, and stay. CP
+  `bugs/OW-061`.
+
 ## [0.8.0-rc.4] Eyrie (2026-09-19)
 
 `v0.8.0-rc.3` built, passed every machine gate, and its fleet checks were
