@@ -43,8 +43,10 @@ Key points:
 
 - **No agent on targets.** Kensa connects over SSH, runs commands, and
   disconnects. Nothing is installed on the scanned host.
-- **One scan, many frameworks.** A single scan produces results that map to
-  CIS, STIG, NIST, PCI-DSS, and FedRAMP simultaneously.
+- **One scan, many frameworks.** A single scan produces results for every
+  framework key the corpus maps: CIS and STIG benchmarks, NIST 800-53, PCI
+  DSS 4 and the SRG. The keys are listed under
+  [Available frameworks](#available-frameworks).
 - **Evidence captured.** Each check records the command executed, the raw
   output, the expected value, and the actual value found.
 
