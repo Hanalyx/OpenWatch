@@ -10,7 +10,7 @@ Generate or regenerate an operator-facing document from the documentation spec.
 
 Where `<doc-name>` is one of:
 - `docs-readme`: docs/README.md (documentation index)
-- `intro`: README.md. The `docs/INTRODUCTION.md` mirror is local-only and untracked.
+- `intro`: docs/guides/INTRODUCTION.md (the product introduction; README.md is the landing page and links to it)
 - `installation`: docs/guides/INSTALLATION.md
 - `quickstart`: docs/guides/QUICKSTART.md
 - `user-roles`: docs/guides/USER_ROLES.md
@@ -48,7 +48,7 @@ Based on the document being generated, read the relevant source files to populat
 | Document | Source files |
 |----------|-------------|
 | docs-readme | `docs/` directory listing (verify all linked files exist) |
-| intro | `README.md`, `specs/system/http-server.spec.yaml` |
+| intro | `specs/system/http-server.spec.yaml`, `specs/system/job-queue.spec.yaml`, `api/openapi.yaml` (route families), `docs/guides/SCANNING_AND_COMPLIANCE.md` (framework keys and counts, schedule defaults), `docs/guides/USER_ROLES.md` (roles), `docs/guides/LINUX_DISTRIBUTION_SUPPORT.md` (scan targets) |
 | installation | `docs/guides/INSTALLATION.md`, `docs/guides/PRODUCTION_DEPLOYMENT.md`, `docs/guides/ENVIRONMENT_REFERENCE.md`, `packaging/` |
 | quickstart | `cmd/openwatch/main.go` (subcommands and service wiring), `api/openapi.yaml` (auth and Kensa scan routes), `specs/system/http-server.spec.yaml` |
 | user-roles | `internal/users/roles.go`, `internal/auth/roles.gen.go`, `specs/system/rbac.spec.yaml` |

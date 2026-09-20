@@ -4,13 +4,13 @@ An index of the operator documentation tracked in this repository. Every
 document linked below is in the repository, so it is available from a clean
 clone.
 
-Start here: [Introduction](../README.md) | [Quickstart](guides/QUICKSTART.md)
+Start here: [Introduction](guides/INTRODUCTION.md) | [Quickstart](guides/QUICKSTART.md)
 
 Three starting points, in the order to read them:
 
 | If you are | Read, in order |
 |---|---|
-| **An operator** installing, scanning and fixing | [Installation](guides/INSTALLATION.md), then [Quickstart](guides/QUICKSTART.md), then [Scanning and compliance](guides/SCANNING_AND_COMPLIANCE.md) and [Hosts and remediation](guides/HOSTS_AND_REMEDIATION.md) |
+| **An operator** installing, scanning and fixing | [Introduction](guides/INTRODUCTION.md), then [Installation](guides/INSTALLATION.md), then [Quickstart](guides/QUICKSTART.md), then [Scanning and compliance](guides/SCANNING_AND_COMPLIANCE.md) and [Hosts and remediation](guides/HOSTS_AND_REMEDIATION.md) |
 | **An administrator** running it day to day | [User roles](guides/USER_ROLES.md), then [Environment reference](guides/ENVIRONMENT_REFERENCE.md), [Secret rotation](runbooks/SECRET_ROTATION.md), [Backup and recovery](runbooks/BACKUP_RECOVERY.md) and [Upgrade procedure](runbooks/UPGRADE_PROCEDURE.md) |
 | **A contributor** changing the code | [AGENTS.md](../AGENTS.md), then [CONTRIBUTING.md](../CONTRIBUTING.md), then the contracts under [`specs/`](../specs/) and [Releasing](runbooks/RELEASING.md) |
 
@@ -25,7 +25,7 @@ them.
 
 | Document | Description |
 |----------|-------------|
-| [Introduction](../README.md) | What OpenWatch does, how it compares, architecture and security overview |
+| [Introduction](guides/INTRODUCTION.md) | What OpenWatch does, how it compares, the architecture and the security model |
 | [Quickstart](guides/QUICKSTART.md) | First 15 minutes: log in, add a host, run a scan, read results |
 | [Installation](guides/INSTALLATION.md) | Deploy from a native RPM or DEB package, or from source |
 
@@ -71,6 +71,7 @@ them.
 | Document | Description |
 |----------|-------------|
 | [Guides index](guides/README.md) | A second index covering the `guides/` directory alone |
+| [Repository README](../README.md) | The landing page: install recipe, starting points, community, license |
 | [Changelog](../CHANGELOG.md) | Release history, including breaking changes and required operator actions |
 | [Contributing](../CONTRIBUTING.md) | Contributor workflow, hooks and pull request rules |
 | [Security policy](../SECURITY.md) | How to report a vulnerability |
