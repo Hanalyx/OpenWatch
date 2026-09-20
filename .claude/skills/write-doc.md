@@ -37,7 +37,9 @@ Read the authoritative engineering docs and behavioral specs to ground the conte
 - `specs/system/job-queue.spec.yaml`: the PostgreSQL-native background job queue (`SKIP LOCKED`)
 - `api/openapi.yaml`: the API contract source of truth (routes, request/response schemas)
 
-OpenWatch is a single Go module at the repo root. There is no `app/` or `backend/` directory, no Docker Compose, and no Redis, Celery, or MongoDB. Data lives in PostgreSQL only.
+OpenWatch's former Python architecture is retired. Do not reintroduce its `app/` or `backend/` layout, Docker Compose deployment, Redis, Celery, or MongoDB into current instructions or implementations. OpenWatch is now a single Go module at the repository root, with an embedded React UI and PostgreSQL as its application database and job queue. Kensa separately uses a durable SQLite store for remediation rollback state; that store must be preserved for recovery.
+
+Legacy Python documentation and examples are historical context, not implementation guidance. Use current approved specs, code, and packaging. Identify retired architecture as legacy instead of blending it into current documentation. If current code and an approved contract disagree, report the discrepancy.
 
 ### Step 2: Read source files
 
