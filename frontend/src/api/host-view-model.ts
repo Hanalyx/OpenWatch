@@ -5,12 +5,7 @@
 // monitoring_state distinguishes WHICH layer is failing (sudo broken vs ssh
 // down vs network outage). 'status' stays as the coarse online/down view.
 export type MonitoringBand =
-  | 'online'
-  | 'degraded'
-  | 'critical'
-  | 'down'
-  | 'maintenance'
-  | 'unknown';
+  'online' | 'degraded' | 'critical' | 'down' | 'maintenance' | 'unknown';
 
 export interface DevHost {
   id: string;
