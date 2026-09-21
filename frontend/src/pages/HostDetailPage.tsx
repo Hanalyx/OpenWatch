@@ -1543,8 +1543,7 @@ function RemediationRowAction({
   const review = useMutation({
     mutationFn: async (action: 'approve' | 'reject') => {
       const path = `/api/v1/remediation/requests/{rid}:${action}` as
-        | '/api/v1/remediation/requests/{rid}:approve'
-        | '/api/v1/remediation/requests/{rid}:reject';
+        '/api/v1/remediation/requests/{rid}:approve' | '/api/v1/remediation/requests/{rid}:reject';
       const { error, response } = await api.POST(path, {
         params: { path: { rid: request.id } },
         body: {},
