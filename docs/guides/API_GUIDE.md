@@ -39,6 +39,11 @@ When the OpenAPI document and this guide disagree, the OpenAPI document wins.
 - An optional `X-Correlation-Id` header is propagated through logs and audit
   events. If you omit it, the server generates one and returns it in the
   response.
+- Paginated lists (`/api/v1/audit/events`, `/api/v1/scans`, `/api/v1/alerts`,
+  `/api/v1/intelligence/events`, `/api/v1/activity`) take `limit` and an
+  opaque `cursor`. Each page carries `next_cursor`; pass its value as the
+  next request's `cursor`, and stop when it is absent or null. Other lists
+  take `limit` only, and `GET /api/v1/hosts` returns the whole fleet.
 
 ---
 
@@ -47,19 +52,34 @@ When the OpenAPI document and this guide disagree, the OpenAPI document wins.
 The API accepts two credential types. Both resolve to the same identity and
 permission set:
 
-- A `Bearer` access token in the `Authorization` header. This is the path for
-  scripts and CI.
+- A `Bearer` value in the `Authorization` header. Two kinds exist. An
+  **API token** (`owk_` prefix) is the credential for scripts and CI: it is
+  bound to one role, can carry an expiry, is stored only as a hash, and is
+  revoked at once by `DELETE /api/v1/tokens/{id}`. An **access token** is the
+  short-lived JWT that `POST /api/v1/auth/login` returns for interactive use
+  and first-time setup; it expires 30 minutes after issue.
 - The browser session cookie (`openwatch_session`), used by the web UI. Cookie
   rotation and the on-401 refresh flow are UI concerns and are not covered here.
+  A request that presents the session cookie must also echo the `XSRF-TOKEN`
+  cookie in an `X-CSRF-Token` header on every mutation or it gets `403`;
+  Bearer requests are exempt from that check.
 
 The contract declares five operations credential-free: `GET /api/v1/health`,
 `GET /api/v1/version`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`
-and `POST /api/v1/auth/refresh-cookie`. Two more answer an anonymous caller by
-design: `GET /api/v1/capabilities`, and `GET /api/v1/license`, which returns
-only `tier`, `status` and `features` until the caller is authenticated.
-Everything else requires a valid identity. An anonymous caller gets `401`
-`auth.required`; an authenticated caller without the permission gets `403`
-`authz.permission_denied`.
+and `POST /api/v1/auth/refresh-cookie`. Three more answer an anonymous caller
+by design and return only what a login page or a client needs before it has
+an identity: `GET /api/v1/capabilities` (which capabilities this deployment
+has, with no license detail), `GET /api/v1/license` (only `tier`, `status`
+and `features` until the caller is authenticated), and
+`GET /api/v1/sso/providers/enabled` (provider `id` and `name` only), together
+with the SSO redirect pair `GET /api/v1/auth/sso/{id}/login` and
+`/callback`. `GET /api/v1/auth/permissions:registry` is also anonymous: it
+returns the static permission registry (permission ids, descriptions,
+categories and the built-in role bundles), which this repository publishes
+in [User roles](USER_ROLES.md); it never returns users, role assignments,
+custom roles or deployment settings. Everything else requires a valid
+identity. An anonymous caller gets `401` `auth.required`; an authenticated
+caller without the permission gets `403` `authz.permission_denied`.
 
 `GET /api/v1/capabilities` reports every capability this deployment has, with
 whether it is available here, so a client can present a locked control rather
@@ -67,17 +87,41 @@ than discovering the gate from a `402`. It exposes no customer identity or
 license detail; `GET /api/v1/license` returns those to an authenticated caller
 and only `tier`, `status` and `features` to an anonymous one.
 
-### Log in
+### Create an API token for automation
+
+Do this once, interactively, with an identity that holds `token:write`. Pick
+the narrowest built-in or custom role the job needs and set an expiry; the
+secret is returned once and never again.
 
 ```bash
-TOKEN=$(curl -s --cacert /etc/openwatch/tls/cert.pem \
+curl --fail-with-body -s --cacert /etc/openwatch/tls/cert.pem \
   -X POST https://localhost:8443/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"yourpassword"}' | jq -r '.access_token')
+  -d @login.json | jq -r '.access_token' > /tmp/ow-access
+# login.json holds {"username": "...", "password": "..."} and is deleted after use;
+# a password on the command line lands in shell history and in `ps`.
+
+curl --fail-with-body -s --cacert /etc/openwatch/tls/cert.pem \
+  -X POST https://localhost:8443/api/v1/tokens \
+  -H "Authorization: Bearer $(cat /tmp/ow-access)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ci-scanner","role_id":"viewer","expires_at":"2027-01-01T00:00:00Z"}' \
+  | jq -r '.token' > ci-token   # store it in your secret manager, not in the repo
 ```
 
-The request body is `{username, password}` with an optional `otp` (6 digits)
-when the account has TOTP MFA enrolled. The response is:
+`--fail-with-body` (curl 7.76 and later) makes a `401` or `403` exit
+non-zero with the error envelope printed, instead of writing the string
+`null` into your token file and failing later with a misleading `401`. On
+older curl, check `$?` and the envelope yourself. `expires_at` is optional
+in the contract; set it for every automation credential and rotate it before
+it lapses. Revoke a token with `DELETE /api/v1/tokens/{id}` (`token:delete`);
+`GET /api/v1/tokens` lists metadata only.
+
+### Log in with a password
+
+The password login is for interactive use and for minting the first API
+token. The request body is `{username, password}` with an optional `otp`
+(6 digits) when the account has TOTP MFA enrolled. The response is:
 
 ```json
 {
@@ -87,7 +131,8 @@ when the account has TOTP MFA enrolled. The response is:
 }
 ```
 
-All later examples assume `-H "Authorization: Bearer $TOKEN"`.
+All later examples assume `-H "Authorization: Bearer $TOKEN"`, where
+`$TOKEN` is an API token or an access token.
 
 ### Refresh, identity, and log out
 
@@ -96,7 +141,7 @@ All later examples assume `-H "Authorization: Bearer $TOKEN"`.
 | `POST` | `/api/v1/auth/refresh` | Rotate the refresh token; returns a new access + refresh pair. Body: `{refresh_token}`. |
 | `GET` | `/api/v1/auth/me` | Return the calling identity (`id`, `username`, `email`, `role`). |
 | `GET` | `/api/v1/auth/me/permissions` | Return the caller's effective permission strings. |
-| `POST` | `/api/v1/auth/logout` | Revoke the calling session (`204`). |
+| `POST` | `/api/v1/auth/logout` | Revoke the session and refresh token presented as cookies (`204`). A caller that presents only a Bearer value has nothing this route revokes today: an access token stays valid until it expires (30 minutes), and a refresh token returned in the login body has no revoke route until CP `bugs/OW-062` is resolved. Revoke an API token with `DELETE /api/v1/tokens/{id}`. |
 | `POST` | `/api/v1/auth/password:change` | Change the caller's password. Body: `{current_password, new_password}`. |
 | `POST` | `/api/v1/auth/mfa:enroll` | Begin TOTP enrollment; returns a `provisioning_uri`. |
 | `POST` | `/api/v1/auth/mfa:verify` | Confirm an enrolled secret. Body: `{otp}`. |
@@ -179,8 +224,12 @@ encrypted at rest and never returned in responses.
 | `POST` | `/api/v1/credentials/{id}:clone` | Clone to a new scope (secret inherited; no plaintext on the wire). |
 
 A create body requires `scope`, `name`, `username`, and `auth_method` (one of
-`ssh_key`, `password`, `both`). Provide `private_key` (and optional
-`private_key_passphrase`) and/or `password` to match the chosen method.
+`ssh_key`, `password`, `both`). `scope_id` is the host's UUID and is required
+when `scope` is `host`; it must be absent when `scope` is `system`. Either
+mismatch returns `400` `credentials.invalid_scope`, and a `scope_id` that
+names no active host returns `400` `credentials.host_not_found`. Provide
+`private_key` (and optional `private_key_passphrase`) and/or `password` to
+match the chosen method.
 
 ---
 
@@ -309,9 +358,20 @@ cursor-paginated, newest first.
 |--------|------|---------|
 | `GET` | `/api/v1/audit/events` | List audit events. |
 
-Query parameters: `action`, `correlation_id`, `actor_type`, `resource_type`,
-`resource_id`, `since`, `until` (both RFC 3339), `cursor`, and `limit` (1–200,
-default 50). Follow the `cursor` field in each page to paginate.
+| `GET` | `/api/v1/audit/events/export` | Download the filtered trail as CSV (default) or JSON (`format=json`). Requires `audit:export`. |
+
+List query parameters: `action`, `correlation_id`, `actor_type`,
+`resource_type`, `resource_id`, `since`, `until` (both RFC 3339), `cursor`,
+and `limit` (1 to 200, default 50). Each page carries `next_cursor`; pass it
+as the next request's `cursor`.
+
+The export takes `action`, `actor_type`, `resource_type`, `resource_id`,
+`since` and `until`, returns the whole filtered set newest first, and stops
+at 10,000 rows; a capped export carries an `X-OpenWatch-Export-Truncated`
+header. Today the export does not accept `correlation_id`, and a query
+parameter it does not recognize is ignored rather than rejected, so a
+misspelled or unsupported filter widens the export to everything the caller
+may see. CP `bugs/OW-064` tracks both.
 
 ---
 
@@ -373,6 +433,14 @@ rate-limited per client IP and return `429` with a `Retry-After` header over
 the limit. There is no `422` validation status: validation failures return
 `400` with the envelope above.
 
+Three responses the service generates today are plain text rather than the
+envelope: `404` for an `/api/` path that does not exist, `405`, and `400` for
+a query parameter that is missing or fails to parse. CP `bugs/OW-063` tracks
+making them use the envelope. Independently of that, a proxy or load balancer
+in front of OpenWatch produces its own `502`, `503` or `504` bodies, so a
+client should treat any non-2xx whose body is not JSON as an infrastructure
+error rather than fail on the parse.
+
 ---
 
 ## Operations: the CLI and systemd
@@ -389,9 +457,11 @@ systemctl restart openwatch
 journalctl -u openwatch -f
 ```
 
-Configuration lives in `/etc/openwatch/openwatch.toml`, with environment
-overrides of the form `OPENWATCH_<SECTION>_<KEY>` and the database DSN in
-`/etc/openwatch/secrets.env` (`OPENWATCH_DATABASE_DSN`). For full install and
+Configuration lives in `/etc/openwatch/openwatch.toml`, with a fixed set of
+environment overrides named `OPENWATCH_<SECTION>_<KEY>` (the loader
+recognizes only the variables listed in the
+[environment reference](ENVIRONMENT_REFERENCE.md) and ignores any other) and
+the database DSN in `/etc/openwatch/secrets.env` (`OPENWATCH_DATABASE_DSN`). For full install and
 configuration steps, see
 [`docs/guides/INSTALLATION.md`](INSTALLATION.md).
 
