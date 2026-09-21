@@ -373,6 +373,14 @@ rate-limited per client IP and return `429` with a `Retry-After` header over
 the limit. There is no `422` validation status: validation failures return
 `400` with the envelope above.
 
+Every error the OpenWatch process generates carries the envelope, including
+a `404` for an `/api/` path that does not exist, a `405`, and a `400` for a
+query parameter that is missing or fails to parse; the message names the
+parameter and never repeats the rejected value. A proxy or load balancer in
+front of OpenWatch produces its own `502`, `503` or `504` bodies, so a client
+should treat any non-2xx whose body is not JSON as an infrastructure error
+rather than fail on the parse.
+
 ---
 
 ## Operations: the CLI and systemd

@@ -50,7 +50,7 @@ func (h *handlers) GetEventsStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.bus == nil {
-		http.Error(w, "events stream not wired", http.StatusServiceUnavailable)
+		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server", "events stream not wired", true)
 		return
 	}
 
@@ -59,13 +59,13 @@ func (h *handlers) GetEventsStream(w http.ResponseWriter, r *http.Request) {
 	// firehose by default). AC-02, AC-03.
 	topics := parseTopics(r.URL.Query().Get("topics"))
 	if len(topics) == 0 {
-		http.Error(w, "no topics requested", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "request.missing_parameter", "client", "parameter topics is required", false)
 		return
 	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "server.internal", "server", "streaming unsupported", false)
 		return
 	}
 
