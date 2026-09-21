@@ -309,9 +309,19 @@ cursor-paginated, newest first.
 |--------|------|---------|
 | `GET` | `/api/v1/audit/events` | List audit events. |
 
-Query parameters: `action`, `correlation_id`, `actor_type`, `resource_type`,
-`resource_id`, `since`, `until` (both RFC 3339), `cursor`, and `limit` (1–200,
-default 50). Follow the `cursor` field in each page to paginate.
+| `GET` | `/api/v1/audit/events/export` | Download the filtered trail as CSV (default) or JSON (`format=json`). Requires `audit:export`. |
+
+List query parameters: `action`, `correlation_id`, `actor_type`,
+`resource_type`, `resource_id`, `since`, `until` (both RFC 3339), `cursor`,
+and `limit` (1 to 200, default 50). Each page carries `next_cursor`; pass it
+as the next request's `cursor`.
+
+The export takes the same seven filters, returns the whole filtered set
+newest first, and stops at 10,000 rows; a capped export carries an
+`X-OpenWatch-Export-Truncated` header. A query parameter the export does
+not declare is refused with `400` `request.unknown_parameter` naming it, so
+a misspelled filter cannot silently widen an export you will file; the list
+endpoint ignores unknown parameters as before.
 
 ---
 

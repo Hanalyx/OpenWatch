@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
@@ -23,6 +25,35 @@ import (
 // cap is logged + flagged (X-OpenWatch-Export-Truncated) so a truncated export is never silently mistaken for "all".
 const auditExportCap = 10000
 
+// auditExportParams is the query surface the export declares in
+// api/openapi.yaml, one entry per parameter of getAuditEventsExport. The
+// contract-coverage test keeps it equal to the declaration.
+var auditExportParams = map[string]struct{}{
+	"format": {}, "action": {}, "correlation_id": {}, "actor_type": {},
+	"resource_type": {}, "resource_id": {}, "since": {}, "until": {},
+}
+
+// firstUnknownQueryParam returns the first query key not in allowed, in
+// the request's own order, or "" when every key is declared.
+func firstUnknownQueryParam(r *http.Request, allowed map[string]struct{}) string {
+	for _, pair := range strings.Split(r.URL.RawQuery, "&") {
+		if pair == "" {
+			continue
+		}
+		key := pair
+		if i := strings.IndexByte(pair, '='); i >= 0 {
+			key = pair[:i]
+		}
+		if unescaped, err := url.QueryUnescape(key); err == nil {
+			key = unescaped
+		}
+		if _, ok := allowed[key]; !ok {
+			return key
+		}
+	}
+	return ""
+}
+
 // GetAuditEventsExport streams the filtered audit events as a downloadable
 // CSV (default) or JSON file. audit:export gated, independently of the
 // audit:read list (v1.4.0; audit:read through 1.3.1, which let every reader
@@ -32,14 +63,27 @@ func (h *handlers) GetAuditEventsExport(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// A filter the export does not declare is rejected, never ignored. The
+	// generated router drops unknown query parameters silently, and for
+	// this route that turns a misspelled filter into an export of the
+	// whole trail that the caller files as if it were the narrow one. The
+	// list endpoint stays lenient; the strictness is this route's alone
+	// (v1.5.0, CP bugs/OW-064).
+	if unknown := firstUnknownQueryParam(r, auditExportParams); unknown != "" {
+		writeError(w, http.StatusBadRequest, "request.unknown_parameter", "client",
+			"the export does not accept the "+unknown+" parameter", false)
+		return
+	}
+
 	// Reuse the list query with the same filters at the export cap.
 	lp := api.GetAuditEventsParams{
-		Action:       params.Action,
-		ActorType:    params.ActorType,
-		ResourceType: params.ResourceType,
-		ResourceId:   params.ResourceId,
-		Since:        params.Since,
-		Until:        params.Until,
+		Action:        params.Action,
+		CorrelationId: params.CorrelationId,
+		ActorType:     params.ActorType,
+		ResourceType:  params.ResourceType,
+		ResourceId:    params.ResourceId,
+		Since:         params.Since,
+		Until:         params.Until,
 	}
 	rows, err := h.queryEvents(r.Context(), lp, auditExportCap)
 	if err != nil {
