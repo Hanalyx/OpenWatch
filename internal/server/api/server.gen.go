@@ -2285,8 +2285,10 @@ type CredentialCreateRequest struct {
 	PrivateKey           *string                           `json:"private_key,omitempty"`
 	PrivateKeyPassphrase *string                           `json:"private_key_passphrase,omitempty"`
 	Scope                CredentialCreateRequestScope      `json:"scope"`
-	ScopeId              *openapi_types.UUID               `json:"scope_id,omitempty"`
-	Username             string                            `json:"username"`
+
+	// ScopeId Required when scope=host (the host id); must be absent when scope=system.
+	ScopeId  *openapi_types.UUID `json:"scope_id,omitempty"`
+	Username string              `json:"username"`
 }
 
 // CredentialCreateRequestAuthMethod defines model for CredentialCreateRequest.AuthMethod.
