@@ -1,9 +1,10 @@
 # Pre-merge gates for OpenWatch (repo root).
 #
 # Runs: make vet, make lint (staticcheck + gosec + ...), make vuln
-# (govulncheck), a single `go test -race -json` run (data races + full
+# (govulncheck), the `go test -race -json` run (data races + full
 # integration suite against a Postgres service container, AND the JSON
-# specter ingests — one pass, not two), and `specter sync` (spec
+# specter ingests; every package once, in two invocations so that
+# internal/server runs alone, CP bugs/OW-066), and `specter sync` (spec
 # validation + strict AC coverage).
 #
 # Spec: specs/release/ci-gates.spec.yaml.
@@ -29,6 +30,13 @@ jobs:
   gates:
     name: Quality + security gates
     runs-on: ubuntu-latest
+    # Explicit budget (CP bugs/OW-066), not the 360-minute platform default:
+    # the shared test phase can run to its 900 s per-package ceiling, the
+    # internal/server phase to its own ceiling, and the rest of the job
+    # (build, vet, lint, vuln, specter, vitest, upload) has measured at 5 to
+    # 8 minutes. 60 minutes covers both ceilings plus that with margin and
+    # still fails a job that has wedged.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -288,21 +296,41 @@ jobs:
           # ships inside the kensa module, so api-system-scan-config/AC-08 runs
           # here instead of skipping (100% outcome coverage requires it).
           export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
-          # -timeout is per package. internal/server is the heavy suite (~470s
-          # without -race) and rides near the old 600s limit under -race + -p 4
-          # DB contention, so it intermittently times out (e.g. main run #976).
-          # 900s gives headroom without masking a genuine hang.
-          go test -race -json -timeout 900s -p 4 ./... > /tmp/go-test.json
-          EXIT=$?
-          if [ "$EXIT" -ne 0 ]; then
-            echo "::group::Failed tests"
-            jq -r 'select(.Action=="fail" and .Test != null) | "FAIL  \(.Package)  \(.Test)"' /tmp/go-test.json | sort -u
+          # -timeout is per package. Two invocations, every package exactly
+          # once (CP bugs/OW-066). internal/server is the database-heavy suite:
+          # on the hosted runner it ran 794 s on main and timed out at 900 s on
+          # two PRs with no failing test, the same tests simply running 27% to
+          # 48% slower while sharing the PostgreSQL service with three sibling
+          # packages under -p 4. Phase 1 runs everything else under the shared
+          # 900 s ceiling, so a hang anywhere else still fails at 15 minutes.
+          # Phase 2 runs internal/server alone. Both exit statuses are kept:
+          # a green phase 2 never masks a red phase 1. Both JSON streams are
+          # kept for specter ingest and the artifact upload.
+          report() {
+            echo "::group::Failed tests ($1)"
+            jq -r 'select(.Action=="fail" and .Test != null) | "FAIL  \(.Package)  \(.Test)"' "$2" | sort -u
             echo "::endgroup::"
-            echo "::group::Failure output (last 80 lines)"
-            jq -r 'select(.Action=="output" and (.Output | ascii_downcase | test("--- fail|panic:|fatal error|error:"))) | "\(.Package): \(.Output)"' /tmp/go-test.json | tail -80
+            echo "::group::Failure output ($1, last 80 lines)"
+            jq -r 'select(.Action=="output" and (.Output | ascii_downcase | test("--- fail|panic:|fatal error|error:"))) | "\(.Package): \(.Output)"' "$2" | tail -80
             echo "::endgroup::"
+          }
+          ALL=$(go list ./...)
+          OTHERS=$(printf '%s\n' "$ALL" | grep -v '^github.com/Hanalyx/openwatch/internal/server$')
+          # The arithmetic has to close, or a package could be tested twice
+          # or not at all without anyone noticing.
+          if [ "$(printf '%s\n' "$ALL" | wc -l)" -ne $(( $(printf '%s\n' "$OTHERS" | wc -l) + 1 )) ]; then
+            echo "::error::package split does not close: internal/server must be exactly one package of $(printf '%s\n' "$ALL" | wc -l)"
+            exit 1
           fi
-          exit $EXIT
+          # shellcheck disable=SC2086
+          go test -race -json -timeout 900s -p 4 $OTHERS > /tmp/go-test.json
+          EXIT1=$?
+          [ "$EXIT1" -ne 0 ] && report "phase 1: every package except internal/server" /tmp/go-test.json
+          go test -race -json -timeout 900s ./internal/server/ > /tmp/go-test-server.json
+          EXIT2=$?
+          [ "$EXIT2" -ne 0 ] && report "phase 2: internal/server" /tmp/go-test-server.json
+          echo "phase 1 exit $EXIT1, phase 2 exit $EXIT2"
+          [ "$EXIT1" -eq 0 ] && [ "$EXIT2" -eq 0 ]
 
       # Frontend Vitest run for specter ingest. The specs/frontend/ specs
       # reference tests in frontend/tests/pages/*. Without these JUnit
@@ -342,7 +370,7 @@ jobs:
 
       - name: specter ingest
         if: steps.paths.outputs.go == 'true'
-        run: specter ingest --go-test /tmp/go-test.json --junit /tmp/vitest-junit.xml
+        run: specter ingest --go-test /tmp/go-test.json --go-test /tmp/go-test-server.json --junit /tmp/vitest-junit.xml
 
       - name: specter sync (AC coverage thresholds)
         if: steps.paths.outputs.go == 'true'
@@ -378,6 +406,7 @@ jobs:
           path: |
             .specter-results.json
             /tmp/go-test.json
+            /tmp/go-test-server.json
             /tmp/vitest-junit.xml
           retention-days: 7
 

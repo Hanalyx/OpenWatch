@@ -206,10 +206,29 @@ func TestCIGates_WorkflowRunsAllGates(t *testing.T) {
 				t.Errorf("workflow missing step that runs %q", g)
 			}
 		}
-		// The single race+coverage run must still detect data races AND
-		// emit JSON for specter ingest.
+		// The race+coverage run must still detect data races AND emit JSON
+		// for specter ingest.
 		if !strings.Contains(wf, "go test -race") || !strings.Contains(wf, "-json") {
 			t.Error("workflow missing the race+JSON test run (`go test -race ... -json`) — race detection must still gate")
+		}
+		// v1.18.1: two invocations, every package once. The first excludes
+		// internal/server, the second runs it alone with its own budget,
+		// both streams are ingested and uploaded, and the job budget is
+		// explicit rather than the platform default.
+		if !strings.Contains(wf, "grep -v '^github.com/Hanalyx/openwatch/internal/server$'") {
+			t.Error("first go test invocation must exclude internal/server so the package runs once, in its own phase")
+		}
+		if !regexp.MustCompile(`go test -race -json -timeout \d+s ./internal/server/`).MatchString(wf) {
+			t.Error("internal/server must run in its own go test invocation with its own -timeout")
+		}
+		for _, want := range []string{
+			"--go-test /tmp/go-test.json --go-test /tmp/go-test-server.json",
+			"/tmp/go-test-server.json\n",
+			"timeout-minutes:",
+		} {
+			if !strings.Contains(wf, want) {
+				t.Errorf("workflow missing %q: both JSON streams must be ingested and uploaded, and the job budget must be explicit", want)
+			}
 		}
 	})
 }
