@@ -307,7 +307,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 	// fallback) for everything else.
 	r.NotFound(newSPAHandler().ServeHTTP)
 	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
+		writeMethodNotAllowed(w) // C-15: the envelope, not text/plain
 	})
 
 	// Mount the Stage-0 API routes via oapi-codegen's HandlerFromMux.
@@ -341,7 +341,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 		}
 		primeCancel()
 	}
-	api.HandlerFromMux(apiHandlers, r)
+	// ErrorHandlerFunc replaces the generator's text/plain default for a
+	// parameter that is missing or fails to parse (C-15).
+	api.HandlerWithOptions(apiHandlers, api.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: requestErrorHandler,
+	})
 	_ = license.PremiumDiagnostics // ensure import is exercised
 
 	// OpenAPI spec + Swagger UI. The handlers do not call

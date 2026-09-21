@@ -1,7 +1,7 @@
 spec:
   id: api-events-stream
   title: SSE live-events stream for the operator UI
-  version: "1.1.0"
+  version: "1.1.1"
   status: approved
   tier: 2
 
@@ -94,7 +94,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: GET /api/v1/events without ?topics (or with ?topics=) returns 400 with body containing "no topics requested".
+      description: GET /api/v1/events without ?topics (or with ?topics=) returns 400 carrying the canonical error envelope (system-http-server C-15) with code request.missing_parameter and a human_message naming the topics parameter.
       priority: critical
       references_constraints: [C-02]
     - id: AC-03

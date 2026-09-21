@@ -158,12 +158,12 @@ func contentTypeFor(p string) string {
 
 func (h *spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
-		http.Error(w, "404 page not found", http.StatusNotFound)
+		writeNotFound(w) // C-15: the envelope, not text/plain
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeMethodNotAllowed(w)
 		return
 	}
 

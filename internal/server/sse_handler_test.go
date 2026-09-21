@@ -77,8 +77,11 @@ func TestEventsStream_NoTopicsReturns400(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", w.Code)
 		}
-		if !strings.Contains(w.Body.String(), "no topics requested") {
-			t.Errorf("body = %q, want 'no topics requested'", w.Body.String())
+		// The body is the canonical envelope (system-http-server C-15), so
+		// the message lives under error.human_message.
+		if !strings.Contains(w.Body.String(), `"request.missing_parameter"`) ||
+			!strings.Contains(w.Body.String(), "parameter topics is required") {
+			t.Errorf("body = %q, want the envelope naming the topics parameter", w.Body.String())
 		}
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -111,6 +111,26 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-15
+      description: >-
+        Every 4xx or 5xx response the OpenWatch process itself generates MUST
+        carry the canonical error envelope (error.code, error.fault,
+        error.retryable, error.human_message, error.correlation_id) with
+        Content-Type application/json, including the responses that no
+        handler produces: an unmatched /api/ path (404, request.not_found),
+        a method the route does not accept (405,
+        request.method_not_allowed), and a request whose path, query, header
+        or cookie parameter is missing or fails to parse before the handler
+        runs (400, request.missing_parameter or request.invalid_parameter).
+        A parameter-binding message names the parameter and never echoes the
+        rejected value or the parser's internal error text, so a client
+        cannot be reflected into a body and no internal detail leaks.
+        Out of scope by construction: bodies produced by a proxy, load
+        balancer or the kernel in front of the process; a client MUST treat
+        a non-2xx whose body is not JSON as an infrastructure error rather
+        than a parse failure, and the API guide says so.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Server.Run() binds to cfg.Server.Listen and accepts HTTPS connections using TLSCert and TLSKey via GetCertificate.
@@ -182,3 +202,16 @@ spec:
       description: A cookie-authenticated unsafe request (session cookie present) with no X-CSRF-Token, or a header that does not match the XSRF-TOKEN cookie, returns 403 authz.csrf_invalid; the same request with a matching X-CSRF-Token proceeds. A request carrying no session cookie, or an Authorization (Bearer) header, or to an /api/v1/auth/* path, is exempt. POST /auth/login Set-Cookies a non-HttpOnly XSRF-TOKEN.
       priority: critical
       references_constraints: [C-14]
+    - id: AC-20
+      description: >-
+        GET an unmatched /api/ path returns 404 with the envelope
+        (code request.not_found), DELETE /api/v1/health returns 405 with the
+        envelope (code request.method_not_allowed), and GET
+        /api/v1/audit/events?limit=abc as a viewer returns 400 with the
+        envelope (code request.invalid_parameter) whose human_message names
+        limit and does not contain abc; each carries Content-Type
+        application/json and an X-Correlation-Id header. A source walk of
+        internal/server finds no bare http.Error call outside tests, so a
+        new plain-text error cannot be added without failing this criterion.
+      priority: high
+      references_constraints: [C-15]
