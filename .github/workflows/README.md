@@ -44,7 +44,7 @@ container and executes:
   suite against PostgreSQL, emitting the JSON that `specter` ingests. Every
   package runs exactly once, in two invocations: everything except
   `internal/server` under the shared 900 s per-package budget, then
-  `internal/server` alone under its own budget, so the database-heavy suite
+  `internal/server` alone under its own 1800 s budget, so the database-heavy suite
   does not compete with sibling packages for the PostgreSQL service and a
   hang elsewhere still fails at the shared budget. Both exit statuses and
   both JSON streams are kept. It replaced the former separate `make

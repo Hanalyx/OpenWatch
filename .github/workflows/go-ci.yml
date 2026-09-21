@@ -303,7 +303,13 @@ jobs:
           # 48% slower while sharing the PostgreSQL service with three sibling
           # packages under -p 4. Phase 1 runs everything else under the shared
           # 900 s ceiling, so a hang anywhere else still fails at 15 minutes.
-          # Phase 2 runs internal/server alone. Both exit statuses are kept:
+          # Phase 2 runs internal/server alone under 1800 s. Isolation on its
+          # own measured 885 s (run 35635263290): the same tests at the same
+          # per-test speed as the contended base, so the budget is what closes
+          # the margin. 1800 s is sized from evidence, base 794 s times the
+          # worst observed slowdown 1.63 is 1294 s, and doubles the time to
+          # detect a hang in this one package, which the founder accepted.
+          # Both exit statuses are kept:
           # a green phase 2 never masks a red phase 1. Both JSON streams are
           # kept for specter ingest and the artifact upload.
           report() {
@@ -326,7 +332,7 @@ jobs:
           go test -race -json -timeout 900s -p 4 $OTHERS > /tmp/go-test.json
           EXIT1=$?
           [ "$EXIT1" -ne 0 ] && report "phase 1: every package except internal/server" /tmp/go-test.json
-          go test -race -json -timeout 900s ./internal/server/ > /tmp/go-test-server.json
+          go test -race -json -timeout 1800s ./internal/server/ > /tmp/go-test-server.json
           EXIT2=$?
           [ "$EXIT2" -ne 0 ] && report "phase 2: internal/server" /tmp/go-test-server.json
           echo "phase 1 exit $EXIT1, phase 2 exit $EXIT2"
