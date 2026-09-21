@@ -73,12 +73,14 @@ has, with no license detail), `GET /api/v1/license` (only `tier`, `status`
 and `features` until the caller is authenticated), and
 `GET /api/v1/sso/providers/enabled` (provider `id` and `name` only), together
 with the SSO redirect pair `GET /api/v1/auth/sso/{id}/login` and
-`/callback`. `GET /api/v1/auth/permissions:registry` is also anonymous: it
-returns the static permission registry (permission ids, descriptions,
-categories and the built-in role bundles), which this repository publishes
-in [User roles](USER_ROLES.md); it never returns users, role assignments,
-custom roles or deployment settings. Everything else requires a valid
-identity. An anonymous caller gets `401` `auth.required`; an authenticated
+`/callback`. Two introspection reads are anonymous as well.
+`GET /api/v1/auth/permissions:registry` returns the static permission
+registry (permission ids, descriptions, categories and the built-in role
+bundles), which this repository publishes in [User roles](USER_ROLES.md);
+it never returns users, role assignments, custom roles or deployment
+settings. `GET /api/v1/auth/me/permissions` tells a caller what it is: an
+anonymous caller gets `is_anonymous: true` and an empty permission list.
+Everything else requires a valid identity. An anonymous caller gets `401` `auth.required`; an authenticated
 caller without the permission gets `403` `authz.permission_denied`.
 
 `GET /api/v1/capabilities` reports every capability this deployment has, with
