@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.18.0"
+  version: "1.18.1"
   status: approved
   tier: 1
 
@@ -388,7 +388,22 @@ spec:
       priority: critical
       references_constraints: [C-06]
     - id: AC-09
-      description: The workflow executes (in order) make vet, make lint, make vuln, a single race-detector + JSON test run (`go test -race -json`, which both detects data races and feeds specter ingest — replacing the former separate `make test-race` + non-race json passes), and specter sync — each as its own step so a failure pinpoints which gate broke.
+      description: >
+        The workflow executes (in order) make vet, make lint, make vuln, the
+        race-detector + JSON test run, and specter sync — each as its own step
+        so a failure pinpoints which gate broke. The test run is `go test -race
+        -json` (it both detects data races and feeds specter ingest, replacing
+        the former separate `make test-race` + non-race json passes). v1.18.1
+        (CP bugs/OW-066) — it is two invocations inside one step, not one, so
+        that every package is still tested exactly once under -race: the first
+        covers every package except internal/server under the shared per-package
+        budget; the second runs internal/server alone under its own, so the
+        database-heavy suite no longer competes with sibling packages for the
+        PostgreSQL service and a hang elsewhere still fails at the shared
+        budget. Both exit statuses are preserved (a later success never masks an
+        earlier failure), both JSON streams are kept and uploaded on every
+        outcome, specter ingests both, and the job declares an explicit timeout-
+        minutes that covers both phases plus the artifact upload.
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
