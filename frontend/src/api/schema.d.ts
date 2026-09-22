@@ -3512,7 +3512,10 @@ export interface components {
         CredentialCreateRequest: {
             /** @enum {string} */
             scope: "system" | "host";
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Required when scope=host (the host id); must be absent when scope=system.
+             */
             scope_id?: string | null;
             name: string;
             description?: string;

@@ -9,7 +9,7 @@ spec:
   # bugs/OW-054, reproduced 2026-09-19). AC-05's text is unchanged; it was
   # always the requirement and is now met for custom roles. Primary-role
   # binding (system-user-management C-06) is unchanged.
-  version: "2.3.0"
+  version: "2.4.0"
   status: approved
   tier: 1
 
@@ -92,7 +92,7 @@ spec:
       type: security
       enforcement: error
     - id: C-10
-      description: "A mutating operation is never anonymously open by default. Every POST, PUT, PATCH and DELETE in api/openapi.yaml MUST resolve to exactly one of two states. Either its handler provably enforces the caller (an RBAC check on a typed permission, or an authentication check for a route that needs no specific permission), or its operationId appears on the named anonymous allowlist that api/openapi.yaml carries. An operation that is on neither is a defect, and the rule is written so the next author has a question to answer rather than a list to keep. The allowlist is the small side on purpose: it holds the pre-auth routes such as login and setup, and nothing joins it without a reason recorded next to it. This constraint is about REACHABILITY, not documentation. It does not claim the contract describes the gate: today many operations enforce inside the handler while declaring no x-required-permission, so a rule written against the annotation alone would report a contract gap as if it were an open route. Closing that annotation gap is separate work, and C-09 plus AC-18 govern the declarations that do exist."
+      description: "A mutating operation is never anonymously open by default. Every POST, PUT, PATCH and DELETE in api/openapi.yaml MUST resolve to exactly one of two states. Either its handler provably enforces the caller (an RBAC check on a typed permission, or an authentication check for a route that needs no specific permission), or its operationId appears on the named anonymous allowlist that api/openapi.yaml carries. An operation that is on neither is a defect, and the rule is written so the next author has a question to answer rather than a list to keep. The allowlist is the small side on purpose: it holds the pre-auth routes such as login and setup, and nothing joins it without a reason recorded next to it. This constraint is about REACHABILITY, not documentation. It does not claim the contract describes the gate: today many operations enforce inside the handler while declaring no x-required-permission, so a rule written against the annotation alone would report a contract gap as if it were an open route. That annotation gap was closed in 2.4.0 (CP bugs/OW-011): every operation in api/openapi.yaml, reads included, now declares exactly one authorization class, and C-12 governs the declarations."
       type: security
       enforcement: error
     - id: C-11
@@ -114,6 +114,25 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-12
+      description: >
+        The contract states the gate for every operation, reads included.
+        Each operation in api/openapi.yaml MUST carry exactly one of three
+        classes: x-required-permission naming a registry permission the
+        handler enforces (AC-18); x-requires-identity true for a route that
+        needs a bound identity and no specific permission, whose handler
+        reads the identity and refuses an anonymous caller; or anonymous,
+        which means security is the empty list or the operationId appears
+        on a top-level allowlist with a reason recorded next to it
+        (x-anonymous-mutations for POST, PUT, PATCH and DELETE;
+        x-anonymous-reads for GET). A handler that enforces a permission
+        constant while its operation is allowlisted, or that enforces
+        nothing while its operation claims a permission, is a defect. The
+        classification is read by a structural test that walks the handler
+        source, so the annotation is documentation with teeth rather than a
+        list someone keeps.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Codegen produces permissions.gen.go with one typed Permission constant per entry in permissions.yaml.
@@ -388,3 +407,33 @@ spec:
         not this contract's.
       priority: critical
       references_constraints: [C-11]
+    - id: AC-29
+      description: >
+        Every operation resolves to one declared class and the handler
+        agrees. A test walks every operation in api/openapi.yaml, GET
+        included, and requires exactly one of x-required-permission,
+        x-requires-identity, or anonymous (security empty, or an entry on
+        x-anonymous-mutations or x-anonymous-reads). For an identity-only
+        operation the handler must read the bound identity and refuse an
+        anonymous caller (401, or 403 where a contract such as api-activity
+        C-01 says so). For an anonymous operation the handler must not
+        enforce a permission constant, every allowlist entry must carry a
+        reason and name a live operation, and no operationId may appear on
+        both lists. The count closes: permission plus identity plus anonymous
+        equals the operation total, and a parser that dropped an operation
+        would fail the arithmetic rather than pass by silence.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-30
+      description: >
+        The anonymous permission registry exposes nothing dynamic. GET
+        /api/v1/auth/permissions:registry as an anonymous caller returns 200
+        with exactly the keys categories, permissions and roles; every role
+        entry is a built-in role (is_built_in true) and the set of role ids
+        equals the built-in set; no entry carries a user id, email, username,
+        assignment or configuration value; and the handler's source reads
+        only the generated registry (no database pool, users service or
+        roles store), so a custom role or a user can never reach the
+        response by a later edit without this criterion noticing.
+      priority: high
+      references_constraints: [C-12]

@@ -69,12 +69,7 @@ interface StateRowConfig {
 }
 
 type ScanStateId =
-  | 'critical'
-  | 'non_compliant'
-  | 'partial'
-  | 'mostly_compliant'
-  | 'compliant'
-  | 'unknown';
+  'critical' | 'non_compliant' | 'partial' | 'mostly_compliant' | 'compliant' | 'unknown';
 
 interface ComplianceRowSeed {
   id: ScanStateId;
