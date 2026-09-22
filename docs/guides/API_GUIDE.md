@@ -308,7 +308,6 @@ cursor-paginated, newest first.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/v1/audit/events` | List audit events. |
-
 | `GET` | `/api/v1/audit/events/export` | Download the filtered trail as CSV (default) or JSON (`format=json`). Requires `audit:export`. |
 
 List query parameters: `action`, `correlation_id`, `actor_type`,
