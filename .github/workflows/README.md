@@ -40,11 +40,16 @@ container and executes:
 - `make vet`
 - `make lint` (golangci-lint, built from source to match the runner toolchain)
 - `make vuln` (govulncheck)
-- a single `go test -race -json -timeout 600s -p 4 ./...` run: the race detector
-  plus the full integration suite against PostgreSQL, emitting the JSON that
-  `specter` ingests. This is one pass, not two. It replaced the former separate
-  `make test-race` + non-race `go test -json` runs (which walked the DB-bound
-  suite twice)
+- the `go test -race -json` run: the race detector plus the full integration
+  suite against PostgreSQL, emitting the JSON that `specter` ingests. Every
+  package runs exactly once, in two invocations: everything except
+  `internal/server` under the shared 900 s per-package budget, then
+  `internal/server` alone under its own 1800 s budget, so the database-heavy suite
+  does not compete with sibling packages for the PostgreSQL service and a
+  hang elsewhere still fails at the shared budget. Both exit statuses and
+  both JSON streams are kept. It replaced the former separate `make
+  test-race` + non-race `go test -json` runs (which walked the DB-bound suite
+  twice)
 - frontend `vitest` (JUnit), also ingested by `specter` for spec AC coverage
 - `specter sync` to enforce coverage thresholds
 

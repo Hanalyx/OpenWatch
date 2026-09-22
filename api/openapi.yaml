@@ -73,6 +73,28 @@ x-anonymous-mutations:
       Same as postAuthRefresh, with the refresh token arriving in a cookie
       rather than the body.
 
+x-anonymous-reads:
+  - operationId: getCapabilities
+    reason: >
+      A client needs to know which capabilities this deployment has before it has an identity, so it can present a locked control instead of discovering the gate from a 402. The response carries capability ids, tiers and availability, and no license, customer or deployment detail.
+  - operationId: getLicense
+    reason: >
+      Pre-auth by design (api-license C-06, C-09): an anonymous caller receives only tier, status and features, an allowlisted public field set; every other field is written only for a caller holding system:read, decided inside the handler.
+  - operationId: getAuthPermissionsRegistry
+    reason: >
+      The static permission registry: permission ids, descriptions, categories and the built-in role bundles, all of which USER_ROLES.md publishes in this public repository. It reads no table and returns no user, assignment, custom role or deployment setting (system-rbac AC-30). Retained anonymous by founder decision, 2026-09-21.
+  - operationId: getAuthMePermissions
+    reason: >
+      Introspection of the calling identity. An anonymous caller gets is_anonymous true and an empty permission list, which tells them only what they already are; the SPA uses it to decide whether to show the login page.
+  - operationId: getSSOProvidersEnabled
+    reason: >
+      The login page must list the identity providers before anyone is signed in (api-sso). The response carries provider id and name only.
+  - operationId: getAuthSSOLogin
+    reason: >
+      The SSO redirect that starts a sign-in; there is no identity yet (api-sso).
+  - operationId: getAuthSSOCallback
+    reason: >
+      The SSO redirect-back that exchanges the code and creates the session; there is no identity yet (api-sso).
 paths:
 
   /api/v1/auth/login:
@@ -153,6 +175,7 @@ paths:
   /api/v1/auth/me:
     get:
       operationId: getAuthMe
+      x-requires-identity: true
       summary: Return the calling identity
       responses:
         '200':
@@ -167,6 +190,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     patch:
       operationId: patchAuthMe
+      x-requires-identity: true
       summary: Update the calling user's own profile
       description: >-
         Self-service profile edit for the authenticated user. The body is a
@@ -204,6 +228,7 @@ paths:
   /api/v1/users/me/preferences:
     get:
       operationId: getUsersMePreferences
+      x-requires-identity: true
       summary: Return the calling user's UI preferences
       description: >
         Per-user UI preferences (e.g. the /hosts grid-vs-table default).
@@ -223,6 +248,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     patch:
       operationId: patchUsersMePreferences
+      x-requires-identity: true
       summary: Merge a partial update into the calling user's UI preferences
       description: >
         Shallow-merges the provided keys into the caller's stored
@@ -253,6 +279,7 @@ paths:
   /api/v1/auth/mfa:enroll:
     post:
       operationId: postAuthMFAEnroll
+      x-requires-identity: true
       summary: Enroll the calling user in TOTP MFA
       responses:
         '200':
@@ -264,6 +291,7 @@ paths:
   /api/v1/auth/mfa:verify:
     post:
       operationId: postAuthMFAVerify
+      x-requires-identity: true
       summary: Confirm an enrolled MFA secret by verifying a generated OTP
       requestBody:
         required: true
@@ -282,6 +310,7 @@ paths:
   /api/v1/auth/password:change:
     post:
       operationId: postAuthPasswordChange
+      x-requires-identity: true
       summary: Change the calling user's password
       requestBody:
         required: true
@@ -419,6 +448,7 @@ paths:
   /api/v1/admin/license:verify:
     post:
       operationId: postAdminLicenseVerify
+      x-required-permission: system:read
       summary: Dry-run validate a JWT license without installing it
       requestBody:
         required: true
@@ -562,6 +592,7 @@ paths:
   /api/v1/diagnostics:enqueue-test-job:
     post:
       operationId: postDiagnosticsEnqueueTestJob
+      x-required-permission: system:config_write
       summary: Stage-0 queue demo; enqueues a no-op job processed by the in-process worker
       responses:
         '202':
@@ -1242,6 +1273,7 @@ paths:
   /api/v1/audit/events:
     get:
       operationId: getAuditEvents
+      x-required-permission: audit:read
       summary: List audit events (cursor-paginated, newest first)
       parameters:
         - name: action
@@ -1354,6 +1386,7 @@ paths:
   /api/v1/fleet/score:
     get:
       operationId: getFleetScore
+      x-required-permission: system:read
       summary: Fleet-wide compliance score (equal-host mean)
       parameters:
         - name: framework
@@ -1380,6 +1413,7 @@ paths:
   /api/v1/fleet/liveness:
     get:
       operationId: getFleetLiveness
+      x-required-permission: system:read
       summary: Host counts by reachability status
       responses:
         '200':
@@ -1401,6 +1435,7 @@ paths:
   /api/v1/fleet/top-failing-rules:
     get:
       operationId: getFleetTopFailingRules
+      x-required-permission: system:read
       summary: Rules with the most failing hosts (descending)
       parameters:
         - name: framework
@@ -1431,6 +1466,7 @@ paths:
   /api/v1/fleet/top-failing-hosts:
     get:
       operationId: getFleetTopFailingHosts
+      x-required-permission: system:read
       summary: Hosts with the most failing rules (descending)
       parameters:
         - name: framework
@@ -1461,6 +1497,7 @@ paths:
   /api/v1/fleet/recent-changes:
     get:
       operationId: getFleetRecentChanges
+      x-required-permission: system:read
       summary: Recent transactions (state changes), newest first
       parameters:
         - name: framework
@@ -1495,6 +1532,7 @@ paths:
   /api/v1/fleet/connectivity/breakdown:
     get:
       operationId: getFleetConnectivityBreakdown
+      x-required-permission: system:read
       summary: 4-state connectivity breakdown (online/degraded/critical/down/never_probed)
       description: |
         Derived per-state host counts for the Settings → Scanning &
@@ -1517,6 +1555,7 @@ paths:
   /api/v1/system/connectivity/config:
     get:
       operationId: getSystemConnectivityConfig
+      x-required-permission: system:read
       summary: Read the connectivity-monitor runtime config + baked-in defaults
       responses:
         '200':
@@ -1531,6 +1570,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     put:
       operationId: putSystemConnectivityConfig
+      x-required-permission: system:config_write
       summary: Update connectivity-monitor runtime config
       description: |
         Persists the new config, signals the in-process liveness service
@@ -1558,6 +1598,7 @@ paths:
   /api/v1/system/intelligence/config:
     get:
       operationId: getSystemIntelligenceConfig
+      x-required-permission: system:read
       summary: Read the OS Intelligence scheduler runtime config + baked-in defaults
       description: |
         Returns the persisted IntelligenceConfig (or DefaultIntelligence
@@ -1578,6 +1619,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     put:
       operationId: putSystemIntelligenceConfig
+      x-required-permission: system:config_write
       summary: Update OS Intelligence scheduler runtime config
       description: |
         Persists the new config (interval_sec 300..86400, rate_limit
@@ -1607,6 +1649,7 @@ paths:
   /api/v1/system/discovery/config:
     get:
       operationId: getSystemDiscoveryConfig
+      x-required-permission: system:read
       summary: Read the OS discovery scheduler runtime config + baked-in defaults
       description: |
         Returns the persisted DiscoveryConfig (or DefaultDiscovery when
@@ -1627,6 +1670,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     put:
       operationId: putSystemDiscoveryConfig
+      x-required-permission: system:config_write
       summary: Update OS discovery scheduler runtime config
       description: |
         Persists the new config (interval_sec 3600..604800, rate_limit
@@ -1656,6 +1700,7 @@ paths:
   /api/v1/system/discovery/sweep:
     post:
       operationId: postSystemDiscoverySweep
+      x-required-permission: system:config_write
       summary: Enqueue a host.discovery job for every host with NULL os_discovered_at
       description: |
         One-off manual sweep used by the "Run now" affordance on the
@@ -1753,6 +1798,7 @@ paths:
   /api/v1/system/scan/config:
     get:
       operationId: getSystemScanConfig
+      x-required-permission: system:read
       summary: Read the adaptive compliance scan scheduler config + baked-in defaults
       description: |
         Returns the persisted ScanConfig (or DefaultScan when no row
@@ -1774,6 +1820,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     put:
       operationId: putSystemScanConfig
+      x-required-permission: system:config_write
       summary: Update the adaptive compliance scan scheduler config
       description: |
         Persists the new config. Ladder minutes are CLAMPED into
@@ -1803,6 +1850,7 @@ paths:
   /api/v1/system/scan/schedule-preview:
     get:
       operationId: getSystemScanSchedulePreview
+      x-required-permission: system:read
       summary: 24h forward projection of the compliance scan schedule
       description: |
         Read-only projection of host_compliance_schedule over the next
@@ -1825,6 +1873,7 @@ paths:
   /api/v1/fleet/compliance/states:
     get:
       operationId: getFleetComplianceStates
+      x-required-permission: host:read
       summary: Fleet host counts per compliance state
       description: |
         One row per ComplianceState in ladder order (critical,
@@ -1848,6 +1897,7 @@ paths:
   /api/v1/system/scan/variables:
     get:
       operationId: getSystemScanVariables
+      x-required-permission: system:read
       summary: List the corpus-used kensa rule-template variables with defaults and overrides
       description: |
         One entry per variable the installed rule corpus actually
@@ -1871,6 +1921,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     put:
       operationId: putSystemScanVariables
+      x-required-permission: system:config_write
       summary: Replace the operator variable overrides
       description: |
         PUT replaces the FULL override map (absent names revert to the
@@ -1946,6 +1997,7 @@ paths:
   /api/v1/hosts/{id}/exceptions:
     get:
       operationId: getHostExceptions
+      x-required-permission: exception:read
       summary: List a host's compliance exceptions
       description: |
         Per-host exception list for the Compliance tab + Watchlist row.
@@ -1979,6 +2031,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
       operationId: postHostException
+      x-required-permission: exception:request
       summary: Request a compliance exception (rule waiver) on a host
       description: |
         Submits a requested exception for a host+rule. One open
@@ -2021,6 +2074,7 @@ paths:
   /api/v1/compliance/exceptions:
     get:
       operationId: getComplianceExceptions
+      x-required-permission: exception:read
       summary: Fleet-wide compliance exception queue
       description: |
         Fleet exception list, optionally filtered by status (requested,
@@ -2050,6 +2104,7 @@ paths:
   /api/v1/exceptions/{xid}:approve:
     post:
       operationId: postExceptionApprove
+      x-required-permission: exception:approve
       summary: Approve a requested exception
       description: |
         requested -> approved. The reviewer must differ from the
@@ -2089,6 +2144,7 @@ paths:
   /api/v1/exceptions/{xid}:reject:
     post:
       operationId: postExceptionReject
+      x-required-permission: exception:approve
       summary: Reject a requested exception
       description: |
         requested -> rejected. The reviewer must differ from the
@@ -2128,6 +2184,7 @@ paths:
   /api/v1/exceptions/{xid}:revoke:
     post:
       operationId: postExceptionRevoke
+      x-required-permission: exception:revoke
       summary: Revoke an active exception before its expiry
       description: |
         approved -> revoked. RBAC: exception:revoke (dangerous). Spec
@@ -2538,6 +2595,7 @@ paths:
   /api/v1/groups:
     get:
       operationId: getGroups
+      x-required-permission: host:read
       summary: Fleet group summary + every group with its rollup
       description: |
         Returns the Groups-page KPI summary and the full list of groups
@@ -2561,6 +2619,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
       operationId: postGroup
+      x-required-permission: host:write
       summary: Create a group
       description: |
         Create a site (manual membership) or an OS category (manual
@@ -2601,6 +2660,7 @@ paths:
   /api/v1/groups/{id}:
     patch:
       operationId: patchGroup
+      x-required-permission: host:write
       summary: Update a group's display fields
       description: |
         Patch name, subtype, and color. Kind and membership are
@@ -2643,6 +2703,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
       operationId: deleteGroup
+      x-required-permission: host:write
       summary: Delete a group
       description: |
         Removes the group (members cascade). RBAC: host:write. Spec
@@ -2674,6 +2735,7 @@ paths:
   /api/v1/groups/{id}:maintenance:
     post:
       operationId: postGroupMaintenance
+      x-required-permission: host:write
       summary: Toggle a group's maintenance flag
       description: |
         Sets the maintenance flag on or off. RBAC: host:write. Spec
@@ -2713,6 +2775,7 @@ paths:
   /api/v1/groups/{id}:target:
     post:
       operationId: postGroupTarget
+      x-required-permission: host:write
       summary: Set or clear a site group's compliance target framework
       description: |
         Sets (or clears, when target_framework is empty) the compliance
@@ -2759,6 +2822,7 @@ paths:
   /api/v1/groups/{id}/members:
     post:
       operationId: postGroupMember
+      x-required-permission: host:write
       summary: Add a host to a manual group
       description: |
         Assigns a host to a manual group (auto groups derive their
@@ -2801,6 +2865,7 @@ paths:
   /api/v1/groups/{id}/members/{host_id}:
     delete:
       operationId: deleteGroupMember
+      x-required-permission: host:write
       summary: Remove a host from a manual group
       description: |
         Removes a host from a manual group. RBAC: host:write. Spec
@@ -2831,6 +2896,7 @@ paths:
   /api/v1/reports:
     get:
       operationId: getReports
+      x-required-permission: host:read
       summary: List generated reports (newest first)
       description: |
         Returns the Reports library: every generated report, newest
@@ -2855,6 +2921,7 @@ paths:
   /api/v1/reports:generate:
     post:
       operationId: postReportGenerate
+      x-required-permission: host:write
       # Gated on the REQUEST, not the route: only report kind `attestation`
       # requires the entitlement. The rest of this route is free, so a
       # route-level x-required-feature would be a false claim.
@@ -2897,6 +2964,7 @@ paths:
   /api/v1/reports/frameworks:
     get:
       operationId: getReportFrameworks
+      x-required-permission: host:read
       summary: List the framework lenses available across the fleet
       description: |
         Returns the distinct framework_refs keys present anywhere in the
@@ -2923,6 +2991,7 @@ paths:
   /api/v1/reports/schedules:
     get:
       operationId: getReportSchedules
+      x-required-permission: host:read
       summary: List the report delivery schedules
       description: |
         Returns every scheduled report (daily/weekly/monthly cadence that
@@ -2946,6 +3015,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     post:
       operationId: createReportSchedule
+      x-required-permission: host:write
       # Gated on the REQUEST, not the route: only report kind `attestation`
       # requires the entitlement. The rest of this route is free, so a
       # route-level x-required-feature would be a false claim.
@@ -2985,6 +3055,7 @@ paths:
   /api/v1/reports/schedules/{id}:
     patch:
       operationId: updateReportSchedule
+      x-required-permission: host:write
       summary: Enable or disable a report schedule
       description: |
         Toggles a schedule's enabled flag. Re-enabling recomputes the next
@@ -3022,6 +3093,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     delete:
       operationId: deleteReportSchedule
+      x-required-permission: host:write
       summary: Delete a report schedule
       description: |
         Removes a schedule (does not delete reports it already generated).
@@ -3053,6 +3125,7 @@ paths:
   /api/v1/reports/signing-key:
     get:
       operationId: getReportSigningKey
+      x-required-permission: host:read
       summary: The public key for verifying report signatures
       description: |
         Returns the Ed25519 public key (with its key id) used to sign
@@ -3083,6 +3156,7 @@ paths:
   /api/v1/reports/{id}:
     get:
       operationId: getReportByID
+      x-required-permission: host:read
       summary: Fetch one report (with its stored JSON posture)
       description: |
         Returns a single report by id, including the stored JSON
@@ -3117,6 +3191,7 @@ paths:
   /api/v1/reports/{id}/export:
     get:
       operationId: getReportExport
+      x-required-permission: host:read
       # Gated on the REQUEST, not the route: only report kind `attestation`
       # requires the entitlement. The rest of this route is free, so a
       # route-level x-required-feature would be a false claim.
@@ -3416,6 +3491,7 @@ paths:
   /api/v1/system/connectivity/status:
     get:
       operationId: getSystemConnectivityStatus
+      x-required-permission: system:read
       summary: Read the connectivity-monitor in-process metrics + maintenance flag
       responses:
         '200':
@@ -3432,6 +3508,7 @@ paths:
   /api/v1/hosts/{id}/connectivity:check:
     post:
       operationId: postHostConnectivityCheck
+      x-required-permission: host:connectivity_check
       summary: Synchronous on-demand reachability probe for a single host
       description: |
         Calls the same in-process probe machinery the periodic loop uses
@@ -3473,6 +3550,7 @@ paths:
   /api/v1/hosts/{id}/scans:
     post:
       operationId: postHostScan
+      x-required-permission: host:write
       summary: Enqueue an on-demand compliance scan for a single host
       description: |
         Creates a scan run (the scan_runs logbook row) and enqueues the
@@ -3517,6 +3595,7 @@ paths:
   /api/v1/hosts/{id}/compliance:
     get:
       operationId: getHostCompliance
+      x-required-permission: host:read
       summary: Per-host compliance lens (one scan, many framework views)
       description: |
         Projects the host's full host_rule_state corpus through an
@@ -3563,6 +3642,7 @@ paths:
   /api/v1/hosts/{id}/compliance/schedule:
     get:
       operationId: getHostComplianceSchedule
+      x-required-permission: host:read
       summary: One host's adaptive-scan schedule (Auto-scan tile)
       description: |
         The host's row from the adaptive scheduler: compliance state,
@@ -3596,6 +3676,7 @@ paths:
   /api/v1/hosts/{id}/compliance/trend:
     get:
       operationId: getHostComplianceTrend
+      x-required-permission: host:read
       summary: Daily compliance posture trend for one host
       description: |
         Per-day posture snapshots over the trailing window (default 30
@@ -3636,6 +3717,7 @@ paths:
   /api/v1/fleet/compliance/trend:
     get:
       operationId: getFleetComplianceTrend
+      x-required-permission: host:read
       summary: Daily fleet compliance trend
       description: |
         Per-day fleet aggregates over the trailing window (default 30
@@ -3675,6 +3757,7 @@ paths:
   /api/v1/hosts/{id}/compliance/frameworks:
     get:
       operationId: getHostComplianceFrameworks
+      x-required-permission: host:read
       summary: List the frameworks the host's rule state maps to
       description: |
         Distinct framework_refs keys across the host's host_rule_state
@@ -3707,6 +3790,7 @@ paths:
   /api/v1/hosts/{id}/compliance/failed-rules:
     get:
       operationId: getHostFailedRules
+      x-required-permission: host:read
       summary: List a host's currently-failing compliance rules
       description: |
         Returns host_rule_state rows with current_status=fail for the
@@ -3751,6 +3835,7 @@ paths:
   /api/v1/fleet/scan-queue:
     get:
       operationId: getFleetScanQueue
+      x-required-permission: host:read
       summary: Scan-queue depth split by lifecycle state
       description: |
         Counts of scan_runs rows in the queued and running states.
@@ -3771,6 +3856,7 @@ paths:
   /api/v1/intelligence/events:
     get:
       operationId: getIntelligenceEvents
+      x-required-permission: host:read
       summary: List OS Intelligence change events
       description: |
         Returns the change events the OS Intelligence collector
@@ -3816,6 +3902,7 @@ paths:
   /api/v1/intelligence/state/{host_id}:
     get:
       operationId: getIntelligenceState
+      x-required-permission: host:read
       summary: Last full Intelligence snapshot for one host
       description: |
         Returns the most recent host_intelligence_state row for the
@@ -3848,6 +3935,7 @@ paths:
   /api/v1/alerts:
     get:
       operationId: getAlerts
+      x-required-permission: alert:read
       summary: List persisted alerts (paginated, filterable)
       description: |
         Returns alerts in the alerts table — written by the
@@ -3892,6 +3980,7 @@ paths:
   /api/v1/alerts/{id}:
     get:
       operationId: getAlertByID
+      x-required-permission: alert:read
       summary: Single alert by id
       description: |
         Returns the alert row (including terminal states — resolved /
@@ -3921,6 +4010,7 @@ paths:
   /api/v1/alerts/{id}:acknowledge:
     post:
       operationId: postAlertAcknowledge
+      x-required-permission: alert:write
       summary: Acknowledge an active alert
       description: 'active -> acknowledged. RBAC: alert:write. Spec api-alerts.'
       parameters:
@@ -3957,6 +4047,7 @@ paths:
   /api/v1/alerts/{id}:silence:
     post:
       operationId: postAlertSilence
+      x-required-permission: alert:write
       summary: Silence an alert until a timestamp (or indefinitely)
       description: |
         active|acknowledged -> silenced. Optional body.until specifies
@@ -3997,6 +4088,7 @@ paths:
   /api/v1/alerts/{id}:resolve:
     post:
       operationId: postAlertResolve
+      x-required-permission: alert:write
       summary: Resolve an alert
       description: 'active|acknowledged|silenced -> resolved. RBAC: alert:write. Spec api-alerts.'
       parameters:
@@ -4033,6 +4125,7 @@ paths:
   /api/v1/alerts/{id}:dismiss:
     post:
       operationId: postAlertDismiss
+      x-required-permission: alert:write
       summary: Dismiss an alert (terminal)
       description: 'Any non-dismissed state -> dismissed. RBAC: alert:write. Spec api-alerts.'
       parameters:
@@ -4069,6 +4162,7 @@ paths:
   /api/v1/activity:
     get:
       operationId: getActivity
+      x-requires-identity: true
       summary: Unified Activity feed (UNION over alerts + transactions + intelligence + audit + monitoring)
       description: |
         Returns the per-source RBAC-filtered union of recent events.
@@ -4113,6 +4207,7 @@ paths:
   /api/v1/hosts/{id}/system-info:
     get:
       operationId: getHostSystemInfo
+      x-required-permission: host:read
       summary: Read the latest Discovery facts for one host
       description: |
         Returns the most recent host_system_info row for the given
@@ -4147,6 +4242,7 @@ paths:
   /api/v1/hosts/{id}/discovery:run:
     post:
       operationId: postHostDiscoveryRun
+      x-required-permission: host:write
       summary: Synchronous on-demand OS fingerprint discovery for a single host
       description: |
         Opens one SSH session against the host using its resolved
@@ -4197,6 +4293,7 @@ paths:
   /api/v1/notifications/feed:
     get:
       operationId: getNotificationFeed
+      x-requires-identity: true
       summary: List the calling user's in-app notifications (the bell)
       description: >
         Self-scoped: any authenticated identity reads its own notifications; no
@@ -4223,6 +4320,7 @@ paths:
   /api/v1/notifications/feed:read-all:
     post:
       operationId: postNotificationFeedReadAll
+      x-requires-identity: true
       summary: Mark all the calling user's notifications read
       responses:
         '200':
@@ -4234,6 +4332,7 @@ paths:
   /api/v1/notifications/feed/{id}:read:
     post:
       operationId: postNotificationFeedRead
+      x-requires-identity: true
       summary: Mark one notification read (must belong to the caller)
       parameters:
         - name: id
@@ -5529,7 +5628,7 @@ components:
       required: [scope, name, username, auth_method]
       properties:
         scope:                  {type: string, enum: [system, host]}
-        scope_id:               {type: string, format: uuid, nullable: true}
+        scope_id:               {type: string, format: uuid, nullable: true, description: 'Required when scope=host (the host id); must be absent when scope=system.'}
         name:                   {type: string, minLength: 1, maxLength: 256}
         description:            {type: string, maxLength: 1024}
         username:               {type: string, minLength: 1, maxLength: 256}
