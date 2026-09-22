@@ -4350,13 +4350,14 @@ type GetAuditEventsParams struct {
 // GetAuditEventsExportParams defines parameters for GetAuditEventsExport.
 type GetAuditEventsExportParams struct {
 	// Format Output format. Defaults to csv.
-	Format       *GetAuditEventsExportParamsFormat `form:"format,omitempty" json:"format,omitempty"`
-	Action       *string                           `form:"action,omitempty" json:"action,omitempty"`
-	ActorType    *string                           `form:"actor_type,omitempty" json:"actor_type,omitempty"`
-	ResourceType *string                           `form:"resource_type,omitempty" json:"resource_type,omitempty"`
-	ResourceId   *string                           `form:"resource_id,omitempty" json:"resource_id,omitempty"`
-	Since        *time.Time                        `form:"since,omitempty" json:"since,omitempty"`
-	Until        *time.Time                        `form:"until,omitempty" json:"until,omitempty"`
+	Format        *GetAuditEventsExportParamsFormat `form:"format,omitempty" json:"format,omitempty"`
+	Action        *string                           `form:"action,omitempty" json:"action,omitempty"`
+	CorrelationId *string                           `form:"correlation_id,omitempty" json:"correlation_id,omitempty"`
+	ActorType     *string                           `form:"actor_type,omitempty" json:"actor_type,omitempty"`
+	ResourceType  *string                           `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+	ResourceId    *string                           `form:"resource_id,omitempty" json:"resource_id,omitempty"`
+	Since         *time.Time                        `form:"since,omitempty" json:"since,omitempty"`
+	Until         *time.Time                        `form:"until,omitempty" json:"until,omitempty"`
 }
 
 // GetAuditEventsExportParamsFormat defines parameters for GetAuditEventsExport.
@@ -6728,6 +6729,19 @@ func (siw *ServerInterfaceWrapper) GetAuditEventsExport(w http.ResponseWriter, r
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "correlation_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "correlation_id", r.URL.Query(), &params.CorrelationId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "correlation_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "correlation_id", Err: err})
 		}
 		return
 	}

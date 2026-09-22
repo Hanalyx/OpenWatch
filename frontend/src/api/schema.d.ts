@@ -6784,6 +6784,7 @@ export interface operations {
                 /** @description Output format. Defaults to csv. */
                 format?: "csv" | "json";
                 action?: string;
+                correlation_id?: string;
                 actor_type?: string;
                 resource_type?: string;
                 resource_id?: string;
@@ -6804,6 +6805,15 @@ export interface operations {
                 content: {
                     "text/csv": string;
                     "application/json": components["schemas"]["AuditEvent"][];
+                };
+            };
+            /** @description A query parameter the export does not declare (request.unknown_parameter), or one that fails to parse. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Caller is not authenticated */

@@ -1338,6 +1338,9 @@ paths:
         - name: action
           in: query
           schema: {type: string}
+        - name: correlation_id
+          in: query
+          schema: {type: string}
         - name: actor_type
           in: query
           schema: {type: string}
@@ -1354,6 +1357,11 @@ paths:
           in: query
           schema: {type: string, format: date-time}
       responses:
+        '400':
+          description: A query parameter the export does not declare (request.unknown_parameter), or one that fails to parse.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: Audit export file (CSV or JSON attachment)
           content:

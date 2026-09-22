@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -644,6 +646,129 @@ func TestAPI_AuditEvents_ExportRequiresAuditExport(t *testing.T) {
 		viewer.Body.Close()
 		if viewer.StatusCode != http.StatusForbidden {
 			t.Errorf("viewer GET /audit/events/export = %d, want 403", viewer.StatusCode)
+		}
+	})
+}
+
+// @ac AC-17
+// api-audit-events-query/AC-17 (v1.5.0): the export takes every filter the
+// list takes, correlation_id included, and refuses a filter it does not
+// declare instead of silently exporting everything. The list endpoint keeps
+// its lenient behavior, so the strictness is confined to the export.
+func TestAPI_AuditEvents_ExportFilterParityAndNoSilentWidening(t *testing.T) {
+	t.Run("api-audit-events-query/AC-17", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+		seed := func(corr string) {
+			t.Helper()
+			id := uuid.Must(uuid.NewV7())
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO audit_events
+				   (id, correlation_id, actor_type, actor_label, action, severity, occurred_at)
+				 VALUES ($1,$2,'user','alice@example.com','host.created','info',now())`,
+				id, corr); err != nil {
+				t.Fatalf("seed audit event: %v", err)
+			}
+		}
+		seed("corr-a")
+		seed("corr-a")
+		seed("corr-b")
+
+		// correlation_id narrows the export in both formats.
+		resp := doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export?format=json&correlation_id=corr-a", auth.RoleAuditor, nil))
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("json export status = %d, want 200", resp.StatusCode)
+		}
+		var events []map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+			t.Fatalf("decode json export: %v", err)
+		}
+		resp.Body.Close()
+		if len(events) != 2 {
+			t.Fatalf("json export rows = %d, want 2 (corr-a only)", len(events))
+		}
+		for _, ev := range events {
+			if ev["correlation_id"] != "corr-a" {
+				t.Errorf("json export leaked correlation_id %v", ev["correlation_id"])
+			}
+		}
+		resp = doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export?correlation_id=corr-b", auth.RoleAuditor, nil))
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("csv export status = %d, want 200", resp.StatusCode)
+		}
+		if lines := strings.Count(strings.TrimSpace(string(raw)), "\n"); lines != 1 {
+			t.Errorf("csv export data rows = %d, want 1 (corr-b only); body=%q", lines, raw)
+		}
+
+		// A misspelled filter is refused, and nothing is exported.
+		resp = doReq(t, asRole(t, "GET", url+"/api/v1/audit/events/export?correlation_id=corr-a&actr_type=user", auth.RoleAuditor, nil))
+		raw, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("misspelled filter status = %d, want 400; body=%q", resp.StatusCode, raw)
+		}
+		if resp.Header.Get("Content-Disposition") != "" {
+			t.Errorf("a refused export must not set Content-Disposition")
+		}
+		var env struct {
+			Error struct {
+				Code         string `json:"code"`
+				HumanMessage string `json:"human_message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(raw, &env); err != nil {
+			t.Fatalf("400 body is not the envelope: %v; body=%q", err, raw)
+		}
+		if env.Error.Code != "request.unknown_parameter" || !strings.Contains(env.Error.HumanMessage, "actr_type") {
+			t.Errorf("envelope = %+v, want request.unknown_parameter naming actr_type", env.Error)
+		}
+
+		// The list endpoint keeps ignoring an unknown parameter.
+		resp = doReq(t, asRole(t, "GET", url+"/api/v1/audit/events?actr_type=user", auth.RoleAuditor, nil))
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("list with unknown parameter status = %d, want 200 (lenient)", resp.StatusCode)
+		}
+	})
+}
+
+// auditExportParams must equal the query parameters getAuditEventsExport
+// declares, or the unknown-parameter guard would reject a declared filter
+// or admit an undeclared one. Read from the contract, not remembered.
+func TestAPI_AuditEvents_ExportParamGuardMatchesContract(t *testing.T) {
+	t.Run("api-audit-events-query/AC-17", func(t *testing.T) {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "api", "openapi.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := string(raw)
+		start := strings.Index(doc, "  /api/v1/audit/events/export:")
+		if start < 0 {
+			t.Fatal("export path not found in api/openapi.yaml")
+		}
+		end := strings.Index(doc[start:], "      responses:")
+		block := doc[start : start+end]
+		declared := map[string]struct{}{}
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "- name: ") {
+				declared[strings.TrimPrefix(line, "- name: ")] = struct{}{}
+			}
+		}
+		if len(declared) == 0 {
+			t.Fatal("no query parameters parsed from the export operation")
+		}
+		for name := range declared {
+			if _, ok := auditExportParams[name]; !ok {
+				t.Errorf("contract declares %q but auditExportParams would reject it", name)
+			}
+		}
+		for name := range auditExportParams {
+			if _, ok := declared[name]; !ok {
+				t.Errorf("auditExportParams admits %q which the contract does not declare", name)
+			}
 		}
 	})
 }

@@ -8,7 +8,7 @@ spec:
   # bugs/OW-056, reproduced 2026-09-19). Founder decision 2026-09-19: the
   # registry is the intent. viewer and ops_lead lose the export route and
   # keep the list. AC-16 is new; C-08 and AC-13 say audit:export.
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -63,7 +63,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-08
-      description: 'v1.3.0 — GET /api/v1/audit/events/export MUST stream the filtered audit trail as a downloadable attachment (NIST 800-53 AU-7). It is audit:export gated (v1.4.0; audit:read through 1.3.1), independent of the list endpoint which stays audit:read, accepts the same filters (action, actor_type, resource_type, resource_id, since, until), and returns the whole filtered set newest-first capped at 10000 rows (not one page). format=csv (default) emits a header row + one row per event with columns occurred_at, action, message, severity, actor_type, actor_label, actor_id, resource_type, resource_id, correlation_id; format=json emits the AuditEvent array. Both set Content-Disposition: attachment with a timestamped filename. The message column reuses activity.FormatAudit (same as the list). v1.3.1 hardening: (a) every CSV cell MUST be neutralized against spreadsheet formula injection (CWE-1236) — a value whose first character is =, +, -, @, tab, or CR is prefixed with a single quote so it renders as literal text, not an executed formula; (b) a truncated export (row count == the 10000 cap) MUST set an X-OpenWatch-Export-Truncated response header and log a warning, so a capped export is never silently mistaken for the complete trail'
+      description: 'v1.3.0 — GET /api/v1/audit/events/export MUST stream the filtered audit trail as a downloadable attachment (NIST 800-53 AU-7). It is audit:export gated (v1.4.0; audit:read through 1.3.1), independent of the list endpoint which stays audit:read, accepts the same filters as the list (action, correlation_id, actor_type, resource_type, resource_id, since, until; correlation_id added in v1.5.0, CP bugs/OW-064), rejects a query parameter it does not declare with 400 request.unknown_parameter naming the parameter (v1.5.0; a misspelled filter must fail rather than silently widen an artifact someone will file, and this strictness is specific to the export route by founder decision, not a server-wide policy), and returns the whole filtered set newest-first capped at 10000 rows (not one page). format=csv (default) emits a header row + one row per event with columns occurred_at, action, message, severity, actor_type, actor_label, actor_id, resource_type, resource_id, correlation_id; format=json emits the AuditEvent array. Both set Content-Disposition: attachment with a timestamped filename. The message column reuses activity.FormatAudit (same as the list). v1.3.1 hardening: (a) every CSV cell MUST be neutralized against spreadsheet formula injection (CWE-1236) — a value whose first character is =, +, -, @, tab, or CR is prefixed with a single quote so it renders as literal text, not an executed formula; (b) a truncated export (row count == the 10000 cap) MUST set an X-OpenWatch-Export-Truncated response header and log a warning, so a capped export is never silently mistaken for the complete trail'
       type: technical
       enforcement: error
 
@@ -133,4 +133,17 @@ spec:
         is audit:export, so system-rbac AC-18 binds the handler to that
         constant.
       priority: critical
+      references_constraints: [C-08]
+    - id: AC-17
+      description: >
+        v1.5.0 — Export filter parity and no silent widening. With events
+        seeded under two correlation ids, GET
+        /api/v1/audit/events/export?correlation_id=<a> returns only the
+        rows for <a> in both csv and json; GET
+        /api/v1/audit/events/export?correlation_id=<a>&actr_type=user (a
+        misspelled filter) returns 400 request.unknown_parameter naming
+        actr_type and exports nothing; the same misspelling on GET
+        /api/v1/audit/events keeps the list endpoint's lenient behavior
+        (200), so the strictness is measurably confined to the export.
+      priority: high
       references_constraints: [C-08]

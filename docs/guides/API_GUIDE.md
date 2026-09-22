@@ -366,13 +366,12 @@ List query parameters: `action`, `correlation_id`, `actor_type`,
 and `limit` (1 to 200, default 50). Each page carries `next_cursor`; pass it
 as the next request's `cursor`.
 
-The export takes `action`, `actor_type`, `resource_type`, `resource_id`,
-`since` and `until`, returns the whole filtered set newest first, and stops
-at 10,000 rows; a capped export carries an `X-OpenWatch-Export-Truncated`
-header. Today the export does not accept `correlation_id`, and a query
-parameter it does not recognize is ignored rather than rejected, so a
-misspelled or unsupported filter widens the export to everything the caller
-may see. CP `bugs/OW-064` tracks both.
+The export takes the same seven filters, returns the whole filtered set
+newest first, and stops at 10,000 rows; a capped export carries an
+`X-OpenWatch-Export-Truncated` header. A query parameter the export does
+not declare is refused with `400` `request.unknown_parameter` naming it, so
+a misspelled filter cannot silently widen an export you will file; the list
+endpoint ignores unknown parameters as before.
 
 ---
 
