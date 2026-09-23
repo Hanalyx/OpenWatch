@@ -38,7 +38,7 @@ var (
 // time as the session cookie.
 //
 // Spec AC-24.
-func RevokeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token string) error {
+func RevokeRefreshToken(ctx context.Context, pool DBTX, token string) error {
 	if token == "" {
 		return nil
 	}
@@ -62,7 +62,7 @@ func RevokeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token string) e
 // session deadline to anchor to.
 //
 // Spec AC-12.
-func IssueRefreshToken(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, absoluteExpiresAt time.Time) (token string, err error) {
+func IssueRefreshToken(ctx context.Context, pool DBTX, userID uuid.UUID, absoluteExpiresAt time.Time) (token string, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("identity: refresh entropy: %w", err)
@@ -107,29 +107,68 @@ type TokenPair struct {
 	AbsoluteExpiresAt time.Time
 }
 
-// ConsumeRefreshToken atomically:
-//  1. Looks up the row by presentation-token hash.
-//  2. Validates not-revoked, not-expired, not-already-rotated.
-//  3. If already rotated: sets reuse_detected_at, revokes ALL sessions
-//     for the user, returns ErrRefreshTokenReused.
-//  4. Otherwise: mints a new (access, refresh) pair, marks the old row
-//     as rotated to the new one (atomic via single UPDATE), returns
-//     the new pair.
+// RefreshOutcome classifies what a rotation attempt found. The zero
+// value is RefreshOutcomeUnknown and means nothing was determined, so a
+// caller that forgets to switch on it cannot fall through to success.
+type RefreshOutcome int
+
+const (
+	// RefreshOutcomeUnknown is the zero value and authorizes nothing.
+	RefreshOutcomeUnknown RefreshOutcome = iota
+	// RefreshRotated: the chain advanced and a new pair exists.
+	RefreshRotated
+	// RefreshNotFound: no row matched the presented token.
+	RefreshNotFound
+	// RefreshExpired: the token is past its own expiry.
+	RefreshExpired
+	// RefreshRevoked: the row was revoked.
+	RefreshRevoked
+	// RefreshReused: the row was already rotated. The caller MUST commit
+	// so the family-wide revocation this outcome performed is durable.
+	RefreshReused
+	// RefreshSessionExpired: the session's absolute ceiling has passed.
+	RefreshSessionExpired
+)
+
+// MustCommit reports whether an outcome wrote something durable that the
+// caller has to commit even when it answers with a failure. Reuse
+// detection is that case: it revokes the family, and rolling that back
+// would discard the only reaction to a stolen token.
+func (o RefreshOutcome) MustCommit() bool { return o == RefreshReused || o == RefreshRotated }
+
+// Err maps an outcome to the error the pool-level API returns.
+func (o RefreshOutcome) Err() error {
+	switch o {
+	case RefreshRotated:
+		return nil
+	case RefreshNotFound:
+		return ErrRefreshTokenNotFound
+	case RefreshExpired:
+		return ErrRefreshTokenExpired
+	case RefreshRevoked:
+		return ErrRefreshTokenRevoked
+	case RefreshReused:
+		return ErrRefreshTokenReused
+	case RefreshSessionExpired:
+		return ErrRefreshSessionExpired
+	default:
+		return errors.New("identity: refresh outcome undetermined")
+	}
+}
+
+// ConsumeRefreshTokenTx performs one rotation step INSIDE the caller's
+// transaction. It commits nothing and rolls back nothing: the caller
+// owns the transaction, took the per-user lock before calling, and
+// commits the rotation together with whatever it issues. Spec C-34.
 //
-// Spec AC-12, AC-13.
-func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role string) (*TokenPair, error) {
+// The returned error is reserved for infrastructure failures. An
+// ordinary refusal is an outcome, not an error, so a caller cannot
+// mistake "this token was refused" for "the database is down".
+func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (RefreshOutcome, *TokenPair, error) {
 	if token == "" {
-		return nil, ErrRefreshTokenNotFound
+		return RefreshNotFound, nil, nil
 	}
 	hash := sha256.Sum256([]byte(token))
-
-	// All work in one transaction so reuse detection + cascade revoke
-	// is atomic with the rotation.
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("identity: refresh begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 
 	var (
 		rowID       uuid.UUID
@@ -139,98 +178,127 @@ func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role st
 		rotatedTo   *uuid.UUID
 		revokedAt   *time.Time
 	)
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT id, user_id, expires_at, absolute_expires_at, rotated_to_id, revoked_at
 		FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
 		hash[:],
 	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrRefreshTokenNotFound
+			return RefreshNotFound, nil, nil
 		}
-		return nil, fmt.Errorf("identity: refresh lookup: %w", err)
+		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: refresh lookup: %w", err)
 	}
 
 	if revokedAt != nil {
-		return nil, ErrRefreshTokenRevoked
+		return RefreshRevoked, nil, nil
 	}
 	if time.Now().UTC().After(expiresAt) {
-		return nil, ErrRefreshTokenExpired
+		return RefreshExpired, nil, nil
 	}
-	// AUTH-1 (b): the session's absolute deadline is a hard ceiling. Once it
-	// passes, the chain ends even though the 7-day refresh window is still
-	// open. Legacy tokens (absolute_expires_at NULL) are exempt until they age
-	// out. Checked before reuse so an expired-session token simply fails closed.
+	// AUTH-1 (b): the session's absolute deadline is a hard ceiling.
+	// Checked before reuse so an expired-session token fails closed.
 	if absoluteExp != nil && time.Now().UTC().After(*absoluteExp) {
-		return nil, ErrRefreshSessionExpired
+		return RefreshSessionExpired, nil, nil
 	}
 	if rotatedTo != nil {
-		// Reuse! This row was already consumed. An attacker has the old
-		// presentation token. Revoke everything for this user.
+		// Reuse. Somebody holds a token we already rotated away.
 		if _, err := tx.Exec(ctx,
 			`UPDATE refresh_tokens SET reuse_detected_at = now() WHERE id = $1`,
 			rowID); err != nil {
-			return nil, fmt.Errorf("identity: mark reuse: %w", err)
+			return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: mark reuse: %w", err)
 		}
-		// Cascade: revoke every active refresh token AND every active
-		// session for this user.
-		if _, err := tx.Exec(ctx,
-			`UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
-			userID); err != nil {
-			return nil, fmt.Errorf("identity: cascade revoke refresh: %w", err)
+		if err := RevokeUserCredentials(ctx, tx, userID); err != nil {
+			return RefreshOutcomeUnknown, nil, err
 		}
-		if _, err := tx.Exec(ctx,
-			`UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
-			userID); err != nil {
-			return nil, fmt.Errorf("identity: cascade revoke sessions: %w", err)
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return nil, fmt.Errorf("identity: refresh commit (reuse): %w", err)
-		}
-		return nil, ErrRefreshTokenReused
+		return RefreshReused, nil, nil
 	}
 
-	// Happy path: mint a new pair, rotate the old row's pointer.
 	newRefresh := make([]byte, 32)
 	if _, err := rand.Read(newRefresh); err != nil {
-		return nil, fmt.Errorf("identity: refresh entropy: %w", err)
+		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: refresh entropy: %w", err)
 	}
 	newPres := base64.RawURLEncoding.EncodeToString(newRefresh)
 	newHash := sha256.Sum256([]byte(newPres))
 	newID, err := uuid.NewV7()
 	if err != nil {
-		return nil, fmt.Errorf("identity: uuid: %w", err)
+		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: uuid: %w", err)
 	}
-	// Carry the original absolute deadline UNCHANGED onto the rotated row, so
-	// the absolute ceiling cannot be reset by refreshing (AUTH-1 b).
+	// Carry the original absolute deadline UNCHANGED onto the rotated row.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at)
 		VALUES ($1, $2, $3, $4, $5)`,
 		newID, userID, newHash[:], time.Now().UTC().Add(RefreshTokenWindow), absoluteExp,
 	); err != nil {
-		return nil, fmt.Errorf("identity: insert rotated refresh: %w", err)
+		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: insert rotated refresh: %w", err)
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE refresh_tokens SET rotated_to_id = $1 WHERE id = $2`,
 		newID, rowID,
 	); err != nil {
-		return nil, fmt.Errorf("identity: mark rotation: %w", err)
+		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: mark rotation: %w", err)
 	}
 
 	access, claims, err := IssueJWT(userID, role)
 	if err != nil {
-		return nil, err
+		return RefreshOutcomeUnknown, nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("identity: refresh commit (happy): %w", err)
-	}
-	pair := &TokenPair{
-		AccessToken:  access,
-		RefreshToken: newPres,
-		Claims:       claims,
-	}
+	pair := &TokenPair{AccessToken: access, RefreshToken: newPres, Claims: claims}
 	if absoluteExp != nil {
 		pair.AbsoluteExpiresAt = *absoluteExp
 	}
+	return RefreshRotated, pair, nil
+}
+
+// ConsumeRefreshToken is the pool-level wrapper: it owns a transaction,
+// calls ConsumeRefreshTokenTx and commits when the outcome wrote
+// something durable. Kept for callers with no transaction of their own.
+// The interactive handlers do NOT use it: they own the transaction so
+// the rotation commits with the credentials it produced.
+func ConsumeRefreshToken(ctx context.Context, pool *pgxpool.Pool, token, role string) (*TokenPair, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("identity: refresh begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+	outcome, pair, err := ConsumeRefreshTokenTx(ctx, tx, token, role)
+	if err != nil {
+		return nil, err
+	}
+	if outcome.MustCommit() {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("identity: refresh commit: %w", err)
+		}
+		committed = true
+	}
+	if outcome != RefreshRotated {
+		return nil, outcome.Err()
+	}
 	return pair, nil
+}
+
+// UserIDForRefreshToken resolves the owner of a presented refresh token
+// WITHOUT consuming it, so a handler can take the per-user lock before
+// it touches the chain. Validity is decided inside the locked
+// transaction by ConsumeRefreshTokenTx.
+func UserIDForRefreshToken(ctx context.Context, db DBTX, token string) (uuid.UUID, error) {
+	if token == "" {
+		return uuid.Nil, ErrRefreshTokenNotFound
+	}
+	hash := sha256.Sum256([]byte(token))
+	var userID uuid.UUID
+	err := db.QueryRow(ctx,
+		`SELECT user_id FROM refresh_tokens WHERE token_hash = $1`, hash[:]).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrRefreshTokenNotFound
+		}
+		return uuid.Nil, fmt.Errorf("identity: refresh owner lookup: %w", err)
+	}
+	return userID, nil
 }

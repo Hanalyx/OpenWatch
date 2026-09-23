@@ -395,12 +395,45 @@ func (s *Service) UpdatePassword(ctx context.Context, id uuid.UUID, newPassword 
 func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	const stmt = `UPDATE users SET deleted_at = now(), updated_at = now()
 	              WHERE id = $1 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, id)
+	// The deletion and the revocation commit together. A deleted account
+	// whose sessions outlive the delete is the defect this closes, and
+	// two separate statements can leave exactly that state. Spec C-34, C-36.
+	return s.mutateAccountState(ctx, id, stmt)
+}
+
+// mutateAccountState runs an account-state UPDATE and the user-wide
+// interactive revocation in ONE transaction, under the per-user lock
+// taken as the first statement.
+//
+// The lock is what makes the revocation complete: without it a login or
+// a refresh committing concurrently can insert a session after the
+// revocation ran and before the state change was visible, and that
+// session is never revoked by anything. Spec C-34, C-36.
+func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt string) error {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("users: soft delete: %w", err)
+		return fmt.Errorf("users: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := identity.LockUser(ctx, tx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("users: lock: %w", err)
+	}
+	tag, err := tx.Exec(ctx, stmt, id)
+	if err != nil {
+		return fmt.Errorf("users: account state: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrUserNotFound
+	}
+	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("users: commit: %w", err)
 	}
 	return nil
 }
@@ -416,8 +449,11 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 	if err := s.UpdatePassword(ctx, id, newPassword); err != nil {
 		return err
 	}
-	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
-		return fmt.Errorf("users: revoke sessions after reset: %w", err)
+	// User-wide INTERACTIVE revocation, not sessions only: the refresh
+	// family survived a sessions-only revoke and could mint a working
+	// session with the old password already replaced. Spec C-36.
+	if err := identity.RevokeUserCredentials(ctx, s.pool, id); err != nil {
+		return fmt.Errorf("users: revoke credentials after reset: %w", err)
 	}
 	return nil
 }
@@ -432,17 +468,9 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 	const stmt = `UPDATE users SET disabled_at = now(), updated_at = now()
 	              WHERE id = $1 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, id)
-	if err != nil {
-		return fmt.Errorf("users: disable: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
-	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
-		return fmt.Errorf("users: revoke sessions on disable: %w", err)
-	}
-	return nil
+	// One transaction under the per-user lock: the disable and the
+	// user-wide interactive revocation commit together. Spec C-34, C-36.
+	return s.mutateAccountState(ctx, id, stmt)
 }
 
 // Enable clears the disabled flag. The user can authenticate again with a
@@ -557,6 +585,14 @@ func (s *Service) PrimaryRoleFor(ctx context.Context, userID uuid.UUID) (auth.Ro
 // PrimaryRoleFor with the same signature shape.
 func (s *Service) RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error) {
 	return s.PrimaryRoleFor(ctx, userID)
+}
+
+// AccountStatusFor is the identity.Lookups account-state adapter. It is
+// the binders' independent protection: a credential issued while an
+// account was disabled is never revoked, so revocation alone cannot
+// refuse it. Spec C-31.
+func (s *Service) AccountStatusFor(ctx context.Context, userID uuid.UUID) (identity.AccountStatus, error) {
+	return identity.ReadAccountStatus(ctx, s.pool, userID)
 }
 
 // queryOne is the GetByID/GetByUsername shared helper.

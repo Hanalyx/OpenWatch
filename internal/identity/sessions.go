@@ -106,7 +106,7 @@ type Session struct {
 // presentation form is never stored anywhere.
 //
 // Spec AC-06, C-05, C-06.
-func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, remoteAddr, userAgent string) (token string, sess Session, err error) {
+func IssueSession(ctx context.Context, pool DBTX, userID uuid.UUID, remoteAddr, userAgent string) (token string, sess Session, err error) {
 	return IssueSessionWithAbsolute(ctx, pool, userID, remoteAddr, userAgent,
 		time.Now().UTC().Add(CurrentWindows().Absolute))
 }
@@ -116,7 +116,7 @@ func IssueSession(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, rem
 // ceiling onto a re-minted session instead of granting a fresh window (AUTH-1
 // b). The idle expiry is capped at the absolute deadline, so a session minted
 // close to its ceiling expires at the ceiling, not idle+window beyond it.
-func IssueSessionWithAbsolute(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, remoteAddr, userAgent string, absoluteExpiresAt time.Time) (token string, sess Session, err error) {
+func IssueSessionWithAbsolute(ctx context.Context, pool DBTX, userID uuid.UUID, remoteAddr, userAgent string, absoluteExpiresAt time.Time) (token string, sess Session, err error) {
 	raw := make([]byte, SessionTokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return "", Session{}, fmt.Errorf("identity: read session entropy: %w", err)
@@ -263,7 +263,7 @@ func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string, opts .
 // revoked session is a no-op.
 //
 // Spec AC-09.
-func RevokeSession(ctx context.Context, pool *pgxpool.Pool, sessionID uuid.UUID) error {
+func RevokeSession(ctx context.Context, pool DBTX, sessionID uuid.UUID) error {
 	const stmt = `UPDATE sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`
 	_, err := pool.Exec(ctx, stmt, sessionID)
 	if err != nil {
@@ -275,7 +275,7 @@ func RevokeSession(ctx context.Context, pool *pgxpool.Pool, sessionID uuid.UUID)
 // RevokeAllSessionsForUser is called when refresh-token reuse is
 // detected (AC-13) — invalidate every active session for the user so
 // the attacker can't pivot to the cookie path.
-func RevokeAllSessionsForUser(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID) error {
+func RevokeAllSessionsForUser(ctx context.Context, pool DBTX, userID uuid.UUID) error {
 	const stmt = `UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`
 	_, err := pool.Exec(ctx, stmt, userID)
 	if err != nil {

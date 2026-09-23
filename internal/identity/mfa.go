@@ -105,7 +105,7 @@ func EnrollMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, userna
 //
 // Spec system-auth-identity AC-15, AC-16, C-10.
 // Spec system-retention-sweeper C-10.
-func VerifyMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, otpValue string) error {
+func VerifyMFA(ctx context.Context, pool DBTX, userID uuid.UUID, otpValue string) error {
 	dek, err := secretkey.Active()
 	if err != nil {
 		return err

@@ -56,6 +56,16 @@ var authBypassPaths = map[string]struct{}{
 // Implementation lives in Slice A Week 1 Day 2 (`internal/users`).
 type Lookups interface {
 	RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error)
+	// AccountStatusFor reports whether the account behind a credential
+	// may authenticate. It is REQUIRED rather than an optional
+	// interface: an optional check is one a future implementation can
+	// omit without anything noticing, and this one is the independent
+	// protection that covers a credential issued during a disabled
+	// window, which revocation never reaches. Spec C-31.
+	//
+	// A returned error means the state could not be determined. It is an
+	// infrastructure failure and the binder answers 503, not 401. Spec C-32.
+	AccountStatusFor(ctx context.Context, userID uuid.UUID) (AccountStatus, error)
 }
 
 // GrantLookups is the optional second half of Lookups: what a CUSTOM role
@@ -113,6 +123,15 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, reason := resolveIdentity(r.Context(), pool, lookups, cfg, r)
+			if reason == reasonStateUnavailable {
+				// The credential was not rejected: the server could not
+				// tell. Answering 401 here would tell every signed-in
+				// browser its session ended and turn a transient outage
+				// into a fleet-wide forced re-login. Spec C-32.
+				emitLoginFailure(r, reason)
+				writeStateUnavailable(w, r)
+				return
+			}
 			if reason != "" {
 				emitLoginFailure(r, reason)
 				// Credential was presented but rejected. Short-circuit with
@@ -130,6 +149,33 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(r.Context(), id)))
 		})
 	}
+}
+
+// reasonStateUnavailable is the one reason that is NOT a rejected
+// credential. It means account state could not be determined, and it
+// answers 503. Spec C-32.
+const reasonStateUnavailable = "account_state_unavailable"
+
+// writeStateUnavailable emits the 503 envelope for an infrastructure
+// failure during identity binding. It deliberately does not carry
+// auth.session_invalid: the frontend reacts to that code by refreshing
+// and retrying, which is the wrong response to a database outage.
+//
+// Spec C-32.
+func writeStateUnavailable(w http.ResponseWriter, r *http.Request) {
+	body := map[string]any{
+		"code":          "server.error",
+		"fault":         "server",
+		"retryable":     true,
+		"human_message": "could not verify your account right now; please retry",
+	}
+	if cid, ok := correlation.From(r.Context()); ok {
+		body["correlation_id"] = cid
+	}
+	payload, _ := json.Marshal(map[string]any{"error": body})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write(payload)
 }
 
 // writeSessionInvalid emits the 401 envelope used when a credential
@@ -163,6 +209,24 @@ func writeSessionInvalid(w http.ResponseWriter, r *http.Request, reason string) 
 // rejection. Anonymous-because-nothing-was-presented also returns "" for
 // reason (no audit emission for unauthenticated probes; only for
 // presented-but-rejected credentials).
+// checkAccountState is the account-state arm shared by the cookie and
+// the session-JWT binders. It returns a refusal reason, or "" to allow,
+// and reports separately whether the state could not be determined.
+//
+// It is called on both arms on purpose. Element 3 revokes credentials
+// when an account is disabled, but a credential ISSUED during a disabled
+// window is never revoked, so revocation alone cannot refuse it. Spec C-31.
+func checkAccountState(ctx context.Context, lookups Lookups, userID uuid.UUID) (reason string, unavailable bool) {
+	status, err := lookups.AccountStatusFor(ctx, userID)
+	if err != nil {
+		return "account_state_unavailable", true
+	}
+	if status.MayAuthenticate() {
+		return "", false
+	}
+	return status.Reason(), false
+}
+
 func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, cfg binderConfig, r *http.Request) (auth.Identity, string) {
 	if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
 		// AUTH-1 (c): the client marks NON-user-initiated requests (background
@@ -184,6 +248,18 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			return anon(), "session_expired"
 		case err != nil:
 			return anon(), "session_lookup_failed"
+		}
+		// Account state BEFORE role. The role lookup joins users on
+		// deleted_at IS NULL and so refuses a deleted account by
+		// accident, which reads as enforcement while checking nothing
+		// about disabled_at. Checking state first means the refusal
+		// reason names the account state rather than the missing role.
+		// Spec C-31.
+		if reason, unavailable := checkAccountState(ctx, lookups, sess.UserID); reason != "" {
+			if unavailable {
+				return anon(), reasonStateUnavailable
+			}
+			return anon(), reason
 		}
 		role, err := lookups.RoleForUser(ctx, sess.UserID)
 		if err != nil {
@@ -214,6 +290,20 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			return anon(), "invalid_jwt"
 		case err != nil:
 			return anon(), "jwt_verify_failed"
+		}
+		// Account state on the Bearer arm too. A JWT stays
+		// cryptographically valid for its whole lifetime, so without
+		// this a disabled account keeps authenticating until the token
+		// expires. Spec C-31.
+		uid, perr := uuid.Parse(claims.Subject)
+		if perr != nil {
+			return anon(), "invalid_jwt_subject"
+		}
+		if reason, unavailable := checkAccountState(ctx, lookups, uid); reason != "" {
+			if unavailable {
+				return anon(), reasonStateUnavailable
+			}
+			return anon(), reason
 		}
 		// The role baked into the JWT is the contract. RBAC middleware
 		// downstream re-evaluates whether that role actually grants the

@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 1
 
@@ -159,6 +159,85 @@ spec:
         its cookies either way and the user would otherwise believe a
         credential is dead when it is still live.
       type: security
+      enforcement: error
+
+    - id: C-31
+      description: >
+        Both identity binders MUST enforce account state independently of
+        revocation. The cookie arm and the session-JWT arm MUST each resolve
+        the presented credential to a user id and refuse when that account is
+        disabled, soft-deleted, or absent. Revoking credentials on disable is
+        not a substitute: a credential issued during a disabled window is
+        never revoked and would otherwise authenticate. The check MUST NOT be
+        a side effect of another lookup. Role resolution today joins users on
+        deleted_at IS NULL and so refuses a deleted account by accident, which
+        reads as enforcement while checking nothing about disabled_at; an
+        account-state refusal MUST be distinguishable from a user who simply
+        holds no role.
+      type: security
+      enforcement: error
+    - id: C-32
+      description: >
+        The binder MUST distinguish a credential it rejected from a credential
+        it could not evaluate. A presented credential that is invalid,
+        revoked, expired, or belongs to a disabled or deleted account is a
+        client failure and answers 401. A failure to reach the database while
+        evaluating it is an infrastructure failure and MUST answer 503 with
+        server.error, never 401. Answering 401 for an infrastructure failure
+        tells every signed-in browser its session ended, which turns a
+        transient outage into a fleet-wide forced re-login and destroys the
+        evidence that anything was wrong.
+      type: security
+      enforcement: error
+    - id: C-34
+      description: >
+        Every interactive credential path that reads account state and then
+        acts on it MUST serialize on the user row. The path MUST acquire
+        SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE as the first
+        statement of a single handler-owned transaction, then read or
+        revalidate, then mutate, then commit. FOR NO KEY UPDATE rather than
+        FOR UPDATE because 23 foreign keys reference users(id) and FOR UPDATE
+        blocks every child insert. Helper functions on these paths MUST accept
+        a transaction and MUST NOT own, commit, or roll back one, so a caller
+        cannot be left with a partially committed issuance. Nothing may be
+        reported to the client as issued before the transaction commits.
+      type: technical
+      enforcement: error
+    - id: C-35
+      description: >
+        A validation that CONSUMES something MUST run inside the transaction
+        that issues the credentials it authorizes. MFA one-time passwords are
+        consumed by insertion into auth_mfa_otp_uses; performed on the pool
+        before issuance, a later issuance failure burns the OTP and the user
+        cannot retry with the code still on their screen. Consuming
+        validations therefore commit with the issuance or not at all.
+      type: technical
+      enforcement: error
+    - id: C-36
+      description: >
+        Revocation scopes MUST be named and applied deliberately.
+        USER-WIDE INTERACTIVE revocation covers every session and every
+        refresh family for one user and is what Disable, AdminResetPassword
+        and SoftDelete MUST perform; revoking only sessions leaves the refresh
+        family live and a disabled account can mint a working session from it.
+        Service-account tokens are NOT interactive credentials and MUST NOT be
+        touched by interactive revocation. No text describing these operations
+        may claim they end all of an account's credentials.
+      type: security
+      enforcement: error
+    - id: C-37
+      description: >
+        Serialization failures MUST be handled in a bounded, honest way. A
+        transaction that fails with SQLSTATE 40P01 (deadlock) or 40001
+        (serialization failure) MAY be retried by restarting the WHOLE
+        transaction, at most three attempts in total and only within the
+        request deadline. Any other error MUST NOT be retried. A commit whose
+        outcome is UNKNOWN MUST NOT be retried and MUST NOT be reported as
+        either success or failure: it answers 503 asserting neither result,
+        and emits a structured record so the ambiguity is visible. Retrying an
+        unknown commit can duplicate an issuance; reporting it as failure can
+        tell a user a credential does not exist when it does.
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -343,3 +422,188 @@ spec:
         even though the server could not kill it.
       priority: critical
       references_constraints: [C-30]
+    - id: AC-34
+      description: >
+        The cookie binder refuses a live, unrevoked session whose account is
+        disabled, and refuses one whose account is soft-deleted, by an
+        explicit account-state check. An active account with roles is
+        accepted. An active account holding NO role is also refused, and for
+        a DIFFERENT reason than a disabled account, so the criterion cannot be
+        satisfied by the incidental deleted_at join in role resolution.
+      priority: critical
+      references_constraints: [C-31]
+      inputs:
+        initial_state: "A live, unrevoked session row and its cookie"
+        operation: "Set the account state by direct update, then GET with the cookie"
+        variants: ["Disabled", "Soft-deleted", "Active control", "Active with no roles"]
+        method: >
+          The session is issued while the account is active and is never
+          revoked, so a refusal cannot come from revocation. One request per
+          variant, no concurrency, no elapsed-time dependence.
+      expected_output:
+        per_variant:
+          Disabled: {status: 401, audit_reason: account_disabled}
+          Soft-deleted: {status: 401, audit_reason: account_deleted}
+          Active control: {status: 200}
+          Active with no roles: {status: 401, audit_reason: session_user_lookup_failed}
+        distinguishable_reasons: true
+        prohibited_changes:
+          - "A disabled account authenticating on the cookie path"
+          - "The disabled refusal sharing the reason a role-less account produces"
+    - id: AC-35
+      description: >
+        The session-JWT binder refuses a token whose account is disabled or
+        soft-deleted, and accepts one whose account is active. The JWT itself
+        remains cryptographically valid and unexpired in every case, so the
+        refusal is attributable to account state alone.
+      priority: critical
+      references_constraints: [C-31]
+      inputs:
+        initial_state: "A valid, unexpired session JWT for an active account"
+        operation: "Set the account state, then present the JWT as a Bearer credential"
+        variants: ["Disabled", "Soft-deleted", "Active control"]
+        method: "One request per variant against state written beforehand. No concurrency."
+      expected_output:
+        per_variant:
+          Disabled: {status: 401, audit_reason: account_disabled}
+          Soft-deleted: {status: 401, audit_reason: account_deleted}
+          Active control: {status: 200}
+        prohibited_changes: ["A disabled or deleted account authenticating on the Bearer path"]
+    - id: AC-36
+      description: >
+        A database failure while evaluating account state answers 503
+        server.error and NOT 401. The credential presented is valid, so the
+        response must not claim it was rejected.
+      priority: critical
+      references_constraints: [C-32]
+      inputs:
+        initial_state: "A valid session cookie for an active account"
+        controlled_failure: "The account-state lookup returns an infrastructure error"
+        method: >
+          The failure is injected through the lookup interface the binder
+          depends on, so the same request succeeds without injection. It is
+          deterministic: the injected error is returned on every call.
+      expected_output:
+        response: {status: 503, code: server.error}
+        prohibited_changes:
+          - "A 401 for an infrastructure failure"
+          - "An identity bound from an indeterminate account state"
+    - id: AC-37
+      description: >
+        Disable performs USER-WIDE INTERACTIVE revocation: every session and
+        every refresh family for that user is revoked in one transaction.
+        Afterwards neither refresh path mints anything, and no credential
+        derived from either response authenticates. Service-account tokens are
+        untouched.
+      priority: critical
+      references_constraints: [C-36]
+      inputs:
+        initial_state: "A live session, a live refresh cookie, a live body refresh token and one api_tokens row"
+        operation: "Disable(user), then exercise both refresh paths"
+        method: "Direct state construction, one Disable call, one request per path. No concurrency."
+      expected_output:
+        durable_changes: ["sessions live 0", "refresh_tokens live 0"]
+        both_paths_refused: true
+        usable_session_cookie_returned: false
+        prohibited_changes:
+          - "Any credential derived from either refresh response authenticating"
+          - "api_tokens written by interactive revocation"
+    - id: AC-38
+      description: >
+        AdminResetPassword and SoftDelete each perform user-wide interactive
+        revocation. SoftDelete revoked nothing before this change.
+      priority: critical
+      references_constraints: [C-36]
+      inputs:
+        initial_state: "A live session and a live refresh family"
+        operation: "AdminResetPassword(user); separately, SoftDelete(user)"
+        variants: ["AdminResetPassword", "SoftDelete"]
+        method: "One call per variant against freshly constructed state."
+      expected_output:
+        per_variant:
+          AdminResetPassword: {sessions_live: 0, refresh_live: 0}
+          SoftDelete: {sessions_live: 0, refresh_live: 0}
+        prohibited_changes: ["Any refresh path succeeding afterwards"]
+    - id: AC-39
+      description: >
+        Password login runs in ONE handler-owned transaction that takes the
+        per-user lock as its first statement and revalidates account state
+        inside it. A disable committed before the lock is observed by the
+        login, which issues nothing.
+      priority: critical
+      references_constraints: [C-34]
+      inputs:
+        initial_state: "An enabled account with valid credentials"
+        concurrent_ordering: "Disable commits while the login transaction is blocked on the user lock"
+        method: >
+          The disable is committed and released before the login proceeds, so
+          the ordering is imposed by the lock rather than by timing. The test
+          asserts the outcome, not a duration.
+      expected_output:
+        response: {status: 401, code: auth.invalid_credentials}
+        durable_changes: []
+        prohibited_changes: ["A session, refresh token or access token issued for the disabled account"]
+    - id: AC-40
+      description: >
+        The MFA one-time password is consumed inside the issuing transaction.
+        When issuance fails after a correct OTP, the OTP is NOT consumed and
+        the same code still works on a retry.
+      priority: critical
+      references_constraints: [C-35]
+      inputs:
+        initial_state: "An MFA-enrolled user and a currently valid OTP"
+        controlled_failure: "Issuance fails after the OTP validates"
+        method: >
+          The failure is injected inside the transaction, after validation and
+          before commit, so the rollback is what leaves the OTP unconsumed.
+          Deterministic: no timing and no concurrency.
+      expected_output:
+        durable_changes: []
+        subsequent: ["The same OTP authenticates on a retry"]
+        prohibited_changes: ["An auth_mfa_otp_uses row surviving a rolled-back login"]
+    - id: AC-41
+      description: >
+        Both refresh paths run in one handler-owned transaction, take the
+        per-user lock first and revalidate account state inside it. The
+        rotation helper owns no transaction and commits nothing.
+      priority: critical
+      references_constraints: [C-34]
+      inputs:
+        initial_state: "A live refresh family for an enabled account"
+        operation: "POST /auth/refresh and POST /auth/refresh-cookie"
+        variants: ["Body path, account disabled", "Cookie path, account disabled", "Body path control", "Cookie path control"]
+        method: "The account state is set before the request. One request per variant."
+      expected_output:
+        per_variant:
+          Body path, account disabled: {refused: true, credentials_issued: 0}
+          Cookie path, account disabled: {refused: true, credentials_issued: 0}
+          Body path control: {refused: false}
+          Cookie path control: {refused: false}
+        helper_owns_transaction: false
+        prohibited_changes: ["A rotated refresh row committed without the credentials it was rotated for"]
+    - id: AC-42
+      description: >
+        Concurrency failures are bounded and honest. A transaction failing
+        with 40P01 or 40001 is retried by restarting the whole transaction, at
+        most three attempts. Any other error is not retried. An unknown commit
+        outcome answers 503 asserting neither result and is not retried.
+      priority: critical
+      references_constraints: [C-37]
+      inputs:
+        initial_state: "A login transaction"
+        controlled_failure: "Injected SQLSTATE 40P01, then 40001, then a non-retryable error, then an unknown commit outcome"
+        variants: ["Retryable, succeeds on attempt 2", "Retryable, exhausts 3 attempts", "Non-retryable", "Unknown commit outcome"]
+        method: >
+          Each SQLSTATE is injected deterministically by a failing hook that
+          counts its own calls, so attempt counts are asserted exactly rather
+          than observed.
+      expected_output:
+        per_variant:
+          Retryable, succeeds on attempt 2: {attempts: 2, response_status: 200}
+          Retryable, exhausts 3 attempts: {attempts: 3, response_status: 503}
+          Non-retryable: {attempts: 1}
+          Unknown commit outcome: {attempts: 1, response_status: 503, asserts_neither_result: true}
+        prohibited_changes:
+          - "A retry of an unknown commit outcome"
+          - "More than three attempts"
+          - "A response claiming success or failure after an unknown commit"

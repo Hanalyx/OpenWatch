@@ -1,7 +1,7 @@
 spec:
   id: api-users
   title: User CRUD + custom-role administration
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 2
 
@@ -65,7 +65,20 @@ spec:
       type: security
       enforcement: error
     - id: C-07
-      description: 'POST /users/{id}:disable and :enable MUST require admin:user_manage. Disable sets users.disabled_at and MUST revoke the target''s active sessions; a disabled user MUST be unable to authenticate (the login path rejects them with a generic invalid-credentials response, no account-state enumeration, while the audit records reason=account_disabled). Enable clears disabled_at. An admin MUST NOT disable their own account (409 users.cannot_disable_self). Cookie sessions are cut off immediately via revocation + the login block; full Bearer-JWT / API-token disable enforcement is a documented hardening follow-up.'
+      description: >
+        POST /users/{id}:disable and :enable MUST require admin:user_manage.
+        Disable sets users.disabled_at and MUST perform USER-WIDE INTERACTIVE
+        revocation of the target's credentials: every session AND every
+        refresh family, in the same transaction as the state change and under
+        the per-user lock. Revoking sessions alone is not sufficient, because
+        the refresh family survives and can mint a working session for an
+        account the administrator believes is locked out. SoftDelete MUST
+        perform the same revocation. Service-account tokens are NOT
+        interactive credentials and MUST NOT be revoked by these operations,
+        so no text describing them may claim they end all of an account's
+        credentials. A disabled user MUST be unable to authenticate on any
+        interactive path: the login path rejects them, both binders refuse a
+        credential bound to them, and neither refresh path mints anything.
       type: security
       enforcement: error
     - id: C-08
@@ -131,9 +144,16 @@ spec:
       priority: high
       references_constraints: [C-06]
     - id: AC-16
-      description: 'POST /users/{id}:disable as an admin returns 200 with disabled_at set; the disabled user can no longer log in (login returns the generic auth.invalid_credentials, audit reason=account_disabled) and their existing sessions are revoked. Emits admin.user.disabled with detail.target_user_id.'
+      description: >
+        POST /users/{id}:disable as an admin returns 200 with disabled_at set;
+        the disabled user can no longer log in (login returns the generic
+        auth.invalid_credentials, audit reason=account_disabled). Their
+        existing sessions AND their refresh families are revoked, so neither
+        refresh path mints anything and no credential derived from either
+        response authenticates. A service-account token owned by the same user
+        is NOT revoked: that lifecycle is separate. Emits admin.user.disabled.
       priority: critical
-      references_constraints: [C-07]
+      references_constraints: [C-07, C-08]
     - id: AC-17
       description: 'POST /users/{id}:enable clears disabled_at (200, disabled_at null) and the user can authenticate again; emits admin.user.enabled.'
       priority: high

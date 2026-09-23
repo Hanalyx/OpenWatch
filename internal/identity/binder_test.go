@@ -24,7 +24,7 @@ import (
 // adminLookups returns RoleAdmin for any user — keeps the binder happy
 // without standing up the real users.Service. Reuses the stubLookups
 // shape defined in mfa_test.go (same package).
-var adminLookups = stubLookups{role: auth.RoleAdmin}
+var adminLookups = stubLookups{role: auth.RoleAdmin, status: AccountActive}
 
 // echoHandler is the downstream the binder calls when it lets a request
 // through. Tests fail if it runs unexpectedly.
