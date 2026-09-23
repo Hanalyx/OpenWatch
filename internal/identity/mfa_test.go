@@ -233,7 +233,7 @@ func TestBinder_ResolvesFromCookieAndBearer(t *testing.T) {
 		auditPool(t, pool)
 		ensureKey(t)
 		userID := seedUser(t, pool, "ac17-user")
-		token, _, err := IssueSession(context.Background(), pool, userID, "1.2.3.4", "test")
+		token, sess, err := IssueSession(context.Background(), pool, userID, "1.2.3.4", "test")
 		if err != nil {
 			t.Fatalf("IssueSession: %v", err)
 		}
@@ -258,7 +258,10 @@ func TestBinder_ResolvesFromCookieAndBearer(t *testing.T) {
 		}
 
 		// Spec test 2: bearer JWT path resolves to identity from claims.
-		jwtTok, _, err := IssueJWT(userID, "admin")
+		// Bound to the session that issued it. An unbound token is
+		// refused by the binder (C-38), so this path needs a real
+		// session id rather than a bare IssueJWT.
+		jwtTok, _, err := IssueJWTForSession(userID, "admin", sess.ID)
 		if err != nil {
 			t.Fatalf("IssueJWT: %v", err)
 		}

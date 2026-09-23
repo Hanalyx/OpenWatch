@@ -63,6 +63,13 @@ func RevokeRefreshToken(ctx context.Context, pool DBTX, token string) error {
 //
 // Spec AC-12.
 func IssueRefreshToken(ctx context.Context, pool DBTX, userID uuid.UUID, absoluteExpiresAt time.Time) (token string, err error) {
+	return IssueRefreshTokenForSession(ctx, pool, userID, uuid.Nil, absoluteExpiresAt)
+}
+
+// IssueRefreshTokenForSession is IssueRefreshToken bound to the session
+// that issued it, so revoking that session ends the lineage and the
+// access tokens minted from it. Spec C-38.
+func IssueRefreshTokenForSession(ctx context.Context, pool DBTX, userID, sessionID uuid.UUID, absoluteExpiresAt time.Time) (token string, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("identity: refresh entropy: %w", err)
@@ -75,10 +82,11 @@ func IssueRefreshToken(ctx context.Context, pool DBTX, userID uuid.UUID, absolut
 		return "", fmt.Errorf("identity: uuid: %w", err)
 	}
 	const stmt = `
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at)
-		VALUES ($1, $2, $3, $4, $5)`
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at, session_id)
+		VALUES ($1, $2, $3, $4, $5, $6)`
 	if _, err := pool.Exec(ctx, stmt, id, userID, hash[:],
-		time.Now().UTC().Add(RefreshTokenWindow), nullableTime(absoluteExpiresAt)); err != nil {
+		time.Now().UTC().Add(RefreshTokenWindow), nullableTime(absoluteExpiresAt),
+		nullableUUID(sessionID)); err != nil {
 		return "", fmt.Errorf("identity: insert refresh: %w", err)
 	}
 	return token, nil
@@ -86,6 +94,13 @@ func IssueRefreshToken(ctx context.Context, pool DBTX, userID uuid.UUID, absolut
 
 // nullableTime returns nil for the zero time (stored as SQL NULL) or the time
 // otherwise — so a missing absolute deadline is recorded honestly as "none".
+func nullableUUID(id uuid.UUID) any {
+	if id == uuid.Nil {
+		return nil
+	}
+	return id
+}
+
 func nullableTime(t time.Time) any {
 	if t.IsZero() {
 		return nil
@@ -105,6 +120,13 @@ type TokenPair struct {
 	// stamps it onto the re-minted session so the absolute ceiling is preserved
 	// across refreshes rather than reset.
 	AbsoluteExpiresAt time.Time
+	// SessionID is the session this lineage is bound to, Nil for a
+	// legacy chain minted before session binding existed.
+	SessionID uuid.UUID
+	// NewRefreshID identifies the row just written, so a caller that
+	// mints a NEW session for this refresh can rebind the row to it
+	// inside the same transaction.
+	NewRefreshID uuid.UUID
 }
 
 // RefreshOutcome classifies what a rotation attempt found. The zero
@@ -177,12 +199,13 @@ func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (
 		absoluteExp *time.Time
 		rotatedTo   *uuid.UUID
 		revokedAt   *time.Time
+		sessionID   *uuid.UUID
 	)
 	err := tx.QueryRow(ctx, `
-		SELECT id, user_id, expires_at, absolute_expires_at, rotated_to_id, revoked_at
+		SELECT id, user_id, expires_at, absolute_expires_at, rotated_to_id, revoked_at, session_id
 		FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
 		hash[:],
-	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt)
+	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt, &sessionID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RefreshNotFound, nil, nil
@@ -226,9 +249,9 @@ func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (
 	}
 	// Carry the original absolute deadline UNCHANGED onto the rotated row.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at)
-		VALUES ($1, $2, $3, $4, $5)`,
-		newID, userID, newHash[:], time.Now().UTC().Add(RefreshTokenWindow), absoluteExp,
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, absolute_expires_at, session_id)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		newID, userID, newHash[:], time.Now().UTC().Add(RefreshTokenWindow), absoluteExp, sessionID,
 	); err != nil {
 		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: insert rotated refresh: %w", err)
 	}
@@ -239,11 +262,15 @@ func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (
 		return RefreshOutcomeUnknown, nil, fmt.Errorf("identity: mark rotation: %w", err)
 	}
 
-	access, claims, err := IssueJWT(userID, role)
+	boundSession := uuid.Nil
+	if sessionID != nil {
+		boundSession = *sessionID
+	}
+	access, claims, err := IssueJWTForSession(userID, role, boundSession)
 	if err != nil {
 		return RefreshOutcomeUnknown, nil, err
 	}
-	pair := &TokenPair{AccessToken: access, RefreshToken: newPres, Claims: claims}
+	pair := &TokenPair{AccessToken: access, RefreshToken: newPres, Claims: claims, SessionID: boundSession, NewRefreshID: newID}
 	if absoluteExp != nil {
 		pair.AbsoluteExpiresAt = *absoluteExp
 	}
@@ -301,4 +328,20 @@ func UserIDForRefreshToken(ctx context.Context, db DBTX, token string) (uuid.UUI
 		return uuid.Nil, fmt.Errorf("identity: refresh owner lookup: %w", err)
 	}
 	return userID, nil
+}
+
+// RebindRefreshToSession points a refresh row at a different session.
+// The cookie-refresh path mints a NEW session on every rotation, so the
+// row it just created must follow, or the lineage would stay bound to a
+// session that no longer backs it. Runs in the caller's transaction.
+// Spec C-38.
+func RebindRefreshToSession(ctx context.Context, db DBTX, refreshID, sessionID uuid.UUID) error {
+	if refreshID == uuid.Nil || sessionID == uuid.Nil {
+		return nil
+	}
+	if _, err := db.Exec(ctx,
+		`UPDATE refresh_tokens SET session_id = $1 WHERE id = $2`, sessionID, refreshID); err != nil {
+		return fmt.Errorf("identity: rebind refresh to session: %w", err)
+	}
+	return nil
 }

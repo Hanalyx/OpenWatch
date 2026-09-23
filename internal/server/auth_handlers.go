@@ -177,13 +177,13 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 			return err2
 		}
 		role, _ = h.users.PrimaryRoleFor(ctx, u.ID)
-		access, _, err2 = identity.IssueJWT(u.ID, string(role))
+		access, _, err2 = identity.IssueJWTForSession(u.ID, string(role), sess.ID)
 		if err2 != nil {
 			return err2
 		}
 		// AUTH-1 (b): anchor the refresh lineage to the session's absolute
 		// deadline so refreshing cannot extend past the absolute timeout.
-		refresh, err2 = identity.IssueRefreshToken(ctx, tx, u.ID, sess.AbsoluteExpiresAt)
+		refresh, err2 = identity.IssueRefreshTokenForSession(ctx, tx, u.ID, sess.ID, sess.AbsoluteExpiresAt)
 		return err2
 	})
 	switch {
@@ -479,7 +479,10 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 	// pair.Claims was empty because we passed "" above; that's the
 	// contract). This is a pure computation over an already-committed
 	// rotation, so it stays outside the transaction.
-	access, _, err := identity.IssueJWT(res.userID, string(res.role))
+	// Preserve the session binding the rotation established. Re-minting
+	// with IssueJWT would drop `sid` and hand back an unbound token,
+	// which the binder refuses. Spec C-38.
+	access, _, err := identity.IssueJWTForSession(res.userID, string(res.role), res.pair.SessionID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"jwt issue failed", true)
@@ -509,13 +512,20 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		// the absolute ceiling (AUTH-1 b). Legacy tokens with no carried
 		// deadline fall back to a fresh window until they age out.
 		var err error
+		var newSess identity.Session
 		if res.pair.AbsoluteExpiresAt.IsZero() {
-			res.newToken, _, err = identity.IssueSession(ctx, tx, res.userID, r.RemoteAddr, r.UserAgent())
+			res.newToken, newSess, err = identity.IssueSession(ctx, tx, res.userID, r.RemoteAddr, r.UserAgent())
 		} else {
-			res.newToken, _, err = identity.IssueSessionWithAbsolute(ctx, tx, res.userID,
+			res.newToken, newSess, err = identity.IssueSessionWithAbsolute(ctx, tx, res.userID,
 				r.RemoteAddr, r.UserAgent(), res.pair.AbsoluteExpiresAt)
 		}
-		return err
+		newSessionID := newSess.ID
+		if err != nil {
+			return err
+		}
+		// The rotation carried the OLD session id onto the new row. This
+		// path just minted a new session, so the row must follow it.
+		return identity.RebindRefreshToSession(ctx, tx, res.pair.NewRefreshID, newSessionID)
 	})
 	if txErr != nil {
 		writeRefreshTxError(w, txErr)

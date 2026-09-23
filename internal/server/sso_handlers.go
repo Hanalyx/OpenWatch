@@ -252,7 +252,10 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 	// AUTH-1 (b): anchor the refresh lineage to the session absolute deadline.
-	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, result.UserID, ssoSess.AbsoluteExpiresAt)
+	// Bind the lineage to the session this callback just minted, like
+	// every other issuance path. An unbound chain would mint access
+	// tokens the binder refuses. Spec C-38.
+	refresh, err := identity.IssueRefreshTokenForSession(r.Context(), h.pool, result.UserID, ssoSess.ID, ssoSess.AbsoluteExpiresAt)
 	if err != nil {
 		http.Redirect(w, r, "/login?sso_error=session", http.StatusFound)
 		return

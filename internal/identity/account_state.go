@@ -137,3 +137,76 @@ func ReadAuthInputs(ctx context.Context, q DBTX, userID uuid.UUID) (AuthInputs, 
 	}
 	return in, nil
 }
+
+// SessionLiveness is the result of checking the session behind a
+// session-bound access token. The zero value is SessionBindingUnknown
+// and authorizes nothing. Spec C-38.
+type SessionLiveness int
+
+const (
+	// SessionBindingUnknown is the zero value and authorizes nothing.
+	SessionBindingUnknown SessionLiveness = iota
+	// SessionBindingLive: the session exists and is usable.
+	SessionBindingLive
+	// SessionBindingRevoked: the session was revoked.
+	SessionBindingRevoked
+	// SessionBindingExpired: the session passed a deadline.
+	SessionBindingExpired
+	// SessionBindingMissing: no such session row.
+	SessionBindingMissing
+	// SessionBindingAbsent: the token carries no session id at all.
+	SessionBindingAbsent
+)
+
+// Reason is the audit reason recorded when this result refuses a token.
+func (s SessionLiveness) Reason() string {
+	switch s {
+	case SessionBindingLive:
+		return ""
+	case SessionBindingRevoked:
+		return "session_revoked"
+	case SessionBindingExpired:
+		return "session_expired"
+	case SessionBindingMissing:
+		return "session_not_found"
+	case SessionBindingAbsent:
+		return "access_token_unbound"
+	default:
+		return "session_binding_unknown"
+	}
+}
+
+// OK reports whether the bound session permits the token to authenticate.
+func (s SessionLiveness) OK() bool { return s == SessionBindingLive }
+
+// CheckSessionBinding reads the session an access token names and
+// reports whether it still permits authentication.
+//
+// It deliberately does NOT slide the idle window. A Bearer request is
+// not evidence of user activity in a browser session, and sliding here
+// would let a background caller keep a session alive indefinitely.
+// Spec C-29, C-38.
+func CheckSessionBinding(ctx context.Context, q DBTX, sessionID uuid.UUID) (SessionLiveness, error) {
+	if sessionID == uuid.Nil {
+		return SessionBindingAbsent, nil
+	}
+	var revokedAt *time.Time
+	var expiresAt, absoluteExpiresAt time.Time
+	err := q.QueryRow(ctx,
+		`SELECT revoked_at, expires_at, absolute_expires_at FROM sessions WHERE id = $1`,
+		sessionID).Scan(&revokedAt, &expiresAt, &absoluteExpiresAt)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return SessionBindingMissing, nil
+	case err != nil:
+		return SessionBindingUnknown, fmt.Errorf("%w: %v", ErrAccountStateUnavailable, err)
+	}
+	if revokedAt != nil {
+		return SessionBindingRevoked, nil
+	}
+	now := time.Now().UTC()
+	if now.After(expiresAt) || now.After(absoluteExpiresAt) {
+		return SessionBindingExpired, nil
+	}
+	return SessionBindingLive, nil
+}

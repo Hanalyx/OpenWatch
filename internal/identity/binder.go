@@ -305,6 +305,27 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			}
 			return anon(), reason
 		}
+		// Session binding. A signed token is otherwise an independent
+		// bearer credential that outlives everything but its own expiry,
+		// which is why an administrative password reset left one
+		// working: the account stays enabled, so the account-state check
+		// above cannot reach it. Spec C-38.
+		sid, serr := uuid.Parse(claims.SessionID)
+		if claims.SessionID == "" {
+			// Unbound token. Refused rather than trusted: after the
+			// migration no legitimate interactive token lacks a `sid`.
+			return anon(), "access_token_unbound"
+		}
+		if serr != nil {
+			return anon(), "invalid_jwt_session"
+		}
+		live, lerr := CheckSessionBinding(ctx, pool, sid)
+		if lerr != nil {
+			return anon(), reasonStateUnavailable
+		}
+		if !live.OK() {
+			return anon(), live.Reason()
+		}
 		// The role baked into the JWT is the contract. RBAC middleware
 		// downstream re-evaluates whether that role actually grants the
 		// request's required permission — so a stale role still gets

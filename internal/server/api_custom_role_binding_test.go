@@ -144,7 +144,13 @@ func TestRBAC_CustomRoleGrantsItsPermissionsAtBindTime(t *testing.T) {
 		// user_roles and api_tokens rows are FK-restricted, so a deleted role
 		// can only be met through a stale JWT claim. The credential is valid,
 		// the role resolves to nothing, and the answer is 403, not 401.
-		jwtTok, _, err := identity.IssueJWT(uid, "host_reader")
+		// Bound to a live session: an unbound access token is refused
+		// outright (C-38), which would mask what this case is about.
+		_, jwtSess, err := identity.IssueSession(context.Background(), pool, uid, "127.0.0.1", "go-test")
+		if err != nil {
+			t.Fatalf("issue session for jwt: %v", err)
+		}
+		jwtTok, _, err := identity.IssueJWTForSession(uid, "host_reader", jwtSess.ID)
 		if err != nil {
 			t.Fatalf("issue jwt: %v", err)
 		}

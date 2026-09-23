@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 1
 
@@ -251,6 +251,23 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-38
+      description: >
+        An access token MUST be bound to the session that issued it. The token
+        carries that session's id as a `sid` claim, the refresh lineage carries
+        it in refresh_tokens.session_id, and the binder MUST refuse a token
+        whose bound session is revoked, expired or absent, and MUST refuse a
+        token that carries no binding at all. Without this an access token is
+        an independent bearer credential that outlives everything except its
+        own expiry, which is why an administrative password reset left one
+        working: the account stays enabled, so no account-state check reaches
+        it. The binding check MUST NOT slide the session's idle window,
+        because a Bearer request is not evidence of user activity and sliding
+        would let a background caller keep a session alive indefinitely.
+        Credentials minted before this rule exists carry no binding and cannot
+        be evaluated against it, so the migration that introduces it MUST
+        revoke every live interactive session and refresh token rather than
+        leave the guarantee silently false for up to seven days.
     - id: C-39
       description: >
         Every authentication input MUST be revalidated under the per-user lock,
@@ -652,6 +669,76 @@ spec:
           - "A retry of an unknown commit outcome"
           - "More than three attempts"
           - "A response claiming success or failure after an unknown commit"
+    - id: AC-43
+      description: >
+        An access token stops authenticating when the session that issued it
+        is revoked, while the account itself stays enabled and undeleted. This
+        is the administrative-reset case: no account-state check can reach a
+        token whose account is still active, so only the binding can.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "A login-issued access token and its live session; the account is enabled"
+        operation: "Revoke the session, then present the same access token"
+        variants: ["Session revoked directly", "Revoked via AdminResetPassword"]
+        method: >
+          The token is captured before the revocation and replayed after it in
+          one request. The account state never changes, so an account-state
+          check cannot produce the refusal. No concurrency, no elapsed time.
+      expected_output:
+        per_variant:
+          Session revoked directly: {status: 401}
+          Revoked via AdminResetPassword: {status: 401}
+        account_state_unchanged: true
+        prohibited_changes:
+          - "The pre-revocation access token authenticating any request"
+          - "A refusal produced by the account being disabled or deleted"
+    - id: AC-44
+      description: >
+        An access token carrying no session binding is refused, and every
+        interactive issuance path produces a bound one. An unbound token is
+        not trusted as a legacy credential: after the migration no legitimate
+        interactive token lacks a binding.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "An enabled account with a live session"
+        operation: "Present an unbound token; separately, inspect what each issuance path mints"
+        variants: ["Unbound token presented", "Password login", "Body refresh rotation"]
+        method: >
+          The unbound token is minted through the explicit unbound helper, so
+          it is cryptographically valid and differs from a bound one only in
+          the claim. One request per variant.
+      expected_output:
+        per_variant:
+          Unbound token presented: {status: 401, audit_reason: access_token_unbound}
+          Password login: {token_carries_sid: true, refresh_row_carries_session_id: true}
+          Body refresh rotation: {token_carries_sid: true, binding_preserved: true}
+        prohibited_changes:
+          - "An unbound token authenticating"
+          - "An issuance path minting a token the binder would refuse"
+    - id: AC-45
+      description: >
+        The migration that introduces session binding revokes every live
+        interactive credential, and leaves service-account tokens alone.
+        Nothing minted before the rule survives it.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "Live sessions and refresh tokens written before the migration, plus one api_tokens row"
+        operation: "Run the migration"
+        method: >
+          The pre-migration rows are inserted directly against a database at
+          the prior migration version, then the migration runs. Deterministic:
+          no timing and no concurrency.
+      expected_output:
+        durable_changes:
+          - "Every pre-existing session revoked"
+          - "Every pre-existing refresh token revoked"
+        service_tokens_revoked: 0
+        prohibited_changes:
+          - "A pre-migration credential authenticating afterwards"
+          - "api_tokens modified by the migration"
     - id: AC-46
       description: >
         Login refuses to issue when the password changed between verification

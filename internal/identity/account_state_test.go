@@ -113,7 +113,14 @@ func TestBinder_BearerArmEnforcesAccountState(t *testing.T) {
 		if err := SetEphemeralJWTKey(); err != nil {
 			t.Fatalf("jwt key: %v", err)
 		}
-		jwtToken, _, err := IssueJWT(uid, string(auth.RoleAdmin))
+		// Bound to a live session, so the only thing varying below is
+		// account state. An unbound token is refused for a different
+		// reason entirely (C-38).
+		_, sess, err := IssueSession(context.Background(), pool, uid, "127.0.0.1", "go-test")
+		if err != nil {
+			t.Fatalf("issue session: %v", err)
+		}
+		jwtToken, _, err := IssueJWTForSession(uid, string(auth.RoleAdmin), sess.ID)
 		if err != nil {
 			t.Fatalf("issue jwt: %v", err)
 		}
