@@ -39,7 +39,11 @@ var (
 	// ErrStateNotFound — the callback `state` is unknown or already consumed.
 	ErrStateNotFound = errors.New("sso: auth state not found")
 	// ErrStateExpired — the login round-trip took too long.
-	ErrStateExpired = errors.New("sso: auth state expired")
+	// ErrAccountNotActive reports that a federated identity resolved to a
+	// local account that may not sign in: disabled, or soft-deleted.
+	// bugs/OW-073.
+	ErrAccountNotActive = errors.New("sso: account may not sign in")
+	ErrStateExpired     = errors.New("sso: auth state expired")
 	// ErrTokenValidation — ID-token signature/claims validation failed.
 	ErrTokenValidation = errors.New("sso: id token validation failed")
 	// ErrDiscovery — OIDC discovery or a downstream IdP call failed.
@@ -114,4 +118,41 @@ type Claims struct {
 	EmailVerified     bool
 	PreferredUsername string
 	Name              string
+}
+
+// AccountState is the local account state behind a federated identity.
+// The zero value is AccountStateUnknown and permits nothing, so a caller
+// that forgets a branch cannot sign somebody in.
+//
+// Spec system-auth-identity C-31.
+type AccountState int
+
+const (
+	// AccountStateUnknown is the zero value and permits no sign-in.
+	AccountStateUnknown AccountState = iota
+	// AccountStateActive may sign in.
+	AccountStateActive
+	// AccountStateDisabled was disabled by an administrator.
+	AccountStateDisabled
+	// AccountStateDeleted was soft-deleted.
+	AccountStateDeleted
+)
+
+// MaySignIn reports whether this state permits a federated sign-in.
+func (a AccountState) MaySignIn() bool { return a == AccountStateActive }
+
+// String names the state for an audit reason. Deliberately terse: the
+// value reaches a log, never a sign-in page, because telling an
+// anonymous caller which accounts are disabled is an oracle.
+func (a AccountState) String() string {
+	switch a {
+	case AccountStateActive:
+		return "active"
+	case AccountStateDisabled:
+		return "account_disabled"
+	case AccountStateDeleted:
+		return "account_deleted"
+	default:
+		return "account_state_unknown"
+	}
 }

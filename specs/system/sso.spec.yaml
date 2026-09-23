@@ -1,7 +1,7 @@
 spec:
   id: system-sso
   title: Single sign-on (OIDC) — provider store + authorization-code flow
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -81,6 +81,25 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-05
+      description: >
+        Federated identity resolution MUST consult the local account's state.
+        A subject whose link resolves to a disabled or soft-deleted user MUST
+        NOT sign in, MUST receive no session and no refresh token, and MUST
+        NOT be recorded as a successful login. The federation link survives
+        both operations (soft delete is an UPDATE, so the ON DELETE CASCADE
+        on sso_identities never fires), so without this check the two controls
+        an operator uses to end access do not hold on this path. Resolution
+        MUST distinguish "this subject is unknown" from "this subject belongs
+        to an account that may not sign in": filtering the state out of the
+        lookup would report no link and provision a SECOND user for a subject
+        that already has one. Issuance MUST additionally revalidate account
+        state under the per-user lock, because a disable committing between
+        resolution and issuance would otherwise produce a session that nothing
+        later revokes.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: Create persists a provider with the client secret encrypted (the stored client_secret_enc is not the plaintext bytes); List/Get return the metadata with no secret field; Create rejects a non-https issuer and a missing name/client_id/client_secret with ErrInvalidParams.
@@ -114,3 +133,55 @@ spec:
       description: users.CreateFederatedUser creates an active user with the given role assigned and a password hash that is NOT the empty string and cannot be produced from a known password (random entropy); it surfaces a uniqueness collision as an error rather than merging.
       priority: high
       references_constraints: [C-04]
+    - id: AC-09
+      description: >
+        A federated sign-in for a disabled or soft-deleted account is refused:
+        no session row, no refresh row, no cookies, and no success audit. An
+        active account is unaffected. The federation link is left in place, so
+        re-enabling the account restores sign-in without re-provisioning.
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        initial_state: >
+          An existing federation link created by an earlier successful sign-in
+          while the account was active
+        operation: "Complete the real SSO callback for that federated subject"
+        variants: ["Disabled", "Soft-deleted", "Active control"]
+        method: >
+          A controlled test identity provider signs an ID token for a fixed
+          subject; the state and nonce come from the server's own
+          sso_auth_states row, so state, nonce, issuer, audience and signature
+          validation all run unchanged. The account transition is applied
+          through the real users service between two sign-ins. Only the
+          outbound HTTP transport is substituted, because the shipped client's
+          SSRF guard blocks loopback by design and that guard is left alone.
+          No concurrency and no elapsed-time dependence.
+      expected_output:
+        per_variant:
+          Disabled: {session_cookie_issued: false, refresh_cookie_issued: false, sessions_written: 0, refresh_written: 0}
+          Soft-deleted: {session_cookie_issued: false, refresh_cookie_issued: false, sessions_written: 0, refresh_written: 0}
+          Active control: {session_cookie_issued: true, refresh_cookie_issued: true, authenticates: true}
+        audit: "No auth.login.success for a refused account"
+        prohibited_changes:
+          - "A session or refresh row written for a disabled or soft-deleted account"
+          - "An auth.login.success recorded for a refused sign-in"
+          - "A second local user provisioned for a subject that already has one"
+    - id: AC-10
+      description: >
+        SSO issuance revalidates account state under the per-user lock. A
+        disable committed while the callback waits on that lock is observed,
+        and nothing is issued.
+      priority: critical
+      references_constraints: [C-05]
+      inputs:
+        initial_state: "An active account with an existing federation link"
+        concurrent_ordering: "Disable commits while the callback is blocked on the user lock"
+        method: >
+          The disabling transaction holds the user row; the callback blocks on
+          it; the disable commits and releases. If the callback had not yet
+          reached the lock it still observes the committed disable, so the
+          assertion holds either way and cannot flake into a false pass.
+      expected_output:
+        response: "Redirect to /login with an error"
+        durable_changes: []
+        prohibited_changes: ["A session or refresh token issued for the disabled account"]

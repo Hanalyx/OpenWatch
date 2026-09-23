@@ -228,19 +228,45 @@ func (s *Service) consumeAuthState(ctx context.Context, state string) (AuthState
 // linkedUser returns the local user id for a (provider, subject) pair, or
 // false if no link exists yet. Stamps last_login_at on a hit.
 func (s *Service) linkedUser(ctx context.Context, providerID uuid.UUID, subject string) (uuid.UUID, bool, error) {
+	uid, found, _, err := s.linkedUserState(ctx, providerID, subject)
+	return uid, found, err
+}
+
+// linkedUserState resolves a federated subject to its local user AND
+// that user's account state, in one statement.
+//
+// The two are returned together on purpose. Filtering the disabled and
+// deleted rows out of this query instead would report "no link", and
+// HandleCallback would fall through to PROVISIONING a new user for a
+// subject that already has one. The caller needs to tell "this subject
+// is unknown" from "this subject belongs to an account that may not
+// sign in", because those have opposite correct responses.
+//
+// Spec system-sso C-09, system-auth-identity C-31.
+func (s *Service) linkedUserState(ctx context.Context, providerID uuid.UUID, subject string) (uuid.UUID, bool, AccountState, error) {
 	const stmt = `
-		UPDATE sso_identities SET last_login_at = now()
-		WHERE provider_id = $1 AND subject = $2
-		RETURNING user_id`
-	var uid uuid.UUID
-	err := s.pool.QueryRow(ctx, stmt, providerID, subject).Scan(&uid)
+		UPDATE sso_identities si SET last_login_at = now()
+		FROM users u
+		WHERE si.provider_id = $1 AND si.subject = $2 AND u.id = si.user_id
+		RETURNING si.user_id, u.disabled_at IS NOT NULL, u.deleted_at IS NOT NULL`
+	var (
+		uid               uuid.UUID
+		disabled, deleted bool
+	)
+	err := s.pool.QueryRow(ctx, stmt, providerID, subject).Scan(&uid, &disabled, &deleted)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, false, nil
+		return uuid.Nil, false, AccountStateUnknown, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, fmt.Errorf("sso: linked user: %w", err)
+		return uuid.Nil, false, AccountStateUnknown, fmt.Errorf("sso: linked user: %w", err)
 	}
-	return uid, true, nil
+	switch {
+	case deleted:
+		return uid, true, AccountStateDeleted, nil
+	case disabled:
+		return uid, true, AccountStateDisabled, nil
+	}
+	return uid, true, AccountStateActive, nil
 }
 
 // link records a new federation mapping after provisioning.

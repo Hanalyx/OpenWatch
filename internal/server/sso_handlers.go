@@ -13,6 +13,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/sso"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 )
 
@@ -245,19 +246,50 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 	}
 
 	// Mint the session + refresh cookies (the session cookie is the
-	// credential; no JSON body on a redirect). Mirrors PostAuthLogin.
-	sessionToken, ssoSess, err := identity.IssueSession(r.Context(), h.pool, result.UserID, r.RemoteAddr, r.UserAgent())
-	if err != nil {
+	// credential; no JSON body on a redirect). Mirrors PostAuthLogin:
+	// ONE transaction, the per-user lock first, account state
+	// revalidated under it, then issuance. Without the lock a disable
+	// committing between resolution and issuance is lost, and the
+	// session it races is never revoked by anything. Spec C-34.
+	var (
+		sessionToken string
+		refresh      string
+		ssoSess      identity.Session
+		ssoRefused   bool
+	)
+	txErr := identity.RunSerialized(r.Context(), h.pool, result.UserID, func(ctx context.Context, tx pgx.Tx) error {
+		// Reset per attempt: RunSerialized may restart the transaction.
+		sessionToken, refresh, ssoRefused = "", "", false
+		ssoSess = identity.Session{}
+
+		status, err := identity.ReadAccountStatus(ctx, tx, result.UserID)
+		if err != nil {
+			return err
+		}
+		if !status.MayAuthenticate() {
+			ssoRefused = true
+			return nil
+		}
+		var err2 error
+		sessionToken, ssoSess, err2 = identity.IssueSession(ctx, tx, result.UserID, r.RemoteAddr, r.UserAgent())
+		if err2 != nil {
+			return err2
+		}
+		// AUTH-1 (b): anchor the refresh lineage to the session absolute
+		// deadline, and bind it to the session this callback minted, like
+		// every other issuance path. Spec C-38.
+		refresh, err2 = identity.IssueRefreshTokenForSession(ctx, tx, result.UserID, ssoSess.ID, ssoSess.AbsoluteExpiresAt)
+		return err2
+	})
+	if txErr != nil {
 		http.Redirect(w, r, "/login?sso_error=session", http.StatusFound)
 		return
 	}
-	// AUTH-1 (b): anchor the refresh lineage to the session absolute deadline.
-	// Bind the lineage to the session this callback just minted, like
-	// every other issuance path. An unbound chain would mint access
-	// tokens the binder refuses. Spec C-38.
-	refresh, err := identity.IssueRefreshTokenForSession(r.Context(), h.pool, result.UserID, ssoSess.ID, ssoSess.AbsoluteExpiresAt)
-	if err != nil {
-		http.Redirect(w, r, "/login?sso_error=session", http.StatusFound)
+	if ssoRefused {
+		// The account was disabled or deleted between resolution and
+		// issuance. Nothing was written.
+		emitLoginFailure(r, "sso_account_not_active", "")
+		http.Redirect(w, r, "/login?sso_error=signin", http.StatusFound)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -333,6 +365,8 @@ func ssoFailureReason(err error) string {
 		return "sso_token_invalid"
 	case errors.Is(err, sso.ErrDiscovery):
 		return "sso_discovery_failed"
+	case errors.Is(err, sso.ErrAccountNotActive):
+		return "sso_account_not_active"
 	default:
 		return "sso_signin_failed"
 	}
