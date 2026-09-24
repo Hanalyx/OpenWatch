@@ -71,6 +71,10 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 	if req.Otp != nil {
 		otp = *req.Otp
 	}
+	// Answer the "you need an OTP" case before the transaction so the
+	// client gets it without a lock round trip. The AUTHORITATIVE
+	// enrollment read happens under the lock below, because this one can
+	// be stale by the time anything is issued.
 	if enrolled && otp == "" {
 		emitLoginFailure(r, "mfa_required", req.Username)
 		writeError(w, http.StatusUnauthorized, "auth.mfa_required", "client",
@@ -104,7 +108,7 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		role         auth.RoleID
 		loginRefused string
 	)
-	txErr := identity.RunSerialized(r.Context(), h.pool, u.ID, func(ctx context.Context, tx pgx.Tx) error {
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), u.ID, func(ctx context.Context, tx pgx.Tx) error {
 		// Reset per attempt: RunSerialized may restart the whole
 		// transaction, and a value carried over from a rolled-back
 		// attempt would be reported as if it were durable.
@@ -123,10 +127,38 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 			loginRefused = status.Reason()
 			return nil
 		}
+		// Account state is not the only stale input. The password was
+		// verified BEFORE this transaction and MFA enrollment was read
+		// before it too, and both can change in between. Re-read them
+		// under the lock and let the locked values decide. Spec C-39.
+		inputs, err := identity.ReadAuthInputs(ctx, tx, u.ID)
+		if err != nil {
+			return err
+		}
+		// An administrative reset (or a self-service change) that commits
+		// between the password check and here invalidates the credential
+		// this request presented. Issuing now would hand out fresh
+		// credentials on the strength of a password that no longer opens
+		// the account. last_password_change_at is bumped by the only
+		// statement that writes password_hash, so a change is always
+		// visible here.
+		if !inputs.PasswordUnchangedSince(u.LastPasswordChangeAt) {
+			loginRefused = "password_changed_during_login"
+			return nil
+		}
+		// The locked enrollment value is authoritative in BOTH
+		// directions. Enrollment completing mid-login must not let a
+		// login through without an OTP; enrollment being removed
+		// mid-login must not fail a login on an OTP that no longer has a
+		// secret to verify against.
+		if inputs.MFAEnrolled && otp == "" {
+			loginRefused = "mfa_required_during_login"
+			return nil
+		}
 		// The OTP is consumed HERE, inside the issuing transaction. On the
 		// pool it would be burned by a later issuance failure and the user
 		// could not retry with the code still on their screen. Spec C-35.
-		if enrolled {
+		if inputs.MFAEnrolled {
 			if err := identity.VerifyMFA(ctx, tx, u.ID, otp); err != nil {
 				loginRefused = "mfa_invalid"
 				return nil
@@ -149,10 +181,12 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 	})
 	switch {
 	case errors.Is(txErr, identity.ErrCommitUnknown):
-		// Neither result is asserted. A session may or may not exist.
-		// Spec C-37.
+		// Neither result is asserted: a session may or may not exist.
+		// NOT retryable, and the message says nothing about retrying. An
+		// automatic replay could issue a second set of credentials for a
+		// first set that already committed. Spec C-37, C-40.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"the sign-in could not be confirmed; please retry", true)
+			"the sign-in outcome is unknown; sign in again to obtain a known credential", false)
 		return
 	case txErr != nil:
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
@@ -161,6 +195,13 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if loginRefused != "" {
 		emitLoginFailure(r, loginRefused, req.Username)
+		if loginRefused == "mfa_required_during_login" {
+			// Enrollment completed while this login was in flight. Same
+			// answer as the pre-transaction case: the client needs an OTP.
+			writeError(w, http.StatusUnauthorized, "auth.mfa_required", "client",
+				"MFA OTP is required for this user", false)
+			return
+		}
 		if loginRefused == "mfa_invalid" {
 			emitAudit(r, audit.AuthMfaFailed, u.ID.String(), map[string]any{
 				"reason": "otp_invalid_or_replayed",
@@ -336,7 +377,7 @@ func (h *handlers) runSerializedRefresh(
 		}
 		return res, err
 	}
-	txErr := identity.RunSerialized(r.Context(), h.pool, owner, func(ctx context.Context, tx pgx.Tx) error {
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), owner, func(ctx context.Context, tx pgx.Tx) error {
 		// Reset per attempt: RunSerialized may restart the transaction
 		// and a value from a rolled-back attempt is not durable.
 		res = refreshResult{}
@@ -375,8 +416,13 @@ func (h *handlers) runSerializedRefresh(
 // An unknown commit outcome asserts neither result. Spec C-37.
 func writeRefreshTxError(w http.ResponseWriter, err error) {
 	if errors.Is(err, identity.ErrCommitUnknown) {
+		// The rotation may ALREADY have committed. Presenting the
+		// predecessor again is indistinguishable from theft and revokes
+		// the whole family, so this outcome must not invite a retry:
+		// retryable is false and the message tells the client to
+		// re-authenticate rather than replay. Spec C-37, C-40.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"the refresh could not be confirmed; please retry", true)
+			"the refresh outcome is unknown; sign in again rather than presenting the same token", false)
 		return
 	}
 	writeError(w, http.StatusServiceUnavailable, "server.error", "server",
@@ -592,7 +638,17 @@ func (h *handlers) PostAuthMFAEnroll(w http.ResponseWriter, r *http.Request) {
 			"identity user not found", false)
 		return
 	}
-	uri, err := identity.EnrollMFA(r.Context(), h.pool, userID, u.Username)
+	// Under the per-user lock, so enrollment serializes against an
+	// in-flight login. Login re-reads enrollment under the same lock and
+	// lets the locked value decide; without taking it here the two could
+	// interleave so that a login observes neither the old state nor the
+	// new one consistently. Spec C-34, C-39.
+	var uri string
+	err = identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
+		var ierr error
+		uri, ierr = identity.EnrollMFA(ctx, tx, userID, u.Username)
+		return ierr
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"mfa enroll failed", true)
@@ -619,7 +675,12 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID, _ := uuid.Parse(id.ID)
-	if err := identity.VerifyMFA(r.Context(), h.pool, userID, req.Otp); err != nil {
+	// Under the per-user lock: this call is what CONFIRMS enrollment (it
+	// stamps last_verified_at), so it is the mutation a concurrent login
+	// must not straddle. Spec C-34, C-39.
+	if err := identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
+		return identity.VerifyMFA(ctx, tx, userID, req.Otp)
+	}); err != nil {
 		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
 		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
 			"OTP invalid or replayed", false)

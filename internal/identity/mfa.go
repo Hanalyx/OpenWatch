@@ -9,7 +9,6 @@ import (
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )
@@ -50,7 +49,7 @@ func SetEphemeralMFAKey() error { return secretkey.SetEphemeral() }
 // provisioning URI for an authenticator app.
 //
 // Spec AC-14, C-09.
-func EnrollMFA(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, username string) (provisioningURI string, err error) {
+func EnrollMFA(ctx context.Context, pool DBTX, userID uuid.UUID, username string) (provisioningURI string, err error) {
 	dek, err := secretkey.Active()
 	if err != nil {
 		return "", err

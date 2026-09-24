@@ -35,11 +35,17 @@ var ErrCommitUnknown = errors.New("identity: commit outcome unknown")
 // same race. It is a server-side failure, not a rejected request.
 var ErrSerializationExhausted = errors.New("identity: serialization attempts exhausted")
 
-// txBeginner is the subset of *pgxpool.Pool that RunSerialized needs.
-// Narrow on purpose: tests inject a beginner whose transactions fail
-// with chosen SQLSTATEs, so attempt counts are asserted exactly rather
-// than provoked by real contention. Spec C-37.
-type txBeginner interface {
+// TxBeginner is the subset of *pgxpool.Pool that RunSerialized needs.
+//
+// It is exported because C-37's rules about commit outcomes are only
+// testable if a caller can substitute the transaction source. An
+// indeterminate commit cannot be provoked from SQL: a constraint
+// violation or a trigger failure carries a SQLSTATE and is therefore
+// determinate, which is precisely the case C-37 distinguishes it from.
+// Without this seam the unknown-commit branch would be unreachable by
+// any test, and an unreachable error path is how this class of defect
+// survives review.
+type TxBeginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
@@ -80,7 +86,7 @@ func commitIsIndeterminate(err error) bool {
 // statement inside it cannot work. The loop stops early when the request
 // deadline has passed, so a retry never outlives the caller's context.
 // Spec C-37.
-func RunSerialized(ctx context.Context, db txBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) error {
+func RunSerialized(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) error {
 	var lastErr error
 	for attempt := 1; attempt <= MaxSerializedAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -111,7 +117,7 @@ func RunSerialized(ctx context.Context, db txBeginner, userID uuid.UUID, fn func
 	return fmt.Errorf("%w after %d attempts: %v", ErrSerializationExhausted, MaxSerializedAttempts, lastErr)
 }
 
-func runSerializedOnce(ctx context.Context, db txBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) (err error) {
+func runSerializedOnce(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) (err error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("identity: begin: %w", err)

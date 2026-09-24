@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -83,4 +84,56 @@ func ReadAccountStatus(ctx context.Context, q DBTX, userID uuid.UUID) (AccountSt
 		return AccountDisabled, nil
 	}
 	return AccountActive, nil
+}
+
+// AuthInputs is the set of authentication inputs a login verified
+// BEFORE it took the per-user lock, re-read under that lock so the
+// locked values decide.
+//
+// Account state is not the only thing that can go stale between
+// verifying a credential and issuing one. The password can be reset, and
+// MFA enrollment can complete. Spec C-39.
+type AuthInputs struct {
+	// LastPasswordChangeAt is the credential version. The only statement
+	// that writes password_hash also bumps this column, so a change to
+	// the password is always visible as a change here. The column is
+	// NOT NULL with a default, so there is no absent case.
+	LastPasswordChangeAt time.Time
+	// MFAEnrolled is CONFIRMED enrollment: a secret whose first OTP has
+	// been verified. A secret written by a begun-but-unconfirmed
+	// enrollment does not require an OTP at login.
+	MFAEnrolled bool
+}
+
+// PasswordUnchangedSince reports whether the password is still the one
+// whose version was captured before the transaction.
+//
+// A zero captured value is treated as NO evidence and therefore as a
+// mismatch. The column is NOT NULL, so a real capture is never zero, and
+// a caller that forgot to capture one must not pass this check.
+func (a AuthInputs) PasswordUnchangedSince(captured time.Time) bool {
+	if captured.IsZero() {
+		return false
+	}
+	return a.LastPasswordChangeAt.Equal(captured)
+}
+
+// ReadAuthInputs re-reads the authentication inputs inside the caller's
+// transaction, which must already hold the per-user lock. Spec C-34, C-39.
+func ReadAuthInputs(ctx context.Context, q DBTX, userID uuid.UUID) (AuthInputs, error) {
+	var in AuthInputs
+	err := q.QueryRow(ctx, `
+		SELECT u.last_password_change_at,
+		       EXISTS (SELECT 1 FROM auth_mfa_secrets m
+		               WHERE m.user_id = u.id AND m.last_verified_at IS NOT NULL)
+		FROM users u WHERE u.id = $1`, userID).Scan(&in.LastPasswordChangeAt, &in.MFAEnrolled)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// No row is not "no change": it is an account that cannot
+		// authenticate, and the caller's account-state check answers it.
+		return AuthInputs{}, fmt.Errorf("%w: user %s absent", ErrAccountStateUnavailable, userID)
+	case err != nil:
+		return AuthInputs{}, fmt.Errorf("%w: %v", ErrAccountStateUnavailable, err)
+	}
+	return in, nil
 }

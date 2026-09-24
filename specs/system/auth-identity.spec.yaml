@@ -240,6 +240,40 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-39
+      description: >
+        Every authentication input MUST be revalidated under the per-user lock,
+        not only account state. A login verifies a password and reads MFA
+        enrollment BEFORE the lock, because Argon2id and a policy screen must
+        not run while a user row is held; both readings can therefore be stale
+        by the time anything is issued. Under the lock the handler MUST
+        re-read the password version (last_password_change_at, bumped by the
+        only statement that writes password_hash) and refuse when it differs
+        from the version it verified, and MUST re-read CONFIRMED MFA
+        enrollment and let the locked value decide in BOTH directions:
+        enrollment completing mid-login must not let a login through without
+        an OTP, and enrollment being removed mid-login must not fail a login on
+        an OTP that no longer has a secret. Mutations to these inputs, the
+        administrative reset and the MFA enrollment and confirmation writes,
+        MUST take the same lock so they cannot interleave with an issuance
+        that is revalidating them.
+      type: security
+      enforcement: error
+    - id: C-40
+      description: >
+        An UNKNOWN commit outcome MUST NOT invite replay. The response MUST be
+        marked NOT retryable and MUST NOT tell the client to retry. For a
+        refresh this is load-bearing rather than cosmetic: the rotation may
+        already have committed, so presenting the same token again is
+        indistinguishable from theft and revokes the whole family, turning a
+        transient infrastructure failure into a forced sign-out. The client is
+        told to re-authenticate, which is the only action that cannot make
+        things worse. The same rule applies to a login whose commit outcome is
+        unknown, where an automatic replay could issue a second set of
+        credentials for a first set that already exists.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: HashPassword(plain) returns an Argon2id PHC string ($argon2id$v=19$m=65536,t=3,p=1$...); VerifyPassword(plain, hash) returns true for the original and false for any other input.
@@ -607,3 +641,148 @@ spec:
           - "A retry of an unknown commit outcome"
           - "More than three attempts"
           - "A response claiming success or failure after an unknown commit"
+    - id: AC-46
+      description: >
+        Login refuses to issue when the password changed between verification
+        and the per-user lock. An administrative reset committing in that
+        window invalidates the credential the request presented, and issuing
+        would hand out fresh credentials on the strength of a password that no
+        longer opens the account.
+      priority: critical
+      references_constraints: [C-39]
+      inputs:
+        initial_state: "An enabled account whose current password is known"
+        concurrent_ordering: >
+          AdminResetPassword commits while the login transaction is blocked on
+          the user lock, after the login has already verified the old password
+        variants: ["Reset commits during the window", "Control, no reset"]
+        method: >
+          The disabling side holds the user row; the login blocks on it; the
+          reset commits and releases. The ordering is imposed by the lock, and
+          the test waits until a backend is observably blocked on the row
+          rather than sleeping. The control runs the identical login with no
+          reset in flight.
+      expected_output:
+        per_variant:
+          Reset commits during the window:
+            status: 401
+            code: auth.invalid_credentials
+            audit_reason: password_changed_during_login
+            credentials_issued: 0
+          Control, no reset:
+            status: 200
+        prohibited_changes:
+          - "A session, refresh token or access token issued on a superseded password"
+    - id: AC-47
+      description: >
+        An administrative reset applies the password change and the user-wide
+        interactive revocation in ONE transaction under the per-user lock.
+        A failure leaves neither applied, and no login can interleave between
+        them.
+      priority: critical
+      references_constraints: [C-34, C-36, C-39]
+      inputs:
+        initial_state: "A live session and a live refresh family, password known"
+        operation: "AdminResetPassword"
+        variants: ["Commits", "Fails before commit", "Concurrent login attempt"]
+        method: >
+          The failure variant injects its failure inside the transaction, so
+          the rollback is what leaves the password unchanged. The concurrency
+          variant starts a login that must observe either the whole reset or
+          none of it, never the password change without the revocation.
+      expected_output:
+        per_variant:
+          Commits:
+            durable_changes: ["password_hash replaced", "sessions live 0", "refresh live 0"]
+            subsequent: ["The old password no longer authenticates", "The new password does"]
+          Fails before commit:
+            durable_changes: []
+            prohibited_changes: ["The password changed with the revocation incomplete"]
+          Concurrent login attempt:
+            observed_states: ["either fully reset, or not reset at all"]
+            prohibited_changes: ["Credentials issued from the pre-reset password after the reset committed"]
+    - id: AC-48
+      description: >
+        Login revalidates CONFIRMED MFA enrollment under the lock. Enrollment
+        completing while a login is in flight means that login needs an OTP it
+        was not asked for, and is refused rather than issued.
+      priority: critical
+      references_constraints: [C-39]
+      inputs:
+        initial_state: "An enabled account with an unconfirmed MFA secret and a correct password"
+        concurrent_ordering: >
+          MFA confirmation commits while the login transaction is blocked on
+          the user lock, after the login read enrollment as absent
+        variants: ["Enrollment confirms during the window", "Control, not enrolled"]
+        method: >
+          Same lock-imposed ordering as AC-46, waiting until a backend is
+          observably blocked on the user row. The control is the identical
+          login with no enrollment in flight.
+      expected_output:
+        per_variant:
+          Enrollment confirms during the window:
+            status: 401
+            code: auth.mfa_required
+            audit_reason: mfa_required_during_login
+            credentials_issued: 0
+          Control, not enrolled:
+            status: 200
+        prohibited_changes:
+          - "A login issued without an OTP for an account whose enrollment was confirmed before issuance"
+    - id: AC-49
+      description: >
+        At the HANDLER, OTP consumption and credential issuance share one
+        transaction. When issuance fails after a correct OTP, the OTP is not
+        consumed and the same code still works on the next attempt.
+      priority: critical
+      references_constraints: [C-35]
+      inputs:
+        initial_state: "An MFA-enrolled account and a currently valid OTP"
+        controlled_failure: "Issuance fails inside the login transaction, after the OTP validates"
+        method: >
+          Driven through the real login route, not the helper, because the
+          helper-level criterion cannot observe whether the handler passed its
+          transaction or the pool. The failure is injected so that the OTP has
+          certainly validated before it fires.
+        note: "This is the handler-level counterpart to AC-40, which covers the helper only"
+      expected_output:
+        response: {status: 503, code: server.error}
+        durable_changes: []
+        subsequent: ["A second login with the SAME OTP succeeds"]
+        prohibited_changes:
+          - "An auth_mfa_otp_uses row surviving a login that issued nothing"
+          - "Credentials issued by the failed attempt"
+    - id: AC-50
+      description: >
+        An unknown commit outcome is reported as NOT retryable and says nothing
+        about retrying, on both the login and the refresh paths. No automatic
+        replay follows, which matters because a replayed refresh is
+        indistinguishable from theft and revokes the family.
+      priority: critical
+      references_constraints: [C-37, C-40]
+      inputs:
+        initial_state: "A live refresh chain and a live session"
+        controlled_failure: "The commit outcome is indeterminate"
+        variants:
+          - name: "Durable commit, lost acknowledgement"
+            setup: "The transaction committed; the acknowledgement never arrived"
+          - name: "Non-durable"
+            setup: "The transaction did not commit"
+        method: >
+          Both variants are driven through the real handler with the
+          indeterminate outcome injected at the commit boundary, so the
+          response fields are observed rather than reasoned about. The test
+          also asserts that no second presentation of the same token is made
+          by the server-side path.
+      expected_output:
+        response:
+          status: 503
+          code: server.error
+          retryable: false
+        message_mentions_retry: false
+        identical_across_variants: true
+        prohibited_changes:
+          - "retryable true on an unknown outcome"
+          - "A response instructing the client to retry"
+          - "A second presentation of the same refresh token"
+          - "Family revocation caused by the error response itself"
