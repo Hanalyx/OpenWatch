@@ -167,3 +167,23 @@ func VerifyMFA(ctx context.Context, pool DBTX, userID uuid.UUID, otpValue string
 // wiring the function up as written would have narrowed protection
 // rather than added it. internal/retention deletes this table now, on
 // the registry's grace.
+
+// IsMFARejection reports whether err is the server REFUSING what the
+// user presented, as opposed to failing to find out.
+//
+// VerifyMFA returns both kinds. A wrong code, a replayed code and an
+// account with no secret are determinate client-side answers. A missing
+// data-encryption key, an unreadable secret, a failed lookup and a failed
+// consumption write are infrastructure failures, and treating those as a
+// bad code sends the user to their authenticator app for something that
+// was never the problem, records an authentication failure that did not
+// happen, and hides the outage.
+//
+// Callers on an issuance path MUST hand anything that is not a rejection
+// back to the transaction runner, so it rolls back and classifies retry
+// and commit-outcome correctly. Spec C-32, C-35.
+func IsMFARejection(err error) bool {
+	return errors.Is(err, ErrMFAInvalidOTP) ||
+		errors.Is(err, ErrOTPReplayed) ||
+		errors.Is(err, ErrMFANotEnrolled)
+}

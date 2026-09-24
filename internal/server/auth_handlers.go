@@ -160,6 +160,13 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		// could not retry with the code still on their screen. Spec C-35.
 		if inputs.MFAEnrolled {
 			if err := identity.VerifyMFA(ctx, tx, u.ID, otp); err != nil {
+				// Only a REFUSAL is a login refusal. A failure to find
+				// out goes back to the runner so the transaction rolls
+				// back and the commit outcome is classified, rather than
+				// being reported to the user as a bad code. Spec C-32.
+				if !identity.IsMFARejection(err) {
+					return err
+				}
 				loginRefused = "mfa_invalid"
 				return nil
 			}
@@ -700,20 +707,22 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 		// Reset per attempt: RunSerialized may restart the transaction.
 		otpRejected = false
 		if err := identity.VerifyMFA(ctx, tx, userID, req.Otp); err != nil {
-			// The OTP itself was refused. Not an error for the
-			// transaction runner: there is nothing to retry and nothing
-			// indeterminate about it.
+			if !identity.IsMFARejection(err) {
+				// A failure to find out. Hand it back so the runner
+				// rolls back and classifies it. Spec C-32.
+				return err
+			}
+			// The OTP itself was refused: determinate, nothing to retry.
 			otpRejected = true
 			return nil
 		}
 		return nil
 	})
+	// The transaction outcome is read FIRST. A recorded rejection must
+	// not conceal a transaction that failed or whose result is unknown:
+	// answering 401 would tell the user their code was bad while the
+	// server has no idea what it committed.
 	switch {
-	case otpRejected:
-		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
-		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
-			"OTP invalid or replayed", false)
-		return
 	case errors.Is(txErr, identity.ErrCommitUnknown):
 		// The confirmation may have committed. Claiming it failed is
 		// wrong in the direction that matters: the user would retry a
@@ -725,6 +734,11 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 	case txErr != nil:
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
 			"mfa confirmation is temporarily unavailable", true)
+		return
+	case otpRejected:
+		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
+		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
+			"OTP invalid or replayed", false)
 		return
 	}
 	emitAudit(r, audit.AuthMfaValidated, id.ID, nil)

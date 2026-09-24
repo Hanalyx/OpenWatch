@@ -890,3 +890,81 @@ spec:
         prohibited_changes:
           - "A code that states uncertainty classified as determinate"
           - "An automatic retry of anything outside the approved rollback codes"
+    - id: AC-53
+      description: >
+        A failure INSIDE MFA verification is classified by its meaning, not
+        assumed to be a rejected OTP. Only the determinate client-side
+        answers, a wrong code, a replayed code and an account with no secret,
+        are refusals. Everything else, an unreadable secret, a failed lookup,
+        a failed consumption write, is handed back to the transaction runner
+        so it rolls back and classifies the outcome, and is reported as an
+        infrastructure failure with no authentication-failure audit and no
+        durable effect. This applies to the confirmation endpoint AND to
+        login, which used the same blanket assumption.
+      priority: critical
+      references_constraints: [C-32, C-35]
+      inputs:
+        initial_state: "An MFA-enrolled account with a currently valid OTP"
+        operation: "POST /auth/mfa:verify, and separately POST /auth/login carrying an OTP"
+        variants:
+          - name: "Confirmation, secret unreadable"
+            setup: "The stored ciphertext is corrupted, so decryption fails deterministically"
+          - name: "Confirmation, consumption write fails"
+            setup: "A trigger raises on INSERT into auth_mfa_otp_uses"
+          - name: "Confirmation, wrong OTP"
+            setup: "A code outside the window, no injected failure"
+          - name: "Confirmation, replayed OTP"
+            setup: "A code already consumed, no injected failure"
+          - name: "Login, secret unreadable"
+            setup: "The stored ciphertext is corrupted"
+          - name: "Login, consumption write fails"
+            setup: "A trigger raises on INSERT into auth_mfa_otp_uses"
+          - name: "Confirmation, rejection with an unknown commit"
+            setup: "A wrong OTP AND an indeterminate commit outcome, together"
+        method: >
+          Both failures are real and deterministic: corrupted ciphertext makes
+          decryption fail on the crypto path with no SQL error, and a trigger
+          makes the consumption write fail with a SQLSTATE inside the
+          transaction. Neither needs a code seam, and each fires on every run.
+          The preserved rejection cases run with no injection at all.
+      expected_output:
+        per_variant:
+          Confirmation, secret unreadable:
+            status: 503
+            code: server.error
+            audit_excludes: ["auth.mfa.failed"]
+            durable_changes: []
+          Confirmation, consumption write fails:
+            status: 503
+            code: server.error
+            audit_excludes: ["auth.mfa.failed"]
+            durable_changes: []
+          Confirmation, wrong OTP:
+            status: 401
+            code: auth.mfa_invalid
+            audit: ["auth.mfa.failed"]
+          Confirmation, replayed OTP:
+            status: 401
+            code: auth.mfa_invalid
+            audit: ["auth.mfa.failed"]
+          Login, secret unreadable:
+            status: 503
+            code: server.error
+            credentials_issued: 0
+            audit_excludes: ["auth.mfa.failed"]
+          Login, consumption write fails:
+            status: 503
+            code: server.error
+            credentials_issued: 0
+            audit_excludes: ["auth.mfa.failed"]
+          Confirmation, rejection with an unknown commit:
+            status: 503
+            code: server.error
+            retryable: false
+            audit_excludes: ["auth.mfa.failed"]
+            rationale: "The transaction outcome outranks the rejection: 401 would assert the code was bad while the server cannot say what it committed"
+        prohibited_changes:
+          - "An infrastructure failure inside verification reported as an invalid OTP"
+          - "An authentication-failure audit event for a failure the user did not cause"
+          - "An auth_mfa_otp_uses row surviving a rolled-back attempt"
+          - "A recorded rejection concealing a failed or unknown transaction outcome"
