@@ -388,3 +388,49 @@ func TestVerifyMFA_ConsumptionIsInsideTheCallersTransaction(t *testing.T) {
 		_ = tx3.Rollback(ctx)
 	})
 }
+
+// @ac AC-52
+// AC-52: the commit classifier decides by the error's MEANING. A
+// SQLSTATE is not evidence of a known outcome: the standard defines
+// codes that state uncertainty, and those must classify as uncertain.
+//
+// The disjointness of the uncertain and retryable sets is asserted over
+// the same table, not argued in a comment: a code that is both would let
+// RunSerialized retry a commit that may already have applied.
+func TestCommitClassification_ByMeaningNotBySQLStatePresence(t *testing.T) {
+	t.Run("system-auth-identity/AC-52", func(t *testing.T) {
+		cases := []struct {
+			name          string
+			err           error
+			wantUncertain bool
+			wantRetryable bool
+		}{
+			{"no SQLSTATE", errors.New("write tcp: connection reset by peer"), true, false},
+			{"40003 statement_completion_unknown", pgErr("40003"), true, false},
+			{"08007 transaction_resolution_unknown", pgErr("08007"), true, false},
+			{"08006 connection_failure", pgErr("08006"), true, false},
+			{"40001 serialization_failure", pgErr("40001"), false, true},
+			{"40P01 deadlock_detected", pgErr("40P01"), false, true},
+			{"23505 unique_violation", pgErr("23505"), false, false},
+		}
+		for _, tc := range cases {
+			gotUncertain := commitIsIndeterminate(tc.err)
+			gotRetryable := IsRetryableTxError(tc.err)
+			if gotUncertain != tc.wantUncertain {
+				t.Errorf("%s: indeterminate = %v, want %v", tc.name, gotUncertain, tc.wantUncertain)
+			}
+			if gotRetryable != tc.wantRetryable {
+				t.Errorf("%s: retryable = %v, want %v", tc.name, gotRetryable, tc.wantRetryable)
+			}
+			// The load-bearing invariant: retrying an unknown commit is
+			// the duplication C-37 exists to prevent.
+			if gotUncertain && gotRetryable {
+				t.Errorf("%s: classified BOTH uncertain and retryable; a retry could duplicate an issuance", tc.name)
+			}
+		}
+		// A nil error is not an outcome to be uncertain about.
+		if commitIsIndeterminate(nil) {
+			t.Error("a nil commit error classified as indeterminate")
+		}
+	})
+}

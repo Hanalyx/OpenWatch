@@ -650,8 +650,18 @@ func (h *handlers) PostAuthMFAEnroll(w http.ResponseWriter, r *http.Request) {
 		return ierr
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"mfa enroll failed", true)
+		// An unknown commit outcome is NOT a failed enrollment: the
+		// secret may already be stored. Saying "enroll failed" would
+		// invite the user to enroll again and, if the first attempt did
+		// commit, replace a secret their authenticator app already
+		// holds. Spec C-40.
+		if errors.Is(err, identity.ErrCommitUnknown) {
+			writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+				"the enrollment outcome is unknown; check whether MFA is enrolled before enrolling again", false)
+			return
+		}
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"mfa enrollment is temporarily unavailable", true)
 		return
 	}
 	emitAudit(r, audit.AuthMfaEnrolled, id.ID, nil)
@@ -678,12 +688,43 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 	// Under the per-user lock: this call is what CONFIRMS enrollment (it
 	// stamps last_verified_at), so it is the mutation a concurrent login
 	// must not straddle. Spec C-34, C-39.
-	if err := identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
-		return identity.VerifyMFA(ctx, tx, userID, req.Otp)
-	}); err != nil {
+	// Three outcomes, and they must not be conflated. An OTP the server
+	// REJECTED is a client failure and is audited as one. An
+	// infrastructure failure is not: calling a database outage an invalid
+	// OTP sends the user to their authenticator app for a code that was
+	// never the problem, and writes an authentication-failure event that
+	// did not happen. An UNKNOWN outcome is neither, because the
+	// confirmation may already have committed.
+	var otpRejected bool
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
+		// Reset per attempt: RunSerialized may restart the transaction.
+		otpRejected = false
+		if err := identity.VerifyMFA(ctx, tx, userID, req.Otp); err != nil {
+			// The OTP itself was refused. Not an error for the
+			// transaction runner: there is nothing to retry and nothing
+			// indeterminate about it.
+			otpRejected = true
+			return nil
+		}
+		return nil
+	})
+	switch {
+	case otpRejected:
 		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
 		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
 			"OTP invalid or replayed", false)
+		return
+	case errors.Is(txErr, identity.ErrCommitUnknown):
+		// The confirmation may have committed. Claiming it failed is
+		// wrong in the direction that matters: the user would retry a
+		// code that is now consumed and be told it is invalid.
+		// Spec C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"the confirmation outcome is unknown; check whether MFA is enrolled before trying another code", false)
+		return
+	case txErr != nil:
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"mfa confirmation is temporarily unavailable", true)
 		return
 	}
 	emitAudit(r, audit.AuthMfaValidated, id.ID, nil)

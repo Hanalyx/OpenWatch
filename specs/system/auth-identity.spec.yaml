@@ -237,6 +237,17 @@ spec:
         and emits a structured record so the ambiguity is visible. Retrying an
         unknown commit can duplicate an issuance; reporting it as failure can
         tell a user a credential does not exist when it does.
+        Classification MUST be by the error's MEANING, not by whether a
+        SQLSTATE is present. The presence of a SQLSTATE is not evidence of a
+        known result: the standard defines codes for exactly this situation,
+        including 40003 statement_completion_unknown and 08007
+        transaction_resolution_unknown, and class 08 reports a connection
+        exception that for a commit leaves the caller knowing nothing. The
+        uncertain set and the retryable set MUST stay disjoint, because a
+        retry of an unknown commit is the duplication this constraint exists
+        to prevent. Where classification is in doubt the implementation MUST
+        report doubt: a truthful 503 costs a re-authentication, while false
+        certainty costs a duplicated or disowned credential.
       type: technical
       enforcement: error
 
@@ -786,3 +797,96 @@ spec:
           - "A response instructing the client to retry"
           - "A second presentation of the same refresh token"
           - "Family revocation caused by the error response itself"
+    - id: AC-51
+      description: >
+        The MFA enrollment and confirmation endpoints distinguish three
+        outcomes: an OTP the server REJECTED, an infrastructure failure, and
+        an UNKNOWN commit. A rejected OTP is a client failure and is audited
+        as one. An infrastructure failure is not reported as an invalid OTP
+        and emits no authentication-failure event. An unknown outcome claims
+        neither that enrollment or confirmation succeeded nor that it failed,
+        and is not retryable.
+      priority: critical
+      references_constraints: [C-32, C-40]
+      inputs:
+        initial_state: "An authenticated user, and for confirmation an enrolled secret with a valid OTP"
+        operation: "POST /auth/mfa:enroll and POST /auth/mfa:verify"
+        variants:
+          - name: "Confirmation, OTP rejected"
+            setup: "A wrong OTP, with no injected failure"
+          - name: "Confirmation, unknown commit, durable"
+            setup: "The transaction commits and the acknowledgement is lost"
+          - name: "Confirmation, unknown commit, non-durable"
+            setup: "The transaction does not commit and the outcome is unknown"
+          - name: "Enrollment, unknown commit, durable"
+            setup: "The transaction commits and the acknowledgement is lost"
+          - name: "Enrollment, unknown commit, non-durable"
+            setup: "The transaction does not commit and the outcome is unknown"
+        method: >
+          Driven through the real routes. The indeterminate outcomes are
+          produced by substituting the transaction source, which selects the
+          branch on demand rather than waiting for a real outage. The durable
+          variant really commits before reporting the loss, so the assertion
+          covers the case where the write survived.
+      expected_output:
+        per_variant:
+          Confirmation, OTP rejected:
+            status: 401
+            code: auth.mfa_invalid
+            audit: ["auth.mfa.failed"]
+          Confirmation, unknown commit, durable:
+            status: 503
+            code: server.error
+            retryable: false
+            audit_excludes: ["auth.mfa.failed"]
+          Confirmation, unknown commit, non-durable:
+            identical_to: "Confirmation, unknown commit, durable"
+          Enrollment, unknown commit, durable:
+            status: 503
+            code: server.error
+            retryable: false
+          Enrollment, unknown commit, non-durable:
+            identical_to: "Enrollment, unknown commit, durable"
+        prohibited_changes:
+          - "An infrastructure failure reported as an invalid OTP"
+          - "An authentication-failure audit event for a failure the user did not cause"
+          - "retryable true on an unknown outcome"
+          - "A response asserting that enrollment or confirmation failed when the outcome is unknown"
+    - id: AC-52
+      description: >
+        The commit classifier decides by the error's MEANING. A SQLSTATE that
+        states uncertainty is treated as uncertain, a SQLSTATE that states a
+        known rollback is treated as known, and an error with no SQLSTATE is
+        uncertain. The retryable set and the uncertain set are disjoint, so no
+        unknown commit is ever retried.
+      priority: critical
+      references_constraints: [C-37]
+      inputs:
+        operation: "Classify a commit error"
+        variants:
+          - name: "No SQLSTATE"
+            setup: "A transport error"
+          - name: "40003 statement_completion_unknown"
+          - name: "08007 transaction_resolution_unknown"
+          - name: "08006 connection_failure"
+          - name: "40001 serialization_failure"
+          - name: "40P01 deadlock_detected"
+          - name: "23505 unique_violation"
+        method: >
+          The classifier is a pure function over synthetic pgconn.PgError
+          values, so every code is exercised exactly and on every run. The
+          disjointness of the two sets is asserted over the same table rather
+          than argued in a comment.
+      expected_output:
+        per_variant:
+          No SQLSTATE: {indeterminate: true, retryable: false}
+          40003 statement_completion_unknown: {indeterminate: true, retryable: false}
+          08007 transaction_resolution_unknown: {indeterminate: true, retryable: false}
+          08006 connection_failure: {indeterminate: true, retryable: false}
+          40001 serialization_failure: {indeterminate: false, retryable: true}
+          40P01 deadlock_detected: {indeterminate: false, retryable: true}
+          23505 unique_violation: {indeterminate: false, retryable: false}
+        invariant: "No variant is both indeterminate and retryable"
+        prohibited_changes:
+          - "A code that states uncertainty classified as determinate"
+          - "An automatic retry of anything outside the approved rollback codes"

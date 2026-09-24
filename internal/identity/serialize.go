@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -24,6 +25,26 @@ const (
 	sqlStateSerializationFailure = "40001"
 )
 
+// SQLSTATEs that state, in the standard's own words, that the outcome is
+// UNKNOWN. A SQLSTATE is not evidence of a known result: these codes
+// exist precisely to report that the server could not tell the caller
+// what happened.
+//
+//	40003  statement_completion_unknown
+//	08007  transaction_resolution_unknown
+//
+// Neither is in the retryable set, and that separation is deliberate:
+// retrying an unknown commit can duplicate an issuance.
+const (
+	sqlStateStatementCompletionUnknown   = "40003"
+	sqlStateTransactionResolutionUnknown = "08007"
+	// sqlStateClassConnectionException is class 08. A connection
+	// exception reported FOR A COMMIT leaves the outcome unknown: the
+	// statement was sent and the reply was not read, which is the same
+	// epistemic position as no SQLSTATE at all.
+	sqlStateClassConnectionException = "08"
+)
+
 // ErrCommitUnknown reports that a commit's outcome could not be
 // determined. The transaction may or may not have committed. Callers
 // MUST answer 503 and assert NEITHER result: retrying can duplicate an
@@ -37,14 +58,11 @@ var ErrSerializationExhausted = errors.New("identity: serialization attempts exh
 
 // TxBeginner is the subset of *pgxpool.Pool that RunSerialized needs.
 //
-// It is exported because C-37's rules about commit outcomes are only
-// testable if a caller can substitute the transaction source. An
-// indeterminate commit cannot be provoked from SQL: a constraint
-// violation or a trigger failure carries a SQLSTATE and is therefore
-// determinate, which is precisely the case C-37 distinguishes it from.
-// Without this seam the unknown-commit branch would be unreachable by
-// any test, and an unreachable error path is how this class of defect
-// survives review.
+// It is exported for DETERMINISTIC FAULT INJECTION. C-37's rules turn on
+// which outcome a commit failure represents, and a test that wants a
+// specific one needs to choose it rather than hope for it. Substituting
+// the transaction source makes each branch reachable on demand and on
+// every run, which is what makes the assertions worth anything.
 type TxBeginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
@@ -62,16 +80,43 @@ func IsRetryableTxError(err error) bool {
 // commitIsIndeterminate reports whether a commit error leaves the
 // outcome unknown.
 //
-// The rule: if the server answered, the answer carries a SQLSTATE, and
-// an answered commit that failed did not commit. If there is no
-// SQLSTATE the failure happened at the transport or before any reply was
-// read, and nothing on this side knows whether the server applied it.
+// Classification is by the error's MEANING, not by whether a SQLSTATE is
+// present. An earlier version of this function treated every PgError as
+// determinate, on the reasoning that an answered commit which failed did
+// not commit. That reasoning is wrong for at least two codes the
+// standard defines for exactly this situation: 40003
+// statement_completion_unknown and 08007 transaction_resolution_unknown
+// both carry a SQLSTATE and both say the outcome is unknown. Class 08
+// more broadly reports a connection exception, which for a commit leaves
+// the caller in the same position as no reply at all.
+//
+// The bias is deliberate. Treating a determinate rollback as unknown
+// costs a truthful 503 that a user can resolve by signing in again.
+// Treating an unknown commit as determinate can duplicate an issuance or
+// tell a user a credential does not exist when it does. When in doubt,
+// report doubt.
+//
+// This does not claim any particular server emits these codes on this
+// path. It claims that if one does, the classifier must not mistake the
+// code for certainty.
 func commitIsIndeterminate(err error) bool {
 	if err == nil {
 		return false
 	}
 	var pgErr *pgconn.PgError
-	return !errors.As(err, &pgErr)
+	if !errors.As(err, &pgErr) {
+		// No SQLSTATE: the failure happened at the transport or before
+		// any reply was read, so nothing here knows what the server did.
+		return true
+	}
+	switch {
+	case pgErr.Code == sqlStateStatementCompletionUnknown,
+		pgErr.Code == sqlStateTransactionResolutionUnknown:
+		return true
+	case strings.HasPrefix(pgErr.Code, sqlStateClassConnectionException):
+		return true
+	}
+	return false
 }
 
 // RunSerialized runs fn inside ONE transaction that holds the per-user
