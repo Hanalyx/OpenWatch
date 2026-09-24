@@ -184,10 +184,30 @@ func extractSecret(t *testing.T, uri string) string {
 // don't depend on the (not-yet-existing) users package.
 type stubLookups struct {
 	role auth.RoleID
+	// status is the account state the binder sees. The zero value is
+	// AccountUnknown, which authenticates nothing, so every existing
+	// test that wants a working credential must say AccountActive.
+	status AccountStatus
+	// statusErr makes the account-state read fail, which is an
+	// infrastructure failure and must produce 503 rather than 401.
+	statusErr error
+	// roleErr makes role resolution fail while the account is active,
+	// so a role-less account can be told apart from a disabled one.
+	roleErr error
 }
 
 func (s stubLookups) RoleForUser(_ context.Context, _ uuid.UUID) (auth.RoleID, error) {
+	if s.roleErr != nil {
+		return "", s.roleErr
+	}
 	return s.role, nil
+}
+
+func (s stubLookups) AccountStatusFor(_ context.Context, _ uuid.UUID) (AccountStatus, error) {
+	if s.statusErr != nil {
+		return AccountUnknown, s.statusErr
+	}
+	return s.status, nil
 }
 
 // auditPool starts the audit writer against the same pool so binder
@@ -224,7 +244,7 @@ func TestBinder_ResolvesFromCookieAndBearer(t *testing.T) {
 			captured <- auth.FromContext(r.Context())
 			w.WriteHeader(http.StatusNoContent)
 		})
-		mw := Binder(pool, stubLookups{role: auth.RoleViewer})(next)
+		mw := Binder(pool, stubLookups{role: auth.RoleViewer, status: AccountActive})(next)
 
 		req := httptest.NewRequest("GET", "/probe", nil)
 		req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
@@ -272,7 +292,7 @@ func TestBinder_AuditOnRejection(t *testing.T) {
 		next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		})
-		mw := Binder(pool, stubLookups{role: auth.RoleViewer})(next)
+		mw := Binder(pool, stubLookups{role: auth.RoleViewer, status: AccountActive})(next)
 
 		// Inject correlation_id so we can find the audit row.
 		send := func(corr string, configure func(*http.Request)) {

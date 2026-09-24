@@ -130,6 +130,14 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 	if code := getMeWithCookie(t, url, cookie); code != http.StatusOK {
 		t.Fatalf("target /me before disable = %d, want 200", code)
 	}
+	// A service-account token owned by the same user. Interactive
+	// revocation must leave it alone: that lifecycle is separate.
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO api_tokens (name, token_hash, prefix, role_id, created_by)
+		VALUES ('ac16-control', $1, 'owk_ac16', 'viewer', $2)`,
+		[]byte("ac16-token-hash-not-a-real-secret"), target.ID); err != nil {
+		t.Fatalf("seed api token: %v", err)
+	}
 
 	t.Run("api-users/AC-16", func(t *testing.T) {
 		// admin disables target -> 200, disabled_at set
@@ -146,6 +154,22 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 		blocked.Body.Close()
 		if blocked.StatusCode != http.StatusUnauthorized {
 			t.Errorf("disabled login = %d, want 401", blocked.StatusCode)
+		}
+		// C-07 widened in 1.3.0: the refresh FAMILY is revoked too.
+		// Revoking sessions alone left a live refresh token that could
+		// mint a working session for a locked-out account (bugs/OW-069).
+		var refreshLive, tokensLive int
+		if err := pool.QueryRow(context.Background(), `
+			SELECT (SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL),
+			       (SELECT count(*) FROM api_tokens WHERE created_by = $1 AND revoked_at IS NULL)`,
+			target.ID).Scan(&refreshLive, &tokensLive); err != nil {
+			t.Fatalf("read credential state: %v", err)
+		}
+		if refreshLive != 0 {
+			t.Errorf("refresh tokens live after disable = %d, want 0", refreshLive)
+		}
+		if tokensLive != 1 {
+			t.Errorf("service-account tokens live after disable = %d, want 1 untouched", tokensLive)
 		}
 	})
 

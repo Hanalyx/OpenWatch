@@ -360,31 +360,11 @@ func (s *Service) VerifyUserPassword(ctx context.Context, username, password str
 //
 // Spec AC-06.
 func (s *Service) UpdatePassword(ctx context.Context, id uuid.UUID, newPassword string) error {
-	if _, err := s.GetUserByID(ctx, id); err != nil {
+	hash, err := s.preparePassword(ctx, id, newPassword)
+	if err != nil {
 		return err
 	}
-	policy := identity.DefaultPolicy()
-	if role, err := s.PrimaryRoleFor(ctx, id); err == nil && role == auth.RoleAdmin {
-		policy = identity.AdminPolicy()
-	}
-	if err := identity.ValidatePassword(newPassword, policy, s.corpus); err != nil {
-		return err
-	}
-	hash, err := identity.HashPassword(newPassword)
-	if err != nil {
-		return fmt.Errorf("users: hash password: %w", err)
-	}
-	const stmt = `
-		UPDATE users SET password_hash = $1, last_password_change_at = now(), updated_at = now()
-		WHERE id = $2 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, hash, id)
-	if err != nil {
-		return fmt.Errorf("users: update password: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
-	return nil
+	return writePasswordTx(ctx, s.pool, id, hash)
 }
 
 // SoftDelete sets deleted_at. The user becomes invisible to lookups
@@ -395,12 +375,45 @@ func (s *Service) UpdatePassword(ctx context.Context, id uuid.UUID, newPassword 
 func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	const stmt = `UPDATE users SET deleted_at = now(), updated_at = now()
 	              WHERE id = $1 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, id)
+	// The deletion and the revocation commit together. A deleted account
+	// whose sessions outlive the delete is the defect this closes, and
+	// two separate statements can leave exactly that state. Spec C-34, C-36.
+	return s.mutateAccountState(ctx, id, stmt)
+}
+
+// mutateAccountState runs an account-state UPDATE and the user-wide
+// interactive revocation in ONE transaction, under the per-user lock
+// taken as the first statement.
+//
+// The lock is what makes the revocation complete: without it a login or
+// a refresh committing concurrently can insert a session after the
+// revocation ran and before the state change was visible, and that
+// session is never revoked by anything. Spec C-34, C-36.
+func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt string) error {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("users: soft delete: %w", err)
+		return fmt.Errorf("users: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := identity.LockUser(ctx, tx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("users: lock: %w", err)
+	}
+	tag, err := tx.Exec(ctx, stmt, id)
+	if err != nil {
+		return fmt.Errorf("users: account state: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrUserNotFound
+	}
+	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("users: commit: %w", err)
 	}
 	return nil
 }
@@ -413,11 +426,74 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 //
 // Spec api-users (admin reset-password).
 func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassword string) error {
-	if err := s.UpdatePassword(ctx, id, newPassword); err != nil {
+	// Validate and hash OUTSIDE the transaction: the policy screen and
+	// Argon2id are deliberately expensive and must not run while the
+	// user row is locked.
+	hash, err := s.preparePassword(ctx, id, newPassword)
+	if err != nil {
 		return err
 	}
-	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
-		return fmt.Errorf("users: revoke sessions after reset: %w", err)
+	// The password write and the user-wide INTERACTIVE revocation commit
+	// TOGETHER, under the same per-user lock. Two statements could leave
+	// the password changed with the revocation incomplete, which is the
+	// worst of both: the user cannot sign in with the old password while
+	// every credential minted from it still works. Spec C-34, C-36.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("users: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := identity.LockUser(ctx, tx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("users: lock: %w", err)
+	}
+	if err := writePasswordTx(ctx, tx, id, hash); err != nil {
+		return err
+	}
+	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
+		return fmt.Errorf("users: revoke credentials after reset: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("users: commit reset: %w", err)
+	}
+	return nil
+}
+
+// preparePassword runs the policy screen and hashes. Separated from the
+// write so callers can pay that cost before taking a lock. Spec C-34.
+func (s *Service) preparePassword(ctx context.Context, id uuid.UUID, newPassword string) (string, error) {
+	if _, err := s.GetUserByID(ctx, id); err != nil {
+		return "", err
+	}
+	policy := identity.DefaultPolicy()
+	if role, err := s.PrimaryRoleFor(ctx, id); err == nil && role == auth.RoleAdmin {
+		policy = identity.AdminPolicy()
+	}
+	if err := identity.ValidatePassword(newPassword, policy, s.corpus); err != nil {
+		return "", err
+	}
+	hash, err := identity.HashPassword(newPassword)
+	if err != nil {
+		return "", fmt.Errorf("users: hash password: %w", err)
+	}
+	return hash, nil
+}
+
+// writePasswordTx applies a prepared hash in the caller's transaction.
+// Bumping last_password_change_at is what makes the change visible to a
+// login revalidating its inputs under the lock. Spec C-39.
+func writePasswordTx(ctx context.Context, db identity.DBTX, id uuid.UUID, hash string) error {
+	const stmt = `
+		UPDATE users SET password_hash = $1, last_password_change_at = now(), updated_at = now()
+		WHERE id = $2 AND deleted_at IS NULL`
+	tag, err := db.Exec(ctx, stmt, hash, id)
+	if err != nil {
+		return fmt.Errorf("users: update password: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
 	}
 	return nil
 }
@@ -432,17 +508,9 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 	const stmt = `UPDATE users SET disabled_at = now(), updated_at = now()
 	              WHERE id = $1 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, id)
-	if err != nil {
-		return fmt.Errorf("users: disable: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrUserNotFound
-	}
-	if err := identity.RevokeAllSessionsForUser(ctx, s.pool, id); err != nil {
-		return fmt.Errorf("users: revoke sessions on disable: %w", err)
-	}
-	return nil
+	// One transaction under the per-user lock: the disable and the
+	// user-wide interactive revocation commit together. Spec C-34, C-36.
+	return s.mutateAccountState(ctx, id, stmt)
 }
 
 // Enable clears the disabled flag. The user can authenticate again with a
@@ -557,6 +625,14 @@ func (s *Service) PrimaryRoleFor(ctx context.Context, userID uuid.UUID) (auth.Ro
 // PrimaryRoleFor with the same signature shape.
 func (s *Service) RoleForUser(ctx context.Context, userID uuid.UUID) (auth.RoleID, error) {
 	return s.PrimaryRoleFor(ctx, userID)
+}
+
+// AccountStatusFor is the identity.Lookups account-state adapter. It is
+// the binders' independent protection: a credential issued while an
+// account was disabled is never revoked, so revocation alone cannot
+// refuse it. Spec C-31.
+func (s *Service) AccountStatusFor(ctx context.Context, userID uuid.UUID) (identity.AccountStatus, error) {
+	return identity.ReadAccountStatus(ctx, s.pool, userID)
 }
 
 // queryOne is the GetByID/GetByUsername shared helper.

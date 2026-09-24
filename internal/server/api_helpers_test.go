@@ -148,7 +148,15 @@ func doGet(t *testing.T, url string) *http.Response {
 // freshAPIServer spins up an httptest server with the production middleware
 // chain (correlation + idempotency + handlers). Returns the server URL and
 // the underlying pool for assertions.
+// freshAPIServer is the common fixture. Most tests do not need the
+// *Server itself; the ones that substitute a dependency use
+// freshAPIServerWithHandles.
 func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
+	url, pool, _ := freshAPIServerWithHandles(t)
+	return url, pool
+}
+
+func freshAPIServerWithHandles(t *testing.T) (string, *pgxpool.Pool, *Server) {
 	t.Helper()
 	// Safety gate: refuse a non-test DSN before we create or touch any DB.
 	// dbtest.Pool gives this package its own isolated, migrated database
@@ -380,5 +388,5 @@ func freshAPIServer(t *testing.T) (string, *pgxpool.Pool) {
 
 	srv := httptest.NewServer(s.router)
 	t.Cleanup(srv.Close)
-	return srv.URL, pool
+	return srv.URL, pool, s
 }

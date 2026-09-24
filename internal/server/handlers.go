@@ -52,6 +52,12 @@ import (
 // packages (audit). The handler's job is request/response shaping and
 // orchestration, nothing more.
 type handlers struct {
+	// serializer is the transaction source for the interactive credential
+	// paths. nil means "use pool", which is what production does. Tests
+	// substitute it to reach C-37's unknown-commit branch, which no SQL
+	// failure can produce: every SQL error carries a SQLSTATE and is
+	// therefore a DETERMINATE failure.
+	serializer  identity.TxBeginner
 	pool        *pgxpool.Pool
 	users       *users.Service
 	credentials *credential.Service
@@ -988,4 +994,13 @@ func (h *handlers) PostAdminPoliciesReload(w http.ResponseWriter, r *http.Reques
 		resp.Outcomes[string(typ)] = string(outcome)
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// serialized returns the transaction source for credential issuance.
+// Production always gets the pool; only a test substitutes it.
+func (h *handlers) serialized() identity.TxBeginner {
+	if h.serializer != nil {
+		return h.serializer
+	}
+	return h.pool
 }

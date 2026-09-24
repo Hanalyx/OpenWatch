@@ -20,6 +20,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	openapitypes "github.com/oapi-codegen/runtime/types"
 )
 
@@ -57,33 +58,28 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check MFA enrollment. If enrolled, the otp is required.
+	// Check MFA enrollment. If enrolled, the otp is required. Enrollment
+	// is a read, so it happens before the transaction; the OTP itself is
+	// CONSUMED inside it (C-35).
 	enrolled, err := mfaEnrolled(r.Context(), h, u.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"mfa lookup failed", true)
 		return
 	}
-	if enrolled {
-		otp := ""
-		if req.Otp != nil {
-			otp = *req.Otp
-		}
-		if otp == "" {
-			emitLoginFailure(r, "mfa_required", req.Username)
-			writeError(w, http.StatusUnauthorized, "auth.mfa_required", "client",
-				"MFA OTP is required for this user", false)
-			return
-		}
-		if err := identity.VerifyMFA(r.Context(), h.pool, u.ID, otp); err != nil {
-			emitLoginFailure(r, "mfa_invalid", req.Username)
-			emitAudit(r, audit.AuthMfaFailed, u.ID.String(), map[string]any{
-				"reason": "otp_invalid_or_replayed",
-			})
-			writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
-				"MFA OTP invalid", false)
-			return
-		}
+	otp := ""
+	if req.Otp != nil {
+		otp = *req.Otp
+	}
+	// Answer the "you need an OTP" case before the transaction so the
+	// client gets it without a lock round trip. The AUTHORITATIVE
+	// enrollment read happens under the lock below, because this one can
+	// be stale by the time anything is issued.
+	if enrolled && otp == "" {
+		emitLoginFailure(r, "mfa_required", req.Username)
+		writeError(w, http.StatusUnauthorized, "auth.mfa_required", "client",
+			"MFA OTP is required for this user", false)
+		return
 	}
 
 	// Soft require-MFA enforcement: when workspace policy requires MFA but
@@ -99,26 +95,130 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mint session + refresh + access tokens. All three share this users row.
-	sessionToken, sess, err := identity.IssueSession(r.Context(), h.pool, u.ID, r.RemoteAddr, r.UserAgent())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"session issue failed", true)
+	// Everything that reads account state and then issues runs in ONE
+	// transaction that holds the per-user lock. Password verification
+	// stayed outside it on purpose: Argon2id is deliberately expensive and
+	// holding a row lock across it would serialize every login for the
+	// user behind one key-stretching cost. Spec C-34.
+	var (
+		sessionToken string
+		sess         identity.Session
+		access       string
+		refresh      string
+		role         auth.RoleID
+		loginRefused string
+	)
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), u.ID, func(ctx context.Context, tx pgx.Tx) error {
+		// Reset per attempt: RunSerialized may restart the whole
+		// transaction, and a value carried over from a rolled-back
+		// attempt would be reported as if it were durable.
+		sessionToken, access, refresh, loginRefused = "", "", "", ""
+		sess = identity.Session{}
+
+		// Revalidate account state UNDER the lock. The check before the
+		// transaction is not enough: a disable can commit between the
+		// password check and here, and that window is exactly the race
+		// an administrator's lockout must not lose. Spec C-34.
+		status, err := identity.ReadAccountStatus(ctx, tx, u.ID)
+		if err != nil {
+			return err
+		}
+		if !status.MayAuthenticate() {
+			loginRefused = status.Reason()
+			return nil
+		}
+		// Account state is not the only stale input. The password was
+		// verified BEFORE this transaction and MFA enrollment was read
+		// before it too, and both can change in between. Re-read them
+		// under the lock and let the locked values decide. Spec C-39.
+		inputs, err := identity.ReadAuthInputs(ctx, tx, u.ID)
+		if err != nil {
+			return err
+		}
+		// An administrative reset (or a self-service change) that commits
+		// between the password check and here invalidates the credential
+		// this request presented. Issuing now would hand out fresh
+		// credentials on the strength of a password that no longer opens
+		// the account. last_password_change_at is bumped by the only
+		// statement that writes password_hash, so a change is always
+		// visible here.
+		if !inputs.PasswordUnchangedSince(u.LastPasswordChangeAt) {
+			loginRefused = "password_changed_during_login"
+			return nil
+		}
+		// The locked enrollment value is authoritative in BOTH
+		// directions. Enrollment completing mid-login must not let a
+		// login through without an OTP; enrollment being removed
+		// mid-login must not fail a login on an OTP that no longer has a
+		// secret to verify against.
+		if inputs.MFAEnrolled && otp == "" {
+			loginRefused = "mfa_required_during_login"
+			return nil
+		}
+		// The OTP is consumed HERE, inside the issuing transaction. On the
+		// pool it would be burned by a later issuance failure and the user
+		// could not retry with the code still on their screen. Spec C-35.
+		if inputs.MFAEnrolled {
+			if err := identity.VerifyMFA(ctx, tx, u.ID, otp); err != nil {
+				// Only a REFUSAL is a login refusal. A failure to find
+				// out goes back to the runner so the transaction rolls
+				// back and the commit outcome is classified, rather than
+				// being reported to the user as a bad code. Spec C-32.
+				if !identity.IsMFARejection(err) {
+					return err
+				}
+				loginRefused = "mfa_invalid"
+				return nil
+			}
+		}
+		var err2 error
+		sessionToken, sess, err2 = identity.IssueSession(ctx, tx, u.ID, r.RemoteAddr, r.UserAgent())
+		if err2 != nil {
+			return err2
+		}
+		role, _ = h.users.PrimaryRoleFor(ctx, u.ID)
+		access, _, err2 = identity.IssueJWT(u.ID, string(role))
+		if err2 != nil {
+			return err2
+		}
+		// AUTH-1 (b): anchor the refresh lineage to the session's absolute
+		// deadline so refreshing cannot extend past the absolute timeout.
+		refresh, err2 = identity.IssueRefreshToken(ctx, tx, u.ID, sess.AbsoluteExpiresAt)
+		return err2
+	})
+	switch {
+	case errors.Is(txErr, identity.ErrCommitUnknown):
+		// Neither result is asserted: a session may or may not exist.
+		// NOT retryable, and the message says nothing about retrying. An
+		// automatic replay could issue a second set of credentials for a
+		// first set that already committed. Spec C-37, C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"the sign-in outcome is unknown; sign in again to obtain a known credential", false)
+		return
+	case txErr != nil:
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"sign-in temporarily unavailable", true)
 		return
 	}
-	role, _ := h.users.PrimaryRoleFor(r.Context(), u.ID)
-	access, _, err := identity.IssueJWT(u.ID, string(role))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"jwt issue failed", true)
-		return
-	}
-	// AUTH-1 (b): anchor the refresh lineage to the session's absolute deadline
-	// so refreshing cannot extend the session past its absolute timeout.
-	refresh, err := identity.IssueRefreshToken(r.Context(), h.pool, u.ID, sess.AbsoluteExpiresAt)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"refresh issue failed", true)
+	if loginRefused != "" {
+		emitLoginFailure(r, loginRefused, req.Username)
+		if loginRefused == "mfa_required_during_login" {
+			// Enrollment completed while this login was in flight. Same
+			// answer as the pre-transaction case: the client needs an OTP.
+			writeError(w, http.StatusUnauthorized, "auth.mfa_required", "client",
+				"MFA OTP is required for this user", false)
+			return
+		}
+		if loginRefused == "mfa_invalid" {
+			emitAudit(r, audit.AuthMfaFailed, u.ID.String(), map[string]any{
+				"reason": "otp_invalid_or_replayed",
+			})
+			writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
+				"MFA OTP invalid", false)
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "auth.invalid_credentials", "client",
+			"invalid username or password", false)
 		return
 	}
 
@@ -248,7 +348,95 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostAuthRefresh rotates the supplied refresh token.
-// Spec AC-08, AC-09, C-04.
+// refreshResult is what a serialized refresh transaction produced. The
+// zero value carries no credentials and an undetermined outcome, so a
+// caller that forgets a branch cannot answer 200 with nothing.
+type refreshResult struct {
+	outcome  identity.RefreshOutcome
+	pair     *identity.TokenPair
+	userID   uuid.UUID
+	role     auth.RoleID
+	refused  string // account-state refusal reason, "" when the account is fine
+	newToken string // session cookie value, cookie path only
+}
+
+// runSerializedRefresh is the shared body of both refresh paths: resolve
+// the owner, take the per-user lock, revalidate account state under it,
+// rotate, and issue. The rotation helper owns no transaction, so the
+// rotated row and whatever is issued from it commit together or not at
+// all. Spec C-34.
+//
+// issue runs after a successful rotation and inside the same
+// transaction, so the cookie path can mint its session there.
+func (h *handlers) runSerializedRefresh(
+	r *http.Request,
+	presented string,
+	issue func(ctx context.Context, tx pgx.Tx, res *refreshResult) error,
+) (refreshResult, error) {
+	var res refreshResult
+	owner, err := identity.UserIDForRefreshToken(r.Context(), h.pool, presented)
+	if err != nil {
+		// An unknown token has no owner to lock. Answer from the
+		// outcome rather than inventing a user.
+		if errors.Is(err, identity.ErrRefreshTokenNotFound) {
+			res.outcome = identity.RefreshNotFound
+			return res, nil
+		}
+		return res, err
+	}
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), owner, func(ctx context.Context, tx pgx.Tx) error {
+		// Reset per attempt: RunSerialized may restart the transaction
+		// and a value from a rolled-back attempt is not durable.
+		res = refreshResult{}
+
+		status, err := identity.ReadAccountStatus(ctx, tx, owner)
+		if err != nil {
+			return err
+		}
+		if !status.MayAuthenticate() {
+			// Refuse before rotating. Rotating first would consume the
+			// user's token to no purpose and, on a later retry, look
+			// like reuse.
+			res.refused = status.Reason()
+			return nil
+		}
+		outcome, pair, err := identity.ConsumeRefreshTokenTx(ctx, tx, presented, "")
+		if err != nil {
+			return err
+		}
+		res.outcome, res.pair, res.userID = outcome, pair, owner
+		if outcome != identity.RefreshRotated {
+			// Reuse revoked the family inside this transaction; letting
+			// it commit is the point. MustCommit says so.
+			return nil
+		}
+		res.role, _ = h.users.PrimaryRoleFor(ctx, owner)
+		if issue != nil {
+			return issue(ctx, tx, &res)
+		}
+		return nil
+	})
+	return res, txErr
+}
+
+// writeRefreshTxError maps a failed refresh transaction onto a response.
+// An unknown commit outcome asserts neither result. Spec C-37.
+func writeRefreshTxError(w http.ResponseWriter, err error) {
+	if errors.Is(err, identity.ErrCommitUnknown) {
+		// The rotation may ALREADY have committed. Presenting the
+		// predecessor again is indistinguishable from theft and revokes
+		// the whole family, so this outcome must not invite a retry:
+		// retryable is false and the message tells the client to
+		// re-authenticate rather than replay. Spec C-37, C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"the refresh outcome is unknown; sign in again rather than presenting the same token", false)
+		return
+	}
+	writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+		"refresh temporarily unavailable", true)
+}
+
+// PostAuthRefresh implements POST /auth/refresh (body token).
 func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 	var req api.AuthRefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
@@ -257,52 +445,55 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// We don't know the user's role until after consume; pass "" and
-	// let the package's reuse-detection cascade still fire.
-	pair, err := identity.ConsumeRefreshToken(r.Context(), h.pool, req.RefreshToken, "")
-	if err != nil {
-		switch {
-		case errors.Is(err, identity.ErrRefreshTokenReused):
-			writeError(w, http.StatusUnauthorized, "auth.refresh_reused", "policy",
-				"refresh token reuse detected; all sessions revoked", false)
-		case errors.Is(err, identity.ErrRefreshTokenExpired),
-			errors.Is(err, identity.ErrRefreshTokenRevoked),
-			errors.Is(err, identity.ErrRefreshTokenNotFound),
-			errors.Is(err, identity.ErrRefreshSessionExpired):
-			writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
-				"refresh token invalid or expired", false)
-		default:
-			writeError(w, http.StatusInternalServerError, "server.error", "server",
-				"refresh failed", true)
-		}
+	res, txErr := h.runSerializedRefresh(r, req.RefreshToken, nil)
+	if txErr != nil {
+		writeRefreshTxError(w, txErr)
+		return
+	}
+	// A refused account gets the same generic answer as an invalid token:
+	// the refresh surface is not an account-state oracle.
+	if res.refused != "" {
+		emitLoginFailure(r, res.refused, "")
+		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+			"refresh token invalid or expired", false)
+		return
+	}
+	switch res.outcome {
+	case identity.RefreshRotated:
+	case identity.RefreshReused:
+		writeError(w, http.StatusUnauthorized, "auth.refresh_reused", "policy",
+			"refresh token reuse detected; all sessions revoked", false)
+		return
+	case identity.RefreshExpired, identity.RefreshRevoked,
+		identity.RefreshNotFound, identity.RefreshSessionExpired:
+		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+			"refresh token invalid or expired", false)
+		return
+	default:
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"refresh outcome undetermined", true)
 		return
 	}
 
-	// Re-mint the JWT with the current role (the role baked into pair.Claims
-	// was empty because we passed "" above; that's the contract).
-	userID, _ := uuid.Parse(pair.Claims.Subject)
-	role, _ := h.users.PrimaryRoleFor(r.Context(), userID)
-	access, _, err := identity.IssueJWT(userID, string(role))
+	// Re-mint the JWT with the current role (the role baked into
+	// pair.Claims was empty because we passed "" above; that's the
+	// contract). This is a pure computation over an already-committed
+	// rotation, so it stays outside the transaction.
+	access, _, err := identity.IssueJWT(res.userID, string(res.role))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"jwt issue failed", true)
 		return
 	}
-	u, _ := h.users.GetUserByID(r.Context(), userID)
+	u, _ := h.users.GetUserByID(r.Context(), res.userID)
 	writeJSON(w, http.StatusOK, api.AuthLoginResponse{
 		AccessToken:  access,
-		RefreshToken: pair.RefreshToken,
-		User:         userToMe(u, string(role)),
+		RefreshToken: res.pair.RefreshToken,
+		User:         userToMe(u, string(res.role)),
 	})
 }
 
-// PostAuthRefreshCookie consumes the openwatch_refresh cookie, rotates
-// the refresh token, mints a new session, and Set-Cookies both. The
-// browser uses this on transparent retry from its API client when a
-// regular request returns 401 — it never has to redirect to /login as
-// long as the refresh window (7 days) is still open.
-//
-// Spec system-auth-identity AC-23, C-14.
+// PostAuthRefreshCookie implements POST /auth/refresh-cookie.
 func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request) {
 	rc, err := r.Cookie(identity.RefreshCookieName)
 	if err != nil || rc.Value == "" {
@@ -312,55 +503,58 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pair, err := identity.ConsumeRefreshToken(r.Context(), h.pool, rc.Value, "")
-	if err != nil {
-		switch {
-		case errors.Is(err, identity.ErrRefreshTokenReused):
-			clearAuthCookies(w)
-			writeError(w, http.StatusUnauthorized, "auth.refresh_reused", "policy",
-				"refresh token reuse detected; all sessions revoked", false)
-		case errors.Is(err, identity.ErrRefreshTokenExpired),
-			errors.Is(err, identity.ErrRefreshTokenRevoked),
-			errors.Is(err, identity.ErrRefreshTokenNotFound):
-			clearAuthCookies(w)
-			writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
-				"refresh token invalid or expired", false)
-		case errors.Is(err, identity.ErrRefreshSessionExpired):
-			// AUTH-1 (b): the session's absolute timeout has passed. Refusing to
-			// refresh is the whole point — clear cookies and make the browser
-			// re-authenticate rather than silently extend past the ceiling.
-			clearAuthCookies(w)
-			writeError(w, http.StatusUnauthorized, "auth.session_expired", "client",
-				"session absolute timeout reached; please sign in again", false)
-		default:
-			writeError(w, http.StatusInternalServerError, "server.error", "server",
-				"refresh failed", true)
+	res, txErr := h.runSerializedRefresh(r, rc.Value, func(ctx context.Context, tx pgx.Tx, res *refreshResult) error {
+		// Mint the new session INSIDE the rotation's transaction, and
+		// carry the ORIGINAL absolute deadline so a refresh cannot reset
+		// the absolute ceiling (AUTH-1 b). Legacy tokens with no carried
+		// deadline fall back to a fresh window until they age out.
+		var err error
+		if res.pair.AbsoluteExpiresAt.IsZero() {
+			res.newToken, _, err = identity.IssueSession(ctx, tx, res.userID, r.RemoteAddr, r.UserAgent())
+		} else {
+			res.newToken, _, err = identity.IssueSessionWithAbsolute(ctx, tx, res.userID,
+				r.RemoteAddr, r.UserAgent(), res.pair.AbsoluteExpiresAt)
 		}
+		return err
+	})
+	if txErr != nil {
+		writeRefreshTxError(w, txErr)
 		return
 	}
-
-	userID, _ := uuid.Parse(pair.Claims.Subject)
-	role, _ := h.users.PrimaryRoleFor(r.Context(), userID)
-
-	// Mint a new session, but carry the ORIGINAL absolute deadline so the
-	// refresh cannot reset the absolute ceiling (AUTH-1 b). Legacy refresh
-	// tokens (minted before migration 0047, no carried deadline) fall back to a
-	// fresh window until they age out within 7 days.
-	var sessionToken string
-	if pair.AbsoluteExpiresAt.IsZero() {
-		sessionToken, _, err = identity.IssueSession(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent())
-	} else {
-		sessionToken, _, err = identity.IssueSessionWithAbsolute(r.Context(), h.pool, userID, r.RemoteAddr, r.UserAgent(), pair.AbsoluteExpiresAt)
+	if res.refused != "" {
+		emitLoginFailure(r, res.refused, "")
+		clearAuthCookies(w)
+		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+			"refresh token invalid or expired", false)
+		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"session issue failed", true)
+	switch res.outcome {
+	case identity.RefreshRotated:
+	case identity.RefreshReused:
+		clearAuthCookies(w)
+		writeError(w, http.StatusUnauthorized, "auth.refresh_reused", "policy",
+			"refresh token reuse detected; all sessions revoked", false)
+		return
+	case identity.RefreshSessionExpired:
+		// AUTH-1 (b): refusing to refresh past the ceiling is the point.
+		clearAuthCookies(w)
+		writeError(w, http.StatusUnauthorized, "auth.session_expired", "client",
+			"session absolute timeout reached; please sign in again", false)
+		return
+	case identity.RefreshExpired, identity.RefreshRevoked, identity.RefreshNotFound:
+		clearAuthCookies(w)
+		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
+			"refresh token invalid or expired", false)
+		return
+	default:
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"refresh outcome undetermined", true)
 		return
 	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     identity.SessionCookieName,
-		Value:    sessionToken,
+		Value:    res.newToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
@@ -370,7 +564,7 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 	setCSRFCookie(w, newCSRFToken())
 	http.SetCookie(w, &http.Cookie{
 		Name:     identity.RefreshCookieName,
-		Value:    pair.RefreshToken,
+		Value:    res.pair.RefreshToken,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
@@ -378,8 +572,8 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		MaxAge:   int(identity.RefreshTokenWindow.Seconds()),
 	})
 
-	u, _ := h.users.GetUserByID(r.Context(), userID)
-	writeJSON(w, http.StatusOK, userToMe(u, string(role)))
+	u, _ := h.users.GetUserByID(r.Context(), res.userID)
+	writeJSON(w, http.StatusOK, userToMe(u, string(res.role)))
 }
 
 // clearAuthCookies emits Set-Cookie headers that delete both auth
@@ -451,10 +645,30 @@ func (h *handlers) PostAuthMFAEnroll(w http.ResponseWriter, r *http.Request) {
 			"identity user not found", false)
 		return
 	}
-	uri, err := identity.EnrollMFA(r.Context(), h.pool, userID, u.Username)
+	// Under the per-user lock, so enrollment serializes against an
+	// in-flight login. Login re-reads enrollment under the same lock and
+	// lets the locked value decide; without taking it here the two could
+	// interleave so that a login observes neither the old state nor the
+	// new one consistently. Spec C-34, C-39.
+	var uri string
+	err = identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
+		var ierr error
+		uri, ierr = identity.EnrollMFA(ctx, tx, userID, u.Username)
+		return ierr
+	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"mfa enroll failed", true)
+		// An unknown commit outcome is NOT a failed enrollment: the
+		// secret may already be stored. Saying "enroll failed" would
+		// invite the user to enroll again and, if the first attempt did
+		// commit, replace a secret their authenticator app already
+		// holds. Spec C-40.
+		if errors.Is(err, identity.ErrCommitUnknown) {
+			writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+				"the enrollment outcome is unknown; check whether MFA is enrolled before enrolling again", false)
+			return
+		}
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"mfa enrollment is temporarily unavailable", true)
 		return
 	}
 	emitAudit(r, audit.AuthMfaEnrolled, id.ID, nil)
@@ -478,7 +692,50 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID, _ := uuid.Parse(id.ID)
-	if err := identity.VerifyMFA(r.Context(), h.pool, userID, req.Otp); err != nil {
+	// Under the per-user lock: this call is what CONFIRMS enrollment (it
+	// stamps last_verified_at), so it is the mutation a concurrent login
+	// must not straddle. Spec C-34, C-39.
+	// Three outcomes, and they must not be conflated. An OTP the server
+	// REJECTED is a client failure and is audited as one. An
+	// infrastructure failure is not: calling a database outage an invalid
+	// OTP sends the user to their authenticator app for a code that was
+	// never the problem, and writes an authentication-failure event that
+	// did not happen. An UNKNOWN outcome is neither, because the
+	// confirmation may already have committed.
+	var otpRejected bool
+	txErr := identity.RunSerialized(r.Context(), h.serialized(), userID, func(ctx context.Context, tx pgx.Tx) error {
+		// Reset per attempt: RunSerialized may restart the transaction.
+		otpRejected = false
+		if err := identity.VerifyMFA(ctx, tx, userID, req.Otp); err != nil {
+			if !identity.IsMFARejection(err) {
+				// A failure to find out. Hand it back so the runner
+				// rolls back and classifies it. Spec C-32.
+				return err
+			}
+			// The OTP itself was refused: determinate, nothing to retry.
+			otpRejected = true
+			return nil
+		}
+		return nil
+	})
+	// The transaction outcome is read FIRST. A recorded rejection must
+	// not conceal a transaction that failed or whose result is unknown:
+	// answering 401 would tell the user their code was bad while the
+	// server has no idea what it committed.
+	switch {
+	case errors.Is(txErr, identity.ErrCommitUnknown):
+		// The confirmation may have committed. Claiming it failed is
+		// wrong in the direction that matters: the user would retry a
+		// code that is now consumed and be told it is invalid.
+		// Spec C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"the confirmation outcome is unknown; check whether MFA is enrolled before trying another code", false)
+		return
+	case txErr != nil:
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"mfa confirmation is temporarily unavailable", true)
+		return
+	case otpRejected:
 		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
 		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
 			"OTP invalid or replayed", false)
