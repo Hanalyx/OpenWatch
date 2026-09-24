@@ -282,6 +282,10 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// Someone logging out on a shared or compromised machine is exactly the
 	// person who cannot afford that.
 	revokeFailed := false
+	// revokeUnknown is set when the revocation transaction's commit outcome
+	// is indeterminate. It is NOT a failure: the family may already be
+	// revoked. Spec C-37, C-40.
+	revokeUnknown := false
 
 	// Logout ends ONE login family, located by the cookies the request
 	// carries. The session cookie is consulted first: that is the
@@ -296,6 +300,31 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	if c, err := r.Cookie(identity.RefreshCookieName); err == nil {
 		anchors.RefreshToken = c.Value
+	}
+
+	// CSRF, enforced HERE. The middleware exempts every /api/v1/auth/*
+	// route, every request carrying an Authorization header, and every
+	// request without a session cookie, so none of its checks reach this
+	// handler. When either credential cookie selects what to revoke, the
+	// cookie is the authority and a cross-site request could carry it, so
+	// the double-submit token is required. An Authorization header does not
+	// change that: it authenticates nothing here, because the cookies pick
+	// the target.
+	//
+	// The refusal comes before any revocation and before the cookies are
+	// cleared, so a refused request changes nothing on either side.
+	//
+	// Known limitation, accepted: the XSRF cookie is a browser-session
+	// cookie and the refresh cookie lasts seven days, so after a browser
+	// restart a client can hold a refresh cookie and no XSRF cookie. That
+	// client cannot complete this request until it obtains an XSRF cookie
+	// some other way. Nothing here assumes a startup refresh supplies one.
+	// Spec C-42.
+	if anchors.SessionToken != "" || anchors.RefreshToken != "" {
+		if !validDoubleSubmit(r) {
+			writeCSRFInvalid(w)
+			return
+		}
 	}
 
 	owner, found, lerr := identity.LocateLogoutOwner(r.Context(), h.pool, anchors)
@@ -320,13 +349,22 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 			target = t
 			return identity.RevokeLogoutFamily(ctx, tx, t)
 		})
-		if txErr != nil {
-			revokeFailed = true
-			// No credential values are logged: only the owner and the error.
-			slog.ErrorContext(r.Context(), "logout: family revocation failed; nothing was revoked",
+		switch {
+		case errors.Is(txErr, identity.ErrCommitUnknown):
+			// The commit may have applied. Neither success nor rollback
+			// is asserted, here or in the response.
+			revokeUnknown = true
+			slog.ErrorContext(r.Context(), "logout: revocation outcome unknown; the family may or may not be revoked",
 				slog.String("user_id", owner.String()),
 				slog.String("error", txErr.Error()))
-		} else if target.Anchor != "" {
+		case txErr != nil:
+			// A determinate failure: the transaction rolled back, so
+			// nothing was revoked. No credential values are logged.
+			revokeFailed = true
+			slog.ErrorContext(r.Context(), "logout: family revocation failed and rolled back; nothing was revoked",
+				slog.String("user_id", owner.String()),
+				slog.String("error", txErr.Error()))
+		case target.Anchor != "":
 			// target_conflict records that the two cookies named
 			// different families and only the session cookie's was
 			// ended. It carries no token material.
@@ -360,6 +398,12 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// rather than reporting a clean logout: the client needs to know the
 	// credential may still be live so a human can revoke the session
 	// explicitly or rotate.
+	if revokeUnknown {
+		// Not retryable, and no claim either way. Spec C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"signed out on this device, but revocation of your session could not be confirmed. Check your active sessions in Settings.", false)
+		return
+	}
 	if revokeFailed {
 		writeError(w, http.StatusInternalServerError, "auth.logout_incomplete", "server",
 			"signed out on this device, but the server could not revoke the session. It may remain valid until it expires. Revoke it from Settings or contact an administrator.", true)

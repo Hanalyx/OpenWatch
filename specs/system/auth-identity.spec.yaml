@@ -352,6 +352,26 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-42
+      description: >
+        Logout MUST enforce the double-submit CSRF check itself whenever a
+        session cookie or a refresh cookie selects what it revokes. The
+        shared CSRF middleware exempts every /api/v1/auth/* route, every
+        request carrying an Authorization header, and every request without
+        a session cookie, so none of its checks reach logout. When a cookie is
+        the revocation authority, a cross-site request could carry it; an
+        Authorization header does not change that, because the cookies pick
+        the target. A missing or mismatched token MUST be refused with 403
+        authz.csrf_invalid BEFORE any revocation and WITHOUT clearing or
+        replacing any cookie. Other authentication routes are unchanged. The
+        limitation is accepted and recorded: the XSRF cookie is a
+        browser-session cookie while the refresh cookie lasts seven days, so
+        a client holding a refresh cookie and no XSRF cookie cannot complete a
+        logout request, and no exemption, bootstrap endpoint or automatic
+        refresh is provided for it.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: HashPassword(plain) returns an Argon2id PHC string ($argon2id$v=19$m=65536,t=3,p=1$...); VerifyPassword(plain, hash) returns true for the original and false for any other input.
@@ -1458,3 +1478,81 @@ spec:
           - "User-wide revocation as a fallback"
           - "Revoking another user's credentials"
           - "An unbounded traversal"
+    - id: AC-68
+      description: >
+        Logout refuses a cookie-authorized request whose CSRF token is missing
+        or mismatched, before any revocation and without touching cookies, and
+        performs the intended revocation when the token is valid. This holds
+        for a session cookie alone, a refresh cookie alone, both cookies, and
+        conflicting cookies, and an Authorization header does not bypass it.
+      priority: critical
+      references_constraints: [C-41, C-42]
+      inputs:
+        anchors: ["Session cookie only", "Refresh cookie only", "Both cookies, same family", "Conflicting cookies"]
+        csrf_states: ["Missing", "Mismatched", "Valid"]
+        extra_variant: "Session cookie only, missing CSRF, WITH an Authorization header"
+        method: >
+          Every anchor is crossed with every CSRF state, each on a fresh login,
+          so a refusal in one case cannot hide state from another. The state is
+          read directly before and after, and the response's Set-Cookie
+          headers are inspected.
+      expected_output:
+        per_csrf_state:
+          Missing:
+            status: 403
+            code: authz.csrf_invalid
+            durable_changes: []
+            set_cookie: []
+          Mismatched:
+            status: 403
+            code: authz.csrf_invalid
+            durable_changes: []
+            set_cookie: []
+          Valid:
+            status: 204
+            revoked: "The family selected under C-41 (the session cookie's family when the cookies conflict)"
+        authorization_header_variant: {status: 403, durable_changes: []}
+        prohibited_changes:
+          - "Any revocation on a refused request"
+          - "A refused request clearing or replacing a cookie"
+          - "An Authorization header bypassing the check while cookies select the target"
+    - id: AC-69
+      description: >
+        An UNKNOWN commit outcome on logout is reported truthfully: 503
+        server.error, not retryable, with wording that the revocation could not
+        be confirmed. Neither the response nor the log asserts success or
+        rollback, no automatic replay occurs, and both credential cookies are
+        still cleared. A KNOWN rollback stays distinct (AC-66).
+      priority: critical
+      references_constraints: [C-37, C-40, C-41]
+      inputs:
+        initial_state: "A logged-in user"
+        controlled_failure: "The revocation transaction's commit outcome is indeterminate"
+        variants:
+          - name: "Durable commit, lost acknowledgement"
+            setup: "The transaction commits, then the acknowledgement is lost"
+          - name: "Non-durable"
+            setup: "The transaction does not commit, and the outcome is unknown"
+        method: >
+          Driven through the real logout route with the transaction source
+          substituted, which selects each outcome deterministically. The
+          substitute counts transactions begun, so a replay would be visible.
+          The server log is captured for the request.
+      expected_output:
+        response:
+          status: 503
+          code: server.error
+          retryable: false
+          message_states: "revocation could not be confirmed"
+        identical_across_variants: true
+        transactions_begun: 1
+        set_cookie_clears: [openwatch_session, openwatch_refresh]
+        log_states: "outcome unknown"
+        durable_state:
+          Durable commit, lost acknowledgement: "family revoked"
+          Non-durable: "family live"
+        prohibited_changes:
+          - "A response or log asserting the family was revoked"
+          - "A response or log asserting nothing was revoked"
+          - "retryable true"
+          - "A second revocation attempt"
