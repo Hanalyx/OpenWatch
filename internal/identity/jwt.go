@@ -36,6 +36,13 @@ const AccessTokenWindow = 30 * time.Minute
 type Claims struct {
 	jwt.RegisteredClaims
 	Role string `json:"role"`
+	// SessionID binds this access token to the session that issued it.
+	// Without it a signed token is an independent bearer credential that
+	// outlives everything except its own expiry, which is why an
+	// administrative password reset used to leave one working: the
+	// account stays enabled, so no account-state check reaches it.
+	// Spec C-38.
+	SessionID string `json:"sid,omitempty"`
 }
 
 // jwtKey is the active RS256 signing key. Loaded from file at boot or
@@ -121,6 +128,17 @@ func parsePrivateKey(raw []byte) (*rsa.PrivateKey, error) {
 //
 // Spec AC-11, C-08.
 func IssueJWT(userID uuid.UUID, role string) (string, Claims, error) {
+	return IssueJWTForSession(userID, role, uuid.Nil)
+}
+
+// IssueJWTForSession mints an access token bound to sessionID. A Nil
+// sessionID mints an UNBOUND token, which the binder refuses: every
+// interactive issuance path must name the session it came from. The
+// unbound form exists only for callers that mint a token for something
+// other than an interactive login, and there are none today.
+//
+// Spec AC-11, C-08, C-38.
+func IssueJWTForSession(userID uuid.UUID, role string, sessionID uuid.UUID) (string, Claims, error) {
 	key := activeKey()
 	if key == nil {
 		return "", Claims{}, errors.New("identity: no JWT signing key installed")
@@ -138,6 +156,9 @@ func IssueJWT(userID uuid.UUID, role string) (string, Claims, error) {
 			ID:        jti.String(),
 		},
 		Role: role,
+	}
+	if sessionID != uuid.Nil {
+		claims.SessionID = sessionID.String()
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	signed, err := tok.SignedString(key)

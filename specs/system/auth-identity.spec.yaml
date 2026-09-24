@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 1
 
@@ -251,6 +251,48 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-38
+      description: >
+        An access token MUST be bound to the session that issued it. The token
+        carries that session's id as a `sid` claim, the refresh lineage carries
+        it in refresh_tokens.session_id, and the binder MUST refuse a token
+        whose bound session is revoked, expired or absent, and MUST refuse a
+        token that carries no binding at all. Without this an access token is
+        an independent bearer credential that outlives everything except its
+        own expiry, which is why an administrative password reset left one
+        working: the account stays enabled, so no account-state check reaches
+        it. The evaluation MUST be a single read over sessions joined to
+        users, and MUST refuse in this vocabulary: sid_absent, session_absent,
+        session_owner_mismatch, session_revoked, session_absolute_expired,
+        account_disabled, account_deleted, with session_lookup_failed
+        answering 503. It MUST compare the session's user_id with the token's
+        subject and refuse a mismatch: nothing legitimate produces a correctly
+        signed token naming another user's session.
+        The evaluation MUST NOT apply the session's IDLE window and MUST NOT
+        slide it. The idle window tracks real user activity in a browser
+        session; a Bearer request is not that, so expiring against it would
+        cut off an actively calling client and sliding it would let a
+        background caller keep a session alive forever. Bearer traffic is
+        bounded by the session's ABSOLUTE deadline, evaluated with
+        clock_timestamp() in the database so skew between the application and
+        the database cannot change who is admitted.
+        Revoking a session MUST make its descendants unusable: every refresh
+        token attached to that session is revoked with it, and rotation MUST
+        refuse a token whose linked session is revoked. A lineage does NOT
+        keep one session id, because the cookie path rebinds each successor
+        to the session it mints, so both rules are scoped to whatever session
+        a token is attached to at the time. Logout MUST take the same
+        per-user lock as the issuance paths so a concurrent rotation cannot
+        produce a live successor attached to a session that is already gone.
+        The refresh_tokens.session_id foreign key MUST NOT cascade on delete:
+        a cascade would make deleting a session silently delete its refresh
+        rows, destroying the record of what it held and changing retention
+        behavior as a side effect. Service-account tokens are outside all of
+        this.
+        Credentials minted before this rule exists carry no binding and cannot
+        be evaluated against it, so the migration that introduces it MUST
+        revoke every live interactive session and refresh token rather than
+        leave the guarantee silently false for up to seven days.
     - id: C-39
       description: >
         Every authentication input MUST be revalidated under the per-user lock,
@@ -282,6 +324,51 @@ spec:
         things worse. The same rule applies to a login whose commit outcome is
         unknown, where an automatic replay could issue a second set of
         credentials for a first set that already exists.
+      type: security
+      enforcement: error
+
+    - id: C-41
+      description: >
+        Logout MUST end exactly one login family, located by the cookies the
+        request carries. A family is the connected set of sessions and refresh
+        rows reachable through refresh_tokens.session_id and
+        refresh_tokens.rotated_to_id in BOTH directions; the cookie path
+        rebinds each rotated successor to the session it mints, so a lineage
+        does not keep one session id and a one-directional walk misses half
+        the family. Target resolution MUST accept a session cookie alone, a
+        refresh cookie alone, or both, and MUST match on the token hash alone,
+        so an idle-expired or otherwise unusable session cookie still locates
+        its family. That lookup authorizes nothing except logout. When both
+        cookies resolve to different families, the session cookie's family is
+        revoked and the other is left untouched; this is a target-precedence
+        policy, and the disagreement is recorded in the declared
+        auth.logout detail without any credential value. Every row reached
+        MUST belong to one user, the walk MUST terminate on cycles and MUST
+        fail beyond a bound, and on any inconsistency logout MUST revoke
+        nothing: no user-wide fallback, no partial success, no silent
+        widening. Resolution and revocation MUST run in one transaction under
+        the same per-user lock as rotation, so a failure anywhere rolls every
+        revocation back. CSRF protection on logout is unchanged.
+      type: security
+      enforcement: error
+
+    - id: C-42
+      description: >
+        Logout MUST enforce the double-submit CSRF check itself whenever a
+        session cookie or a refresh cookie selects what it revokes. The
+        shared CSRF middleware exempts every /api/v1/auth/* route, every
+        request carrying an Authorization header, and every request without
+        a session cookie, so none of its checks reach logout. When a cookie is
+        the revocation authority, a cross-site request could carry it; an
+        Authorization header does not change that, because the cookies pick
+        the target. A missing or mismatched token MUST be refused with 403
+        authz.csrf_invalid BEFORE any revocation and WITHOUT clearing or
+        replacing any cookie. Other authentication routes are unchanged. The
+        limitation is accepted and recorded: the XSRF cookie is a
+        browser-session cookie while the refresh cookie lasts seven days, so
+        a client holding a refresh cookie and no XSRF cookie cannot complete a
+        logout request, and no exemption, bootstrap endpoint or automatic
+        refresh is provided for it.
       type: security
       enforcement: error
 
@@ -652,6 +739,76 @@ spec:
           - "A retry of an unknown commit outcome"
           - "More than three attempts"
           - "A response claiming success or failure after an unknown commit"
+    - id: AC-43
+      description: >
+        An access token stops authenticating when the session that issued it
+        is revoked, while the account itself stays enabled and undeleted. This
+        is the administrative-reset case: no account-state check can reach a
+        token whose account is still active, so only the binding can.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "A login-issued access token and its live session; the account is enabled"
+        operation: "Revoke the session, then present the same access token"
+        variants: ["Session revoked directly", "Revoked via AdminResetPassword"]
+        method: >
+          The token is captured before the revocation and replayed after it in
+          one request. The account state never changes, so an account-state
+          check cannot produce the refusal. No concurrency, no elapsed time.
+      expected_output:
+        per_variant:
+          Session revoked directly: {status: 401}
+          Revoked via AdminResetPassword: {status: 401}
+        account_state_unchanged: true
+        prohibited_changes:
+          - "The pre-revocation access token authenticating any request"
+          - "A refusal produced by the account being disabled or deleted"
+    - id: AC-44
+      description: >
+        An access token carrying no session binding is refused, and every
+        interactive issuance path produces a bound one. An unbound token is
+        not trusted as a legacy credential: after the migration no legitimate
+        interactive token lacks a binding.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "An enabled account with a live session"
+        operation: "Present an unbound token; separately, inspect what each issuance path mints"
+        variants: ["Unbound token presented", "Password login", "Body refresh rotation"]
+        method: >
+          The unbound token is minted through the explicit unbound helper, so
+          it is cryptographically valid and differs from a bound one only in
+          the claim. One request per variant.
+      expected_output:
+        per_variant:
+          Unbound token presented: {status: 401, audit_reason: sid_absent}
+          Password login: {token_carries_sid: true, refresh_row_carries_session_id: true}
+          Body refresh rotation: {token_carries_sid: true, binding_preserved: true}
+        prohibited_changes:
+          - "An unbound token authenticating"
+          - "An issuance path minting a token the binder would refuse"
+    - id: AC-45
+      description: >
+        The migration that introduces session binding revokes every live
+        interactive credential, and leaves service-account tokens alone.
+        Nothing minted before the rule survives it.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "Live sessions and refresh tokens written before the migration, plus one api_tokens row"
+        operation: "Run the migration"
+        method: >
+          The pre-migration rows are inserted directly against a database at
+          the prior migration version, then the migration runs. Deterministic:
+          no timing and no concurrency.
+      expected_output:
+        durable_changes:
+          - "Every pre-existing session revoked"
+          - "Every pre-existing refresh token revoked"
+        service_tokens_revoked: 0
+        prohibited_changes:
+          - "A pre-migration credential authenticating afterwards"
+          - "api_tokens modified by the migration"
     - id: AC-46
       description: >
         Login refuses to issue when the password changed between verification
@@ -968,3 +1125,434 @@ spec:
           - "An authentication-failure audit event for a failure the user did not cause"
           - "An auth_mfa_otp_uses row surviving a rolled-back attempt"
           - "A recorded rejection concealing a failed or unknown transaction outcome"
+    - id: AC-54
+      description: >
+        The Bearer binder compares the bound session's owner with the token's
+        subject and refuses a mismatch as session_owner_mismatch. The token is
+        correctly signed and the session is live in every case, so the refusal
+        is attributable to ownership alone.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "Two enabled accounts, each with its own live session"
+        operation: "Present a correctly signed token whose sub is one user and whose sid names the OTHER user's live session"
+        variants: ["Mismatched pair", "Own session control"]
+        method: >
+          Both tokens are minted by the real issuer, so signature and exp are
+          valid, and both sessions are live and unrevoked. Only the pairing
+          differs. One request per variant, no concurrency.
+      expected_output:
+        per_variant:
+          Mismatched pair: {status: 401, audit_reason: session_owner_mismatch, identity_bound: false}
+          Own session control: {status: 200}
+        prohibited_changes:
+          - "A token binding a session that belongs to another user"
+          - "The mismatch binding either the subject or the session owner"
+    - id: AC-55
+      description: >
+        Rotation refuses a refresh token whose LINKED session is revoked, on
+        both refresh endpoints, and mints nothing. The token's own row is live
+        and unconsumed, so the refusal is attributable to the session.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: >
+          A live, unconsumed refresh token attached to a session that is then
+          revoked. Each endpoint gets its OWN fixture so neither result can be
+          explained by the other having consumed the token.
+        operation: "POST /auth/refresh; separately POST /auth/refresh-cookie"
+        variants: ["Body path", "Cookie path", "Body path control", "Cookie path control"]
+        method: >
+          The session is revoked by direct update, leaving the refresh row
+          untouched and unconsumed. Separate users per variant. One request
+          each, no concurrency.
+      expected_output:
+        per_variant:
+          Body path: {refused: true, credentials_issued: 0}
+          Cookie path: {refused: true, session_cookie_issued: false, sessions_created: 0}
+          Body path control: {refused: false}
+          Cookie path control: {refused: false}
+        prohibited_changes:
+          - "A rotation succeeding for a token whose session is revoked"
+          - "A cookie-path refusal that still minted a session"
+          - "The refusal being reported as reuse, which would revoke other families"
+    - id: AC-56
+      description: >
+        Revoking a session makes its descendants unusable, and logout obeys
+        the same serialization protocol as the issuance paths so a concurrent
+        rotation cannot escape it. Asserted in BOTH orders. Other login
+        families and service-account tokens are untouched.
+      priority: critical
+      references_constraints: [C-34, C-36, C-38]
+      inputs:
+        initial_state: >
+          A logged-in user whose refresh lineage has been rotated on the BODY
+          path, so the live token is attached to the original session while
+          the browser cookie holds the consumed one. A second independent
+          login for the same user, and one service-account token.
+        operation: "Log out, and race a rotation against it"
+        variants:
+          - name: "Logout then refresh"
+            setup: "The logout commits first, then the rotation is attempted"
+          - name: "Refresh then logout"
+            setup: "The rotation commits first, then the logout runs"
+          - name: "Concurrent, logout blocked on the lock"
+            setup: "A rotation holds the per-user lock; the logout waits, then proceeds"
+        method: >
+          The lineage is desynchronized on purpose by rotating on the body
+          path first, because the cookie path REBINDS each successor and would
+          otherwise hide the case. Ordering is imposed by the per-user lock and
+          observed through pg_stat_activity, not by sleeping.
+        scope: "Targeted logout. It is not extended to the user's other login families"
+      expected_output:
+        per_variant:
+          Logout then refresh:
+            durable_changes: ["The session revoked", "Every refresh token attached to it revoked"]
+            subsequent: ["Neither refresh endpoint rotates", "No session is minted"]
+          Refresh then logout:
+            subsequent: ["After the logout, no credential attached to that session rotates or authenticates"]
+          Concurrent, logout blocked on the lock:
+            final_state: "No live credential attached to the logged-out session"
+            prohibited_changes: ["A live successor attached to a session that is already revoked"]
+        preserved:
+          - "The second independent login still authenticates"
+          - "The service-account token is untouched"
+    - id: AC-57
+      description: >
+        Bearer traffic is exempt from the session's IDLE window and bounded by
+        its ABSOLUTE deadline, which is evaluated in the database. A Bearer
+        request past the idle window but inside the absolute window is
+        honored and does not advance the idle window; past the absolute
+        deadline it is refused as session_absolute_expired.
+      priority: critical
+      references_constraints: [C-29, C-38]
+      inputs:
+        initial_state: "A live session whose idle window has passed and whose absolute deadline has not"
+        operation: "Present the session-bound access token"
+        variants: ["Past idle, inside absolute", "Past absolute", "Fresh control"]
+        method: >
+          The deadlines are set by direct update rather than by waiting, so
+          the case is exact. The idle window is read before and after the
+          request to prove it did not move. Nothing depends on this process's
+          clock, which is the point of evaluating the deadline in the database.
+      expected_output:
+        per_variant:
+          Past idle, inside absolute:
+            status: 200
+            idle_window_advanced: false
+          Past absolute:
+            status: 401
+            audit_reason: session_absolute_expired
+          Fresh control:
+            status: 200
+            idle_window_advanced: false
+        prohibited_changes:
+          - "A Bearer request refused for idle expiry"
+          - "A Bearer request advancing expires_at or last_seen"
+          - "The absolute deadline decided against the application clock"
+    - id: AC-58
+      description: >
+        The refresh_tokens.session_id foreign key does not cascade on delete.
+        Deleting a session that still has refresh rows is REFUSED by the
+        database rather than silently removing them, and no retention behavior
+        changes.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "A session with at least one refresh token attached"
+        operation: "DELETE the session row"
+        method: >
+          The delete is attempted directly against the database and its error
+          is inspected, so the assertion is about the actual constraint rather
+          than about what the migration text appears to say.
+      expected_output:
+        delete_refused: true
+        sqlstate: "23503"
+        durable_changes: []
+        prohibited_changes:
+          - "Refresh rows removed as a side effect of deleting a session"
+          - "A retention policy change introduced by this schema choice"
+    - id: AC-59
+      description: >
+        A targeted logout ends the login family even when the cookie path has
+        REBOUND the family's live successor to a session the logout does not
+        name. Presenting the credentials the client held BEFORE that rotation
+        must still end it.
+      priority: critical
+      references_constraints: [C-36, C-38, C-41]
+      inputs:
+        initial_state: "A login, then ONE cookie refresh, which rebinds the successor to a new session"
+        operation: "Log out presenting the session and refresh cookies held BEFORE the rotation"
+        method: >
+          One rotation, then one logout, then the state is read directly. No
+          concurrency and no elapsed-time dependence.
+      expected_output:
+        live_sessions: 0
+        live_refresh_tokens: 0
+        subsequent: ["The rebound session does not authenticate"]
+        prohibited_changes:
+          - "A live successor attached to a session the logout did not name"
+          - "Revoking anything outside this family"
+        red_evidence: "Red at 4b20d627: live sessions 1, live refresh 1, rebound session answered 200. Expected green after the C-41 implementation."
+    - id: AC-60
+      description: >
+        Both ACTUAL orderings of a real refresh against a real logout end the
+        family. Neither order may leave a usable credential, including the
+        PREDECESSOR session the cookie path replaced.
+      priority: critical
+      references_constraints: [C-36, C-38, C-41]
+      inputs:
+        initial_state: "A logged-in user"
+        operation: "Perform a real cookie refresh and a real logout"
+        variants:
+          - name: "Refresh commits, then logout"
+            setup: "The rotation completes; the client logs out with exactly what it then holds"
+          - name: "Logout commits, then refresh"
+            setup: "The logout completes; the client then attempts both refresh paths"
+        method: >
+          Both are real HTTP requests in sequence, not simulated state. The
+          client's cookies are taken from the responses, so what is presented
+          is what a browser would hold.
+      expected_output:
+        per_variant:
+          Refresh commits, then logout:
+            live_sessions: 0
+            live_refresh_tokens: 0
+          Logout commits, then refresh:
+            live_sessions: 0
+            live_refresh_tokens: 0
+            subsequent: ["Neither refresh path rotates"]
+        prohibited_changes: ["A predecessor session surviving a logout of its successor"]
+        red_evidence: "At 4b20d627 logout-then-refresh passed and refresh-then-logout was red: the predecessor session and its consumed token stayed live. Expected green after the C-41 implementation."
+    - id: AC-61
+      description: >
+        A targeted logout ends ONE family. A second, independent login
+        belonging to the SAME user keeps working, and that user's
+        service-account token is untouched. This is the guard on any fix that
+        reaches rebound descendants: a fix that revoked by user_id would
+        satisfy AC-59 and AC-60 and break this.
+      priority: critical
+      references_constraints: [C-36, C-41]
+      inputs:
+        initial_state: "Two independent logins for one user, one service-account token, and a cookie rotation on the first family"
+        operation: "Log out of the FIRST family"
+        method: "Two real logins, one rotation, one logout, then both families are exercised."
+      expected_output:
+        first_family: {live_sessions: 0, live_refresh_tokens: 0}
+        second_family: {authenticates: true}
+        service_tokens_revoked: 0
+        prohibited_changes:
+          - "The second login signed out by the first's logout"
+          - "A service-account token revoked by an interactive logout"
+        red_evidence: "Passing at 4b20d627 as the guard, and required to stay passing."
+    - id: AC-62
+      description: >
+        Logout revokes the session it names even when that session is
+        IDLE-EXPIRED, and ends its family. An idle-expired session is not
+        harmless: Bearer traffic is exempt from the idle window (C-38), so a
+        token bound to it still authenticates.
+      priority: critical
+      references_constraints: [C-36, C-38, C-41]
+      inputs:
+        initial_state: "A logged-in user whose session is past its idle window and inside its absolute deadline"
+        operation: "Log out presenting that session cookie and a live refresh cookie"
+        method: >
+          The idle window is aged by direct update rather than by waiting, so
+          the case is exact. One logout, then the state is read and the bound
+          access token is presented.
+      expected_output:
+        session_revoked: true
+        live_sessions: 0
+        live_refresh_tokens: 0
+        subsequent: ["A Bearer token bound to that session does not authenticate"]
+        prohibited_changes:
+          - "A 204 logout that revoked nothing"
+          - "A session left unrevoked because a verification helper refused it as expired"
+        red_evidence: "Red at 4b20d627: logout answered 204 with 0 sessions revoked, live sessions 1, live refresh 1, and the bound Bearer token answered 200. Expected green after the C-41 implementation."
+    - id: AC-63
+      description: >
+        A session cookie ALONE locates and ends a rebound family. With no
+        refresh cookie presented, logout still reaches the successor the cookie
+        path rebound to a new session, and the predecessor behind it.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        initial_state: "A login followed by one cookie refresh, so the family spans two sessions"
+        operation: "Log out presenting ONLY a session cookie"
+        variants: ["Pre-rotation session cookie only", "Post-rotation session cookie only"]
+        method: "One rotation, one logout per variant on separate users, then the state is read directly."
+      expected_output:
+        per_variant:
+          Pre-rotation session cookie only: {live_sessions: 0, live_refresh_tokens: 0}
+          Post-rotation session cookie only: {live_sessions: 0, live_refresh_tokens: 0}
+        prohibited_changes: ["Requiring a refresh cookie to reach the family"]
+    - id: AC-64
+      description: >
+        An IDLE-EXPIRED session cookie alone ends its family, including the
+        still-valid Bearer credentials bound to it. The expired cookie locates
+        the family for logout and authorizes nothing else.
+      priority: critical
+      references_constraints: [C-38, C-41]
+      inputs:
+        initial_state: "A session past its idle window, inside its absolute deadline, with a working bound access token"
+        operation: "Log out presenting ONLY that session cookie; then present the cookie to a protected route"
+        method: >
+          The idle window is aged by direct update. The access token is shown
+          working before the logout, so the refusal after it is attributable to
+          the logout.
+      expected_output:
+        before_logout: {bearer_status: 200}
+        after_logout:
+          bearer_status: 401
+          live_sessions: 0
+          live_refresh_tokens: 0
+        protected_route_with_expired_cookie: {status: 401}
+        prohibited_changes: ["The expired cookie authorizing any request other than logout"]
+    - id: AC-65
+      description: >
+        When both cookies resolve but name DIFFERENT families, logout revokes
+        only the session cookie's family, leaves the refresh cookie's family
+        untouched, and records the disagreement in the declared auth.logout
+        detail without any credential value.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        initial_state: "Two independent logins for one user, A and B"
+        operation: "Log out presenting A's session cookie with B's refresh cookie"
+        method: "Two real logins, one logout, then both families are exercised and the audit row is read."
+      expected_output:
+        family_a: {live_sessions: 0, live_refresh_tokens: 0}
+        family_b: {authenticates: true, refreshes: true}
+        audit:
+          action: auth.logout
+          detail: {anchor: session, target_conflict: true}
+          detail_excludes: ["any session or refresh token value"]
+        prohibited_changes:
+          - "Revoking B's family"
+          - "Unioning the two families"
+    - id: AC-66
+      description: >
+        A failure during the family sweep rolls back EVERY revocation. Logout
+        reports the failure, and no session or refresh row in the family
+        changes.
+      priority: critical
+      references_constraints: [C-34, C-41]
+      inputs:
+        initial_state: "A family spanning two sessions after one cookie refresh"
+        controlled_failure: "A trigger raises on UPDATE of refresh_tokens, after the session revocation has run"
+        method: >
+          The trigger makes the second revocation statement fail inside the
+          transaction, so a non-atomic implementation would leave the sessions
+          revoked and the refresh rows live.
+      expected_output:
+        response: {status: 500, code: auth.logout_incomplete}
+        durable_changes: []
+        prohibited_changes: ["Sessions revoked while the family's refresh rows stay live"]
+    - id: AC-67
+      description: >
+        Family isolation is enforced during traversal. A link to a row owned by
+        another user makes logout revoke NOTHING rather than widen, and a cycle
+        in rotated_to_id terminates without touching anything outside the
+        family.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        variants:
+          - name: "Cross-user link"
+            setup: "The family's refresh row is made to point at another user's refresh row through rotated_to_id"
+          - name: "Rotation cycle"
+            setup: "Two of the family's refresh rows point at each other through rotated_to_id"
+        operation: "Log out with the family's session cookie"
+        method: "The inconsistent links are written directly, so the case is exact and does not depend on a race."
+      expected_output:
+        per_variant:
+          Cross-user link:
+            response: {status: 500, code: auth.logout_incomplete}
+            durable_changes: []
+            other_user: {authenticates: true}
+          Rotation cycle:
+            response: {status: 204}
+            family: {live_sessions: 0, live_refresh_tokens: 0}
+            terminates: true
+        prohibited_changes:
+          - "User-wide revocation as a fallback"
+          - "Revoking another user's credentials"
+          - "An unbounded traversal"
+    - id: AC-68
+      description: >
+        Logout refuses a cookie-authorized request whose CSRF token is missing
+        or mismatched, before any revocation and without touching cookies, and
+        performs the intended revocation when the token is valid. This holds
+        for a session cookie alone, a refresh cookie alone, both cookies, and
+        conflicting cookies, and an Authorization header does not bypass it.
+      priority: critical
+      references_constraints: [C-41, C-42]
+      inputs:
+        anchors: ["Session cookie only", "Refresh cookie only", "Both cookies, same family", "Conflicting cookies"]
+        csrf_states: ["Missing", "Mismatched", "Valid"]
+        extra_variant: "Session cookie only, missing CSRF, WITH an Authorization header"
+        method: >
+          Every anchor is crossed with every CSRF state, each on a fresh login,
+          so a refusal in one case cannot hide state from another. The state is
+          read directly before and after, and the response's Set-Cookie
+          headers are inspected.
+      expected_output:
+        per_csrf_state:
+          Missing:
+            status: 403
+            code: authz.csrf_invalid
+            durable_changes: []
+            set_cookie: []
+          Mismatched:
+            status: 403
+            code: authz.csrf_invalid
+            durable_changes: []
+            set_cookie: []
+          Valid:
+            status: 204
+            revoked: "The family selected under C-41 (the session cookie's family when the cookies conflict)"
+        authorization_header_variant: {status: 403, durable_changes: []}
+        prohibited_changes:
+          - "Any revocation on a refused request"
+          - "A refused request clearing or replacing a cookie"
+          - "An Authorization header bypassing the check while cookies select the target"
+    - id: AC-69
+      description: >
+        An UNKNOWN commit outcome on logout is reported truthfully: 503
+        server.error, not retryable, with wording that the revocation could not
+        be confirmed. Neither the response nor the log asserts success or
+        rollback, no automatic replay occurs, and both credential cookies are
+        still cleared. A KNOWN rollback stays distinct (AC-66).
+      priority: critical
+      references_constraints: [C-37, C-40, C-41]
+      inputs:
+        initial_state: "A logged-in user"
+        controlled_failure: "The revocation transaction's commit outcome is indeterminate"
+        variants:
+          - name: "Durable commit, lost acknowledgement"
+            setup: "The transaction commits, then the acknowledgement is lost"
+          - name: "Non-durable"
+            setup: "The transaction does not commit, and the outcome is unknown"
+        method: >
+          Driven through the real logout route with the transaction source
+          substituted, which selects each outcome deterministically. The
+          substitute counts transactions begun, so a replay would be visible.
+          The server log is captured for the request.
+      expected_output:
+        response:
+          status: 503
+          code: server.error
+          retryable: false
+          message_states: "revocation could not be confirmed"
+        identical_across_variants: true
+        transactions_begun: 1
+        set_cookie_clears: [openwatch_session, openwatch_refresh]
+        log_states: "outcome unknown"
+        durable_state:
+          Durable commit, lost acknowledgement: "family revoked"
+          Non-durable: "family live"
+        prohibited_changes:
+          - "A response or log asserting the family was revoked"
+          - "A response or log asserting nothing was revoked"
+          - "retryable true"
+          - "A second revocation attempt"

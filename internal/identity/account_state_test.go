@@ -113,7 +113,14 @@ func TestBinder_BearerArmEnforcesAccountState(t *testing.T) {
 		if err := SetEphemeralJWTKey(); err != nil {
 			t.Fatalf("jwt key: %v", err)
 		}
-		jwtToken, _, err := IssueJWT(uid, string(auth.RoleAdmin))
+		// Bound to a live session, so the only thing varying below is
+		// account state. An unbound token is refused for a different
+		// reason entirely (C-38).
+		_, sess, err := IssueSession(context.Background(), pool, uid, "127.0.0.1", "go-test")
+		if err != nil {
+			t.Fatalf("issue session: %v", err)
+		}
+		jwtToken, _, err := IssueJWTForSession(uid, string(auth.RoleAdmin), sess.ID)
 		if err != nil {
 			t.Fatalf("issue jwt: %v", err)
 		}
@@ -123,18 +130,34 @@ func TestBinder_BearerArmEnforcesAccountState(t *testing.T) {
 		}
 		auditPool(t, pool)
 
+		// Account state is set in the DATABASE, not through the stub.
+		// The Bearer arm reads it from the same sessions-joined-users
+		// query that decides the binding, which is what the recorded
+		// design specifies, so the database is the authority here. The
+		// cookie arm still goes through Lookups and AC-34 covers that.
+		setState := func(column string) {
+			_, _ = pool.Exec(context.Background(),
+				`UPDATE users SET disabled_at = NULL, deleted_at = NULL WHERE id = $1`, uid)
+			if column != "" {
+				if _, err := pool.Exec(context.Background(),
+					"UPDATE users SET "+column+" = now() WHERE id = $1", uid); err != nil {
+					t.Fatalf("set %s: %v", column, err)
+				}
+			}
+		}
 		for _, tc := range []struct {
 			name       string
-			status     AccountStatus
+			column     string
 			wantStatus int
 			wantBound  bool
 		}{
-			{"disabled", AccountDisabled, http.StatusUnauthorized, false},
-			{"soft-deleted", AccountDeleted, http.StatusUnauthorized, false},
-			{"active control", AccountActive, http.StatusOK, true},
+			{"disabled", "disabled_at", http.StatusUnauthorized, false},
+			{"soft-deleted", "deleted_at", http.StatusUnauthorized, false},
+			{"active control", "", http.StatusOK, true},
 		} {
+			setState(tc.column)
 			code, bound := bindOnce(t, pool,
-				stubLookups{role: auth.RoleAdmin, status: tc.status}, nil, jwtToken)
+				stubLookups{role: auth.RoleAdmin, status: AccountActive}, nil, jwtToken)
 			if code != tc.wantStatus {
 				t.Errorf("%s: status = %d, want %d", tc.name, code, tc.wantStatus)
 			}

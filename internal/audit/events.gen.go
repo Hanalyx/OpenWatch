@@ -27,7 +27,7 @@ const (
 	AuthLoginSuccess Code = "auth.login.success"
 	// Authentication attempt failed
 	AuthLoginFailure Code = "auth.login.failure"
-	// User explicitly logged out
+	// User explicitly logged out. One login family is ended, located by the request's cookies. anchor names which cookie selected it. target_conflict is true when both cookies resolved to different families; only the session cookie's family was revoked. No credential values are recorded.
 	AuthLogout Code = "auth.logout"
 	// Access or refresh token issued
 	AuthTokenIssued Code = "auth.token.issued"
@@ -358,9 +358,9 @@ var Metadata = map[Code]EventMeta{
 		Code:        AuthLogout,
 		Category:    "auth",
 		Severity:    SeverityInfo,
-		Description: `User explicitly logged out`,
+		Description: `User explicitly logged out. One login family is ended, located by the request's cookies. anchor names which cookie selected it. target_conflict is true when both cookies resolved to different families; only the session cookie's family was revoked. No credential values are recorded.`,
 		ActorTypes:  []string{"user"},
-		DetailKeys:  nil,
+		DetailKeys:  []string{"anchor", "target_conflict"},
 	},
 	AuthTokenIssued: {
 		Code:        AuthTokenIssued,

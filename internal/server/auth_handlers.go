@@ -177,13 +177,13 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 			return err2
 		}
 		role, _ = h.users.PrimaryRoleFor(ctx, u.ID)
-		access, _, err2 = identity.IssueJWT(u.ID, string(role))
+		access, _, err2 = identity.IssueJWTForSession(u.ID, string(role), sess.ID)
 		if err2 != nil {
 			return err2
 		}
 		// AUTH-1 (b): anchor the refresh lineage to the session's absolute
 		// deadline so refreshing cannot extend past the absolute timeout.
-		refresh, err2 = identity.IssueRefreshToken(ctx, tx, u.ID, sess.AbsoluteExpiresAt)
+		refresh, err2 = identity.IssueRefreshTokenForSession(ctx, tx, u.ID, sess.ID, sess.AbsoluteExpiresAt)
 		return err2
 	})
 	switch {
@@ -274,7 +274,6 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 //
 // Spec api-auth + system-auth-identity AC-24.
 func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
-	id := auth.FromContext(r.Context())
 	// revokeFailed tracks whether we could NOT guarantee the credential is
 	// dead server-side. Logout previously discarded both revoke errors and
 	// answered 204 unconditionally. That is a lie with consequences: the
@@ -283,36 +282,96 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// Someone logging out on a shared or compromised machine is exactly the
 	// person who cannot afford that.
 	revokeFailed := false
+	// revokeUnknown is set when the revocation transaction's commit outcome
+	// is indeterminate. It is NOT a failure: the family may already be
+	// revoked. Spec C-37, C-40.
+	revokeUnknown := false
 
-	// If anonymous, this is a no-op — still 204 (logout is idempotent).
-	if !id.IsAnonymous {
-		// Find the session by cookie token and revoke it.
-		if cookie, err := r.Cookie(identity.SessionCookieName); err == nil && cookie.Value != "" {
-			if sess, err := identity.VerifySession(r.Context(), h.pool, cookie.Value); err == nil {
-				if rerr := identity.RevokeSession(r.Context(), h.pool, sess.ID); rerr != nil {
-					revokeFailed = true
-					slog.ErrorContext(r.Context(), "logout: session revoke failed; session may still be valid",
-						slog.String("session_id", sess.ID.String()),
-						slog.String("error", rerr.Error()))
-				}
-				emitAudit(r, audit.AuthLogout, id.ID, nil)
-			}
-			// A session that does not verify needs no revoking: it is already
-			// expired or unknown. That is not a failure.
+	// Logout ends ONE login family, located by the cookies the request
+	// carries. The session cookie is consulted first: that is the
+	// target-precedence policy, not a claim that it is the more
+	// trustworthy credential. An idle-expired or otherwise unusable
+	// session cookie still LOCATES its family here, so the identity the
+	// binder attached is deliberately not required; the lookup is scoped
+	// to logout and authorizes nothing else. Spec C-41.
+	var anchors identity.LogoutAnchors
+	if c, err := r.Cookie(identity.SessionCookieName); err == nil {
+		anchors.SessionToken = c.Value
+	}
+	if c, err := r.Cookie(identity.RefreshCookieName); err == nil {
+		anchors.RefreshToken = c.Value
+	}
+
+	// CSRF, enforced HERE. The middleware exempts every /api/v1/auth/*
+	// route, every request carrying an Authorization header, and every
+	// request without a session cookie, so none of its checks reach this
+	// handler. When either credential cookie selects what to revoke, the
+	// cookie is the authority and a cross-site request could carry it, so
+	// the double-submit token is required. An Authorization header does not
+	// change that: it authenticates nothing here, because the cookies pick
+	// the target.
+	//
+	// The refusal comes before any revocation and before the cookies are
+	// cleared, so a refused request changes nothing on either side.
+	//
+	// Known limitation, accepted: the XSRF cookie is a browser-session
+	// cookie and the refresh cookie lasts seven days, so after a browser
+	// restart a client can hold a refresh cookie and no XSRF cookie. That
+	// client cannot complete this request until it obtains an XSRF cookie
+	// some other way. Nothing here assumes a startup refresh supplies one.
+	// Spec C-42.
+	if anchors.SessionToken != "" || anchors.RefreshToken != "" {
+		if !validDoubleSubmit(r) {
+			writeCSRFInvalid(w)
+			return
 		}
 	}
-	// Revoke the refresh token if the cookie carries one, regardless of
-	// session state — explicit logout invalidates everything the user
-	// was holding. Best-effort: an unparseable / unknown refresh cookie
-	// is silently ignored (no oracle).
-	if rc, err := r.Cookie(identity.RefreshCookieName); err == nil && rc.Value != "" {
-		if rerr := identity.RevokeRefreshToken(r.Context(), h.pool, rc.Value); rerr != nil {
-			// An unknown or unparseable refresh cookie is not an error and
-			// RevokeRefreshToken does not report one, so reaching here means a
-			// real failure to revoke a token that exists.
+
+	owner, found, lerr := identity.LocateLogoutOwner(r.Context(), h.pool, anchors)
+	switch {
+	case lerr != nil:
+		revokeFailed = true
+		slog.ErrorContext(r.Context(), "logout: could not locate the family to revoke",
+			slog.String("error", lerr.Error()))
+	case found:
+		// Resolution and revocation run in ONE transaction under the
+		// same per-user lock as rotation, so a concurrent refresh cannot
+		// add a live member to the family between the walk and the
+		// revoke. Any failure rolls back every revocation: there is no
+		// partial success and no fallback to revoking the whole user.
+		var target identity.LogoutTarget
+		txErr := identity.RunSerialized(r.Context(), h.serialized(), owner, func(ctx context.Context, tx pgx.Tx) error {
+			target = identity.LogoutTarget{}
+			t, err := identity.ResolveLogoutFamily(ctx, tx, owner, anchors)
+			if err != nil {
+				return err
+			}
+			target = t
+			return identity.RevokeLogoutFamily(ctx, tx, t)
+		})
+		switch {
+		case errors.Is(txErr, identity.ErrCommitUnknown):
+			// The commit may have applied. Neither success nor rollback
+			// is asserted, here or in the response.
+			revokeUnknown = true
+			slog.ErrorContext(r.Context(), "logout: revocation outcome unknown; the family may or may not be revoked",
+				slog.String("user_id", owner.String()),
+				slog.String("error", txErr.Error()))
+		case txErr != nil:
+			// A determinate failure: the transaction rolled back, so
+			// nothing was revoked. No credential values are logged.
 			revokeFailed = true
-			slog.ErrorContext(r.Context(), "logout: refresh-token revoke failed; token may still be valid",
-				slog.String("error", rerr.Error()))
+			slog.ErrorContext(r.Context(), "logout: family revocation failed and rolled back; nothing was revoked",
+				slog.String("user_id", owner.String()),
+				slog.String("error", txErr.Error()))
+		case target.Anchor != "":
+			// target_conflict records that the two cookies named
+			// different families and only the session cookie's was
+			// ended. It carries no token material.
+			emitAudit(r, audit.AuthLogout, owner.String(), map[string]any{
+				"anchor":          target.Anchor,
+				"target_conflict": target.Conflict,
+			})
 		}
 	}
 	// Clear both cookies in the same response.
@@ -339,6 +398,12 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// rather than reporting a clean logout: the client needs to know the
 	// credential may still be live so a human can revoke the session
 	// explicitly or rotate.
+	if revokeUnknown {
+		// Not retryable, and no claim either way. Spec C-40.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"signed out on this device, but revocation of your session could not be confirmed. Check your active sessions in Settings.", false)
+		return
+	}
 	if revokeFailed {
 		writeError(w, http.StatusInternalServerError, "auth.logout_incomplete", "server",
 			"signed out on this device, but the server could not revoke the session. It may remain valid until it expires. Revoke it from Settings or contact an administrator.", true)
@@ -465,7 +530,8 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 			"refresh token reuse detected; all sessions revoked", false)
 		return
 	case identity.RefreshExpired, identity.RefreshRevoked,
-		identity.RefreshNotFound, identity.RefreshSessionExpired:
+		identity.RefreshNotFound, identity.RefreshSessionExpired,
+		identity.RefreshSessionRevoked:
 		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 			"refresh token invalid or expired", false)
 		return
@@ -479,7 +545,10 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 	// pair.Claims was empty because we passed "" above; that's the
 	// contract). This is a pure computation over an already-committed
 	// rotation, so it stays outside the transaction.
-	access, _, err := identity.IssueJWT(res.userID, string(res.role))
+	// Preserve the session binding the rotation established. Re-minting
+	// with IssueJWT would drop `sid` and hand back an unbound token,
+	// which the binder refuses. Spec C-38.
+	access, _, err := identity.IssueJWTForSession(res.userID, string(res.role), res.pair.SessionID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"jwt issue failed", true)
@@ -509,13 +578,20 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		// the absolute ceiling (AUTH-1 b). Legacy tokens with no carried
 		// deadline fall back to a fresh window until they age out.
 		var err error
+		var newSess identity.Session
 		if res.pair.AbsoluteExpiresAt.IsZero() {
-			res.newToken, _, err = identity.IssueSession(ctx, tx, res.userID, r.RemoteAddr, r.UserAgent())
+			res.newToken, newSess, err = identity.IssueSession(ctx, tx, res.userID, r.RemoteAddr, r.UserAgent())
 		} else {
-			res.newToken, _, err = identity.IssueSessionWithAbsolute(ctx, tx, res.userID,
+			res.newToken, newSess, err = identity.IssueSessionWithAbsolute(ctx, tx, res.userID,
 				r.RemoteAddr, r.UserAgent(), res.pair.AbsoluteExpiresAt)
 		}
-		return err
+		newSessionID := newSess.ID
+		if err != nil {
+			return err
+		}
+		// The rotation carried the OLD session id onto the new row. This
+		// path just minted a new session, so the row must follow it.
+		return identity.RebindRefreshToSession(ctx, tx, res.pair.NewRefreshID, newSessionID)
 	})
 	if txErr != nil {
 		writeRefreshTxError(w, txErr)
@@ -541,7 +617,8 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusUnauthorized, "auth.session_expired", "client",
 			"session absolute timeout reached; please sign in again", false)
 		return
-	case identity.RefreshExpired, identity.RefreshRevoked, identity.RefreshNotFound:
+	case identity.RefreshExpired, identity.RefreshRevoked,
+		identity.RefreshNotFound, identity.RefreshSessionRevoked:
 		clearAuthCookies(w)
 		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 			"refresh token invalid or expired", false)

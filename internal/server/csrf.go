@@ -68,16 +68,31 @@ func csrfProtect(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r) // no ambient session-cookie authority
 			return
 		}
-		cookie, cerr := r.Cookie(csrfCookieName)
-		header := r.Header.Get(csrfHeaderName)
-		if cerr != nil || cookie.Value == "" || header == "" ||
-			subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(header)) != 1 {
-			writeError(w, http.StatusForbidden, "authz.csrf_invalid", "client",
-				"missing or invalid CSRF token", false)
+		if !validDoubleSubmit(r) {
+			writeCSRFInvalid(w)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// validDoubleSubmit reports whether the request carries an X-CSRF-Token
+// header equal to its XSRF-TOKEN cookie, compared in constant time. An
+// absent or empty cookie or header fails. Shared by the middleware and by
+// logout, which the middleware exempts but which enforces it itself.
+func validDoubleSubmit(r *http.Request) bool {
+	cookie, cerr := r.Cookie(csrfCookieName)
+	header := r.Header.Get(csrfHeaderName)
+	if cerr != nil || cookie.Value == "" || header == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(header)) == 1
+}
+
+// writeCSRFInvalid is the single refusal for a failed double-submit check.
+func writeCSRFInvalid(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "authz.csrf_invalid", "client",
+		"missing or invalid CSRF token", false)
 }
 
 func isSafeMethod(m string) bool {

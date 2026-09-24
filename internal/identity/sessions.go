@@ -265,9 +265,22 @@ func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string, opts .
 // Spec AC-09.
 func RevokeSession(ctx context.Context, pool DBTX, sessionID uuid.UUID) error {
 	const stmt = `UPDATE sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`
-	_, err := pool.Exec(ctx, stmt, sessionID)
-	if err != nil {
+	if _, err := pool.Exec(ctx, stmt, sessionID); err != nil {
 		return fmt.Errorf("identity: revoke session: %w", err)
+	}
+	// Every refresh token attached to this session goes with it.
+	// Revoking the session alone left its descendants able to rotate, and
+	// on the cookie path to mint a fresh session, so the revocation
+	// reached the access tokens and not the thing that makes new ones.
+	//
+	// This is scoped to the session's OWN descendants. A lineage does not
+	// keep one session id, because the cookie path rebinds each successor
+	// to the session it mints, so this revokes what is attached now and
+	// deliberately does not reach other login families. Spec C-36, C-38.
+	if _, err := pool.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked_at = now()
+		 WHERE session_id = $1 AND revoked_at IS NULL`, sessionID); err != nil {
+		return fmt.Errorf("identity: revoke session descendants: %w", err)
 	}
 	return nil
 }
