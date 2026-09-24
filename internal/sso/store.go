@@ -225,15 +225,9 @@ func (s *Service) consumeAuthState(ctx context.Context, state string) (AuthState
 	return st, nil
 }
 
-// linkedUser returns the local user id for a (provider, subject) pair, or
-// false if no link exists yet. Stamps last_login_at on a hit.
-func (s *Service) linkedUser(ctx context.Context, providerID uuid.UUID, subject string) (uuid.UUID, bool, error) {
-	uid, found, _, err := s.linkedUserState(ctx, providerID, subject)
-	return uid, found, err
-}
-
 // linkedUserState resolves a federated subject to its local user AND
-// that user's account state, in one statement.
+// that user's account state, in one statement. Stamps last_login_at on a
+// hit; returns found=false when no link exists yet.
 //
 // The two are returned together on purpose. Filtering the disabled and
 // deleted rows out of this query instead would report "no link", and
