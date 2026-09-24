@@ -274,7 +274,6 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 //
 // Spec api-auth + system-auth-identity AC-24.
 func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
-	id := auth.FromContext(r.Context())
 	// revokeFailed tracks whether we could NOT guarantee the credential is
 	// dead server-side. Logout previously discarded both revoke errors and
 	// answered 204 unconditionally. That is a lie with consequences: the
@@ -284,54 +283,57 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// person who cannot afford that.
 	revokeFailed := false
 
-	// Logout runs under the SAME per-user lock the issuance paths take,
-	// so a rotation cannot slip between revoking the session and
-	// revoking its descendants. Without it a refresh committing in that
-	// window produces a live successor attached to a session that is
-	// already gone, and the logout reports success. Spec C-34.
-	//
-	// Anonymous is a no-op and still answers 204: logout is idempotent.
-	if !id.IsAnonymous {
-		if uid, perr := uuid.Parse(id.ID); perr == nil {
-			txErr := identity.RunSerialized(r.Context(), h.serialized(), uid, func(ctx context.Context, tx pgx.Tx) error {
-				// Reset per attempt: the runner may restart the whole
-				// transaction.
-				revokeFailed = false
-				if cookie, cerr := r.Cookie(identity.SessionCookieName); cerr == nil && cookie.Value != "" {
-					// WithoutSlide: logging out is not activity that
-					// should extend the session it is about to revoke.
-					if sess, serr := identity.VerifySession(ctx, h.pool, cookie.Value, identity.WithoutSlide()); serr == nil {
-						// Revokes the session AND every refresh token
-						// attached to it, which is the descendant sweep.
-						if rerr := identity.RevokeSession(ctx, tx, sess.ID); rerr != nil {
-							return rerr
-						}
-						emitAudit(r, audit.AuthLogout, id.ID, nil)
-					}
-					// A session that does not verify needs no revoking:
-					// it is already expired or unknown. Not a failure.
-				}
-				// Revoke the refresh token the cookie carries, whatever
-				// the session state. Its own family may differ from the
-				// session's descendants once the cookie path has rebound
-				// a successor, so both sweeps are needed.
-				if rc, rerr := r.Cookie(identity.RefreshCookieName); rerr == nil && rc.Value != "" {
-					if verr := identity.RevokeRefreshToken(ctx, tx, rc.Value); verr != nil {
-						return verr
-					}
-				}
-				return nil
-			})
-			if txErr != nil {
-				revokeFailed = true
-				slog.ErrorContext(r.Context(), "logout: revoke failed; credentials may still be valid",
-					slog.String("error", txErr.Error()))
+	// Logout ends ONE login family, located by the cookies the request
+	// carries. The session cookie is consulted first: that is the
+	// target-precedence policy, not a claim that it is the more
+	// trustworthy credential. An idle-expired or otherwise unusable
+	// session cookie still LOCATES its family here, so the identity the
+	// binder attached is deliberately not required; the lookup is scoped
+	// to logout and authorizes nothing else. Spec C-41.
+	var anchors identity.LogoutAnchors
+	if c, err := r.Cookie(identity.SessionCookieName); err == nil {
+		anchors.SessionToken = c.Value
+	}
+	if c, err := r.Cookie(identity.RefreshCookieName); err == nil {
+		anchors.RefreshToken = c.Value
+	}
+
+	owner, found, lerr := identity.LocateLogoutOwner(r.Context(), h.pool, anchors)
+	switch {
+	case lerr != nil:
+		revokeFailed = true
+		slog.ErrorContext(r.Context(), "logout: could not locate the family to revoke",
+			slog.String("error", lerr.Error()))
+	case found:
+		// Resolution and revocation run in ONE transaction under the
+		// same per-user lock as rotation, so a concurrent refresh cannot
+		// add a live member to the family between the walk and the
+		// revoke. Any failure rolls back every revocation: there is no
+		// partial success and no fallback to revoking the whole user.
+		var target identity.LogoutTarget
+		txErr := identity.RunSerialized(r.Context(), h.serialized(), owner, func(ctx context.Context, tx pgx.Tx) error {
+			target = identity.LogoutTarget{}
+			t, err := identity.ResolveLogoutFamily(ctx, tx, owner, anchors)
+			if err != nil {
+				return err
 			}
-		} else {
-			// A non-UUID subject cannot be locked, and a service-account
-			// token is not an interactive session to log out of. Left
-			// untouched on purpose: the service-token boundary.
-			slog.InfoContext(r.Context(), "logout: caller is not an interactive user; nothing to revoke")
+			target = t
+			return identity.RevokeLogoutFamily(ctx, tx, t)
+		})
+		if txErr != nil {
+			revokeFailed = true
+			// No credential values are logged: only the owner and the error.
+			slog.ErrorContext(r.Context(), "logout: family revocation failed; nothing was revoked",
+				slog.String("user_id", owner.String()),
+				slog.String("error", txErr.Error()))
+		} else if target.Anchor != "" {
+			// target_conflict records that the two cookies named
+			// different families and only the session cookie's was
+			// ended. It carries no token material.
+			emitAudit(r, audit.AuthLogout, owner.String(), map[string]any{
+				"anchor":          target.Anchor,
+				"target_conflict": target.Conflict,
+			})
 		}
 	}
 	// Clear both cookies in the same response.

@@ -1,12 +1,12 @@
 // @spec system-auth-identity
 //
-// FAILING BY DESIGN. These four criteria describe required behavior that
-// this branch does NOT yet provide. They are committed red on purpose, so
-// the gap is visible in CI rather than described in a comment, and they
-// stay red until the rebound-lineage decision is made.
+// These four criteria were committed RED at 4b20d627, before any fix, so
+// the gap was visible in CI rather than described in a comment. The
+// measured red results are kept in each criterion's red_evidence field.
+// They pass once logout resolves and revokes a whole family (C-41).
 //
 // What they are about: targeted logout is supposed to end one login
-// family. Two mechanisms defeat it today.
+// family. Two mechanisms defeated it at 4b20d627.
 //
 //   - The cookie path REBINDS each rotated successor to the new session
 //     it mints, so the family's live credential moves to a session the

@@ -327,6 +327,31 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-41
+      description: >
+        Logout MUST end exactly one login family, located by the cookies the
+        request carries. A family is the connected set of sessions and refresh
+        rows reachable through refresh_tokens.session_id and
+        refresh_tokens.rotated_to_id in BOTH directions; the cookie path
+        rebinds each rotated successor to the session it mints, so a lineage
+        does not keep one session id and a one-directional walk misses half
+        the family. Target resolution MUST accept a session cookie alone, a
+        refresh cookie alone, or both, and MUST match on the token hash alone,
+        so an idle-expired or otherwise unusable session cookie still locates
+        its family. That lookup authorizes nothing except logout. When both
+        cookies resolve to different families, the session cookie's family is
+        revoked and the other is left untouched; this is a target-precedence
+        policy, and the disagreement is recorded in the declared
+        auth.logout detail without any credential value. Every row reached
+        MUST belong to one user, the walk MUST terminate on cycles and MUST
+        fail beyond a bound, and on any inconsistency logout MUST revoke
+        nothing: no user-wide fallback, no partial success, no silent
+        widening. Resolution and revocation MUST run in one transaction under
+        the same per-user lock as rotation, so a failure anywhere rolls every
+        revocation back. CSRF protection on logout is unchanged.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: HashPassword(plain) returns an Argon2id PHC string ($argon2id$v=19$m=65536,t=3,p=1$...); VerifyPassword(plain, hash) returns true for the original and false for any other input.
@@ -1234,7 +1259,7 @@ spec:
         name. Presenting the credentials the client held BEFORE that rotation
         must still end it.
       priority: critical
-      references_constraints: [C-36, C-38]
+      references_constraints: [C-36, C-38, C-41]
       inputs:
         initial_state: "A login, then ONE cookie refresh, which rebinds the successor to a new session"
         operation: "Log out presenting the session and refresh cookies held BEFORE the rotation"
@@ -1248,16 +1273,14 @@ spec:
         prohibited_changes:
           - "A live successor attached to a session the logout did not name"
           - "Revoking anything outside this family"
-        current_result: >
-          FAILING on this branch. Measured: live sessions 1, live refresh 1, and
-          the rebound session answers 200.
+        red_evidence: "Red at 4b20d627: live sessions 1, live refresh 1, rebound session answered 200. Expected green after the C-41 implementation."
     - id: AC-60
       description: >
         Both ACTUAL orderings of a real refresh against a real logout end the
         family. Neither order may leave a usable credential, including the
         PREDECESSOR session the cookie path replaced.
       priority: critical
-      references_constraints: [C-36, C-38]
+      references_constraints: [C-36, C-38, C-41]
       inputs:
         initial_state: "A logged-in user"
         operation: "Perform a real cookie refresh and a real logout"
@@ -1280,10 +1303,7 @@ spec:
             live_refresh_tokens: 0
             subsequent: ["Neither refresh path rotates"]
         prohibited_changes: ["A predecessor session surviving a logout of its successor"]
-        current_result: >
-          The logout-then-refresh ordering PASSES. Refresh-then-logout FAILS:
-          the predecessor session and its consumed token both remain live,
-          because nothing the client holds names them.
+        red_evidence: "At 4b20d627 logout-then-refresh passed and refresh-then-logout was red: the predecessor session and its consumed token stayed live. Expected green after the C-41 implementation."
     - id: AC-61
       description: >
         A targeted logout ends ONE family. A second, independent login
@@ -1292,7 +1312,7 @@ spec:
         reaches rebound descendants: a fix that revoked by user_id would
         satisfy AC-59 and AC-60 and break this.
       priority: critical
-      references_constraints: [C-36]
+      references_constraints: [C-36, C-41]
       inputs:
         initial_state: "Two independent logins for one user, one service-account token, and a cookie rotation on the first family"
         operation: "Log out of the FIRST family"
@@ -1304,7 +1324,7 @@ spec:
         prohibited_changes:
           - "The second login signed out by the first's logout"
           - "A service-account token revoked by an interactive logout"
-        current_result: "PASSING on this branch. It is the guard, and must stay passing."
+        red_evidence: "Passing at 4b20d627 as the guard, and required to stay passing."
     - id: AC-62
       description: >
         Logout revokes the session it names even when that session is
@@ -1312,7 +1332,7 @@ spec:
         harmless: Bearer traffic is exempt from the idle window (C-38), so a
         token bound to it still authenticates.
       priority: critical
-      references_constraints: [C-36, C-38]
+      references_constraints: [C-36, C-38, C-41]
       inputs:
         initial_state: "A logged-in user whose session is past its idle window and inside its absolute deadline"
         operation: "Log out presenting that session cookie and a live refresh cookie"
@@ -1328,7 +1348,113 @@ spec:
         prohibited_changes:
           - "A 204 logout that revoked nothing"
           - "A session left unrevoked because a verification helper refused it as expired"
-        current_result: >
-          FAILING on this branch. Measured: logout answers 204, revoked
-          sessions 0, live sessions 1, live refresh 1, and the bound Bearer
-          token answers 200.
+        red_evidence: "Red at 4b20d627: logout answered 204 with 0 sessions revoked, live sessions 1, live refresh 1, and the bound Bearer token answered 200. Expected green after the C-41 implementation."
+    - id: AC-63
+      description: >
+        A session cookie ALONE locates and ends a rebound family. With no
+        refresh cookie presented, logout still reaches the successor the cookie
+        path rebound to a new session, and the predecessor behind it.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        initial_state: "A login followed by one cookie refresh, so the family spans two sessions"
+        operation: "Log out presenting ONLY a session cookie"
+        variants: ["Pre-rotation session cookie only", "Post-rotation session cookie only"]
+        method: "One rotation, one logout per variant on separate users, then the state is read directly."
+      expected_output:
+        per_variant:
+          Pre-rotation session cookie only: {live_sessions: 0, live_refresh_tokens: 0}
+          Post-rotation session cookie only: {live_sessions: 0, live_refresh_tokens: 0}
+        prohibited_changes: ["Requiring a refresh cookie to reach the family"]
+    - id: AC-64
+      description: >
+        An IDLE-EXPIRED session cookie alone ends its family, including the
+        still-valid Bearer credentials bound to it. The expired cookie locates
+        the family for logout and authorizes nothing else.
+      priority: critical
+      references_constraints: [C-38, C-41]
+      inputs:
+        initial_state: "A session past its idle window, inside its absolute deadline, with a working bound access token"
+        operation: "Log out presenting ONLY that session cookie; then present the cookie to a protected route"
+        method: >
+          The idle window is aged by direct update. The access token is shown
+          working before the logout, so the refusal after it is attributable to
+          the logout.
+      expected_output:
+        before_logout: {bearer_status: 200}
+        after_logout:
+          bearer_status: 401
+          live_sessions: 0
+          live_refresh_tokens: 0
+        protected_route_with_expired_cookie: {status: 401}
+        prohibited_changes: ["The expired cookie authorizing any request other than logout"]
+    - id: AC-65
+      description: >
+        When both cookies resolve but name DIFFERENT families, logout revokes
+        only the session cookie's family, leaves the refresh cookie's family
+        untouched, and records the disagreement in the declared auth.logout
+        detail without any credential value.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        initial_state: "Two independent logins for one user, A and B"
+        operation: "Log out presenting A's session cookie with B's refresh cookie"
+        method: "Two real logins, one logout, then both families are exercised and the audit row is read."
+      expected_output:
+        family_a: {live_sessions: 0, live_refresh_tokens: 0}
+        family_b: {authenticates: true, refreshes: true}
+        audit:
+          action: auth.logout
+          detail: {anchor: session, target_conflict: true}
+          detail_excludes: ["any session or refresh token value"]
+        prohibited_changes:
+          - "Revoking B's family"
+          - "Unioning the two families"
+    - id: AC-66
+      description: >
+        A failure during the family sweep rolls back EVERY revocation. Logout
+        reports the failure, and no session or refresh row in the family
+        changes.
+      priority: critical
+      references_constraints: [C-34, C-41]
+      inputs:
+        initial_state: "A family spanning two sessions after one cookie refresh"
+        controlled_failure: "A trigger raises on UPDATE of refresh_tokens, after the session revocation has run"
+        method: >
+          The trigger makes the second revocation statement fail inside the
+          transaction, so a non-atomic implementation would leave the sessions
+          revoked and the refresh rows live.
+      expected_output:
+        response: {status: 500, code: auth.logout_incomplete}
+        durable_changes: []
+        prohibited_changes: ["Sessions revoked while the family's refresh rows stay live"]
+    - id: AC-67
+      description: >
+        Family isolation is enforced during traversal. A link to a row owned by
+        another user makes logout revoke NOTHING rather than widen, and a cycle
+        in rotated_to_id terminates without touching anything outside the
+        family.
+      priority: critical
+      references_constraints: [C-41]
+      inputs:
+        variants:
+          - name: "Cross-user link"
+            setup: "The family's refresh row is made to point at another user's refresh row through rotated_to_id"
+          - name: "Rotation cycle"
+            setup: "Two of the family's refresh rows point at each other through rotated_to_id"
+        operation: "Log out with the family's session cookie"
+        method: "The inconsistent links are written directly, so the case is exact and does not depend on a race."
+      expected_output:
+        per_variant:
+          Cross-user link:
+            response: {status: 500, code: auth.logout_incomplete}
+            durable_changes: []
+            other_user: {authenticates: true}
+          Rotation cycle:
+            response: {status: 204}
+            family: {live_sessions: 0, live_refresh_tokens: 0}
+            terminates: true
+        prohibited_changes:
+          - "User-wide revocation as a fallback"
+          - "Revoking another user's credentials"
+          - "An unbounded traversal"
