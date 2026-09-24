@@ -174,11 +174,27 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 	})
 
 	t.Run("api-users/AC-17", func(t *testing.T) {
+		// Credentials that exist while the account is disabled and that no
+		// revocation reached. Without these the criterion passes whether or
+		// not enable revokes anything, because disable already revoked the
+		// login's own session.
+		stray := writeStrayCredentials(t, pool, target.ID)
+
 		// enable -> clears disabled_at; the user can authenticate again
 		er := doReq(t, asRole(t, "POST", url+"/api/v1/users/"+target.ID.String()+":enable", auth.RoleAdmin, nil))
 		er.Body.Close()
 		if er.StatusCode != http.StatusOK {
 			t.Fatalf("enable = %d, want 200", er.StatusCode)
+		}
+		// ... but only through a fresh sign-in (C-07, 1.4.0).
+		if code := authMe(t, url, stray.sessionCookie); code != http.StatusUnauthorized {
+			t.Errorf("pre-enable session cookie after enable = %d, want 401", code)
+		}
+		if code := authMeBearer(t, url, stray.accessToken); code != http.StatusUnauthorized {
+			t.Errorf("pre-enable access token after enable = %d, want 401", code)
+		}
+		if code, _ := refreshBody(t, url, stray.bodyRefresh); code == http.StatusOK {
+			t.Error("pre-enable refresh token rotated after enable")
 		}
 		reLogin := login(t, url, map[string]string{"username": target.Username, "password": target.Password})
 		reLogin.Body.Close()

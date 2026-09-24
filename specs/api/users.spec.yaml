@@ -1,7 +1,7 @@
 spec:
   id: api-users
   title: User CRUD + custom-role administration
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -73,7 +73,11 @@ spec:
         the per-user lock. Revoking sessions alone is not sufficient, because
         the refresh family survives and can mint a working session for an
         account the administrator believes is locked out. SoftDelete MUST
-        perform the same revocation. Service-account tokens are NOT
+        perform the same revocation. Enable MUST perform it too, when and
+        only when it changes disabled_at from set to null, in the same
+        transaction under the same lock, so the user signs in again; enable
+        on an account that is not disabled revokes nothing. Service-account
+        tokens are NOT
         interactive credentials and MUST NOT be revoked by these operations,
         so no text describing them may claim they end all of an account's
         credentials. A disabled user MUST be unable to authenticate on any
@@ -155,7 +159,7 @@ spec:
       priority: critical
       references_constraints: [C-07, C-08]
     - id: AC-17
-      description: 'POST /users/{id}:enable clears disabled_at (200, disabled_at null) and the user can authenticate again; emits admin.user.enabled.'
+      description: 'POST /users/{id}:enable clears disabled_at (200, disabled_at null) and the user can authenticate again through a FRESH sign-in; emits admin.user.enabled. Every interactive credential that existed while the account was disabled, including one no revocation reached, no longer authenticates afterwards.'
       priority: high
       references_constraints: [C-07]
     - id: AC-18
