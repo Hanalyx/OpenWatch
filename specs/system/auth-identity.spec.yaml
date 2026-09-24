@@ -1227,3 +1227,108 @@ spec:
         prohibited_changes:
           - "Refresh rows removed as a side effect of deleting a session"
           - "A retention policy change introduced by this schema choice"
+    - id: AC-59
+      description: >
+        A targeted logout ends the login family even when the cookie path has
+        REBOUND the family's live successor to a session the logout does not
+        name. Presenting the credentials the client held BEFORE that rotation
+        must still end it.
+      priority: critical
+      references_constraints: [C-36, C-38]
+      inputs:
+        initial_state: "A login, then ONE cookie refresh, which rebinds the successor to a new session"
+        operation: "Log out presenting the session and refresh cookies held BEFORE the rotation"
+        method: >
+          One rotation, then one logout, then the state is read directly. No
+          concurrency and no elapsed-time dependence.
+      expected_output:
+        live_sessions: 0
+        live_refresh_tokens: 0
+        subsequent: ["The rebound session does not authenticate"]
+        prohibited_changes:
+          - "A live successor attached to a session the logout did not name"
+          - "Revoking anything outside this family"
+        current_result: >
+          FAILING on this branch. Measured: live sessions 1, live refresh 1, and
+          the rebound session answers 200.
+    - id: AC-60
+      description: >
+        Both ACTUAL orderings of a real refresh against a real logout end the
+        family. Neither order may leave a usable credential, including the
+        PREDECESSOR session the cookie path replaced.
+      priority: critical
+      references_constraints: [C-36, C-38]
+      inputs:
+        initial_state: "A logged-in user"
+        operation: "Perform a real cookie refresh and a real logout"
+        variants:
+          - name: "Refresh commits, then logout"
+            setup: "The rotation completes; the client logs out with exactly what it then holds"
+          - name: "Logout commits, then refresh"
+            setup: "The logout completes; the client then attempts both refresh paths"
+        method: >
+          Both are real HTTP requests in sequence, not simulated state. The
+          client's cookies are taken from the responses, so what is presented
+          is what a browser would hold.
+      expected_output:
+        per_variant:
+          Refresh commits, then logout:
+            live_sessions: 0
+            live_refresh_tokens: 0
+          Logout commits, then refresh:
+            live_sessions: 0
+            live_refresh_tokens: 0
+            subsequent: ["Neither refresh path rotates"]
+        prohibited_changes: ["A predecessor session surviving a logout of its successor"]
+        current_result: >
+          The logout-then-refresh ordering PASSES. Refresh-then-logout FAILS:
+          the predecessor session and its consumed token both remain live,
+          because nothing the client holds names them.
+    - id: AC-61
+      description: >
+        A targeted logout ends ONE family. A second, independent login
+        belonging to the SAME user keeps working, and that user's
+        service-account token is untouched. This is the guard on any fix that
+        reaches rebound descendants: a fix that revoked by user_id would
+        satisfy AC-59 and AC-60 and break this.
+      priority: critical
+      references_constraints: [C-36]
+      inputs:
+        initial_state: "Two independent logins for one user, one service-account token, and a cookie rotation on the first family"
+        operation: "Log out of the FIRST family"
+        method: "Two real logins, one rotation, one logout, then both families are exercised."
+      expected_output:
+        first_family: {live_sessions: 0, live_refresh_tokens: 0}
+        second_family: {authenticates: true}
+        service_tokens_revoked: 0
+        prohibited_changes:
+          - "The second login signed out by the first's logout"
+          - "A service-account token revoked by an interactive logout"
+        current_result: "PASSING on this branch. It is the guard, and must stay passing."
+    - id: AC-62
+      description: >
+        Logout revokes the session it names even when that session is
+        IDLE-EXPIRED, and ends its family. An idle-expired session is not
+        harmless: Bearer traffic is exempt from the idle window (C-38), so a
+        token bound to it still authenticates.
+      priority: critical
+      references_constraints: [C-36, C-38]
+      inputs:
+        initial_state: "A logged-in user whose session is past its idle window and inside its absolute deadline"
+        operation: "Log out presenting that session cookie and a live refresh cookie"
+        method: >
+          The idle window is aged by direct update rather than by waiting, so
+          the case is exact. One logout, then the state is read and the bound
+          access token is presented.
+      expected_output:
+        session_revoked: true
+        live_sessions: 0
+        live_refresh_tokens: 0
+        subsequent: ["A Bearer token bound to that session does not authenticate"]
+        prohibited_changes:
+          - "A 204 logout that revoked nothing"
+          - "A session left unrevoked because a verification helper refused it as expired"
+        current_result: >
+          FAILING on this branch. Measured: logout answers 204, revoked
+          sessions 0, live sessions 1, live refresh 1, and the bound Bearer
+          token answers 200.
