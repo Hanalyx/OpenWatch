@@ -25,6 +25,7 @@ package sso
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -137,6 +138,21 @@ const (
 	// AccountStateDeleted was soft-deleted.
 	AccountStateDeleted
 )
+
+// AccountNotActiveError is the refusal for a federated identity whose
+// local account may not sign in. It unwraps to ErrAccountNotActive and
+// carries the state, so the audit record can name disabled or deleted
+// while the sign-in page stays generic. bugs/OW-073, OW-062 AC-90.
+type AccountNotActiveError struct {
+	State AccountState
+}
+
+func (e *AccountNotActiveError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrAccountNotActive, e.State)
+}
+
+// Unwrap lets errors.Is match ErrAccountNotActive.
+func (e *AccountNotActiveError) Unwrap() error { return ErrAccountNotActive }
 
 // MaySignIn reports whether this state permits a federated sign-in.
 func (a AccountState) MaySignIn() bool { return a == AccountStateActive }

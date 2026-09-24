@@ -118,6 +118,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: sign-in did not complete and nothing was
+            issued, including when the per-user lock was not acquired in time.
+            retryable false: the outcome is unknown; sign in again rather than
+            assuming either result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/logout:
     post:
@@ -126,6 +136,34 @@ paths:
       responses:
         '204':
           description: Session revoked
+        '403':
+          description: >-
+            authz.csrf_invalid. A credential cookie selects what to revoke and the
+            double-submit token is missing or does not match. Nothing was revoked and
+            no cookie was changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: >-
+            auth.logout_incomplete, retryable. The revocation failed and rolled back,
+            so nothing was revoked. Both cookies are cleared; the session may stay
+            valid until it expires.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: >-
+            server.error. Two outcomes, told apart by retryable. Both cookies are
+            cleared in both. retryable true: the per-user lock was not acquired in
+            time and nothing was revoked; a retry is safe. retryable false: the
+            revocation outcome is unknown and neither outcome is asserted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/refresh:
     post:
@@ -148,6 +186,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: nothing was rotated, including when the
+            per-user lock was not acquired in time. retryable false: the rotation
+            outcome is unknown; sign in again rather than presenting the same token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/refresh-cookie:
     post:
@@ -171,6 +218,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: nothing was rotated and no cookie was
+            set, including when the per-user lock was not acquired in time.
+            retryable false: the rotation outcome is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/me:
     get:
@@ -821,6 +877,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error, retryable. The per-user lock was not acquired in time and
+            the change was not applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/users/{id}:disable:
     post:
@@ -856,6 +920,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error, retryable. The per-user lock was not acquired in time and
+            the change was not applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/users/{id}:enable:
     post:
@@ -885,6 +957,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error, retryable. The per-user lock was not acquired in time and
+            the change was not applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/roles:create:
     post:

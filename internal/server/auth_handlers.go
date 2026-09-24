@@ -286,6 +286,9 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// is indeterminate. It is NOT a failure: the family may already be
 	// revoked. Spec C-37, C-40.
 	revokeUnknown := false
+	// lockWaitExceeded is set when the per-user lock was not acquired
+	// within identity.LockWaitBound. Nothing was revoked.
+	lockWaitExceeded := false
 
 	// Logout ends ONE login family, located by the cookies the request
 	// carries. The session cookie is consulted first: that is the
@@ -350,6 +353,13 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 			return identity.RevokeLogoutFamily(ctx, tx, t)
 		})
 		switch {
+		case errors.Is(txErr, identity.ErrLockWaitExceeded):
+			// The lock was never acquired, so nothing was read or
+			// revoked. Distinct from a revocation that failed: this one
+			// never started, and a retry is safe. Spec C-43.
+			lockWaitExceeded = true
+			slog.WarnContext(r.Context(), "logout: per-user lock not acquired in time; nothing was revoked",
+				slog.String("user_id", owner.String()))
 		case errors.Is(txErr, identity.ErrCommitUnknown):
 			// The commit may have applied. Neither success nor rollback
 			// is asserted, here or in the response.
@@ -398,6 +408,16 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// rather than reporting a clean logout: the client needs to know the
 	// credential may still be live so a human can revoke the session
 	// explicitly or rotate.
+	if lockWaitExceeded {
+		// Nothing was revoked, and the response says so. The cookies are
+		// still cleared above: the web client treats every logout
+		// response as signed out, so keeping them would leave a working
+		// session in a browser the user believes is signed out. A retry
+		// is safe for a client that still holds the values. Spec C-43.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"signed out on this device, but sign-out did not reach the server in time and nothing was revoked. The session may remain valid until it expires. Revoke it from Settings.", true)
+		return
+	}
 	if revokeUnknown {
 		// Not retryable, and no claim either way. Spec C-40.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",

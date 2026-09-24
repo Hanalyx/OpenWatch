@@ -55,7 +55,7 @@ func (s *Service) HandleCallback(ctx context.Context, state, redirectURI, code s
 	if uid, found, state, err := s.linkedUserState(ctx, st.ProviderID, claims.Subject); err != nil {
 		return CallbackResult{}, err
 	} else if found && !state.MaySignIn() {
-		return CallbackResult{}, fmt.Errorf("%w: %s", ErrAccountNotActive, state)
+		return CallbackResult{}, &AccountNotActiveError{State: state}
 	} else if found {
 		return CallbackResult{UserID: uid, RedirectTo: st.RedirectTo}, nil
 	}

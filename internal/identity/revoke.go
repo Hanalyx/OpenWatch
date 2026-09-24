@@ -2,7 +2,9 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -61,11 +63,44 @@ func RevokeUserCredentialsPool(ctx context.Context, pool *pgxpool.Pool, userID u
 //
 // A missing user row is reported as pgx.ErrNoRows so the caller can
 // treat it as a determinate refusal. Spec C-34.
+//
+// The wait is bounded by LockWaitBound. Without a bound nothing ends it:
+// the http.Server WriteTimeout does not cancel a handler, so a request
+// blocked here waited until its client disconnected. A wait that exceeds
+// the bound returns ErrLockWaitExceeded, a determinate failure: the
+// transaction made no change. Spec C-43.
 func LockUser(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+	// set_config with is_local=true is SET LOCAL: it lasts until the
+	// transaction ends and cannot leak to the pooled connection.
+	if _, err := tx.Exec(ctx, `SELECT set_config('lock_timeout', $1, true)`,
+		fmt.Sprintf("%dms", LockWaitBound.Milliseconds())); err != nil {
+		return fmt.Errorf("identity: set lock wait bound: %w", err)
+	}
 	var one int
 	if err := tx.QueryRow(ctx,
 		`SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE`, userID).Scan(&one); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == sqlStateLockNotAvailable {
+			return fmt.Errorf("%w: %w", ErrLockWaitExceeded, err)
+		}
 		return err
 	}
 	return nil
 }
+
+// LockWaitBound caps how long a credential transaction waits for the
+// per-user lock. The lock is held only across short database statements:
+// password hashing and every network call run outside it by design
+// (C-39), so a wait this long means a stuck holder rather than ordinary
+// contention. It leaves most of the 60 s http.Server WriteTimeout for the
+// response that reports the failure. Spec C-43.
+const LockWaitBound = 5 * time.Second
+
+// ErrLockWaitExceeded reports that the per-user lock was not acquired
+// within LockWaitBound. Nothing was read or changed under the lock, so
+// the caller may say that nothing happened and that a retry is safe.
+var ErrLockWaitExceeded = errors.New("identity: per-user lock wait exceeded")
+
+// sqlStateLockNotAvailable is what PostgreSQL raises when lock_timeout
+// expires.
+const sqlStateLockNotAvailable = "55P03"

@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 1
 
@@ -91,7 +91,13 @@ spec:
       type: security
       enforcement: error
     - id: C-11
-      description: Identity binder MUST emit auth.login.failure with detail.reason populated on every rejected authentication attempt
+      description: >
+        Identity binder MUST emit auth.login.failure with detail.reason
+        populated on every rejected authentication attempt. Every reason any
+        path records on that event MUST be declared in the event's
+        detail_schema in audit/events.yaml. The emitter checks key names
+        only, so an undeclared reason would pass silently; AC-80 checks the
+        vocabulary against the source.
       type: security
       enforcement: error
     - id: C-12
@@ -378,6 +384,30 @@ spec:
         a client holding a refresh cookie and no XSRF cookie cannot complete a
         logout request, and no exemption, bootstrap endpoint or automatic
         refresh is provided for it.
+      type: security
+      enforcement: error
+    - id: C-43
+      description: >
+        The wait for the per-user lock MUST be bounded in the production
+        configuration, not only under test. Nothing else bounds it: the
+        http.Server WriteTimeout does not cancel a handler, so a request
+        blocked on the lock waited until its client disconnected. The bound
+        is identity.LockWaitBound, 5 seconds, applied as a transaction-local
+        lock_timeout by the lock helper itself, so every path that takes the
+        lock inherits it, the administrative account mutations included.
+        The lock is held only across short database statements (C-39 keeps
+        password hashing and network calls outside it), so a wait that long
+        means a stuck holder, and the bound leaves most of the 60 second
+        WriteTimeout for the response. A wait that exceeds the bound is a
+        determinate failure: nothing was read under the lock and nothing
+        changed. It MUST be reported as 503 server.error with retryable
+        true, distinct from a revocation that failed and rolled back (logout
+        500 auth.logout_incomplete) and from an unknown commit outcome (503
+        with retryable false). Logout still clears both credential cookies
+        in that case, as it does for every outcome: the web client treats
+        any logout response as signed out, so a kept cookie would leave a
+        working session in a browser the user believes is signed out. The
+        message says nothing was revoked.
       type: security
       enforcement: error
 
@@ -1673,3 +1703,144 @@ spec:
             revoked_by_enable: false
           Permanently revoked:
             authenticates_after_enable: false
+
+    - id: AC-73
+      description: >
+        The per-user lock wait is bounded in the production configuration.
+        A request that cannot take the lock answers 503 server.error with
+        retryable true once the bound expires, and decides nothing.
+      priority: critical
+      references_constraints: [C-34, C-43]
+      inputs:
+        initial_state: "A second connection holds the per-user lock for longer than the bound"
+        operation: "Login, body refresh, cookie refresh, logout, and administrative disable"
+        method: >
+          Each path runs against the unmodified server, with no test
+          override of the lock timeout. A safety timer releases the held
+          lock well after the bound, so a missing bound fails the test
+          instead of hanging it.
+      expected_output:
+        response: {status: 503, code: server.error, retryable: true}
+        answered_after: "The bound, not before it"
+        durable_changes: []
+        logout_cookies: "Cleared, as for every logout outcome"
+        prohibited_changes:
+          - "A credential issued or revoked"
+          - "A credential cookie set, or cleared by any path other than logout"
+          - "The account disabled although the change was reported not applied"
+        subsequent: ["The presented session still authenticates"]
+
+    - id: AC-74
+      description: >
+        A refresh racing Disable leaves nothing usable once Disable returns,
+        in both orders and on both refresh paths.
+      priority: critical
+      references_constraints: [C-34, C-36]
+      inputs:
+        variants:
+          - "Disable commits after the refresh's pre-lock reads and before it takes the lock"
+          - "The refresh holds the lock, Disable queues behind it, the refresh commits"
+        attribution: "Credential rows by ID: before, after the coordinator, after the attempt"
+      expected_output:
+        first_order: "The refresh is refused and writes no row"
+        second_order: "Every row the refresh wrote is revoked once Disable returns"
+        prohibited_changes: ["Any predecessor or successor credential authenticating after Disable returns"]
+
+    - id: AC-75
+      description: >
+        Credentials revoked by Disable stay revoked after Enable. Only a fresh
+        sign-in works.
+      priority: critical
+      references_constraints: [C-36]
+      inputs:
+        initial_state: "A signed-in user"
+        operation: "Disable, then Enable, then present the pre-disable session cookie, access token and both refresh tokens"
+      expected_output:
+        credentials_authenticating: 0
+        subsequent: ["A fresh sign-in succeeds"]
+
+    - id: AC-76
+      description: >
+        MFA is decided under the lock. Two logins presenting one code issue
+        once. A secret rotated after the pre-lock reads refuses the old
+        code. An enrollment removed after the pre-lock reads lets the login
+        issue without consuming anything, as C-39 requires.
+      priority: critical
+      references_constraints: [C-35, C-39]
+      inputs:
+        variants:
+          - "Same code, two logins serialized behind the lock"
+          - "Secret rotated and confirmed before the login takes the lock"
+          - "Enrollment removed before the login takes the lock"
+      expected_output:
+        same_code: {successful_logins: 1, refused_code: auth.mfa_invalid, otp_uses_added: 1, sessions_added: 1}
+        secret_rotated: {code: auth.mfa_invalid, rows_added: 0, otp_uses_added: 0}
+        enrollment_removed: {status: 200, sessions_added: 1, otp_uses_added: 0}
+
+    - id: AC-77
+      description: >
+        A retried transaction acts on the state it reads on the retry, not on
+        what the lost attempt read.
+      priority: critical
+      references_constraints: [C-37]
+      inputs:
+        variants: ["40P01 on the first attempt", "40001 on the first attempt"]
+        between_attempts: "The account is disabled through the real users service"
+      expected_output:
+        transactions_begun: 2
+        response: {status: 401}
+        rows_added: 0
+
+    - id: AC-78
+      description: >
+        Every password and refresh issuance path, paused after its pre-lock
+        reads and released after an invalidating mutation commits, issues
+        nothing.
+      priority: critical
+      references_constraints: [C-34, C-39]
+      inputs:
+        paths: ["Login", "Login with MFA", "Body refresh", "Cookie refresh"]
+        coordinators: ["Disable", "Administrative password reset"]
+        attribution: >
+          Credential row IDs are read before the coordinator, right after
+          it, and after the attempt. The coordinator's own changes are
+          asserted separately: it inserts nothing and revokes every live
+          row. Any ID that appears after it belongs to the attempt.
+      expected_output:
+        attempt_rows_added: 0
+        otp_uses_added: 0
+        prohibited_changes: ["A 200 response", "A credential cookie", "A token in the response body"]
+        structural_review: >
+          Reported separately and by hand: every reachable write to sessions
+          or refresh_tokens sits inside the locked protocol, except the idle
+          slide in VerifySession.
+
+    - id: AC-79
+      description: >
+        A rotation whose commit fails reports no credential, sets no cookie,
+        and leaves the presented token usable.
+      priority: critical
+      references_constraints: [C-34, C-37]
+      inputs:
+        variants: ["Body refresh", "Cookie refresh"]
+        controlled_failure: "The commit is a known rollback"
+      expected_output:
+        response: {status: 503, code: server.error}
+        credential_rows_changed: false
+        subsequent: ["The same token rotates on the next request"]
+
+    - id: AC-80
+      description: >
+        Every reason the code can record on auth.login.failure is declared
+        in the event's detail_schema in audit/events.yaml.
+      priority: high
+      references_constraints: [C-11]
+      inputs:
+        method: >
+          A source scan collects the literals that reach detail.reason
+          through the shapes the binder, the account-state verdicts and the
+          login, refresh and SSO handlers use. It first proves it still sees
+          one reason of each shape, then compares against the declaration.
+        known_limit: "A reason produced through a shape the scan does not read is invisible to it"
+      expected_output:
+        undeclared_reasons: []

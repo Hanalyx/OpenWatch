@@ -257,10 +257,14 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 		refresh      string
 		ssoSess      identity.Session
 		ssoRefused   bool
+		// refusedStatus is the state that refused issuance, for the
+		// audit reason only.
+		refusedStatus identity.AccountStatus
 	)
 	txErr := identity.RunSerialized(r.Context(), h.serialized(), result.UserID, func(ctx context.Context, tx pgx.Tx) error {
 		// Reset per attempt: RunSerialized may restart the transaction.
 		sessionToken, refresh, ssoRefused = "", "", false
+		refusedStatus = identity.AccountUnknown
 		ssoSess = identity.Session{}
 
 		status, err := identity.ReadAccountStatus(ctx, tx, result.UserID)
@@ -269,6 +273,7 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 		}
 		if !status.MayAuthenticate() {
 			ssoRefused = true
+			refusedStatus = status
 			return nil
 		}
 		var err2 error
@@ -310,7 +315,7 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 	if ssoRefused {
 		// The account was disabled or deleted between resolution and
 		// issuance. Nothing was written.
-		emitLoginFailure(r, "sso_account_not_active", "")
+		emitLoginFailure(r, ssoRefusalReason(refusedStatus), "")
 		http.Redirect(w, r, "/login?sso_error=signin", http.StatusFound)
 		return
 	}
@@ -388,9 +393,32 @@ func ssoFailureReason(err error) string {
 	case errors.Is(err, sso.ErrDiscovery):
 		return "sso_discovery_failed"
 	case errors.Is(err, sso.ErrAccountNotActive):
+		// The audit record names the state; the sign-in page does not.
+		var notActive *sso.AccountNotActiveError
+		if errors.As(err, &notActive) {
+			switch notActive.State {
+			case sso.AccountStateDisabled:
+				return "sso_account_disabled"
+			case sso.AccountStateDeleted:
+				return "sso_account_deleted"
+			}
+		}
 		return "sso_account_not_active"
 	default:
 		return "sso_signin_failed"
+	}
+}
+
+// ssoRefusalReason names the account state that refused issuance under
+// the lock, in the same vocabulary as ssoFailureReason.
+func ssoRefusalReason(s identity.AccountStatus) string {
+	switch s {
+	case identity.AccountDisabled:
+		return "sso_account_disabled"
+	case identity.AccountDeleted:
+		return "sso_account_deleted"
+	default:
+		return "sso_account_not_active"
 	}
 }
 

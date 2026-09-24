@@ -5036,6 +5036,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description server.error. retryable true: sign-in did not complete and nothing was issued, including when the per-user lock was not acquired in time. retryable false: the outcome is unknown; sign in again rather than assuming either result. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postAuthLogout: {
@@ -5053,6 +5062,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description authz.csrf_invalid. A credential cookie selects what to revoke and the double-submit token is missing or does not match. Nothing was revoked and no cookie was changed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description auth.logout_incomplete, retryable. The revocation failed and rolled back, so nothing was revoked. Both cookies are cleared; the session may stay valid until it expires. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description server.error. Two outcomes, told apart by retryable. Both cookies are cleared in both. retryable true: the per-user lock was not acquired in time and nothing was revoked; a retry is safe. retryable false: the revocation outcome is unknown and neither outcome is asserted. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
             };
         };
     };
@@ -5087,6 +5123,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description server.error. retryable true: nothing was rotated, including when the per-user lock was not acquired in time. retryable false: the rotation outcome is unknown; sign in again rather than presenting the same token. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postAuthRefreshCookie: {
@@ -5109,6 +5154,15 @@ export interface operations {
             };
             /** @description Refresh cookie missing, invalid, expired, or reused. Both auth cookies are cleared. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description server.error. retryable true: nothing was rotated and no cookie was set, including when the per-user lock was not acquired in time. retryable false: the rotation outcome is unknown. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6064,6 +6118,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postUserDisable: {
@@ -6113,6 +6176,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postUserEnable: {
@@ -6146,6 +6218,15 @@ export interface operations {
             };
             /** @description User not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
