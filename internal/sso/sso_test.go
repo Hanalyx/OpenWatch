@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -353,4 +354,73 @@ func provisionInto(pool *pgxpool.Pool) ProvisionFunc {
 			id, username, email)
 		return id, err
 	}
+}
+
+// @ac AC-09
+// AC-09 (resolution half): HandleCallback itself refuses a subject whose
+// local account is disabled or soft-deleted, and does NOT fall through
+// to provisioning a second user for a subject that already has one.
+//
+// This is deliberately at the package level, with no HTTP handler in
+// the picture. The handler revalidates account state again under the
+// per-user lock, and that second layer masks this one: with both
+// present, deleting either still produces a refusal. Testing here is
+// what makes this layer's own behavior observable.
+func TestSSO_CallbackRefusesInactiveAccount(t *testing.T) {
+	t.Run("system-sso/AC-09", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			column string
+		}{
+			{"disabled", "disabled_at"},
+			{"soft-deleted", "deleted_at"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				svc, pool, d := freshSSO(t)
+				ctx := context.Background()
+				p := mkProvider(t, svc, d)
+				provision := provisionInto(pool)
+
+				// First sign-in while active: provisions and links.
+				state := startLogin(t, svc, pool, d, p)
+				first, err := svc.HandleCallback(ctx, state, "https://app/cb", "code", provision)
+				if err != nil {
+					t.Fatalf("first callback: %v", err)
+				}
+				if !first.Provisioned {
+					t.Fatal("the first sign-in should provision")
+				}
+
+				if _, err := pool.Exec(ctx,
+					"UPDATE users SET "+tc.column+" = now() WHERE id = $1", first.UserID); err != nil {
+					t.Fatalf("set %s: %v", tc.column, err)
+				}
+
+				state = startLogin(t, svc, pool, d, p)
+				res, err := svc.HandleCallback(ctx, state, "https://app/cb", "code", provision)
+				if !errors.Is(err, ErrAccountNotActive) {
+					t.Errorf("second callback err = %v, want ErrAccountNotActive", err)
+				}
+				if res.UserID != uuid.Nil {
+					t.Errorf("a refused callback returned a user id (%s)", res.UserID)
+				}
+				if res.Provisioned {
+					t.Error("a refused callback provisioned a user")
+				}
+
+				// And it did not quietly create a second local account
+				// for the same federated subject.
+				var links, users int
+				if err := pool.QueryRow(ctx, `
+					SELECT (SELECT count(*) FROM sso_identities WHERE subject = $1),
+					       (SELECT count(*) FROM users WHERE id = $2)`,
+					d.sub, first.UserID).Scan(&links, &users); err != nil {
+					t.Fatalf("counts: %v", err)
+				}
+				if links != 1 {
+					t.Errorf("federation links = %d, want exactly 1", links)
+				}
+			})
+		}
+	})
 }

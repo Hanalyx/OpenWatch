@@ -1,7 +1,7 @@
 spec:
   id: frontend-auth-login
   title: Frontend login + MFA + return_to
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -117,6 +117,17 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-12
+      description: >
+        The login page MUST present sso_error=unconfirmed as uncertainty about
+        whether the user was signed in, not as a failed sign-on, and MUST NOT
+        tell the user to try again as if nothing happened. The server could
+        not confirm whether the sign-in committed, so a session may already
+        exist. Every other sso_error value keeps its existing message, and an
+        unknown value keeps the generic fallback.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: Navigating to /login with no session renders the form with username + password fields and a submit button.
@@ -181,3 +192,22 @@ spec:
       description: 'Source-inspection — the password input defaults to type=password (obscured), and a visibility toggle implemented as a <button type="button"> carries an aria-label that reflects state (show vs hide password). The toggle sits between the password and submit controls so the username -> password -> submit tab order is preserved.'
       priority: high
       references_constraints: [C-11]
+    - id: AC-17
+      description: >
+        ssoErrorMessage returns an uncertainty message for unconfirmed that
+        does not claim failure or invite a blind retry, keeps the existing
+        message for each failure value, returns the generic fallback for an
+        unrecognized value, and returns nothing when there is no sso_error.
+      priority: high
+      references_constraints: [C-12]
+      inputs:
+        function: "ssoErrorMessage(code)"
+        variants: ["unconfirmed", "session", "signin", "an unrecognized value", "absent"]
+        method: "The function is imported and called directly. It is pure, so every case is exact."
+      expected_output:
+        per_variant:
+          unconfirmed: {mentions: "could not confirm", excludes: ["failed", "try again"]}
+          session: {equals: "Could not establish a session after sign-on. Please try again."}
+          signin: {equals: "Single sign-on failed. Please try again or use your password."}
+          an unrecognized value: {equals: "Single sign-on failed."}
+          absent: {equals: null}

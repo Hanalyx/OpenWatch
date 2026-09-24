@@ -42,9 +42,20 @@ func (s *Service) HandleCallback(ctx context.Context, state, redirectURI, code s
 		return CallbackResult{}, err
 	}
 
-	// Existing federation link → reuse the user.
-	if uid, found, err := s.linkedUser(ctx, st.ProviderID, claims.Subject); err != nil {
+	// Existing federation link → reuse the user, but only if that user
+	// may still sign in. Without this an account an administrator
+	// disabled signs straight back in through SSO and receives a working
+	// session: the link outlives the disable, and a soft delete never
+	// fires the ON DELETE CASCADE because it is an UPDATE.
+	// Reproduced 2026-09-23 as bugs/OW-073.
+	//
+	// Refusing here rather than filtering the row out of the query is
+	// deliberate: a filtered query reports "no link" and the code below
+	// would provision a SECOND user for a subject that already has one.
+	if uid, found, state, err := s.linkedUserState(ctx, st.ProviderID, claims.Subject); err != nil {
 		return CallbackResult{}, err
+	} else if found && !state.MaySignIn() {
+		return CallbackResult{}, fmt.Errorf("%w: %s", ErrAccountNotActive, state)
 	} else if found {
 		return CallbackResult{UserID: uid, RedirectTo: st.RedirectTo}, nil
 	}
