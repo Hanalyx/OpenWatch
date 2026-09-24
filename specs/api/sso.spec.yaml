@@ -1,7 +1,7 @@
 spec:
   id: api-sso
   title: SSO (OIDC) REST API — provider config + sign-in flow
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -17,7 +17,8 @@ spec:
       client secret. The enabled list returns only id + name. The login
       endpoint 302-redirects to the IdP; the callback exchanges the code,
       issues a session cookie, and redirects into the app (or to /login with
-      an sso_error on failure).
+      an sso_error on failure, or with sso_error=unconfirmed when the server
+      cannot confirm whether a session was issued; see system-sso C-06).
     related_specs:
       - system-sso
       - system-rbac

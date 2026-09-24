@@ -100,6 +100,23 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-06
+      description: >
+        The SSO callback MUST report an UNKNOWN issuance outcome as uncertainty,
+        not as failure. When the issuance transaction's commit outcome is
+        indeterminate, a session may exist that the response cannot deliver,
+        or none may exist. The callback MUST redirect to
+        /login?sso_error=unconfirmed, a value distinct from every failure
+        value, and MUST NOT set a credential cookie, clear an existing one,
+        replay the callback or restart sign-in. Neither the log nor any audit
+        event may assert that issuance succeeded or rolled back; no login
+        success or failure event is written. A KNOWN rollback stays
+        /login?sso_error=session. Issuance MUST run through the handlers'
+        transaction source, so the outcome can be selected deterministically
+        under test.
+      type: security
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: Create persists a provider with the client secret encrypted (the stored client_secret_enc is not the plaintext bytes); List/Get return the metadata with no secret field; Create rejects a non-https issuer and a missing name/client_id/client_secret with ErrInvalidParams.
@@ -185,3 +202,61 @@ spec:
         response: "Redirect to /login with an error"
         durable_changes: []
         prohibited_changes: ["A session or refresh token issued for the disabled account"]
+    - id: AC-11
+      description: >
+        The real SSO callback distinguishes a successful issuance, a known
+        rollback, and an unknown outcome, and reports each truthfully. Both
+        unknown variants read identically to the user, set no credential
+        cookie, clear none, replay nothing, and write no login audit event,
+        while the durable state confirms which variant the harness produced.
+      priority: critical
+      references_constraints: [C-05, C-06]
+      inputs:
+        initial_state: "An active account signing in for the first time through a controlled test provider"
+        operation: "Complete the real SSO callback"
+        variants:
+          - name: "Durable commit, acknowledgement lost"
+            setup: "The issuance transaction commits, then its acknowledgement is lost"
+          - name: "Non-durable, outcome unknown"
+            setup: "The issuance transaction does not commit, and its outcome is reported as unknown"
+          - name: "Known rollback"
+            setup: "A trigger fails the session insert inside the transaction"
+          - name: "Successful issuance"
+            setup: "No injected failure"
+        method: >
+          The transaction source is substituted through the handlers' seam,
+          which selects each unknown variant deterministically and counts the
+          transactions begun, so a replay would be visible. The server log is
+          captured for the request, and sessions and refresh rows are read
+          afterwards to confirm which variant actually ran.
+      expected_output:
+        per_variant:
+          Durable commit, acknowledgement lost:
+            location: /login?sso_error=unconfirmed
+            credential_cookies_set: 0
+            credential_cookies_cleared: 0
+            transactions_begun: 1
+            login_audit_events: 0
+            log_states: "outcome unknown"
+            durable_state: "session and refresh rows exist"
+          Non-durable, outcome unknown:
+            location: /login?sso_error=unconfirmed
+            credential_cookies_set: 0
+            credential_cookies_cleared: 0
+            transactions_begun: 1
+            login_audit_events: 0
+            log_states: "outcome unknown"
+            durable_state: "no session or refresh rows"
+          Known rollback:
+            location: /login?sso_error=session
+            credential_cookies_set: 0
+            durable_state: "no session or refresh rows"
+          Successful issuance:
+            location: "the return target"
+            credential_cookies_set: 2
+            durable_state: "one session and one refresh row"
+        prohibited_changes:
+          - "An unknown outcome reported as a failed sign-in"
+          - "A credential cookie delivered without a confirmed commit"
+          - "An automatic replay or restart of the sign-in"
+          - "A log or audit event asserting success or rollback for an unknown outcome"

@@ -8,6 +8,7 @@ import { useAuthStore, type Identity } from '@/store/useAuthStore';
 import { RadarField } from '@/components/RadarField';
 import { useVersion } from '@/hooks/useVersion';
 import owIcon from '@/assets/openwatch-icon.png';
+import { ssoErrorMessage } from './ssoErrorText';
 
 // Login page — frontend-auth-login spec.
 //
@@ -41,16 +42,6 @@ interface SSOOption {
   name: string;
 }
 
-const SSO_ERROR_TEXT: Record<string, string> = {
-  denied: 'Single sign-on was cancelled or denied by the provider.',
-  signin: 'Single sign-on failed. Please try again or use your password.',
-  provider: 'That sign-on provider is unavailable. Please try again later.',
-  invalid: 'The sign-on response was invalid. Please try again.',
-  session: 'Could not establish a session after sign-on. Please try again.',
-  state: 'Your sign-on attempt expired. Please try again.',
-  unavailable: 'Single sign-on is not configured for this workspace.',
-};
-
 // Post-login default destination. "/" is the public homepage, so an
 // authenticated user falls back to /dashboard, not /.
 const DEFAULT_DEST = '/dashboard';
@@ -81,7 +72,7 @@ export function LoginPage() {
 
   const [mfaRequired, setMfaRequired] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(
-    search.sso_error ? (SSO_ERROR_TEXT[search.sso_error] ?? 'Single sign-on failed.') : null,
+    ssoErrorMessage(search.sso_error),
   );
   const [ssoProviders, setSsoProviders] = useState<SSOOption[]>([]);
   const [submitting, setSubmitting] = useState(false);

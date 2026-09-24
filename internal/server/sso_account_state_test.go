@@ -105,6 +105,14 @@ func newSSOTestIDP(t *testing.T) *ssoTestIDP {
 // controlled provider. Only the transport is substituted.
 func ssoFixture(t *testing.T) (string, *pgxpool.Pool, *ssoTestIDP, sso.Provider) {
 	t.Helper()
+	base, pool, d, p, _ := ssoFixtureWithServer(t)
+	return base, pool, d, p
+}
+
+// ssoFixtureWithServer also returns the *Server, for tests that substitute
+// the handlers' transaction source.
+func ssoFixtureWithServer(t *testing.T) (string, *pgxpool.Pool, *ssoTestIDP, sso.Provider, *Server) {
+	t.Helper()
 	_ = apiTestDSN(t)
 	ctx := context.Background()
 	pool := dbtest.Pool(t)
@@ -145,7 +153,7 @@ func ssoFixture(t *testing.T) (string, *pgxpool.Pool, *ssoTestIDP, sso.Provider)
 	}
 	srv := httptest.NewServer(s.router)
 	t.Cleanup(srv.Close)
-	return srv.URL, pool, d, p
+	return srv.URL, pool, d, p, s
 }
 
 type ssoCallbackResult struct {
@@ -153,6 +161,9 @@ type ssoCallbackResult struct {
 	location      string
 	sessionCookie *http.Cookie
 	refreshCookie *http.Cookie
+	// all is every Set-Cookie on the callback response, including any
+	// with an empty value, so a test can see a cookie being CLEARED.
+	all []*http.Cookie
 }
 
 // ssoSignIn drives the real login redirect and the real callback.
@@ -187,6 +198,7 @@ func ssoSignIn(t *testing.T, base string, pool *pgxpool.Pool, d *ssoTestIDP, p s
 	}
 	cbResp.Body.Close()
 	res := ssoCallbackResult{status: cbResp.StatusCode, location: cbResp.Header.Get("Location")}
+	res.all = cbResp.Cookies()
 	for _, c := range cbResp.Cookies() {
 		switch c.Name {
 		case identity.SessionCookieName:

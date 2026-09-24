@@ -20,6 +20,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { ssoErrorMessage } from '@/pages/ssoErrorText';
 
 const LOGIN_SRC = readFileSync(resolve(process.cwd(), 'src/pages/LoginPage.tsx'), 'utf8');
 const CLIENT_SRC = readFileSync(resolve(process.cwd(), 'src/api/client.ts'), 'utf8');
@@ -214,5 +215,31 @@ describe('frontend-auth-login — structural', () => {
     const submitIdx = LOGIN_SRC.indexOf('type="submit"');
     expect(toggleIdx).toBeGreaterThan(-1);
     expect(submitIdx).toBeGreaterThan(toggleIdx);
+  });
+});
+
+describe('frontend-auth-login — SSO outcome messages', () => {
+  // @ac AC-17
+  test('frontend-auth-login/AC-17 — unconfirmed reads as uncertainty, not failure', () => {
+    const unconfirmed = ssoErrorMessage('unconfirmed');
+    expect(unconfirmed).not.toBeNull();
+    const text = (unconfirmed ?? '').toLowerCase();
+    // A session may already exist, so the page must not say sign-on
+    // failed or send the user straight back to retry.
+    expect(text).toContain('could not confirm');
+    expect(text).not.toContain('failed');
+    expect(text).not.toContain('try again');
+
+    // The failure values keep their existing messages.
+    expect(ssoErrorMessage('session')).toBe(
+      'Could not establish a session after sign-on. Please try again.',
+    );
+    expect(ssoErrorMessage('signin')).toBe(
+      'Single sign-on failed. Please try again or use your password.',
+    );
+    // An unrecognized value keeps the generic fallback, and no value
+    // means no message.
+    expect(ssoErrorMessage('something-new')).toBe('Single sign-on failed.');
+    expect(ssoErrorMessage(undefined)).toBeNull();
   });
 });
