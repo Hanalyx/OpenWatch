@@ -284,35 +284,54 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// person who cannot afford that.
 	revokeFailed := false
 
-	// If anonymous, this is a no-op — still 204 (logout is idempotent).
+	// Logout runs under the SAME per-user lock the issuance paths take,
+	// so a rotation cannot slip between revoking the session and
+	// revoking its descendants. Without it a refresh committing in that
+	// window produces a live successor attached to a session that is
+	// already gone, and the logout reports success. Spec C-34.
+	//
+	// Anonymous is a no-op and still answers 204: logout is idempotent.
 	if !id.IsAnonymous {
-		// Find the session by cookie token and revoke it.
-		if cookie, err := r.Cookie(identity.SessionCookieName); err == nil && cookie.Value != "" {
-			if sess, err := identity.VerifySession(r.Context(), h.pool, cookie.Value); err == nil {
-				if rerr := identity.RevokeSession(r.Context(), h.pool, sess.ID); rerr != nil {
-					revokeFailed = true
-					slog.ErrorContext(r.Context(), "logout: session revoke failed; session may still be valid",
-						slog.String("session_id", sess.ID.String()),
-						slog.String("error", rerr.Error()))
+		if uid, perr := uuid.Parse(id.ID); perr == nil {
+			txErr := identity.RunSerialized(r.Context(), h.serialized(), uid, func(ctx context.Context, tx pgx.Tx) error {
+				// Reset per attempt: the runner may restart the whole
+				// transaction.
+				revokeFailed = false
+				if cookie, cerr := r.Cookie(identity.SessionCookieName); cerr == nil && cookie.Value != "" {
+					// WithoutSlide: logging out is not activity that
+					// should extend the session it is about to revoke.
+					if sess, serr := identity.VerifySession(ctx, h.pool, cookie.Value, identity.WithoutSlide()); serr == nil {
+						// Revokes the session AND every refresh token
+						// attached to it, which is the descendant sweep.
+						if rerr := identity.RevokeSession(ctx, tx, sess.ID); rerr != nil {
+							return rerr
+						}
+						emitAudit(r, audit.AuthLogout, id.ID, nil)
+					}
+					// A session that does not verify needs no revoking:
+					// it is already expired or unknown. Not a failure.
 				}
-				emitAudit(r, audit.AuthLogout, id.ID, nil)
+				// Revoke the refresh token the cookie carries, whatever
+				// the session state. Its own family may differ from the
+				// session's descendants once the cookie path has rebound
+				// a successor, so both sweeps are needed.
+				if rc, rerr := r.Cookie(identity.RefreshCookieName); rerr == nil && rc.Value != "" {
+					if verr := identity.RevokeRefreshToken(ctx, tx, rc.Value); verr != nil {
+						return verr
+					}
+				}
+				return nil
+			})
+			if txErr != nil {
+				revokeFailed = true
+				slog.ErrorContext(r.Context(), "logout: revoke failed; credentials may still be valid",
+					slog.String("error", txErr.Error()))
 			}
-			// A session that does not verify needs no revoking: it is already
-			// expired or unknown. That is not a failure.
-		}
-	}
-	// Revoke the refresh token if the cookie carries one, regardless of
-	// session state — explicit logout invalidates everything the user
-	// was holding. Best-effort: an unparseable / unknown refresh cookie
-	// is silently ignored (no oracle).
-	if rc, err := r.Cookie(identity.RefreshCookieName); err == nil && rc.Value != "" {
-		if rerr := identity.RevokeRefreshToken(r.Context(), h.pool, rc.Value); rerr != nil {
-			// An unknown or unparseable refresh cookie is not an error and
-			// RevokeRefreshToken does not report one, so reaching here means a
-			// real failure to revoke a token that exists.
-			revokeFailed = true
-			slog.ErrorContext(r.Context(), "logout: refresh-token revoke failed; token may still be valid",
-				slog.String("error", rerr.Error()))
+		} else {
+			// A non-UUID subject cannot be locked, and a service-account
+			// token is not an interactive session to log out of. Left
+			// untouched on purpose: the service-token boundary.
+			slog.InfoContext(r.Context(), "logout: caller is not an interactive user; nothing to revoke")
 		}
 	}
 	// Clear both cookies in the same response.
@@ -465,7 +484,8 @@ func (h *handlers) PostAuthRefresh(w http.ResponseWriter, r *http.Request) {
 			"refresh token reuse detected; all sessions revoked", false)
 		return
 	case identity.RefreshExpired, identity.RefreshRevoked,
-		identity.RefreshNotFound, identity.RefreshSessionExpired:
+		identity.RefreshNotFound, identity.RefreshSessionExpired,
+		identity.RefreshSessionRevoked:
 		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 			"refresh token invalid or expired", false)
 		return
@@ -551,7 +571,8 @@ func (h *handlers) PostAuthRefreshCookie(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusUnauthorized, "auth.session_expired", "client",
 			"session absolute timeout reached; please sign in again", false)
 		return
-	case identity.RefreshExpired, identity.RefreshRevoked, identity.RefreshNotFound:
+	case identity.RefreshExpired, identity.RefreshRevoked,
+		identity.RefreshNotFound, identity.RefreshSessionRevoked:
 		clearAuthCookies(w)
 		writeError(w, http.StatusUnauthorized, "auth.refresh_invalid", "client",
 			"refresh token invalid or expired", false)

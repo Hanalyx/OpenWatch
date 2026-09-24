@@ -138,75 +138,113 @@ func ReadAuthInputs(ctx context.Context, q DBTX, userID uuid.UUID) (AuthInputs, 
 	return in, nil
 }
 
-// SessionLiveness is the result of checking the session behind a
-// session-bound access token. The zero value is SessionBindingUnknown
-// and authorizes nothing. Spec C-38.
-type SessionLiveness int
+// BearerVerdict is the result of evaluating a session-bound access
+// token. The zero value is BearerUnknown and authorizes nothing.
+//
+// The order of the checks and the reason vocabulary follow the recorded
+// Bearer binding table (OW-062 section 4) so an operator triaging a 401
+// reads the term the design uses. Spec C-38.
+type BearerVerdict int
 
 const (
-	// SessionBindingUnknown is the zero value and authorizes nothing.
-	SessionBindingUnknown SessionLiveness = iota
-	// SessionBindingLive: the session exists and is usable.
-	SessionBindingLive
-	// SessionBindingRevoked: the session was revoked.
-	SessionBindingRevoked
-	// SessionBindingExpired: the session passed a deadline.
-	SessionBindingExpired
-	// SessionBindingMissing: no such session row.
-	SessionBindingMissing
-	// SessionBindingAbsent: the token carries no session id at all.
-	SessionBindingAbsent
+	// BearerUnknown is the zero value and authorizes nothing.
+	BearerUnknown BearerVerdict = iota
+	// BearerOK: the token may bind an identity.
+	BearerOK
+	// BearerSIDAbsent: the token carries no session id.
+	BearerSIDAbsent
+	// BearerSessionAbsent: no session row for the id.
+	BearerSessionAbsent
+	// BearerOwnerMismatch: the session belongs to a different user.
+	BearerOwnerMismatch
+	// BearerSessionRevoked: the session was revoked.
+	BearerSessionRevoked
+	// BearerAbsoluteExpired: the session passed its ABSOLUTE deadline.
+	BearerAbsoluteExpired
+	// BearerAccountDisabled / BearerAccountDeleted: account state.
+	BearerAccountDisabled
+	BearerAccountDeleted
 )
 
-// Reason is the audit reason recorded when this result refuses a token.
-func (s SessionLiveness) Reason() string {
-	switch s {
-	case SessionBindingLive:
+// OK reports whether the token may authenticate.
+func (v BearerVerdict) OK() bool { return v == BearerOK }
+
+// Reason is the audit reason recorded when this verdict refuses.
+func (v BearerVerdict) Reason() string {
+	switch v {
+	case BearerOK:
 		return ""
-	case SessionBindingRevoked:
+	case BearerSIDAbsent:
+		return "sid_absent"
+	case BearerSessionAbsent:
+		return "session_absent"
+	case BearerOwnerMismatch:
+		return "session_owner_mismatch"
+	case BearerSessionRevoked:
 		return "session_revoked"
-	case SessionBindingExpired:
-		return "session_expired"
-	case SessionBindingMissing:
-		return "session_not_found"
-	case SessionBindingAbsent:
-		return "access_token_unbound"
+	case BearerAbsoluteExpired:
+		return "session_absolute_expired"
+	case BearerAccountDisabled:
+		return "account_disabled"
+	case BearerAccountDeleted:
+		return "account_deleted"
 	default:
 		return "session_binding_unknown"
 	}
 }
 
-// OK reports whether the bound session permits the token to authenticate.
-func (s SessionLiveness) OK() bool { return s == SessionBindingLive }
-
-// CheckSessionBinding reads the session an access token names and
-// reports whether it still permits authentication.
+// EvaluateBearerBinding decides a session-bound access token in ONE
+// query over sessions joined to users.
 //
-// It deliberately does NOT slide the idle window. A Bearer request is
-// not evidence of user activity in a browser session, and sliding here
-// would let a background caller keep a session alive indefinitely.
-// Spec C-29, C-38.
-func CheckSessionBinding(ctx context.Context, q DBTX, sessionID uuid.UUID) (SessionLiveness, error) {
+// It deliberately does NOT consider the idle window. The idle window
+// tracks real user activity in a browser session; a Bearer request is
+// not that, and neither sliding it nor expiring against it is right.
+// Bearer traffic is bounded by the session's ABSOLUTE deadline, which is
+// the ceiling a login established and nothing can extend. Spec C-29, C-38.
+//
+// The deadline is evaluated with clock_timestamp() in the database, not
+// against this process's clock, so skew between the application and the
+// database cannot change who is allowed in.
+func EvaluateBearerBinding(ctx context.Context, q DBTX, sessionID, subject uuid.UUID) (BearerVerdict, error) {
 	if sessionID == uuid.Nil {
-		return SessionBindingAbsent, nil
+		return BearerSIDAbsent, nil
 	}
-	var revokedAt *time.Time
-	var expiresAt, absoluteExpiresAt time.Time
-	err := q.QueryRow(ctx,
-		`SELECT revoked_at, expires_at, absolute_expires_at FROM sessions WHERE id = $1`,
-		sessionID).Scan(&revokedAt, &expiresAt, &absoluteExpiresAt)
+	var (
+		owner           uuid.UUID
+		sessionRevoked  bool
+		absoluteExpired bool
+		accountDisabled bool
+		accountDeleted  bool
+	)
+	err := q.QueryRow(ctx, `
+		SELECT s.user_id,
+		       s.revoked_at IS NOT NULL                   AS session_revoked,
+		       clock_timestamp() >= s.absolute_expires_at AS absolute_expired,
+		       u.disabled_at IS NOT NULL                  AS account_disabled,
+		       u.deleted_at  IS NOT NULL                  AS account_deleted
+		FROM sessions s JOIN users u ON u.id = s.user_id
+		WHERE s.id = $1`, sessionID).
+		Scan(&owner, &sessionRevoked, &absoluteExpired, &accountDisabled, &accountDeleted)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return SessionBindingMissing, nil
+		return BearerSessionAbsent, nil
 	case err != nil:
-		return SessionBindingUnknown, fmt.Errorf("%w: %v", ErrAccountStateUnavailable, err)
+		return BearerUnknown, fmt.Errorf("%w: %v", ErrAccountStateUnavailable, err)
 	}
-	if revokedAt != nil {
-		return SessionBindingRevoked, nil
+	switch {
+	case owner != subject:
+		// The token is correctly signed and names a live session, but
+		// not one belonging to the subject it claims. Nothing legitimate
+		// produces this pair.
+		return BearerOwnerMismatch, nil
+	case sessionRevoked:
+		return BearerSessionRevoked, nil
+	case absoluteExpired:
+		return BearerAbsoluteExpired, nil
+	case accountDeleted:
+		return BearerAccountDeleted, nil
+	case accountDisabled:
+		return BearerAccountDisabled, nil
 	}
-	now := time.Now().UTC()
-	if now.After(expiresAt) || now.After(absoluteExpiresAt) {
-		return SessionBindingExpired, nil
-	}
-	return SessionBindingLive, nil
+	return BearerOK, nil
 }

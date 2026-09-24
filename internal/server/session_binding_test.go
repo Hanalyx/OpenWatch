@@ -119,10 +119,11 @@ func TestAccessToken_BindingIsRequiredAndAlwaysIssued(t *testing.T) {
 		// The REASON matters. An empty sid also fails UUID parsing, so a
 		// test that only checked the status passed with the unbound
 		// branch deleted. An operator seeing "invalid_jwt_session" would
-		// look for a malformed token; "access_token_unbound" says a
-		// client is minting tokens with no binding at all.
-		if reason := lastLoginFailureReason(t, pool); reason != "access_token_unbound" {
-			t.Errorf("audit reason for an unbound token = %q, want access_token_unbound", reason)
+		// look for a malformed token; "sid_absent" says a client is
+		// minting tokens with no binding at all. The vocabulary is the
+		// recorded one (OW-062 section 4).
+		if reason := lastLoginFailureReason(t, pool); reason != "sid_absent" {
+			t.Errorf("audit reason for an unbound token = %q, want sid_absent", reason)
 		}
 
 		// A body refresh preserves the binding rather than dropping it.

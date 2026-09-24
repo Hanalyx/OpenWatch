@@ -123,7 +123,7 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, reason := resolveIdentity(r.Context(), pool, lookups, cfg, r)
-			if reason == reasonStateUnavailable {
+			if unavailableReason(reason) {
 				// The credential was not rejected: the server could not
 				// tell. Answering 401 here would tell every signed-in
 				// browser its session ended and turn a transient outage
@@ -155,6 +155,16 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 // credential. It means account state could not be determined, and it
 // answers 503. Spec C-32.
 const reasonStateUnavailable = "account_state_unavailable"
+
+// reasonSessionLookupFailed is the Bearer arm's equivalent: the binding
+// query could not be answered. Also 503, never 401. Spec C-32.
+const reasonSessionLookupFailed = "session_lookup_failed"
+
+// unavailableReason reports whether a rejection reason means "could not
+// determine" rather than "refused", which is what separates 503 from 401.
+func unavailableReason(reason string) bool {
+	return reason == reasonStateUnavailable || reason == reasonSessionLookupFailed
+}
 
 // writeStateUnavailable emits the 503 envelope for an infrastructure
 // failure during identity binding. It deliberately does not carry
@@ -299,32 +309,30 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		if perr != nil {
 			return anon(), "invalid_jwt_subject"
 		}
-		if reason, unavailable := checkAccountState(ctx, lookups, uid); reason != "" {
-			if unavailable {
-				return anon(), reasonStateUnavailable
-			}
-			return anon(), reason
-		}
-		// Session binding. A signed token is otherwise an independent
+		// Session binding AND ownership, in one query over sessions
+		// joined to users. A signed token is otherwise an independent
 		// bearer credential that outlives everything but its own expiry,
 		// which is why an administrative password reset left one
-		// working: the account stays enabled, so the account-state check
-		// above cannot reach it. Spec C-38.
-		sid, serr := uuid.Parse(claims.SessionID)
+		// working: the account stays enabled, so an account-state check
+		// alone cannot reach it. And a token naming a session that
+		// belongs to somebody else must not bind that session's owner or
+		// this subject: nothing legitimate produces that pair, so it is
+		// refused rather than reconciled. Spec C-38.
 		if claims.SessionID == "" {
 			// Unbound token. Refused rather than trusted: after the
 			// migration no legitimate interactive token lacks a `sid`.
-			return anon(), "access_token_unbound"
+			return anon(), BearerSIDAbsent.Reason()
 		}
+		sid, serr := uuid.Parse(claims.SessionID)
 		if serr != nil {
 			return anon(), "invalid_jwt_session"
 		}
-		live, lerr := CheckSessionBinding(ctx, pool, sid)
+		verdict, lerr := EvaluateBearerBinding(ctx, pool, sid, uid)
 		if lerr != nil {
-			return anon(), reasonStateUnavailable
+			return anon(), reasonSessionLookupFailed
 		}
-		if !live.OK() {
-			return anon(), live.Reason()
+		if !verdict.OK() {
+			return anon(), verdict.Reason()
 		}
 		// The role baked into the JWT is the contract. RBAC middleware
 		// downstream re-evaluates whether that role actually grants the

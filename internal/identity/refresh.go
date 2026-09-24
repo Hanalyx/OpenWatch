@@ -30,6 +30,10 @@ var (
 	// from login) has passed. Refresh is refused; the user must re-authenticate.
 	// AUTH-1 (b).
 	ErrRefreshSessionExpired = errors.New("identity: session absolute timeout reached")
+	// ErrRefreshSessionRevoked — the session this refresh token is linked
+	// to has been revoked, so the lineage is over. Distinct from
+	// ErrRefreshTokenRevoked, which is about the token's own row.
+	ErrRefreshSessionRevoked = errors.New("identity: linked session revoked")
 )
 
 // RevokeRefreshToken marks the row identified by presentation-token as
@@ -150,6 +154,10 @@ const (
 	RefreshReused
 	// RefreshSessionExpired: the session's absolute ceiling has passed.
 	RefreshSessionExpired
+	// RefreshSessionRevoked: the session this token is LINKED to was
+	// revoked. Rotation must refuse, or revoking a session would end its
+	// access tokens while its refresh family kept minting new ones.
+	RefreshSessionRevoked
 )
 
 // MustCommit reports whether an outcome wrote something durable that the
@@ -173,6 +181,8 @@ func (o RefreshOutcome) Err() error {
 		return ErrRefreshTokenReused
 	case RefreshSessionExpired:
 		return ErrRefreshSessionExpired
+	case RefreshSessionRevoked:
+		return ErrRefreshSessionRevoked
 	default:
 		return errors.New("identity: refresh outcome undetermined")
 	}
@@ -193,19 +203,30 @@ func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (
 	hash := sha256.Sum256([]byte(token))
 
 	var (
-		rowID       uuid.UUID
-		userID      uuid.UUID
-		expiresAt   time.Time
-		absoluteExp *time.Time
-		rotatedTo   *uuid.UUID
-		revokedAt   *time.Time
-		sessionID   *uuid.UUID
+		rowID          uuid.UUID
+		userID         uuid.UUID
+		expiresAt      time.Time
+		absoluteExp    *time.Time
+		rotatedTo      *uuid.UUID
+		revokedAt      *time.Time
+		sessionID      *uuid.UUID
+		sessionRevoked bool
 	)
+	// The linked session's state is read in the SAME statement, so the
+	// rotation decision cannot straddle a concurrent revoke. A lineage
+	// does NOT keep one session id: the cookie path rebinds each
+	// successor to the session it mints, so this reads whichever session
+	// the presented token is attached to right now.
 	err := tx.QueryRow(ctx, `
-		SELECT id, user_id, expires_at, absolute_expires_at, rotated_to_id, revoked_at, session_id
-		FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`,
+		SELECT r.id, r.user_id, r.expires_at, r.absolute_expires_at,
+		       r.rotated_to_id, r.revoked_at, r.session_id,
+		       COALESCE(s.revoked_at IS NOT NULL, false) AS session_revoked
+		FROM refresh_tokens r
+		LEFT JOIN sessions s ON s.id = r.session_id
+		WHERE r.token_hash = $1
+		FOR UPDATE OF r`,
 		hash[:],
-	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt, &sessionID)
+	).Scan(&rowID, &userID, &expiresAt, &absoluteExp, &rotatedTo, &revokedAt, &sessionID, &sessionRevoked)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RefreshNotFound, nil, nil
@@ -215,6 +236,12 @@ func ConsumeRefreshTokenTx(ctx context.Context, tx pgx.Tx, token, role string) (
 
 	if revokedAt != nil {
 		return RefreshRevoked, nil, nil
+	}
+	// Checked BEFORE reuse: a token whose session is gone is not
+	// evidence of theft, and treating it as reuse would revoke the
+	// user's other families for someone else's logout.
+	if sessionRevoked {
+		return RefreshSessionRevoked, nil, nil
 	}
 	if time.Now().UTC().After(expiresAt) {
 		return RefreshExpired, nil, nil

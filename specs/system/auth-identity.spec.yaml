@@ -261,9 +261,34 @@ spec:
         an independent bearer credential that outlives everything except its
         own expiry, which is why an administrative password reset left one
         working: the account stays enabled, so no account-state check reaches
-        it. The binding check MUST NOT slide the session's idle window,
-        because a Bearer request is not evidence of user activity and sliding
-        would let a background caller keep a session alive indefinitely.
+        it. The evaluation MUST be a single read over sessions joined to
+        users, and MUST refuse in this vocabulary: sid_absent, session_absent,
+        session_owner_mismatch, session_revoked, session_absolute_expired,
+        account_disabled, account_deleted, with session_lookup_failed
+        answering 503. It MUST compare the session's user_id with the token's
+        subject and refuse a mismatch: nothing legitimate produces a correctly
+        signed token naming another user's session.
+        The evaluation MUST NOT apply the session's IDLE window and MUST NOT
+        slide it. The idle window tracks real user activity in a browser
+        session; a Bearer request is not that, so expiring against it would
+        cut off an actively calling client and sliding it would let a
+        background caller keep a session alive forever. Bearer traffic is
+        bounded by the session's ABSOLUTE deadline, evaluated with
+        clock_timestamp() in the database so skew between the application and
+        the database cannot change who is admitted.
+        Revoking a session MUST make its descendants unusable: every refresh
+        token attached to that session is revoked with it, and rotation MUST
+        refuse a token whose linked session is revoked. A lineage does NOT
+        keep one session id, because the cookie path rebinds each successor
+        to the session it mints, so both rules are scoped to whatever session
+        a token is attached to at the time. Logout MUST take the same
+        per-user lock as the issuance paths so a concurrent rotation cannot
+        produce a live successor attached to a session that is already gone.
+        The refresh_tokens.session_id foreign key MUST NOT cascade on delete:
+        a cascade would make deleting a session silently delete its refresh
+        rows, destroying the record of what it held and changing retention
+        behavior as a side effect. Service-account tokens are outside all of
+        this.
         Credentials minted before this rule exists carry no binding and cannot
         be evaluated against it, so the migration that introduces it MUST
         revoke every live interactive session and refresh token rather than
@@ -711,7 +736,7 @@ spec:
           the claim. One request per variant.
       expected_output:
         per_variant:
-          Unbound token presented: {status: 401, audit_reason: access_token_unbound}
+          Unbound token presented: {status: 401, audit_reason: sid_absent}
           Password login: {token_carries_sid: true, refresh_row_carries_session_id: true}
           Body refresh rotation: {token_carries_sid: true, binding_preserved: true}
         prohibited_changes:
@@ -1055,3 +1080,150 @@ spec:
           - "An authentication-failure audit event for a failure the user did not cause"
           - "An auth_mfa_otp_uses row surviving a rolled-back attempt"
           - "A recorded rejection concealing a failed or unknown transaction outcome"
+    - id: AC-54
+      description: >
+        The Bearer binder compares the bound session's owner with the token's
+        subject and refuses a mismatch as session_owner_mismatch. The token is
+        correctly signed and the session is live in every case, so the refusal
+        is attributable to ownership alone.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "Two enabled accounts, each with its own live session"
+        operation: "Present a correctly signed token whose sub is one user and whose sid names the OTHER user's live session"
+        variants: ["Mismatched pair", "Own session control"]
+        method: >
+          Both tokens are minted by the real issuer, so signature and exp are
+          valid, and both sessions are live and unrevoked. Only the pairing
+          differs. One request per variant, no concurrency.
+      expected_output:
+        per_variant:
+          Mismatched pair: {status: 401, audit_reason: session_owner_mismatch, identity_bound: false}
+          Own session control: {status: 200}
+        prohibited_changes:
+          - "A token binding a session that belongs to another user"
+          - "The mismatch binding either the subject or the session owner"
+    - id: AC-55
+      description: >
+        Rotation refuses a refresh token whose LINKED session is revoked, on
+        both refresh endpoints, and mints nothing. The token's own row is live
+        and unconsumed, so the refusal is attributable to the session.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: >
+          A live, unconsumed refresh token attached to a session that is then
+          revoked. Each endpoint gets its OWN fixture so neither result can be
+          explained by the other having consumed the token.
+        operation: "POST /auth/refresh; separately POST /auth/refresh-cookie"
+        variants: ["Body path", "Cookie path", "Body path control", "Cookie path control"]
+        method: >
+          The session is revoked by direct update, leaving the refresh row
+          untouched and unconsumed. Separate users per variant. One request
+          each, no concurrency.
+      expected_output:
+        per_variant:
+          Body path: {refused: true, credentials_issued: 0}
+          Cookie path: {refused: true, session_cookie_issued: false, sessions_created: 0}
+          Body path control: {refused: false}
+          Cookie path control: {refused: false}
+        prohibited_changes:
+          - "A rotation succeeding for a token whose session is revoked"
+          - "A cookie-path refusal that still minted a session"
+          - "The refusal being reported as reuse, which would revoke other families"
+    - id: AC-56
+      description: >
+        Revoking a session makes its descendants unusable, and logout obeys
+        the same serialization protocol as the issuance paths so a concurrent
+        rotation cannot escape it. Asserted in BOTH orders. Other login
+        families and service-account tokens are untouched.
+      priority: critical
+      references_constraints: [C-34, C-36, C-38]
+      inputs:
+        initial_state: >
+          A logged-in user whose refresh lineage has been rotated on the BODY
+          path, so the live token is attached to the original session while
+          the browser cookie holds the consumed one. A second independent
+          login for the same user, and one service-account token.
+        operation: "Log out, and race a rotation against it"
+        variants:
+          - name: "Logout then refresh"
+            setup: "The logout commits first, then the rotation is attempted"
+          - name: "Refresh then logout"
+            setup: "The rotation commits first, then the logout runs"
+          - name: "Concurrent, logout blocked on the lock"
+            setup: "A rotation holds the per-user lock; the logout waits, then proceeds"
+        method: >
+          The lineage is desynchronized on purpose by rotating on the body
+          path first, because the cookie path REBINDS each successor and would
+          otherwise hide the case. Ordering is imposed by the per-user lock and
+          observed through pg_stat_activity, not by sleeping.
+        scope: "Targeted logout. It is not extended to the user's other login families"
+      expected_output:
+        per_variant:
+          Logout then refresh:
+            durable_changes: ["The session revoked", "Every refresh token attached to it revoked"]
+            subsequent: ["Neither refresh endpoint rotates", "No session is minted"]
+          Refresh then logout:
+            subsequent: ["After the logout, no credential attached to that session rotates or authenticates"]
+          Concurrent, logout blocked on the lock:
+            final_state: "No live credential attached to the logged-out session"
+            prohibited_changes: ["A live successor attached to a session that is already revoked"]
+        preserved:
+          - "The second independent login still authenticates"
+          - "The service-account token is untouched"
+    - id: AC-57
+      description: >
+        Bearer traffic is exempt from the session's IDLE window and bounded by
+        its ABSOLUTE deadline, which is evaluated in the database. A Bearer
+        request past the idle window but inside the absolute window is
+        honored and does not advance the idle window; past the absolute
+        deadline it is refused as session_absolute_expired.
+      priority: critical
+      references_constraints: [C-29, C-38]
+      inputs:
+        initial_state: "A live session whose idle window has passed and whose absolute deadline has not"
+        operation: "Present the session-bound access token"
+        variants: ["Past idle, inside absolute", "Past absolute", "Fresh control"]
+        method: >
+          The deadlines are set by direct update rather than by waiting, so
+          the case is exact. The idle window is read before and after the
+          request to prove it did not move. Nothing depends on this process's
+          clock, which is the point of evaluating the deadline in the database.
+      expected_output:
+        per_variant:
+          Past idle, inside absolute:
+            status: 200
+            idle_window_advanced: false
+          Past absolute:
+            status: 401
+            audit_reason: session_absolute_expired
+          Fresh control:
+            status: 200
+            idle_window_advanced: false
+        prohibited_changes:
+          - "A Bearer request refused for idle expiry"
+          - "A Bearer request advancing expires_at or last_seen"
+          - "The absolute deadline decided against the application clock"
+    - id: AC-58
+      description: >
+        The refresh_tokens.session_id foreign key does not cascade on delete.
+        Deleting a session that still has refresh rows is REFUSED by the
+        database rather than silently removing them, and no retention behavior
+        changes.
+      priority: critical
+      references_constraints: [C-38]
+      inputs:
+        initial_state: "A session with at least one refresh token attached"
+        operation: "DELETE the session row"
+        method: >
+          The delete is attempted directly against the database and its error
+          is inspected, so the assertion is about the actual constraint rather
+          than about what the migration text appears to say.
+      expected_output:
+        delete_refused: true
+        sqlstate: "23503"
+        durable_changes: []
+        prohibited_changes:
+          - "Refresh rows removed as a side effect of deleting a session"
+          - "A retention policy change introduced by this schema choice"

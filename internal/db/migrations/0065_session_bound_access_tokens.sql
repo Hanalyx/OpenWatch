@@ -14,8 +14,15 @@
 --   2. the JWT carries the same session id as a `sid` claim, checked by
 --      the binder (application side).
 
+-- NO ON DELETE CASCADE, deliberately (OW-062 section 3.2). A cascade
+-- would make deleting a session silently delete its refresh rows, which
+-- destroys the evidence of what that session held and changes retention
+-- behavior as a side effect of a schema choice. Revocation, not deletion,
+-- is how a session ends; the default NO ACTION makes an attempted delete
+-- fail loudly instead, so anything that wants to remove sessions has to
+-- say what happens to their descendants first.
 ALTER TABLE refresh_tokens
-    ADD COLUMN session_id UUID REFERENCES sessions(id) ON DELETE CASCADE;
+    ADD COLUMN session_id UUID REFERENCES sessions(id);
 
 CREATE INDEX idx_refresh_tokens_session_id ON refresh_tokens (session_id);
 
