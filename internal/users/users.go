@@ -118,10 +118,17 @@ func (s *Service) UseTxSource(b identity.TxBeginner) { s.txs = b }
 
 // lockedTx begins a transaction for the locked account operations.
 func (s *Service) lockedTx(ctx context.Context) (pgx.Tx, error) {
+	var tx pgx.Tx
+	var err error
 	if s.txs != nil {
-		return s.txs.Begin(ctx)
+		tx, err = s.txs.Begin(ctx)
+	} else {
+		tx, err = s.pool.Begin(ctx)
 	}
-	return s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", identity.ErrNotBegun, err)
+	}
+	return tx, nil
 }
 
 // NewService binds a Service to a DB pool. The breach corpus is
@@ -195,7 +202,7 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 	if err != nil {
 		return User{}, fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	var u User
 	const insUser = `
@@ -415,7 +422,7 @@ func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt str
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -467,7 +474,7 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrUserNotFound
@@ -561,7 +568,7 @@ func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, 
 	if err != nil {
 		return false, fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

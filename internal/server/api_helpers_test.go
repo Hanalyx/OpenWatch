@@ -163,11 +163,39 @@ func freshAPIServerWithHandles(t *testing.T) (string, *pgxpool.Pool, *Server) {
 	// (so -p N parallel packages never share tables), but the gate still
 	// guards against pointing OPENWATCH_TEST_DSN at a dev/prod server.
 	_ = apiTestDSN(t)
+	return apiServerOnPool(t, dbtest.Pool(t))
+}
 
+// freshAPIServerWithMaxConns is freshAPIServerWithHandles on a pool with
+// an explicit connection limit. The default limit follows the machine's
+// CPU count, so a test that holds connections must not rely on it.
+func freshAPIServerWithMaxConns(t *testing.T, maxConns int32) (string, *pgxpool.Pool, *Server) {
+	t.Helper()
+	_ = apiTestDSN(t)
+	return apiServerOnPool(t, poolWithMaxConns(t, maxConns))
+}
+
+// poolWithMaxConns opens a pool on this package's test database with an
+// explicit connection limit, closed on cleanup.
+func poolWithMaxConns(t *testing.T, maxConns int32) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(dbtest.DSN(t))
+	if err != nil {
+		t.Fatalf("parse test DSN: %v", err)
+	}
+	cfg.MaxConns = maxConns
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("open pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func apiServerOnPool(t *testing.T, pool *pgxpool.Pool) (string, *pgxpool.Pool, *Server) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
-
-	pool := dbtest.Pool(t)
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE audit_events")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE idempotency_keys")
 	_, _ = pool.Exec(ctx, "TRUNCATE TABLE system_config")

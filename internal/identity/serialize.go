@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -125,9 +126,32 @@ func commitIsIndeterminate(err error) bool {
 // unchanged. Spec C-37, C-43.
 func ClassifyCommitError(err error) error {
 	if err != nil && commitIsIndeterminate(err) {
-		return fmt.Errorf("%w: %v", ErrCommitUnknown, err)
+		// Both stay visible to errors.Is. A deadline that expired during
+		// the commit is therefore still a deadline underneath, and a
+		// caller MUST test ErrCommitUnknown first: the commit's outcome
+		// is what matters, not what interrupted it.
+		return fmt.Errorf("%w: %w", ErrCommitUnknown, err)
 	}
 	return err
+}
+
+// ErrNotBegun reports that a transaction never began, for example because
+// no pooled connection became free before the deadline. Nothing was read
+// or written, so the operation was not applied. Spec C-43.
+var ErrNotBegun = errors.New("identity: transaction did not begin")
+
+// RollbackDetached rolls tx back on a context detached from ctx's
+// cancellation, with its own short limit. When a deadline expired between
+// statements, a rollback on the expired context would fail at once and the
+// connection would be discarded; this one ends the transaction on the
+// connection. When the deadline canceled a query in flight, pgx has
+// already closed the connection and the server aborts the transaction with
+// it, so this rollback changes nothing. A transaction that never reached
+// COMMIT cannot have committed either way.
+func RollbackDetached(ctx context.Context, tx pgx.Tx) {
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	_ = tx.Rollback(rctx)
 }
 
 // RunSerialized runs fn inside ONE transaction that holds the per-user
@@ -184,12 +208,12 @@ func RunSerialized(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func
 func runSerializedOnce(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) (err error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("identity: begin: %w", err)
+		return fmt.Errorf("identity: begin: %w: %w", ErrNotBegun, err)
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback(ctx)
+			RollbackDetached(ctx, tx)
 		}
 	}()
 

@@ -336,7 +336,7 @@ func slideSession(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, now, ne
 	if err != nil {
 		return fmt.Errorf("identity: touch session: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer RollbackDetached(ctx, tx)
 	if err := setLockWaitBound(ctx, tx); err != nil {
 		return err
 	}

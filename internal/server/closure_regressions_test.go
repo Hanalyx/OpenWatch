@@ -261,7 +261,11 @@ func holdUserLock(t *testing.T, pool *pgxpool.Pool, uid uuid.UUID, max time.Dura
 // administrative account mutations.
 func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 	t.Run("system-auth-identity/AC-73", func(t *testing.T) {
-		url, pool := freshAPIServer(t)
+		// Sequential, on an explicitly sized pool. The default size follows
+		// the CPU count, and on a 4-connection pool eight parallel holders
+		// starved the requests of connections, so they hit the operation
+		// deadline instead of the lock limit (Go CI run 36081673305).
+		url, pool, _ := freshAPIServerWithMaxConns(t, lockTestPoolSize)
 		ctx := context.Background()
 		svc := users.NewService(pool, nil)
 		paths := []string{"login", "body refresh", "cookie refresh", "logout",
@@ -269,7 +273,7 @@ func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 		for _, path := range paths {
 			path := path
 			t.Run(path, func(t *testing.T) {
-				t.Parallel()
+				defer waitPoolIdle(t, pool)
 				li := loginFresh(t, url, pool, "ac73"+strings.ReplaceAll(path, " ", ""))
 				if path == "admin enable" {
 					if err := svc.Disable(ctx, li.u.ID); err != nil {
@@ -346,6 +350,26 @@ func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 	})
 }
 
+// lockTestPoolSize covers one request, one lock holder and the test's own
+// observation queries, with room for the audit writer, when cases run one
+// at a time.
+const lockTestPoolSize = 8
+
+// waitPoolIdle confirms every connection went back to the pool, so the
+// next case starts with its holder's connection released. The audit
+// writer borrows a connection briefly, so it polls, bounded.
+func waitPoolIdle(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if pool.Stat().AcquiredConns() == 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("%d connections still acquired after the case", pool.Stat().AcquiredConns())
+}
+
 // holdRowLocks takes FOR UPDATE on every row of table for the user, on a
 // second connection, without touching the users row.
 func holdRowLocks(t *testing.T, pool *pgxpool.Pool, table string, uid uuid.UUID, max time.Duration) (release func()) {
@@ -371,7 +395,7 @@ func holdRowLocks(t *testing.T, pool *pgxpool.Pool, table string, uid uuid.UUID,
 // never acquired.
 func TestLockWait_LaterLockTimesOut(t *testing.T) {
 	t.Run("system-auth-identity/AC-81", func(t *testing.T) {
-		url, pool := freshAPIServer(t)
+		url, pool, _ := freshAPIServerWithMaxConns(t, lockTestPoolSize)
 		for _, tc := range []struct{ path, table string }{
 			{"body refresh", "refresh_tokens"},
 			// Not sessions: a locked session row stalls the cookie
@@ -383,7 +407,7 @@ func TestLockWait_LaterLockTimesOut(t *testing.T) {
 		} {
 			tc := tc
 			t.Run(tc.path, func(t *testing.T) {
-				t.Parallel()
+				defer waitPoolIdle(t, pool)
 				li := loginFresh(t, url, pool, "ac81"+strings.ReplaceAll(tc.path, " ", ""))
 				var req *http.Request
 				switch tc.path {
