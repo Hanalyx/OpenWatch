@@ -31,11 +31,18 @@ func mapUserAdminErr(w http.ResponseWriter, err error) bool {
 		return false
 	case errors.Is(err, users.ErrUserNotFound):
 		writeError(w, http.StatusNotFound, "users.not_found", "client", "user not found", false)
-	case errors.Is(err, identity.ErrLockWaitExceeded):
-		// The per-user lock was not acquired in time, so the change was
-		// not applied. Retrying is safe. Spec system-auth-identity C-43.
+	case errors.Is(err, identity.ErrCommitUnknown):
+		// The commit's outcome is unknown, including a deadline that
+		// expired during it. Neither result is asserted, and a blind
+		// retry is not invited. Spec system-auth-identity C-37, C-43.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"the change was not applied because the account could not be locked in time. Try again.", true)
+			"the change may or may not have been applied. Check the account before trying again.", false)
+	case identity.IsLockTimeout(err):
+		// A lock wait exceeded its limit, on the account lock or on a
+		// later row lock, and the transaction rolled back, so the change
+		// was not applied. Retrying is safe. Spec system-auth-identity C-43.
+		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
+			"the change was not applied because a lock could not be acquired in time. Try again.", true)
 	case errors.Is(err, identity.ErrPasswordTooShort),
 		errors.Is(err, identity.ErrPasswordTooLong),
 		errors.Is(err, identity.ErrPasswordBreached):

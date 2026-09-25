@@ -107,7 +107,7 @@ func TestSSO_ProvisioningRace(t *testing.T) {
 			}
 
 			// Re-enabled, a later callback finds the same user.
-			if err := svc.Enable(ctx, uid); err != nil {
+			if _, err := svc.Enable(ctx, uid); err != nil {
 				t.Fatalf("enable: %v", err)
 			}
 			_ = svc.AssignRole(ctx, uid, auth.RoleID("viewer"), nil)

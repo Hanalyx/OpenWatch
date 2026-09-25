@@ -119,6 +119,17 @@ func commitIsIndeterminate(err error) bool {
 	return false
 }
 
+// ClassifyCommitError wraps a commit error whose outcome is unknown in
+// ErrCommitUnknown, so a caller outside RunSerialized reports it the same
+// way: neither success nor failure. A determinate error is returned
+// unchanged. Spec C-37, C-43.
+func ClassifyCommitError(err error) error {
+	if err != nil && commitIsIndeterminate(err) {
+		return fmt.Errorf("%w: %v", ErrCommitUnknown, err)
+	}
+	return err
+}
+
 // RunSerialized runs fn inside ONE transaction that holds the per-user
 // lock, and owns the whole lifecycle: begin, lock, fn, commit.
 //
@@ -131,7 +142,15 @@ func commitIsIndeterminate(err error) bool {
 // statement inside it cannot work. The loop stops early when the request
 // deadline has passed, so a retry never outlives the caller's context.
 // Spec C-37.
+//
+// The whole operation, pool acquisition, every statement, the commit and
+// any retries, runs under OperationDeadline, or under the caller's own
+// deadline when that is earlier. A deadline that expires during the
+// commit leaves the outcome unknown and is reported as ErrCommitUnknown,
+// like any other commit error without a SQLSTATE. Spec C-43.
 func RunSerialized(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) error {
+	ctx, cancel := WithOperationDeadline(ctx)
+	defer cancel()
 	var lastErr error
 	for attempt := 1; attempt <= MaxSerializedAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {

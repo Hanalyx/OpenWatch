@@ -5081,7 +5081,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description server.error. Two outcomes, told apart by retryable. Both cookies are cleared in both. retryable true: the per-user lock was not acquired in time and nothing was revoked; a retry is safe. retryable false: the revocation outcome is unknown and neither outcome is asserted. */
+            /** @description server.error, not retryable, and both cookies are cleared. Two outcomes, told apart by the message. The account lock was not acquired in time: this attempt revoked nothing. The commit outcome is unknown: revocation could not be confirmed. Neither invites an automatic retry, because with the cookies cleared a repeated request may name no family, or a different one. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6010,6 +6010,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description server.error. retryable true: a lock wait exceeded its limit and the transaction rolled back, so the user was not deleted. retryable false: the commit outcome is unknown. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postUserRolesAssign: {
@@ -6118,7 +6127,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            /** @description server.error. retryable true: a lock wait exceeded its limit and the transaction rolled back, so the change was not applied. retryable false: the commit outcome is unknown, and the change may or may not have been applied. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6176,7 +6185,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            /** @description server.error. retryable true: a lock wait exceeded its limit and the transaction rolled back, so the change was not applied. retryable false: the commit outcome is unknown, and the change may or may not have been applied. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6225,7 +6234,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description server.error, retryable. The per-user lock was not acquired in time and the change was not applied. */
+            /** @description server.error. retryable true: a lock wait exceeded its limit and the transaction rolled back, so the change was not applied. retryable false: the commit outcome is unknown, and the change may or may not have been applied. */
             503: {
                 headers: {
                     [name: string]: unknown;

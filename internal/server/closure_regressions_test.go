@@ -149,6 +149,7 @@ type apiResult struct {
 	status    int
 	code      string
 	retryable bool
+	message   string
 	body      map[string]any
 	cookies   []*http.Cookie
 }
@@ -164,6 +165,7 @@ func doAPI(t *testing.T, req *http.Request) apiResult {
 	if e, ok := body["error"].(map[string]any); ok {
 		res.code, _ = e["code"].(string)
 		res.retryable, _ = e["retryable"].(bool)
+		res.message, _ = e["human_message"].(string)
 	}
 	return res
 }
@@ -254,17 +256,27 @@ func holdUserLock(t *testing.T, pool *pgxpool.Pool, uid uuid.UUID, max time.Dura
 }
 
 // @ac AC-73
-// AC-73: the per-user lock wait is bounded in the production
-// configuration. A request that cannot take the lock answers a retryable
-// 503 once the bound expires and decides nothing.
+// AC-73: a request that cannot take the per-user lock within the limit
+// answers 503 and decides nothing: every credential path and all four
+// administrative account mutations.
 func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 	t.Run("system-auth-identity/AC-73", func(t *testing.T) {
 		url, pool := freshAPIServer(t)
-		for _, path := range []string{"login", "body refresh", "cookie refresh", "logout", "admin disable"} {
+		ctx := context.Background()
+		svc := users.NewService(pool, nil)
+		paths := []string{"login", "body refresh", "cookie refresh", "logout",
+			"admin disable", "admin enable", "admin reset", "admin soft delete"}
+		for _, path := range paths {
 			path := path
 			t.Run(path, func(t *testing.T) {
 				t.Parallel()
 				li := loginFresh(t, url, pool, "ac73"+strings.ReplaceAll(path, " ", ""))
+				if path == "admin enable" {
+					if err := svc.Disable(ctx, li.u.ID); err != nil {
+						t.Fatalf("disable: %v", err)
+					}
+				}
+				userURL := url + "/api/v1/users/" + li.u.ID.String()
 				var req *http.Request
 				switch path {
 				case "login":
@@ -276,8 +288,16 @@ func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 				case "logout":
 					req = logoutRequest(url, li.sessionCookie, li.refreshCookie)
 				case "admin disable":
-					req = asRole(t, "POST", url+"/api/v1/users/"+li.u.ID.String()+":disable", auth.RoleAdmin, nil)
+					req = asRole(t, "POST", userURL+":disable", auth.RoleAdmin, nil)
+				case "admin enable":
+					req = asRole(t, "POST", userURL+":enable", auth.RoleAdmin, nil)
+				case "admin reset":
+					req = asRole(t, "POST", userURL+":reset-password", auth.RoleAdmin,
+						map[string]string{"new_password": "ac73-reset-Passphrase-5520"}) // pragma: allowlist secret
+				case "admin soft delete":
+					req = asRole(t, "DELETE", userURL, auth.RoleAdmin, nil)
 				}
+				disabledBefore := isDisabled(t, pool, li.u.ID)
 				before := snapshotCredentials(t, pool, li.u.ID)
 				release := holdUserLock(t, pool, li.u.ID, identity.LockWaitBound+15*time.Second)
 				start := time.Now()
@@ -285,11 +305,18 @@ func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 				elapsed := time.Since(start)
 				release()
 
-				if got.status != http.StatusServiceUnavailable || got.code != "server.error" || !got.retryable {
-					t.Errorf("response = %d %q retryable=%v, want 503 server.error retryable", got.status, got.code, got.retryable)
+				// Logout clears the cookies, so a repeated request may name
+				// no family; it is not retryable. Everything else is.
+				wantRetryable := path != "logout"
+				if got.status != http.StatusServiceUnavailable || got.code != "server.error" || got.retryable != wantRetryable {
+					t.Errorf("response = %d %q retryable=%v, want 503 server.error retryable=%v",
+						got.status, got.code, got.retryable, wantRetryable)
+				}
+				if path == "logout" && !strings.Contains(got.message, "account lock") {
+					t.Errorf("logout message %q does not name the account lock", got.message)
 				}
 				if elapsed < identity.LockWaitBound-250*time.Millisecond || elapsed > identity.LockWaitBound+10*time.Second {
-					t.Errorf("answered after %v; the bound is %v", elapsed, identity.LockWaitBound)
+					t.Errorf("answered after %v; the limit is %v", elapsed, identity.LockWaitBound)
 				}
 				if after := snapshotCredentials(t, pool, li.u.ID); !after.equal(before) {
 					t.Error("credential rows changed although the lock was never acquired")
@@ -302,13 +329,149 @@ func TestLockWait_BoundedInProductionConfiguration(t *testing.T) {
 				if cleared := got.clearsCredential(); cleared != (path == "logout") {
 					t.Errorf("credential cookies cleared = %v", cleared)
 				}
-				if path == "admin disable" && isDisabled(t, pool, li.u.ID) {
-					t.Error("the account was disabled although the change reported not applied")
+				if isDisabled(t, pool, li.u.ID) != disabledBefore {
+					t.Error("the account's disabled state changed although the change was reported not applied")
 				}
-				if code := authMe(t, url, li.sessionCookie); code != http.StatusOK {
-					t.Errorf("the presented session no longer works: %d", code)
+				var deleted bool
+				if err := pool.QueryRow(ctx, `SELECT deleted_at IS NOT NULL FROM users WHERE id = $1`, li.u.ID).Scan(&deleted); err != nil || deleted {
+					t.Errorf("the account was deleted although the change was reported not applied (err=%v)", err)
+				}
+				if path != "admin enable" {
+					if code := authMe(t, url, li.sessionCookie); code != http.StatusOK {
+						t.Errorf("the presented session no longer works: %d", code)
+					}
 				}
 			})
+		}
+	})
+}
+
+// holdRowLocks takes FOR UPDATE on every row of table for the user, on a
+// second connection, without touching the users row.
+func holdRowLocks(t *testing.T, pool *pgxpool.Pool, table string, uid uuid.UUID, max time.Duration) (release func()) {
+	t.Helper()
+	ctx := context.Background()
+	holder, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	if _, err := holder.Exec(ctx, `SELECT 1 FROM `+table+` WHERE user_id = $1 FOR UPDATE`, uid); err != nil {
+		t.Fatalf("lock %s rows: %v", table, err)
+	}
+	var once sync.Once
+	release = func() { once.Do(func() { _ = holder.Rollback(ctx) }) }
+	timer := time.AfterFunc(max, release)
+	t.Cleanup(func() { timer.Stop(); release() })
+	return release
+}
+
+// @ac AC-81
+// AC-81: a lock that times out AFTER the per-user lock was acquired rolls
+// the transaction back, and the answer does not claim the account lock was
+// never acquired.
+func TestLockWait_LaterLockTimesOut(t *testing.T) {
+	t.Run("system-auth-identity/AC-81", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		for _, tc := range []struct{ path, table string }{
+			{"body refresh", "refresh_tokens"},
+			// Not sessions: a locked session row stalls the cookie
+			// binder's idle slide before logout runs (bugs/OW-077). The
+			// logout sweep revokes sessions first and refresh tokens
+			// second, so this still times out on a later lock.
+			{"logout", "refresh_tokens"},
+			{"admin disable", "sessions"},
+		} {
+			tc := tc
+			t.Run(tc.path, func(t *testing.T) {
+				t.Parallel()
+				li := loginFresh(t, url, pool, "ac81"+strings.ReplaceAll(tc.path, " ", ""))
+				var req *http.Request
+				switch tc.path {
+				case "body refresh":
+					req = bodyRefreshRequest(url, li.bodyRefresh)
+				case "logout":
+					req = logoutRequest(url, li.sessionCookie, li.refreshCookie)
+				case "admin disable":
+					req = asRole(t, "POST", url+"/api/v1/users/"+li.u.ID.String()+":disable", auth.RoleAdmin, nil)
+				}
+				before := snapshotCredentials(t, pool, li.u.ID)
+				release := holdRowLocks(t, pool, tc.table, li.u.ID, identity.LockWaitBound+15*time.Second)
+				start := time.Now()
+				got := doAPI(t, req)
+				elapsed := time.Since(start)
+				release()
+
+				switch tc.path {
+				case "body refresh":
+					if got.status != http.StatusServiceUnavailable || got.code != "server.error" || !got.retryable {
+						t.Errorf("response = %d %q retryable=%v, want 503 server.error retryable", got.status, got.code, got.retryable)
+					}
+				case "logout":
+					// A known rollback: this attempt revoked nothing.
+					if got.status != http.StatusInternalServerError || got.code != "auth.logout_incomplete" {
+						t.Errorf("response = %d %q, want 500 auth.logout_incomplete", got.status, got.code)
+					}
+					if !got.clearsCredential() {
+						t.Error("logout did not clear the cookies")
+					}
+				case "admin disable":
+					if got.status != http.StatusServiceUnavailable || got.code != "server.error" || !got.retryable {
+						t.Errorf("response = %d %q retryable=%v, want 503 server.error retryable", got.status, got.code, got.retryable)
+					}
+					if isDisabled(t, pool, li.u.ID) {
+						t.Error("the account was disabled although the transaction rolled back")
+					}
+				}
+				if strings.Contains(got.message, "account lock") {
+					t.Errorf("message %q claims the account lock was not acquired; it was", got.message)
+				}
+				if elapsed < identity.LockWaitBound-250*time.Millisecond {
+					t.Errorf("answered after %v, before the %v limit on the later lock", elapsed, identity.LockWaitBound)
+				}
+				if !snapshotCredentials(t, pool, li.u.ID).equal(before) {
+					t.Error("credential rows changed although the transaction rolled back")
+				}
+				if got.setsCredential() || got.carriesToken() {
+					t.Error("the response issued a credential")
+				}
+				if tc.path == "body refresh" {
+					if again := doAPI(t, bodyRefreshRequest(url, li.bodyRefresh)); again.status != http.StatusOK {
+						t.Errorf("the token no longer rotates after the rollback: %d", again.status)
+					}
+				}
+			})
+		}
+	})
+}
+
+// @ac AC-82
+// AC-82, at the users service: an earlier caller deadline ends the wait
+// for the per-user lock before the lock limit does, and nothing changes.
+// The deadline's other properties are asserted in the identity package.
+func TestOperationDeadline_UsersServiceHonorsCallerDeadline(t *testing.T) {
+	t.Run("system-auth-identity/AC-82", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		svc := users.NewService(pool, nil)
+		li := loginFresh(t, url, pool, "ac82caller")
+		before := snapshotCredentials(t, pool, li.u.ID)
+		release := holdUserLock(t, pool, li.u.ID, identity.LockWaitBound+15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		start := time.Now()
+		err := svc.Disable(ctx, li.u.ID)
+		elapsed := time.Since(start)
+		release()
+		if err == nil {
+			t.Fatal("disable succeeded although its deadline expired while the lock was held elsewhere")
+		}
+		if elapsed > identity.LockWaitBound-time.Second {
+			t.Errorf("disable returned after %v; the caller's 1s deadline was not honored", elapsed)
+		}
+		if isDisabled(t, pool, li.u.ID) {
+			t.Error("the account was disabled although the operation did not complete")
+		}
+		if !snapshotCredentials(t, pool, li.u.ID).equal(before) {
+			t.Error("credential rows changed although the operation did not complete")
 		}
 	})
 }
@@ -415,7 +578,7 @@ func TestEnable_DoesNotReviveWhatDisableRevoked(t *testing.T) {
 		if err := svc.Disable(ctx, li.u.ID); err != nil {
 			t.Fatalf("disable: %v", err)
 		}
-		if err := svc.Enable(ctx, li.u.ID); err != nil {
+		if _, err := svc.Enable(ctx, li.u.ID); err != nil {
 			t.Fatalf("enable: %v", err)
 		}
 		if code := authMe(t, url, li.sessionCookie); code != http.StatusUnauthorized {

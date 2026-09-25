@@ -412,10 +412,11 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 		// Nothing was revoked, and the response says so. The cookies are
 		// still cleared above: the web client treats every logout
 		// response as signed out, so keeping them would leave a working
-		// session in a browser the user believes is signed out. A retry
-		// is safe for a client that still holds the values. Spec C-43.
+		// session in a browser the user believes is signed out. Not
+		// retryable: with the cookies cleared, a repeated request may name
+		// no family, or a different one after another sign-in. Spec C-43.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"signed out on this device, but sign-out did not reach the server in time and nothing was revoked. The session may remain valid until it expires. Revoke it from Settings.", true)
+			"signed out on this device, but the account lock could not be acquired in time, so nothing was revoked. The session may remain valid until it expires. Revoke it from Settings.", false)
 		return
 	}
 	if revokeUnknown {

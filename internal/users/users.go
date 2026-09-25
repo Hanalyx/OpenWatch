@@ -390,6 +390,10 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 // revocation ran and before the state change was visible, and that
 // session is never revoked by anything. Spec C-34, C-36.
 func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt string) error {
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
@@ -413,7 +417,7 @@ func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt str
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("users: commit: %w", err)
+		return fmt.Errorf("users: commit: %w", identity.ClassifyCommitError(err))
 	}
 	return nil
 }
@@ -438,6 +442,10 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 	// the password changed with the revocation incomplete, which is the
 	// worst of both: the user cannot sign in with the old password while
 	// every credential minted from it still works. Spec C-34, C-36.
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
@@ -456,7 +464,7 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 		return fmt.Errorf("users: revoke credentials after reset: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("users: commit reset: %w", err)
+		return fmt.Errorf("users: commit reset: %w", identity.ClassifyCommitError(err))
 	}
 	return nil
 }
@@ -528,6 +536,10 @@ func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 //
 // Spec api-users C-07, C-08; system-auth-identity C-34, C-36.
 func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, err error) {
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("users: begin: %w", err)
@@ -565,7 +577,7 @@ func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, 
 		return false, fmt.Errorf("users: revoke credentials on enable: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("users: commit: %w", err)
+		return false, fmt.Errorf("users: commit: %w", identity.ClassifyCommitError(err))
 	}
 	return true, nil
 }
