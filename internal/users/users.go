@@ -521,19 +521,24 @@ func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 // nobody out. Service-account tokens are never touched. ErrUserNotFound for
 // unknown or soft-deleted users.
 //
-// Spec api-users C-07; system-auth-identity C-34, C-36.
-func (s *Service) Enable(ctx context.Context, id uuid.UUID) error {
+// transitioned reports what the locked transaction did: true only when it
+// changed disabled_at from set to null and committed the revocation. The
+// caller records it on the audit event; it must not infer it from a later
+// read, which another enable or disable could already have changed.
+//
+// Spec api-users C-07, C-08; system-auth-identity C-34, C-36.
+func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("users: begin: %w", err)
+		return false, fmt.Errorf("users: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUserNotFound
+			return false, ErrUserNotFound
 		}
-		return fmt.Errorf("users: lock: %w", err)
+		return false, fmt.Errorf("users: lock: %w", err)
 	}
 	// Read under the lock. The state decides whether this call is a
 	// transition, and "already enabled" must stay distinguishable from
@@ -542,27 +547,27 @@ func (s *Service) Enable(ctx context.Context, id uuid.UUID) error {
 	if err := tx.QueryRow(ctx,
 		`SELECT disabled_at IS NOT NULL, deleted_at IS NOT NULL FROM users WHERE id = $1`,
 		id).Scan(&disabled, &deleted); err != nil {
-		return fmt.Errorf("users: enable: read state: %w", err)
+		return false, fmt.Errorf("users: enable: read state: %w", err)
 	}
 	if deleted {
-		return ErrUserNotFound
+		return false, ErrUserNotFound
 	}
 	if !disabled {
-		return nil
+		return false, nil
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET disabled_at = NULL, updated_at = now() WHERE id = $1`, id); err != nil {
-		return fmt.Errorf("users: enable: %w", err)
+		return false, fmt.Errorf("users: enable: %w", err)
 	}
 	// The transition and the revocation commit together, so the account
 	// is never enabled with a stale credential still live.
 	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
-		return fmt.Errorf("users: revoke credentials on enable: %w", err)
+		return false, fmt.Errorf("users: revoke credentials on enable: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("users: commit: %w", err)
+		return false, fmt.Errorf("users: commit: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // AssignRole inserts a user_roles row. Role must exist; FK enforcement

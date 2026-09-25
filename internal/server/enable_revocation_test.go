@@ -108,8 +108,12 @@ func TestEnable_TransitionRevokesInteractiveCredentials(t *testing.T) {
 				t.Fatalf("precondition: stray live credentials = %d/%d, want 1/2", s, r)
 			}
 
-			if err := svc.Enable(ctx, li.u.ID); err != nil {
+			transitioned, err := svc.Enable(ctx, li.u.ID)
+			if err != nil {
 				t.Fatalf("enable: %v", err)
+			}
+			if !transitioned {
+				t.Error("enable of a disabled account reported no transition")
 			}
 			if isDisabled(t, pool, li.u.ID) {
 				t.Fatal("enable did not clear disabled_at")
@@ -151,8 +155,11 @@ func TestEnable_TransitionRevokesInteractiveCredentials(t *testing.T) {
 			}
 			writeStrayCredentials(t, pool, li.u.ID)
 			restore := failOnWrite(t, pool, "refresh_tokens", "UPDATE")
-			err := svc.Enable(ctx, li.u.ID)
+			transitioned, err := svc.Enable(ctx, li.u.ID)
 			restore()
+			if transitioned {
+				t.Error("a failed enable reported a transition")
+			}
 			if err == nil {
 				t.Fatal("enable succeeded although its revocation failed")
 			}
@@ -178,7 +185,10 @@ func TestEnable_TransitionRevokesInteractiveCredentials(t *testing.T) {
 				t.Fatalf("hold lock: %v", err)
 			}
 			done := make(chan error, 1)
-			go func() { done <- svc.Enable(ctx, li.u.ID) }()
+			go func() {
+				_, err := svc.Enable(ctx, li.u.ID)
+				done <- err
+			}()
 			if !waitForUserLockWaiter(t, pool) {
 				t.Fatal("enable did not wait on the per-user lock")
 			}
@@ -221,8 +231,12 @@ func TestEnable_NoOpWhenNotDisabled(t *testing.T) {
 				}
 				s0, r0 := liveCounts(t, pool, li.u.ID)
 				for i := 0; i < calls; i++ {
-					if err := svc.Enable(ctx, li.u.ID); err != nil {
+					transitioned, err := svc.Enable(ctx, li.u.ID)
+					if err != nil {
 						t.Fatalf("enable call %d: %v", i+1, err)
+					}
+					if transitioned {
+						t.Errorf("enable call %d on an enabled account reported a transition", i+1)
 					}
 				}
 				var after time.Time
@@ -248,7 +262,7 @@ func TestEnable_NoOpWhenNotDisabled(t *testing.T) {
 		}
 
 		t.Run("unknown or soft-deleted", func(t *testing.T) {
-			if err := svc.Enable(ctx, uuid.New()); !errors.Is(err, users.ErrUserNotFound) {
+			if _, err := svc.Enable(ctx, uuid.New()); !errors.Is(err, users.ErrUserNotFound) {
 				t.Errorf("unknown user: err = %v, want ErrUserNotFound", err)
 			}
 			u := seedAuthUser(t, svc, "enabledeleted", false)
@@ -258,7 +272,7 @@ func TestEnable_NoOpWhenNotDisabled(t *testing.T) {
 			if err := svc.SoftDelete(ctx, u.ID); err != nil {
 				t.Fatalf("soft delete: %v", err)
 			}
-			if err := svc.Enable(ctx, u.ID); !errors.Is(err, users.ErrUserNotFound) {
+			if _, err := svc.Enable(ctx, u.ID); !errors.Is(err, users.ErrUserNotFound) {
 				t.Errorf("soft-deleted user: err = %v, want ErrUserNotFound", err)
 			}
 			if !isDisabled(t, pool, u.ID) {
@@ -306,7 +320,7 @@ func TestEnable_LeavesServiceTokensAlone(t *testing.T) {
 			return s
 		}
 		before := snapshot()
-		if err := svc.Enable(ctx, u.ID); err != nil {
+		if _, err := svc.Enable(ctx, u.ID); err != nil {
 			t.Fatalf("enable: %v", err)
 		}
 		if after := snapshot(); after != before {

@@ -1598,12 +1598,14 @@ spec:
       expected_output:
         per_variant:
           Transition:
+            returns: {transitioned: true, error: nil}
             durable_changes:
               - "disabled_at cleared"
               - "Every interactive session and refresh token for the user revoked"
             interactive_credentials_authenticating_afterward: 0
             subsequent: ["A fresh login succeeds and its session authenticates"]
           Controlled failure:
+            returns: {transitioned: false}
             enable_returns_error: true
             durable_changes: []
             prohibited_changes:
@@ -1612,6 +1614,9 @@ spec:
           Serialized:
             enable_waits_for_the_lock: true
             completes_after_release: true
+        response_cookies_audit: >
+          Enable is a service call and sets no cookie. The HTTP response and
+          the admin.user.enabled audit detail are api-users AC-17 and AC-20.
         prohibited_changes:
           - "Any pre-enable session cookie, refresh token or session-bound access token authenticating"
 
@@ -1632,14 +1637,15 @@ spec:
       expected_output:
         per_variant:
           Already enabled:
-            returns: nil
+            returns: {transitioned: false, error: nil}
             durable_changes: []
             credentials_revoked: 0
             subsequent: ["The pre-existing session, access token and refresh token still work"]
           Repeated:
             identical_to: "Already enabled"
           Unknown or soft-deleted user:
-            returns: ErrUserNotFound
+            returns: {transitioned: false, error: ErrUserNotFound}
+        response_cookies_audit: "A service call; the HTTP response and audit detail are api-users AC-19 and AC-20"
         prohibited_changes:
           - "Any credential revoked by an enable that changed no account state"
           - "updated_at bumped by a no-op"
@@ -1661,6 +1667,7 @@ spec:
           and is not asserted here.
       expected_output:
         durable_changes_to_api_tokens: []
+        response_cookies_audit: "A service call; nothing is set or emitted about service-account tokens"
         per_token:
           Otherwise valid:
             revoked_by_enable: false

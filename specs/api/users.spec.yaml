@@ -86,7 +86,7 @@ spec:
       type: security
       enforcement: error
     - id: C-08
-      description: 'Each admin user-management mutation MUST emit its audit code (admin.user.password_reset | admin.user.disabled | admin.user.enabled) carrying detail.target_user_id; an unknown or soft-deleted target MUST return 404 users.not_found.'
+      description: 'Each admin user-management mutation MUST emit its audit code (admin.user.password_reset | admin.user.disabled | admin.user.enabled) carrying detail.target_user_id; an unknown or soft-deleted target MUST return 404 users.not_found. admin.user.enabled MUST also carry detail.transition (true only when the call changed the account from disabled to enabled) and detail.revocation_scope (interactive for a transition, none otherwise), both taken from the locked transaction that made the change, never inferred from a later read.'
       type: technical
       enforcement: error
 
@@ -162,6 +162,23 @@ spec:
       description: 'POST /users/{id}:enable clears disabled_at (200, disabled_at null) and the user can authenticate again through a FRESH sign-in; emits admin.user.enabled. Every interactive credential that existed while the account was disabled, including one no revocation reached, no longer authenticates afterwards.'
       priority: high
       references_constraints: [C-07]
+      inputs:
+        initial_state: >
+          A user disabled by POST /users/{id}:disable, then holding a session
+          cookie, an access token and a refresh token written directly while
+          disabled, which no revocation reached
+        operation: "POST /users/{id}:enable as an administrator"
+      expected_output:
+        response: {status: 200, disabled_at: null}
+        cookies_set: none
+        audit: "admin.user.enabled (detail asserted by AC-20)"
+        transaction_effects: ["disabled_at cleared", "every session and refresh token for the user revoked"]
+        subsequent:
+          - "The pre-enable session cookie answers 401"
+          - "The pre-enable access token answers 401"
+          - "The pre-enable refresh token does not rotate"
+          - "A fresh sign-in succeeds"
+
     - id: AC-18
       description: 'An admin calling POST /users/{id}:disable with their OWN id is denied 409 users.cannot_disable_self and the account is unchanged (still able to authenticate).'
       priority: critical
@@ -170,3 +187,27 @@ spec:
       description: 'reset-password, :disable and :enable each return 404 users.not_found for an unknown/soft-deleted user, and each requires admin:user_manage (a caller without it is 403 before any state change).'
       priority: high
       references_constraints: [C-06, C-07, C-08]
+    - id: AC-20
+      description: 'The admin.user.enabled event records what the request did. A real transition records transition true and revocation_scope interactive; a call on an already-enabled account records transition false and revocation_scope none. Each assertion reads the audit row the request itself produced.'
+      priority: high
+      references_constraints: [C-07, C-08]
+      inputs:
+        variants:
+          - name: "Transition"
+            setup: "A disabled user holding a live session; POST /users/{id}:enable"
+          - name: "Already enabled"
+            setup: "An enabled user holding a live session; POST /users/{id}:enable"
+        method: "Each request carries its own X-Correlation-Id, and only the admin.user.enabled row with that id is read"
+      expected_output:
+        per_variant:
+          Transition:
+            response: {status: 200, disabled_at: null}
+            audit_detail: {transition: true, revocation_scope: interactive}
+            transaction_effects: ["disabled_at cleared", "the user's sessions and refresh tokens revoked"]
+            cookies_set: none
+          Already enabled:
+            response: {status: 200, disabled_at: null}
+            audit_detail: {transition: false, revocation_scope: none}
+            transaction_effects: []
+            subsequent: ["The user's existing session still authenticates"]
+            cookies_set: none

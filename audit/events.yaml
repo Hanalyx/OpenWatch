@@ -1063,11 +1063,19 @@ events:
 
   - code: admin.user.enabled
     severity: warning
-    description: An administrator re-enabled a previously disabled user account.
+    description: >-
+      An administrator called enable on a user account. transition is true
+      when the call changed the account from disabled to enabled, and false
+      when the account was already enabled. revocation_scope is interactive
+      when the transition revoked the user's sessions and refresh tokens, so
+      the user signs in again, and none when nothing was revoked. Service
+      account tokens are not revoked or restored by enable.
     detail_schema:
       type: object
       properties:
         target_user_id: {type: string}
+        transition: {type: boolean}
+        revocation_scope: {type: string, enum: [interactive, none]}
 
   - code: admin.role.changed
     severity: warning

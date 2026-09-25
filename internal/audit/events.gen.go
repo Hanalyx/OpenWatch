@@ -303,7 +303,7 @@ const (
 	AdminUserPasswordReset Code = "admin.user.password_reset"
 	// An administrator disabled a user account (cannot authenticate).
 	AdminUserDisabled Code = "admin.user.disabled"
-	// An administrator re-enabled a previously disabled user account.
+	// An administrator called enable on a user account. transition is true when the call changed the account from disabled to enabled, and false when the account was already enabled. revocation_scope is interactive when the transition revoked the user's sessions and refresh tokens, so the user signs in again, and none when nothing was revoked. Service account tokens are not revoked or restored by enable.
 	AdminUserEnabled Code = "admin.user.enabled"
 	//
 	AdminRoleChanged Code = "admin.role.changed"
@@ -1462,9 +1462,9 @@ var Metadata = map[Code]EventMeta{
 		Code:        AdminUserEnabled,
 		Category:    "admin",
 		Severity:    SeverityWarning,
-		Description: `An administrator re-enabled a previously disabled user account.`,
+		Description: `An administrator called enable on a user account. transition is true when the call changed the account from disabled to enabled, and false when the account was already enabled. revocation_scope is interactive when the transition revoked the user's sessions and refresh tokens, so the user signs in again, and none when nothing was revoked. Service account tokens are not revoked or restored by enable.`,
 		ActorTypes:  nil,
-		DetailKeys:  []string{"target_user_id"},
+		DetailKeys:  []string{"revocation_scope", "target_user_id", "transition"},
 	},
 	AdminRoleChanged: {
 		Code:        AdminRoleChanged,

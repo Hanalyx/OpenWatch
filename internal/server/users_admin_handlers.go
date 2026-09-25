@@ -91,11 +91,24 @@ func (h *handlers) PostUserEnable(w http.ResponseWriter, r *http.Request, id ope
 	if denied := auth.EnforcePermission(w, r, auth.AdminUserManage); denied {
 		return
 	}
-	if err := h.users.Enable(r.Context(), uuid.UUID(id)); mapUserAdminErr(w, err) {
+	transitioned, err := h.users.Enable(r.Context(), uuid.UUID(id))
+	if mapUserAdminErr(w, err) {
 		return
 	}
+	// The transition comes from the locked transaction itself, not from a
+	// later read. A real transition revoked the user's interactive
+	// credentials; a call on an account that was not disabled revoked
+	// nothing. Service-account tokens are outside both. Spec api-users C-08.
+	scope := "none"
+	if transitioned {
+		scope = "interactive"
+	}
 	caller := auth.FromContext(r.Context()).ID
-	emitAudit(r, audit.AdminUserEnabled, caller, map[string]any{"target_user_id": id.String()})
+	emitAudit(r, audit.AdminUserEnabled, caller, map[string]any{
+		"target_user_id":   id.String(),
+		"transition":       transitioned,
+		"revocation_scope": scope,
+	})
 	h.writeUser(w, r, uuid.UUID(id))
 }
 
