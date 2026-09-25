@@ -63,10 +63,11 @@ func TestBearer_RefusesASessionOwnedByAnotherUser(t *testing.T) {
 		if _, verr := identity.VerifyJWT(crossed); verr != nil {
 			t.Fatalf("the crossed token must be cryptographically valid, got %v", verr)
 		}
-		if code := authMeBearer(t, url, crossed); code != http.StatusUnauthorized {
+		code, cid := authMeBearerCorrelated(t, url, crossed)
+		if code != http.StatusUnauthorized {
 			t.Errorf("crossed token = %d, want 401: a token must not bind a session it does not own", code)
 		}
-		if reason := lastLoginFailureReason(t, pool); reason != "session_owner_mismatch" {
+		if reason := loginFailureReasonFor(t, pool, cid); reason != "session_owner_mismatch" {
 			t.Errorf("audit reason = %q, want session_owner_mismatch", reason)
 		}
 	})
@@ -240,10 +241,11 @@ func TestBearer_ExemptFromIdleBoundedByAbsolute(t *testing.T) {
 				 WHERE user_id = $1`, li.u.ID); err != nil {
 				t.Fatalf("age the absolute deadline: %v", err)
 			}
-			if code := authMeBearer(t, url, li.accessToken); code != http.StatusUnauthorized {
+			code, cid := authMeBearerCorrelated(t, url, li.accessToken)
+			if code != http.StatusUnauthorized {
 				t.Errorf("status = %d, want 401 past the absolute deadline", code)
 			}
-			if reason := lastLoginFailureReason(t, pool); reason != "session_absolute_expired" {
+			if reason := loginFailureReasonFor(t, pool, cid); reason != "session_absolute_expired" {
 				t.Errorf("audit reason = %q, want session_absolute_expired", reason)
 			}
 		})

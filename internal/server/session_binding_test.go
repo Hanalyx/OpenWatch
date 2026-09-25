@@ -8,8 +8,8 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +17,6 @@ import (
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/Hanalyx/openwatch/internal/users"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -113,7 +112,8 @@ func TestAccessToken_BindingIsRequiredAndAlwaysIssued(t *testing.T) {
 		if _, err := identity.VerifyJWT(unbound); err != nil {
 			t.Fatalf("the unbound token must be otherwise valid, got %v", err)
 		}
-		if code := authMeBearer(t, url, unbound); code != http.StatusUnauthorized {
+		code, cid := authMeBearerCorrelated(t, url, unbound)
+		if code != http.StatusUnauthorized {
 			t.Errorf("unbound access token = %d, want 401", code)
 		}
 		// The REASON matters. An empty sid also fails UUID parsing, so a
@@ -122,7 +122,7 @@ func TestAccessToken_BindingIsRequiredAndAlwaysIssued(t *testing.T) {
 		// look for a malformed token; "sid_absent" says a client is
 		// minting tokens with no binding at all. The vocabulary is the
 		// recorded one (OW-062 section 4).
-		if reason := lastLoginFailureReason(t, pool); reason != "sid_absent" {
+		if reason := loginFailureReasonFor(t, pool, cid); reason != "sid_absent" {
 			t.Errorf("audit reason for an unbound token = %q, want sid_absent", reason)
 		}
 
@@ -144,34 +144,65 @@ func TestAccessToken_BindingIsRequiredAndAlwaysIssued(t *testing.T) {
 	})
 }
 
-// lastLoginFailureReason reads the most recent auth.login.failure
-// reason. The audit writer batches, so it polls until the reading stops
-// changing rather than returning on the first row.
-func lastLoginFailureReason(t *testing.T, pool *pgxpool.Pool) string {
+// authMeBearerCorrelated presents a Bearer token on GET /auth/me with a
+// unique X-Correlation-Id and returns the status and that id. The id is
+// what ties an audit row to THIS request (bugs/OW-075).
+func authMeBearerCorrelated(t *testing.T, url, token string) (int, string) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	last := ""
-	stable := 0
+	cid := "ac-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	req, _ := http.NewRequest("GET", url+"/api/v1/auth/me", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Correlation-Id", cid)
+	resp := doReq(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode, cid
+}
+
+// authMeCookieCorrelated is the cookie-path equivalent.
+func authMeCookieCorrelated(t *testing.T, url string, c *http.Cookie) (int, string) {
+	t.Helper()
+	cid := "ac-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	req, _ := http.NewRequest("GET", url+"/api/v1/auth/me", nil)
+	req.AddCookie(c)
+	req.Header.Set("X-Correlation-Id", cid)
+	resp := doReq(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode, cid
+}
+
+// loginFailureReasonFor returns the reason on the ONE auth.login.failure
+// row the request with this correlation id produced. It waits, bounded,
+// for that row to land, because the audit writer batches, and fails the
+// test when the row never appears or when the request produced more than
+// one. It never falls back to another request's row. bugs/OW-075.
+func loginFailureReasonFor(t *testing.T, pool *pgxpool.Pool, correlationID string) string {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
 	for {
-		var reason string
-		err := pool.QueryRow(context.Background(), `
+		rows, err := pool.Query(context.Background(), `
 			SELECT COALESCE(detail->>'reason','') FROM audit_events
-			WHERE action = 'auth.login.failure'
-			ORDER BY occurred_at DESC, id DESC LIMIT 1`).Scan(&reason)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			WHERE action = 'auth.login.failure' AND correlation_id = $1`, correlationID)
+		if err != nil {
 			t.Fatalf("read audit: %v", err)
 		}
-		if reason == last && reason != "" {
-			stable++
-			if stable >= 2 {
-				return reason
+		var reasons []string
+		for rows.Next() {
+			var r string
+			if err := rows.Scan(&r); err != nil {
+				t.Fatalf("scan audit: %v", err)
 			}
-		} else {
-			stable = 0
-			last = reason
+			reasons = append(reasons, r)
+		}
+		rows.Close()
+		if len(reasons) > 1 {
+			t.Fatalf("request %s recorded %d login failures, want 1: %v", correlationID, len(reasons), reasons)
+		}
+		if len(reasons) == 1 {
+			return reasons[0]
 		}
 		if time.Now().After(deadline) {
-			return last
+			t.Fatalf("request %s recorded no auth.login.failure within 10s", correlationID)
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }

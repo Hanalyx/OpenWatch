@@ -101,14 +101,10 @@ func (h *handlers) DeleteUserByID(w http.ResponseWriter, r *http.Request, id ope
 	if denied := auth.EnforcePermission(w, r, auth.UserDelete); denied {
 		return
 	}
-	if err := h.users.SoftDelete(r.Context(), uuid.UUID(id)); err != nil {
-		if errors.Is(err, users.ErrUserNotFound) {
-			writeError(w, http.StatusNotFound, "users.not_found", "client",
-				"user not found", false)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "server.error", "server",
-			"delete failed", true)
+	// The shared mapping: 404 for a missing user, and the same lock
+	// timeout and unknown-commit answers as the other account mutations.
+	// Spec system-auth-identity C-43.
+	if err := h.users.SoftDelete(r.Context(), uuid.UUID(id)); mapUserAdminErr(w, err) {
 		return
 	}
 	emitAudit(r, audit.AdminUserDeleted, id.String(), nil)

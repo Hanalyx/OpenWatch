@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 1
 
@@ -91,7 +91,13 @@ spec:
       type: security
       enforcement: error
     - id: C-11
-      description: Identity binder MUST emit auth.login.failure with detail.reason populated on every rejected authentication attempt
+      description: >
+        Identity binder MUST emit auth.login.failure with detail.reason
+        populated on every rejected authentication attempt. Every reason any
+        path records on that event MUST be declared in the event's
+        detail_schema in audit/events.yaml. The emitter checks key names
+        only, so an undeclared reason would pass silently; AC-80 checks the
+        vocabulary against the source.
       type: security
       enforcement: error
     - id: C-12
@@ -378,6 +384,91 @@ spec:
         a client holding a refresh cookie and no XSRF cookie cannot complete a
         logout request, and no exemption, bootstrap endpoint or automatic
         refresh is provided for it.
+      type: security
+      enforcement: error
+    - id: C-43
+      description: >
+        Credential transactions MUST be bounded in the production
+        configuration, not only under test. Nothing else bounds them: the
+        http.Server WriteTimeout does not cancel a handler. Two limits apply.
+        First, identity.LockWaitBound, 5 seconds, is set as a
+        transaction-local lock_timeout by the lock helper. PostgreSQL applies
+        it to each lock acquisition separately, including implicit row locks
+        taken by later statements in the same transaction; it does not limit
+        pool acquisition, the transaction as a whole or the request. Second,
+        identity.OperationDeadline, 15 seconds, is a context deadline over
+        the whole serialized operation: pool acquisition, every statement,
+        the commit and any retries, in RunSerialized and in the users
+        service's account-state, reset and enable transactions. It never
+        extends an earlier deadline the caller already carries. Exceeding
+        either limit shows only that a wait exceeded it, not why. Outcomes
+        MUST be reported by what is known. The per-user lock not acquired
+        in time: nothing was read under it and nothing changed. A later
+        lock timing out: the transaction rolled back, and the answer MUST
+        NOT claim the per-user lock was never acquired. A deadline expiring
+        during the commit: the outcome is unknown and is reported as
+        ErrCommitUnknown, never as success or failure. Credential and
+        administrative paths answer a known rollback from a lock timeout
+        with 503 server.error, retryable. Administrative account mutations
+        are classified by the stage the transaction reached, and the commit
+        stage is tested FIRST: an uncertain commit stays unknown (503, not
+        retryable) even when what interrupted it was a deadline. A
+        transaction that never began, because no connection became free
+        before the deadline, and one that rolled back after a lock timeout
+        or a deadline before its commit, are "not applied" (503, retryable).
+        The rollback after a failure runs on a context detached from the
+        operation's cancellation, keeping its values, with its own limit,
+        identity.RollbackCleanupLimit, 2 seconds. Cleanup can therefore add
+        up to 2 seconds beyond OperationDeadline; it is not contained within
+        it. Its result never changes how the attempt is reported: a
+        transaction that never reached COMMIT cannot have committed, so an
+        unconfirmed rollback leaves only the release of its locks
+        uncertain, and a failed cleanup after an uncertain commit never
+        turns it into "not applied". Logout clears both credential
+        cookies on every outcome, because the web client treats any logout
+        response as signed out, and so its lock-timeout answer is 503
+        server.error, not retryable: with the cookies cleared a repeated
+        request may name no family, or a different one. Its message says
+        the account lock was not acquired and nothing was revoked, which
+        keeps it distinct from an unknown commit, which says revocation
+        could not be confirmed. The deadline starts at the identity binder
+        (C-44) and is handed to the handlers of the credential and
+        account-mutation routes, so their reads before the transaction and
+        the transaction itself spend one budget; RunSerialized and the users
+        service apply it again only as a ceiling, which never extends it.
+      type: security
+      enforcement: error
+    - id: C-45
+      description: >
+        The cookie binder MUST tell a confirmed "no roles" answer from a role
+        lookup that failed. Only identity.ErrNoRoles, returned when the
+        lookup read its rows to the end without error and found none, is a
+        refused credential (401, session_user_lookup_failed). Any other
+        lookup error, a deadline, a canceled query or an error that ends
+        the rows, is an infrastructure failure: 503 server.error,
+        role_lookup_unavailable, with no protected handler run, no cookie
+        changed and no refresh triggered. The role query MUST check the
+        rows' error before treating an empty result as authoritative.
+      type: security
+      enforcement: error
+    - id: C-44
+      description: >
+        Cookie-session verification MUST be bounded and MUST NOT
+        authenticate from a stale read. The binder runs verification under
+        identity.OperationDeadline, never beyond an earlier deadline the
+        request carries. The idle slide runs in its own short transaction
+        with the LockWaitBound lock limit, so a session row held by another
+        transaction delays a request by at most that limit, and the slide
+        re-checks revocation and both expiry deadlines when it writes: a
+        session revoked or expired while the request waited is refused with
+        the reason the row now shows. A verification that cannot complete,
+        from the lock limit or the deadline, is an infrastructure failure:
+        503 server.error, retryable, with no protected handler run, no
+        cookie cleared and no refresh triggered. Background requests
+        (X-Background-Refresh, the event stream) and logout verify without
+        sliding, so they neither extend the idle window nor wait on the
+        row; logout still reaches its hash lookup, CSRF check and bounded
+        revocation. bugs/OW-077.
       type: security
       enforcement: error
 
@@ -1673,3 +1764,528 @@ spec:
             revoked_by_enable: false
           Permanently revoked:
             authenticates_after_enable: false
+
+    - id: AC-73
+      description: >
+        A request that cannot take the per-user lock within the limit
+        answers 503 and decides nothing, on every credential path and on all
+        four administrative account mutations.
+      priority: critical
+      references_constraints: [C-34, C-43]
+      inputs:
+        initial_state: "A second connection holds the per-user lock for longer than the limit"
+        paths:
+          - "POST /auth/login"
+          - "POST /auth/refresh"
+          - "POST /auth/refresh-cookie"
+          - "POST /auth/logout"
+          - "POST /users/{id}:disable"
+          - "POST /users/{id}:enable (the user disabled beforehand)"
+          - "POST /users/{id}:reset-password"
+          - "DELETE /users/{id}"
+        method: >
+          The unmodified server, with no test override of either limit, on a
+          pool explicitly sized to 8 connections, one case at a time. Each
+          case confirms every connection is back in the pool before the next
+          begins. A safety timer releases the held lock well after the
+          limit, so a missing limit fails the test instead of hanging it.
+        fixture_history: >
+          The first version ran the eight cases in parallel on the default
+          pool, whose size follows the CPU count. On a 4-connection pool the
+          holders starved the requests of connections, so they hit the
+          15 s operation deadline instead of the lock limit (Go CI run
+          36081673305, reproduced locally with an explicit 4-connection
+          pool). That was a fixture assumption, separate from the
+          production defect AC-90 covers.
+      expected_output:
+        per_path:
+          logout:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "the account lock could not be acquired, so nothing was revoked"
+            cookies: "Both credential cookies cleared"
+          every_other_path:
+            response: {status: 503, code: server.error, retryable: true}
+            cookies: "None set and none cleared"
+        answered_after: "The limit, not before it"
+        transaction_effects: []
+        audit: "No success event for the attempt"
+        prohibited_changes:
+          - "A credential issued or revoked"
+          - "The account disabled, enabled, reset or deleted although the change was reported not applied"
+        subsequent: ["The presented session still authenticates, except on the enable path, where it was revoked by the earlier disable"]
+
+    - id: AC-74
+      description: >
+        A refresh racing Disable leaves nothing usable once Disable returns,
+        in both orders and on both refresh paths.
+      priority: critical
+      references_constraints: [C-34, C-36]
+      inputs:
+        variants:
+          - "Disable commits after the refresh's pre-lock reads and before it takes the lock"
+          - "The refresh holds the lock, Disable queues behind it, the refresh commits"
+        attribution: "Credential rows by ID: before, after the coordinator, after the attempt"
+      expected_output:
+        first_order:
+          response: {status: 401}
+          cookies: "No credential cookie set"
+          transaction_effects: "The refresh writes no row"
+        second_order:
+          response: {status: 200}
+          transaction_effects: "Every row the refresh wrote is revoked once Disable returns"
+        audit: "Not asserted"
+        prohibited_changes: ["Any predecessor or successor credential authenticating after Disable returns"]
+
+    - id: AC-75
+      description: >
+        Credentials revoked by Disable stay revoked after Enable. Only a fresh
+        sign-in works.
+      priority: critical
+      references_constraints: [C-36]
+      inputs:
+        initial_state: "A signed-in user"
+        operation: "Disable, then Enable, then present the pre-disable session cookie, access token and both refresh tokens"
+      expected_output:
+        responses:
+          session_cookie: {status: 401}
+          access_token: {status: 401}
+          body_refresh: "Not 200"
+          cookie_refresh: "Not 200, and no session cookie set"
+        credentials_authenticating: 0
+        transaction_effects: "Enable revokes nothing further: Disable already revoked every credential"
+        audit: "Not asserted"
+        subsequent: ["A fresh sign-in succeeds"]
+
+    - id: AC-76
+      description: >
+        MFA is decided under the lock. Two logins presenting one code issue
+        once. A secret rotated after the pre-lock reads refuses the old
+        code. An enrollment removed after the pre-lock reads lets the login
+        issue without consuming anything, as C-39 requires.
+      priority: critical
+      references_constraints: [C-35, C-39]
+      inputs:
+        variants:
+          - "Same code, two logins serialized behind the lock"
+          - "Secret rotated and confirmed before the login takes the lock"
+          - "Enrollment removed before the login takes the lock"
+      expected_output:
+        cookies: "Set only on the successful login"
+        audit: "Not asserted"
+        same_code: {successful_logins: 1, refused_code: auth.mfa_invalid, otp_uses_added: 1, sessions_added: 1}
+        secret_rotated: {code: auth.mfa_invalid, rows_added: 0, otp_uses_added: 0}
+        enrollment_removed: {status: 200, sessions_added: 1, otp_uses_added: 0}
+
+    - id: AC-77
+      description: >
+        A retried transaction acts on the state it reads on the retry, not on
+        what the lost attempt read.
+      priority: critical
+      references_constraints: [C-37]
+      inputs:
+        variants: ["40P01 on the first attempt", "40001 on the first attempt"]
+        between_attempts: "The account is disabled through the real users service"
+      expected_output:
+        transactions_begun: 2
+        response: {status: 401}
+        cookies: "No credential cookie set"
+        rows_added: 0
+        audit: "Not asserted"
+
+    - id: AC-78
+      description: >
+        Every password and refresh issuance path, paused after its pre-lock
+        reads and released after an invalidating mutation commits, issues
+        nothing.
+      priority: critical
+      references_constraints: [C-34, C-39]
+      inputs:
+        paths: ["Login", "Login with MFA", "Body refresh", "Cookie refresh"]
+        coordinators: ["Disable", "Administrative password reset"]
+        attribution: >
+          Credential row IDs are read before the coordinator, right after
+          it, and after the attempt. The coordinator's own changes are
+          asserted separately: it inserts nothing and revokes every live
+          row. Any ID that appears after it belongs to the attempt.
+      expected_output:
+        attempt_rows_added: 0
+        otp_uses_added: 0
+        prohibited_changes: ["A 200 response", "A credential cookie", "A token in the response body"]
+        cookies: "No credential cookie set"
+        audit: "Not asserted"
+
+    - id: AC-79
+      description: >
+        A rotation whose commit fails reports no credential, sets no cookie,
+        and leaves the presented token usable.
+      priority: critical
+      references_constraints: [C-34, C-37]
+      inputs:
+        variants: ["Body refresh", "Cookie refresh"]
+        controlled_failure: "The commit is a known rollback"
+      expected_output:
+        response: {status: 503, code: server.error}
+        cookies: "No credential cookie set"
+        body: "No access or refresh token"
+        credential_rows_changed: false
+        audit: "Not asserted"
+        subsequent: ["The same token rotates on the next request"]
+
+    - id: AC-80
+      description: >
+        Every reason the code can record on auth.login.failure is declared
+        in the event's detail_schema in audit/events.yaml.
+      priority: high
+      references_constraints: [C-11]
+      inputs:
+        method: >
+          A source scan collects the literals that reach detail.reason
+          through the shapes the binder, the account-state verdicts and the
+          login, refresh and SSO handlers use. It first proves it still sees
+          one reason of each shape, then compares against the declaration.
+        known_limit: "A reason produced through a shape the scan does not read is invisible to it"
+      expected_output:
+        undeclared_reasons: []
+
+    - id: AC-81
+      description: >
+        A lock that times out after the per-user lock was acquired rolls the
+        transaction back, and the answer does not claim the account lock was
+        never acquired.
+      priority: critical
+      references_constraints: [C-43]
+      inputs:
+        initial_state: "A second connection holds FOR UPDATE on the user's rows in a later table, not on the users row"
+        method: "One case at a time on a pool explicitly sized to 8 connections; every connection is back in the pool before the next case"
+        variants:
+          - name: "Body refresh"
+            held: "refresh_tokens"
+          - name: "Logout"
+            held: "refresh_tokens"
+            note: "The refresh rows are the later lock here; a held session row is AC-86"
+          - name: "Administrative disable"
+            held: "sessions"
+      expected_output:
+        per_variant:
+          Body refresh:
+            response: {status: 503, code: server.error, retryable: true}
+            cookies: "None set"
+            subsequent: ["The same token rotates after the lock is released"]
+          Logout:
+            response: {status: 500, code: auth.logout_incomplete}
+            cookies: "Both credential cookies cleared"
+          Administrative disable:
+            response: {status: 503, code: server.error, retryable: true}
+            transaction_effects: "The account is not disabled"
+        answered_after: "The lock limit"
+        message_must_not_state: "The account lock was not acquired"
+        transaction_effects: "No credential row changes"
+        audit: "Not asserted"
+
+    - id: AC-82
+      description: >
+        The serialized operation has a deadline. It exists without the
+        caller supplying one, never extends an earlier caller deadline,
+        makes an expiry during the commit an unknown outcome, and makes an
+        expiry before the commit a known failure. The users service honors
+        an earlier caller deadline the same way.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - "No caller deadline"
+          - "A caller deadline earlier than OperationDeadline"
+          - "The deadline expires while the commit is in progress"
+          - "The deadline expires while waiting for the per-user lock"
+          - "Users service Disable with a 1 second caller deadline while another connection holds the per-user lock"
+        method: >
+          The first four drive RunSerialized with a transaction source whose
+          lock or commit blocks until its context ends. The last uses the
+          real database.
+      expected_output:
+        per_variant:
+          No caller deadline: {deadline_present: true, at_most: "OperationDeadline from the start"}
+          Earlier caller deadline: {deadline: "The caller's, unchanged"}
+          Expiry during commit: {error: ErrCommitUnknown, transactions_begun: 1}
+          Expiry while waiting for the lock: {error: "context.DeadlineExceeded", not: [ErrCommitUnknown, ErrLockWaitExceeded], transactions_begun: 1}
+          Users service Disable: {returns: "An error, before the lock limit", transaction_effects: "Account not disabled; no credential row changes"}
+        response_cookies_audit: "Asserted at the HTTP layer by AC-73 and AC-81"
+
+    - id: AC-83
+      description: >
+        An ordinary cookie request whose session row is locked by another
+        transaction answers 503 once the lock limit expires. The protected
+        handler does not run, no cookie changes, and the session is untouched.
+      priority: critical
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session; a second connection holds FOR UPDATE on its row past the lock limit"
+        operation: "GET /auth/me with the session cookie and its own correlation id"
+      expected_output:
+        response: {status: 503, code: server.error, retryable: true}
+        handler_ran: false
+        cookies: "None set and none cleared"
+        answered_after: "The lock limit"
+        audit: {action: auth.login.failure, reason: session_lookup_failed, read_by: "The request's correlation id"}
+        transaction_effects: "The session's expires_at is unchanged"
+        subsequent: ["After the lock is released the session authenticates"]
+
+    - id: AC-84
+      description: >
+        A lock released before the limit lets verification finish normally,
+        and the idle window is extended.
+      priority: high
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session whose row is held by a second connection"
+        operation: "GET /auth/me with the session cookie; the lock is released about one second after the request starts waiting"
+      expected_output:
+        response: {status: 200}
+        handler_ran: true
+        cookies: "None changed"
+        transaction_effects: "The session's expires_at moves later"
+        audit: "Not asserted"
+
+    - id: AC-85
+      description: >
+        A session revoked while verification waits for its row is refused.
+        The request does not authenticate from the read it made before
+        waiting.
+      priority: critical
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session; a second connection revokes it and holds the row uncommitted"
+        operation: "GET /auth/me with the session cookie; the revocation commits while the request waits"
+      expected_output:
+        response: {status: 401}
+        handler_ran: false
+        audit: {action: auth.login.failure, reason: session_revoked, read_by: "The request's correlation id"}
+        transaction_effects: "The idle window is not extended"
+        cookies: "Not asserted"
+
+    - id: AC-86
+      description: >
+        Logout under a real session-row lock reaches its own bounded outcome
+        instead of waiting in the binder.
+      priority: critical
+      references_constraints: [C-41, C-43, C-44]
+      inputs:
+        initial_state: "A signed-in user; a second connection holds FOR UPDATE on the user's session rows"
+        operation: "POST /auth/logout with both cookies and a valid CSRF pair"
+      expected_output:
+        response: {status: 500, code: auth.logout_incomplete}
+        cookies: "Both credential cookies cleared"
+        answered_after: "One lock limit, in the revocation; the binder did not wait"
+        message_must_not_state: "The account lock was not acquired"
+        transaction_effects: "No credential row changes"
+        audit: "No auth.logout event (nothing was revoked); not asserted"
+
+    - id: AC-87
+      description: >
+        An earlier caller deadline ends verification before the lock limit,
+        and a credential request has one time budget across the binder and
+        the handler, not one per layer.
+      priority: critical
+      references_constraints: [C-43, C-44]
+      inputs:
+        variants:
+          - name: "Earlier caller deadline"
+            setup: "VerifySession with a 1 s deadline while the session row is held"
+          - name: "One budget"
+            setup: "POST /auth/login carrying a session cookie whose row is held for 2 s, so the binder spends 2 s before the handler runs"
+      expected_output:
+        per_variant:
+          Earlier caller deadline:
+            returns: "An error that reports no session state, before the lock limit"
+          One budget:
+            response: {status: 200}
+            cookies: "The login's session cookie set"
+            login_transaction_deadline: "At most OperationDeadline from the request's start"
+        audit: "Not asserted"
+
+    - id: AC-88
+      description: >
+        A background request neither slides the idle window nor waits on a
+        locked session row.
+      priority: high
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session whose row is held by a second connection"
+        operation: "GET /auth/me with the session cookie and X-Background-Refresh: 1"
+      expected_output:
+        response: {status: 200}
+        handler_ran: true
+        answered_within: "One second"
+        transaction_effects: "The session's expires_at is unchanged"
+        cookies: "None changed"
+        audit: "Not asserted"
+
+    - id: AC-89
+      description: >
+        The users service's account transactions carry the operation
+        deadline without a caller supplying one, and an unknown commit on an
+        administrative mutation reaches the administrator as an unknown
+        outcome, whether or not the change was durable.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - name: "Default deadline"
+            setup: "Service Disable with context.Background, through a transaction source that records the deadline"
+          - name: "Unknown commit, durable"
+            setup: "POST /users/{id}:disable; the commit applies, then its acknowledgement is lost"
+          - name: "Unknown commit, non-durable"
+            setup: "POST /users/{id}:disable; the commit does not apply and its outcome is unknown"
+      expected_output:
+        per_variant:
+          Default deadline:
+            deadline: "Present, at most OperationDeadline from the call"
+          Unknown commit, durable:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "The change may or may not have been applied"
+            transaction_effects: "The account is disabled"
+          Unknown commit, non-durable:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "The change may or may not have been applied"
+            transaction_effects: "The account is not disabled"
+        cookies: "None set"
+        audit: "No admin.user.disabled row for the request's correlation id, read after a settle period"
+
+    - id: AC-90
+      description: >
+        An administrative account mutation reports its failure by the stage
+        the transaction reached. One that could not start reports "not
+        applied" and changes nothing; one whose deadline expired after it
+        began rolls back and releases the account; an uncertain commit is
+        never reported as "not applied", even when a deadline interrupted
+        it.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - name: "Pool exhausted"
+            setup: >
+              The account transactions draw from a separate 1-connection pool
+              whose connection is held. POST :disable, POST :enable (user
+              disabled first), POST :reset-password and DELETE /users/{id},
+              each with its own correlation id, run together.
+          - name: "Deadline after the transaction began"
+            setup: "Service Disable with a 1 s caller deadline while another connection holds the account lock"
+          - name: "Mapping order"
+            setup: "The handler's error mapping given a not-begun error, a rolled-back deadline, and a commit made uncertain by a deadline"
+          - name: "Deadline during the commit"
+            setup: "POST :disable; the commit is rolled back, then fails with the context deadline"
+      expected_output:
+        per_variant:
+          Pool exhausted:
+            response: {status: 503, code: server.error, retryable: true}
+            message_states: "The change could not start"
+            answered_after: "The operation deadline"
+            transactions_begun: 0
+            begin_errors: "Every one carries the operation deadline"
+            transaction_effects: "Account state and credential rows unchanged, for users created for this case, so the assertion describes this attempt alone"
+            audit: "No admin.user.* row for any request's correlation id, read after a settle period"
+            cookies: "None set"
+          Deadline after the transaction began:
+            returns: "An error carrying the deadline; neither ErrNotBegun nor ErrCommitUnknown"
+            transaction_effects: "The account is unchanged"
+            subsequent:
+              - "Every connection is back in the pool"
+              - "No backend is left idle in a transaction"
+              - "The account lock can be taken at once"
+          Mapping order:
+            not_begun: {status: 503, retryable: true, message_states: "could not start"}
+            rolled_back_deadline: {status: 503, retryable: true, message_states: "did not complete in time"}
+            uncertain_commit_from_deadline: {status: 503, retryable: false, message_states: "may or may not have been applied"}
+          Deadline during the commit:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "The change may or may not have been applied"
+            transaction_effects: "The account is unchanged in this rolled-back variant"
+
+    - id: AC-91
+      description: >
+        Cleanup after a failed administrative transaction is bounded, and its
+        outcome never changes how the attempt is reported. The rollback runs
+        on a context detached from the expired operation that keeps its
+        values and carries its own deadline; a rollback that really fails in
+        the driver discards the connection; and a failed cleanup leaves a
+        pre-commit failure "not applied" and an uncertain commit uncertain.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - name: "Cleanup context"
+            setup: "RollbackDetached called with an operation context whose deadline has already expired and which carries a value"
+          - name: "Real driver failure"
+            setup: >
+              A pooled transaction whose backend is terminated with
+              pg_terminate_backend before RollbackDetached runs, and a
+              control transaction whose backend is left alone
+          - name: "Pre-commit failure, cleanup fails"
+            setup: >
+              POST /users/{id}:disable through the transaction seam: the first
+              statement fails with the deadline, and the rollback reports a
+              failure after really rolling back
+          - name: "Uncertain commit, cleanup fails"
+            setup: >
+              POST /users/{id}:disable through the transaction seam: the
+              commit fails with no SQLSTATE, and the rollback reports a
+              failure
+        fixture: "Each HTTP variant uses a user created for it, so durable-state assertions describe that attempt alone"
+      expected_output:
+        per_variant:
+          Cleanup context:
+            done_while_rolling_back: false
+            caller_value_present: true
+            deadline: "Present, positive, at most RollbackCleanupLimit (2 s) away"
+          Real driver failure:
+            terminated: "RollbackDetachedErr returns the driver's error, SQLSTATE 57P01, and the connection is closed"
+            control: "RollbackDetachedErr returns nil and the connection stays open"
+          Pre-commit failure, cleanup fails:
+            response: {status: 503, code: server.error, retryable: true}
+            message_states: "did not complete in time"
+            transaction_effects: "Account state and credential rows unchanged"
+            cookies: "None set"
+          Uncertain commit, cleanup fails:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "may or may not have been applied"
+            transaction_effects: "Account unchanged in this rolled-back variant"
+            cookies: "None set"
+        audit: "Not asserted"
+        timing: "Cleanup may add up to 2 s beyond the 15 s operation deadline"
+
+    - id: AC-92
+      description: >
+        A cookie request whose role lookup fails answers 503, runs no
+        handler and changes no cookie; a confirmed "no roles" still answers
+        401; and an error that ends the role rows is a failed lookup, not
+        an empty role list.
+      priority: critical
+      references_constraints: [C-45]
+      inputs:
+        variants:
+          - name: "Lookup fails"
+            setup: >
+              A second connection holds ACCESS EXCLUSIVE on user_roles; the
+              binder's role query waits and is canceled with
+              pg_cancel_backend; GET /auth/me with the session cookie and its
+              own correlation id
+          - name: "Confirmed no roles"
+            setup: "The user's role rows are deleted; GET /auth/me with the session cookie"
+          - name: "Rows end with an error"
+            setup: "The role lookup reads rows that yield nothing and then report a stream error"
+      expected_output:
+        per_variant:
+          Lookup fails:
+            response: {status: 503, code: server.error}
+            handler_ran: false
+            cookies: "None set and none cleared"
+            audit: {action: auth.login.failure, reason: role_lookup_unavailable, read_by: "The request's correlation id"}
+            subsequent: ["The session authenticates once the lock is gone"]
+          Confirmed no roles:
+            response: {status: 401}
+            handler_ran: false
+            audit: {action: auth.login.failure, reason: session_user_lookup_failed}
+          Rows end with an error:
+            returns: "The stream error, not an empty role list and not ErrNoRoles"
+        transaction_effects: "None; a read-only lookup"

@@ -41,6 +41,35 @@ const sseEventsPath = "/api/v1/events"
 // presented alongside is not an error there.
 //
 // Spec system-auth-identity C-12 / AC-21 (bypass list).
+// logoutPath is the one credential route that verifies without sliding.
+const logoutPath = "/api/v1/auth/logout"
+
+// boundedOperation reports whether a request's handler runs credential or
+// account-state transactions, and so inherits the binder's deadline.
+func boundedOperation(r *http.Request) bool {
+	p := r.URL.Path
+	if _, ok := authBypassPaths[p]; ok {
+		return true
+	}
+	switch p {
+	case "/api/v1/auth/mfa:enroll", "/api/v1/auth/mfa:verify":
+		return true
+	}
+	if strings.HasPrefix(p, "/api/v1/auth/sso/") && strings.HasSuffix(p, "/callback") {
+		return true
+	}
+	if rest, ok := strings.CutPrefix(p, "/api/v1/users/"); ok && !strings.Contains(rest, "/") {
+		switch {
+		case r.Method == http.MethodPost && (strings.HasSuffix(rest, ":disable") ||
+			strings.HasSuffix(rest, ":enable") || strings.HasSuffix(rest, ":reset-password")):
+			return true
+		case r.Method == http.MethodDelete && !strings.Contains(rest, ":"):
+			return true
+		}
+	}
+	return false
+}
+
 var authBypassPaths = map[string]struct{}{
 	"/api/v1/auth/login":          {},
 	"/api/v1/auth/logout":         {},
@@ -122,7 +151,16 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			id, reason := resolveIdentity(r.Context(), pool, lookups, cfg, r)
+			// One budget for the request's credential work. Verification
+			// runs under it, never beyond an earlier deadline the request
+			// already carries. On the credential and account-mutation
+			// routes it is handed on, so the handler's transaction spends
+			// what is left rather than starting a fresh budget. Other
+			// routes keep their own context: a report or an event stream
+			// must not inherit a credential deadline. Spec C-43, C-44.
+			ctx, cancel := WithOperationDeadline(r.Context())
+			defer cancel()
+			id, reason := resolveIdentity(ctx, pool, lookups, cfg, r)
 			if unavailableReason(reason) {
 				// The credential was not rejected: the server could not
 				// tell. Answering 401 here would tell every signed-in
@@ -146,7 +184,11 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 					return
 				}
 			}
-			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(r.Context(), id)))
+			handlerCtx := r.Context()
+			if boundedOperation(r) {
+				handlerCtx = ctx
+			}
+			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(handlerCtx, id)))
 		})
 	}
 }
@@ -160,10 +202,19 @@ const reasonStateUnavailable = "account_state_unavailable"
 // query could not be answered. Also 503, never 401. Spec C-32.
 const reasonSessionLookupFailed = "session_lookup_failed"
 
+// reasonRoleLookupUnavailable is the cookie arm's role lookup failing to
+// answer. Also 503, never 401. Spec C-45.
+const reasonRoleLookupUnavailable = "role_lookup_unavailable"
+
+// ErrNoRoles is a role lookup's confirmed answer that the user holds no
+// role. Any other lookup error means the answer is unknown.
+var ErrNoRoles = errors.New("identity: user has no roles")
+
 // unavailableReason reports whether a rejection reason means "could not
 // determine" rather than "refused", which is what separates 503 from 401.
 func unavailableReason(reason string) bool {
-	return reason == reasonStateUnavailable || reason == reasonSessionLookupFailed
+	return reason == reasonStateUnavailable || reason == reasonSessionLookupFailed ||
+		reason == reasonRoleLookupUnavailable
 }
 
 // writeStateUnavailable emits the 503 envelope for an infrastructure
@@ -245,7 +296,13 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		// HTTP traffic. Fail-safe: an unmarked request slides as before, so a
 		// client that does not send the header is unaffected.
 		var vopts []VerifyOption
-		if r.Header.Get(BackgroundRefreshHeader) == "1" || r.URL.Path == sseEventsPath {
+		//
+		// Logout verifies without sliding too. Extending a session a moment
+		// before ending it serves nothing, and the slide is the one write
+		// on this path that can wait on a row a revocation holds. Logout
+		// still reaches its own hash lookup, CSRF check and bounded
+		// revocation. Spec C-44.
+		if r.Header.Get(BackgroundRefreshHeader) == "1" || r.URL.Path == sseEventsPath || r.URL.Path == logoutPath {
 			vopts = append(vopts, WithoutSlide())
 		}
 		sess, err := VerifySession(ctx, pool, cookie.Value, vopts...)
@@ -272,8 +329,16 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			return anon(), reason
 		}
 		role, err := lookups.RoleForUser(ctx, sess.UserID)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrNoRoles):
+			// Confirmed: the user holds no role. A refused credential.
 			return anon(), "session_user_lookup_failed"
+		case err != nil:
+			// The lookup did not answer, from a deadline or a database
+			// failure. That says nothing about the credential, so it is
+			// an infrastructure failure: 503, no handler, no cookie
+			// change, no refresh. Spec C-45.
+			return anon(), reasonRoleLookupUnavailable
 		}
 		return withGrants(ctx, lookups, auth.Identity{
 			ID:     sess.UserID.String(),

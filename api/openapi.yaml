@@ -118,6 +118,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: sign-in did not complete and nothing was
+            issued, including when the per-user lock was not acquired in time.
+            retryable false: the outcome is unknown; sign in again rather than
+            assuming either result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/logout:
     post:
@@ -126,6 +136,36 @@ paths:
       responses:
         '204':
           description: Session revoked
+        '403':
+          description: >-
+            authz.csrf_invalid. A credential cookie selects what to revoke and the
+            double-submit token is missing or does not match. Nothing was revoked and
+            no cookie was changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: >-
+            auth.logout_incomplete, retryable. The revocation failed and rolled back,
+            so nothing was revoked. Both cookies are cleared; the session may stay
+            valid until it expires.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: >-
+            server.error, not retryable, and both cookies are cleared. Two outcomes,
+            told apart by the message. The account lock was not acquired in time:
+            this attempt revoked nothing. The commit outcome is unknown: revocation
+            could not be confirmed. Neither invites an automatic retry, because
+            with the cookies cleared a repeated request may name no family, or a
+            different one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/refresh:
     post:
@@ -148,6 +188,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: nothing was rotated, including when the
+            per-user lock was not acquired in time. retryable false: the rotation
+            outcome is unknown; sign in again rather than presenting the same token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/refresh-cookie:
     post:
@@ -171,6 +220,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: nothing was rotated and no cookie was
+            set, including when the per-user lock was not acquired in time.
+            retryable false: the rotation outcome is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/auth/me:
     get:
@@ -747,6 +805,15 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: a lock wait exceeded its limit and the
+            transaction rolled back, so the user was not deleted. retryable false:
+            the commit outcome is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/users/{id}/roles:assign:
     post:
@@ -821,6 +888,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: a lock wait exceeded its limit and the
+            transaction rolled back, so the change was not applied. retryable
+            false: the commit outcome is unknown, and the change may or may not
+            have been applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/users/{id}:disable:
     post:
@@ -856,6 +933,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: a lock wait exceeded its limit and the
+            transaction rolled back, so the change was not applied. retryable
+            false: the commit outcome is unknown, and the change may or may not
+            have been applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/users/{id}:enable:
     post:
@@ -885,6 +972,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '503':
+          description: >-
+            server.error. retryable true: a lock wait exceeded its limit and the
+            transaction rolled back, so the change was not applied. retryable
+            false: the commit outcome is unknown, and the change may or may not
+            have been applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /api/v1/roles:create:
     post:

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -119,6 +120,62 @@ func commitIsIndeterminate(err error) bool {
 	return false
 }
 
+// ClassifyCommitError wraps a commit error whose outcome is unknown in
+// ErrCommitUnknown, so a caller outside RunSerialized reports it the same
+// way: neither success nor failure. A determinate error is returned
+// unchanged. Spec C-37, C-43.
+func ClassifyCommitError(err error) error {
+	if err != nil && commitIsIndeterminate(err) {
+		// Both stay visible to errors.Is. A deadline that expired during
+		// the commit is therefore still a deadline underneath, and a
+		// caller MUST test ErrCommitUnknown first: the commit's outcome
+		// is what matters, not what interrupted it.
+		return fmt.Errorf("%w: %w", ErrCommitUnknown, err)
+	}
+	return err
+}
+
+// ErrNotBegun reports that a transaction never began, for example because
+// no pooled connection became free before the deadline. Nothing was read
+// or written, so the operation was not applied. Spec C-43.
+var ErrNotBegun = errors.New("identity: transaction did not begin")
+
+// RollbackCleanupLimit bounds the detached rollback. Cleanup runs after
+// the operation deadline may already have expired, so it can add up to
+// this much beyond OperationDeadline; it is not contained within it.
+// Spec C-43.
+const RollbackCleanupLimit = 2 * time.Second
+
+// RollbackDetached rolls tx back on a context detached from ctx's
+// cancellation, keeping ctx's values, with its own RollbackCleanupLimit.
+// When a deadline expired between statements, a rollback on the expired
+// context would fail at once and the connection would be discarded; this
+// one ends the transaction on the connection. When the deadline canceled a
+// query in flight, pgx has already closed the connection and the server
+// aborts the transaction with it.
+//
+// Its result never changes how the operation is reported. A transaction
+// that never reached COMMIT cannot have committed, whether or not cleanup
+// is confirmed; what an unconfirmed rollback leaves uncertain is when the
+// server releases the transaction's locks. And an uncertain commit stays
+// uncertain: cleanup after it proves nothing about the commit. When the
+// rollback fails, pgx discards the connection and the failure is logged.
+func RollbackDetached(ctx context.Context, tx pgx.Tx) {
+	if err := RollbackDetachedErr(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.WarnContext(context.WithoutCancel(ctx), "identity: rollback did not complete; the connection is discarded",
+			slog.String("error", err.Error()))
+	}
+}
+
+// RollbackDetachedErr is RollbackDetached returning the rollback's own
+// error, so a test can see what the driver reported. Production callers
+// use RollbackDetached, because the result must not change the outcome.
+func RollbackDetachedErr(ctx context.Context, tx pgx.Tx) error {
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), RollbackCleanupLimit)
+	defer cancel()
+	return tx.Rollback(rctx)
+}
+
 // RunSerialized runs fn inside ONE transaction that holds the per-user
 // lock, and owns the whole lifecycle: begin, lock, fn, commit.
 //
@@ -131,7 +188,15 @@ func commitIsIndeterminate(err error) bool {
 // statement inside it cannot work. The loop stops early when the request
 // deadline has passed, so a retry never outlives the caller's context.
 // Spec C-37.
+//
+// The whole operation, pool acquisition, every statement, the commit and
+// any retries, runs under OperationDeadline, or under the caller's own
+// deadline when that is earlier. A deadline that expires during the
+// commit leaves the outcome unknown and is reported as ErrCommitUnknown,
+// like any other commit error without a SQLSTATE. Spec C-43.
 func RunSerialized(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) error {
+	ctx, cancel := WithOperationDeadline(ctx)
+	defer cancel()
 	var lastErr error
 	for attempt := 1; attempt <= MaxSerializedAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -165,12 +230,12 @@ func RunSerialized(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func
 func runSerializedOnce(ctx context.Context, db TxBeginner, userID uuid.UUID, fn func(context.Context, pgx.Tx) error) (err error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("identity: begin: %w", err)
+		return fmt.Errorf("identity: begin: %w: %w", ErrNotBegun, err)
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback(ctx)
+			RollbackDetached(ctx, tx)
 		}
 	}()
 

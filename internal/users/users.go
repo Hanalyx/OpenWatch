@@ -25,9 +25,11 @@ import (
 
 // Service errors. Returned from the CRUD + role-mgmt API.
 var (
-	ErrUserNotFound   = errors.New("users: not found")
-	ErrUnknownRole    = errors.New("users: role does not exist")
-	ErrUserHasNoRoles = errors.New("users: user has no roles assigned")
+	ErrUserNotFound = errors.New("users: not found")
+	ErrUnknownRole  = errors.New("users: role does not exist")
+	// ErrUserHasNoRoles is identity.ErrNoRoles, so the binder can tell a
+	// confirmed "no roles" from a lookup that failed.
+	ErrUserHasNoRoles = identity.ErrNoRoles
 	// ErrUserDisabled is returned when an operation targets a disabled
 	// account, or (for the login path) when a disabled user authenticates.
 	ErrUserDisabled = errors.New("users: account is disabled")
@@ -105,6 +107,38 @@ var rolePrecedence = map[auth.RoleID]int{
 type Service struct {
 	pool   *pgxpool.Pool
 	corpus identity.BreachCorpus // nil = skip breach check (dev mode only)
+	// txs, when set, replaces the pool as the source of the locked
+	// account-state, reset and enable transactions. Production leaves it
+	// nil; tests set it to select a commit outcome.
+	txs identity.TxBeginner
+	// roleRows, when set, replaces the pool for the role lookup, so a
+	// test can end the rows with a stream error. Production leaves it nil.
+	roleRows rowsQuerier
+}
+
+// rowsQuerier is the part of the pool the role lookup reads through.
+type rowsQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// UseTxSource replaces the transaction source for the locked account
+// transactions. It exists so tests can force a durable or non-durable
+// unknown commit; production never calls it.
+func (s *Service) UseTxSource(b identity.TxBeginner) { s.txs = b }
+
+// lockedTx begins a transaction for the locked account operations.
+func (s *Service) lockedTx(ctx context.Context) (pgx.Tx, error) {
+	var tx pgx.Tx
+	var err error
+	if s.txs != nil {
+		tx, err = s.txs.Begin(ctx)
+	} else {
+		tx, err = s.pool.Begin(ctx)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", identity.ErrNotBegun, err)
+	}
+	return tx, nil
 }
 
 // NewService binds a Service to a DB pool. The breach corpus is
@@ -178,7 +212,7 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 	if err != nil {
 		return User{}, fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	var u User
 	const insUser = `
@@ -211,13 +245,17 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 //
 // Spec AC-04.
 func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
-	const stmt = `
-		SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at,
-		       full_name, display_name, job_title, timezone, phone
-		FROM users
-		WHERE id = $1 AND deleted_at IS NULL`
-	return s.queryOne(ctx, stmt, id)
+	return s.queryOne(ctx, userByIDStmt, id)
 }
+
+// userByIDStmt reads an active user by id. It is shared by GetUserByID and
+// the locked account transactions, which read the user they changed before
+// committing so the response needs no read after the commit.
+const userByIDStmt = `
+	SELECT id, username, email, last_password_change_at, created_at, updated_at, disabled_at,
+	       full_name, display_name, job_title, timezone, phone
+	FROM users
+	WHERE id = $1 AND deleted_at IS NULL`
 
 // GetUserByUsername returns the user when active; ErrUserNotFound for
 // unknown or soft-deleted usernames.
@@ -378,7 +416,8 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	// The deletion and the revocation commit together. A deleted account
 	// whose sessions outlive the delete is the defect this closes, and
 	// two separate statements can leave exactly that state. Spec C-34, C-36.
-	return s.mutateAccountState(ctx, id, stmt)
+	_, err := s.mutateAccountState(ctx, id, stmt, false)
+	return err
 }
 
 // mutateAccountState runs an account-state UPDATE and the user-wide
@@ -389,33 +428,49 @@ func (s *Service) SoftDelete(ctx context.Context, id uuid.UUID) error {
 // a refresh committing concurrently can insert a session after the
 // revocation ran and before the state change was visible, and that
 // session is never revoked by anything. Spec C-34, C-36.
-func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt string) error {
-	tx, err := s.pool.Begin(ctx)
+//
+// With readBack it also reads the changed user inside the transaction and
+// returns it only once the commit is confirmed, so a caller that answers
+// with the user needs no read after the commit. A read after the commit
+// could fail on its own, and its failure would then be reported as if the
+// committed change had not happened. api-users C-08.
+func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt string, readBack bool) (User, error) {
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
-		return fmt.Errorf("users: begin: %w", err)
+		return User{}, fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUserNotFound
+			return User{}, ErrUserNotFound
 		}
-		return fmt.Errorf("users: lock: %w", err)
+		return User{}, fmt.Errorf("users: lock: %w", err)
 	}
 	tag, err := tx.Exec(ctx, stmt, id)
 	if err != nil {
-		return fmt.Errorf("users: account state: %w", err)
+		return User{}, fmt.Errorf("users: account state: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrUserNotFound
+		return User{}, ErrUserNotFound
 	}
 	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
-		return err
+		return User{}, err
+	}
+	var u User
+	if readBack {
+		if u, err = queryUser(ctx, tx, userByIDStmt, id); err != nil {
+			return User{}, fmt.Errorf("users: read back: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("users: commit: %w", err)
+		return User{}, fmt.Errorf("users: commit: %w", identity.ClassifyCommitError(err))
 	}
-	return nil
+	return u, nil
 }
 
 // AdminResetPassword sets a user's password on an administrator's authority:
@@ -438,11 +493,15 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 	// the password changed with the revocation incomplete, which is the
 	// worst of both: the user cannot sign in with the old password while
 	// every credential minted from it still works. Spec C-34, C-36.
-	tx, err := s.pool.Begin(ctx)
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrUserNotFound
@@ -456,7 +515,7 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 		return fmt.Errorf("users: revoke credentials after reset: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("users: commit reset: %w", err)
+		return fmt.Errorf("users: commit reset: %w", identity.ClassifyCommitError(err))
 	}
 	return nil
 }
@@ -506,11 +565,19 @@ func writePasswordTx(ctx context.Context, db identity.DBTX, id uuid.UUID, hash s
 //
 // Spec api-users (disable/enable).
 func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
+	_, err := s.DisableUser(ctx, id)
+	return err
+}
+
+// DisableUser is Disable returning the disabled user as the transaction
+// read it, before its confirmed commit. The admin handler answers with
+// it, so a committed disable is never reported through a later read.
+func (s *Service) DisableUser(ctx context.Context, id uuid.UUID) (User, error) {
 	const stmt = `UPDATE users SET disabled_at = now(), updated_at = now()
 	              WHERE id = $1 AND deleted_at IS NULL`
 	// One transaction under the per-user lock: the disable and the
 	// user-wide interactive revocation commit together. Spec C-34, C-36.
-	return s.mutateAccountState(ctx, id, stmt)
+	return s.mutateAccountState(ctx, id, stmt, true)
 }
 
 // Enable clears the disabled flag. A real disabled-to-enabled transition
@@ -528,17 +595,28 @@ func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 //
 // Spec api-users C-07, C-08; system-auth-identity C-34, C-36.
 func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, err error) {
-	tx, err := s.pool.Begin(ctx)
+	_, transitioned, err = s.EnableUser(ctx, id)
+	return transitioned, err
+}
+
+// EnableUser is Enable returning the user as the locked transaction read
+// it, before its confirmed commit, for the same reason as DisableUser.
+func (s *Service) EnableUser(ctx context.Context, id uuid.UUID) (u User, transitioned bool, err error) {
+	// Bounded as a whole, and never beyond an earlier caller deadline.
+	// system-auth-identity C-43.
+	ctx, cancel := identity.WithOperationDeadline(ctx)
+	defer cancel()
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
-		return false, fmt.Errorf("users: begin: %w", err)
+		return User{}, false, fmt.Errorf("users: begin: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer identity.RollbackDetached(ctx, tx)
 
 	if err := identity.LockUser(ctx, tx, id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, ErrUserNotFound
+			return User{}, false, ErrUserNotFound
 		}
-		return false, fmt.Errorf("users: lock: %w", err)
+		return User{}, false, fmt.Errorf("users: lock: %w", err)
 	}
 	// Read under the lock. The state decides whether this call is a
 	// transition, and "already enabled" must stay distinguishable from
@@ -547,27 +625,34 @@ func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, 
 	if err := tx.QueryRow(ctx,
 		`SELECT disabled_at IS NOT NULL, deleted_at IS NOT NULL FROM users WHERE id = $1`,
 		id).Scan(&disabled, &deleted); err != nil {
-		return false, fmt.Errorf("users: enable: read state: %w", err)
+		return User{}, false, fmt.Errorf("users: enable: read state: %w", err)
 	}
 	if deleted {
-		return false, ErrUserNotFound
+		return User{}, false, ErrUserNotFound
 	}
 	if !disabled {
-		return false, nil
+		// Nothing to change. The user as read under the lock is the answer.
+		if u, err = queryUser(ctx, tx, userByIDStmt, id); err != nil {
+			return User{}, false, fmt.Errorf("users: enable: read back: %w", err)
+		}
+		return u, false, nil
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET disabled_at = NULL, updated_at = now() WHERE id = $1`, id); err != nil {
-		return false, fmt.Errorf("users: enable: %w", err)
+		return User{}, false, fmt.Errorf("users: enable: %w", err)
 	}
 	// The transition and the revocation commit together, so the account
 	// is never enabled with a stale credential still live.
 	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
-		return false, fmt.Errorf("users: revoke credentials on enable: %w", err)
+		return User{}, false, fmt.Errorf("users: revoke credentials on enable: %w", err)
+	}
+	if u, err = queryUser(ctx, tx, userByIDStmt, id); err != nil {
+		return User{}, false, fmt.Errorf("users: enable: read back: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("users: commit: %w", err)
+		return User{}, false, fmt.Errorf("users: commit: %w", identity.ClassifyCommitError(err))
 	}
-	return true, nil
+	return u, true, nil
 }
 
 // AssignRole inserts a user_roles row. Role must exist; FK enforcement
@@ -613,7 +698,11 @@ func (s *Service) RolesForUser(ctx context.Context, userID uuid.UUID) ([]auth.Ro
 		FROM user_roles ur
 		JOIN users u ON u.id = ur.user_id
 		WHERE ur.user_id = $1 AND u.deleted_at IS NULL`
-	rows, err := s.pool.Query(ctx, stmt, userID)
+	var q rowsQuerier = s.pool
+	if s.roleRows != nil {
+		q = s.roleRows
+	}
+	rows, err := q.Query(ctx, stmt, userID)
 	if err != nil {
 		return nil, fmt.Errorf("users: list roles: %w", err)
 	}
@@ -625,6 +714,12 @@ func (s *Service) RolesForUser(ctx context.Context, userID uuid.UUID) ([]auth.Ro
 			return nil, fmt.Errorf("users: scan role: %w", err)
 		}
 		out = append(out, auth.RoleID(rid))
+	}
+	// Without this, an error part way through the rows ends the loop
+	// silently and an unavailable lookup reads as "no roles", which the
+	// binder answers as a refused credential. system-auth-identity C-45.
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("users: list roles: %w", err)
 	}
 	return out, nil
 }
@@ -676,8 +771,13 @@ func (s *Service) AccountStatusFor(ctx context.Context, userID uuid.UUID) (ident
 
 // queryOne is the GetByID/GetByUsername shared helper.
 func (s *Service) queryOne(ctx context.Context, stmt string, arg any) (User, error) {
+	return queryUser(ctx, s.pool, stmt, arg)
+}
+
+// queryUser reads one user through q, a pool or a transaction.
+func queryUser(ctx context.Context, q identity.DBTX, stmt string, arg any) (User, error) {
 	var u User
-	err := s.pool.QueryRow(ctx, stmt, arg).Scan(
+	err := q.QueryRow(ctx, stmt, arg).Scan(
 		&u.ID, &u.Username, &u.Email,
 		&u.LastPasswordChangeAt, &u.CreatedAt, &u.UpdatedAt, &u.DisabledAt,
 		&u.FullName, &u.DisplayName, &u.JobTitle, &u.Timezone, &u.Phone,

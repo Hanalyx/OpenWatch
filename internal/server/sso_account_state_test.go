@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,9 @@ type ssoCallbackResult struct {
 	// all is every Set-Cookie on the callback response, including any
 	// with an empty value, so a test can see a cookie being CLEARED.
 	all []*http.Cookie
+	// correlationID was sent on the callback, so its audit rows can be
+	// read without mistaking another request's (bugs/OW-075).
+	correlationID string
 }
 
 // ssoSignIn drives the real login redirect and the real callback.
@@ -191,13 +195,17 @@ func ssoSignIn(t *testing.T, base string, pool *pgxpool.Pool, d *ssoTestIDP, p s
 		`SELECT nonce FROM sso_auth_states WHERE state = $1`, state).Scan(&d.nonce); err != nil {
 		t.Fatalf("read persisted nonce: %v", err)
 	}
-	cbResp, err := cl.Get(fmt.Sprintf("%s/api/v1/auth/sso/%s/callback?code=%s&state=%s",
-		base, p.ID.String(), "test-code", url.QueryEscape(state)))
+	// A unique correlation id ties this callback's audit rows to it.
+	cid := "sso-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	cbReq, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/auth/sso/%s/callback?code=%s&state=%s",
+		base, p.ID.String(), "test-code", url.QueryEscape(state)), nil)
+	cbReq.Header.Set("X-Correlation-Id", cid)
+	cbResp, err := cl.Do(cbReq)
 	if err != nil {
 		t.Fatalf("callback: %v", err)
 	}
 	cbResp.Body.Close()
-	res := ssoCallbackResult{status: cbResp.StatusCode, location: cbResp.Header.Get("Location")}
+	res := ssoCallbackResult{status: cbResp.StatusCode, location: cbResp.Header.Get("Location"), correlationID: cid}
 	res.all = cbResp.Cookies()
 	for _, c := range cbResp.Cookies() {
 		switch c.Name {

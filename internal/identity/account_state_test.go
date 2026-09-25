@@ -77,7 +77,9 @@ func TestBinder_CookieArmEnforcesAccountState(t *testing.T) {
 				http.StatusUnauthorized, "account_deleted", false},
 			{"active control", stubLookups{role: auth.RoleAdmin, status: AccountActive},
 				http.StatusOK, "", true},
-			{"active with no roles", stubLookups{status: AccountActive, roleErr: errors.New("no roles")},
+			// ErrNoRoles is the confirmed answer; any other lookup error is
+			// an unavailable lookup and answers 503 (C-45, AC-92).
+			{"active with no roles", stubLookups{status: AccountActive, roleErr: ErrNoRoles},
 				http.StatusUnauthorized, "session_user_lookup_failed", false},
 		}
 		reasons := map[string]string{}
@@ -236,8 +238,11 @@ type fakeTx struct {
 }
 
 func (f *fakeTx) QueryRow(context.Context, string, ...any) pgx.Row { return fakeRow{err: f.lockErr} }
-func (f *fakeTx) Commit(context.Context) error                     { return f.commitErr }
-func (f *fakeTx) Rollback(context.Context) error                   { return nil }
+func (f *fakeTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+func (f *fakeTx) Commit(context.Context) error   { return f.commitErr }
+func (f *fakeTx) Rollback(context.Context) error { return nil }
 
 type fakeRow struct{ err error }
 
@@ -284,6 +289,20 @@ func TestRunSerialized_BoundedRetryAndUnknownCommit(t *testing.T) {
 			}
 			if b.attempts != 2 {
 				t.Errorf("attempts = %d, want exactly 2", b.attempts)
+			}
+		})
+
+		t.Run("lock wait exceeded is determinate and not retried", func(t *testing.T) {
+			b := &countingBeginner{failWith: []error{pgErr("55P03")}}
+			err := RunSerialized(context.Background(), b, uid, noop)
+			if !errors.Is(err, ErrLockWaitExceeded) {
+				t.Fatalf("want ErrLockWaitExceeded, got %v", err)
+			}
+			if errors.Is(err, ErrCommitUnknown) {
+				t.Error("a lock timeout was classified as an unknown commit")
+			}
+			if b.attempts != 1 {
+				t.Errorf("attempts = %d, want 1: a lock timeout is not retried", b.attempts)
 			}
 		})
 

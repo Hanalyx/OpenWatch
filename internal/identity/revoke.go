@@ -2,7 +2,9 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -61,11 +63,71 @@ func RevokeUserCredentialsPool(ctx context.Context, pool *pgxpool.Pool, userID u
 //
 // A missing user row is reported as pgx.ErrNoRows so the caller can
 // treat it as a determinate refusal. Spec C-34.
+//
+// Each lock wait in the caller's transaction is limited by LockWaitBound,
+// through a transaction-local lock_timeout set here. PostgreSQL applies it
+// to every lock acquisition that follows in the transaction, separately,
+// including implicit row locks taken by later statements. It does NOT
+// limit pool acquisition, the transaction as a whole or the request; that
+// is OperationDeadline's job. A wait on THIS lock that exceeds the limit
+// returns ErrLockWaitExceeded: the user lock was never acquired and
+// nothing was read under it. A later lock that times out is reported by
+// IsLockTimeout alone, because by then the user lock was held. Spec C-43.
 func LockUser(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+	if err := setLockWaitBound(ctx, tx); err != nil {
+		return err
+	}
 	var one int
 	if err := tx.QueryRow(ctx,
 		`SELECT 1 FROM users WHERE id = $1 FOR NO KEY UPDATE`, userID).Scan(&one); err != nil {
+		if IsLockTimeout(err) {
+			return fmt.Errorf("%w: %w", ErrLockWaitExceeded, err)
+		}
 		return err
 	}
 	return nil
 }
+
+// setLockWaitBound applies LockWaitBound to every lock the transaction
+// waits for from here on. set_config with is_local=true is SET LOCAL: it
+// lasts until the transaction ends and cannot leak to the pooled
+// connection.
+func setLockWaitBound(ctx context.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, `SELECT set_config('lock_timeout', $1, true)`,
+		fmt.Sprintf("%dms", LockWaitBound.Milliseconds())); err != nil {
+		return fmt.Errorf("identity: set lock wait bound: %w", err)
+	}
+	return nil
+}
+
+// LockWaitBound is the configured limit on each lock wait inside a
+// credential transaction. Exceeding it shows only that a wait exceeded the
+// limit, not why. Spec C-43.
+const LockWaitBound = 5 * time.Second
+
+// OperationDeadline limits a whole credential operation: pool
+// acquisition, every statement, the commit, and any retries. It is set by
+// WithOperationDeadline and never extends an earlier deadline the caller
+// already carries. Spec C-43.
+const OperationDeadline = 15 * time.Second
+
+// WithOperationDeadline returns a context that expires OperationDeadline
+// from now, or at the caller's own deadline if that comes first.
+func WithOperationDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, OperationDeadline)
+}
+
+// ErrLockWaitExceeded reports that the per-user lock itself was not
+// acquired within LockWaitBound. Nothing was read or changed under it.
+var ErrLockWaitExceeded = errors.New("identity: per-user lock wait exceeded")
+
+// IsLockTimeout reports whether err is PostgreSQL's lock_timeout, on the
+// per-user lock or on any later lock in the same transaction.
+func IsLockTimeout(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == sqlStateLockNotAvailable
+}
+
+// sqlStateLockNotAvailable is what PostgreSQL raises when lock_timeout
+// expires.
+const sqlStateLockNotAvailable = "55P03"
