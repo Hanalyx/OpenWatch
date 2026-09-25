@@ -415,7 +415,16 @@ spec:
         retryable) even when what interrupted it was a deadline. A
         transaction that never began, because no connection became free
         before the deadline, and one that rolled back after a lock timeout
-        or a deadline before its commit, are "not applied" (503, retryable). Logout clears both credential
+        or a deadline before its commit, are "not applied" (503, retryable).
+        The rollback after a failure runs on a context detached from the
+        operation's cancellation, keeping its values, with its own limit,
+        identity.RollbackCleanupLimit, 2 seconds. Cleanup can therefore add
+        up to 2 seconds beyond OperationDeadline; it is not contained within
+        it. Its result never changes how the attempt is reported: a
+        transaction that never reached COMMIT cannot have committed, so an
+        unconfirmed rollback leaves only the release of its locks
+        uncertain, and a failed cleanup after an uncertain commit never
+        turns it into "not applied". Logout clears both credential
         cookies on every outcome, because the web client treats any logout
         response as signed out, and so its lock-timeout answer is 503
         server.error, not retryable: with the cookies cleared a repeated
@@ -2161,7 +2170,7 @@ spec:
             answered_after: "The operation deadline"
             transactions_begun: 0
             begin_errors: "Every one carries the operation deadline"
-            transaction_effects: "Account state and credential rows unchanged"
+            transaction_effects: "Account state and credential rows unchanged, for users created for this case, so the assertion describes this attempt alone"
             audit: "No admin.user.* row for any request's correlation id, read after a settle period"
             cookies: "None set"
           Deadline after the transaction began:
@@ -2179,3 +2188,55 @@ spec:
             response: {status: 503, code: server.error, retryable: false}
             message_states: "The change may or may not have been applied"
             transaction_effects: "The account is unchanged in this rolled-back variant"
+
+    - id: AC-91
+      description: >
+        Cleanup after a failed administrative transaction is bounded, and its
+        outcome never changes how the attempt is reported. The rollback runs
+        on a context detached from the expired operation that keeps its
+        values and carries its own deadline; a rollback that really fails in
+        the driver discards the connection; and a failed cleanup leaves a
+        pre-commit failure "not applied" and an uncertain commit uncertain.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - name: "Cleanup context"
+            setup: "RollbackDetached called with an operation context whose deadline has already expired and which carries a value"
+          - name: "Real driver failure"
+            setup: >
+              A pooled transaction whose backend is terminated with
+              pg_terminate_backend before RollbackDetached runs, and a
+              control transaction whose backend is left alone
+          - name: "Pre-commit failure, cleanup fails"
+            setup: >
+              POST /users/{id}:disable through the transaction seam: the first
+              statement fails with the deadline, and the rollback reports a
+              failure after really rolling back
+          - name: "Uncertain commit, cleanup fails"
+            setup: >
+              POST /users/{id}:disable through the transaction seam: the
+              commit fails with no SQLSTATE, and the rollback reports a
+              failure
+        fixture: "Each HTTP variant uses a user created for it, so durable-state assertions describe that attempt alone"
+      expected_output:
+        per_variant:
+          Cleanup context:
+            done_while_rolling_back: false
+            caller_value_present: true
+            deadline: "Present, positive, at most RollbackCleanupLimit (2 s) away"
+          Real driver failure:
+            terminated: "The rollback fails (SQLSTATE 57P01) and the connection is closed"
+            control: "The connection stays open"
+          Pre-commit failure, cleanup fails:
+            response: {status: 503, code: server.error, retryable: true}
+            message_states: "did not complete in time"
+            transaction_effects: "Account state and credential rows unchanged"
+            cookies: "None set"
+          Uncertain commit, cleanup fails:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "may or may not have been applied"
+            transaction_effects: "Account unchanged in this rolled-back variant"
+            cookies: "None set"
+        audit: "Not asserted"
+        timing: "Cleanup may add up to 2 s beyond the 15 s operation deadline"

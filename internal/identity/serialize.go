@@ -140,18 +140,33 @@ func ClassifyCommitError(err error) error {
 // or written, so the operation was not applied. Spec C-43.
 var ErrNotBegun = errors.New("identity: transaction did not begin")
 
+// RollbackCleanupLimit bounds the detached rollback. Cleanup runs after
+// the operation deadline may already have expired, so it can add up to
+// this much beyond OperationDeadline; it is not contained within it.
+// Spec C-43.
+const RollbackCleanupLimit = 2 * time.Second
+
 // RollbackDetached rolls tx back on a context detached from ctx's
-// cancellation, with its own short limit. When a deadline expired between
-// statements, a rollback on the expired context would fail at once and the
-// connection would be discarded; this one ends the transaction on the
-// connection. When the deadline canceled a query in flight, pgx has
-// already closed the connection and the server aborts the transaction with
-// it, so this rollback changes nothing. A transaction that never reached
-// COMMIT cannot have committed either way.
+// cancellation, keeping ctx's values, with its own RollbackCleanupLimit.
+// When a deadline expired between statements, a rollback on the expired
+// context would fail at once and the connection would be discarded; this
+// one ends the transaction on the connection. When the deadline canceled a
+// query in flight, pgx has already closed the connection and the server
+// aborts the transaction with it.
+//
+// Its result never changes how the operation is reported. A transaction
+// that never reached COMMIT cannot have committed, whether or not cleanup
+// is confirmed; what an unconfirmed rollback leaves uncertain is when the
+// server releases the transaction's locks. And an uncertain commit stays
+// uncertain: cleanup after it proves nothing about the commit. When the
+// rollback fails, pgx discards the connection and the failure is logged.
 func RollbackDetached(ctx context.Context, tx pgx.Tx) {
-	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), RollbackCleanupLimit)
 	defer cancel()
-	_ = tx.Rollback(rctx)
+	if err := tx.Rollback(rctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.WarnContext(rctx, "identity: rollback did not complete; the connection is discarded",
+			slog.String("error", err.Error()))
+	}
 }
 
 // RunSerialized runs fn inside ONE transaction that holds the per-user
