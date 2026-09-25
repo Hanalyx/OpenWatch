@@ -86,7 +86,7 @@ spec:
       type: security
       enforcement: error
     - id: C-08
-      description: 'Each admin user-management mutation MUST emit its audit code (admin.user.password_reset | admin.user.disabled | admin.user.enabled) carrying detail.target_user_id; an unknown or soft-deleted target MUST return 404 users.not_found. admin.user.enabled MUST also carry detail.transition (true only when the call changed the account from disabled to enabled) and detail.revocation_scope (interactive for a transition, none otherwise), both taken from the locked transaction that made the change, never inferred from a later read.'
+      description: 'Each admin user-management mutation MUST emit its audit code (admin.user.password_reset | admin.user.disabled | admin.user.enabled) carrying detail.target_user_id; an unknown or soft-deleted target MUST return 404 users.not_found. admin.user.enabled MUST also carry detail.transition (true only when the call changed the account from disabled to enabled) and detail.revocation_scope (interactive for a transition, none otherwise), both taken from the locked transaction that made the change, never inferred from a later read. The :disable and :enable responses carry the user as that transaction read it, returned only after its commit is confirmed; no read follows the commit, so a committed change is never reported as not applied or not found.'
       type: technical
       enforcement: error
 
@@ -211,3 +211,17 @@ spec:
             transaction_effects: []
             subsequent: ["The user's existing session still authenticates"]
             cookies_set: none
+    - id: AC-21
+      description: 'A :disable or :enable that commits answers 200 with the committed state even when nothing can be read after the commit. It is never reported as not applied or not found, and the response invites no repeat.'
+      priority: critical
+      references_constraints: [C-07, C-08]
+      inputs:
+        initial_state: "A signed-in user; for :enable, disabled beforehand"
+        operation: "POST /users/{id}:disable or :enable as an administrator"
+        controlled_failure: "The transaction commits for real, then the users table is renamed, so any read after the commit fails"
+      expected_output:
+        response: {status: 200, error_envelope: false}
+        body: "disabled_at set for :disable, null for :enable"
+        transaction_effects: ["The durable disabled state matches the response", "The user's sessions and refresh tokens are revoked"]
+        cookies: "None set"
+        audit: "Not asserted"

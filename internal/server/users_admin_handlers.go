@@ -104,11 +104,15 @@ func (h *handlers) PostUserDisable(w http.ResponseWriter, r *http.Request, id op
 			"you cannot disable your own account", false)
 		return
 	}
-	if err := h.users.Disable(r.Context(), uuid.UUID(id)); mapUserAdminErr(w, err) {
+	// The user comes back from the locked transaction, returned only after
+	// its commit is confirmed. No read follows the commit, so a committed
+	// disable cannot be reported as not applied or not found. api-users C-08.
+	u, err := h.users.DisableUser(r.Context(), uuid.UUID(id))
+	if mapUserAdminErr(w, err) {
 		return
 	}
 	emitAudit(r, audit.AdminUserDisabled, caller, map[string]any{"target_user_id": id.String()})
-	h.writeUser(w, r, uuid.UUID(id))
+	writeJSON(w, http.StatusOK, userResponse(u))
 }
 
 // PostUserEnable implements api.ServerInterface.
@@ -117,7 +121,7 @@ func (h *handlers) PostUserEnable(w http.ResponseWriter, r *http.Request, id ope
 	if denied := auth.EnforcePermission(w, r, auth.AdminUserManage); denied {
 		return
 	}
-	transitioned, err := h.users.Enable(r.Context(), uuid.UUID(id))
+	u, transitioned, err := h.users.EnableUser(r.Context(), uuid.UUID(id))
 	if mapUserAdminErr(w, err) {
 		return
 	}
@@ -135,15 +139,5 @@ func (h *handlers) PostUserEnable(w http.ResponseWriter, r *http.Request, id ope
 		"transition":       transitioned,
 		"revocation_scope": scope,
 	})
-	h.writeUser(w, r, uuid.UUID(id))
-}
-
-// writeUser re-reads the user and writes it as a 200 UserResponse. Used by
-// disable/enable so the client gets the updated disabled_at without a refetch.
-func (h *handlers) writeUser(w http.ResponseWriter, r *http.Request, id uuid.UUID) {
-	u, err := h.users.GetUserByID(r.Context(), id)
-	if mapUserAdminErr(w, err) {
-		return
-	}
 	writeJSON(w, http.StatusOK, userResponse(u))
 }

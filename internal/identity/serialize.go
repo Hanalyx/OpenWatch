@@ -161,12 +161,19 @@ const RollbackCleanupLimit = 2 * time.Second
 // uncertain: cleanup after it proves nothing about the commit. When the
 // rollback fails, pgx discards the connection and the failure is logged.
 func RollbackDetached(ctx context.Context, tx pgx.Tx) {
-	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), RollbackCleanupLimit)
-	defer cancel()
-	if err := tx.Rollback(rctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-		slog.WarnContext(rctx, "identity: rollback did not complete; the connection is discarded",
+	if err := RollbackDetachedErr(ctx, tx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.WarnContext(context.WithoutCancel(ctx), "identity: rollback did not complete; the connection is discarded",
 			slog.String("error", err.Error()))
 	}
+}
+
+// RollbackDetachedErr is RollbackDetached returning the rollback's own
+// error, so a test can see what the driver reported. Production callers
+// use RollbackDetached, because the result must not change the outcome.
+func RollbackDetachedErr(ctx context.Context, tx pgx.Tx) error {
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), RollbackCleanupLimit)
+	defer cancel()
+	return tx.Rollback(rctx)
 }
 
 // RunSerialized runs fn inside ONE transaction that holds the per-user

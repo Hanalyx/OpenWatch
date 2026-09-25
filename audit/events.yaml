@@ -73,9 +73,9 @@ events:
       binders record the session, access-token and account-state reasons.
       SSO records the sso_ reasons, and sso_account_disabled or
       sso_account_deleted when the local account may not sign in; the
-      sign-in page stays generic. account_state_unavailable and
-      session_lookup_failed mean the server could not tell, and the
-      request answered 503, not 401. invalid_credentials, account_locked,
+      sign-in page stays generic. account_state_unavailable,
+      session_lookup_failed and role_lookup_unavailable mean the server
+      could not tell, and the request answered 503, not 401. invalid_credentials, account_locked,
       mfa_failed and sso_failed are legacy values that nothing records
       now; older rows may carry them. username is the submitted name,
       clipped. remote_addr and user_agent are recorded by the binders,
@@ -95,6 +95,7 @@ events:
             session_lookup_failed, session_user_lookup_failed,
             invalid_api_token, invalid_jwt, jwt_expired, jwt_verify_failed,
             invalid_jwt_subject, invalid_jwt_session,
+            role_lookup_unavailable,
             sid_absent, session_absent, session_owner_mismatch,
             session_absolute_expired, session_binding_unknown,
             sso_login_init_failed, sso_idp_error, sso_state_expired,

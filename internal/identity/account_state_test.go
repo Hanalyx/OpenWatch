@@ -77,7 +77,9 @@ func TestBinder_CookieArmEnforcesAccountState(t *testing.T) {
 				http.StatusUnauthorized, "account_deleted", false},
 			{"active control", stubLookups{role: auth.RoleAdmin, status: AccountActive},
 				http.StatusOK, "", true},
-			{"active with no roles", stubLookups{status: AccountActive, roleErr: errors.New("no roles")},
+			// ErrNoRoles is the confirmed answer; any other lookup error is
+			// an unavailable lookup and answers 503 (C-45, AC-92).
+			{"active with no roles", stubLookups{status: AccountActive, roleErr: ErrNoRoles},
 				http.StatusUnauthorized, "session_user_lookup_failed", false},
 		}
 		reasons := map[string]string{}

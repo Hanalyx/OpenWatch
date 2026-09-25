@@ -438,6 +438,19 @@ spec:
         service apply it again only as a ceiling, which never extends it.
       type: security
       enforcement: error
+    - id: C-45
+      description: >
+        The cookie binder MUST tell a confirmed "no roles" answer from a role
+        lookup that failed. Only identity.ErrNoRoles, returned when the
+        lookup read its rows to the end without error and found none, is a
+        refused credential (401, session_user_lookup_failed). Any other
+        lookup error, a deadline, a canceled query or an error that ends
+        the rows, is an infrastructure failure: 503 server.error,
+        role_lookup_unavailable, with no protected handler run, no cookie
+        changed and no refresh triggered. The role query MUST check the
+        rows' error before treating an empty result as authoritative.
+      type: security
+      enforcement: error
     - id: C-44
       description: >
         Cookie-session verification MUST be bounded and MUST NOT
@@ -2226,8 +2239,8 @@ spec:
             caller_value_present: true
             deadline: "Present, positive, at most RollbackCleanupLimit (2 s) away"
           Real driver failure:
-            terminated: "The rollback fails (SQLSTATE 57P01) and the connection is closed"
-            control: "The connection stays open"
+            terminated: "RollbackDetachedErr returns the driver's error, SQLSTATE 57P01, and the connection is closed"
+            control: "RollbackDetachedErr returns nil and the connection stays open"
           Pre-commit failure, cleanup fails:
             response: {status: 503, code: server.error, retryable: true}
             message_states: "did not complete in time"
@@ -2240,3 +2253,39 @@ spec:
             cookies: "None set"
         audit: "Not asserted"
         timing: "Cleanup may add up to 2 s beyond the 15 s operation deadline"
+
+    - id: AC-92
+      description: >
+        A cookie request whose role lookup fails answers 503, runs no
+        handler and changes no cookie; a confirmed "no roles" still answers
+        401; and an error that ends the role rows is a failed lookup, not
+        an empty role list.
+      priority: critical
+      references_constraints: [C-45]
+      inputs:
+        variants:
+          - name: "Lookup fails"
+            setup: >
+              A second connection holds ACCESS EXCLUSIVE on user_roles; the
+              binder's role query waits and is canceled with
+              pg_cancel_backend; GET /auth/me with the session cookie and its
+              own correlation id
+          - name: "Confirmed no roles"
+            setup: "The user's role rows are deleted; GET /auth/me with the session cookie"
+          - name: "Rows end with an error"
+            setup: "The role lookup reads rows that yield nothing and then report a stream error"
+      expected_output:
+        per_variant:
+          Lookup fails:
+            response: {status: 503, code: server.error}
+            handler_ran: false
+            cookies: "None set and none cleared"
+            audit: {action: auth.login.failure, reason: role_lookup_unavailable, read_by: "The request's correlation id"}
+            subsequent: ["The session authenticates once the lock is gone"]
+          Confirmed no roles:
+            response: {status: 401}
+            handler_ran: false
+            audit: {action: auth.login.failure, reason: session_user_lookup_failed}
+          Rows end with an error:
+            returns: "The stream error, not an empty role list and not ErrNoRoles"
+        transaction_effects: "None; a read-only lookup"

@@ -105,7 +105,14 @@ func TestRollbackCleanup_FailureAndClassification(t *testing.T) {
 					}
 				}
 				conn := tx.Conn()
-				identity.RollbackDetached(ctx, tx)
+				rerr := identity.RollbackDetachedErr(ctx, tx)
+				var pgErr *pgerr.PgError
+				switch {
+				case terminate && !(errors.As(rerr, &pgErr) && pgErr.Code == "57P01"):
+					t.Errorf("rollback after termination returned %v, want SQLSTATE 57P01", rerr)
+				case !terminate && rerr != nil:
+					t.Errorf("control rollback returned %v, want nil", rerr)
+				}
 				if closed := conn.IsClosed(); closed != terminate {
 					t.Errorf("terminated=%v: connection closed = %v, want %v", terminate, closed, terminate)
 				}

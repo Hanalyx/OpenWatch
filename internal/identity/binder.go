@@ -202,10 +202,19 @@ const reasonStateUnavailable = "account_state_unavailable"
 // query could not be answered. Also 503, never 401. Spec C-32.
 const reasonSessionLookupFailed = "session_lookup_failed"
 
+// reasonRoleLookupUnavailable is the cookie arm's role lookup failing to
+// answer. Also 503, never 401. Spec C-45.
+const reasonRoleLookupUnavailable = "role_lookup_unavailable"
+
+// ErrNoRoles is a role lookup's confirmed answer that the user holds no
+// role. Any other lookup error means the answer is unknown.
+var ErrNoRoles = errors.New("identity: user has no roles")
+
 // unavailableReason reports whether a rejection reason means "could not
 // determine" rather than "refused", which is what separates 503 from 401.
 func unavailableReason(reason string) bool {
-	return reason == reasonStateUnavailable || reason == reasonSessionLookupFailed
+	return reason == reasonStateUnavailable || reason == reasonSessionLookupFailed ||
+		reason == reasonRoleLookupUnavailable
 }
 
 // writeStateUnavailable emits the 503 envelope for an infrastructure
@@ -320,8 +329,16 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 			return anon(), reason
 		}
 		role, err := lookups.RoleForUser(ctx, sess.UserID)
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrNoRoles):
+			// Confirmed: the user holds no role. A refused credential.
 			return anon(), "session_user_lookup_failed"
+		case err != nil:
+			// The lookup did not answer, from a deadline or a database
+			// failure. That says nothing about the credential, so it is
+			// an infrastructure failure: 503, no handler, no cookie
+			// change, no refresh. Spec C-45.
+			return anon(), reasonRoleLookupUnavailable
 		}
 		return withGrants(ctx, lookups, auth.Identity{
 			ID:     sess.UserID.String(),
