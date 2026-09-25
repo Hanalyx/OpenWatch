@@ -74,11 +74,8 @@ func RevokeUserCredentialsPool(ctx context.Context, pool *pgxpool.Pool, userID u
 // nothing was read under it. A later lock that times out is reported by
 // IsLockTimeout alone, because by then the user lock was held. Spec C-43.
 func LockUser(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
-	// set_config with is_local=true is SET LOCAL: it lasts until the
-	// transaction ends and cannot leak to the pooled connection.
-	if _, err := tx.Exec(ctx, `SELECT set_config('lock_timeout', $1, true)`,
-		fmt.Sprintf("%dms", LockWaitBound.Milliseconds())); err != nil {
-		return fmt.Errorf("identity: set lock wait bound: %w", err)
+	if err := setLockWaitBound(ctx, tx); err != nil {
+		return err
 	}
 	var one int
 	if err := tx.QueryRow(ctx,
@@ -87,6 +84,18 @@ func LockUser(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
 			return fmt.Errorf("%w: %w", ErrLockWaitExceeded, err)
 		}
 		return err
+	}
+	return nil
+}
+
+// setLockWaitBound applies LockWaitBound to every lock the transaction
+// waits for from here on. set_config with is_local=true is SET LOCAL: it
+// lasts until the transaction ends and cannot leak to the pooled
+// connection.
+func setLockWaitBound(ctx context.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, `SELECT set_config('lock_timeout', $1, true)`,
+		fmt.Sprintf("%dms", LockWaitBound.Milliseconds())); err != nil {
+		return fmt.Errorf("identity: set lock wait bound: %w", err)
 	}
 	return nil
 }

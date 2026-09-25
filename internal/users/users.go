@@ -105,6 +105,23 @@ var rolePrecedence = map[auth.RoleID]int{
 type Service struct {
 	pool   *pgxpool.Pool
 	corpus identity.BreachCorpus // nil = skip breach check (dev mode only)
+	// txs, when set, replaces the pool as the source of the locked
+	// account-state, reset and enable transactions. Production leaves it
+	// nil; tests set it to select a commit outcome.
+	txs identity.TxBeginner
+}
+
+// UseTxSource replaces the transaction source for the locked account
+// transactions. It exists so tests can force a durable or non-durable
+// unknown commit; production never calls it.
+func (s *Service) UseTxSource(b identity.TxBeginner) { s.txs = b }
+
+// lockedTx begins a transaction for the locked account operations.
+func (s *Service) lockedTx(ctx context.Context) (pgx.Tx, error) {
+	if s.txs != nil {
+		return s.txs.Begin(ctx)
+	}
+	return s.pool.Begin(ctx)
 }
 
 // NewService binds a Service to a DB pool. The breach corpus is
@@ -394,7 +411,7 @@ func (s *Service) mutateAccountState(ctx context.Context, id uuid.UUID, stmt str
 	// system-auth-identity C-43.
 	ctx, cancel := identity.WithOperationDeadline(ctx)
 	defer cancel()
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
 	}
@@ -446,7 +463,7 @@ func (s *Service) AdminResetPassword(ctx context.Context, id uuid.UUID, newPassw
 	// system-auth-identity C-43.
 	ctx, cancel := identity.WithOperationDeadline(ctx)
 	defer cancel()
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
 		return fmt.Errorf("users: begin: %w", err)
 	}
@@ -540,7 +557,7 @@ func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, 
 	// system-auth-identity C-43.
 	ctx, cancel := identity.WithOperationDeadline(ctx)
 	defer cancel()
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.lockedTx(ctx)
 	if err != nil {
 		return false, fmt.Errorf("users: begin: %w", err)
 	}

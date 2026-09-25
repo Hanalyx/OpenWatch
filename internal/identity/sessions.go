@@ -183,6 +183,12 @@ func WithoutSlide() VerifyOption { return func(o *verifyOpts) { o.noSlide = true
 // last_seen + extends expires_at.
 //
 // Spec AC-07, AC-08, AC-10.
+//
+// The idle slide can wait: another transaction may hold the session row,
+// for example while revoking it. That wait is limited by LockWaitBound and
+// by ctx, and the slide re-checks the row when it finally writes, so a
+// session revoked or expired during the wait is refused rather than
+// authenticated from the read above. Spec system-auth-identity C-44.
 func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string, opts ...VerifyOption) (Session, error) {
 	var o verifyOpts
 	for _, f := range opts {
@@ -242,9 +248,8 @@ func VerifySession(ctx context.Context, pool *pgxpool.Pool, token string, opts .
 	if newExpires.After(s.AbsoluteExpiresAt) {
 		newExpires = s.AbsoluteExpiresAt
 	}
-	const upd = `UPDATE sessions SET last_seen = $1, expires_at = $2 WHERE id = $3`
-	if _, err := pool.Exec(ctx, upd, now, newExpires, s.ID); err != nil {
-		return Session{}, fmt.Errorf("identity: touch session: %w", err)
+	if err := slideSession(ctx, pool, s.ID, now, newExpires); err != nil {
+		return Session{}, err
 	}
 	s.LastSeen = now
 	s.ExpiresAt = newExpires
@@ -317,3 +322,55 @@ func nilIfEmpty(s string) interface{} {
 // Silence the lint detector for the helper we keep around for future
 // callers in handlers (logout-against-supplied-token path).
 var _ = sameToken
+
+// slideSession extends the idle window of a session that is still live
+// when the write happens. It runs in its own short transaction so the
+// wait for the row carries the same per-lock limit as the credential
+// transactions, and ctx bounds the rest, pool acquisition included.
+//
+// The UPDATE re-checks revocation and both deadlines at write time. If the
+// row changed while this request waited, nothing is extended and the
+// session is refused with the reason the row now shows. Spec C-44.
+func slideSession(ctx context.Context, pool *pgxpool.Pool, id uuid.UUID, now, newExpires time.Time) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("identity: touch session: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := setLockWaitBound(ctx, tx); err != nil {
+		return err
+	}
+	const upd = `
+		UPDATE sessions SET last_seen = $1, expires_at = $2
+		WHERE id = $3
+		  AND revoked_at IS NULL
+		  AND expires_at > clock_timestamp()
+		  AND absolute_expires_at > clock_timestamp()
+		RETURNING id`
+	var touched uuid.UUID
+	err = tx.QueryRow(ctx, upd, now, newExpires, id).Scan(&touched)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The row no longer qualifies. Say why, from the row as it is now.
+		var revoked bool
+		if rerr := tx.QueryRow(ctx,
+			`SELECT revoked_at IS NOT NULL FROM sessions WHERE id = $1`, id).Scan(&revoked); rerr != nil {
+			if errors.Is(rerr, pgx.ErrNoRows) {
+				return ErrSessionNotFound
+			}
+			return fmt.Errorf("identity: touch session: re-read: %w", rerr)
+		}
+		if revoked {
+			return ErrSessionRevoked
+		}
+		return ErrSessionExpired
+	}
+	if err != nil {
+		return fmt.Errorf("identity: touch session: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		// Unknown or failed, the request is not authenticated on it: the
+		// binder answers 503, which asserts nothing about the session.
+		return fmt.Errorf("identity: touch session: commit: %w", err)
+	}
+	return nil
+}

@@ -416,9 +416,31 @@ spec:
         request may name no family, or a different one. Its message says
         the account lock was not acquired and nothing was revoked, which
         keeps it distinct from an unknown commit, which says revocation
-        could not be confirmed. Not covered by these limits, and recorded
-        as such: reads a handler makes before the serialized transaction,
-        and the cookie binder's idle slide (bugs/OW-077).
+        could not be confirmed. The deadline starts at the identity binder
+        (C-44) and is handed to the handlers of the credential and
+        account-mutation routes, so their reads before the transaction and
+        the transaction itself spend one budget; RunSerialized and the users
+        service apply it again only as a ceiling, which never extends it.
+      type: security
+      enforcement: error
+    - id: C-44
+      description: >
+        Cookie-session verification MUST be bounded and MUST NOT
+        authenticate from a stale read. The binder runs verification under
+        identity.OperationDeadline, never beyond an earlier deadline the
+        request carries. The idle slide runs in its own short transaction
+        with the LockWaitBound lock limit, so a session row held by another
+        transaction delays a request by at most that limit, and the slide
+        re-checks revocation and both expiry deadlines when it writes: a
+        session revoked or expired while the request waited is refused with
+        the reason the row now shows. A verification that cannot complete,
+        from the lock limit or the deadline, is an infrastructure failure:
+        503 server.error, retryable, with no protected handler run, no
+        cookie cleared and no refresh triggered. Background requests
+        (X-Background-Refresh, the event stream) and logout verify without
+        sliding, so they neither extend the idle window nor wait on the
+        row; logout still reaches its hash lookup, CSRF check and bounded
+        revocation. bugs/OW-077.
       type: security
       enforcement: error
 
@@ -1901,7 +1923,7 @@ spec:
             held: "refresh_tokens"
           - name: "Logout"
             held: "refresh_tokens"
-            note: "Not sessions: a locked session row stalls the cookie binder before logout runs (bugs/OW-077)"
+            note: "The refresh rows are the later lock here; a held session row is AC-86"
           - name: "Administrative disable"
             held: "sessions"
       expected_output:
@@ -1949,3 +1971,143 @@ spec:
           Expiry while waiting for the lock: {error: "context.DeadlineExceeded", not: [ErrCommitUnknown, ErrLockWaitExceeded], transactions_begun: 1}
           Users service Disable: {returns: "An error, before the lock limit", transaction_effects: "Account not disabled; no credential row changes"}
         response_cookies_audit: "Asserted at the HTTP layer by AC-73 and AC-81"
+
+    - id: AC-83
+      description: >
+        An ordinary cookie request whose session row is locked by another
+        transaction answers 503 once the lock limit expires. The protected
+        handler does not run, no cookie changes, and the session is untouched.
+      priority: critical
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session; a second connection holds FOR UPDATE on its row past the lock limit"
+        operation: "GET /auth/me with the session cookie and its own correlation id"
+      expected_output:
+        response: {status: 503, code: server.error, retryable: true}
+        handler_ran: false
+        cookies: "None set and none cleared"
+        answered_after: "The lock limit"
+        audit: {action: auth.login.failure, reason: session_lookup_failed, read_by: "The request's correlation id"}
+        transaction_effects: "The session's expires_at is unchanged"
+        subsequent: ["After the lock is released the session authenticates"]
+
+    - id: AC-84
+      description: >
+        A lock released before the limit lets verification finish normally,
+        and the idle window is extended.
+      priority: high
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session whose row is held by a second connection"
+        operation: "GET /auth/me with the session cookie; the lock is released about one second after the request starts waiting"
+      expected_output:
+        response: {status: 200}
+        handler_ran: true
+        cookies: "None changed"
+        transaction_effects: "The session's expires_at moves later"
+        audit: "Not asserted"
+
+    - id: AC-85
+      description: >
+        A session revoked while verification waits for its row is refused.
+        The request does not authenticate from the read it made before
+        waiting.
+      priority: critical
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session; a second connection revokes it and holds the row uncommitted"
+        operation: "GET /auth/me with the session cookie; the revocation commits while the request waits"
+      expected_output:
+        response: {status: 401}
+        handler_ran: false
+        audit: {action: auth.login.failure, reason: session_revoked, read_by: "The request's correlation id"}
+        transaction_effects: "The idle window is not extended"
+        cookies: "Not asserted"
+
+    - id: AC-86
+      description: >
+        Logout under a real session-row lock reaches its own bounded outcome
+        instead of waiting in the binder.
+      priority: critical
+      references_constraints: [C-41, C-43, C-44]
+      inputs:
+        initial_state: "A signed-in user; a second connection holds FOR UPDATE on the user's session rows"
+        operation: "POST /auth/logout with both cookies and a valid CSRF pair"
+      expected_output:
+        response: {status: 500, code: auth.logout_incomplete}
+        cookies: "Both credential cookies cleared"
+        answered_after: "One lock limit, in the revocation; the binder did not wait"
+        message_must_not_state: "The account lock was not acquired"
+        transaction_effects: "No credential row changes"
+        audit: "No auth.logout event (nothing was revoked); not asserted"
+
+    - id: AC-87
+      description: >
+        An earlier caller deadline ends verification before the lock limit,
+        and a credential request has one time budget across the binder and
+        the handler, not one per layer.
+      priority: critical
+      references_constraints: [C-43, C-44]
+      inputs:
+        variants:
+          - name: "Earlier caller deadline"
+            setup: "VerifySession with a 1 s deadline while the session row is held"
+          - name: "One budget"
+            setup: "POST /auth/login carrying a session cookie whose row is held for 2 s, so the binder spends 2 s before the handler runs"
+      expected_output:
+        per_variant:
+          Earlier caller deadline:
+            returns: "An error that reports no session state, before the lock limit"
+          One budget:
+            response: {status: 200}
+            cookies: "The login's session cookie set"
+            login_transaction_deadline: "At most OperationDeadline from the request's start"
+        audit: "Not asserted"
+
+    - id: AC-88
+      description: >
+        A background request neither slides the idle window nor waits on a
+        locked session row.
+      priority: high
+      references_constraints: [C-44]
+      inputs:
+        initial_state: "A live session whose row is held by a second connection"
+        operation: "GET /auth/me with the session cookie and X-Background-Refresh: 1"
+      expected_output:
+        response: {status: 200}
+        handler_ran: true
+        answered_within: "One second"
+        transaction_effects: "The session's expires_at is unchanged"
+        cookies: "None changed"
+        audit: "Not asserted"
+
+    - id: AC-89
+      description: >
+        The users service's account transactions carry the operation
+        deadline without a caller supplying one, and an unknown commit on an
+        administrative mutation reaches the administrator as an unknown
+        outcome, whether or not the change was durable.
+      priority: critical
+      references_constraints: [C-37, C-43]
+      inputs:
+        variants:
+          - name: "Default deadline"
+            setup: "Service Disable with context.Background, through a transaction source that records the deadline"
+          - name: "Unknown commit, durable"
+            setup: "POST /users/{id}:disable; the commit applies, then its acknowledgement is lost"
+          - name: "Unknown commit, non-durable"
+            setup: "POST /users/{id}:disable; the commit does not apply and its outcome is unknown"
+      expected_output:
+        per_variant:
+          Default deadline:
+            deadline: "Present, at most OperationDeadline from the call"
+          Unknown commit, durable:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "The change may or may not have been applied"
+            transaction_effects: "The account is disabled"
+          Unknown commit, non-durable:
+            response: {status: 503, code: server.error, retryable: false}
+            message_states: "The change may or may not have been applied"
+            transaction_effects: "The account is not disabled"
+        cookies: "None set"
+        audit: "No admin.user.disabled row for the request's correlation id, read after a settle period"
