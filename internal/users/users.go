@@ -513,22 +513,61 @@ func (s *Service) Disable(ctx context.Context, id uuid.UUID) error {
 	return s.mutateAccountState(ctx, id, stmt)
 }
 
-// Enable clears the disabled flag. The user can authenticate again with a
-// fresh login; sessions revoked while disabled stay dead. ErrUserNotFound for
+// Enable clears the disabled flag. A real disabled-to-enabled transition
+// revokes every interactive credential the user holds, so the user signs in
+// again: nothing that existed while the account was disabled, including a
+// credential no revocation ever reached, authenticates afterwards. Enable on
+// an account that is not disabled is a no-op that revokes nothing and signs
+// nobody out. Service-account tokens are never touched. ErrUserNotFound for
 // unknown or soft-deleted users.
 //
-// Spec api-users (disable/enable).
-func (s *Service) Enable(ctx context.Context, id uuid.UUID) error {
-	const stmt = `UPDATE users SET disabled_at = NULL, updated_at = now()
-	              WHERE id = $1 AND deleted_at IS NULL`
-	tag, err := s.pool.Exec(ctx, stmt, id)
+// transitioned reports what the locked transaction did: true only when it
+// changed disabled_at from set to null and committed the revocation. The
+// caller records it on the audit event; it must not infer it from a later
+// read, which another enable or disable could already have changed.
+//
+// Spec api-users C-07, C-08; system-auth-identity C-34, C-36.
+func (s *Service) Enable(ctx context.Context, id uuid.UUID) (transitioned bool, err error) {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("users: enable: %w", err)
+		return false, fmt.Errorf("users: begin: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrUserNotFound
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := identity.LockUser(ctx, tx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrUserNotFound
+		}
+		return false, fmt.Errorf("users: lock: %w", err)
 	}
-	return nil
+	// Read under the lock. The state decides whether this call is a
+	// transition, and "already enabled" must stay distinguishable from
+	// "no such user", which a conditional UPDATE alone cannot do.
+	var disabled, deleted bool
+	if err := tx.QueryRow(ctx,
+		`SELECT disabled_at IS NOT NULL, deleted_at IS NOT NULL FROM users WHERE id = $1`,
+		id).Scan(&disabled, &deleted); err != nil {
+		return false, fmt.Errorf("users: enable: read state: %w", err)
+	}
+	if deleted {
+		return false, ErrUserNotFound
+	}
+	if !disabled {
+		return false, nil
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET disabled_at = NULL, updated_at = now() WHERE id = $1`, id); err != nil {
+		return false, fmt.Errorf("users: enable: %w", err)
+	}
+	// The transition and the revocation commit together, so the account
+	// is never enabled with a stale credential still live.
+	if err := identity.RevokeUserCredentials(ctx, tx, id); err != nil {
+		return false, fmt.Errorf("users: revoke credentials on enable: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("users: commit: %w", err)
+	}
+	return true, nil
 }
 
 // AssignRole inserts a user_roles row. Role must exist; FK enforcement

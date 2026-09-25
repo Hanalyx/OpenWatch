@@ -10,14 +10,19 @@
 //	AC-17  TestAPI_AdminDisableEnable (enable half)
 //	AC-18  TestAPI_AdminDisableEnable (self-disable guard)
 //	AC-19  TestAPI_AdminUserMgmt_NotFoundAndRBAC
+//	AC-20  TestAPI_AdminEnable_AuditRecordsTheTransition
 package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/identity"
@@ -174,11 +179,27 @@ func TestAPI_AdminDisableEnable(t *testing.T) {
 	})
 
 	t.Run("api-users/AC-17", func(t *testing.T) {
+		// Credentials that exist while the account is disabled and that no
+		// revocation reached. Without these the criterion passes whether or
+		// not enable revokes anything, because disable already revoked the
+		// login's own session.
+		stray := writeStrayCredentials(t, pool, target.ID)
+
 		// enable -> clears disabled_at; the user can authenticate again
 		er := doReq(t, asRole(t, "POST", url+"/api/v1/users/"+target.ID.String()+":enable", auth.RoleAdmin, nil))
 		er.Body.Close()
 		if er.StatusCode != http.StatusOK {
 			t.Fatalf("enable = %d, want 200", er.StatusCode)
+		}
+		// ... but only through a fresh sign-in (C-07, 1.4.0).
+		if code := authMe(t, url, stray.sessionCookie); code != http.StatusUnauthorized {
+			t.Errorf("pre-enable session cookie after enable = %d, want 401", code)
+		}
+		if code := authMeBearer(t, url, stray.accessToken); code != http.StatusUnauthorized {
+			t.Errorf("pre-enable access token after enable = %d, want 401", code)
+		}
+		if code, _ := refreshBody(t, url, stray.bodyRefresh); code == http.StatusOK {
+			t.Error("pre-enable refresh token rotated after enable")
 		}
 		reLogin := login(t, url, map[string]string{"username": target.Username, "password": target.Password})
 		reLogin.Body.Close()
@@ -227,6 +248,100 @@ func TestAPI_AdminUserMgmt_NotFoundAndRBAC(t *testing.T) {
 			if r.StatusCode != http.StatusForbidden {
 				t.Errorf("%s as security_admin = %d, want 403 (lacks admin:user_manage)", action, r.StatusCode)
 			}
+		}
+	})
+}
+
+// auditDetailFor returns the detail of the ONE row with this action that
+// the request carrying this correlation id produced. It waits, bounded,
+// because the audit writer batches, and fails rather than fall back to
+// another request's row.
+func auditDetailFor(t *testing.T, pool *pgxpool.Pool, action, correlationID string) map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		rows, err := pool.Query(context.Background(),
+			`SELECT COALESCE(detail::text, '{}') FROM audit_events WHERE action = $1 AND correlation_id = $2`,
+			action, correlationID)
+		if err != nil {
+			t.Fatalf("read audit: %v", err)
+		}
+		var details []string
+		for rows.Next() {
+			var d string
+			if err := rows.Scan(&d); err != nil {
+				t.Fatalf("scan audit: %v", err)
+			}
+			details = append(details, d)
+		}
+		rows.Close()
+		if len(details) > 1 {
+			t.Fatalf("request %s recorded %d %s rows, want 1", correlationID, len(details), action)
+		}
+		if len(details) == 1 {
+			var m map[string]any
+			if err := json.Unmarshal([]byte(details[0]), &m); err != nil {
+				t.Fatalf("decode detail: %v", err)
+			}
+			return m
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("request %s recorded no %s within 10s", correlationID, action)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// @ac AC-20
+// AC-20: admin.user.enabled records whether the request changed the
+// account, read from the request's own audit row.
+func TestAPI_AdminEnable_AuditRecordsTheTransition(t *testing.T) {
+	t.Run("api-users/AC-20", func(t *testing.T) {
+		url, pool := freshAPIServer(t)
+		ctx := context.Background()
+		svc := users.NewService(pool, nil)
+		for _, tc := range []struct {
+			name       string
+			disable    bool
+			transition bool
+			scope      string
+		}{
+			{"transition", true, true, "interactive"},
+			{"already enabled", false, false, "none"},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				li := loginFresh(t, url, pool, "ac20"+strings.ReplaceAll(tc.name, " ", ""))
+				if tc.disable {
+					if err := svc.Disable(ctx, li.u.ID); err != nil {
+						t.Fatalf("disable: %v", err)
+					}
+				}
+				req := asRole(t, "POST", url+"/api/v1/users/"+li.u.ID.String()+":enable", auth.RoleAdmin, nil)
+				cid := "ac20-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				req.Header.Set("X-Correlation-Id", cid)
+				resp := doReq(t, req)
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("enable = %d, want 200", resp.StatusCode)
+				}
+				for _, c := range resp.Cookies() {
+					if c.Name == identity.SessionCookieName || c.Name == identity.RefreshCookieName {
+						t.Errorf("enable set a credential cookie %q", c.Name)
+					}
+				}
+				d := auditDetailFor(t, pool, "admin.user.enabled", cid)
+				if d["transition"] != tc.transition || d["revocation_scope"] != tc.scope {
+					t.Errorf("audit detail = transition %v, revocation_scope %v; want %v, %q",
+						d["transition"], d["revocation_scope"], tc.transition, tc.scope)
+				}
+				if d["target_user_id"] != li.u.ID.String() {
+					t.Errorf("audit target_user_id = %v, want %s", d["target_user_id"], li.u.ID)
+				}
+				if !tc.disable && authMe(t, url, li.sessionCookie) != http.StatusOK {
+					t.Error("a no-op enable signed the user out")
+				}
+			})
 		}
 	})
 }

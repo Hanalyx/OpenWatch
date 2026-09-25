@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 1
 
@@ -201,6 +201,9 @@ spec:
         a transaction and MUST NOT own, commit, or roll back one, so a caller
         cannot be left with a partially committed issuance. Nothing may be
         reported to the client as issued before the transaction commits.
+        The account-state mutations are on the same protocol, Enable
+        included: it reads the account state under the lock to decide
+        whether the call is a transition at all.
       type: technical
       enforcement: error
     - id: C-35
@@ -220,6 +223,12 @@ spec:
         refresh family for one user and is what Disable, AdminResetPassword
         and SoftDelete MUST perform; revoking only sessions leaves the refresh
         family live and a disabled account can mint a working session from it.
+        Enable MUST perform the same revocation when, and only when, it
+        changes disabled_at from set to null, in the same transaction as that
+        change: re-enabling requires a fresh sign-in, so no credential that
+        existed while the account was disabled authenticates afterwards,
+        including one no earlier revocation reached. Enable on an account
+        that is not disabled changes nothing and revokes nothing.
         Service-account tokens are NOT interactive credentials and MUST NOT be
         touched by interactive revocation. No text describing these operations
         may claim they end all of an account's credentials.
@@ -1556,3 +1565,111 @@ spec:
           - "A response or log asserting nothing was revoked"
           - "retryable true"
           - "A second revocation attempt"
+    - id: AC-70
+      description: >
+        Re-enabling a disabled account revokes every interactive credential the
+        user holds, atomically with the transition, and a fresh login
+        afterwards succeeds. This includes credentials that exist at enable
+        time without ever having been revoked, which is the state an older
+        release or a leaked issuance path can leave behind. The transition is
+        serialized on the per-user lock.
+      priority: critical
+      references_constraints: [C-34, C-36]
+      inputs:
+        initial_state: >
+          A disabled user holding, at enable time, a live session row and its
+          cookie, a live refresh token, and an access token bound to that
+          session. The credentials are written directly for the disabled user,
+          bypassing the handlers, so the criterion measures what Enable does
+          with stray state rather than whether issuance is prevented.
+        operation: "Enable(user)"
+        variants:
+          - name: "Transition"
+            setup: "The enable commits"
+          - name: "Controlled failure"
+            setup: "A trigger fails the refresh-token revocation, so the enable transaction fails before commit"
+          - name: "Serialized"
+            setup: "A second connection holds the per-user lock when Enable starts"
+        method: >
+          Each variant calls the real Enable, then presents each credential to
+          the real cookie binder, the real Bearer binder, and both refresh
+          endpoints. A fresh login runs afterwards through the real login
+          handler. No elapsed-time dependence.
+      expected_output:
+        per_variant:
+          Transition:
+            returns: {transitioned: true, error: nil}
+            durable_changes:
+              - "disabled_at cleared"
+              - "Every interactive session and refresh token for the user revoked"
+            interactive_credentials_authenticating_afterward: 0
+            subsequent: ["A fresh login succeeds and its session authenticates"]
+          Controlled failure:
+            returns: {transitioned: false}
+            enable_returns_error: true
+            durable_changes: []
+            prohibited_changes:
+              - "disabled_at cleared without the revocation"
+              - "Credentials revoked without the account being enabled"
+          Serialized:
+            enable_waits_for_the_lock: true
+            completes_after_release: true
+        response_cookies_audit: >
+          Enable is a service call and sets no cookie. The HTTP response and
+          the admin.user.enabled audit detail are api-users AC-17 and AC-20.
+        prohibited_changes:
+          - "Any pre-enable session cookie, refresh token or session-bound access token authenticating"
+
+    - id: AC-71
+      description: >
+        Enable on an account that is not disabled is a no-op. It changes no
+        row, revokes nothing, and signs nobody out. An unknown or soft-deleted
+        user is reported as not found.
+      priority: critical
+      references_constraints: [C-34, C-36]
+      inputs:
+        initial_state: "An enabled user with a live session, a live refresh token and a working access token"
+        operation: "Enable(user)"
+        variants:
+          - "Already enabled"
+          - "Repeated: Enable twice in succession"
+          - "Unknown or soft-deleted user"
+      expected_output:
+        per_variant:
+          Already enabled:
+            returns: {transitioned: false, error: nil}
+            durable_changes: []
+            credentials_revoked: 0
+            subsequent: ["The pre-existing session, access token and refresh token still work"]
+          Repeated:
+            identical_to: "Already enabled"
+          Unknown or soft-deleted user:
+            returns: {transitioned: false, error: ErrUserNotFound}
+        response_cookies_audit: "A service call; the HTTP response and audit detail are api-users AC-19 and AC-20"
+        prohibited_changes:
+          - "Any credential revoked by an enable that changed no account state"
+          - "updated_at bumped by a no-op"
+
+    - id: AC-72
+      description: >
+        Service-account tokens are outside the enable policy. Enable never
+        revokes one and never restores one that was revoked.
+      priority: high
+      references_constraints: [C-36]
+      inputs:
+        initial_state: >
+          A disabled user owning two owk_ tokens created before the disable:
+          one otherwise valid, one permanently revoked
+        operation: "Enable(user)"
+        scope: >
+          Asserts the separation only. Whether an owk_ token authenticates
+          while its owner is disabled is a separate, service-token policy
+          and is not asserted here.
+      expected_output:
+        durable_changes_to_api_tokens: []
+        response_cookies_audit: "A service call; nothing is set or emitted about service-account tokens"
+        per_token:
+          Otherwise valid:
+            revoked_by_enable: false
+          Permanently revoked:
+            authenticates_after_enable: false
