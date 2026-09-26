@@ -91,8 +91,12 @@ install -m 0755 "$APP_DIR/packaging/common/cleanup-backups.sh"         "$STAGE/u
 
 # Step 3: control + maintainer scripts.
 # Render control with the actual version and target arch inserted.
+# Provides carries the linked Kensa engine for kensa-rules to depend on
+# (spec release-upgrade C-06; see packaging/common/kensa-version.sh).
+KENSA_ENGINE_VERSION="$(bash "$APP_DIR/packaging/common/kensa-version.sh")"
 sed -e "s/^Version: .*/Version: ${DEB_VERSION}/" \
     -e "s/^Architecture: .*/Architecture: ${ARCH}/" \
+    -e "s/^Provides: openwatch-kensa-engine (= .*)/Provides: openwatch-kensa-engine (= ${KENSA_ENGINE_VERSION})/" \
     "$APP_DIR/packaging/deb/control" > "$STAGE/DEBIAN/control"
 
 install -m 0644 "$APP_DIR/packaging/deb/conffiles" "$STAGE/DEBIAN/conffiles"

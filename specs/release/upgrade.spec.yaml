@@ -1,7 +1,7 @@
 spec:
   id: release-upgrade
   title: One-command package upgrade with auto-migrate + backup
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -61,6 +61,28 @@ spec:
       description: The backup-cleanup MUST always keep the most recent dump regardless of age, pruning only older dumps past the retention window.
       type: technical
       enforcement: error
+    - id: C-06
+      description: >
+        v1.1.0 - a Kensa rule corpus MUST NOT replace the working corpus
+        beside an openwatch whose Kensa engine is older than the corpus, on
+        any ordinary install path: dnf, rpm -U, apt, or dpkg -i. The openwatch
+        RPM and DEB declare the engine they link as openwatch-kensa-engine at
+        the linked module version, and the kensa-rules RPM and DEB require
+        openwatch-kensa-engine at least their own version; both values come
+        from packaging/common/kensa-version.sh. Because Debian unpacks a
+        package with an unmet Depends before failing, the kensa-rules DEB also
+        carries a preinst that refuses before any file is replaced. The
+        requirement is the compatibility boundary tested today, not a promise
+        about future engines: measured, a v0.9.0 engine fails the whole
+        v0.10.0 corpus load and the service starts with every scan failing
+        (CP bugs/OW-081), while the v0.10.0 engine loads the 0.9.0 corpus, so
+        an openwatch-only upgrade stays allowed. Packages built before this
+        constraint (v0.8.0-rc.5 and earlier) provide no engine and so cannot
+        satisfy a corpus that requires one. A refusal changes nothing;
+        rolling back means both packages in one transaction. Explicit
+        overrides (rpm --nodeps, dpkg --force-*) are not covered.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -91,3 +113,43 @@ spec:
       description: The package payloads contain /usr/lib/openwatch/openwatch-upgrade.sh, /usr/lib/openwatch/cleanup-backups.sh, the two systemd units, and the empty /var/lib/openwatch/backups directory; /etc/openwatch/upgrade.conf ships as a noreplace config file.
       priority: high
       references_constraints: [C-03]
+    - id: AC-08
+      description: >
+        v1.1.0 - the built packages carry the pairing: the openwatch RPM
+        provides openwatch-kensa-engine = V and the openwatch DEB lists
+        Provides openwatch-kensa-engine (= V), where V is the Kensa module
+        version in go.mod; the kensa-rules RPM is version V and requires
+        openwatch-kensa-engine >= V, and the kensa-rules DEB depends on
+        openwatch-kensa-engine (>= V). Checked against built artifacts, not
+        against the spec files.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: >
+        v1.1.0 - the package managers' own resolvers refuse a corpus beside an
+        older engine and accept every pairing that works. With an openwatch
+        that provides no engine installed (a fixture at v0.7.1, the previous
+        GA), they refuse kensa-rules alone and name openwatch-kensa-engine; they
+        accept an openwatch-only upgrade, the coordinated upgrade of both
+        packages, and a fresh install of the new pair; and with the new pair
+        installed they refuse a downgrade of openwatch to that release.
+        Versions order 1:0.8.0~rc.5 < 1:0.8.0~rc.6 < 1:0.8.0~rc.10 < 1:0.8.0 and
+        0.9.0 < 0.10.0. Verified for RPM with rpm --test against a scratch
+        rpmdb and for DEB with apt-get -s against a fixture dpkg status, using
+        the packages this tree builds; package-smoke also runs the same
+        scenarios in real containers against the published v0.7.1 packages.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: >
+        v1.1.0 - the kensa-rules DEB carries a preinst, taken from the built
+        package and run against a stub dpkg-query, that refuses an install or
+        upgrade while openwatch is installed or half-installed and provides no
+        engine or an engine older than the corpus, and allows it when
+        openwatch is absent, removed with its configuration left, or provides
+        an engine at least as new. A refusal names the corpus version, says
+        nothing was changed, and says how to proceed. In package-smoke's
+        container run, a bare dpkg -i of the corpus beside an older openwatch
+        leaves every corpus file byte-identical.
+      priority: critical
+      references_constraints: [C-06]

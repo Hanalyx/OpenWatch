@@ -30,8 +30,7 @@ KMOD="github.com/Hanalyx/kensa"
 go mod download "$KMOD"
 
 KDIR="$(go list -m -f '{{.Dir}}' "$KMOD")"
-KVER="$(go list -m -f '{{.Version}}' "$KMOD")"
-KVER="${KVER#v}" # strip leading v: v0.4.3 -> 0.4.3
+KVER="$(bash "$SCRIPT_DIR/kensa-version.sh")" # v0.4.3 -> 0.4.3
 
 SRC="$KDIR/rules"
 if [ ! -d "$SRC" ]; then

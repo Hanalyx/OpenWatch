@@ -4,6 +4,7 @@ Section: admin
 Priority: optional
 Architecture: amd64
 Depends: libc6 (>= 2.31), postgresql-client, kensa-rules, openssl
+Provides: openwatch-kensa-engine (= 0.0.0)
 Maintainer: OpenWatch Build <build@hanalyx.com>
 Homepage: https://github.com/Hanalyx/openwatch
 Description: OpenWatch Compliance Platform (Go binary)

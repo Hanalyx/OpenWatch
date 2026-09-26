@@ -7,8 +7,9 @@ import { Btn, Callout } from '@/components/settings/primitives';
 // ─────────────────────────────────────────────────────────────────────────
 // Scan variables — operator overrides for the kensa rule-template
 // variables (GET/PUT /system/scan/variables). Only corpus-used
-// variables are listed; the three organization-specific placeholder
-// defaults carry a "Configure me" chip. Section-local save: the PUT
+// variables are listed; a variable the operator has to decide (a
+// placeholder default, or no built-in value) carries a "Configure me"
+// chip. Section-local save: the PUT
 // replaces the full override map (values equal to the default are
 // dropped server-side). The scan path picks the change up on the
 // next scan. Lives on Settings > Compliance policies: the values
@@ -109,7 +110,7 @@ export function ScanVariablesCard() {
       <p style={{ margin: '0 0 10px', color: 'var(--ow-fg-2)', fontSize: 12, lineHeight: 1.5 }}>
         Values are substituted into rule templates at scan time. Defaults are STIG-strict.
         {configureMeCount > 0 &&
-          ` ${configureMeCount} placeholder ${configureMeCount === 1 ? 'value needs' : 'values need'} your organization's settings.`}
+          ` ${configureMeCount} ${configureMeCount === 1 ? 'value needs' : 'values need'} your organization's settings.`}
       </p>
 
       {vars.map((v, i) => {

@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -34,8 +34,8 @@ spec:
            already running"). NO Export button (deferred; no dead
            controls).
         2. lens bar: "View as" label + an "All rules" chip plus one chip
-           per frameworks[] entry. Chips carry a friendly label derived
-           from framework_id (cis_rhel9 -> "CIS RHEL 9"), the mapped
+           per frameworks[] entry. Chips carry the label the API sends
+           for each entry (Kensa's, e.g. "CIS (RHEL 9)"), the mapped
            rule count, and the per-lens score_pct pill; the All rules
            chip carries the overall aggregate score. The active chip
            reflects the current ?framework=; clicks drive
@@ -134,7 +134,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: "Behavior: the lens bar renders an 'All rules' chip plus one chip per frameworks[] entry; each framework chip carries the friendly label derived from framework_id (frameworkLabel: cis_rhel9 -> 'CIS RHEL 9'), the mapped rule count, and the per-lens score_pct; the All rules chip carries the overall aggregate score from the frameworks response. The chip matching the framework prop carries the active state (aria-pressed); clicking a framework chip calls onFrameworkChange(framework_id) and clicking 'All rules' calls onFrameworkChange(undefined). Source inspection: the lens queryKey embeds framework ?? null so the cache key changes with the lens"
+      description: "Behavior: the lens bar renders an 'All rules' chip plus one chip per frameworks[] entry; each framework chip carries the label the API sent (v1.7.0: Kensa's, e.g. 'CIS (RHEL 9)'), the mapped rule count, and the per-lens score_pct; the All rules chip carries the overall aggregate score from the frameworks response. The chip matching the framework prop carries the active state (aria-pressed); clicking a framework chip calls onFrameworkChange(framework_id) and clicking 'All rules' calls onFrameworkChange(undefined). Source inspection: the lens queryKey embeds framework ?? null so the cache key changes with the lens"
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-03
@@ -222,3 +222,14 @@ spec:
         forbidden_copy_occurrences: 0
         counts_preserved: true
         counts_asserted: [passing, failing, skipped, error]
+    - id: AC-12
+      description: >-
+        v1.7.0 (D-2 S-7) - the tab names a framework only with the label the
+        API sent for it (system-compliance-lens C-08) and derives none: chips
+        show each entry's label, and the Result mix heading and the Scan
+        panel name the active lens with that same label. With labels no
+        id-based transform could produce ("NIST SP 800-171 Rev 2", "CMMC Level
+        2"), the chips and panels show them verbatim, and an id the API did
+        not label is shown as it is.
+      priority: high
+      references_constraints: [C-01]

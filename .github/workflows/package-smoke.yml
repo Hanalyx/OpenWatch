@@ -212,6 +212,54 @@ jobs:
           bash packaging/tests/run-upgrade-from-ga-test.sh \
             "${{ matrix.distro }}" "${{ matrix.kind }}" v0.6.0
 
+  # The package manager enforces the engine/corpus pairing (spec
+  # release-upgrade C-06). AC-09 is verified in Go CI against the resolvers;
+  # this runs the same scenarios in real containers, scriptlets included. A Kensa engine older than its corpus
+  # cannot load it and the service starts anyway with every scan failing, so
+  # a rules-only upgrade beside an older openwatch must be refused while the
+  # coordinated upgrade, an openwatch-only upgrade and a fresh install
+  # succeed. The previous GA predates the engine provide, which is the state
+  # the refusal has to hold against.
+  kensa-rules-compat:
+    name: kensa-rules compat ${{ matrix.distro }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: 'rockylinux:9', kind: rpm }
+          - { distro: 'ubuntu:24.04', kind: deb }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+      - name: fetch the previous GA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p old new
+          if [ "${{ matrix.kind }}" = rpm ]; then
+            gh release download v0.7.1 -D old -p 'openwatch-*.x86_64.rpm' -p 'kensa-rules-*.noarch.rpm'
+            cp dist/openwatch-*.x86_64.rpm dist/kensa-rules-*.noarch.rpm new/
+          else
+            gh release download v0.7.1 -D old -p 'openwatch_*_amd64.deb' -p 'kensa-rules_*_all.deb'
+            cp dist/openwatch_*_amd64.deb dist/kensa-rules_*_all.deb new/
+          fi
+          ls old new
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.6'
+      - name: engine and corpus pairing is enforced
+        env:
+          OPENWATCH_KENSA_COMPAT_IMAGE: ${{ matrix.distro }}
+          OPENWATCH_KENSA_COMPAT_KIND: ${{ matrix.kind }}
+        run: |
+          OPENWATCH_KENSA_COMPAT_OLD_DIR="$PWD/old" OPENWATCH_KENSA_COMPAT_NEW_DIR="$PWD/new" \
+            go test -count=1 -v -run 'TestUpgrade_EngineCorpusPairingInContainers' ./packaging/tests/
+
   upgrade:
     name: Package upgrade (rpm -U auto-migrate)
     runs-on: ubuntu-latest

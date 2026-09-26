@@ -10,6 +10,58 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Kensa 0.10.0.** The rule corpus grows from 769 to 779 rules and gains two
+  framework keys, `nist_800_171` (NIST SP 800-171 Rev 2, cited at objective
+  level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules.
+
+  **Framework names now come from Kensa everywhere.** The lens chips, the
+  rule library and scan detail, the report picker and every new report's
+  scope label (cover, OSCAL title, file name) use one vocabulary. NIST
+  800-53, "NIST SP 800-171 Rev 2" and "CMMC Level 2" are distinct wherever
+  they appear; reports used to call both NIST frameworks "NIST" and CMMC
+  "CMMC". Some familiar names change: "CIS RHEL 9" is now "CIS (RHEL 9)" and
+  "PCI DSS 4" is "PCI DSS 4.0". Ubuntu benchmarks read "CIS (ubuntu22)" until
+  Kensa formats Ubuntu versions (CP `features/KN-OW-023`). Reports generated before the upgrade keep the
+  names they were generated with, and signed report content, which carries
+  the exact framework key, is unchanged.
+
+  **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
+  cannot load the 0.10.0 corpus: the service starts and every scan fails.
+  `openwatch` now declares the Kensa engine it links, and `kensa-rules`
+  requires an engine at least as new as itself. A rules-only upgrade onto an
+  older `openwatch` is refused with nothing changed, by `dnf`, `rpm -U`, `apt`
+  and a bare `dpkg -i`; both packages in one transaction are accepted. Rolling
+  `openwatch` back now means rolling `kensa-rules` back in the same command;
+  the upgrade runbook shows how (CP `bugs/OW-081`).
+
+  **Verdicts change on existing hosts, so scores can move after the first scan
+  on this release.** The change comes from the rules, not the hosts:
+
+  - `no-unauthorized-accounts` passed every host without comparing anything.
+    It now reports skipped until `authorized_local_accounts` is declared.
+  - `shell-timeout` fails RHEL hosts set between 601 and 900 seconds and
+    requires `TMOUT` to be readonly on RHEL. It absorbs `shell-timeout-600`
+    and `shell-idle-timeout-tmout`, whose old verdicts leave the current score
+    after each host's next completed scan.
+  - Rules that passed without checking now report a real verdict:
+    `security-updates-installed`, `nftables-default-deny`,
+    `journald-to-rsyslog`, `selinux-user-mapping` and
+    `firewalld-loopback-source`.
+  - Eight audit and session rules, and `no-unauthorized-accounts`, now run on
+    RHEL 8 instead of reporting not applicable.
+
+  Eight new scan variables ship with no default, and seven rules report
+  skipped until theirs is declared. Settings marks them "Configure me",
+  alongside the three placeholder defaults it already marked, and the
+  scanning guide lists them under "Scan variables". Values are not type
+  checked when saved (CP `bugs/OW-080`).
+
+  The remediation "NIST" projected lift counts NIST SP 800-53 rules only.
+  Matching every `nist` key would have folded in the new 800-171 mapping,
+  quoting a NIST gain for 19 rules that are not in 800-53.
+
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
 `v0.8.0-rc.4` built, passed every machine gate, and its assets were
