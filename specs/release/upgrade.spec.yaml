@@ -121,13 +121,17 @@ spec:
       references_constraints: [C-06]
     - id: AC-09
       description: >
-        v1.1.0 - in a container, with a release that predates the engine
-        provide installed, the package manager refuses kensa-rules alone and
-        leaves the installed corpus unchanged (dnf, rpm -U and apt); an
-        openwatch-only upgrade succeeds; the coordinated upgrade of both
-        packages succeeds; a fresh install of the new pair succeeds; the new
-        corpus refuses a downgrade of openwatch to that release; and versions
-        order 1:0.8.0~rc.5 < 1:0.8.0~rc.6 < 1:0.8.0~rc.10 < 1:0.8.0 and 0.9.0 <
-        0.10.0 in both formats. Runs on RPM and DEB.
+        v1.1.0 - the package managers' own resolvers refuse a corpus beside an
+        older engine and accept every pairing that works. With an openwatch
+        that provides no engine installed (a fixture at v0.7.1, the previous
+        GA), they refuse kensa-rules alone and name openwatch-kensa-engine; they
+        accept an openwatch-only upgrade, the coordinated upgrade of both
+        packages, and a fresh install of the new pair; and with the new pair
+        installed they refuse a downgrade of openwatch to that release.
+        Versions order 1:0.8.0~rc.5 < 1:0.8.0~rc.6 < 1:0.8.0~rc.10 < 1:0.8.0 and
+        0.9.0 < 0.10.0. Verified for RPM with rpm --test against a scratch
+        rpmdb and for DEB with apt-get -s against a fixture dpkg status, using
+        the packages this tree builds; package-smoke also runs the same
+        scenarios in real containers against the published v0.7.1 packages.
       priority: critical
       references_constraints: [C-06]
