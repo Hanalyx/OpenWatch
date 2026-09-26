@@ -17,9 +17,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules,
   and the lens picker labels them "NIST 800-171" and "CMMC Level 2".
 
-  **Install `openwatch` and `kensa-rules` in one transaction.** An earlier
-  `openwatch` cannot load the 0.10.0 corpus: the service starts and every scan
-  fails. The packages do not yet forbid that pairing (CP `bugs/OW-081`).
+  **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
+  cannot load the 0.10.0 corpus: the service starts and every scan fails.
+  `openwatch` now declares the Kensa engine it links, and `kensa-rules`
+  requires an engine at least as new as itself, so `dnf` and `apt` refuse a
+  rules-only upgrade onto an older `openwatch` and accept both packages in one
+  transaction. A bare `dpkg -i` of the rules package still replaces the files
+  while reporting the error (CP `bugs/OW-081`).
 
   **Verdicts change on existing hosts, so scores can move after the first scan
   on this release.** The change comes from the rules, not the hosts:

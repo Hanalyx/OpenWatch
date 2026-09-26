@@ -62,6 +62,7 @@ Version: ${KVER}
 Section: admin
 Priority: optional
 Architecture: all
+Depends: openwatch-kensa-engine (>= ${KVER})
 Maintainer: OpenWatch Build <build@hanalyx.com>
 Homepage: https://github.com/Hanalyx/kensa
 Description: Kensa compliance rule corpus (native YAML rules)

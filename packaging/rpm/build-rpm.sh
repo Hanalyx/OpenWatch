@@ -92,6 +92,7 @@ rpmbuild \
     --define "_topdir $RPMTOP" \
     --define "ow_version ${RPM_VERSION}" \
     --define "ow_release ${RPM_RELEASE}" \
+    --define "kensa_engine_version $(bash "$APP_DIR/packaging/common/kensa-version.sh")" \
     --target "${RPM_ARCH}" \
     -bb "$APP_DIR/packaging/rpm/openwatch.spec" >/dev/null
 

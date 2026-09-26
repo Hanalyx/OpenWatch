@@ -42,6 +42,16 @@ Requires:       postgresql-server
 # rather than the service booting and every scan failing. Unversioned so the
 # corpus can advance on its own line; tighten to a floor when OTA lands.
 Requires:       kensa-rules
+# The Kensa engine this binary links, for kensa-rules to require. An engine
+# older than the corpus cannot load it: Kensa v0.9.0 fails the whole v0.10.0
+# load, the service still starts, and every scan fails. kensa-rules requires
+# openwatch-kensa-engine >= its own version, so a rules-only upgrade beside an
+# older openwatch is refused. Injected by build-rpm.sh from
+# packaging/common/kensa-version.sh. The 0.0.0 default satisfies no corpus,
+# so a build that forgets the define fails at install rather than shipping an
+# unguarded pair. Spec release-upgrade C-06.
+%{!?kensa_engine_version: %global kensa_engine_version 0.0.0}
+Provides:       openwatch-kensa-engine = %{kensa_engine_version}
 # openssl: the %post scriptlet generates the JWT signing key and credential
 # DEK at install time (the server refuses to auto-generate them in production).
 Requires:       openssl

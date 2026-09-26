@@ -365,6 +365,16 @@ field. The rules are the separate `kensa-rules` package, installed at
 `openwatch` package depends on `kensa-rules` but does not pin its version, so
 upgrading one does not upgrade the other.
 
+A corpus needs an engine at least as new as itself. An older engine cannot
+load a newer corpus: the service starts and every scan fails. So the
+`kensa-rules` package requires the engine version the `openwatch` package
+provides, and `dnf` and `apt` refuse a rules-only upgrade that would pair a
+corpus with an older engine. When that happens, upgrade `openwatch` in the
+same transaction. A newer engine loads an older corpus, so upgrading
+`openwatch` alone is allowed. Do not bypass the check with `rpm --nodeps` or
+a bare `dpkg -i` of the rules package; `dpkg -i` replaces the rules on disk
+even though it reports the dependency error.
+
 To update the rules, upgrade the package and restart the service so it loads
 the new corpus:
 
