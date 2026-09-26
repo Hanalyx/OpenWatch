@@ -10,31 +10,111 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
+### Upgrade notes
 
-- **Logout failure messages no longer send users to a Settings feature that
-  does not exist.** When logout could not revoke a session, or could not
-  confirm that it did, the message told the user to check or revoke their
-  sessions in Settings. Settings shows only the current session and cannot
-  list or end others. Each message now says the session may remain valid
-  until it expires and names the remedy that works: an administrator can
-  end it by resetting the user's password.
+- **Upgrading signs everyone out.** Migration 0065 revokes every live session
+  and refresh token. Access tokens issued before it carry no session binding
+  and are refused afterwards. Every user signs in again. API tokens (`owk_`)
+  are not affected. Plan the upgrade window for it.
+- **API clients that log out with cookies must send the CSRF token.**
+  `POST /api/v1/auth/logout` now requires the double-submit check whenever a
+  session or refresh cookie selects what to revoke. A missing or mismatched
+  token answers 403 `authz.csrf_invalid` and changes nothing. A client that
+  holds a refresh cookie but no XSRF cookie, for example after a browser
+  restart, cannot complete that request.
+- **An export with an unknown query parameter is refused.**
+  `GET /api/v1/audit/events/export` answers 400 `request.unknown_parameter`
+  naming the parameter, where it used to ignore it and export the whole trail.
+  The list endpoint is unchanged.
+- **API tokens with no owner stop working.** List and replace them before
+  upgrading; the query is under Security below. (#881)
 
 ### Security
 
+- **Disabling, deleting, or resetting the password of a user ends every
+  interactive credential they hold**: sessions, refresh tokens and access
+  tokens. Before this, a disabled user's refresh token could mint a working
+  session, and an access token outlived a password reset. (#875, #876)
+- **Access tokens are bound to the session that issued them.** Revoking the
+  session stops them at once, and logout ends the whole login family it
+  names. A token whose session belongs to a different user is refused. (#876)
+- **SSO refuses disabled and deleted accounts**, when it resolves the identity
+  and again when it issues the session. The sign-in page shows the generic
+  error; the audit record names the state (`sso_account_disabled`,
+  `sso_account_deleted`). (#877)
+- **Re-enabling an account signs it out.** A disabled-to-enabled change
+  revokes every interactive credential, so the user signs in fresh. Enabling
+  an account that is already enabled changes nothing. (#878)
 - **An API token stops working while the user who created it is disabled or
   deleted.** Previously a disabled user's `owk_` token kept authenticating
   with its full role, so disabling a departing administrator did not stop
   their automation. The token is refused at sign-in, and works again if the
   user is re-enabled; a token revoked through `DELETE /api/v1/tokens/{id}`
   stays revoked. The refusal is recorded on `auth.login.failure` as
-  `api_token_owner_disabled` or `api_token_owner_deleted`.
+  `api_token_owner_disabled` or `api_token_owner_deleted`. (#881)
 - **A token with no owner no longer authenticates.** A token whose
   `created_by` is empty, for example because its creator's user row was
   removed, is refused and recorded as `api_token_ownerless`. **Before
   upgrading, list any such tokens and replace them with tokens created by an
   active user:** `SELECT id, name, prefix FROM api_tokens WHERE created_by
-  IS NULL AND revoked_at IS NULL;`
+  IS NULL AND revoked_at IS NULL;` (#881)
+
+### Changed
+
+- **When an outcome cannot be confirmed, OpenWatch says so.** A sign-in,
+  refresh, logout or administrative change whose commit result is unknown
+  answers 503 `server.error`, not retryable, and claims neither success nor
+  failure. SSO shows `sso_error=unconfirmed`; reload before signing in again.
+  An administrative change reports that it may or may not have been applied;
+  check the account before repeating it. (#879)
+- **Credential operations are time-bounded.** A lock wait is limited to 5
+  seconds and an operation to 15, plus up to 2 seconds of cleanup. When a
+  limit is reached before anything changed, the request answers 503
+  `server.error`, retryable. A cookie request whose session row stays locked
+  gets the same answer instead of waiting without limit. A failed session or
+  role lookup answers 503 rather than signing the user out. (#879)
+- **Every error the service generates carries the JSON error envelope.** An
+  unmatched `/api/` path (404), an unsupported method (405), and a parameter
+  that fails to parse used to answer in plain text. A parameter message names
+  the parameter and no longer echoes the rejected value. (#871)
+- **The contract declares how every operation is authorized.** Each of the
+  159 operations in `api/openapi.yaml` carries exactly one of
+  `x-required-permission`, `x-requires-identity`, or an anonymous entry with
+  its reason. No operation was found open. (#873)
+- **The audit export accepts `correlation_id`**, the one list filter it
+  lacked. (#872)
+- **Audit vocabulary.** `admin.user.enabled` records `transition` and
+  `revocation_scope`. `auth.login.failure` declares its full reason set; new
+  reasons include `sid_absent`, `session_owner_mismatch`,
+  `session_absolute_expired`, `account_disabled`, `account_deleted`,
+  `role_lookup_unavailable`, `sso_account_disabled` and
+  `sso_account_deleted`. The legacy reasons `invalid_credentials`,
+  `account_locked`, `mfa_failed` and `sso_failed` are no longer recorded.
+
+### Fixed
+
+- **The API guide states what the API does today** for logout, anonymous
+  reads, token scope, pagination, environment overrides, the audit export and
+  plain-text errors. (#870)
+- **Logout failure messages no longer send users to a Settings feature that
+  does not exist.** When logout could not revoke a session, or could not
+  confirm that it did, the message told the user to check or revoke their
+  sessions in Settings. Settings shows only the current session and cannot
+  list or end others. Each message now says the session may remain valid
+  until it expires and names the remedy that works: an administrator can
+  end it by resetting the user's password. (#880)
+
+### Known limitations
+
+- **Changing your own password does not sign out your other sessions.** They
+  stay valid until their absolute limit, 12 hours by default. To end them, ask
+  an administrator to reset your password. (CP `bugs/OW-072`)
+- **Settings shows only the current session.** It cannot list or revoke other
+  sessions.
+- **A Bearer-only logout revokes nothing.** An access token presented alone
+  stays valid until it expires, 30 minutes after issue, and a refresh token
+  returned in the login body has no revoke route. (CP `bugs/OW-062`)
+
 
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
