@@ -251,16 +251,18 @@ WHERE revoked_at IS NULL
 
 ### Disable a compromised account
 
-There is no `is_active` flag; disabling an account means soft-deleting it. Prefer the API so the action is itself audited (`account.user.deleted`):
+Disable the account through the API. Disabling ends every interactive credential the user holds (sessions, refresh tokens and access tokens), is audited as `admin.user.disabled`, and can be reversed with `:enable`:
 
 ```bash
 # Authenticated as an admin; replace TOKEN and USER_ID
-curl -sk -X DELETE \
+curl -sk -X POST \
   -H "Authorization: Bearer TOKEN" \
-  https://localhost:8443/api/v1/users/USER_ID
+  https://localhost:8443/api/v1/users/USER_ID:disable
 ```
 
-If the API is unavailable, soft-delete directly. This also removes the account from the active-uniqueness indexes:
+Deleting the account (`DELETE /api/v1/users/USER_ID`, audited as `admin.user.deleted`) also ends its interactive credentials, but it removes the account from the active-uniqueness indexes and cannot be undone through the API. Prefer disable while the investigation is open.
+
+If the API is unavailable, soft-delete directly. The binders refuse a deleted account's interactive credentials on every request, but this path revokes no rows and writes no audit event:
 
 ```bash
 psql -U openwatch -d openwatch -c "
@@ -389,11 +391,11 @@ Expect `"status": "healthy"`.
 
 ```bash
 psql -U openwatch -d openwatch -c "
-SELECT count(*) AS live_sessions_for_deleted_users
+SELECT count(*) AS live_sessions_for_disabled_or_deleted_users
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.revoked_at IS NULL AND s.expires_at > now()
-  AND u.deleted_at IS NOT NULL;
+  AND (u.disabled_at IS NOT NULL OR u.deleted_at IS NOT NULL);
 "
 ```
 
