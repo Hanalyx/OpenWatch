@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # kensa-rules-compat-container-test.sh: runs INSIDE a disposable container.
 #
-# Proves the package manager enforces the engine/corpus pairing
-# (spec release-upgrade C-06, AC-09). An engine older than its corpus cannot
-# load it, and OpenWatch starts anyway with every scan failing, so:
+# Proves the package manager enforces the engine/corpus pairing on real
+# installs (spec release-upgrade C-06; the criteria run in Go CI, this runs
+# the same scenarios for real in package-smoke). An engine older than its
+# corpus cannot load it, and OpenWatch starts anyway with every scan
+# failing, so:
 #
 #   1. a rules-only upgrade beside an older openwatch is REFUSED, and the
 #      installed corpus is unchanged afterwards;
@@ -11,9 +13,19 @@
 #      engine loads an older corpus);
 #   3. the coordinated upgrade, both packages in one transaction, succeeds;
 #   4. a fresh install of the new pair succeeds;
-#   5. the new corpus refuses to stay beside a downgraded openwatch;
+#   5. the new corpus refuses a downgraded openwatch, and rolling both
+#      packages back together succeeds;
 #   6. release-candidate versions order correctly: rc.5 < rc.6 < rc.10 < GA,
-#      with the epoch both package formats carry.
+#      with the epoch both package formats carry;
+#   7. DEB only: a bare `dpkg -i` of the corpus is refused before it replaces
+#      any file (the preinst guard), `dpkg -i` of both succeeds with openwatch
+#      listed first, and with the corpus listed first it is refused leaving a
+#      compatible pair.
+#
+# "The corpus is unchanged" is checked by a digest of every file under
+# /usr/share/kensa/rules, not by the package version alone, because a failed
+# `dpkg -i` can leave the recorded version looking unchanged while the files
+# are already replaced.
 #
 # Usage: kensa-rules-compat-container-test.sh <rpm|deb> <old-dir> <new-dir>
 #   old-dir: an openwatch release that predates the engine provide, and its
@@ -61,6 +73,12 @@ txn() {
     return $rc
 }
 
+# Digest of every corpus file on disk.
+corpus_digest() {
+    find /usr/share/kensa/rules -type f -print0 2>/dev/null | sort -z |
+        xargs -0 sha256sum 2>/dev/null | sha256sum | cut -c1-16
+}
+
 # The files of one package kind in a directory.
 pkg() { # pkg <dir> <openwatch|kensa-rules>
     if [ "$KIND" = deb ]; then
@@ -91,14 +109,15 @@ reset_to_old() {
 echo "### 1. rules-only upgrade beside the older openwatch is refused"
 reset_to_old
 before_kr="$(installed kensa-rules)"
+before_digest="$(corpus_digest)"
 if txn "$NEW_KR"; then
     fail "the package manager installed $(basename "$NEW_KR") beside openwatch $(installed openwatch)"
 else
     pass "refused: $(grep -m1 -iE 'openwatch-kensa-engine' "$LAST_LOG" | sed 's/^ *//')"
 fi
-[ "$(installed kensa-rules)" = "$before_kr" ] &&
-    pass "the installed corpus is unchanged ($before_kr)" ||
-    fail "the installed corpus changed from $before_kr to $(installed kensa-rules)"
+[ "$(installed kensa-rules)" = "$before_kr" ] && [ "$(corpus_digest)" = "$before_digest" ] &&
+    pass "the installed corpus is unchanged ($before_kr, files identical)" ||
+    fail "the installed corpus changed: $before_kr to $(installed kensa-rules), files $before_digest to $(corpus_digest)"
 if [ "$KIND" = rpm ]; then
     # The plain rpm path checks dependencies too; --nodeps is the only bypass.
     if rpm -U --noscripts "$NEW_KR" >/tmp/rpmU.log 2>&1; then
@@ -125,11 +144,16 @@ else
     fail "coordinated upgrade failed; log follows"; cat "$LAST_LOG"
 fi
 
-echo "### 5. the new corpus refuses a downgraded openwatch"
+echo "### 5. the new corpus refuses a downgraded openwatch; both roll back together"
 if txn "$OLD_OW"; then
     fail "openwatch downgraded to $(installed openwatch) beside kensa-rules $(installed kensa-rules)"
 else
     pass "refused while kensa-rules $(installed kensa-rules) is installed"
+fi
+if txn "$OLD_OW" "$OLD_KR"; then
+    pass "rolled back to openwatch $(installed openwatch) and kensa-rules $(installed kensa-rules)"
+else
+    fail "rolling both packages back failed; log follows"; cat "$LAST_LOG"
 fi
 
 echo "### 4. fresh install of the new pair succeeds"
@@ -143,6 +167,39 @@ if txn "$NEW_OW" "$NEW_KR"; then
     pass "fresh install: openwatch $(installed openwatch), kensa-rules $(installed kensa-rules)"
 else
     fail "fresh install failed; log follows"; cat "$LAST_LOG"
+fi
+
+if [ "$KIND" = deb ]; then
+    echo "### 7. dpkg -i: the corpus is never replaced beside an older engine"
+    reset_to_old
+    before_digest="$(corpus_digest)"
+    if dpkg -i "$NEW_KR" >/tmp/dpkg.log 2>&1; then
+        fail "dpkg -i installed the corpus beside openwatch $(installed openwatch)"
+    else
+        pass "dpkg -i refused: $(grep -m1 'needs openwatch' /tmp/dpkg.log)"
+    fi
+    [ "$(corpus_digest)" = "$before_digest" ] && [ "$(installed kensa-rules)" != "absent" ] &&
+        pass "no corpus file was replaced; kensa-rules stays $(installed kensa-rules)" ||
+        fail "the corpus on disk changed after a refused dpkg -i"
+
+    reset_to_old
+    if dpkg -i "$NEW_OW" "$NEW_KR" >/tmp/dpkg.log 2>&1; then
+        pass "dpkg -i with openwatch first: openwatch $(installed openwatch), kensa-rules $(installed kensa-rules)"
+    else
+        fail "dpkg -i with openwatch first failed"; cat /tmp/dpkg.log
+    fi
+
+    reset_to_old
+    before_digest="$(corpus_digest)"
+    if dpkg -i "$NEW_KR" "$NEW_OW" >/tmp/dpkg.log 2>&1; then
+        pass "dpkg -i with the corpus first also succeeded"
+    elif [ "$(corpus_digest)" = "$before_digest" ]; then
+        # Refused before unpack; openwatch still upgrades, so the pair left
+        # behind is the compatible one (new engine, old corpus).
+        pass "dpkg -i with the corpus first refused it, corpus unchanged, openwatch $(installed openwatch)"
+    else
+        fail "dpkg -i with the corpus first changed the corpus"
+    fi
 fi
 
 echo "### 6. release-candidate ordering"
