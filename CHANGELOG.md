@@ -10,6 +10,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **An API token stops working while the user who created it is disabled or
+  deleted.** Previously a disabled user's `owk_` token kept authenticating
+  with its full role, so disabling a departing administrator did not stop
+  their automation. The token is refused at sign-in, and works again if the
+  user is re-enabled; a token revoked through `DELETE /api/v1/tokens/{id}`
+  stays revoked. The refusal is recorded on `auth.login.failure` as
+  `api_token_owner_disabled` or `api_token_owner_deleted`.
+- **A token with no owner no longer authenticates.** A token whose
+  `created_by` is empty, for example because its creator's user row was
+  removed, is refused and recorded as `api_token_ownerless`. **Before
+  upgrading, list any such tokens and replace them with tokens created by an
+  active user:** `SELECT id, name, prefix FROM api_tokens WHERE created_by
+  IS NULL AND revoked_at IS NULL;`
+
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
 `v0.8.0-rc.4` built, passed every machine gate, and its assets were
