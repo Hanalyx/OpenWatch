@@ -73,7 +73,10 @@ events:
       binders record the session, access-token and account-state reasons.
       SSO records the sso_ reasons, and sso_account_disabled or
       sso_account_deleted when the local account may not sign in; the
-      sign-in page stays generic. account_state_unavailable,
+      sign-in page stays generic. A service-account token whose owner is
+      disabled or deleted, or that has no owner, records
+      api_token_owner_disabled, api_token_owner_deleted or
+      api_token_ownerless. account_state_unavailable,
       session_lookup_failed and role_lookup_unavailable mean the server
       could not tell, and the request answered 503, not 401. invalid_credentials, account_locked,
       mfa_failed and sso_failed are legacy values that nothing records
@@ -93,7 +96,8 @@ events:
             password_changed_during_login,
             invalid_session_token, session_expired, session_revoked,
             session_lookup_failed, session_user_lookup_failed,
-            invalid_api_token, invalid_jwt, jwt_expired, jwt_verify_failed,
+            invalid_api_token, api_token_owner_disabled,
+            api_token_owner_deleted, api_token_ownerless, invalid_jwt, jwt_expired, jwt_verify_failed,
             invalid_jwt_subject, invalid_jwt_session,
             role_lookup_unavailable,
             sid_absent, session_absent, session_owner_mismatch,

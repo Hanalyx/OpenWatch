@@ -1,7 +1,7 @@
 spec:
   id: system-api-tokens
   title: API service-account tokens — hashed store + bearer authentication
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -53,9 +53,24 @@ spec:
       description: >-
         AuthenticateToken MUST reject (ErrInvalidToken, anonymous identity)
         an unknown, revoked (revoked_at set), or expired (expires_at in the
-        past) token. A successful authentication returns an auth.Identity
+        past) token, and a token whose owner may not authenticate (C-04).
+        A successful authentication returns an auth.Identity
         carrying the token's role; permissions are NOT embedded (the RBAC
         middleware derives them from the role per request).
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        A service-account token MUST NOT authenticate while its owner is
+        disabled or soft-deleted, and a token with no owner (created_by
+        NULL) MUST NOT authenticate at all. The check runs at
+        authentication time and is a check, not a revocation: a refusal
+        writes nothing to the token row, including last_used_at, so
+        re-enabling the owner restores the token, while a token revoked
+        through Revoke stays revoked. Each refusal is recorded on
+        auth.login.failure with its own reason, api_token_owner_disabled,
+        api_token_owner_deleted or api_token_ownerless. This is P8 AC-95
+        from bugs/doing/OW-062, and bugs/OW-071.
       type: security
       enforcement: error
     - id: C-03
@@ -73,7 +88,7 @@ spec:
       priority: critical
       references_constraints: [C-01]
     - id: AC-02
-      description: AuthenticateToken on the freshly created raw token returns an Identity with the token's role and a non-empty ID; the token's last_used_at is stamped after authentication.
+      description: AuthenticateToken on the freshly created raw token, owned by an active user, returns an Identity with the token's role and a non-empty ID; the token's last_used_at is stamped after authentication.
       priority: critical
       references_constraints: [C-02]
     - id: AC-03
@@ -88,3 +103,34 @@ spec:
       description: List returns tokens newest-first with no secret material (no token_hash); Create with an empty name or unknown role_id returns ErrInvalidParams.
       priority: high
       references_constraints: [C-01]
+    - id: AC-06
+      description: >-
+        An otherwise-valid token is refused while its owner is disabled or
+        soft-deleted, and always when it has no owner; the refusal writes
+        nothing to the token; re-enabling the owner restores the token; a
+        revoked token stays revoked.
+      priority: critical
+      references_constraints: [C-02, C-04]
+      inputs:
+        initial_state: "An unexpired, non-revoked owk_ token created while its owner is active"
+        operation: "Present the token as a Bearer credential to GET /api/v1/hosts, with its own correlation id"
+        variants:
+          - name: "Owner disabled"
+            setup: "disabled_at set on the owner by direct update"
+          - name: "Owner soft-deleted"
+            setup: "deleted_at set on the owner by direct update"
+          - name: "Ownerless"
+            setup: "created_by set to NULL on the token by direct update"
+          - name: "Active control"
+            setup: "The owner is left active"
+          - name: "Re-enable"
+            setup: "Owner disabled through the users service, then enabled; a second token revoked through Revoke before the disable"
+      expected_output:
+        per_variant:
+          Owner disabled: {status: 401, audit_reason: api_token_owner_disabled, token_row_written: false}
+          Owner soft-deleted: {status: 401, audit_reason: api_token_owner_deleted, token_row_written: false}
+          Ownerless: {status: 401, audit_reason: api_token_ownerless, token_row_written: false}
+          Active control: {status: 200, last_used_at: "stamped"}
+          Re-enable: {while_disabled: 401, after_enable: 200, revoked_token_after_enable: 401}
+        audit_read_by: "The request's correlation id"
+        cookies: "Not applicable; Bearer credential"

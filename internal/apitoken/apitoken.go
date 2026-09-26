@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -153,19 +154,33 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) error {
 }
 
 // AuthenticateToken resolves a raw token to an auth.Identity. Rejects
-// unknown, revoked, and expired tokens. Updates last_used_at best-effort.
-// Implements the identity binder's TokenAuthenticator.
+// unknown, revoked, and expired tokens, and a token whose owner may not
+// authenticate: disabled, deleted, or absent. Updates last_used_at
+// best-effort, and only on success. Implements the identity binder's
+// TokenAuthenticator.
+//
+// The owner check is a check, not a revocation: the token row is never
+// written on a refusal, so re-enabling the owner restores the token, and
+// a token revoked through Revoke stays revoked. An ownerless token fails
+// closed, because there is no account whose state could permit it.
+// Spec system-api-tokens C-02, C-04; bugs/OW-071.
 func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Identity, error) {
 	const stmt = `
-		SELECT id, role_id, expires_at
-		FROM api_tokens
-		WHERE token_hash = $1 AND revoked_at IS NULL`
+		SELECT t.id, t.role_id, t.expires_at,
+		       u.id IS NULL,
+		       u.disabled_at IS NOT NULL,
+		       u.deleted_at IS NOT NULL
+		FROM api_tokens t
+		LEFT JOIN users u ON u.id = t.created_by
+		WHERE t.token_hash = $1 AND t.revoked_at IS NULL`
 	var (
-		id        uuid.UUID
-		roleID    string
-		expiresAt *time.Time
+		id                             uuid.UUID
+		roleID                         string
+		expiresAt                      *time.Time
+		ownerAbsent, disabled, deleted bool
 	)
-	err := s.pool.QueryRow(ctx, stmt, hashToken(raw)).Scan(&id, &roleID, &expiresAt)
+	err := s.pool.QueryRow(ctx, stmt, hashToken(raw)).Scan(
+		&id, &roleID, &expiresAt, &ownerAbsent, &disabled, &deleted)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return auth.Identity{}, ErrInvalidToken
@@ -174,6 +189,14 @@ func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Ident
 	}
 	if expiresAt != nil && time.Now().After(*expiresAt) {
 		return auth.Identity{}, ErrInvalidToken
+	}
+	switch {
+	case ownerAbsent:
+		return auth.Identity{}, fmt.Errorf("%w: %w", ErrInvalidToken, identity.ErrTokenOwnerAbsent)
+	case deleted:
+		return auth.Identity{}, fmt.Errorf("%w: %w", ErrInvalidToken, identity.ErrTokenOwnerDeleted)
+	case disabled:
+		return auth.Identity{}, fmt.Errorf("%w: %w", ErrInvalidToken, identity.ErrTokenOwnerDisabled)
 	}
 	// Best-effort usage stamp; never blocks auth on failure.
 	_, _ = s.pool.Exec(ctx, `UPDATE api_tokens SET last_used_at = now() WHERE id = $1`, id)
