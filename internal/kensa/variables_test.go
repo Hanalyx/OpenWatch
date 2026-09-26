@@ -5,8 +5,11 @@
 package kensa
 
 import (
+	"context"
 	"os"
 	"testing"
+
+	pkgkensa "github.com/Hanalyx/kensa/pkg/kensa"
 )
 
 // corpusDir returns the dev corpus path or skips (same env the scan
@@ -32,8 +35,21 @@ func TestVariableCatalog_CorpusUsedAndPlaceholders(t *testing.T) {
 			t.Fatalf("NewVariableCatalog: %v", err)
 		}
 		list := cat.List()
-		if len(list) == 0 || len(list) > 29 {
-			t.Fatalf("catalog len = %d, want 1..29 (corpus-used subset of built-ins)", len(list))
+		// The catalog is the corpus-used subset of kensa's built-ins
+		// (C-07). The bound comes from the built-in table itself, so a
+		// Kensa bump that adds variables does not break the test while a
+		// catalog that lists a non-built-in still does.
+		builtins, err := pkgkensa.BuiltInVars()
+		if err != nil {
+			t.Fatalf("BuiltInVars: %v", err)
+		}
+		if len(list) == 0 || len(list) > len(builtins) {
+			t.Fatalf("catalog len = %d, want 1..%d (corpus-used subset of built-ins)", len(list), len(builtins))
+		}
+		for _, v := range list {
+			if _, ok := builtins[v.Name]; !ok {
+				t.Errorf("%s is listed but is not a kensa built-in variable", v.Name)
+			}
 		}
 		flagged := 0
 		for i, v := range list {
@@ -86,5 +102,54 @@ func TestVarsFingerprint_StableAndValueSensitive(t *testing.T) {
 		if varsFingerprint(nil) != "" || varsFingerprint(map[string]string{}) != "" {
 			t.Errorf("empty set must fingerprint to the boot sentinel \"\"")
 		}
+	})
+}
+
+// @ac AC-11
+// AC-11: a list-valued override reaches the rule's check parameters
+// verbatim when the corpus reloads, and the built-in default returns when
+// the override is removed. authorized_listening_ports ships with an empty
+// default (Kensa v0.10.0), so its rule compares against nothing until an
+// operator declares the set.
+func TestCorpusReload_ListOverrideReachesCheck(t *testing.T) {
+	t.Run("api-system-scan-config/AC-11", func(t *testing.T) {
+		dir := corpusDir(t)
+		rules, err := pkgkensa.LoadRules(dir, nil, nil)
+		if err != nil {
+			t.Fatalf("LoadRules: %v", err)
+		}
+		cache := &corpusCache{rules: rules, dir: dir}
+		authorized := func(overrides map[string]string) []any {
+			got := cache.current(context.Background(), func(context.Context) (map[string]string, error) {
+				return overrides, nil
+			})
+			var vals []any
+			for _, r := range got {
+				if r.ID != "authorized-listening-ports" {
+					continue
+				}
+				for _, impl := range r.Implementations {
+					if impl.Check.Method == "set_compare" {
+						vals = append(vals, impl.Check.Params["authorized"])
+					}
+				}
+			}
+			return vals
+		}
+
+		assertAll := func(label string, vals []any, want string) {
+			t.Helper()
+			if len(vals) == 0 {
+				t.Fatalf("%s: rule authorized-listening-ports has no set_compare check", label)
+			}
+			for _, v := range vals {
+				if v != want {
+					t.Errorf("%s: authorized = %#v, want %q", label, v, want)
+				}
+			}
+		}
+		assertAll("default", authorized(nil), "")
+		assertAll("override", authorized(map[string]string{"authorized_listening_ports": "22,443"}), "22,443")
+		assertAll("override removed", authorized(map[string]string{}), "")
 	})
 }

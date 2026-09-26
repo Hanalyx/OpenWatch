@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-compliance-tab
   title: Host detail Compliance tab — lens UI over the per-host compliance endpoints
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -222,3 +222,15 @@ spec:
         forbidden_copy_occurrences: 0
         counts_preserved: true
         counts_asserted: [passing, failing, skipped, error]
+    - id: AC-12
+      description: >-
+        v1.7.0 - frameworkLabel names every framework family the pinned corpus
+        carries the way the backend's framework labels do. The generic
+        transform stays for keys with an operating-system suffix (cis_rhel9 ->
+        'CIS RHEL 9', stig_ubuntu22 -> 'STIG UBUNTU 22'). The OS-agnostic keys
+        that transform would misspell are named explicitly: nist_800_53 ->
+        'NIST 800-53', nist_800_171 -> 'NIST 800-171' and cmmc_l2 ->
+        'CMMC Level 2', never 'CMMC L 2'. The last two arrived with Kensa
+        v0.10.0.
+      priority: high
+      references_constraints: [C-01]

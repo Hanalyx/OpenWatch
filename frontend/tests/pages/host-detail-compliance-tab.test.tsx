@@ -10,6 +10,7 @@
 //   AC-06  test('frontend-host-compliance-tab/AC-06 — never-scanned empty state names Run scan; errors render inline with Retry; isPending guard')
 //   AC-07  test('frontend-host-compliance-tab/AC-07 — no stored check-output reference anywhere in the tab code')
 //   AC-08  test('frontend-host-compliance-tab/AC-08 — Re-scan posts once with an Idempotency-Key; 409 renders Scan already running')
+//   AC-12  test('frontend-host-compliance-tab/AC-12 — frameworkLabel names every family the pinned corpus carries')
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixtur
 const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock, POST: postMock } }));
 
-import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
+import { ComplianceTab, frameworkLabel } from '@/pages/host-detail/ComplianceTab';
 
 const TAB_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/host-detail/ComplianceTab.tsx'),
@@ -646,4 +647,21 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
     }
   }
   expect(hits).toBe(wantForbiddenCount);
+});
+
+describe('frontend-host-compliance-tab v1.7.0 — framework labels', () => {
+  // @ac AC-12
+  test('frontend-host-compliance-tab/AC-12 — frameworkLabel names every family the pinned corpus carries', () => {
+    const cases: Record<string, string> = {
+      cis_rhel9: 'CIS RHEL 9',
+      stig_ubuntu22: 'STIG UBUNTU 22',
+      pci_dss_4: 'PCI DSS 4',
+      nist_800_53: 'NIST 800-53',
+      nist_800_171: 'NIST 800-171',
+      cmmc_l2: 'CMMC Level 2',
+    };
+    for (const [id, want] of Object.entries(cases)) {
+      expect(frameworkLabel(id)).toBe(want);
+    }
+  });
 });

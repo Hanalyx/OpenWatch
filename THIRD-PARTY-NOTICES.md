@@ -50,7 +50,7 @@ OpenWatch and their licenses. It is generated; see "Regeneration" below.
 | `modernc.org/mathutil` | v1.7.1 | BSD |
 | `modernc.org/memory` | v1.11.0 | BSD |
 | `modernc.org/sqlite` | v1.53.0 | BSD |
-| `github.com/Hanalyx/kensa` | v0.9.0 | BSL-1.1 |
+| `github.com/Hanalyx/kensa` | v0.10.0 | BSL-1.1 |
 | `github.com/apapsch/go-jsonmerge/v2` | v2.0.0 | MIT |
 | `github.com/boombuler/barcode` | v1.1.0 | MIT |
 | `github.com/BurntSushi/toml` | v1.6.0 | MIT |

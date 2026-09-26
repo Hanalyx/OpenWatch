@@ -447,10 +447,20 @@ function RescanButton({
 //    stays the single source of truth (api-hosts AC-08).
 // ─────────────────────────────────────────────────────────────────────────
 
+// Keys the generic transform below would misspell, named as the backend's
+// internal/framework labels name them.
+const NAMED_FRAMEWORK_LABELS: Record<string, string> = {
+  nist_800_53: 'NIST 800-53',
+  nist_800_171: 'NIST 800-171',
+  cmmc_l2: 'CMMC Level 2',
+};
+
 // frameworkLabel renders a friendly chip label from a framework id:
 // cis_rhel8 -> "CIS RHEL 8", nist_800_53 -> "NIST 800-53",
 // stig_rhel9 -> "STIG RHEL 9", pci_dss_4 -> "PCI DSS 4".
 export function frameworkLabel(id: string): string {
+  const named = NAMED_FRAMEWORK_LABELS[id];
+  if (named) return named;
   return id
     .split('_')
     .map((part) => {
@@ -459,8 +469,7 @@ export function frameworkLabel(id: string): string {
       if (/^\d+$/.test(part)) return part;
       return part.toUpperCase();
     })
-    .join(' ')
-    .replace(/^NIST 800 53$/, 'NIST 800-53');
+    .join(' ');
 }
 
 function LensBar({

@@ -17,8 +17,9 @@ OpenWatch, it is a query: answered in seconds, backed by machine-verifiable
 evidence, exportable as CSV, JSON, PDF or OSCAL.
 
 OpenWatch is a continuous compliance platform for Linux fleets under CIS,
-STIG, NIST 800-53 and PCI DSS. It connects to your servers over SSH, runs the
-769-rule [Kensa](https://github.com/Hanalyx/kensa) corpus, and keeps posture
+STIG, NIST 800-53, NIST 800-171, CMMC Level 2 and PCI DSS. It connects to your
+servers over SSH, runs the 779-rule [Kensa](https://github.com/Hanalyx/kensa)
+corpus, and keeps posture
 as a timeline: what is passing now, what was passing last Tuesday, what
 drifted since your last assessment, and what needs attention before the next
 one. **[Read the introduction](docs/guides/INTRODUCTION.md)** for what it does
@@ -31,7 +32,7 @@ and how it is built.
 > React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
 > version is `0.8.0-rc.5`, on the general-availability line that opened with `0.2.0`.
 
-![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against the 769-rule Kensa corpus](docs/images/host-management.png)
+![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against the Kensa corpus](docs/images/host-management.png)
 
 ## Deploy in 10 minutes
 
@@ -86,7 +87,7 @@ model. Then three starting points: an **operator** reads
 
 ## Part of the Hanalyx Compliance Platform
 
-OpenWatch is the compliance operating system: the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath: 769 rules, 29 remediation mechanisms, automatic rollback, all over SSH.
+OpenWatch is the compliance operating system: the dashboard, the scheduler, the governance layer.  **[Kensa](https://github.com/Hanalyx/kensa)** is the compliance engine underneath: 779 rules, 29 remediation mechanisms, automatic rollback, all over SSH.
 
 If you want a CLI that integrates into scripts and pipelines, start with Kensa. If you want a platform for your team with a dashboard, scheduling, and audit workflows, start here.
 
