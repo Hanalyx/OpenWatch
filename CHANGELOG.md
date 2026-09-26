@@ -30,10 +30,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
   cannot load the 0.10.0 corpus: the service starts and every scan fails.
   `openwatch` now declares the Kensa engine it links, and `kensa-rules`
-  requires an engine at least as new as itself, so `dnf` and `apt` refuse a
-  rules-only upgrade onto an older `openwatch` and accept both packages in one
-  transaction. A bare `dpkg -i` of the rules package still replaces the files
-  while reporting the error (CP `bugs/OW-081`).
+  requires an engine at least as new as itself. A rules-only upgrade onto an
+  older `openwatch` is refused with nothing changed, by `dnf`, `rpm -U`, `apt`
+  and a bare `dpkg -i`; both packages in one transaction are accepted. Rolling
+  `openwatch` back now means rolling `kensa-rules` back in the same command;
+  the upgrade runbook shows how (CP `bugs/OW-081`).
 
   **Verdicts change on existing hosts, so scores can move after the first scan
   on this release.** The change comes from the rules, not the hosts:

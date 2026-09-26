@@ -320,14 +320,18 @@ Step 2. Same number, code-only rollback. Higher number, full rollback.
 
 If the target version applied no new migrations (the version recorded in
 Step 2 is unchanged), reinstall the previous package. The previous package's
-scriptlet runs too, finds nothing to migrate, and starts the service:
+scriptlet runs too, finds nothing to migrate, and starts the service.
+
+If the upgrade also installed a newer `kensa-rules`, roll it back in the same
+command. The package manager refuses an `openwatch` whose engine is older
+than the installed corpus, and changes nothing:
 
 ```bash
 sudo systemctl stop openwatch
 # RHEL family:
-sudo dnf install ./openwatch-<old-version>.<arch>.rpm
+sudo dnf install ./openwatch-<old-version>.<arch>.rpm ./kensa-rules-<old-kensa-version>.noarch.rpm
 # Debian/Ubuntu:
-sudo apt install ./openwatch_<old-version>_<arch>.deb
+sudo apt install --allow-downgrades ./openwatch_<old-version>_<arch>.deb ./kensa-rules_<old-kensa-version>_all.deb
 sudo systemctl start openwatch
 curl -k https://localhost:8443/api/v1/health
 ```
@@ -365,15 +369,30 @@ field. The rules are the separate `kensa-rules` package, installed at
 `openwatch` package depends on `kensa-rules` but does not pin its version, so
 upgrading one does not upgrade the other.
 
-A corpus needs an engine at least as new as itself. An older engine cannot
-load a newer corpus: the service starts and every scan fails. So the
-`kensa-rules` package requires the engine version the `openwatch` package
-provides, and `dnf` and `apt` refuse a rules-only upgrade that would pair a
-corpus with an older engine. When that happens, upgrade `openwatch` in the
-same transaction. A newer engine loads an older corpus, so upgrading
-`openwatch` alone is allowed. Do not bypass the check with `rpm --nodeps` or
-a bare `dpkg -i` of the rules package; `dpkg -i` replaces the rules on disk
-even though it reports the dependency error.
+A corpus needs an engine at least as new as itself. The `openwatch` package
+declares the Kensa engine it contains, and `kensa-rules` requires at least
+its own version. This is the boundary tested today: the engine in rc.5 and
+earlier cannot load the 0.10.0 corpus, and the service would start with every
+scan failing. The 0.10.0 engine loads the 0.9.0 corpus, so upgrading
+`openwatch` alone is allowed.
+
+A rules-only upgrade onto an older `openwatch` is refused, and nothing is
+changed: `dnf`, `rpm -U` and `apt` refuse it from the dependency, and a bare
+`dpkg -i` is refused by the package's own check before any file is replaced.
+Upgrade both packages in one transaction instead. With `dpkg -i`, list
+`openwatch` first; if the rules package is listed first it is refused, and
+`openwatch` alone is upgraded, which is a working pair. Run the command again
+to finish.
+
+If a corpus newer than the engine is on disk anyway (installed with
+`rpm --nodeps` or `dpkg --force-depends`), every scan fails. Either install
+the matching `openwatch`
+(`sudo dpkg -i ./openwatch_<new-version>_<arch>.deb && sudo dpkg --configure -a`,
+or `sudo dnf install ./openwatch-<new-version>.<arch>.rpm`) or put the previous
+rules back (`sudo dpkg -i ./kensa-rules_<old-version>_all.deb`, or
+`sudo dnf downgrade ./kensa-rules-<old-version>.noarch.rpm`), then restart the
+service. On Debian, plain `apt install` refuses to start from that broken
+state; `dpkg -i` followed by `dpkg --configure -a` works.
 
 To update the rules, upgrade the package and restart the service so it loads
 the new corpus:

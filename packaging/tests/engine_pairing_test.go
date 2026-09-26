@@ -3,6 +3,7 @@
 // AC traceability (this file):
 //
 //	AC-09  TestUpgrade_PackageManagerEnforcesEngineCorpusPairing
+//	AC-10  TestUpgrade_CorpusPreinstRefusesBeforeUnpack
 //
 // The pairing is enforced by the package managers' own resolvers, so this
 // asks them, with no root, no container and no network: `rpm --test` against
@@ -320,5 +321,79 @@ func TestUpgrade_PackageManagerEnforcesEngineCorpusPairing(t *testing.T) {
 				}
 			}
 		})
+	})
+}
+
+// @ac AC-10
+// AC-10: the kensa-rules DEB carries a preinst that refuses to unpack beside
+// an installed openwatch whose engine is older than the corpus. Depends alone
+// lets a bare `dpkg -i` replace the corpus before failing (measured
+// 2026-09-26: the 0.10.0 files on disk, the package left unconfigured). The
+// script is taken from the built package and run against a stub dpkg-query,
+// so every installed-state case is exercised without root.
+func TestUpgrade_CorpusPreinstRefusesBeforeUnpack(t *testing.T) {
+	t.Run("release-upgrade/AC-10", func(t *testing.T) {
+		haveTool(t, "dpkg")
+		v := linkedKensaVersion(t)
+		deb := kensaRulesDebPath(t)
+		dir := t.TempDir()
+		if out, ok := run(t, "dpkg-deb", "--control", deb, filepath.Join(dir, "ctl")); !ok {
+			t.Fatalf("extract control:\n%s", out)
+		}
+		preinst := filepath.Join(dir, "ctl", "preinst")
+		if _, err := os.Stat(preinst); err != nil {
+			t.Fatalf("the kensa-rules DEB has no preinst: %v", err)
+		}
+
+		// A dpkg-query stub answering for openwatch from two env vars.
+		stubDir := filepath.Join(dir, "bin")
+		if err := os.MkdirAll(stubDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		stub := `#!/bin/sh
+case "$*" in
+  *Status-Status*) [ -n "$OW_STATUS" ] || exit 1; printf '%s' "$OW_STATUS" ;;
+  *Provides*) printf '%s' "$OW_PROVIDES" ;;
+esac
+`
+		if err := os.WriteFile(filepath.Join(stubDir, "dpkg-query"), []byte(stub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		exec1 := func(action, status, provides string) (string, bool) {
+			t.Helper()
+			cmd := exec.Command("sh", preinst, action)
+			cmd.Env = append(os.Environ(),
+				"PATH="+stubDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"OW_STATUS="+status, "OW_PROVIDES="+provides)
+			out, err := cmd.CombinedOutput()
+			return string(out), err == nil
+		}
+		engine := func(ver string) string { return "openwatch-kensa-engine (= " + ver + ")" }
+		older := "0.0.1"
+
+		for _, tc := range []struct {
+			name, action, status, provides string
+			allow                          bool
+		}{
+			{"no openwatch", "install", "", "", true},
+			{"openwatch removed, config left", "upgrade", "config-files", "", true},
+			{"openwatch without an engine provide", "upgrade", "installed", "", false},
+			{"engine older than the corpus", "upgrade", "installed", engine(older), false},
+			{"engine equal to the corpus", "upgrade", "installed", engine(v), true},
+			{"engine newer than the corpus", "upgrade", "installed", "foo, " + engine(v+".1") + ", bar", true},
+			{"half-installed openwatch without an engine", "install", "half-configured", "", false},
+			{"not an install action", "abort-upgrade", "installed", "", true},
+		} {
+			out, ok := exec1(tc.action, tc.status, tc.provides)
+			if ok != tc.allow {
+				t.Errorf("%s: allowed=%v, want %v\n%s", tc.name, ok, tc.allow, out)
+			}
+			if !tc.allow && (!strings.Contains(out, "Nothing was changed") || !strings.Contains(out, "list openwatch first")) {
+				t.Errorf("%s: the refusal does not say nothing changed and how to proceed:\n%s", tc.name, out)
+			}
+		}
+		if out, _ := exec1("upgrade", "installed", ""); !strings.Contains(out, "kensa-rules "+v+" needs") {
+			t.Errorf("the refusal does not name this corpus version %s:\n%s", v, out)
+		}
 	})
 }
