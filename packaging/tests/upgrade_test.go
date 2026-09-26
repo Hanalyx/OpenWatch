@@ -8,7 +8,7 @@
 //	AC-06  TestUpgrade_CleanupTimerShippedAndKeepsNewest
 //	AC-07  TestUpgrade_PayloadShipsUpgradeFiles
 //	AC-08  TestUpgrade_PackagesDeclareEngineCorpusPairing
-//	AC-09  TestUpgrade_PackageManagerEnforcesEngineCorpusPairing
+//	AC-09  in engine_pairing_test.go
 
 package packaging_test
 
@@ -200,13 +200,14 @@ func TestUpgrade_PackagesDeclareEngineCorpusPairing(t *testing.T) {
 	})
 }
 
-// @ac AC-09
-// AC-09: the package manager enforces the pairing. The container scenarios
-// live in kensa-rules-compat-container-test.sh; this runs them for one
-// image. package-smoke sets the four variables (previous GA as the old
-// release, the candidate's packages as the new); elsewhere it skips.
-func TestUpgrade_PackageManagerEnforcesEngineCorpusPairing(t *testing.T) {
-	t.Run("release-upgrade/AC-09", func(t *testing.T) {
+// TestUpgrade_EngineCorpusPairingInContainers runs the AC-09 scenarios in
+// real containers, where installs run their scriptlets. It carries no
+// criterion of its own: AC-09 is verified by the resolver test in
+// engine_pairing_test.go, which runs in Go CI. package-smoke's
+// kensa-rules-compat job sets the four variables (previous GA as the old
+// release, the candidate's packages as the new); elsewhere this skips.
+func TestUpgrade_EngineCorpusPairingInContainers(t *testing.T) {
+	t.Run("containers", func(t *testing.T) {
 		image := os.Getenv("OPENWATCH_KENSA_COMPAT_IMAGE")
 		kind := os.Getenv("OPENWATCH_KENSA_COMPAT_KIND")
 		oldDir := os.Getenv("OPENWATCH_KENSA_COMPAT_OLD_DIR")
