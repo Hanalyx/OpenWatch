@@ -19,6 +19,8 @@ func TestFamilyOf(t *testing.T) {
 			"nist_800_53":   "nist_800_53", // OS-agnostic: digits not stripped
 			"pci_dss_4":     "pci_dss_4",   // trailing _4 is not an OS suffix
 			"srg":           "srg",
+			"nist_800_171":  "nist_800_171", // Kensa v0.10.0
+			"cmmc_l2":       "cmmc_l2",      // _l2 is a level, not an OS suffix
 		}
 		for key, want := range cases {
 			if got := FamilyOf(key); got != want {
@@ -28,6 +30,9 @@ func TestFamilyOf(t *testing.T) {
 		// Labels: known families render nicely, unknown upper-cases.
 		if Label("stig") != "STIG" || Label("nist_800_53") != "NIST 800-53" {
 			t.Errorf("Label mismatch: stig=%q nist=%q", Label("stig"), Label("nist_800_53"))
+		}
+		if Label("nist_800_171") != "NIST 800-171" || Label("cmmc_l2") != "CMMC Level 2" {
+			t.Errorf("Label mismatch: nist_800_171=%q cmmc_l2=%q", Label("nist_800_171"), Label("cmmc_l2"))
 		}
 	})
 }

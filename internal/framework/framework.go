@@ -172,6 +172,9 @@ var familyLabels = map[string]string{
 	"srg":         "SRG",
 	"nist_800_53": "NIST 800-53",
 	"pci_dss_4":   "PCI DSS 4",
+	// Added with Kensa v0.10.0, whose corpus maps 324 rules to each.
+	"nist_800_171": "NIST 800-171",
+	"cmmc_l2":      "CMMC Level 2",
 }
 
 // Label renders a family id for display.

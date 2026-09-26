@@ -10,6 +10,38 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Kensa 0.10.0.** The rule corpus grows from 769 to 779 rules and gains two
+  framework keys, `nist_800_171` (NIST SP 800-171 Rev 2, cited at objective
+  level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules,
+  and the lens picker labels them "NIST 800-171" and "CMMC Level 2".
+
+  **Install `openwatch` and `kensa-rules` in one transaction.** An earlier
+  `openwatch` cannot load the 0.10.0 corpus: the service starts and every scan
+  fails. The packages do not yet forbid that pairing (CP `bugs/OW-081`).
+
+  **Verdicts change on existing hosts, so scores can move after the first scan
+  on this release.** The change comes from the rules, not the hosts:
+
+  - `no-unauthorized-accounts` passed every host without comparing anything.
+    It now reports skipped until `authorized_local_accounts` is declared.
+  - `shell-timeout` fails RHEL hosts set between 601 and 900 seconds and
+    requires `TMOUT` to be readonly on RHEL. It absorbs `shell-timeout-600`
+    and `shell-idle-timeout-tmout`, whose old verdicts leave the current score
+    after each host's next completed scan.
+  - Rules that passed without checking now report a real verdict:
+    `security-updates-installed`, `nftables-default-deny`,
+    `journald-to-rsyslog`, `selinux-user-mapping` and
+    `firewalld-loopback-source`.
+  - Eight audit and session rules, and `no-unauthorized-accounts`, now run on
+    RHEL 8 instead of reporting not applicable.
+
+  Eight new scan variables ship with no default, and seven rules report
+  skipped until theirs is declared. The scanning guide lists them under
+  "Scan variables". Values are not type checked when saved (CP
+  `bugs/OW-080`).
+
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
 `v0.8.0-rc.4` built, passed every machine gate, and its assets were

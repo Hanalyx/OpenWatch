@@ -44,8 +44,8 @@ Key points:
 - **No agent on targets.** Kensa connects over SSH, runs commands, and
   disconnects. Nothing is installed on the scanned host.
 - **One scan, many frameworks.** A single scan produces results for every
-  framework key the corpus maps: CIS and STIG benchmarks, NIST 800-53, PCI
-  DSS 4 and the SRG. The keys are listed under
+  framework key the corpus maps: CIS and STIG benchmarks, NIST 800-53,
+  NIST 800-171, CMMC Level 2, PCI DSS 4 and the SRG. The keys are listed under
   [Available frameworks](#available-frameworks).
 - **Evidence captured.** Each check records the command executed, the raw
   output, the expected value, and the actual value found.
@@ -61,7 +61,7 @@ RHEL 9 host is `stig_rhel9`. `GET /api/v1/compliance/frameworks` lists the
 families present in your scanned fleet and the keys each one spans.
 
 The counts below are rules that reference each key in the corpus this release
-pins (Kensa v0.9.0, 769 rules). They change with the `kensa-rules` package,
+pins (Kensa v0.10.0, 779 rules). They change with the `kensa-rules` package,
 not with the OpenWatch binary.
 
 | Family | Key | Rules |
@@ -71,12 +71,14 @@ not with the OpenWatch binary.
 | CIS | `cis_rhel10` | 321 |
 | CIS | `cis_ubuntu22` | 131 |
 | CIS | `cis_ubuntu24` | 132 |
-| STIG | `stig_rhel8` | 342 |
+| STIG | `stig_rhel8` | 341 |
 | STIG | `stig_rhel9` | 391 |
 | STIG | `stig_rhel10` | 388 |
 | STIG | `stig_ubuntu22` | 159 |
 | STIG | `stig_ubuntu24` | 167 |
-| NIST 800-53 | `nist_800_53` | 750 |
+| NIST 800-53 | `nist_800_53` | 760 |
+| NIST 800-171 | `nist_800_171` | 324 |
+| CMMC Level 2 | `cmmc_l2` | 324 |
 | PCI DSS 4 | `pci_dss_4` | 2 |
 | SRG | `srg` | 1 |
 
@@ -161,6 +163,47 @@ own shell, where it is empty, so it resolves after the file is loaded.
 
 A job that stays queued usually means the service is not running. Check the
 service first, then the logs.
+
+---
+
+## Scan variables
+
+Some rules compare a host against a value your organization chooses, such as a
+session timeout or a list of approved ports. Those values are scan variables.
+Set them under **Settings -> Compliance policies -> Scan variables**. The card
+lists only the variables a rule in the loaded corpus uses, with the number of
+rules each one affects. A change applies to the next scan.
+
+### Variables with no default
+
+Kensa v0.10.0 added eight variables that ship empty. Each one feeds a single
+rule. Until you declare the variable, seven of those rules report **skipped**
+and name the variable to set. A skipped rule is left out of the score, so it is
+neither a pass nor a fail. The eighth, `suid-sgid-files-reviewed`, still runs
+its world-writable check; only its inventory comparison needs the baseline.
+
+| Variable | Rule | What to declare |
+|---|---|---|
+| `authorized_local_accounts` | `no-unauthorized-accounts` | Local accounts allowed on the host, by user name or numeric UID |
+| `authorized_privileged_users` | `authorized-privileged-users` | Accounts allowed to act as root (wheel or sudo membership, sudoers entries, UID 0) |
+| `authorized_service_accounts` | `authorized-service-accounts` | Accounts below UID 1000 allowed to hold a login shell |
+| `authorized_listening_ports` | `authorized-listening-ports` | TCP and UDP ports allowed to listen |
+| `authorized_services` | `authorized-enabled-services` | systemd services allowed to be enabled |
+| `authorized_network_protocols` | `authorized-network-protocols` | Protocols allowed in `/proc/net/protocols` |
+| `flaw_remediation_max_days` | `flaw-remediation-window` | Days a pending security advisory may stay uncorrected, as a whole number |
+| `suid_sgid_baseline` | `suid-sgid-files-reviewed` | Full paths approved to carry the setuid or setgid bit, under `/usr/bin`, `/usr/sbin`, `/bin` and `/sbin` |
+
+Enter a list as members separated by commas, with no spaces:
+`22,443,8443`. A member that is declared but absent from the host is reported
+and does not fail. An empty list is a skip, never a pass.
+
+One declaration covers the whole fleet. Hosts that need different sets, such
+as a web tier and a database tier, cannot be given separate values yet.
+
+**OpenWatch does not check a value's type.** The form accepts any text for any
+variable, and the scan uses it as entered. A value such as `three` where a
+whole number belongs produces a verdict measured against that text, not an
+error. Check a value against the rule before saving it.
 
 ---
 
