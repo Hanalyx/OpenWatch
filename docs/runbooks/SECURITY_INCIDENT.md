@@ -251,16 +251,18 @@ WHERE revoked_at IS NULL
 
 ### Disable a compromised account
 
-There is no `is_active` flag; disabling an account means soft-deleting it. Prefer the API so the action is itself audited (`account.user.deleted`):
+Disable the account through the API. Disabling ends every interactive credential the user holds (sessions, refresh tokens and access tokens), is audited as `admin.user.disabled`, and can be reversed with `:enable`:
 
 ```bash
 # Authenticated as an admin; replace TOKEN and USER_ID
-curl -sk -X DELETE \
+curl -sk -X POST \
   -H "Authorization: Bearer TOKEN" \
-  https://localhost:8443/api/v1/users/USER_ID
+  https://localhost:8443/api/v1/users/USER_ID:disable
 ```
 
-If the API is unavailable, soft-delete directly. This also removes the account from the active-uniqueness indexes:
+Deleting the account (`DELETE /api/v1/users/USER_ID`, audited as `admin.user.deleted`) also ends its interactive credentials, but it removes the account from the active-uniqueness indexes and cannot be undone through the API. Prefer disable while the investigation is open.
+
+If the API is unavailable, soft-delete directly. The binders refuse a deleted account's interactive credentials on every request, but this path revokes no rows and writes no audit event:
 
 ```bash
 psql -U openwatch -d openwatch -c "
@@ -271,34 +273,35 @@ WHERE username = 'USERNAME' AND deleted_at IS NULL;
 
 ### Revoke every session (full re-authentication)
 
-Four kinds of credential keep a user signed in, and they are revoked in
-different places. Rotating the JWT signing key handles only the first.
+Four kinds of credential keep a user signed in. An access token names the
+session that issued it, so revoking the session ends both.
 
 | Credential | Where it lives | Ended by |
 |---|---|---|
-| Access token (bearer JWT, 30 minutes) | Signed with `jwt_private.pem`, not stored | Rotating the signing key and restarting |
+| Access token (bearer JWT, 30 minutes) | Signed with `jwt_private.pem`, not stored; carries its session id | Revoking its session row |
 | Browser session (`openwatch_session` cookie) | `sessions` table, hashed | Setting `revoked_at` on the row |
 | Refresh token (cookie or body) | `refresh_tokens` table, hashed | Setting `revoked_at` on the row |
 | API token (`/api/v1/tokens`) | `api_tokens` table, hashed | Deleting it through `/api/v1/tokens/{id}` |
 
-Verified on 0.8.0-rc.3: after a signing-key rotation and restart, a bearer
-token issued before it returned 401, while the same browser's session cookie
-and refresh cookie still returned 200. An open tab stays signed in until its
-row is revoked.
+Rotating the signing key does not end a browser session or a refresh token.
+An open tab stays signed in until its row is revoked.
 
-To sign everyone out now, revoke the rows first (immediate, no restart), then
-rotate the key so that any access token still in flight dies within its
-30-minute lifetime rather than living out the rest of it:
+To sign everyone out now, revoke the rows. This takes effect at once, on every
+node, with no restart, and it ends the access tokens those sessions issued.
+Rotate the signing key as well only if the key itself may be exposed: anyone
+holding it can sign a token that names a live session and claims any role.
 
 ```bash
-# 1. Sessions and refresh tokens: immediate, fleet-wide, no restart.
+# 1. Sessions, their refresh tokens and their access tokens: immediate,
+#    fleet-wide, no restart.
 sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
   psql "$OPENWATCH_DATABASE_DSN" \
     -c "UPDATE sessions SET revoked_at = now() WHERE revoked_at IS NULL;" \
     -c "UPDATE refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL;"'
 
-# 2. Access tokens: rotate the signing key at a NEW path (never overwrite the
-#    old one, so you can roll back), point the service at it, restart.
+# 2. Only if the signing key may be exposed: rotate it at a NEW path (never
+#    overwrite the old one, so you can roll back), point the service at it,
+#    restart.
 NEW_JWT="/etc/openwatch/keys/jwt_private-$(date -u +%Y%m%d)-incident.pem"
 sudo sh -c 'umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /root/jwt_private.new.pem'
 sudo install -m 0640 -o root -g openwatch /root/jwt_private.new.pem "$NEW_JWT"
@@ -388,11 +391,11 @@ Expect `"status": "healthy"`.
 
 ```bash
 psql -U openwatch -d openwatch -c "
-SELECT count(*) AS live_sessions_for_deleted_users
+SELECT count(*) AS live_sessions_for_disabled_or_deleted_users
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.revoked_at IS NULL AND s.expires_at > now()
-  AND u.deleted_at IS NOT NULL;
+  AND (u.disabled_at IS NOT NULL OR u.deleted_at IS NOT NULL);
 "
 ```
 

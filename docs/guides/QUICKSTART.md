@@ -380,9 +380,14 @@ PostgreSQL. Replace `<dsn>` with the value from
    `GET /api/v1/audit/events` and stored in PostgreSQL; export the relevant
    window for analysis.
 3. If credentials may be exposed, rotate them: revoke or replace the affected
-   SSH credentials (`/api/v1/credentials`) and rotate any user passwords.
-   Active sessions can be ended via logout; force re-authentication for
-   affected users.
+   SSH credentials (`/api/v1/credentials`). To end a user's access at once,
+   disable the account (`POST /api/v1/users/{id}:disable`) or reset its
+   password as an administrator (`POST /api/v1/users/{id}:reset-password`).
+   Either ends every session, refresh token and access token the user holds.
+   A user who changes their own password does not sign out their other
+   sessions. Logout ends only the login it is sent from. The
+   [security incident runbook](../runbooks/SECURITY_INCIDENT.md) covers
+   revoking every session at once.
 4. If the host itself is compromised, isolate it at the network layer and stop
    the service to halt outbound SSH:
    `systemctl stop openwatch`.
