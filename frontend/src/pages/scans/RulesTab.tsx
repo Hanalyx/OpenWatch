@@ -38,21 +38,26 @@ function fwTag(frameworkId: string, control: string): { label: string; tone: Ton
   if (fam === 'pci') return { label: `PCI-${control}`, tone: 'pci' };
   return { label: control, tone: fam };
 }
-function flattenRefs(refs: Record<string, string[]>): { label: string; tone: Tone; key: string }[] {
+// Each tag also carries the framework's name: the label the API sent
+// (Kensa's, spec system-compliance-lens C-08), or the raw id when none came.
+// The tone is presentation only; the name is what tells NIST 800-53 from
+// NIST SP 800-171 and CMMC Level 2.
+function flattenRefs(
+  refs: Record<string, string[]>,
+  labels: Record<string, string>,
+): { label: string; tone: Tone; key: string; framework: string }[] {
   const order = (id: string) =>
     id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3;
   return Object.keys(refs)
     .sort((a, b) => order(a) - order(b) || a.localeCompare(b))
-    .flatMap((fid) => (refs[fid] ?? []).map((c) => ({ ...fwTag(fid, c), key: `${fid}:${c}` })));
+    .flatMap((fid) =>
+      (refs[fid] ?? []).map((c) => ({
+        ...fwTag(fid, c),
+        key: `${fid}:${c}`,
+        framework: labels[fid] ?? fid,
+      })),
+    );
 }
-
-const FAMILY_LABEL: Record<Tone, string> = {
-  cis: 'CIS',
-  stig: 'STIG',
-  nist: 'NIST',
-  pci: 'PCI-DSS',
-  other: 'Other',
-};
 
 // RulesTab — the Kensa rule-library browser on /scans. Reference data
 // (GET /api/v1/rules), filtered entirely client-side: search, severity,
@@ -63,7 +68,7 @@ export function RulesTab() {
   const [search, setSearch] = useState('');
   const [sev, setSev] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [category, setCategory] = useState('all');
-  const [family, setFamily] = useState<'all' | Tone>('all');
+  const [framework, setFramework] = useState('all');
 
   const q = useQuery({
     queryKey: ['rules'],
@@ -76,17 +81,19 @@ export function RulesTab() {
   });
 
   const rules: Rule[] = useMemo(() => q.data?.rules ?? [], [q.data]);
+  const labels: Record<string, string> = useMemo(() => q.data?.framework_labels ?? {}, [q.data]);
 
   const categories = useMemo(
     () => Array.from(new Set(rules.map((r) => r.category).filter(Boolean))).sort(),
     [rules],
   );
-  const families = useMemo(() => {
-    const fams = new Set<Tone>();
-    for (const r of rules)
-      for (const fid of Object.keys(r.framework_refs ?? {})) fams.add(fwFamily(fid));
-    return (['cis', 'stig', 'nist', 'pci', 'other'] as Tone[]).filter((f) => fams.has(f));
-  }, [rules]);
+  // One option per framework id the library references, named with its label
+  // and sorted by that name.
+  const frameworks = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of rules) for (const fid of Object.keys(r.framework_refs ?? {})) ids.add(fid);
+    return Array.from(ids).sort((a, b) => (labels[a] ?? a).localeCompare(labels[b] ?? b));
+  }, [rules, labels]);
   const sevsPresent = useMemo(() => {
     const s = new Set(rules.map((r) => r.severity));
     return (['critical', 'high', 'medium', 'low'] as const).filter((x) => s.has(x));
@@ -97,10 +104,7 @@ export function RulesTab() {
     return rules.filter((r) => {
       if (sev !== 'all' && r.severity !== sev) return false;
       if (category !== 'all' && r.category !== category) return false;
-      if (
-        family !== 'all' &&
-        !Object.keys(r.framework_refs ?? {}).some((fid) => fwFamily(fid) === family)
-      )
+      if (framework !== 'all' && !Object.keys(r.framework_refs ?? {}).includes(framework))
         return false;
       if (!term) return true;
       const hay = [r.id, r.title, r.description, ...Object.values(r.framework_refs ?? {}).flat()]
@@ -108,7 +112,7 @@ export function RulesTab() {
         .toLowerCase();
       return hay.includes(term);
     });
-  }, [rules, search, sev, category, family]);
+  }, [rules, search, sev, category, framework]);
 
   if (q.isPending)
     return (
@@ -174,11 +178,11 @@ export function RulesTab() {
           options={categories}
         />
         <Select
-          value={family}
-          onChange={(v) => setFamily(v as 'all' | Tone)}
+          value={framework}
+          onChange={setFramework}
           label="All frameworks"
-          options={families}
-          render={(f) => FAMILY_LABEL[f as Tone] ?? f}
+          options={frameworks}
+          render={(f) => labels[f] ?? f}
         />
       </div>
 
@@ -235,16 +239,24 @@ export function RulesTab() {
         {shown.length === 0 ? (
           <State text="No rules match these filters." />
         ) : (
-          shown.map((r, i) => <RuleRow key={r.id} rule={r} first={i === 0} />)
+          shown.map((r, i) => <RuleRow key={r.id} rule={r} labels={labels} first={i === 0} />)
         )}
       </div>
     </div>
   );
 }
 
-function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
+function RuleRow({
+  rule,
+  labels,
+  first,
+}: {
+  rule: Rule;
+  labels: Record<string, string>;
+  first: boolean;
+}) {
   const sev = SEVERITY[rule.severity];
-  const tags = flattenRefs(rule.framework_refs ?? {});
+  const tags = flattenRefs(rule.framework_refs ?? {}, labels);
   const rem = rule.remediation;
   return (
     <div
@@ -272,6 +284,8 @@ function RuleRow({ rule, first }: { rule: Rule; first: boolean }) {
         {tags.map((t) => (
           <span
             key={t.key}
+            title={t.framework}
+            aria-label={`${t.framework} ${t.label}`}
             style={{
               fontSize: 11,
               fontFamily: 'var(--ow-font-mono)',

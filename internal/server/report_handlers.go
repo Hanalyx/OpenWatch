@@ -26,6 +26,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/group"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/license"
 	"github.com/Hanalyx/openwatch/internal/report"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -162,6 +163,7 @@ func (h *handlers) GetReportFrameworks(w http.ResponseWriter, r *http.Request) {
 	for _, f := range fws {
 		resp.Frameworks = append(resp.Frameworks, api.ReportFramework{
 			Framework: f.Framework,
+			Label:     kensa.FrameworkLabel(f.Framework),
 			RuleCount: f.RuleCount,
 		})
 	}

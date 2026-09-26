@@ -1,7 +1,7 @@
 spec:
   id: frontend-rules-library
   title: Rule library tab on /scans
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -76,3 +76,14 @@ spec:
       description: Source-inspection — RulesTab provides a CSV Export built client-side from the filtered rules, renders no input[type=checkbox] bulk-select and no kebab/action-menu control, and contains no em-dash.
       priority: high
       references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        v1.1.0 (D-2 S-7) - frameworks are named with the framework_labels the
+        API sent (system-compliance-lens C-08). The framework filter offers one
+        option per framework id the library references, named with its label,
+        so NIST 800-53, NIST SP 800-171 Rev 2 and CMMC Level 2 are separate
+        options (they were a single "NIST" bucket and "Other"); choosing one
+        shows only rules that reference that id. Each reference tag carries its
+        framework's label as its title and in its accessible name.
+      priority: high
+      references_constraints: [C-01]

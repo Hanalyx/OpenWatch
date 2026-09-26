@@ -1,7 +1,7 @@
 spec:
   id: frontend-reports
   title: Reports page - Library table, Generate action, deferred Templates and Scheduled tabs
-  version: "1.13.0"
+  version: "1.14.0"
   status: approved
   tier: 2
 
@@ -478,7 +478,9 @@ spec:
         "/api/v1/reports/frameworks"; the generate body sets framework only
         when scopeFramework is set (built alongside group_id). The
         frameworks query is enabled on canGenerate so the picker is a
-        host:write affordance.
+        host:write affordance. v1.14.0 (D-2 S-7): each option shows the
+        label the API sent for the key, with its rule count; the option value
+        stays the exact key.
       priority: high
       references_constraints: [C-08]
     - id: AC-10

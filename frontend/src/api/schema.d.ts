@@ -3374,6 +3374,8 @@ export interface components {
         };
         HostComplianceFramework: {
             framework_id: string;
+            /** @description Display label for framework_id, taken from Kensa's framework vocabulary ("NIST SP 800-171 Rev 2", "CIS (RHEL 9)"). An id Kensa does not know is returned as it is. "All rules" on the overall entry, whose framework_id is "all". */
+            label: string;
             /**
              * Format: int64
              * @description Number of host_rule_state rows mapped to this framework.
@@ -4335,8 +4337,10 @@ export interface components {
         };
         /** @description A framework lens present in the fleet, with its rule count. */
         ReportFramework: {
-            /** @description The framework_refs key (e.g. cis_rhel9_v2.0.0). */
+            /** @description The framework_refs key (e.g. cis_rhel9). */
             framework: string;
+            /** @description Display label for the key, from Kensa's framework vocabulary. An id Kensa does not know is returned as it is. */
+            label: string;
             /** @description Distinct rules mapped to this framework across the fleet. */
             rule_count: number;
         };
@@ -4475,6 +4479,10 @@ export interface components {
             rules: components["schemas"]["RuleListItem"][];
             /** @description total rules in the library */
             total: number;
+            /** @description Display label, from Kensa's framework vocabulary, for every framework id used as a framework_refs key in this response. An id Kensa does not know maps to itself. */
+            framework_labels: {
+                [key: string]: string;
+            };
         };
         /** @description One rule's durable verdict for a scan. No inline check output. */
         ScanRuleResult: {
@@ -4500,6 +4508,10 @@ export interface components {
         ScanDetail: {
             scan: components["schemas"]["ScanSummary"];
             results: components["schemas"]["ScanRuleResult"][];
+            /** @description Display label, from Kensa's framework vocabulary, for every framework id used as a framework_refs key in this response. An id Kensa does not know maps to itself. */
+            framework_labels: {
+                [key: string]: string;
+            };
         };
         /** @description One command's reproducible evidence (mirrors kensa CheckEvidence). */
         ScanCheckEvidence: {

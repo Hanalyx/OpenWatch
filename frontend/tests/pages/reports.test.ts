@@ -170,6 +170,12 @@ describe('frontend-reports — reports library page', () => {
     expect(PAGE_SRC).toContain("api.GET('/api/v1/reports/frameworks'");
     // The generate body sets framework when chosen (alongside group_id).
     expect(PAGE_SRC).toMatch(/if \(scopeFramework\) body\.framework = scopeFramework/);
+    // v1.x (D-2 S-7): each option names the framework with the label the API
+    // sent (Kensa's), not the raw key; the value stays the exact key.
+    expect(PAGE_SRC).toMatch(
+      /<option key=\{f\.framework\} value=\{f\.framework\}>\s*\{f\.label\} \(\{f\.rule_count\}\)/,
+    );
+    expect(PAGE_SRC).not.toMatch(/\{f\.framework\} \(\{f\.rule_count\}\)/);
   });
 
   // @ac AC-10

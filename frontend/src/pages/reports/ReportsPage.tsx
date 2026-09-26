@@ -480,7 +480,7 @@ export function ReportsPage() {
               <option value="">All frameworks</option>
               {frameworks.map((f) => (
                 <option key={f.framework} value={f.framework}>
-                  {f.framework} ({f.rule_count})
+                  {f.label} ({f.rule_count})
                 </option>
               ))}
             </select>

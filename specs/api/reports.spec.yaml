@@ -1,7 +1,7 @@
 spec:
   id: api-reports
   title: Reports library - immutable, signed, point-in-time compliance artifacts (four kinds)
-  version: "1.18.0"
+  version: "1.19.0"
   status: approved
   tier: 2
 
@@ -564,14 +564,16 @@ spec:
       references_constraints: [C-05]
     - id: AC-07
       description: >-
-        v1.1.0 - scope_label is derived from the resolved scope:
-        scopeLabel({}) = "All hosts"; a framework-only scope yields
-        "All hosts . <FAMILY>" (e.g. "All hosts . CIS"); a group-only scope
-        yields the group name; a group+framework scope yields
-        "<group> . <FAMILY>". frameworkFamilyLabel shortens a framework key
-        to its leading token uppercased (cis_rhel9_v2.0.0 -> CIS,
-        stig_rhel9_v2r7 -> STIG, nist_800_53_r5 -> NIST) and maps the empty
-        key to the empty string (no lens).
+        v1.1.0, amended v1.19.0 - scope_label is derived from the resolved
+        scope: scopeLabel({}) = "All hosts"; a framework-only scope yields
+        "All hosts . <label>"; a group-only scope yields the group name; a
+        group+framework scope yields "<group> . <label>". v1.19.0 (D-2 S-7,
+        system-compliance-lens C-08): <label> is Kensa's label for the lens
+        key (cis_rhel9 -> "CIS (RHEL 9)", nist_800_171 -> "NIST SP 800-171
+        Rev 2", cmmc_l2 -> "CMMC Level 2"), an id Kensa does not know is shown
+        as it is, and the empty key adds nothing. The v1.1.0 rule shortened the
+        key to its first token upper-cased, so nist_800_53 and nist_800_171
+        both read "NIST".
       priority: high
       references_constraints: [C-07]
     - id: AC-08
@@ -590,7 +592,8 @@ spec:
         v1.1.0 - A framework-scoped Generate counts only host_rule_state
         rows whose framework_refs contain the lens key (framework_refs ?
         key): the echoed scope carries the framework, scope_label carries
-        the family ("All hosts . CIS"), and a critical fail tagged only to a
+        the key's label ("All hosts . CIS (RHEL 9)" for cis_rhel9, v1.19.0),
+        and a critical fail tagged only to a
         different framework is excluded from passing_rules, failing_rules,
         critical_issues, and top_failing_rules.
       priority: high
@@ -829,3 +832,14 @@ spec:
       expected_output:
         artifacts_created_by_rejected_cases: 0
         artifacts_attributed_to_forbidden_actor: 0
+    - id: AC-27
+      description: >-
+        v1.19.0 (D-2 S-7) - attestations scoped to nist_800_171 and to
+        nist_800_53 differ in their signed content (framework is the exact key)
+        and in scope_label ("All hosts . NIST SP 800-171 Rev 2", "All hosts .
+        NIST 800-53") and export filename. A report whose stored scope_label is
+        the pre-v1.19.0 "All hosts . NIST" keeps that label on read and in its
+        export filename, its JSON face still hashes to content_sha256, and its
+        signature still verifies: no artifact is relabeled or re-signed.
+      priority: critical
+      references_constraints: [C-07]

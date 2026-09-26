@@ -14,8 +14,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Kensa 0.10.0.** The rule corpus grows from 769 to 779 rules and gains two
   framework keys, `nist_800_171` (NIST SP 800-171 Rev 2, cited at objective
-  level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules,
-  and the lens picker labels them "NIST 800-171" and "CMMC Level 2".
+  level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules.
+
+  **Framework names now come from Kensa everywhere.** The lens chips, the
+  rule library and scan detail, the report picker and every new report's
+  scope label (cover, OSCAL title, file name) use one vocabulary. NIST
+  800-53, "NIST SP 800-171 Rev 2" and "CMMC Level 2" are distinct wherever
+  they appear; reports used to call both NIST frameworks "NIST" and CMMC
+  "CMMC". Some familiar names change: "CIS RHEL 9" is now "CIS (RHEL 9)" and
+  "PCI DSS 4" is "PCI DSS 4.0". Ubuntu benchmarks read "CIS (ubuntu22)" until
+  Kensa formats Ubuntu versions (CP `features/KN-OW-023`). Reports generated before the upgrade keep the
+  names they were generated with, and signed report content, which carries
+  the exact framework key, is unchanged.
 
   **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
   cannot load the 0.10.0 corpus: the service starts and every scan fails.

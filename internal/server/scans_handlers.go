@@ -26,6 +26,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/scanresult"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -118,6 +119,7 @@ func (h *handlers) GetScanByID(w http.ResponseWriter, r *http.Request, id openap
 		return
 	}
 	resp := api.ScanDetail{Scan: toAPIScanSummary(summary), Results: []api.ScanRuleResult{}}
+	var refs []map[string][]string
 	for _, rr := range results {
 		// Resolve the human title, category, and one-line description from
 		// the rule catalog (same source the host compliance lens uses);
@@ -149,7 +151,9 @@ func (h *handlers) GetScanByID(w http.ResponseWriter, r *http.Request, id openap
 			out.SkipReason = &s
 		}
 		resp.Results = append(resp.Results, out)
+		refs = append(refs, rr.FrameworkRefs)
 	}
+	resp.FrameworkLabels = kensa.FrameworkLabelsForRefs(refs...)
 	writeJSON(w, http.StatusOK, resp)
 }
 

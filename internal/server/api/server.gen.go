@@ -2787,6 +2787,9 @@ type HostComplianceFramework struct {
 	Failing     int    `json:"failing"`
 	FrameworkId string `json:"framework_id"`
 
+	// Label Display label for framework_id, taken from Kensa's framework vocabulary ("NIST SP 800-171 Rev 2", "CIS (RHEL 9)"). An id Kensa does not know is returned as it is. "All rules" on the overall entry, whose framework_id is "all".
+	Label string `json:"label"`
+
 	// Passing Rows mapped to this framework with current_status pass.
 	Passing int `json:"passing"`
 
@@ -3722,8 +3725,11 @@ type ReportKind string
 
 // ReportFramework A framework lens present in the fleet, with its rule count.
 type ReportFramework struct {
-	// Framework The framework_refs key (e.g. cis_rhel9_v2.0.0).
+	// Framework The framework_refs key (e.g. cis_rhel9).
 	Framework string `json:"framework"`
+
+	// Label Display label for the key, from Kensa's framework vocabulary. An id Kensa does not know is returned as it is.
+	Label string `json:"label"`
 
 	// RuleCount Distinct rules mapped to this framework across the fleet.
 	RuleCount int `json:"rule_count"`
@@ -3833,7 +3839,9 @@ type RoleEntry struct {
 
 // RuleList defines model for RuleList.
 type RuleList struct {
-	Rules []RuleListItem `json:"rules"`
+	// FrameworkLabels Display label, from Kensa's framework vocabulary, for every framework id used as a framework_refs key in this response. An id Kensa does not know maps to itself.
+	FrameworkLabels map[string]string `json:"framework_labels"`
+	Rules           []RuleListItem    `json:"rules"`
 
 	// Total total rules in the library
 	Total int `json:"total"`
@@ -3995,7 +4003,9 @@ type ScanConfigResponse struct {
 
 // ScanDetail defines model for ScanDetail.
 type ScanDetail struct {
-	Results []ScanRuleResult `json:"results"`
+	// FrameworkLabels Display label, from Kensa's framework vocabulary, for every framework id used as a framework_refs key in this response. An id Kensa does not know maps to itself.
+	FrameworkLabels map[string]string `json:"framework_labels"`
+	Results         []ScanRuleResult  `json:"results"`
 
 	// Scan One scan_runs row — a scan's metadata and outcome counts.
 	Scan ScanSummary `json:"scan"`

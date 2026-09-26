@@ -33,6 +33,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/compliance"
 	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 )
@@ -461,6 +462,7 @@ func (h *handlers) GetHostComplianceFrameworks(
 		if enabledFamilies != nil && !enabledFamilies[framework.FamilyOf(item.FrameworkId)] {
 			continue
 		}
+		item.Label = kensa.FrameworkLabel(item.FrameworkId) // D-2 S-7: Kensa's label, one vocabulary
 		item.Passing = int(passing)
 		item.Failing = int(failing)
 		// Scored over the verdicts, not over rule_count. rule_count includes
@@ -486,7 +488,7 @@ func (h *handlers) GetHostComplianceFrameworks(
 	}
 
 	// All-rules aggregate for the All chip's score (framework_id "all").
-	resp.Overall = api.HostComplianceFramework{FrameworkId: "all"}
+	resp.Overall = api.HostComplianceFramework{FrameworkId: "all", Label: "All rules"}
 	var oPassing, oFailing int64
 	var overallEngine string
 	if err := h.pool.QueryRow(ctx, `

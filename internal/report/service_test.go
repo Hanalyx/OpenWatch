@@ -226,9 +226,8 @@ func TestExecutiveConstants_Derivation(t *testing.T) {
 
 // @ac AC-07
 // scope_label is derived from the resolved scope: the group name (or "All
-// hosts") optionally suffixed with the framework family. The framework key
-// is shortened to its family token (before the first underscore),
-// uppercased. Pure, so the labeling contract is unit-tested directly.
+// hosts") optionally suffixed with Kensa's label for the lens key (D-2 S-7).
+// Pure, so the labeling contract is unit-tested directly.
 func TestScopeLabel_Derivation(t *testing.T) {
 	t.Run("api-reports/AC-07", func(t *testing.T) {
 		gid := uuid.New()
@@ -238,22 +237,27 @@ func TestScopeLabel_Derivation(t *testing.T) {
 			want  string
 		}{
 			{"unscoped", Scope{}, "All hosts"},
-			{"framework only", Scope{Framework: "cis_rhel9_v2.0.0"}, "All hosts · CIS"},
+			{"framework only", Scope{Framework: "cis_rhel9"}, "All hosts · CIS (RHEL 9)"},
 			{"group only", Scope{GroupID: &gid, GroupName: "Production"}, "Production"},
-			{"group and framework", Scope{GroupID: &gid, GroupName: "Production", Framework: "stig_rhel9_v2r7"}, "Production · STIG"},
-			{"framework no underscore", Scope{Framework: "pci"}, "All hosts · PCI"},
+			{"group and framework", Scope{GroupID: &gid, GroupName: "Production", Framework: "stig_rhel9"}, "Production · STIG (RHEL 9)"},
+			{"800-53", Scope{Framework: "nist_800_53"}, "All hosts · NIST 800-53"},
+			{"800-171", Scope{Framework: "nist_800_171"}, "All hosts · NIST SP 800-171 Rev 2"},
+			{"cmmc", Scope{Framework: "cmmc_l2"}, "All hosts · CMMC Level 2"},
+			{"unknown key is not relabeled", Scope{Framework: "pci"}, "All hosts · pci"},
 		}
 		for _, tc := range cases {
 			if got := scopeLabel(tc.scope); got != tc.want {
 				t.Errorf("%s: scopeLabel = %q, want %q", tc.name, got, tc.want)
 			}
 		}
-		// frameworkFamilyLabel directly: empty in -> empty out.
-		if got := frameworkFamilyLabel(""); got != "" {
-			t.Errorf("frameworkFamilyLabel(\"\") = %q, want empty", got)
-		}
-		if got := frameworkFamilyLabel("nist_800_53_r5"); got != "NIST" {
-			t.Errorf("frameworkFamilyLabel(nist...) = %q, want NIST", got)
+		// S-7: the three frameworks that used to collapse stay distinct.
+		seen := map[string]string{}
+		for _, k := range []string{"nist_800_53", "nist_800_171", "cmmc_l2"} {
+			l := scopeLabel(Scope{Framework: k})
+			if prev, dup := seen[l]; dup {
+				t.Errorf("%s and %s share the scope label %q", prev, k, l)
+			}
+			seen[l] = k
 		}
 	})
 }

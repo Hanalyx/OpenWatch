@@ -27,9 +27,12 @@ func (h *handlers) GetRules(w http.ResponseWriter, r *http.Request) {
 	}
 	rules := h.ruleLibrary.List()
 	resp := api.RuleList{Rules: make([]api.RuleListItem, 0, len(rules)), Total: len(rules)}
+	refs := make([]map[string][]string, 0, len(rules))
 	for _, ru := range rules {
 		resp.Rules = append(resp.Rules, toAPIRuleListItem(ru))
+		refs = append(refs, ru.FrameworkRefs)
 	}
+	resp.FrameworkLabels = kensa.FrameworkLabelsForRefs(refs...)
 	writeJSON(w, http.StatusOK, resp)
 }
 

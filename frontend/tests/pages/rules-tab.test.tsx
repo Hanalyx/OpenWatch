@@ -5,6 +5,7 @@
 //   AC-02  frontend-rules-library/AC-02 — rows render title + framework tag + counts
 //   AC-03  frontend-rules-library/AC-03 — client-side search narrows, no extra fetch
 //   AC-04  frontend-rules-library/AC-04 — CSV export; no bulk-select/kebab; no em-dash
+//   AC-05  frontend-rules-library/AC-05 — frameworks are named with the API labels
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -141,5 +142,60 @@ describe('frontend-rules-library', () => {
     expect(TAB_SRC).not.toMatch(/kebab|⋮|MoreVert|action-menu/i);
     // No em-dash in copy.
     expect(stripComments(TAB_SRC)).not.toContain('—');
+  });
+});
+
+describe('frontend-rules-library v1.x — framework labels (D-2 S-7)', () => {
+  // @ac AC-05
+  test('frontend-rules-library/AC-05 — frameworks are named with the API labels', async () => {
+    const LABELED = {
+      total: 2,
+      framework_labels: {
+        nist_800_53: 'NIST 800-53',
+        nist_800_171: 'NIST SP 800-171 Rev 2',
+        cmmc_l2: 'CMMC Level 2',
+      },
+      rules: [
+        {
+          ...RULES.rules[2],
+          id: 'only-53',
+          title: 'An 800-53 rule',
+          framework_refs: { nist_800_53: ['CM-6'] },
+        },
+        {
+          ...RULES.rules[2],
+          id: 'only-171',
+          title: 'An 800-171 rule',
+          framework_refs: { nist_800_171: ['3.13.9[c]'], cmmc_l2: ['SC.L2-3.13.9'] },
+        },
+      ],
+    };
+    getMock.mockReset();
+    getMock.mockResolvedValue({ data: LABELED, error: undefined });
+    renderTab();
+    await waitFor(() => expect(screen.getByText('An 800-171 rule')).toBeTruthy());
+
+    // One filter option per framework, each named with its label. The old
+    // family buckets put both NIST frameworks under "NIST" and CMMC under
+    // "Other".
+    const filter = screen.getByLabelText('All frameworks') as HTMLSelectElement;
+    const names = Array.from(filter.options).map((o) => o.textContent);
+    expect(names).toEqual([
+      'All frameworks',
+      'CMMC Level 2',
+      'NIST 800-53',
+      'NIST SP 800-171 Rev 2',
+    ]);
+
+    fireEvent.change(filter, { target: { value: 'nist_800_171' } });
+    expect(screen.queryByText('An 800-53 rule')).toBeNull();
+    expect(screen.getByText('An 800-171 rule')).toBeTruthy();
+
+    // Each tag names its framework, so 3.13.9[c] reads as 800-171.
+    expect(screen.getByLabelText('NIST SP 800-171 Rev 2 3.13.9[c]')).toHaveAttribute(
+      'title',
+      'NIST SP 800-171 Rev 2',
+    );
+    expect(screen.getByLabelText('CMMC Level 2 SC.L2-3.13.9')).toBeTruthy();
   });
 });

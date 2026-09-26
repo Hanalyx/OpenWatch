@@ -5503,9 +5503,16 @@ components:
 
     HostComplianceFramework:
       type: object
-      required: [framework_id, rule_count, passing, failing, score_pct, envelope]
+      required: [framework_id, label, rule_count, passing, failing, score_pct, envelope]
       properties:
         framework_id: {type: string}
+        label:
+          type: string
+          description: >-
+            Display label for framework_id, taken from Kensa's framework
+            vocabulary ("NIST SP 800-171 Rev 2", "CIS (RHEL 9)"). An id Kensa
+            does not know is returned as it is. "All rules" on the overall
+            entry, whose framework_id is "all".
         rule_count:
           type: integer
           format: int64
@@ -6883,12 +6890,17 @@ components:
 
     ReportFramework:
       type: object
-      required: [framework, rule_count]
+      required: [framework, label, rule_count]
       description: A framework lens present in the fleet, with its rule count.
       properties:
         framework:
           type: string
-          description: The framework_refs key (e.g. cis_rhel9_v2.0.0).
+          description: The framework_refs key (e.g. cis_rhel9).
+        label:
+          type: string
+          description: >-
+            Display label for the key, from Kensa's framework vocabulary. An
+            id Kensa does not know is returned as it is.
         rule_count:
           type: integer
           description: Distinct rules mapped to this framework across the fleet.
@@ -7049,12 +7061,19 @@ components:
 
     RuleList:
       type: object
-      required: [rules, total]
+      required: [rules, total, framework_labels]
       properties:
         rules:
           type: array
           items: {$ref: '#/components/schemas/RuleListItem'}
         total: {type: integer, description: total rules in the library}
+        framework_labels:
+          type: object
+          additionalProperties: {type: string}
+          description: >-
+            Display label, from Kensa's framework vocabulary, for every
+            framework id used as a framework_refs key in this response. An id
+            Kensa does not know maps to itself.
 
     ScanRuleResult:
       type: object
@@ -7082,12 +7101,19 @@ components:
 
     ScanDetail:
       type: object
-      required: [scan, results]
+      required: [scan, results, framework_labels]
       properties:
         scan: {$ref: '#/components/schemas/ScanSummary'}
         results:
           type: array
           items: {$ref: '#/components/schemas/ScanRuleResult'}
+        framework_labels:
+          type: object
+          additionalProperties: {type: string}
+          description: >-
+            Display label, from Kensa's framework vocabulary, for every
+            framework id used as a framework_refs key in this response. An id
+            Kensa does not know maps to itself.
 
     ScanCheckEvidence:
       type: object
