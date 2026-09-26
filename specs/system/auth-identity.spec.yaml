@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.9.0"
+  version: "1.10.0"
   status: approved
   tier: 1
 
@@ -449,6 +449,18 @@ spec:
         role_lookup_unavailable, with no protected handler run, no cookie
         changed and no refresh triggered. The role query MUST check the
         rows' error before treating an empty result as authoritative.
+      type: security
+      enforcement: error
+    - id: C-46
+      description: >
+        When logout cannot revoke the session it names, or cannot confirm
+        that it did, its message MUST name a remedy the product has: an
+        administrator's password reset, which revokes every interactive
+        credential (C-36). It MUST NOT direct the user to a Settings
+        sessions feature. Settings shows only the current session and cannot
+        list or end others, so a message pointing there tells the user to do
+        something they cannot do, on the one path where their session may
+        still be live.
       type: security
       enforcement: error
     - id: C-44
@@ -2289,3 +2301,29 @@ spec:
           Rows end with an error:
             returns: "The stream error, not an empty role list and not ErrNoRoles"
         transaction_effects: "None; a read-only lookup"
+
+    - id: AC-93
+      description: >
+        Every logout failure message names the administrator password reset
+        as the remedy and never a Settings sessions feature.
+      priority: high
+      references_constraints: [C-40, C-43, C-46]
+      inputs:
+        initial_state: "A signed-in user; POST /auth/logout with both cookies and a valid CSRF pair"
+        variants:
+          - name: "Revocation failed"
+            setup: "A trigger fails the refresh-token revocation, so the sweep rolls back"
+          - name: "Outcome unknown"
+            setup: "The revocation's commit outcome is indeterminate"
+          - name: "Account lock not acquired"
+            setup: "A second connection holds the per-user lock past the lock limit"
+      expected_output:
+        per_variant:
+          Revocation failed: {status: 500, code: auth.logout_incomplete}
+          Outcome unknown: {status: 503, code: server.error, message_also_states: "could not be confirmed"}
+          Account lock not acquired: {status: 503, code: server.error}
+        message_states: "An administrator can end it by resetting your password."
+        message_must_not_mention: "Settings"
+        cookies: "Both credential cookies cleared"
+        transaction_effects: "Not asserted here; covered by AC-66, AC-69 and AC-73"
+        audit: "Not asserted"
