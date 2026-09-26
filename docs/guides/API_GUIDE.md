@@ -55,7 +55,10 @@ permission set:
 - A `Bearer` value in the `Authorization` header. Two kinds exist. An
   **API token** (`owk_` prefix) is the credential for scripts and CI: it is
   bound to one role, can carry an expiry, is stored only as a hash, and is
-  revoked at once by `DELETE /api/v1/tokens/{id}`. An **access token** is the
+  revoked at once by `DELETE /api/v1/tokens/{id}`. It works only while the
+  user who created it may sign in: it is refused while that user is disabled
+  or deleted, and works again if they are re-enabled. A token with no owner
+  is refused. An **access token** is the
   short-lived JWT that `POST /api/v1/auth/login` returns for interactive use
   and first-time setup; it expires 30 minutes after issue.
 - The browser session cookie (`openwatch_session`), used by the web UI. Cookie

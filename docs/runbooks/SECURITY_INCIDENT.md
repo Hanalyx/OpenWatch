@@ -279,7 +279,7 @@ different places. Rotating the JWT signing key handles only the first.
 | Access token (bearer JWT, 30 minutes) | Signed with `jwt_private.pem`, not stored | Rotating the signing key and restarting |
 | Browser session (`openwatch_session` cookie) | `sessions` table, hashed | Setting `revoked_at` on the row |
 | Refresh token (cookie or body) | `refresh_tokens` table, hashed | Setting `revoked_at` on the row |
-| API token (`/api/v1/tokens`) | `api_tokens` table, hashed | Deleting it through `/api/v1/tokens/{id}` |
+| API token (`/api/v1/tokens`) | `api_tokens` table, hashed | Deleting it through `/api/v1/tokens/{id}`. Disabling or deleting the user who created it also stops it, until that user is re-enabled |
 
 Verified on 0.8.0-rc.3: after a signing-key rotation and restart, a bearer
 token issued before it returned 401, while the same browser's session cookie
