@@ -1,7 +1,7 @@
 spec:
   id: release-upgrade
   title: One-command package upgrade with auto-migrate + backup
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -61,6 +61,23 @@ spec:
       description: The backup-cleanup MUST always keep the most recent dump regardless of age, pruning only older dumps past the retention window.
       type: technical
       enforcement: error
+    - id: C-06
+      description: >
+        v1.1.0 - the package manager MUST refuse to pair a Kensa rule corpus with
+        an older Kensa engine. The openwatch RPM and DEB declare the engine they
+        link as openwatch-kensa-engine at the linked module version, and the
+        kensa-rules RPM and DEB require openwatch-kensa-engine at least their
+        own version. Both values come from packaging/common/kensa-version.sh, so
+        they cannot drift apart. An older engine cannot load a newer corpus
+        (Kensa v0.9.0 fails the whole v0.10.0 load and the service starts with
+        every scan failing, CP bugs/OW-081); a newer engine loads an older
+        corpus, so an openwatch-only upgrade stays allowed. Packages built
+        before this constraint (v0.8.0-rc.5 and earlier) provide no engine and
+        so cannot satisfy a corpus that requires one. Residual, measured and not covered: raw `dpkg -i` of the
+        corpus alone unpacks it and leaves it unconfigured, and `rpm --nodeps`
+        bypasses the check; the documented paths use dnf and apt.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -91,3 +108,26 @@ spec:
       description: The package payloads contain /usr/lib/openwatch/openwatch-upgrade.sh, /usr/lib/openwatch/cleanup-backups.sh, the two systemd units, and the empty /var/lib/openwatch/backups directory; /etc/openwatch/upgrade.conf ships as a noreplace config file.
       priority: high
       references_constraints: [C-03]
+    - id: AC-08
+      description: >
+        v1.1.0 - the built packages carry the pairing: the openwatch RPM
+        provides openwatch-kensa-engine = V and the openwatch DEB lists
+        Provides openwatch-kensa-engine (= V), where V is the Kensa module
+        version in go.mod; the kensa-rules RPM is version V and requires
+        openwatch-kensa-engine >= V, and the kensa-rules DEB depends on
+        openwatch-kensa-engine (>= V). Checked against built artifacts, not
+        against the spec files.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: >
+        v1.1.0 - in a container, with a release that predates the engine
+        provide installed, the package manager refuses kensa-rules alone and
+        leaves the installed corpus unchanged (dnf, rpm -U and apt); an
+        openwatch-only upgrade succeeds; the coordinated upgrade of both
+        packages succeeds; a fresh install of the new pair succeeds; the new
+        corpus refuses a downgrade of openwatch to that release; and versions
+        order 1:0.8.0~rc.5 < 1:0.8.0~rc.6 < 1:0.8.0~rc.10 < 1:0.8.0 and 0.9.0 <
+        0.10.0 in both formats. Runs on RPM and DEB.
+      priority: critical
+      references_constraints: [C-06]
