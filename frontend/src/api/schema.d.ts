@@ -1163,9 +1163,10 @@ export interface paths {
          *     uses; unused ones are not listed). Each entry carries the
          *     built-in default, the operator override when set, the count
          *     and ids of affected rules, and the configure_me flag marking
-         *     organization-specific placeholder defaults
-         *     (rsyslog_remote_server, chrony_ntp_pool, banner_text) that
-         *     operators should always review. Spec api-system-scan-config.
+         *     variables the operator has to decide: the organization-specific
+         *     placeholder defaults (rsyslog_remote_server, chrony_ntp_pool,
+         *     banner_text) and every variable the corpus ships with no value,
+         *     whose rule skips until it is declared. Spec api-system-scan-config.
          */
         get: operations["getSystemScanVariables"];
         /**
@@ -3901,7 +3902,7 @@ export interface components {
                 affects_rules: number;
                 /** @description The referencing rule ids, sorted */
                 rule_ids: string[];
-                /** @description Organization-specific placeholder default the operator should always review */
+                /** @description The built-in value cannot be right for a real site (a placeholder, or no value at all), so the operator has to set it */
                 configure_me: boolean;
             }[];
         };

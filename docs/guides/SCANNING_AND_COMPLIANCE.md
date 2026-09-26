@@ -181,6 +181,9 @@ rule. Until you declare the variable, seven of those rules report **skipped**
 and name the variable to set. A skipped rule is left out of the score, so it is
 neither a pass nor a fail. The eighth, `suid-sgid-files-reviewed`, still runs
 its world-writable check; only its inventory comparison needs the baseline.
+The card marks each of the eight "Configure me" until you set it, as it does
+the three placeholder defaults (`rsyslog_remote_server`, `chrony_ntp_pool`
+and `banner_text`).
 
 | Variable | Rule | What to declare |
 |---|---|---|
