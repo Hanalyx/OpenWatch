@@ -27,12 +27,21 @@ func TestFamilyOf(t *testing.T) {
 				t.Errorf("FamilyOf(%q) = %q, want %q", key, got, want)
 			}
 		}
-		// Labels: known families render nicely, unknown upper-cases.
-		if Label("stig") != "STIG" || Label("nist_800_53") != "NIST 800-53" {
-			t.Errorf("Label mismatch: stig=%q nist=%q", Label("stig"), Label("nist_800_53"))
-		}
-		if Label("nist_800_171") != "NIST 800-171" || Label("cmmc_l2") != "CMMC Level 2" {
-			t.Errorf("Label mismatch: nist_800_171=%q cmmc_l2=%q", Label("nist_800_171"), Label("cmmc_l2"))
+		// Labels come from Kensa (D-2 S-7): one vocabulary, and the three
+		// frameworks that used to collapse stay distinct. An unknown id is
+		// returned as it is, never relabeled.
+		for id, want := range map[string]string{
+			"stig":         "STIG",
+			"cis":          "CIS",
+			"nist_800_53":  "NIST 800-53",
+			"nist_800_171": "NIST SP 800-171 Rev 2",
+			"cmmc_l2":      "CMMC Level 2",
+			"pci_dss_4":    "PCI DSS 4.0",
+			"not_a_family": "not_a_family",
+		} {
+			if got := Label(id); got != want {
+				t.Errorf("Label(%q) = %q, want %q", id, got, want)
+			}
 		}
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: system-compliance-lens
   title: Default compliance lens — org-wide framework projection
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -133,6 +133,23 @@ spec:
         when that lands.
       type: technical
       enforcement: error
+    - id: C-08
+      description: >
+        v1.7.0 (D-2 S-7) - every surface that names a framework MUST take its
+        label from Kensa's framework vocabulary through internal/kensa
+        (FrameworkLabel, which wraps pkg/kensa.FrameworkFromID). OpenWatch keeps
+        no label map of its own and derives no label from an id; an id Kensa
+        does not know is shown as it is. The surfaces: the family labels
+        (framework.Label), the report scope label, the label field on
+        GET /hosts/{id}/compliance/frameworks and GET /reports/frameworks, and
+        the framework_labels map on GET /rules and GET /scans/{id}. The UI
+        renders those labels and derives none. NIST 800-53, NIST SP 800-171
+        and CMMC Level 2 therefore read differently everywhere. Signed report
+        content keeps the exact framework key; a label is never written into
+        it, and a report generated before a label change keeps the label it
+        was generated with (api-reports AC-27).
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -140,7 +157,7 @@ spec:
       priority: high
       references_constraints: [C-01]
     - id: AC-02
-      description: FamilyOf strips a trailing OS suffix (stig_rhel9 -> stig, cis_ubuntu22 -> cis) and leaves an OS-agnostic key as its own family (nist_800_53, pci_dss_4, srg). Label renders a known family (STIG, NIST 800-53) and upper-cases an unknown id.
+      description: FamilyOf strips a trailing OS suffix (stig_rhel9 -> stig, cis_ubuntu22 -> cis) and leaves an OS-agnostic key as its own family (nist_800_53, pci_dss_4, srg). Label renders a family with Kensa's label (STIG, NIST 800-53, NIST SP 800-171 Rev 2, CMMC Level 2, PCI DSS 4.0) and returns an id Kensa does not know as it is (v1.7.0, C-08; it previously upper-cased it).
       priority: high
       references_constraints: [C-02]
     - id: AC-03
@@ -244,3 +261,14 @@ spec:
         distro that rolls up to the rhel family in discovery.
       priority: critical
       references_constraints: [C-07]
+    - id: AC-14
+      description: >
+        v1.7.0 - with rule state mapped to nist_800_53, nist_800_171 and
+        cmmc_l2, GET /hosts/{id}/compliance/frameworks and GET
+        /reports/frameworks label them "NIST 800-53", "NIST SP 800-171 Rev 2"
+        and "CMMC Level 2" (the overall host entry is "All rules"); GET /rules
+        carries a framework_labels entry for every id its rules reference; GET
+        /scans/{id} carries framework_labels for the ids in its results. No two
+        of the three frameworks share a label on any surface.
+      priority: critical
+      references_constraints: [C-08]

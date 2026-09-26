@@ -23,6 +23,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Hanalyx/openwatch/internal/kensa"
 )
 
 // osSuffix matches a trailing OS/version segment (e.g. _rhel9, _ubuntu2204).
@@ -164,25 +166,12 @@ func OSResolvedMatchSQL(famRef, osFamilyExpr, osVersionExpr string) string {
 			OR framework_refs ? ` + famRef + `)`
 }
 
-// familyLabels overrides the display label for known families; anything else
-// falls back to an upper-cased id.
-var familyLabels = map[string]string{
-	"stig":        "STIG",
-	"cis":         "CIS",
-	"srg":         "SRG",
-	"nist_800_53": "NIST 800-53",
-	"pci_dss_4":   "PCI DSS 4",
-	// Added with Kensa v0.10.0, whose corpus maps 324 rules to each.
-	"nist_800_171": "NIST 800-171",
-	"cmmc_l2":      "CMMC Level 2",
-}
-
-// Label renders a family id for display.
+// Label renders a family id for display, with Kensa's label for it. There is
+// no OpenWatch label map: it disagreed with Kensa's ("PCI DSS 4" against
+// "PCI DSS 4.0") and with the frontend's, so one framework read three ways
+// (D-2 S-7). An id Kensa does not know is returned as it is.
 func Label(id string) string {
-	if l, ok := familyLabels[id]; ok {
-		return l
-	}
-	return strings.ToUpper(id)
+	return kensa.FrameworkLabel(id)
 }
 
 // Family is a user-facing framework grouping with the corpus keys it spans.

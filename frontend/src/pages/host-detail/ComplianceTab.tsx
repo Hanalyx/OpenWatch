@@ -122,6 +122,9 @@ export function ComplianceTab({
     },
     enabled: !!hostId,
   });
+  const frameworkName = framework
+    ? frameworkLabelFor(frameworksQuery.data?.frameworks, framework)
+    : undefined;
 
   // CLIENT-SIDE status filter + search — clicking or typing never
   // refetches. Spec C-03 / AC-04.
@@ -208,10 +211,10 @@ export function ComplianceTab({
           }}
         >
           <ScorePanel summary={lens.summary} />
-          <ResultMixPanel summary={lens.summary} framework={framework} />
+          <ResultMixPanel summary={lens.summary} frameworkName={frameworkName} />
           <ScanPanel
             scanContext={lens.scan_context}
-            framework={framework}
+            frameworkName={frameworkName}
             lensTotal={lens.summary.total}
           />
         </div>
@@ -447,29 +450,15 @@ function RescanButton({
 //    stays the single source of truth (api-hosts AC-08).
 // ─────────────────────────────────────────────────────────────────────────
 
-// Keys the generic transform below would misspell, named as the backend's
-// internal/framework labels name them.
-const NAMED_FRAMEWORK_LABELS: Record<string, string> = {
-  nist_800_53: 'NIST 800-53',
-  nist_800_171: 'NIST 800-171',
-  cmmc_l2: 'CMMC Level 2',
-};
-
-// frameworkLabel renders a friendly chip label from a framework id:
-// cis_rhel8 -> "CIS RHEL 8", nist_800_53 -> "NIST 800-53",
-// stig_rhel9 -> "STIG RHEL 9", pci_dss_4 -> "PCI DSS 4".
-export function frameworkLabel(id: string): string {
-  const named = NAMED_FRAMEWORK_LABELS[id];
-  if (named) return named;
-  return id
-    .split('_')
-    .map((part) => {
-      const m = /^([a-z]+)(\d+)$/.exec(part);
-      if (m) return `${m[1]!.toUpperCase()} ${m[2]!}`;
-      if (/^\d+$/.test(part)) return part;
-      return part.toUpperCase();
-    })
-    .join(' ');
+// frameworkLabelFor returns the label the API sent for a framework id. The
+// labels are Kensa's, supplied by the server (spec system-compliance-lens
+// C-08), so every page names a framework the same way. The UI derives none:
+// an id the API did not label is shown as it is.
+export function frameworkLabelFor(
+  frameworks: { framework_id: string; label: string }[] | undefined,
+  id: string,
+): string {
+  return frameworks?.find((f) => f.framework_id === id)?.label ?? id;
 }
 
 function LensBar({
@@ -510,7 +499,7 @@ function LensBar({
           active={framework === opt.framework_id}
           onClick={() => onFrameworkChange(opt.framework_id)}
         >
-          <span>{frameworkLabel(opt.framework_id)}</span>
+          <span>{opt.label}</span>
           <span style={lensChipMeta}>{opt.rule_count} rules</span>
           <span style={lensChipScore}>{chipScore(opt.score_pct)}</span>
         </LensChip>
@@ -738,10 +727,10 @@ function ScorePanel({ summary }: { summary: LensResponse['summary'] }) {
 
 function ResultMixPanel({
   summary,
-  framework,
+  frameworkName,
 }: {
   summary: LensResponse['summary'];
-  framework?: string;
+  frameworkName?: string;
 }) {
   const max = Math.max(1, summary.passing, summary.failing);
   const rows: { label: string; value: number; color: string }[] = [
@@ -750,7 +739,7 @@ function ResultMixPanel({
   ];
   return (
     <section aria-label="Result mix" style={panel}>
-      <h3 style={panelHead}>Result mix{framework ? ` · ${frameworkLabel(framework)}` : ''}</h3>
+      <h3 style={panelHead}>Result mix{frameworkName ? ` · ${frameworkName}` : ''}</h3>
       {rows.map((row) => (
         <div
           key={row.label}
@@ -851,11 +840,11 @@ function ResultMixPanel({
 
 function ScanPanel({
   scanContext,
-  framework,
+  frameworkName,
   lensTotal,
 }: {
   scanContext: LensResponse['scan_context'];
-  framework?: string;
+  frameworkName?: string;
   lensTotal: number;
 }) {
   const ran = scanContext.last_scan_at ? new Date(scanContext.last_scan_at).toLocaleString() : '';
@@ -863,16 +852,14 @@ function ScanPanel({
   // passing, failing, skipped AND errored rules. Calling that number evaluated
   // claims a verdict for every rule the scan skipped or errored on, which is
   // the same overclaim as labeling a skip "not applicable".
-  const coverage = framework
-    ? `${lensTotal} of this host's rules carry a ${frameworkLabel(framework)} ref`
+  const coverage = frameworkName
+    ? `${lensTotal} of this host's rules carry a ${frameworkName} ref`
     : `${lensTotal} rules in this view`;
   return (
     <section aria-label="Scan details" style={panel}>
       <h3 style={panelHead}>Scan</h3>
       <dl style={{ margin: 0 }}>
-        <ScanRow label="Framework">
-          {framework ? frameworkLabel(framework) : 'All rules (no lens)'}
-        </ScanRow>
+        <ScanRow label="Framework">{frameworkName ?? 'All rules (no lens)'}</ScanRow>
         <ScanRow label="Ran">
           <span style={{ fontFamily: 'var(--ow-font-mono)' }}>{ran}</span>
           {scanContext.duration_seconds != null ? (

@@ -7,6 +7,7 @@
 //   AC-04  frontend-scan-detail/AC-04 — evidence fetched lazily (not under OSCAL)
 //   AC-05  frontend-scan-detail/AC-05 — OSCAL download paths with credentials include
 //   AC-06  frontend-scan-detail/AC-06 — /scans host expands to scan history linking to /scans/$scanId
+//   AC-09  frontend-scan-detail/AC-09 — framework tags are named with the API labels
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -188,5 +189,16 @@ describe('frontend-scan-detail', () => {
     expect(PAGE_SRC).not.toMatch(/>\s*\{scan\.host_id\.slice\(0, 8\)\}\s*</);
     // Still a Link to the host detail page.
     expect(PAGE_SRC).toContain('to="/hosts/$hostId"');
+  });
+});
+
+describe('frontend-scan-detail v1.x — framework labels (D-2 S-7)', () => {
+  // @ac AC-09
+  test('frontend-scan-detail/AC-09 — framework tags are named with the API labels', () => {
+    // Labels come from the scan response, not from an id transform.
+    expect(PAGE_SRC).toMatch(/q\.data\?\.framework_labels/);
+    expect(PAGE_SRC).toMatch(/framework: labels\[fid\] \?\? fid/);
+    expect(PAGE_SRC).toContain('title={t.framework}');
+    expect(PAGE_SRC).toContain('aria-label={`${t.framework} ${t.label}`}');
   });
 });

@@ -51,10 +51,13 @@ function fwTag(
 }
 
 // flattenRefs turns the framework_refs map into an ordered tag list
-// (CIS first, then STIG, then NIST, then the rest) for stable rendering.
+// (CIS first, then STIG, then NIST, then the rest) for stable rendering. Each
+// tag carries its framework's name: the label the API sent (Kensa's, spec
+// system-compliance-lens C-08), or the raw id when none came.
 function flattenRefs(
   refs: Record<string, string[]>,
-): { label: string; tone: keyof typeof TAG_TONE; key: string }[] {
+  labels: Record<string, string>,
+): { label: string; tone: keyof typeof TAG_TONE; key: string; framework: string }[] {
   const order = (id: string) =>
     id.startsWith('cis') ? 0 : id.startsWith('stig') ? 1 : id.startsWith('nist') ? 2 : 3;
   return Object.keys(refs)
@@ -62,7 +65,7 @@ function flattenRefs(
     .flatMap((fid) =>
       (refs[fid] ?? []).map((c) => {
         const t = fwTag(fid, c);
-        return { ...t, key: `${fid}:${c}` };
+        return { ...t, key: `${fid}:${c}`, framework: labels[fid] ?? fid };
       }),
     );
 }
@@ -106,6 +109,7 @@ export function ScanDetailPage() {
   });
 
   const results = useMemo(() => q.data?.results ?? [], [q.data]);
+  const labels: Record<string, string> = useMemo(() => q.data?.framework_labels ?? {}, [q.data]);
   const counts = useMemo(() => {
     const c = { fail: 0, pass: 0, skipped: 0, error: 0 };
     for (const r of results)
@@ -308,6 +312,7 @@ export function ScanDetailPage() {
             <RuleRow
               key={r.rule_id}
               rule={r}
+              labels={labels}
               scanId={scanId}
               first={i === 0}
               open={expanded === r.rule_id}
@@ -322,12 +327,14 @@ export function ScanDetailPage() {
 
 function RuleRow({
   rule,
+  labels,
   scanId,
   first,
   open,
   onToggle,
 }: {
   rule: RuleResult;
+  labels: Record<string, string>;
   scanId: string;
   first: boolean;
   open: boolean;
@@ -336,7 +343,7 @@ function RuleRow({
   const st = STATUS[rule.status] ?? { tone: 'var(--ow-fg-2)', label: rule.status };
   const sev = SEVERITY[rule.severity];
   const why = rule.description || rule.skip_reason || '';
-  const tags = flattenRefs(rule.framework_refs ?? {});
+  const tags = flattenRefs(rule.framework_refs ?? {}, labels);
   return (
     <div style={{ borderTop: first ? 'none' : '1px solid var(--ow-line)' }}>
       <button
@@ -409,6 +416,8 @@ function RuleRow({
               {tags.map((t) => (
                 <span
                   key={t.key}
+                  title={t.framework}
+                  aria-label={`${t.framework} ${t.label}`}
                   style={{
                     fontSize: 11,
                     fontFamily: 'var(--ow-font-mono)',

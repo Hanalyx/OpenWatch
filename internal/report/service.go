@@ -15,6 +15,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/db"
 
 	"github.com/Hanalyx/openwatch/internal/compliance"
+	"github.com/Hanalyx/openwatch/internal/kensa"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -781,32 +782,23 @@ func (s *Service) computeCoverage(ctx context.Context, q queryer, hostIDs []uuid
 }
 
 // scopeLabel renders the human scope_label from a resolved scope:
-// "<group or All hosts>" optionally suffixed with " · <FRAMEWORK family>"
-// (e.g. "Production · CIS", "All hosts · STIG", "Production", "All hosts").
+// "<group or All hosts>" optionally suffixed with " · <framework label>"
+// (e.g. "Production · CIS (RHEL 9)", "All hosts · NIST SP 800-171 Rev 2",
+// "Production", "All hosts").
+//
+// It is computed once, at generation, and stored on the report row; every
+// face (PDF cover, OSCAL title, export filename) reads the stored value. A
+// report generated before a label change keeps the label it was generated
+// with. The signed content carries the exact framework key separately.
 func scopeLabel(sc Scope) string {
 	left := allHostsLabel
 	if sc.GroupName != "" {
 		left = sc.GroupName
 	}
-	if fw := frameworkFamilyLabel(sc.Framework); fw != "" {
+	if fw := kensa.FrameworkLabel(sc.Framework); fw != "" {
 		return left + " · " + fw
 	}
 	return left
-}
-
-// frameworkFamilyLabel shortens a framework_refs key to its family for a
-// leadership-facing label: "cis_rhel9_v2.0.0" -> "CIS", "stig_rhel9_v2r7"
-// -> "STIG". The family is the token before the first underscore,
-// uppercased. Empty in -> empty out (no lens).
-func frameworkFamilyLabel(framework string) string {
-	if framework == "" {
-		return ""
-	}
-	head := framework
-	if i := strings.IndexByte(framework, '_'); i > 0 {
-		head = framework[:i]
-	}
-	return strings.ToUpper(head)
 }
 
 // compliancePct rounds passing/evaluated to a whole percent (round half
