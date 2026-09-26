@@ -4122,7 +4122,7 @@ type ScanVariablesResponse struct {
 		// AffectsRules Count of corpus rules referencing the variable
 		AffectsRules int `json:"affects_rules"`
 
-		// ConfigureMe Organization-specific placeholder default the operator should always review
+		// ConfigureMe The built-in value cannot be right for a real site (a placeholder, or no value at all), so the operator has to set it
 		ConfigureMe bool `json:"configure_me"`
 
 		// Default kensa built-in default in effect without an override

@@ -1,7 +1,7 @@
 spec:
   id: api-remediation
   title: Remediation governance - request/approve lifecycle, projected lift, and queued single-rule execute/rollback (OpenWatch Core, free)
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 1
 
@@ -115,7 +115,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-07
-      description: 'ProjectLift is read-only and best-effort: for a failing rule it returns per-framework projected score deltas derived from host_rule_state.framework_refs (delta ~= 100/N where N is the count of that framework''s rules on the host); when framework data is absent or unparseable it returns an empty projection and never errors or blocks the request'
+      description: 'ProjectLift is read-only and best-effort: for a failing rule it returns per-framework projected score deltas derived from host_rule_state.framework_refs (delta ~= 100/N where N is the count of that framework''s rules on the host). v1.8.0 - each field names one framework family: cis is every cis key, stig every stig key, and nist is NIST SP 800-53 only (nist_800_53 and its revisions), never nist_800_171, which Kensa v0.10.0 added and which the UI would otherwise present under the same NIST label; when framework data is absent or unparseable it returns an empty projection and never errors or blocks the request'
       type: technical
       enforcement: warning
     - id: C-09
@@ -304,3 +304,14 @@ spec:
         shape) still verifies.
       priority: critical
       references_constraints: [C-08, C-10]
+    - id: AC-18
+      description: >
+        v1.8.0 - the nist projection counts NIST SP 800-53 only. On a host whose
+        current corpus holds a failing rule mapped to nist_800_53, a passing
+        rule mapped to nist_800_53, a passing rule mapped to both nist_800_53
+        and nist_800_171, and a failing rule mapped to nist_800_171 alone,
+        ProjectLift quotes 100/3 for the first rule (three 800-53 rules, not
+        four NIST-prefixed ones) and no nist projection for the 800-171-only
+        rule.
+      priority: high
+      references_constraints: [C-07]

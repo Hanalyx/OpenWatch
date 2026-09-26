@@ -90,7 +90,7 @@ spec:
       enforcement: error
 
     - id: C-07
-      description: 'v1.1.0 - the variables surface lists ONLY corpus-used variables (kensa.RuleVariables intersected with BuiltInVars via the internal/kensa VariableCatalog; unused built-ins are not rendered). The three organization-specific placeholder defaults (rsyslog_remote_server, chrony_ntp_pool, banner_text) carry configure_me: true. PUT replaces the FULL override map, rejects unknown names with 400 naming the key, and drops overrides equal to the built-in default. The scan path reloads the rule corpus with the merged variables when the override set changes (fingerprint compare; reload failure keeps the last-good corpus)'
+      description: 'v1.1.0 - the variables surface lists ONLY corpus-used variables (kensa.RuleVariables intersected with BuiltInVars via the internal/kensa VariableCatalog; unused built-ins are not rendered). configure_me is true exactly for a variable whose built-in value cannot be right for a real site, so the operator has to decide it. v1.5.0 amends this from the three placeholders alone. Two kinds qualify: the three organization-specific placeholder defaults (rsyslog_remote_server, chrony_ntp_pool, banner_text), and every corpus-used variable Kensa ships with an empty default. For the pinned corpus (Kensa v0.10.0) the inventory is eleven variables: those three plus authorized_listening_ports, authorized_local_accounts, authorized_network_protocols, authorized_privileged_users, authorized_service_accounts, authorized_services, flaw_remediation_max_days and suid_sgid_baseline, each of which leaves its one rule skipped until declared. The other 32 corpus-used variables carry a benchmark value or a generic list that is valid as shipped and are not flagged. configure_me marks a decision to make; it does not classify a scan result, which needs the typed skip reason in features/KN-OW-021. PUT replaces the FULL override map, rejects unknown names with 400 naming the key, and drops overrides equal to the built-in default. The scan path reloads the rule corpus with the merged variables when the override set changes (fingerprint compare; reload failure keeps the last-good corpus)'
       type: technical
       enforcement: error
 
@@ -124,7 +124,7 @@ spec:
       priority: critical
       references_constraints: [C-06]
     - id: AC-08
-      description: 'v1.1.0 - GET /system/scan/variables returns one entry per corpus-used variable sorted by name, each with the built-in default, the effective value (override when set), overridden flag, affects_rules count + sorted rule_ids, and configure_me true for exactly the three placeholder names; anonymous callers are rejected'
+      description: 'v1.1.0 - GET /system/scan/variables returns one entry per corpus-used variable sorted by name, each with the built-in default, the effective value (override when set), overridden flag, affects_rules count + sorted rule_ids, and configure_me true for exactly the C-07 inventory (v1.5.0: the eleven variables, checked as a named set); the catalog content is checked, not only its shape: every entry''s default equals the Kensa built-in and its rule ids equal the sorted corpus references; anonymous callers are rejected'
       priority: critical
       references_constraints: [C-02, C-07]
     - id: AC-09
@@ -136,6 +136,6 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-11
-      description: 'v1.5.0 - a list-valued override (for example authorized_listening_ports = "22,443") reaches the affected rule''s check parameters verbatim when the corpus reloads, and removing the override restores the built-in default on the next reload. Kensa v0.10.0 ships eight corpus-used variables whose built-in default is empty; configure_me stays limited to the three placeholder names in C-07'
+      description: 'v1.5.0 - a list-valued override (for example authorized_listening_ports = "22,443") reaches the affected rule''s check parameters verbatim when the corpus reloads, and removing the override restores the built-in default on the next reload. Kensa v0.10.0 ships eight corpus-used variables whose built-in default is empty, and C-07 flags them configure_me'
       priority: high
       references_constraints: [C-07]

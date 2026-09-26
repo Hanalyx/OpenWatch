@@ -2,16 +2,18 @@
 // their built-in defaults, for the Settings scan-variables UI and the
 // PUT validation path.
 //
-// kensa.BuiltInVars ships ~29 defaults but only the variables that
-// corpus rules actually reference are rendered or accepted as
-// overrides (the plan's "20 used variables; don't render the unused
-// 9"). Three defaults are organization-specific placeholders the
-// operator should always review; ConfigureMe flags them.
+// kensa.BuiltInVars ships more defaults than the corpus uses; only the
+// variables that corpus rules actually reference are rendered or
+// accepted as overrides. ConfigureMe flags the ones whose built-in value
+// cannot be right for a real site, so the operator has to decide: the
+// three organization-specific placeholders, and every variable Kensa
+// ships with no value at all (eight in v0.10.0, each gating one rule
+// that skips until it is declared).
 //
 // internal/kensa is the only package allowed to import the upstream
 // kensa module — consumers depend on this wrapper.
 //
-// Spec: api-system-scan-config v1.1.0.
+// Spec: api-system-scan-config v1.1.0, C-07 amended in v1.5.0.
 package kensa
 
 import (
@@ -36,7 +38,8 @@ type VariableInfo struct {
 	Name    string
 	Default string   // kensa built-in default
 	Rules   []string // rule ids referencing the variable, sorted
-	// ConfigureMe marks organization-specific placeholder defaults.
+	// ConfigureMe marks a variable the operator has to decide: a
+	// placeholder default, or no built-in value.
 	ConfigureMe bool
 }
 
@@ -68,7 +71,7 @@ func NewVariableCatalog(rulesDir string) (*VariableCatalog, error) {
 			Name:        name,
 			Default:     defaults[name], // "" when a rule references an undefaulted var
 			Rules:       sorted,
-			ConfigureMe: placeholderVars[name],
+			ConfigureMe: placeholderVars[name] || defaults[name] == "",
 		}
 	}
 	return &VariableCatalog{vars: m}, nil

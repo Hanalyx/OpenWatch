@@ -42,9 +42,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     RHEL 8 instead of reporting not applicable.
 
   Eight new scan variables ship with no default, and seven rules report
-  skipped until theirs is declared. The scanning guide lists them under
-  "Scan variables". Values are not type checked when saved (CP
-  `bugs/OW-080`).
+  skipped until theirs is declared. Settings marks them "Configure me",
+  alongside the three placeholder defaults it already marked, and the
+  scanning guide lists them under "Scan variables". Values are not type
+  checked when saved (CP `bugs/OW-080`).
+
+  The remediation "NIST" projected lift counts NIST SP 800-53 rules only.
+  Matching every `nist` key would have folded in the new 800-171 mapping,
+  quoting a NIST gain for 19 rules that are not in 800-53.
 
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 

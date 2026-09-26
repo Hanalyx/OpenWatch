@@ -345,7 +345,7 @@ func (s *Service) ProjectLift(ctx context.Context, hostID uuid.UUID, ruleID stri
 		SELECT
 		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'cis%')),
 		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'stig%')),
-		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k LIKE 'nist%'))
+		  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM jsonb_object_keys(framework_refs) k WHERE k = 'nist_800_53' OR k LIKE 'nist\_800\_53\_%'))
 		FROM host_rule_state_current WHERE host_id = $1`, hostID).Scan(&nCIS, &nSTIG, &nNIST)
 	if err != nil {
 		return ProjectedLift{}, fmt.Errorf("remediation: project lift denom: %w", err)
@@ -365,14 +365,20 @@ func (s *Service) ProjectLift(ctx context.Context, hostID uuid.UUID, ruleID stri
 }
 
 // frameworkClass maps a kensa framework_id (e.g. "cis_rhel9_v2",
-// "stig_rhel9_v2r7", "nist_800_53_r5") to the cis/stig/nist projection bucket.
+// "stig_rhel9_v2r7", "nist_800_53") to the cis/stig/nist projection bucket.
+//
+// The nist bucket is NIST SP 800-53 only. Kensa v0.10.0 added nist_800_171,
+// and a "nist" prefix would fold it in: 19 rules carry 800-171 and not
+// 800-53, so they would quote a NIST lift, and the denominator would count
+// both frameworks. The field would then describe no single framework, which
+// is what spec api-remediation C-07 requires of it.
 func frameworkClass(fwID string) string {
 	switch {
 	case strings.HasPrefix(fwID, "cis"):
 		return "cis"
 	case strings.HasPrefix(fwID, "stig"):
 		return "stig"
-	case strings.HasPrefix(fwID, "nist"):
+	case fwID == "nist_800_53" || strings.HasPrefix(fwID, "nist_800_53_"):
 		return "nist"
 	}
 	return ""
