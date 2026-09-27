@@ -26,6 +26,20 @@ func freshService(t *testing.T) (*Service, *pgxpool.Pool) {
 	return NewService(pool), pool
 }
 
+// activeOwner inserts an active user to own a token. Since C-04 a token
+// authenticates only while its owner may, so a token meant to succeed
+// needs one.
+func activeOwner(t *testing.T, pool *pgxpool.Pool) *uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, 'x')`,
+		id, "owner-"+id.String()[:8], id.String()[:8]+"@example.test"); err != nil {
+		t.Fatalf("insert owner: %v", err)
+	}
+	return &id
+}
+
 // @ac AC-01
 func TestCreate_HashedNotPlaintext(t *testing.T) {
 	t.Run("system-api-tokens/AC-01", func(t *testing.T) {
@@ -59,7 +73,7 @@ func TestAuthenticate_Succeeds(t *testing.T) {
 	t.Run("system-api-tokens/AC-02", func(t *testing.T) {
 		svc, pool := freshService(t)
 		ctx := context.Background()
-		raw, tok, _ := svc.Create(ctx, CreateParams{Name: "ci", RoleID: auth.RoleOpsLead})
+		raw, tok, _ := svc.Create(ctx, CreateParams{Name: "ci", RoleID: auth.RoleOpsLead, CreatedBy: activeOwner(t, pool)})
 		id, err := svc.AuthenticateToken(ctx, raw)
 		if err != nil {
 			t.Fatalf("AuthenticateToken: %v", err)

@@ -118,6 +118,16 @@ type TokenAuthenticator interface {
 	AuthenticateToken(ctx context.Context, raw string) (auth.Identity, error)
 }
 
+// Owner-state refusals for a service-account token. An authenticator
+// wraps one of these when a token is otherwise valid but its owner may not
+// authenticate, so the audit record can say why. Spec system-api-tokens
+// C-04.
+var (
+	ErrTokenOwnerDisabled = errors.New("identity: api token owner is disabled")
+	ErrTokenOwnerDeleted  = errors.New("identity: api token owner is deleted")
+	ErrTokenOwnerAbsent   = errors.New("identity: api token has no owner")
+)
+
 // BinderOption configures optional binder behavior.
 type BinderOption func(*binderConfig)
 
@@ -352,7 +362,14 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		// authenticator; everything else is a session JWT.
 		if cfg.tokenAuth != nil && strings.HasPrefix(token, auth.APITokenPrefix) {
 			id, err := cfg.tokenAuth.AuthenticateToken(ctx, token)
-			if err != nil {
+			switch {
+			case errors.Is(err, ErrTokenOwnerDisabled):
+				return anon(), "api_token_owner_disabled"
+			case errors.Is(err, ErrTokenOwnerDeleted):
+				return anon(), "api_token_owner_deleted"
+			case errors.Is(err, ErrTokenOwnerAbsent):
+				return anon(), "api_token_ownerless"
+			case err != nil:
 				return anon(), "invalid_api_token"
 			}
 			return withGrants(ctx, lookups, id), ""
