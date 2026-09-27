@@ -406,8 +406,10 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	// Cookies are cleared above regardless, so the browser stops presenting
 	// the credential either way. But if the server could not revoke, say so
 	// rather than reporting a clean logout: the client needs to know the
-	// credential may still be live so a human can revoke the session
-	// explicitly or rotate.
+	// credential may still be live. Each message names the one remedy the
+	// product has: an administrator's password reset revokes every
+	// interactive credential. There is no user-facing sessions list, so no
+	// message may send the user to one. Spec C-46.
 	if lockWaitExceeded {
 		// Nothing was revoked, and the response says so. The cookies are
 		// still cleared above: the web client treats every logout
@@ -416,18 +418,18 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 		// retryable: with the cookies cleared, a repeated request may name
 		// no family, or a different one after another sign-in. Spec C-43.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"signed out on this device, but the account lock could not be acquired in time, so nothing was revoked. The session may remain valid until it expires. Revoke it from Settings.", false)
+			"signed out on this device, but the account lock could not be acquired in time, so nothing was revoked. The session may remain valid until it expires. An administrator can end it by resetting your password.", false)
 		return
 	}
 	if revokeUnknown {
 		// Not retryable, and no claim either way. Spec C-40.
 		writeError(w, http.StatusServiceUnavailable, "server.error", "server",
-			"signed out on this device, but revocation of your session could not be confirmed. Check your active sessions in Settings.", false)
+			"signed out on this device, but revocation of your session could not be confirmed. It may remain valid until it expires. An administrator can end it by resetting your password.", false)
 		return
 	}
 	if revokeFailed {
 		writeError(w, http.StatusInternalServerError, "auth.logout_incomplete", "server",
-			"signed out on this device, but the server could not revoke the session. It may remain valid until it expires. Revoke it from Settings or contact an administrator.", true)
+			"signed out on this device, but the server could not revoke the session. It may remain valid until it expires. An administrator can end it by resetting your password.", true)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

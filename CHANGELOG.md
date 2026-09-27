@@ -10,6 +10,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Logout failure messages no longer send users to a Settings feature that
+  does not exist.** When logout could not revoke a session, or could not
+  confirm that it did, the message told the user to check or revoke their
+  sessions in Settings. Settings shows only the current session and cannot
+  list or end others. Each message now says the session may remain valid
+  until it expires and names the remedy that works: an administrator can
+  end it by resetting the user's password.
+
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
 `v0.8.0-rc.4` built, passed every machine gate, and its assets were
