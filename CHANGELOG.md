@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0-rc.6] Eyrie (2026-09-27)
+
+`v0.8.0-rc.5` built, passed every machine gate, and its assets were
+published as a pre-release. Its fleet checks, documentation review and
+release-captain signature were not attested: no human verdict was recorded
+for it. Since rc.5, the credential and session fixes (#870 to #881), the
+documentation corrections (#883) and the Kensa 0.10.0 integration (#882)
+landed on `main`. Under the release policy the rc.5 tag and assets stay
+where they are, and this candidate carries the changes. The sections for
+rc.5 and earlier candidates below remain the record of what each changed;
+everything in them is in this candidate as well. Nothing is inherited from
+rc.5: every gate runs again against this candidate.
+
 **Upgrade notes.** Read these before upgrading.
 
 - **Upgrading signs everyone out.** Migration 0065 revokes every live session
@@ -48,6 +61,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   configure a Kensa package repository on an OpenWatch host. The upgrade
   runbook shows how to tell the packages apart and restore OpenWatch's.
   (CP `bugs/OW-081`)
+- **Drift does not distinguish a corpus change from a host change.** A
+  Kensa update can move scores on hosts that did not change, and when the
+  movement crosses a drift threshold it alerts as ordinary drift. Nothing
+  marks it as corpus-driven, and no alert is suppressed. Each scan records
+  its Kensa engine version, so the upgrade is traceable by inspection.
+  Accepted as a v0.8 limitation. (CP `shared/sprint/prd/D-2-feature`, S-3)
+- **Scan variable values are not type checked when saved.** A value of the
+  wrong type is stored and applied as entered. (CP `bugs/OW-080`)
 
 ### Security
 
