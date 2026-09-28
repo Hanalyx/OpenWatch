@@ -62,6 +62,7 @@ Version: ${KVER}
 Section: admin
 Priority: optional
 Architecture: all
+Depends: openwatch-kensa-engine (>= ${KVER})
 Maintainer: OpenWatch Build <build@hanalyx.com>
 Homepage: https://github.com/Hanalyx/kensa
 Description: Kensa compliance rule corpus (native YAML rules)
@@ -71,6 +72,11 @@ Description: Kensa compliance rule corpus (native YAML rules)
  OpenWatch platform version, so rule updates ship without a platform
  re-release.
 CONTROL
+
+# preinst refuses to unpack beside an older engine (release-upgrade C-06):
+# Depends alone lets a bare dpkg -i replace the corpus before failing.
+sed -e "s/@KR_VERSION@/${KVER}/g" "$APP_DIR/packaging/kensa-rules/preinst.in" > "$DEBROOT/DEBIAN/preinst"
+chmod 0755 "$DEBROOT/DEBIAN/preinst"
 
 echo ">> running dpkg-deb (kensa-rules, all)"
 OUT="$DIST_DIR/kensa-rules_${KVER}_all.deb"

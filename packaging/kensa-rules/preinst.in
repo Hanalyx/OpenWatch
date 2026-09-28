@@ -1,0 +1,45 @@
+#!/bin/sh
+# kensa-rules preinst: refuse to unpack this corpus beside an installed
+# openwatch whose Kensa engine is older than it. Spec release-upgrade C-06.
+#
+# Depends alone is not enough on Debian: a bare `dpkg -i` of this package
+# unpacks it, replacing the working corpus, and only then reports the unmet
+# dependency, leaving the package unconfigured and every scan failing. This
+# script runs before any file is replaced, so a refused install changes
+# nothing. apt and dnf refuse earlier, from the dependency itself.
+#
+# @KR_VERSION@ is replaced at build time with this package's version.
+set -e
+
+NEED="@KR_VERSION@"
+
+case "$1" in
+    install|upgrade) ;;
+    *) exit 0 ;;
+esac
+
+# Only an openwatch whose files are on disk constrains the corpus, whatever
+# its selection state (install, hold, deinstall). Absent, or removed with its
+# config left behind, means nothing to check.
+status="$(dpkg-query -W -f='${db:Status-Status}' openwatch 2>/dev/null || true)"
+case "$status" in
+    "" | not-installed | config-files) exit 0 ;;
+esac
+
+provides="$(dpkg-query -W -f='${Provides}' openwatch 2>/dev/null || true)"
+have="$(printf '%s\n' "$provides" | tr ',' '\n' |
+    sed -n 's/^ *openwatch-kensa-engine (= \(.*\)) *$/\1/p' | head -n 1)"
+
+if [ -n "$have" ] && dpkg --compare-versions "$have" ge "$NEED"; then
+    exit 0
+fi
+
+cat >&2 <<MSG
+kensa-rules $NEED needs openwatch with Kensa engine $NEED or newer; the
+installed openwatch provides ${have:-no engine version}. Nothing was changed.
+Install the matching openwatch in the same transaction:
+  apt install ./openwatch_<version>_<arch>.deb ./kensa-rules_${NEED}_all.deb
+or, with dpkg, list openwatch first:
+  dpkg -i ./openwatch_<version>_<arch>.deb ./kensa-rules_${NEED}_all.deb
+MSG
+exit 1

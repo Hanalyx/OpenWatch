@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Upgrade notes
+**Upgrade notes.** Read these before upgrading.
 
 - **Upgrading signs everyone out.** Migration 0065 revokes every live session
   and refresh token. Access tokens issued before it carry no session binding
@@ -28,6 +28,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The list endpoint is unchanged.
 - **API tokens with no owner stop working.** List and replace them before
   upgrading; the query is under Security below. (#881)
+
+**Known limitations.** These ship in this release.
+
+- **Changing your own password does not sign out your other sessions.** They
+  stay valid until their absolute limit, 12 hours by default. To end them, ask
+  an administrator to reset your password. (CP `bugs/OW-072`)
+- **Settings shows only the current session.** It cannot list or revoke other
+  sessions.
+- **A Bearer-only logout revokes nothing.** An access token presented alone
+  stays valid until it expires, 30 minutes after issue, and a refresh token
+  returned in the login body has no revoke route. (CP `bugs/OW-062`)
+- **The Kensa-published `kensa-rules` package is not checked.** Kensa
+  publishes a package of the same name and install path that does not
+  declare the engine it needs, and `openwatch` accepts either package. On
+  `openwatch` 0.8.0-rc.5 or earlier, a 0.10.0 or newer corpus from any source
+  makes every scan fail, and no package prevents it. Install `kensa-rules`
+  only from the OpenWatch release that matches your `openwatch`, and do not
+  configure a Kensa package repository on an OpenWatch host. The upgrade
+  runbook shows how to tell the packages apart and restore OpenWatch's.
+  (CP `bugs/OW-081`)
 
 ### Security
 
@@ -60,6 +80,59 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   IS NULL AND revoked_at IS NULL;` (#881)
 
 ### Changed
+
+- **Kensa 0.10.0.** The rule corpus grows from 769 to 779 rules and gains two
+  framework keys, `nist_800_171` (NIST SP 800-171 Rev 2, cited at objective
+  level such as `3.1.11[b]`) and `cmmc_l2`. Each is referenced by 324 rules.
+
+  **Framework names now come from Kensa everywhere.** The lens chips, the
+  rule library and scan detail, the report picker and every new report's
+  scope label (cover, OSCAL title, file name) use one vocabulary. NIST
+  800-53, "NIST SP 800-171 Rev 2" and "CMMC Level 2" are distinct wherever
+  they appear; reports used to call both NIST frameworks "NIST" and CMMC
+  "CMMC". Some familiar names change: "CIS RHEL 9" is now "CIS (RHEL 9)" and
+  "PCI DSS 4" is "PCI DSS 4.0". Ubuntu benchmarks read "CIS (ubuntu22)" until
+  Kensa formats Ubuntu versions (CP `features/KN-OW-023`). Reports generated before the upgrade keep the
+  names they were generated with, and signed report content, which carries
+  the exact framework key, is unchanged.
+
+  **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
+  cannot load the 0.10.0 corpus: the service starts and every scan fails.
+  `openwatch` now declares the Kensa engine it links, and `kensa-rules`
+  requires an engine at least as new as itself. With the `kensa-rules`
+  package from an OpenWatch release, a rules-only upgrade onto an older
+  `openwatch` is refused with nothing changed, by `dnf`, `rpm -U`, `apt` and
+  a bare `dpkg -i`; both packages in one transaction are accepted. The
+  `kensa-rules` package Kensa publishes does not carry this check (see Known
+  limitations). Rolling `openwatch` back now means rolling `kensa-rules`
+  back in the same command; the upgrade runbook shows how (CP
+  `bugs/OW-081`).
+
+  **Verdicts change on existing hosts, so scores can move after the first scan
+  on this release.** The change comes from the rules, not the hosts:
+
+  - `no-unauthorized-accounts` passed every host without comparing anything.
+    It now reports skipped until `authorized_local_accounts` is declared.
+  - `shell-timeout` fails RHEL hosts set between 601 and 900 seconds and
+    requires `TMOUT` to be readonly on RHEL. It absorbs `shell-timeout-600`
+    and `shell-idle-timeout-tmout`, whose old verdicts leave the current score
+    after each host's next completed scan.
+  - Rules that passed without checking now report a real verdict:
+    `security-updates-installed`, `nftables-default-deny`,
+    `journald-to-rsyslog`, `selinux-user-mapping` and
+    `firewalld-loopback-source`.
+  - Eight audit and session rules, and `no-unauthorized-accounts`, now run on
+    RHEL 8 instead of reporting not applicable.
+
+  Eight new scan variables ship with no default, and seven rules report
+  skipped until theirs is declared. Settings marks them "Configure me",
+  alongside the three placeholder defaults it already marked, and the
+  scanning guide lists them under "Scan variables". Values are not type
+  checked when saved (CP `bugs/OW-080`).
+
+  The remediation "NIST" projected lift counts NIST SP 800-53 rules only.
+  Matching every `nist` key would have folded in the new 800-171 mapping,
+  quoting a NIST gain for 19 rules that are not in 800-53.
 
 - **When an outcome cannot be confirmed, OpenWatch says so.** A sign-in,
   refresh, logout or administrative change whose commit result is unknown
@@ -103,18 +176,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   list or end others. Each message now says the session may remain valid
   until it expires and names the remedy that works: an administrator can
   end it by resetting the user's password. (#880)
-
-### Known limitations
-
-- **Changing your own password does not sign out your other sessions.** They
-  stay valid until their absolute limit, 12 hours by default. To end them, ask
-  an administrator to reset your password. (CP `bugs/OW-072`)
-- **Settings shows only the current session.** It cannot list or revoke other
-  sessions.
-- **A Bearer-only logout revokes nothing.** An access token presented alone
-  stays valid until it expires, 30 minutes after issue, and a refresh token
-  returned in the login body has no revoke route. (CP `bugs/OW-062`)
-
 
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 

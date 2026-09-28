@@ -28,6 +28,14 @@ License:        Business Source License 1.1
 URL:            https://github.com/Hanalyx/kensa
 Source0:        %{name}-%{version}.tar.gz
 
+# The corpus needs an engine at least as new as itself. Kensa v0.9.0 cannot
+# load the v0.10.0 corpus at all, and OpenWatch starts anyway with every scan
+# failing, so a rules-only upgrade beside an older openwatch is refused here.
+# An older corpus under a newer engine loads, so only the floor is declared.
+# The openwatch package provides openwatch-kensa-engine; releases before it
+# provide nothing and so cannot satisfy this. Spec release-upgrade C-06.
+Requires:       openwatch-kensa-engine >= %{version}
+
 %description
 The Kensa rule corpus: native YAML compliance rules consumed by the
 Kensa scan engine embedded in OpenWatch. Installs to

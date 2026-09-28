@@ -10,6 +10,7 @@
 //   AC-06  test('frontend-host-compliance-tab/AC-06 — never-scanned empty state names Run scan; errors render inline with Retry; isPending guard')
 //   AC-07  test('frontend-host-compliance-tab/AC-07 — no stored check-output reference anywhere in the tab code')
 //   AC-08  test('frontend-host-compliance-tab/AC-08 — Re-scan posts once with an Idempotency-Key; 409 renders Scan already running')
+//   AC-12  test('frontend-host-compliance-tab/AC-12 — framework names are the API labels, never derived')
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ import { loadCriterion, trackFixture, type AnyRec } from '../support/spec-fixtur
 const { getMock, postMock } = vi.hoisted(() => ({ getMock: vi.fn(), postMock: vi.fn() }));
 vi.mock('@/api/client', () => ({ default: { GET: getMock, POST: postMock } }));
 
-import { ComplianceTab } from '@/pages/host-detail/ComplianceTab';
+import { ComplianceTab, frameworkLabelFor } from '@/pages/host-detail/ComplianceTab';
 
 const TAB_SRC = readFileSync(
   resolve(process.cwd(), 'src/pages/host-detail/ComplianceTab.tsx'),
@@ -105,10 +106,31 @@ const NEVER_SCANNED = {
 };
 
 const FRAMEWORKS = {
-  overall: { framework_id: 'all', rule_count: 4, passing: 2, failing: 1, score_pct: 50 },
+  overall: {
+    framework_id: 'all',
+    label: 'All rules',
+    rule_count: 4,
+    passing: 2,
+    failing: 1,
+    score_pct: 50,
+  },
   frameworks: [
-    { framework_id: 'cis_rhel9', rule_count: 271, passing: 100, failing: 171, score_pct: 36.9 },
-    { framework_id: 'stig_rhel9', rule_count: 338, passing: 115, failing: 223, score_pct: 34 },
+    {
+      framework_id: 'cis_rhel9',
+      label: 'CIS (RHEL 9)',
+      rule_count: 271,
+      passing: 100,
+      failing: 171,
+      score_pct: 36.9,
+    },
+    {
+      framework_id: 'stig_rhel9',
+      label: 'STIG (RHEL 9)',
+      rule_count: 338,
+      passing: 115,
+      failing: 223,
+      score_pct: 34,
+    },
   ],
 };
 
@@ -221,11 +243,13 @@ describe('frontend-host-compliance-tab — behavioral', () => {
     const onChange = vi.fn();
     renderTab({ onFrameworkChange: onChange });
 
-    // Chips: All rules + one per frameworks[] entry, labeled with
-    // framework_id and rule_count.
+    // Chips: All rules + one per frameworks[] entry, labeled with the
+    // label the API sent (Kensa's) and rule_count.
     const allChip = await screen.findByRole('button', { name: /All rules/ });
-    const cisChip = await screen.findByRole('button', { name: /CIS RHEL 9\s*271 rules\s*36\.9%/ });
-    await screen.findByRole('button', { name: /STIG RHEL 9\s*338 rules\s*34%/ });
+    const cisChip = await screen.findByRole('button', {
+      name: /CIS \(RHEL 9\)\s*271 rules\s*36\.9%/,
+    });
+    await screen.findByRole('button', { name: /STIG \(RHEL 9\)\s*338 rules\s*34%/ });
 
     // With framework=undefined, "All rules" is the active chip.
     expect(allChip).toHaveAttribute('aria-pressed', 'true');
@@ -241,7 +265,9 @@ describe('frontend-host-compliance-tab — behavioral', () => {
   test('frontend-host-compliance-tab/AC-02 — active chip reflects the framework prop', async () => {
     primeApi();
     renderTab({ framework: 'stig_rhel9' });
-    const stigChip = await screen.findByRole('button', { name: /STIG RHEL 9\s*338 rules\s*34%/ });
+    const stigChip = await screen.findByRole('button', {
+      name: /STIG \(RHEL 9\)\s*338 rules\s*34%/,
+    });
     expect(stigChip).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: /All rules/ })).toHaveAttribute(
       'aria-pressed',
@@ -646,4 +672,50 @@ test('frontend-host-compliance-tab/AC-11 — absence renders as absence, coverag
     }
   }
   expect(hits).toBe(wantForbiddenCount);
+});
+
+describe('frontend-host-compliance-tab v1.7.0 — framework labels', () => {
+  // @ac AC-12
+  test('frontend-host-compliance-tab/AC-12 — framework names are the API labels, never derived', async () => {
+    // Labels no id-based transform could produce, so a component that
+    // derives its own label fails here.
+    const frameworks = [
+      {
+        framework_id: 'nist_800_53',
+        label: 'NIST 800-53',
+        rule_count: 5,
+        passing: 3,
+        failing: 2,
+        score_pct: 60,
+      },
+      {
+        framework_id: 'nist_800_171',
+        label: 'NIST SP 800-171 Rev 2',
+        rule_count: 4,
+        passing: 1,
+        failing: 3,
+        score_pct: 25,
+      },
+      {
+        framework_id: 'cmmc_l2',
+        label: 'CMMC Level 2',
+        rule_count: 4,
+        passing: 2,
+        failing: 2,
+        score_pct: 50,
+      },
+    ];
+    primeApi({ frameworks: { ...FRAMEWORKS, frameworks } });
+    renderTab({ framework: 'nist_800_171' });
+    await screen.findByRole('button', { name: /NIST 800-53\s*5 rules/ });
+    await screen.findByRole('button', { name: /NIST SP 800-171 Rev 2\s*4 rules/ });
+    await screen.findByRole('button', { name: /CMMC Level 2\s*4 rules/ });
+    // The active lens's name in the panels is the same API label.
+    expect(await screen.findByText('Result mix · NIST SP 800-171 Rev 2')).toBeInTheDocument();
+
+    expect(frameworkLabelFor(frameworks, 'cmmc_l2')).toBe('CMMC Level 2');
+    // An id the API did not label is shown as it is, not reformatted.
+    expect(frameworkLabelFor(frameworks, 'stig_rhel9')).toBe('stig_rhel9');
+    expect(frameworkLabelFor(undefined, 'nist_800_171')).toBe('nist_800_171');
+  });
 });

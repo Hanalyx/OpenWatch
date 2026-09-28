@@ -503,7 +503,7 @@ func TestGenerate_GroupScoped(t *testing.T) {
 // @ac AC-09
 // A framework-scoped generate counts only rules whose framework_refs
 // contain the lens key: the scope echoes the framework, scope_label
-// carries the family ("All hosts · CIS"), and a critical fail tagged only
+// carries Kensa's label for the key ("All hosts · CIS (RHEL 9)"), and a critical fail tagged only
 // to a different framework is excluded from every count.
 func TestGenerate_FrameworkScoped(t *testing.T) {
 	t.Run("api-reports/AC-09", func(t *testing.T) {
@@ -513,20 +513,20 @@ func TestGenerate_FrameworkScoped(t *testing.T) {
 		owner := seedUser(t, pool)
 		h := seedHost(t, pool, owner, false)
 
-		seedRuleStateFW(t, pool, h, "c1", "pass", "medium", `{"cis_rhel9_v2.0.0": ["1.1"]}`)
-		seedRuleStateFW(t, pool, h, "c2", "fail", "high", `{"cis_rhel9_v2.0.0": ["1.2"]}`)
+		seedRuleStateFW(t, pool, h, "c1", "pass", "medium", `{"cis_rhel9": ["1.1"]}`)
+		seedRuleStateFW(t, pool, h, "c2", "fail", "high", `{"cis_rhel9": ["1.2"]}`)
 		// STIG-only critical fail: must be excluded by the CIS lens.
 		seedRuleStateFW(t, pool, h, "s1", "fail", "critical", `{"stig_rhel9_v2r7": ["V-1"]}`)
 
-		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Framework: "cis_rhel9_v2.0.0"})
+		rep, err := svc.Generate(ctx, "alice@example.com", GenerateRequest{Framework: "cis_rhel9"})
 		if err != nil {
 			t.Fatalf("Generate: %v", err)
 		}
-		if rep.ScopeLabel != "All hosts · CIS" {
-			t.Errorf("scope_label = %q, want \"All hosts · CIS\"", rep.ScopeLabel)
+		if rep.ScopeLabel != "All hosts · CIS (RHEL 9)" {
+			t.Errorf("scope_label = %q, want \"All hosts · CIS (RHEL 9)\"", rep.ScopeLabel)
 		}
-		if rep.Scope.Framework != "cis_rhel9_v2.0.0" {
-			t.Errorf("scope.framework = %q, want cis_rhel9_v2.0.0", rep.Scope.Framework)
+		if rep.Scope.Framework != "cis_rhel9" {
+			t.Errorf("scope.framework = %q, want cis_rhel9", rep.Scope.Framework)
 		}
 
 		c := decodeContent(t, rep)

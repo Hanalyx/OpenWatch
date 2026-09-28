@@ -1,7 +1,7 @@
 spec:
   id: frontend-scan-detail
   title: Scan detail page + per-rule evidence/OSCAL drill-down
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -136,3 +136,12 @@ spec:
         as the sole label.
       priority: high
       references_constraints: [C-08]
+    - id: AC-09
+      description: >-
+        v1.2.0 (D-2 S-7) - source inspection: each framework reference tag
+        carries its framework's name, taken from the framework_labels map on
+        the scan response (the raw id when none came), as the tag title and in
+        its accessible name, so an 800-171 control reads as NIST SP 800-171
+        Rev 2 rather than an unlabeled green tag.
+      priority: high
+      references_constraints: [C-01]

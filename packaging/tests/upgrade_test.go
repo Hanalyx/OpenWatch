@@ -7,10 +7,16 @@
 //	AC-05  TestUpgrade_HelperSequenceAndFailSafe
 //	AC-06  TestUpgrade_CleanupTimerShippedAndKeepsNewest
 //	AC-07  TestUpgrade_PayloadShipsUpgradeFiles
+//	AC-08  TestUpgrade_PackagesDeclareEngineCorpusPairing
+//	AC-09  in engine_pairing_test.go
 
 package packaging_test
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -135,6 +141,89 @@ func TestUpgrade_PayloadShipsUpgradeFiles(t *testing.T) {
 			if !strings.Contains(debFiles, f) {
 				t.Errorf("DEB payload missing %s", f)
 			}
+		}
+	})
+}
+
+// linkedKensaVersion reads the Kensa module version from go.mod directly,
+// not through packaging/common/kensa-version.sh, so the check below is not
+// the build's own derivation grading itself.
+func linkedKensaVersion(t *testing.T) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?m)^\s*github\.com/Hanalyx/kensa v(\d+\.\d+\.\d+)\s*$`).
+		FindStringSubmatch(readRepoFile(t, "go.mod"))
+	if m == nil {
+		t.Fatal("go.mod does not pin github.com/Hanalyx/kensa at a release version")
+	}
+	return m[1]
+}
+
+func debField(t *testing.T, deb, field string) string {
+	t.Helper()
+	out, err := exec.Command("dpkg-deb", "-f", deb, field).Output()
+	if err != nil {
+		t.Fatalf("dpkg-deb -f %s %s: %v", deb, field, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// @ac AC-08
+// AC-08: the built packages carry the engine/corpus pairing at the version
+// go.mod pins.
+func TestUpgrade_PackagesDeclareEngineCorpusPairing(t *testing.T) {
+	t.Run("release-upgrade/AC-08", func(t *testing.T) {
+		v := linkedKensaVersion(t)
+
+		owRPM := rpmPath(t)
+		if got := rpmQuery(t, owRPM, "[%{PROVIDENAME} %{PROVIDEFLAGS:depflags} %{PROVIDEVERSION}\n]"); !strings.Contains(got, "openwatch-kensa-engine = "+v+"\n") {
+			t.Errorf("openwatch RPM provides:\n%s\nwant openwatch-kensa-engine = %s", got, v)
+		}
+		krRPM := kensaRulesRPMPath(t)
+		if got := rpmQuery(t, krRPM, "%{VERSION}"); got != v {
+			t.Errorf("kensa-rules RPM version = %q, want %q", got, v)
+		}
+		if got := rpmQuery(t, krRPM, "[%{REQUIRENAME} %{REQUIREFLAGS:depflags} %{REQUIREVERSION}\n]"); !strings.Contains(got, "openwatch-kensa-engine >= "+v+"\n") {
+			t.Errorf("kensa-rules RPM requires:\n%s\nwant openwatch-kensa-engine >= %s", got, v)
+		}
+
+		owDEB := debPath(t)
+		if got, want := debField(t, owDEB, "Provides"), "openwatch-kensa-engine (= "+v+")"; !strings.Contains(got, want) {
+			t.Errorf("openwatch DEB Provides = %q, want it to contain %q", got, want)
+		}
+		krDEB := kensaRulesDebPath(t)
+		if got := debField(t, krDEB, "Version"); got != v {
+			t.Errorf("kensa-rules DEB version = %q, want %q", got, v)
+		}
+		if got, want := debField(t, krDEB, "Depends"), "openwatch-kensa-engine (>= "+v+")"; !strings.Contains(got, want) {
+			t.Errorf("kensa-rules DEB Depends = %q, want it to contain %q", got, want)
+		}
+	})
+}
+
+// TestUpgrade_EngineCorpusPairingInContainers runs the AC-09 scenarios in
+// real containers, where installs run their scriptlets. It carries no
+// criterion of its own: AC-09 is verified by the resolver test in
+// engine_pairing_test.go, which runs in Go CI. package-smoke's
+// kensa-rules-compat job sets the four variables (previous GA as the old
+// release, the candidate's packages as the new); elsewhere this skips.
+func TestUpgrade_EngineCorpusPairingInContainers(t *testing.T) {
+	t.Run("containers", func(t *testing.T) {
+		image := os.Getenv("OPENWATCH_KENSA_COMPAT_IMAGE")
+		kind := os.Getenv("OPENWATCH_KENSA_COMPAT_KIND")
+		oldDir := os.Getenv("OPENWATCH_KENSA_COMPAT_OLD_DIR")
+		newDir := os.Getenv("OPENWATCH_KENSA_COMPAT_NEW_DIR")
+		if image == "" || kind == "" || oldDir == "" || newDir == "" {
+			t.Skip("set OPENWATCH_KENSA_COMPAT_{IMAGE,KIND,OLD_DIR,NEW_DIR} to run the container pairing test")
+		}
+		haveTool(t, "docker")
+		runner := filepath.Join(appDir(t), "packaging", "tests", "run-kensa-rules-compat-test.sh")
+		out, err := exec.Command("bash", runner, image, kind, oldDir, newDir).CombinedOutput()
+		t.Logf("%s", out)
+		if err != nil {
+			t.Fatalf("pairing test failed on %s (%s): %v", image, kind, err)
+		}
+		if !strings.Contains(string(out), "kensa-rules compat ("+kind+"): all checks passed") {
+			t.Fatal("the container test did not report a complete pass")
 		}
 	})
 }

@@ -14,7 +14,7 @@ They describe one corpus version and change whenever the bundled Kensa
 dependency moves, so they are dated and reproducible rather than stated as
 permanent facts.
 
-**Derived 2026-09-11** from the corpus this repository ships, by reading each
+**Derived 2026-09-25** from the corpus this repository ships, by reading each
 rule's `platforms:` declaration. Reproduce it yourself:
 
 ```sh
@@ -123,15 +123,15 @@ sensitivity:
 ### Per-OS rule applicability
 
 Read from each rule's `platforms:` block in the bundled corpus. **Derived
-2026-09-11 from Kensa v0.9.0**, the version `go.mod` pins:
+2026-09-25 from Kensa v0.10.0**, the version `go.mod` pins:
 
 | OS family | Rules applicable |
 |-----------|-------------------|
-| RHEL family (RHEL, Rocky, AlmaLinux, CentOS Stream, Oracle Linux) | 677 |
-| Ubuntu (22.04, 24.04) | 272 |
+| RHEL family (RHEL, Rocky, AlmaLinux, CentOS Stream, Oracle Linux) | 689 |
+| Ubuntu (22.04, 24.04) | 284 |
 
-A rule can apply to several platforms, so these counts overlap: 497 rules
-declare RHEL only, 92 declare Ubuntu only, and 180 declare both, giving 769
+A rule can apply to several platforms, so these counts overlap: 495 rules
+declare RHEL only, 90 declare Ubuntu only, and 194 declare both, giving 779
 rules in total.
 
 **Expect these to move.** They are a property of one corpus version, not of
@@ -251,9 +251,9 @@ a compliance score.
   partial-success semantics.
 - Kensa filters its corpus by the host's detected platform at scan time.
 - Rule corpus applicability, read from the corpus platform declarations and
-  derived 2026-09-11 from Kensa v0.9.0 as pinned in `go.mod`: **769 rules**
-  spanning RHEL 8/9/10 and Ubuntu 22.04/24.04, of which 677 apply to the RHEL
-  family and 272 to Ubuntu. Rules can apply to more than one platform, so
+  derived 2026-09-25 from Kensa v0.10.0 as pinned in `go.mod`: **779 rules**
+  spanning RHEL 8/9/10 and Ubuntu 22.04/24.04, of which 689 apply to the RHEL
+  family and 284 to Ubuntu. Rules can apply to more than one platform, so
   these overlap.
 - Framework keys and per-key rule counts: see
   [Available frameworks](SCANNING_AND_COMPLIANCE.md#available-frameworks),
