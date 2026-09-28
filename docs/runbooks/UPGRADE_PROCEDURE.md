@@ -384,8 +384,47 @@ Upgrade both packages in one transaction instead. With `dpkg -i`, list
 `openwatch` alone is upgraded, which is a working pair. Run the command again
 to finish.
 
+### What this check does not cover
+
+The check travels with the `kensa-rules` package that OpenWatch builds and
+publishes with each release. Kensa also publishes a package named
+`kensa-rules`, from its own releases, with the same install path. **Kensa's
+package does not carry this check**, and nothing in `openwatch` refuses it:
+`openwatch` depends on the name `kensa-rules`, which either package
+satisfies. If a host has a Kensa package repository configured, or someone
+installs a `kensa-rules` file from a Kensa release, the package manager can
+put Kensa's corpus in place of OpenWatch's with no refusal.
+
+- **On `openwatch` 0.8.0-rc.5 or earlier**, which declares no engine, no
+  `kensa-rules` package of either origin is checked. A 0.10.0 or newer
+  corpus from any source makes every scan fail.
+- **On this release**, OpenWatch's own `kensa-rules` is checked as described
+  above. Whether a Kensa-published corpus loads depends on its version and is
+  not checked.
+
+This is a stated limit, not a protection. To stay inside what is tested,
+install `kensa-rules` only from the OpenWatch release that matches your
+`openwatch`, and do not configure a Kensa package repository on an OpenWatch
+host. To see which package is installed, look for the engine requirement,
+which only OpenWatch's package carries from this release on:
+
+```bash
+rpm -q --requires kensa-rules | grep openwatch-kensa-engine   # apt: dpkg -s kensa-rules | grep openwatch-kensa-engine
+```
+
+No output means the installed package is Kensa's, or OpenWatch's from before
+this release. To put OpenWatch's package back, reinstall it from the matching
+release (`sudo dnf install ./kensa-rules-<version>.noarch.rpm`; use
+`reinstall` in place of `install` when the same version is installed, and
+`downgrade` when a higher one is; on Debian,
+`sudo apt install --reinstall --allow-downgrades ./kensa-rules_<version>_all.deb`),
+then restart the service.
+
+### A corpus newer than the engine
+
 If a corpus newer than the engine is on disk anyway (installed with
-`rpm --nodeps` or `dpkg --force-depends`), every scan fails. Either install
+`rpm --nodeps` or `dpkg --force-depends`, or from a Kensa package), every
+scan fails. Either install
 the matching `openwatch`
 (`sudo dpkg -i ./openwatch_<new-version>_<arch>.deb && sudo dpkg --configure -a`,
 or `sudo dnf install ./openwatch-<new-version>.<arch>.rpm`) or put the previous
@@ -394,11 +433,14 @@ rules back (`sudo dpkg -i ./kensa-rules_<old-version>_all.deb`, or
 service. On Debian, plain `apt install` refuses to start from that broken
 state; `dpkg -i` followed by `dpkg --configure -a` works.
 
-To update the rules, upgrade the package and restart the service so it loads
-the new corpus:
+A newer corpus arrives with the OpenWatch release that links a matching
+engine. To update the rules, install both packages from that release in one
+transaction, as in the upgrade steps above, and restart the service so it
+loads the new corpus:
 
 ```bash
-sudo dnf upgrade kensa-rules        # apt: sudo apt install --only-upgrade kensa-rules
+sudo dnf install ./openwatch-<version>.<arch>.rpm ./kensa-rules-<kensa-version>.noarch.rpm
+# apt: sudo apt install ./openwatch_<version>_<arch>.deb ./kensa-rules_<kensa-version>_all.deb
 sudo systemctl restart openwatch
 rpm -q kensa-rules                  # apt: dpkg -s kensa-rules | grep Version
 ```

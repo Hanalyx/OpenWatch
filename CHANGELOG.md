@@ -79,11 +79,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Upgrade `openwatch` and `kensa-rules` together.** An earlier `openwatch`
   cannot load the 0.10.0 corpus: the service starts and every scan fails.
   `openwatch` now declares the Kensa engine it links, and `kensa-rules`
-  requires an engine at least as new as itself. A rules-only upgrade onto an
-  older `openwatch` is refused with nothing changed, by `dnf`, `rpm -U`, `apt`
-  and a bare `dpkg -i`; both packages in one transaction are accepted. Rolling
-  `openwatch` back now means rolling `kensa-rules` back in the same command;
-  the upgrade runbook shows how (CP `bugs/OW-081`).
+  requires an engine at least as new as itself. With the `kensa-rules`
+  package from an OpenWatch release, a rules-only upgrade onto an older
+  `openwatch` is refused with nothing changed, by `dnf`, `rpm -U`, `apt` and
+  a bare `dpkg -i`; both packages in one transaction are accepted. The
+  `kensa-rules` package Kensa publishes does not carry this check (see Known
+  limitations). Rolling `openwatch` back now means rolling `kensa-rules`
+  back in the same command; the upgrade runbook shows how (CP
+  `bugs/OW-081`).
 
   **Verdicts change on existing hosts, so scores can move after the first scan
   on this release.** The change comes from the rules, not the hosts:
@@ -164,6 +167,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A Bearer-only logout revokes nothing.** An access token presented alone
   stays valid until it expires, 30 minutes after issue, and a refresh token
   returned in the login body has no revoke route. (CP `bugs/OW-062`)
+- **The Kensa-published `kensa-rules` package is not checked.** Kensa
+  publishes a package of the same name and install path that does not
+  declare the engine it needs, and `openwatch` accepts either package. On
+  `openwatch` 0.8.0-rc.5 or earlier, a 0.10.0 or newer corpus from any source
+  makes every scan fail, and no package prevents it. Install `kensa-rules`
+  only from the OpenWatch release that matches your `openwatch`, and do not
+  configure a Kensa package repository on an OpenWatch host. The upgrade
+  runbook shows how to tell the packages apart and restore OpenWatch's.
+  (CP `bugs/OW-081`)
 
 
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
