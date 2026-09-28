@@ -38,20 +38,41 @@
 #     should be installed. A failed `dpkg -i` can leave the recorded version
 #     looking unchanged while the files are already replaced.
 #
-# Usage: kensa-rules-compat-container-test.sh <rpm|deb> <old-dir> <new-dir>
+# Usage: kensa-rules-compat-container-test.sh <rpm|deb> <old-dir> <new-dir> [scripts|noscripts]
 #   old-dir: an openwatch release that predates the engine provide, and its
 #            kensa-rules (package-smoke passes the previous GA).
 #   new-dir: openwatch and kensa-rules built from this tree.
-#
-# Scriptlets run on both formats. The openwatch scriptlets tolerate a
-# container without systemd or a database: the upgrade scriptlet skips its
-# migration when `openwatch migrate --status` cannot connect.
+#   mode:    scripts (the default) runs scriptlets on both formats. The
+#            openwatch scriptlets tolerate a container without systemd or a
+#            database: the upgrade scriptlet skips its migration when
+#            `openwatch migrate --status` cannot connect.
+#            noscripts (RPM only) runs every transaction with
+#            tsflags=noscripts (dnf) or --noscripts (rpm), so the refusals
+#            rest on dependency resolution alone. Every scenario and check
+#            is the same, except that the scriptlet check is inverted: it
+#            asserts no identity keys were provisioned, which proves the
+#            mode took effect. A pass in one mode is not evidence for the
+#            other.
 
 set -uo pipefail
 
 KIND="${1:?usage: $0 <rpm|deb> <old-dir> <new-dir>}"
 OLD="${2:?old-dir}"
 NEW="${3:?new-dir}"
+MODE="${4:-scripts}"
+
+# Options every RPM transaction takes in this mode.
+DNF_OPTS=()
+RPM_OPTS=()
+case "$MODE" in
+    scripts) ;;
+    noscripts)
+        [ "$KIND" = rpm ] || { echo "noscripts mode is RPM only" >&2; exit 2; }
+        DNF_OPTS=(--setopt=tsflags=noscripts)
+        RPM_OPTS=(--noscripts)
+        ;;
+    *) echo "unknown mode: $MODE" >&2; exit 2 ;;
+esac
 
 FAILURES=0
 pass() { echo "PASS: $*"; }
@@ -87,7 +108,7 @@ txn() {
     if [ "$KIND" = deb ]; then
         DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades "$@" >"$log" 2>&1
     else
-        dnf install -y "$@" >"$log" 2>&1
+        dnf install -y "${DNF_OPTS[@]}" "$@" >"$log" 2>&1
     fi
     local rc=$?
     LAST_LOG="$log"
@@ -199,7 +220,7 @@ fi
 check_state "after the refused rules-only upgrade" "$V_OLD_OW" "$V_OLD_KR" old
 if [ "$KIND" = rpm ]; then
     # The plain rpm path checks dependencies too; --nodeps is the only bypass.
-    if rpm -U "$NEW_KR" >/tmp/rpmU.log 2>&1; then
+    if rpm -U "${RPM_OPTS[@]}" "$NEW_KR" >/tmp/rpmU.log 2>&1; then
         fail "rpm -U installed the new corpus beside the older openwatch"
     else
         pass "rpm -U refused: $(grep -m1 openwatch-kensa-engine /tmp/rpmU.log | sed 's/^[[:space:]]*//')"
@@ -225,8 +246,15 @@ else
 fi
 check_state "after the coordinated upgrade" "$V_NEW_OW" "$V_NEW_KR" new
 # Scriptlets ran: the openwatch pre-install creates the service user, and the
-# post-install provisions the identity keys.
-if getent passwd openwatch >/dev/null && [ -n "$(ls -A /etc/openwatch/keys 2>/dev/null)" ]; then
+# post-install provisions the identity keys. Under noscripts neither may have
+# happened; the keys are the check, since only %post creates them.
+if [ "$MODE" = noscripts ]; then
+    if [ -z "$(ls -A /etc/openwatch/keys 2>/dev/null)" ]; then
+        pass "scriptlets did not run: no identity keys are provisioned"
+    else
+        fail "identity keys exist, so a scriptlet ran despite noscripts"
+    fi
+elif getent passwd openwatch >/dev/null && [ -n "$(ls -A /etc/openwatch/keys 2>/dev/null)" ]; then
     pass "scriptlets ran: the openwatch user exists and identity keys are provisioned"
 else
     fail "scriptlets did not run: no openwatch user or no identity keys"
@@ -235,7 +263,7 @@ fi
 if [ "$KIND" = rpm ]; then
     echo "### 3b. dnf upgrade of both packages succeeds"
     reset_to_old
-    if dnf upgrade -y "$NEW_OW" "$NEW_KR" >/tmp/dnfup.log 2>&1; then
+    if dnf upgrade -y "${DNF_OPTS[@]}" "$NEW_OW" "$NEW_KR" >/tmp/dnfup.log 2>&1; then
         pass "dnf upgrade accepted"
     else
         fail "dnf upgrade failed; log follows"; cat /tmp/dnfup.log
@@ -244,7 +272,7 @@ if [ "$KIND" = rpm ]; then
 
     echo "### 3c. a joint rpm -Uvh of both packages succeeds"
     reset_to_old
-    if rpm -Uvh "$NEW_OW" "$NEW_KR" >/tmp/rpmUvh.log 2>&1; then
+    if rpm -Uvh "${RPM_OPTS[@]}" "$NEW_OW" "$NEW_KR" >/tmp/rpmUvh.log 2>&1; then
         pass "joint rpm -Uvh accepted"
     else
         fail "joint rpm -Uvh failed; log follows"; cat /tmp/rpmUvh.log
@@ -283,9 +311,9 @@ check_state "kensa-rules refused, then openwatch, then kensa-rules" "$V_NEW_OW" 
 
 if [ "$KIND" = rpm ]; then
     reset_to_old
-    if rpm -U "$NEW_OW" >/tmp/rpmU1.log 2>&1; then pass "rpm -U openwatch first: accepted"; else fail "rpm -U openwatch first failed"; cat /tmp/rpmU1.log; fi
+    if rpm -U "${RPM_OPTS[@]}" "$NEW_OW" >/tmp/rpmU1.log 2>&1; then pass "rpm -U openwatch first: accepted"; else fail "rpm -U openwatch first failed"; cat /tmp/rpmU1.log; fi
     check_state "rpm -U openwatch first" "$V_NEW_OW" "$V_OLD_KR" old
-    if rpm -U "$NEW_KR" >/tmp/rpmU2.log 2>&1; then pass "then rpm -U kensa-rules: accepted"; else fail "then rpm -U kensa-rules failed"; cat /tmp/rpmU2.log; fi
+    if rpm -U "${RPM_OPTS[@]}" "$NEW_KR" >/tmp/rpmU2.log 2>&1; then pass "then rpm -U kensa-rules: accepted"; else fail "then rpm -U kensa-rules failed"; cat /tmp/rpmU2.log; fi
     check_state "rpm -U openwatch, then kensa-rules" "$V_NEW_OW" "$V_NEW_KR" new
 fi
 
@@ -348,10 +376,12 @@ for pair in "1:0.8.0~rc.5 1:0.8.0~rc.6" "1:0.8.0~rc.6 1:0.8.0~rc.10" "1:0.8.0~rc
     older_than "$1" "$2" && pass "$1 < $2" || fail "$1 does not sort before $2"
 done
 
+LABEL="$KIND"
+[ "$MODE" = scripts ] || LABEL="$KIND $MODE"
 echo
 if [ "$FAILURES" -eq 0 ]; then
-    echo "kensa-rules compat ($KIND): all checks passed"
+    echo "kensa-rules compat ($LABEL): all checks passed"
     exit 0
 fi
-echo "kensa-rules compat ($KIND): $FAILURES check(s) failed"
+echo "kensa-rules compat ($LABEL): $FAILURES check(s) failed"
 exit 1

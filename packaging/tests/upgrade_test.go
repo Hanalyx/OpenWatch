@@ -206,6 +206,8 @@ func TestUpgrade_PackagesDeclareEngineCorpusPairing(t *testing.T) {
 // engine_pairing_test.go, which runs in Go CI. package-smoke's
 // kensa-rules-compat job sets the four variables (previous GA as the old
 // release, the candidate's packages as the new); elsewhere this skips.
+// OPENWATCH_KENSA_COMPAT_MODE=noscripts runs every RPM transaction without
+// scriptlets; unset, scriptlets run.
 func TestUpgrade_EngineCorpusPairingInContainers(t *testing.T) {
 	t.Run("containers", func(t *testing.T) {
 		image := os.Getenv("OPENWATCH_KENSA_COMPAT_IMAGE")
@@ -215,14 +217,21 @@ func TestUpgrade_EngineCorpusPairingInContainers(t *testing.T) {
 		if image == "" || kind == "" || oldDir == "" || newDir == "" {
 			t.Skip("set OPENWATCH_KENSA_COMPAT_{IMAGE,KIND,OLD_DIR,NEW_DIR} to run the container pairing test")
 		}
+		mode := os.Getenv("OPENWATCH_KENSA_COMPAT_MODE")
+		label := kind
+		if mode == "" {
+			mode = "scripts"
+		} else if mode != "scripts" {
+			label = kind + " " + mode
+		}
 		haveTool(t, "docker")
 		runner := filepath.Join(appDir(t), "packaging", "tests", "run-kensa-rules-compat-test.sh")
-		out, err := exec.Command("bash", runner, image, kind, oldDir, newDir).CombinedOutput()
+		out, err := exec.Command("bash", runner, image, kind, oldDir, newDir, mode).CombinedOutput()
 		t.Logf("%s", out)
 		if err != nil {
-			t.Fatalf("pairing test failed on %s (%s): %v", image, kind, err)
+			t.Fatalf("pairing test failed on %s (%s): %v", image, label, err)
 		}
-		if !strings.Contains(string(out), "kensa-rules compat ("+kind+"): all checks passed") {
+		if !strings.Contains(string(out), "kensa-rules compat ("+label+"): all checks passed") {
 			t.Fatal("the container test did not report a complete pass")
 		}
 	})
