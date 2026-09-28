@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Upgrade notes
+**Upgrade notes.** Read these before upgrading.
 
 - **Upgrading signs everyone out.** Migration 0065 revokes every live session
   and refresh token. Access tokens issued before it carry no session binding
@@ -28,6 +28,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The list endpoint is unchanged.
 - **API tokens with no owner stop working.** List and replace them before
   upgrading; the query is under Security below. (#881)
+
+**Known limitations.** These ship in this release.
+
+- **Changing your own password does not sign out your other sessions.** They
+  stay valid until their absolute limit, 12 hours by default. To end them, ask
+  an administrator to reset your password. (CP `bugs/OW-072`)
+- **Settings shows only the current session.** It cannot list or revoke other
+  sessions.
+- **A Bearer-only logout revokes nothing.** An access token presented alone
+  stays valid until it expires, 30 minutes after issue, and a refresh token
+  returned in the login body has no revoke route. (CP `bugs/OW-062`)
+- **The Kensa-published `kensa-rules` package is not checked.** Kensa
+  publishes a package of the same name and install path that does not
+  declare the engine it needs, and `openwatch` accepts either package. On
+  `openwatch` 0.8.0-rc.5 or earlier, a 0.10.0 or newer corpus from any source
+  makes every scan fail, and no package prevents it. Install `kensa-rules`
+  only from the OpenWatch release that matches your `openwatch`, and do not
+  configure a Kensa package repository on an OpenWatch host. The upgrade
+  runbook shows how to tell the packages apart and restore OpenWatch's.
+  (CP `bugs/OW-081`)
 
 ### Security
 
@@ -156,27 +176,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   list or end others. Each message now says the session may remain valid
   until it expires and names the remedy that works: an administrator can
   end it by resetting the user's password. (#880)
-
-### Known limitations
-
-- **Changing your own password does not sign out your other sessions.** They
-  stay valid until their absolute limit, 12 hours by default. To end them, ask
-  an administrator to reset your password. (CP `bugs/OW-072`)
-- **Settings shows only the current session.** It cannot list or revoke other
-  sessions.
-- **A Bearer-only logout revokes nothing.** An access token presented alone
-  stays valid until it expires, 30 minutes after issue, and a refresh token
-  returned in the login body has no revoke route. (CP `bugs/OW-062`)
-- **The Kensa-published `kensa-rules` package is not checked.** Kensa
-  publishes a package of the same name and install path that does not
-  declare the engine it needs, and `openwatch` accepts either package. On
-  `openwatch` 0.8.0-rc.5 or earlier, a 0.10.0 or newer corpus from any source
-  makes every scan fail, and no package prevents it. Install `kensa-rules`
-  only from the OpenWatch release that matches your `openwatch`, and do not
-  configure a Kensa package repository on an OpenWatch host. The upgrade
-  runbook shows how to tell the packages apart and restore OpenWatch's.
-  (CP `bugs/OW-081`)
-
 
 ## [0.8.0-rc.5] Eyrie (2026-09-19)
 
