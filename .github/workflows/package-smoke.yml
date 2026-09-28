@@ -214,14 +214,15 @@ jobs:
 
   # The package manager enforces the engine/corpus pairing (spec
   # release-upgrade C-06). AC-09 is verified in Go CI against the resolvers;
-  # this runs the same scenarios in real containers, scriptlets included. A Kensa engine older than its corpus
+  # this runs the same scenarios in real containers, with scriptlets and, on
+  # RPM, again under tsflags=noscripts. A Kensa engine older than its corpus
   # cannot load it and the service starts anyway with every scan failing, so
   # a rules-only upgrade beside an older openwatch must be refused while the
   # coordinated upgrade, an openwatch-only upgrade and a fresh install
   # succeed. The previous GA predates the engine provide, which is the state
   # the refusal has to hold against.
   kensa-rules-compat:
-    name: kensa-rules compat ${{ matrix.distro }}
+    name: kensa-rules compat ${{ matrix.distro }}${{ matrix.mode && format(' {0}', matrix.mode) || '' }}
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -230,6 +231,10 @@ jobs:
         include:
           - { distro: 'rockylinux:9', kind: rpm }
           - { distro: 'ubuntu:24.04', kind: deb }
+          # The same scenarios with every RPM transaction under
+          # tsflags=noscripts, so the refusals rest on dependency
+          # resolution alone. A pass with scriptlets is not evidence for it.
+          - { distro: 'rockylinux:9', kind: rpm, mode: noscripts }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
@@ -256,6 +261,7 @@ jobs:
         env:
           OPENWATCH_KENSA_COMPAT_IMAGE: ${{ matrix.distro }}
           OPENWATCH_KENSA_COMPAT_KIND: ${{ matrix.kind }}
+          OPENWATCH_KENSA_COMPAT_MODE: ${{ matrix.mode }}
         run: |
           OPENWATCH_KENSA_COMPAT_OLD_DIR="$PWD/old" OPENWATCH_KENSA_COMPAT_NEW_DIR="$PWD/new" \
             go test -count=1 -v -run 'TestUpgrade_EngineCorpusPairingInContainers' ./packaging/tests/
