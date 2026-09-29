@@ -10,6 +10,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] Eyrie (2026-09-29)
+
+General-availability release of the 0.8 line. The only change from
+`0.8.0-rc.6` is this version. Read the `0.8.0-rc.6` section below for the
+release notes, the upgrade notes and the known limitations. The sections for
+earlier candidates record what each one changed. Nothing is inherited from any
+candidate: every gate runs again against this build.
+
 ## [0.8.0-rc.6] Eyrie (2026-09-27)
 
 `v0.8.0-rc.5` built, passed every machine gate, and its assets were
