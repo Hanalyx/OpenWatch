@@ -28,10 +28,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the contract. (CP `bugs/OW-091`)
 - **The full rollback steps could not restore the upgrade backup.** They sent
   operators to `pg_restore`, but the upgrade scriptlet writes a plain-SQL dump
-  with no ownership statements. The upgrade runbook now gives the verified
-  procedure: restore into a new database as the `openwatch` role with `psql`,
-  keep the current database as a second copy, then reinstall both previous
-  packages. (CP `bugs/OW-092`)
+  with no ownership statements. The upgrade runbook now gives one block that
+  stops on its own at the first failed check. It verifies the dump, keeps the
+  current database as a second copy, restores into a new database as the
+  `openwatch` role with `psql`, and checks the migration version and ownership.
+  Only then does it reinstall both previous packages. A test runs the block
+  from the runbook against a real PostgreSQL server. (CP `bugs/OW-092`)
+- **A rollback could leave every scan failing while health said healthy.**
+  The package scriptlet starts the service while the newer rule files are
+  still on disk, and the previous engine then fails to load its rules. The
+  rollback block now restarts the service after the packages are installed,
+  and stops unless the rule library actually loaded. (CP `bugs/OW-094`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 
