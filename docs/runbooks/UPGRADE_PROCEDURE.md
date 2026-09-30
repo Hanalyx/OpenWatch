@@ -568,48 +568,114 @@ recovery. Fix the cause before you run the rollback block again.
 
 None of the recovery blocks drops a database. Each checks every name before
 it renames anything, and stops without a change when a name is missing or
-already taken.
+already taken. Each ends with the same checks as step 6: it restarts the
+service, waits for health, reads the journal, and calls `GET /api/v1/rules`.
+It prints its success line only after all of them pass. If a check fails
+after the databases are in place, the block stops the service and says so.
+
+Each recovery block needs a token that works in the database it leaves as
+`openwatch`:
+
+| Block | Database it leaves as `openwatch` | A token that works there |
+|---|---|---|
+| Recover before package installation | the original, newer-version database | the pre-upgrade token, if it was not revoked since, or a token created after the upgrade |
+| Keep the restored database | the restored, pre-upgrade database | only a token created before the upgrade: the same one the rollback block used |
+| Put the original database back | the original, newer-version database | the pre-upgrade token, if it was not revoked since, or a token created after the upgrade |
+
+A token that is not valid there makes `GET /api/v1/rules` answer `401`, and
+the block stops in its `verify` stage with the service stopped. The block
+reads the token from the file and never prints it.
 
 ##### Recover before package installation
 
 Use this only when the block stopped in phase `database`. It sets the
 replacement database aside as `openwatch_failed_restore`, if one was created,
-and renames `openwatch_pre_rollback` back to `openwatch`. The newer packages
-are still installed, so the original database matches them:
+and renames `openwatch_pre_rollback` back to `openwatch`. If the rollback
+stopped before the rename, the original is still `openwatch`, and the block
+renames nothing. Either way it restarts the service and checks it. The newer
+packages are still installed, so the original database matches them. Fill in
+the token file:
 
 ```bash
 (
   set -euo pipefail
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-valid-in-the-original-database>'
+  URL=https://localhost:8443
   ASIDE=openwatch_pre_rollback
   FAILED=openwatch_failed_restore
   PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
-  trap 'echo "RECOVERY STOPPED at line $LINENO. No database was renamed." >&2' ERR
+  STAGE=checks
+  on_stop() {
+    echo "RECOVERY STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      checks)
+        echo "No database was renamed and the service was not touched." >&2 ;;
+      renaming)
+        echo "The renames stopped partway. List the databases (runuser -u postgres -- psql -l)" >&2
+        echo "before you do anything else." >&2 ;;
+      verify)
+        echo "The databases are as intended, but the service did not prove it loaded" >&2
+        echo "its rule library. It is being stopped. Fix the cause, then restart it and" >&2
+        echo "repeat the checks." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
   db() { "${PSQL[@]}" -c "SELECT count(*) FROM pg_database WHERE datname = '$1'"; }
+  case "$TOKEN_FILE" in
+    *'<'*) echo "fill in the value at the top first" >&2; false ;;
+  esac
+  test -r "$TOKEN_FILE"
+  TOKEN=$(cat "$TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
 
   HAVE_ASIDE=$(db "$ASIDE")
-  [ "$HAVE_ASIDE" = 1 ] || { echo "$ASIDE does not exist: nothing to put back" >&2; false; }
   HAVE_NEW=$(db openwatch)
-  if [ "$HAVE_NEW" = 1 ]; then
+  if [ "$HAVE_ASIDE" = 0 ]; then
+    # The rollback stopped before the rename: the original never moved.
+    [ "$HAVE_NEW" = 1 ] || { echo "neither openwatch nor $ASIDE exists; stop and investigate" >&2; false; }
+    echo "$ASIDE does not exist: the original database is still openwatch"
+  elif [ "$HAVE_NEW" = 1 ]; then
     FAILED_TAKEN=$(db "$FAILED")
     [ "$FAILED_TAKEN" = 0 ] || { echo "$FAILED is already taken; rename or remove it first" >&2; false; }
   fi
 
-  systemctl stop openwatch
-  OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
-      WHERE datname IN ('openwatch', '$ASIDE')")
-  [ "$OPEN" = 0 ]
-  if [ "$HAVE_NEW" = 1 ]; then
-    "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
+  if [ "$HAVE_ASIDE" = 1 ]; then
+    systemctl stop openwatch
+    OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
+        WHERE datname IN ('openwatch', '$ASIDE')")
+    [ "$OPEN" = 0 ]
+    STAGE=renaming
+    if [ "$HAVE_NEW" = 1 ]; then
+      "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
+    fi
+    "${PSQL[@]}" -c "ALTER DATABASE $ASIDE RENAME TO openwatch"
   fi
-  "${PSQL[@]}" -c "ALTER DATABASE $ASIDE RENAME TO openwatch"
-  systemctl start openwatch
-  echo "RESTORED: the original database is back as openwatch"
+
+  STAGE=verify
+  SINCE=$(date '+%Y-%m-%d %H:%M:%S')
+  systemctl restart openwatch
+  READY=no
+  for _ in $(seq 1 30); do
+    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+    sleep 2
+  done
+  [ "$READY" = yes ]
+  LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
+  [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
+  [[ "$LOG" != *"kensa rule library unavailable"* ]]
+  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  [ "$RULES" = 200 ]
+  trap - ERR
+  echo "RESTORED: the original database is back as openwatch, rule library loaded"
 )
 ```
 
 When it reports `RESTORED`, the service runs the newer version on its own
-database, as before the rollback. Keep `openwatch_failed_restore` until you
-know why the rollback stopped, then remove it.
+database, as before the rollback, and its rule library loaded. Run one
+compliance scan end to end before you call the recovery complete. Keep
+`openwatch_failed_restore` until you know why the rollback stopped, then
+remove it.
 
 ##### Recover after package installation began
 
@@ -640,20 +706,39 @@ Then choose by what you see:
 ###### Keep the restored database
 
 The previous version is installed. This block checks that, and that the
-package state is clean, then restarts the service on the restored database.
-Fill in the previous version, as `openwatch --version` prints it, and the
-migration version from Step 2:
+package state is clean, then restarts the service on the restored database
+and proves the rule library loaded. Fill in the previous version, as
+`openwatch --version` prints it, the migration version from Step 2, and the
+token file. The token must have been created before the upgrade:
 
 ```bash
 (
   set -euo pipefail
   OLD_VERSION='<previous-version-as-openwatch-version-prints-it>'
   EXPECTED='<migration-version-from-step-2>'
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-created-before-the-upgrade>'
+  URL=https://localhost:8443
   PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
-  trap 'echo "RECOVERY STOPPED at line $LINENO. Nothing was changed after this point." >&2' ERR
-  case "$OLD_VERSION $EXPECTED" in
-    *'<'*) echo "fill in the two values at the top first" >&2; false ;;
+  STAGE=checks
+  on_stop() {
+    echo "RECOVERY STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      checks)
+        echo "Nothing was changed. No database was renamed." >&2 ;;
+      verify)
+        echo "The restored database is kept as openwatch, but the service did not prove" >&2
+        echo "it loaded its rule library. It is being stopped. Fix the cause, then" >&2
+        echo "restart it and repeat the checks." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
+  case "$OLD_VERSION $EXPECTED $TOKEN_FILE" in
+    *'<'*) echo "fill in the three values at the top first" >&2; false ;;
   esac
+  test -r "$TOKEN_FILE"
+  TOKEN=$(cat "$TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
 
   VERSION=$(openwatch --version)
   [[ "$VERSION" == "openwatch $OLD_VERSION"* ]]
@@ -669,31 +754,68 @@ migration version from Step 2:
   GOT=$("${PSQL[@]}" -d openwatch -c 'SELECT max(version_id) FROM goose_db_version')
   [ "$GOT" = "$EXPECTED" ]
 
+  STAGE=verify
+  SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
-  echo "KEPT: the restored database, schema $GOT, runs with openwatch $OLD_VERSION"
+  READY=no
+  for _ in $(seq 1 30); do
+    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+    sleep 2
+  done
+  [ "$READY" = yes ]
+  LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
+  [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
+  [[ "$LOG" != *"kensa rule library unavailable"* ]]
+  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  [ "$RULES" = 200 ]
+  trap - ERR
+  echo "KEPT: the restored database, schema $GOT, runs with openwatch $OLD_VERSION, rule library loaded"
 )
 ```
 
-Then repeat the step 6 checks, and run one compliance scan end to end.
+When it reports `KEPT`, run one compliance scan end to end before you call
+the recovery complete.
 
 ###### Put the original database back
 
 The newer version is still installed. This block checks that, sets the
-restored database aside as `openwatch_failed_restore`, and renames the
-original back. Fill in the newer version, as `openwatch --version` prints it:
+restored database aside as `openwatch_failed_restore`, renames the original
+back, and proves the rule library loaded. Fill in the newer version, as
+`openwatch --version` prints it, and the token file:
 
 ```bash
 (
   set -euo pipefail
   NEW_VERSION='<newer-version-as-openwatch-version-prints-it>'
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-valid-in-the-original-database>'
+  URL=https://localhost:8443
   ASIDE=openwatch_pre_rollback
   FAILED=openwatch_failed_restore
   PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
-  trap 'echo "RECOVERY STOPPED at line $LINENO. No database was renamed." >&2' ERR
+  STAGE=checks
+  on_stop() {
+    echo "RECOVERY STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      checks)
+        echo "No database was renamed and the service was not touched." >&2 ;;
+      renaming)
+        echo "The renames stopped partway. List the databases (runuser -u postgres -- psql -l)" >&2
+        echo "before you do anything else." >&2 ;;
+      verify)
+        echo "The databases are as intended, but the service did not prove it loaded" >&2
+        echo "its rule library. It is being stopped. Fix the cause, then restart it and" >&2
+        echo "repeat the checks." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
   db() { "${PSQL[@]}" -c "SELECT count(*) FROM pg_database WHERE datname = '$1'"; }
-  case "$NEW_VERSION" in
-    *'<'*) echo "fill in the value at the top first" >&2; false ;;
+  case "$NEW_VERSION $TOKEN_FILE" in
+    *'<'*) echo "fill in the two values at the top first" >&2; false ;;
   esac
+  test -r "$TOKEN_FILE"
+  TOKEN=$(cat "$TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
 
   VERSION=$(openwatch --version)
   [[ "$VERSION" == "openwatch $NEW_VERSION"* ]]
@@ -709,18 +831,36 @@ original back. Fill in the newer version, as `openwatch --version` prints it:
   OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
       WHERE datname IN ('openwatch', '$ASIDE')")
   [ "$OPEN" = 0 ]
+  STAGE=renaming
   if [ "$HAVE_NEW" = 1 ]; then
     "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
   fi
   "${PSQL[@]}" -c "ALTER DATABASE $ASIDE RENAME TO openwatch"
-  systemctl start openwatch
-  echo "RESTORED: the original database is back as openwatch, with openwatch $NEW_VERSION"
+
+  STAGE=verify
+  SINCE=$(date '+%Y-%m-%d %H:%M:%S')
+  systemctl restart openwatch
+  READY=no
+  for _ in $(seq 1 30); do
+    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+    sleep 2
+  done
+  [ "$READY" = yes ]
+  LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
+  [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
+  [[ "$LOG" != *"kensa rule library unavailable"* ]]
+  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  [ "$RULES" = 200 ]
+  trap - ERR
+  echo "RESTORED: the original database is back as openwatch, with openwatch $NEW_VERSION, rule library loaded"
 )
 ```
 
-The service then runs the newer version on its own database, as before the
-rollback. Keep `openwatch_failed_restore` until you know why the rollback
-stopped, then remove it.
+When it reports `RESTORED`, the service runs the newer version on its own
+database, as before the rollback, and its rule library loaded. Run one
+compliance scan end to end before you call the recovery complete. Keep
+`openwatch_failed_restore` until you know why the rollback stopped, then
+remove it.
 
 #### What was tested, and what was not
 
@@ -731,7 +871,9 @@ by the repository's own migrations and a dump taken with the scriptlet's
 `pg_dump` flags. It injects failures at each phase: a missing or truncated
 dump, a failed restore, a wrong version, a foreign-owned object, a failed
 `createdb`, a taken recovery name, a failed package transaction and a failed
-rule-library check.
+rule-library check. Each recovery block is also run with a health timeout,
+each journal warning, and a `/api/v1/rules` answer of `503` and of `401`. It
+must stop without its success line and leave the databases as intended.
 
 The package manager, `systemctl`, `journalctl`, `curl`, `rpm`, `dpkg` and
 `openwatch --version` are stand-ins that record what they were asked to do.
@@ -740,7 +882,7 @@ Ubuntu path was not run against real packages: the test proves only that the
 blocks pick `apt-get` and `dpkg --audit` when `dnf` is absent. The RHEL
 restore was run by hand on a real host on 2026-09-30, with the same restore
 commands. The restart-and-load problem step 6 guards against was observed on
-that host. The test checks that step 6 stops the block on a warning or a
+that host. The test checks that the blocks stop on a warning, a timeout or a
 non-`200` answer, not how a real service behaves.
 
 Keep `openwatch_pre_rollback` and the pre-upgrade dump until you have

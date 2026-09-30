@@ -127,6 +127,43 @@ func TestUpgrade_FullRollbackRunbookBlock(t *testing.T) {
 				}
 			}
 		}
+		// Every block that prints a success marker proves the rule library
+		// loaded first (CP bugs/OW-094): restart, bounded health wait, both
+		// journal checks, the authenticated rules probe, then the ERR trap
+		// cleared immediately before the success line.
+		successRE := regexp.MustCompile(`(?m)^  echo "(ROLLED BACK|RESTORED|KEPT):`)
+		for label, block := range map[string]string{"rollback": rb.main, "pre-install": rb.preInstall,
+			"keep-restored": rb.keepRestored, "put-back": rb.putBack} {
+			loc := successRE.FindStringIndex(block)
+			if loc == nil {
+				t.Fatalf("%s block prints no success marker", label)
+			}
+			before := block[:loc[0]]
+			last := -1
+			for _, want := range []string{
+				"systemctl restart openwatch",
+				`for _ in $(seq 1 30); do`,
+				`curl -skf -o /dev/null "$URL/api/v1/health"`,
+				`[ "$READY" = yes ]`,
+				`[[ "$LOG" != *"kensa scan wiring unavailable"* ]]`,
+				`[[ "$LOG" != *"kensa rule library unavailable"* ]]`,
+				`-K - "$URL/api/v1/rules"`,
+				`[ "$RULES" = 200 ]`,
+			} {
+				i := strings.Index(before, want)
+				if i < 0 || i < last {
+					t.Fatalf("%s block prints its success marker without %q before it, in order", label, want)
+				}
+				last = i
+			}
+			if !strings.HasSuffix(strings.TrimRight(before, " "), "trap - ERR\n") {
+				t.Fatalf("%s block does not clear the ERR trap immediately before its success line", label)
+			}
+			if !strings.Contains(block, `[[ "$TOKEN" == owk_* ]]`) || !strings.Contains(block, "TOKEN_FILE='<") {
+				t.Fatalf("%s block lacks the token input and its owk_ guard", label)
+			}
+		}
+
 		// A stop after installation began must never rename a database.
 		packagesBranch := rb.main[strings.Index(rb.main, "packages)"):strings.Index(rb.main, "esac")]
 		if strings.Contains(packagesBranch, "RENAME") || strings.Contains(packagesBranch, "ALTER DATABASE") {
@@ -237,7 +274,7 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 	}
 
 	// Stubs record their name and arguments in /work/called.
-	//   curl:      the health probe (-f) succeeds; the rules probe (-w) prints RULES_CODE, default 200.
+	//   curl:      the health probe (-skf) exits HEALTH_EXIT, default 0; the rules probe (-w) prints RULES_CODE, default 200.
 	//   dnf:       exits DNF_EXIT, default 0.
 	//   rpm:       `rpm -V` prints nothing and exits RPM_V_EXIT, default 0.
 	//   openwatch: `--version` prints "openwatch $OW_VERSION".
@@ -252,7 +289,7 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 		"openwatch":  record("openwatch") + "echo \"openwatch ${OW_VERSION:-unset}\"\necho \"  commit:    stub\"\nexit 0\n",
 		"journalctl": record("journalctl") + "[ -f /work/journal.txt ] && cat /work/journal.txt\nexit 0\n",
 		"curl": record("curl") + "cat >/dev/null 2>&1 || :\n" +
-			"case \" $* \" in *\" -w \"*) printf '%s' \"${RULES_CODE:-200}\" ;; esac\nexit 0\n",
+			"case \" $* \" in *\" -w \"*) printf '%s' \"${RULES_CODE:-200}\" ;; *\" -skf \"*) exit ${HEALTH_EXIT:-0} ;; esac\nexit 0\n",
 	}
 	for dir, names := range map[string][]string{
 		"stubs-dnf": {"systemctl", "dnf", "apt-get", "journalctl", "curl", "rpm", "dpkg", "openwatch"},
@@ -326,13 +363,14 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 			"TOKEN_FILE": "/work/token",
 		})
 	}
-	preInstall := rb.preInstall
+	preInstall := fillBlock(t, rb.preInstall, map[string]string{"TOKEN_FILE": "/work/token"})
 	keep := func(oldVersion string) string {
-		return fillBlock(t, rb.keepRestored, map[string]string{"OLD_VERSION": oldVersion, "EXPECTED": expected})
+		return fillBlock(t, rb.keepRestored, map[string]string{"OLD_VERSION": oldVersion, "EXPECTED": expected, "TOKEN_FILE": "/work/token"})
 	}
 	putBack := func(newVersion string) string {
-		return fillBlock(t, rb.putBack, map[string]string{"NEW_VERSION": newVersion})
+		return fillBlock(t, rb.putBack, map[string]string{"NEW_VERSION": newVersion, "TOKEN_FILE": "/work/token"})
 	}
+	successMarker := regexp.MustCompile(`(?m)^(ROLLED BACK|RESTORED|KEPT):`)
 	installed := func(called string) bool {
 		return strings.Contains(called, "dnf install") || strings.Contains(called, "apt-get install")
 	}
@@ -453,8 +491,9 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 			if rcode != 0 || !strings.Contains(rout, "RESTORED") {
 				t.Fatalf("pre-install recovery exit %d:\n%s", rcode, rout)
 			}
-			if !rig.isOriginal("openwatch") || lastSystemctl(rcalled) != "systemctl start openwatch" {
-				t.Fatalf("recovery did not put the original database back and start the service: %q", rcalled)
+			if !rig.isOriginal("openwatch") || lastSystemctl(rcalled) != "systemctl restart openwatch" ||
+				!strings.Contains(rcalled, "/api/v1/rules") {
+				t.Fatalf("recovery did not put the original back, restart and probe the rules: %q", rcalled)
 			}
 			wantAfter := "openwatch,openwatch_failed_restore"
 			if strings.HasPrefix(c.label, "i ") {
@@ -465,6 +504,33 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 			}
 		})
 	}
+
+	t.Run("i2 stop before the rename, then pre-install recovery renames nothing", func(t *testing.T) {
+		rig.reset()
+		// A session held on openwatch fails the open-connections check, so the
+		// block stops in phase database after stopping the service and before
+		// the rename.
+		rig.must(`(runuser -u postgres -- psql -X -d openwatch -c 'SELECT pg_sleep(30)' >/dev/null 2>&1 &) ; sleep 1`)
+		code, out, called := rig.run(fill("/work/good.sql", expected), "stubs-dnf", "")
+		rig.must(`runuser -u postgres -- psql -X -tA -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'openwatch'" >/dev/null`)
+		logCase("i2 rollback", code, called)
+		if code == 0 || !strings.Contains(out, "phase: database") || called != "systemctl stop openwatch\n" {
+			t.Fatalf("exit %d, calls %q, output:\n%s", code, called, out)
+		}
+		if got := rig.databases(); got != "openwatch" || !rig.isOriginal("openwatch") {
+			t.Fatalf("databases [%s]; the original must still be openwatch", got)
+		}
+		rig.clearCalls()
+		rcode, rout, rcalled := rig.run(preInstall, "stubs-dnf", "")
+		logCase("i2 pre-install recovery", rcode, rcalled)
+		if rcode != 0 || !strings.Contains(rout, "RESTORED") || strings.Contains(rcalled, "systemctl stop") ||
+			lastSystemctl(rcalled) != "systemctl restart openwatch" || !strings.Contains(rcalled, "/api/v1/rules") {
+			t.Fatalf("recovery exit %d, calls %q, output:\n%s", rcode, rcalled, rout)
+		}
+		if got := rig.databases(); got != "openwatch" || !rig.isOriginal("openwatch") {
+			t.Fatalf("databases [%s]; want the original as openwatch and nothing renamed", got)
+		}
+	})
 
 	t.Run("ii recovery name already taken", func(t *testing.T) {
 		rig.reset()
@@ -537,13 +603,82 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 		rig.clearCalls()
 		code, out, called := rig.run(putBack("0.8.0"), "stubs-dnf", "OW_VERSION=0.8.0")
 		logCase("iii/put-back recovery", code, called)
-		if code != 0 || !strings.Contains(out, "RESTORED") || lastSystemctl(called) != "systemctl start openwatch" {
+		if code != 0 || !strings.Contains(out, "RESTORED") || lastSystemctl(called) != "systemctl restart openwatch" ||
+			!strings.Contains(called, "/api/v1/rules") {
 			t.Fatalf("exit %d, calls %q, output:\n%s", code, called, out)
 		}
 		if got := rig.databases(); got != "openwatch,openwatch_failed_restore" || !rig.isOriginal("openwatch") {
 			t.Fatalf("databases [%s]; want the original back as openwatch", got)
 		}
 	})
+
+	// Every recovery block proves the rule library loaded before it prints
+	// success. Inject each verification failure into each block: it must
+	// exit non-zero, print no success marker, stop the service, and leave
+	// the databases as that block intends. Nothing is dropped.
+	type recoveryPath struct {
+		label      string
+		rollback   string // env for the rollback run that sets up the state
+		rollExp    string
+		block      string
+		env        string // env the recovery block runs with
+		wantDBs    string
+		wantOrigOW bool // true when openwatch must be the original database
+	}
+	paths := []recoveryPath{
+		{label: "pre-install", rollExp: decrement(t, expected), block: preInstall,
+			wantDBs: "openwatch,openwatch_failed_restore", wantOrigOW: true},
+		{label: "keep-restored", rollback: "DNF_EXIT=1", rollExp: expected, block: keep("0.7.1"), env: "OW_VERSION=0.7.1",
+			wantDBs: "openwatch,openwatch_pre_rollback", wantOrigOW: false},
+		{label: "put-back", rollback: "DNF_EXIT=1", rollExp: expected, block: putBack("0.8.0"), env: "OW_VERSION=0.8.0",
+			wantDBs: "openwatch,openwatch_failed_restore", wantOrigOW: true},
+	}
+	faults := []struct{ label, journal, env string }{
+		{label: "a health timeout", env: "HEALTH_EXIT=7"},
+		{label: "b scan wiring warning", journal: "kensa scan wiring unavailable — on-demand scans will fail\n"},
+		{label: "c rule library warning", journal: "kensa rule library unavailable; /api/v1/rules disabled\n"},
+		{label: "d rules answers 503", env: "RULES_CODE=503"},
+		{label: "d rules answers 401, token not valid in the selected database", env: "RULES_CODE=401"},
+	}
+	for _, p := range paths {
+		for _, f := range faults {
+			p, f := p, f
+			t.Run("recovery "+p.label+" "+f.label, func(t *testing.T) {
+				rig.reset()
+				code, sout, called := rig.run(fill("/work/good.sql", p.rollExp), "stubs-dnf", p.rollback)
+				wantPhase := "phase: database"
+				if p.rollback != "" {
+					wantPhase = "phase: packages"
+				}
+				if code == 0 || !strings.Contains(sout, wantPhase) || !rig.isOriginal("openwatch_pre_rollback") {
+					t.Fatalf("setup rollback: exit %d, want a stop in %s with the aside intact; calls %q, dbs [%s]\n%s",
+						code, wantPhase, called, rig.databases(), sout)
+				}
+				rig.clearCalls()
+				if f.journal != "" {
+					if err := os.WriteFile(filepath.Join(work, "journal.txt"), []byte(f.journal), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				rcode, rout, rcalled := rig.run(p.block, "stubs-dnf", strings.TrimSpace(p.env+" "+f.env))
+				logCase("recovery "+p.label+" / "+f.label, rcode, rcalled)
+				if rcode == 0 || successMarker.MatchString(rout) {
+					t.Fatalf("exit %d with a success line or zero exit:\n%s", rcode, rout)
+				}
+				if !strings.Contains(rout, "stage: verify") || lastSystemctl(rcalled) != "systemctl stop openwatch" ||
+					!strings.Contains(rcalled, "systemctl restart openwatch") {
+					t.Fatalf("want a verify-stage stop after the restart, service stopped last: %q\n%s", rcalled, rout)
+				}
+				if got := rig.databases(); got != p.wantDBs || rig.isOriginal("openwatch") != p.wantOrigOW {
+					t.Fatalf("databases [%s], openwatch original=%v; want [%s], original=%v",
+						got, rig.isOriginal("openwatch"), p.wantDBs, p.wantOrigOW)
+				}
+				if strings.Contains(rout, token) {
+					t.Fatal("the token was printed")
+				}
+			})
+		}
+	}
 
 	// Step 6 failures come after a good restore and install (CP bugs/OW-094).
 	for _, c := range []struct{ label, journal, env string }{

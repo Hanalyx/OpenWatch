@@ -41,8 +41,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A rollback could leave every scan failing while health said healthy.**
   The package scriptlet starts the service while the newer rule files are
   still on disk, and the previous engine then fails to load its rules. The
-  rollback block now restarts the service after the packages are installed,
-  and stops unless the rule library actually loaded. (CP `bugs/OW-094`)
+  rollback block and each recovery block now restart the service and stop
+  unless the rule library actually loaded. None prints its success line
+  before that is proven. (CP `bugs/OW-094`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 
