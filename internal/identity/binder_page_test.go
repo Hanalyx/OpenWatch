@@ -1,9 +1,11 @@
 // @spec system-auth-identity
 //
-// OW-090: a dead session cookie must not stop the browser loading the SPA
-// or the sign-in page (C-47), while API paths keep the 401 envelope the
-// frontend's refresh logic depends on (C-12), a rejected Bearer token keeps
-// its 401 everywhere, and an infrastructure failure keeps its 503 (C-32).
+// OW-090: a rejected session cookie must not stop the browser loading the
+// SPA or the sign-in page (C-47). The page is served anonymously and no
+// cookie is touched, so the refresh-cookie path still decides whether the
+// user needs to sign in again. API paths keep the 401 envelope the
+// frontend refreshes on (C-12), a rejected Bearer token keeps its 401
+// everywhere, and an infrastructure failure keeps its 503 (C-32).
 
 package identity
 
@@ -16,40 +18,55 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// deadSessionCookies returns a session cookie in each rejected state the
-// binder distinguishes: an unknown token, an expired session and a revoked
-// one.
-func deadSessionCookies(t *testing.T, pool *pgxpool.Pool) map[string]string {
+// rejectedCookie is a session cookie the binder refuses, with the account
+// state the lookups report for its user.
+type rejectedCookie struct {
+	token   string
+	lookups stubLookups
+}
+
+// rejectedSessionCookies returns a session cookie in each state C-47 names:
+// unknown, expired, revoked, and a live session whose account is disabled
+// or soft-deleted.
+func rejectedSessionCookies(t *testing.T, pool *pgxpool.Pool) map[string]rejectedCookie {
 	t.Helper()
 	ctx := context.Background()
-	out := map[string]string{"unknown": "not-a-real-token"}
+	out := map[string]rejectedCookie{"unknown": {token: "not-a-real-token", lookups: adminLookups}}
 
-	expiredUser := seedUser(t, pool, "c47-expired")
-	expired, _, err := IssueSession(ctx, pool, expiredUser, "127.0.0.1", "ua")
-	if err != nil {
-		t.Fatalf("issue expired: %v", err)
+	issue := func(name string) (string, Session) {
+		t.Helper()
+		tok, sess, err := IssueSession(ctx, pool, seedUser(t, pool, name), "127.0.0.1", "ua")
+		if err != nil {
+			t.Fatalf("issue %s: %v", name, err)
+		}
+		return tok, sess
 	}
+
+	expired, es := issue("c47-expired")
 	ago := time.Now().UTC().Add(-time.Minute)
 	if _, err := pool.Exec(ctx,
-		`UPDATE sessions SET expires_at = $1, absolute_expires_at = $1 WHERE user_id = $2`,
-		ago, expiredUser); err != nil {
+		`UPDATE sessions SET expires_at = $1, absolute_expires_at = $1 WHERE id = $2`, ago, es.ID); err != nil {
 		t.Fatalf("backdate: %v", err)
 	}
-	out["expired"] = expired
+	out["expired"] = rejectedCookie{token: expired, lookups: adminLookups}
 
-	revokedUser := seedUser(t, pool, "c47-revoked")
-	revoked, _, err := IssueSession(ctx, pool, revokedUser, "127.0.0.1", "ua")
-	if err != nil {
-		t.Fatalf("issue revoked: %v", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`UPDATE sessions SET revoked_at = now() WHERE user_id = $1`, revokedUser); err != nil {
+	revoked, rs := issue("c47-revoked")
+	if _, err := pool.Exec(ctx, `UPDATE sessions SET revoked_at = now() WHERE id = $1`, rs.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	out["revoked"] = revoked
+	out["revoked"] = rejectedCookie{token: revoked, lookups: adminLookups}
+
+	disabled, _ := issue("c47-disabled")
+	out["disabled account"] = rejectedCookie{token: disabled,
+		lookups: stubLookups{role: auth.RoleAdmin, status: AccountDisabled}}
+
+	deleted, _ := issue("c47-deleted")
+	out["deleted account"] = rejectedCookie{token: deleted,
+		lookups: stubLookups{role: auth.RoleAdmin, status: AccountDeleted}}
 	return out
 }
 
@@ -67,41 +84,28 @@ func envelopeCode(t *testing.T, rr *httptest.ResponseRecorder) string {
 	return env.Error.Code
 }
 
-// clearedCookies returns the auth cookies a response deletes.
-func clearedCookies(rr *httptest.ResponseRecorder) map[string]bool {
-	out := map[string]bool{}
-	for _, c := range rr.Result().Cookies() {
-		if c.MaxAge < 0 && c.Value == "" && c.Path == "/" && c.HttpOnly && c.Secure {
-			out[c.Name] = true
-		}
-	}
-	return out
-}
-
 // @ac AC-94
-// AC-94: a page load presenting a dead session cookie is served
-// anonymously, and the response deletes both auth cookies.
-func TestBinder_PageLoadWithDeadSession_ServedAnonymouslyAndCleared(t *testing.T) {
+// AC-94: a page load presenting a rejected session cookie is served
+// anonymously and sets no cookie, so a refresh token that still works
+// survives for the SPA's refresh call.
+func TestBinder_PageLoadWithRejectedSession_ServedAnonymouslyCookiesKept(t *testing.T) {
 	t.Run("system-auth-identity/AC-94", func(t *testing.T) {
 		pool := freshPool(t)
-		for state, token := range deadSessionCookies(t, pool) {
+		for state, rc := range rejectedSessionCookies(t, pool) {
 			for _, path := range []string{"/", "/login", "/hosts/01a0ed4c-c03a-752b-8600-a15fff968665", "/assets/app-abc123.js"} {
 				t.Run(state+" "+path, func(t *testing.T) {
-					h := Binder(pool, adminLookups)(echoHandler(t, true))
+					h := Binder(pool, rc.lookups)(echoHandler(t, true))
 					req := httptest.NewRequest(http.MethodGet, path, nil)
 					req.Header.Set("Accept", "text/html")
-					req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
-					req.AddCookie(&http.Cookie{Name: RefreshCookieName, Value: "stale-refresh"})
+					req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: rc.token})
+					req.AddCookie(&http.Cookie{Name: RefreshCookieName, Value: "a-refresh-token"})
 					rr := httptest.NewRecorder()
 					h.ServeHTTP(rr, req)
 					if rr.Code != http.StatusOK {
 						t.Fatalf("status = %d, want 200 (the page must load); body=%q", rr.Code, rr.Body.String())
 					}
-					got := clearedCookies(rr)
-					for _, name := range []string{SessionCookieName, RefreshCookieName} {
-						if !got[name] {
-							t.Errorf("response does not delete %s; Set-Cookie=%q", name, rr.Header().Values("Set-Cookie"))
-						}
+					if sc := rr.Header().Values("Set-Cookie"); len(sc) != 0 {
+						t.Errorf("a page load must not touch the credential cookies; Set-Cookie=%q", sc)
 					}
 				})
 			}
@@ -115,18 +119,17 @@ func TestBinder_PageLoadWithDeadSession_ServedAnonymouslyAndCleared(t *testing.T
 func TestBinder_PageLoadException_DoesNotReachAPIOrBearerOr503(t *testing.T) {
 	t.Run("system-auth-identity/AC-95", func(t *testing.T) {
 		pool := freshPool(t)
-		dead := deadSessionCookies(t, pool)
 
-		for state, token := range dead {
+		for state, rc := range rejectedSessionCookies(t, pool) {
 			for _, path := range []string{"/api/v1/auth/me", "/api/v1/hosts", "/api"} {
 				t.Run("api "+state+" "+path, func(t *testing.T) {
-					h := Binder(pool, adminLookups)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						t.Errorf("downstream ran for a dead cookie on an API path")
+					h := Binder(pool, rc.lookups)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						t.Errorf("downstream ran for a rejected cookie on an API path")
 						w.WriteHeader(http.StatusOK)
 					}))
 					req := httptest.NewRequest(http.MethodGet, path, nil)
 					req.Header.Set("Accept", "text/html")
-					req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
+					req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: rc.token})
 					rr := httptest.NewRecorder()
 					h.ServeHTTP(rr, req)
 					if rr.Code != http.StatusUnauthorized {
@@ -154,8 +157,7 @@ func TestBinder_PageLoadException_DoesNotReachAPIOrBearerOr503(t *testing.T) {
 		})
 
 		t.Run("state unavailable on a page path stays 503", func(t *testing.T) {
-			user := seedUser(t, pool, "c47-unavailable")
-			token, _, err := IssueSession(context.Background(), pool, user, "127.0.0.1", "ua")
+			token, _, err := IssueSession(context.Background(), pool, seedUser(t, pool, "c47-unavailable"), "127.0.0.1", "ua")
 			if err != nil {
 				t.Fatalf("issue: %v", err)
 			}
@@ -171,9 +173,8 @@ func TestBinder_PageLoadException_DoesNotReachAPIOrBearerOr503(t *testing.T) {
 			if rr.Code != http.StatusServiceUnavailable {
 				t.Errorf("status = %d, want 503", rr.Code)
 			}
-			if len(clearedCookies(rr)) != 0 {
-				t.Errorf("an infrastructure failure must not delete a possibly live session; Set-Cookie=%q",
-					rr.Header().Values("Set-Cookie"))
+			if sc := rr.Header().Values("Set-Cookie"); len(sc) != 0 {
+				t.Errorf("an infrastructure failure must not touch a possibly live session; Set-Cookie=%q", sc)
 			}
 		})
 	})

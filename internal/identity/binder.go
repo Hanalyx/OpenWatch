@@ -195,14 +195,19 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 						return
 					}
 					// A page load (the SPA, its assets, the sign-in
-					// route) with a dead session cookie. The 401 above
-					// is for the frontend's API client, which refreshes
-					// and retries; a page load never reaches that code,
-					// so the browser would render the envelope and could
-					// not load even /login. Clear the dead cookies and
-					// serve the page anonymously, so the SPA routes to
-					// sign-in. Spec C-47.
-					ClearAuthCookies(w)
+					// route) with a rejected session cookie. The 401
+					// above is for the frontend's API client, which
+					// refreshes and retries; a page load never reaches
+					// that code, so the browser would render the
+					// envelope and could not load even /login. Serve the
+					// page anonymously and leave the cookies alone. The
+					// SPA's first API call (/auth/me) meets the 401 and
+					// the refresh-cookie path decides: a live refresh
+					// token mints a new session, and a dead one is
+					// refused there, which clears both cookies and sends
+					// the user to sign-in. Deleting cookies here would
+					// throw away a refresh token that still works.
+					// Spec C-47.
 				}
 			}
 			handlerCtx := r.Context()
@@ -226,23 +231,6 @@ func isPageRequest(r *http.Request) bool {
 	}
 	c, err := r.Cookie(SessionCookieName)
 	return err == nil && c.Value != ""
-}
-
-// ClearAuthCookies emits Set-Cookie headers that delete both auth cookies.
-// The attributes match the ones the login path sets them with, so the
-// browser treats each header as replacing, and so deleting, its cookie.
-func ClearAuthCookies(w http.ResponseWriter) {
-	for _, name := range []string{SessionCookieName, RefreshCookieName} {
-		http.SetCookie(w, &http.Cookie{
-			Name:     name,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-		})
-	}
 }
 
 // reasonStateUnavailable is the one reason that is NOT a rejected
