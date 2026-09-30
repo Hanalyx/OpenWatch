@@ -190,8 +190,19 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 				// a stale session is presented alongside.
 				// Spec C-12 / AC-21.
 				if _, bypass := authBypassPaths[r.URL.Path]; !bypass {
-					writeSessionInvalid(w, r, reason)
-					return
+					if !isPageRequest(r) {
+						writeSessionInvalid(w, r, reason)
+						return
+					}
+					// A page load (the SPA, its assets, the sign-in
+					// route) with a dead session cookie. The 401 above
+					// is for the frontend's API client, which refreshes
+					// and retries; a page load never reaches that code,
+					// so the browser would render the envelope and could
+					// not load even /login. Clear the dead cookies and
+					// serve the page anonymously, so the SPA routes to
+					// sign-in. Spec C-47.
+					ClearAuthCookies(w)
 				}
 			}
 			handlerCtx := r.Context()
@@ -199,6 +210,37 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 				handlerCtx = ctx
 			}
 			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(handlerCtx, id)))
+		})
+	}
+}
+
+// isPageRequest reports whether a request is a browser page load rather
+// than an API call: a presented session cookie on a path outside /api/.
+// Those paths are the embedded SPA and its assets. A Bearer credential is
+// never a page load, since a browser does not send one on navigation, so a
+// rejected Bearer token keeps the 401 on every path. Spec C-47.
+func isPageRequest(r *http.Request) bool {
+	p := r.URL.Path
+	if p == "/api" || strings.HasPrefix(p, "/api/") {
+		return false
+	}
+	c, err := r.Cookie(SessionCookieName)
+	return err == nil && c.Value != ""
+}
+
+// ClearAuthCookies emits Set-Cookie headers that delete both auth cookies.
+// The attributes match the ones the login path sets them with, so the
+// browser treats each header as replacing, and so deleting, its cookie.
+func ClearAuthCookies(w http.ResponseWriter) {
+	for _, name := range []string{SessionCookieName, RefreshCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
 		})
 	}
 }

@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 1
 
@@ -101,7 +101,7 @@ spec:
       type: security
       enforcement: error
     - id: C-12
-      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC.
+      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC. v1.11.0 - one exception, C-47 - a rejected session cookie on a page load outside /api/ is served anonymously with its cookies deleted instead.
       type: security
       enforcement: error
     - id: C-13
@@ -481,6 +481,25 @@ spec:
         sliding, so they neither extend the idle window nor wait on the
         row; logout still reaches its hash lookup, CSRF check and bounded
         revocation. bugs/OW-077.
+      type: security
+      enforcement: error
+    - id: C-47
+      description: >
+        v1.11.0 - a rejected session cookie MUST NOT stop the browser loading
+        the single-page app or its sign-in route. When a request presents a
+        session cookie that the binder refuses (unknown, expired, revoked, or
+        belonging to a disabled or deleted account) on a path outside /api/,
+        the binder MUST serve the request anonymously and delete both
+        credential cookies (openwatch_session and openwatch_refresh) with
+        attributes matching the ones login sets. The C-12 401 envelope stays
+        the answer on every /api/ path, because the frontend's API client
+        refreshes and retries on it, and a full page load never reaches that
+        client. A rejected Bearer credential keeps its 401 on every path, since
+        a browser never sends one on navigation. An infrastructure failure
+        keeps its C-32 503 with no cookie cleared. Migration 0065 revokes every
+        session on upgrade, so without this every signed-in browser was locked
+        out of the sign-in page until its cookies were cleared by hand.
+        bugs/OW-090.
       type: security
       enforcement: error
 
@@ -2327,3 +2346,44 @@ spec:
         cookies: "Both credential cookies cleared"
         transaction_effects: "Not asserted here; covered by AC-66, AC-69 and AC-73"
         audit: "Not asserted"
+
+    - id: AC-94
+      description: >
+        A page load that presents a rejected session cookie is served
+        anonymously, and the response deletes both credential cookies.
+      priority: critical
+      references_constraints: [C-47]
+      inputs:
+        initial_state: "A session cookie that is unknown, expired, or revoked (as migration 0065 leaves every session)"
+        requests: "GET /, GET /login, GET a deep SPA route, GET a static asset, each with the dead session and refresh cookies"
+      expected_output:
+        status: 200
+        body: "The page (the SPA's HTML or the asset), not the auth.session_invalid envelope"
+        identity: "Anonymous"
+        cookies: "Set-Cookie deletes openwatch_session and openwatch_refresh (empty value, Max-Age 0, Path /, HttpOnly, Secure)"
+
+    - id: AC-95
+      description: >
+        The page-load exception does not reach the API, a Bearer credential,
+        or an infrastructure failure, and login, logout and the refresh-cookie
+        path behave as before.
+      priority: critical
+      references_constraints: [C-12, C-32, C-47]
+      inputs:
+        variants:
+          - name: "API path"
+            setup: "A dead session cookie on GET /api/v1/auth/me, GET /api/v1/hosts and GET /api"
+          - name: "Bearer on a page path"
+            setup: "A rejected Bearer token on GET /login"
+          - name: "Account state unavailable on a page path"
+            setup: "A live session cookie on GET /login while the account-state read fails"
+          - name: "Credential paths"
+            setup: "Refresh-cookie with a revoked refresh token; a live session that loads /login, reads /api/v1/auth/me, refreshes, logs out, then loads /login with the logged-out cookie"
+      expected_output:
+        per_variant:
+          API path: {status: 401, code: auth.session_invalid}
+          Bearer on a page path: {status: 401}
+          Account state unavailable on a page path: {status: 503, cookies: "None deleted"}
+          Credential paths:
+            revoked_refresh: "Refused, not 200"
+            live_session: "200 on /login with nothing deleted; 200 on /api/v1/auth/me; 200 on refresh-cookie; 204 on logout; 401 on /api/v1/auth/me after logout; 200 on /login with the logged-out cookie"

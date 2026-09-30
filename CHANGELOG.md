@@ -10,6 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **After an upgrade, a browser with an old session could not reach the sign-in page.**
+  The upgrade to 0.8.0 ends every session. A browser that still held the
+  old cookies got a raw JSON error on every page, including sign-in, until
+  its cookies were cleared by hand. Pages now load, the dead cookies are
+  deleted, and the user is sent to sign in. The API still refuses the old
+  session. (CP `bugs/OW-090`)
+
 ## [0.8.0] Eyrie (2026-09-29)
 
 General-availability release of the 0.8 line. The only change from
