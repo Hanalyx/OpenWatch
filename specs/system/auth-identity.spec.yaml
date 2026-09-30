@@ -1,7 +1,7 @@
 spec:
   id: system-auth-identity
   title: Auth identity primitives (password, session, JWT, MFA)
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 1
 
@@ -101,7 +101,7 @@ spec:
       type: security
       enforcement: error
     - id: C-12
-      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC.
+      description: Identity binder MUST distinguish "credential presented but rejected" from "no credential presented"; rejected credentials MUST short-circuit with HTTP 401 (auth.session_invalid envelope) rather than fall through anonymously, so the frontend can trigger a refresh attempt. Truly-unauthenticated requests still flow through anonymously and are denied downstream by RBAC. v1.11.0 - one exception, C-47 - a rejected session cookie on a page load outside /api/ is served anonymously, and the SPA's own API call then meets this 401.
       type: security
       enforcement: error
     - id: C-13
@@ -481,6 +481,29 @@ spec:
         sliding, so they neither extend the idle window nor wait on the
         row; logout still reaches its hash lookup, CSRF check and bounded
         revocation. bugs/OW-077.
+      type: security
+      enforcement: error
+    - id: C-47
+      description: >
+        v1.11.0 - a rejected session cookie MUST NOT stop the browser loading
+        the single-page app or its sign-in route. When a request presents a
+        session cookie that the binder refuses (unknown, expired, revoked, or
+        belonging to a disabled or deleted account) on a path outside /api/,
+        the binder MUST serve the request anonymously and MUST NOT set or
+        delete any credential cookie. Whether the user must sign in again is
+        the refresh-cookie path's decision (AC-23, C-28), not the page load's:
+        the SPA's first API call, GET /api/v1/auth/me at boot, meets the C-12
+        401 on /api/, the client refreshes once (AC-25), a live refresh token
+        mints a new session, and a refused one clears both cookies and routes
+        to sign-in. Deleting the refresh cookie on the page load would force a
+        sign-in that an idle-expired session with a live refresh token does
+        not need. The C-12 401 envelope stays the answer on every /api/ path.
+        A rejected Bearer credential keeps its 401 on every path, since a
+        browser never sends one on navigation. An infrastructure failure
+        keeps its C-32 503 with no cookie touched. Migration 0065 revokes
+        every session on upgrade, so without this every signed-in browser was
+        locked out of the sign-in page until its cookies were cleared by hand.
+        bugs/OW-090.
       type: security
       enforcement: error
 
@@ -2327,3 +2350,86 @@ spec:
         cookies: "Both credential cookies cleared"
         transaction_effects: "Not asserted here; covered by AC-66, AC-69 and AC-73"
         audit: "Not asserted"
+
+    - id: AC-94
+      description: >
+        A page load that presents a rejected session cookie is served
+        anonymously and sets no cookie. Revoked session and refresh token
+        (migration 0065, logout): the page loads, /auth/me is refused, the
+        refresh is refused and clears both cookies, and the cookie-less sign-in
+        page then loads with /auth/me and the refresh both refused, so the
+        client settles on /login with no loop.
+      priority: critical
+      references_constraints: [C-47, C-12]
+      inputs:
+        states: "Session cookie unknown, expired, revoked, of a disabled account, of a deleted account"
+        requests: "GET /, GET /login, GET a deep SPA route, GET a static asset, each with the session and refresh cookies"
+      expected_output:
+        status: 200
+        body: "The page (the SPA's HTML or the asset), not the auth.session_invalid envelope"
+        identity: "Anonymous"
+        cookies: "No Set-Cookie"
+        revoked_sequence: "GET /auth/me 401 auth.session_invalid; refresh-cookie refused with both cookies deleted; cookie-less /login 200; cookie-less /auth/me 401; cookie-less refresh-cookie refused"
+
+    - id: AC-95
+      description: >
+        The page-load exception does not reach the API, a Bearer credential,
+        or an infrastructure failure, and a live session still loads pages,
+        reads the API, refreshes, logs out, and after logout still loads the
+        sign-in page while the API refuses the logged-out cookie.
+      priority: critical
+      references_constraints: [C-12, C-32, C-47]
+      inputs:
+        variants:
+          - name: "API path"
+            setup: "A rejected session cookie on GET /api/v1/auth/me, GET /api/v1/hosts and GET /api"
+          - name: "Bearer on a page path"
+            setup: "A rejected Bearer token on GET /login"
+          - name: "Account state unavailable on a page path"
+            setup: "A live session cookie on GET /login while the account-state read fails"
+          - name: "Live session"
+            setup: "Load pages, GET /api/v1/auth/me and /api/v1/hosts, refresh-cookie, logout, then the same with the logged-out cookie"
+      expected_output:
+        per_variant:
+          API path: {status: 401, code: auth.session_invalid}
+          Bearer on a page path: {status: 401}
+          Account state unavailable on a page path: {status: 503, cookies: "No Set-Cookie"}
+          Live session: "Pages 200 with no Set-Cookie; API 200; refresh-cookie 200 with new cookies; logout 204 clearing both; API 401 auth.session_invalid with the logged-out cookie; /login 200"
+
+    - id: AC-96
+      description: >
+        An idle-expired session with a live refresh token whose absolute
+        deadline has not passed recovers without a new sign-in: the page
+        loads and keeps the refresh cookie, /auth/me answers 401
+        auth.session_invalid, refresh-cookie mints a new session, and /auth/me
+        succeeds with it. Past the absolute deadline the refresh is refused
+        and clears both cookies (C-28).
+      priority: critical
+      references_constraints: [C-47, C-28, C-12]
+      inputs:
+        initial_state: "Session expires_at in the past, refresh token live with absolute_expires_at in the future"
+        variants:
+          - name: "Absolute deadline passed"
+            setup: "Session and refresh token absolute_expires_at in the past"
+      expected_output:
+        page: "200 with no Set-Cookie"
+        auth_me: {status: 401, code: auth.session_invalid}
+        refresh_cookie: "200, new session and refresh cookies"
+        auth_me_after: 200
+        absolute_passed: "Page 200 with no Set-Cookie; refresh-cookie refused with both cookies deleted"
+
+    - id: AC-97
+      description: >
+        A session cookie of a disabled or soft-deleted account is served the
+        page anonymously, and /auth/me and the refresh are refused. Covered
+        through the account service, which also revokes credentials (C-36),
+        and by setting the account state alone with credentials still live,
+        so the binder's own check (C-31) and the refresh path refuse it.
+      priority: critical
+      references_constraints: [C-47, C-31, C-36]
+      inputs:
+        variants: ["Disabled via the service", "Soft-deleted via the service", "disabled_at set, credentials live", "deleted_at set, credentials live"]
+      expected_output:
+        page: "200 with no Set-Cookie"
+        auth_me: {status: 401, code: auth.session_invalid}
+        refresh_cookie: "Refused, not 200"

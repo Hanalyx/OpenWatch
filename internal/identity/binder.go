@@ -190,8 +190,24 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 				// a stale session is presented alongside.
 				// Spec C-12 / AC-21.
 				if _, bypass := authBypassPaths[r.URL.Path]; !bypass {
-					writeSessionInvalid(w, r, reason)
-					return
+					if !isPageRequest(r) {
+						writeSessionInvalid(w, r, reason)
+						return
+					}
+					// A page load (the SPA, its assets, the sign-in
+					// route) with a rejected session cookie. The 401
+					// above is for the frontend's API client, which
+					// refreshes and retries; a page load never reaches
+					// that code, so the browser would render the
+					// envelope and could not load even /login. Serve the
+					// page anonymously and leave the cookies alone. The
+					// SPA's first API call (/auth/me) meets the 401 and
+					// the refresh-cookie path decides: a live refresh
+					// token mints a new session, and a dead one is
+					// refused there, which clears both cookies and sends
+					// the user to sign-in. Deleting cookies here would
+					// throw away a refresh token that still works.
+					// Spec C-47.
 				}
 			}
 			handlerCtx := r.Context()
@@ -201,6 +217,20 @@ func Binder(pool *pgxpool.Pool, lookups Lookups, opts ...BinderOption) func(http
 			next.ServeHTTP(w, r.WithContext(auth.SetIdentity(handlerCtx, id)))
 		})
 	}
+}
+
+// isPageRequest reports whether a request is a browser page load rather
+// than an API call: a presented session cookie on a path outside /api/.
+// Those paths are the embedded SPA and its assets. A Bearer credential is
+// never a page load, since a browser does not send one on navigation, so a
+// rejected Bearer token keeps the 401 on every path. Spec C-47.
+func isPageRequest(r *http.Request) bool {
+	p := r.URL.Path
+	if p == "/api" || strings.HasPrefix(p, "/api/") {
+		return false
+	}
+	c, err := r.Cookie(SessionCookieName)
+	return err == nil && c.Value != ""
 }
 
 // reasonStateUnavailable is the one reason that is NOT a rejected
