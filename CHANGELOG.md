@@ -32,8 +32,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stops on its own at the first failed check. It verifies the dump, keeps the
   current database as a second copy, restores into a new database as the
   `openwatch` role with `psql`, and checks the migration version and ownership.
-  Only then does it reinstall both previous packages. A test runs the block
-  from the runbook against a real PostgreSQL server. (CP `bugs/OW-092`)
+  Only then does it reinstall both previous packages. When it stops, it says
+  whether package installation had begun, and the runbook gives a separate
+  recovery block for each case. No block drops a database, and none swaps
+  databases back once installation has begun. A test runs every block from
+  the runbook against a real PostgreSQL server, with failures injected at each
+  phase. (CP `bugs/OW-092`)
 - **A rollback could leave every scan failing while health said healthy.**
   The package scriptlet starts the service while the newer rule files are
   still on disk, and the previous engine then fails to load its rules. The

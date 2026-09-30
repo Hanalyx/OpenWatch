@@ -143,9 +143,9 @@ Run through this checklist on the running host:
       [Record the migration version](#record-the-migration-version)).
 - [ ] Take a full PostgreSQL backup (see the [backup and recovery guide](BACKUP_RECOVERY.md)).
 - [ ] Back up `/etc/openwatch/` (config, `secrets.env`, and `tls/`).
-- [ ] Keep an API token (`owk_`) with `scan:read` in a file only root can
-      read. The [full rollback](#full-rollback-the-schema-advanced) needs one
-      that existed before the upgrade.
+- [ ] Create an API token with the `viewer` role (it has `scan:read`) and
+      store it in a file only root can read. A rollback needs a token that
+      existed **before** the upgrade: see [The API token](#the-api-token).
 - [ ] Confirm free disk space with `df -h /var/lib/openwatch /var`.
 - [ ] Schedule a maintenance window and notify users.
 
@@ -350,18 +350,18 @@ binary's migrations ran during Step 3. You restore the pre-upgrade dump into
 a new, empty database and then reinstall both previous packages.
 
 > **Before you start**
-> - **You need:** the scriptlet's dump for this upgrade in `/var/lib/openwatch/backups/`, the migration version you recorded in Step 2, both previous packages (`openwatch` and `kensa-rules`) as files on this host, and an API token with `scan:read` in a root-only file (see below).
-> - **Run as:** root, in a root shell (`sudo -i`). The block uses `runuser` to act as `postgres`.
+> - **You need:** the scriptlet's dump for this upgrade in `/var/lib/openwatch/backups/`, the migration version you recorded in Step 2, both previous packages (`openwatch` and `kensa-rules`) as files on this host, and the API token you stored **before the upgrade** (see [The API token](#the-api-token)).
+> - **Run as:** root, in a root shell (`sudo -i`). The blocks use `runuser` to act as `postgres`.
 > - **What changes:** the current database is renamed to `openwatch_pre_rollback` and kept. A new `openwatch` database holds the restored dump. The previous packages are installed and the service restarts.
 > - **Verify with:** the block's last line, `ROLLED BACK`, then the checks after it.
-> - **Recover by:** [If the block stops](#if-the-block-stops). Nothing is dropped.
+> - **Recover by:** [If the block stops](#if-the-block-stops). No block drops a database.
 
 These steps use the scriptlet's dump. If you restore your own Step 1 dump
 instead, use the commands that match its format: a custom-format `.dump`
 restores with `pg_restore` as in the
 [backup and recovery guide](BACKUP_RECOVERY.md).
 
-The block assumes PostgreSQL runs on this host, as `openwatch setup`
+The blocks assume PostgreSQL runs on this host, as `openwatch setup`
 provisions it, so `postgres` can connect over the local socket. For an
 external server, run the same SQL with an account that can create databases.
 
@@ -375,17 +375,41 @@ Three facts about the scriptlet's dump decide how it is restored:
   leaves the tables owned by `postgres`, and the service cannot migrate them
   later.
 
+#### The API token
+
+The block proves the rule library loaded by calling `GET /api/v1/rules`,
+which needs a token with the `scan:read` permission. The built-in `viewer`
+role has it.
+
+**Create the token before you upgrade.** The rollback restores the database
+as it was when the dump was taken, so it knows only the tokens that existed
+then. A token created after the upgrade stops working the moment the restore
+finishes, and the block then stops in step 6.
+
+Create one with a `viewer` role while the previous version still runs, and
+store it in a file only root can read:
+
+```bash
+# Sign in as an administrator first; $ADMIN_TOKEN is that session's token.
+curl -sk -X POST https://localhost:8443/api/v1/tokens \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(cat /proc/sys/kernel/random/uuid)" \
+  -d '{"name":"rollback-check","role_id":"viewer"}'
+# Copy the "token" value (it starts with owk_), then store it:
+sudo sh -c 'umask 077; cat > /root/openwatch-rollback.token'
+# paste the token, press Enter, then Ctrl-D
+sudo ls -l /root/openwatch-rollback.token     # -rw------- root root
+```
+
+The response shows the token once. Revoke it after you have validated the
+upgrade, or after a rollback.
+
+#### The rollback block
+
 List the dumps, then fill in the five values at the top of the block. The
 dump's name carries the version you are rolling back FROM. Use absolute paths
 for the package files. If you changed the listen port from `8443`, change
 `URL` too.
-
-**The token must predate the upgrade.** The restored database knows only the
-API tokens that existed when the dump was taken, so a token created after the
-upgrade stops working. Use an `owk_` token with `scan:read` created before
-the upgrade, in a file only root can read. The block passes it to `curl` on
-standard input, so it never appears in the process list. The
-[pre-upgrade checklist](#before-you-upgrade) asks you to keep one ready.
 
 ```bash
 ls -l /var/lib/openwatch/backups/
@@ -394,7 +418,8 @@ ls -l /var/lib/openwatch/backups/
 The block stops at the first failed check and changes nothing after it. It
 installs the previous packages only after the dump, the restore, the
 migration version and the ownership have all checked out. It then restarts
-the service and proves the rule library loaded:
+the service and proves the rule library loaded. When it stops, it says which
+phase it stopped in and which recovery applies:
 
 ```bash
 (
@@ -406,8 +431,24 @@ the service and proves the rule library loaded:
   TOKEN_FILE='<root-only-file-holding-an-owk-token-with-scan-read>'
   URL=https://localhost:8443
   ASIDE=openwatch_pre_rollback
-  trap 'echo "STOPPED at line $LINENO. Nothing after this point ran." >&2' ERR
   PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
+  PHASE=inputs
+  on_stop() {
+    echo "STOPPED at line $1, phase: $PHASE." >&2
+    case "$PHASE" in
+      inputs)
+        echo "Nothing was changed. The service was not stopped." >&2 ;;
+      database)
+        echo "Package installation had NOT begun. Run the block under" >&2
+        echo "'Recover before package installation'." >&2 ;;
+      packages)
+        echo "Package installation HAD begun. No database was swapped back." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2
+        echo "Inspect the packages, then run the matching block under" >&2
+        echo "'Recover after package installation began'." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
 
   echo "1. checking the inputs"
   case "$DUMP $EXPECTED $OLD_OPENWATCH $OLD_KENSA $TOKEN_FILE" in
@@ -427,6 +468,7 @@ the service and proves the rule library loaded:
   [ "$TAKEN" = 0 ]
 
   echo "2. stopping the service and setting the current database aside"
+  PHASE=database
   systemctl stop openwatch
   OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity WHERE datname = 'openwatch'")
   [ "$OPEN" = 0 ]
@@ -445,6 +487,7 @@ the service and proves the rule library loaded:
   [ "$FOREIGN" = 0 ]
 
   echo "5. installing the previous packages"
+  PHASE=packages
   if command -v dnf >/dev/null; then
     dnf install -y "$OLD_OPENWATCH" "$OLD_KENSA"
   else
@@ -465,23 +508,26 @@ the service and proves the rule library loaded:
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
   RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
+  trap - ERR
   echo "ROLLED BACK: schema $GOT restored, previous packages installed, rule library loaded"
 )
 ```
 
 Each check fails the block rather than printing a warning for you to notice:
 
-| Check | Stops when |
-|---|---|
-| Inputs | a value is still a placeholder, `EXPECTED` is not a number, or a file is missing or unreadable |
-| Dump | the file lacks the `pg_dump` header or the `dump complete` line a finished dump ends with |
-| Aside name | `openwatch_pre_rollback` already exists from an earlier attempt |
-| Connections | anything is still connected to `openwatch` after the service stops |
-| Restore | `psql` hits any error. The whole restore rolls back, and the new database stays empty |
-| Version | the restored schema is not the version you recorded in Step 2 |
-| Ownership | any table, index or sequence in `public` belongs to a role other than `openwatch` |
-| Health | the service does not answer `/api/v1/health` within 60 seconds of the restart |
-| Rule library | the journal since the restart says `kensa scan wiring unavailable` or `kensa rule library unavailable`, or `GET /api/v1/rules` does not answer `200` |
+| Step | Check | Stops when |
+|---|---|---|
+| 1 | Inputs | a value is still a placeholder, `EXPECTED` is not a number, a file is missing or unreadable, or the token file does not hold an `owk_` token |
+| 1 | Dump | the file lacks the `pg_dump` header or the `dump complete` line a finished dump ends with |
+| 1 | Aside name | `openwatch_pre_rollback` already exists from an earlier attempt |
+| 2 | Connections | anything is still connected to `openwatch` after the service stops |
+| 2 | Rename and create | the rename or the new database fails |
+| 3 | Restore | `psql` hits any error. The whole restore rolls back, and the new database stays empty |
+| 4 | Version | the restored schema is not the version you recorded in Step 2 |
+| 4 | Ownership | any table, index or sequence in `public` belongs to a role other than `openwatch` |
+| 5 | Packages | the package manager fails |
+| 6 | Health | the service does not answer `/api/v1/health` within 60 seconds of the restart |
+| 6 | Rule library | the journal since the restart says `kensa scan wiring unavailable` or `kensa rule library unavailable`, or `GET /api/v1/rules` does not answer `200` |
 
 The package manager's own scriptlet runs during step 5 as an upgrade. It
 takes another dump, finds no migrations to run, and starts the service.
@@ -511,51 +557,191 @@ before you call the rollback done.
 
 #### If the block stops
 
-The `STOPPED at line` message names the check.
+The `STOPPED` message names the line and the phase. The phase decides the
+recovery. Fix the cause before you run the rollback block again.
 
-- **Stopped in step 1:** nothing changed. The service still runs.
-- **Stopped in step 2 before the rename:** only the service stopped. Start
-  it again with `systemctl start openwatch`.
-- **Stopped after the rename:** your data is intact in
-  `openwatch_pre_rollback`. The new `openwatch` database is empty (a failed
-  restore) or holds the restored dump (a failed version or ownership check).
-  The newer packages are still installed, because installation comes after
-  these checks. Set the new database aside too, then put the original back
-  and start the service:
+| Phase | What it means | What to do |
+|---|---|---|
+| `inputs` | Step 1. Nothing changed, and the service still runs | Fix the input and run the block again |
+| `database` | Steps 2 to 4. No package was touched | Run [Recover before package installation](#recover-before-package-installation) |
+| `packages` | Step 5 or 6. The package state may have changed. The block stopped the service and swapped no database | Inspect the packages, then run the matching block under [Recover after package installation began](#recover-after-package-installation-began) |
+
+None of the recovery blocks drops a database. Each checks every name before
+it renames anything, and stops without a change when a name is missing or
+already taken.
+
+##### Recover before package installation
+
+Use this only when the block stopped in phase `database`. It sets the
+replacement database aside as `openwatch_failed_restore`, if one was created,
+and renames `openwatch_pre_rollback` back to `openwatch`. The newer packages
+are still installed, so the original database matches them:
 
 ```bash
 (
   set -euo pipefail
-  runuser -u postgres -- psql -X -v ON_ERROR_STOP=1 \
-    -c 'ALTER DATABASE openwatch RENAME TO openwatch_failed_restore' \
-    -c 'ALTER DATABASE openwatch_pre_rollback RENAME TO openwatch'
+  ASIDE=openwatch_pre_rollback
+  FAILED=openwatch_failed_restore
+  PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
+  trap 'echo "RECOVERY STOPPED at line $LINENO. No database was renamed." >&2' ERR
+  db() { "${PSQL[@]}" -c "SELECT count(*) FROM pg_database WHERE datname = '$1'"; }
+
+  HAVE_ASIDE=$(db "$ASIDE")
+  [ "$HAVE_ASIDE" = 1 ] || { echo "$ASIDE does not exist: nothing to put back" >&2; false; }
+  HAVE_NEW=$(db openwatch)
+  if [ "$HAVE_NEW" = 1 ]; then
+    FAILED_TAKEN=$(db "$FAILED")
+    [ "$FAILED_TAKEN" = 0 ] || { echo "$FAILED is already taken; rename or remove it first" >&2; false; }
+  fi
+
+  systemctl stop openwatch
+  OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
+      WHERE datname IN ('openwatch', '$ASIDE')")
+  [ "$OPEN" = 0 ]
+  if [ "$HAVE_NEW" = 1 ]; then
+    "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
+  fi
+  "${PSQL[@]}" -c "ALTER DATABASE $ASIDE RENAME TO openwatch"
   systemctl start openwatch
   echo "RESTORED: the original database is back as openwatch"
 )
 ```
 
-Keep `openwatch_failed_restore` until you know why the block stopped, then
-remove it. Fix the cause before you run the rollback block again.
+When it reports `RESTORED`, the service runs the newer version on its own
+database, as before the rollback. Keep `openwatch_failed_restore` until you
+know why the rollback stopped, then remove it.
 
-- **Stopped in step 6:** the restore succeeded and the previous packages are
-  installed. Do not run the recovery block above: the database is correct.
-  Check the rule files with `rpm -V kensa-rules` (or `dpkg --verify
-  kensa-rules`), read `journalctl -u openwatch -b`, fix the cause, then run
-  `systemctl restart openwatch` and repeat the step 6 checks.
+##### Recover after package installation began
 
-**What was tested, and what was not.** The rollback block and the recovery
-block run in a test (`TestUpgrade_FullRollbackRunbookBlock`) against a real
-PostgreSQL 16 server. The test uses a schema built by the repository's own
-migrations and a dump taken with the scriptlet's `pg_dump` flags. The
-package manager, `systemctl`, `journalctl` and `curl` are stand-ins that
-record what they were asked to do, and the test checks they ran only on
-success. The restore itself runs the same way on every distribution. The
-Debian and Ubuntu path was not run against real packages: the test proves only
-that the block picks `apt-get` when `dnf` is absent. The RHEL restore was run
-by hand on a real host on 2026-09-30, with the same restore commands. The
-restart-and-load problem step 6 guards against was observed on that host. The
-test checks that step 6 stops the block on a warning or a non-`200` answer,
-not how a real service behaves.
+The package transaction may have finished, failed partway, or left the
+newer packages in place. Look before you choose a database. The rollback
+block has already stopped the service; confirm with `systemctl is-active
+openwatch` and stop it if it still runs.
+
+```bash
+# RHEL family:
+rpm -q openwatch kensa-rules
+rpm -V kensa-rules
+# Debian/Ubuntu:
+dpkg-query -W -f='${Status} ${Version}\n' openwatch kensa-rules
+dpkg --audit
+# Both:
+openwatch --version
+```
+
+Then choose by what you see:
+
+| What is installed | Which database to keep | Block |
+|---|---|---|
+| The **previous** `openwatch` and `kensa-rules`, with `rpm -V` silent (DEB: both `install ok installed`, `dpkg --audit` silent) | the restored database, now `openwatch` | [Keep the restored database](#keep-the-restored-database) |
+| The **newer** `openwatch` still | the original, now `openwatch_pre_rollback` | [Put the original database back](#put-the-original-database-back) |
+| Anything half-installed: a package missing, a failed `rpm -V`, a status other than `install ok installed`, or output from `dpkg --audit` | neither yet | Fix the package state first, with the package manager's own recovery (`dnf history`, `dpkg --configure -a`). Then inspect again |
+
+###### Keep the restored database
+
+The previous version is installed. This block checks that, and that the
+package state is clean, then restarts the service on the restored database.
+Fill in the previous version, as `openwatch --version` prints it, and the
+migration version from Step 2:
+
+```bash
+(
+  set -euo pipefail
+  OLD_VERSION='<previous-version-as-openwatch-version-prints-it>'
+  EXPECTED='<migration-version-from-step-2>'
+  PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
+  trap 'echo "RECOVERY STOPPED at line $LINENO. Nothing was changed after this point." >&2' ERR
+  case "$OLD_VERSION $EXPECTED" in
+    *'<'*) echo "fill in the two values at the top first" >&2; false ;;
+  esac
+
+  VERSION=$(openwatch --version)
+  [[ "$VERSION" == "openwatch $OLD_VERSION"* ]]
+  if command -v dnf >/dev/null; then
+    VERIFY=$(rpm -V kensa-rules)
+    [ -z "$VERIFY" ]
+  else
+    AUDIT=$(dpkg --audit)
+    [ -z "$AUDIT" ]
+  fi
+  HAVE=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_database WHERE datname = 'openwatch'")
+  [ "$HAVE" = 1 ]
+  GOT=$("${PSQL[@]}" -d openwatch -c 'SELECT max(version_id) FROM goose_db_version')
+  [ "$GOT" = "$EXPECTED" ]
+
+  systemctl restart openwatch
+  echo "KEPT: the restored database, schema $GOT, runs with openwatch $OLD_VERSION"
+)
+```
+
+Then repeat the step 6 checks, and run one compliance scan end to end.
+
+###### Put the original database back
+
+The newer version is still installed. This block checks that, sets the
+restored database aside as `openwatch_failed_restore`, and renames the
+original back. Fill in the newer version, as `openwatch --version` prints it:
+
+```bash
+(
+  set -euo pipefail
+  NEW_VERSION='<newer-version-as-openwatch-version-prints-it>'
+  ASIDE=openwatch_pre_rollback
+  FAILED=openwatch_failed_restore
+  PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
+  trap 'echo "RECOVERY STOPPED at line $LINENO. No database was renamed." >&2' ERR
+  db() { "${PSQL[@]}" -c "SELECT count(*) FROM pg_database WHERE datname = '$1'"; }
+  case "$NEW_VERSION" in
+    *'<'*) echo "fill in the value at the top first" >&2; false ;;
+  esac
+
+  VERSION=$(openwatch --version)
+  [[ "$VERSION" == "openwatch $NEW_VERSION"* ]]
+  HAVE_ASIDE=$(db "$ASIDE")
+  [ "$HAVE_ASIDE" = 1 ] || { echo "$ASIDE does not exist: nothing to put back" >&2; false; }
+  HAVE_NEW=$(db openwatch)
+  if [ "$HAVE_NEW" = 1 ]; then
+    FAILED_TAKEN=$(db "$FAILED")
+    [ "$FAILED_TAKEN" = 0 ] || { echo "$FAILED is already taken; rename or remove it first" >&2; false; }
+  fi
+
+  systemctl stop openwatch
+  OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
+      WHERE datname IN ('openwatch', '$ASIDE')")
+  [ "$OPEN" = 0 ]
+  if [ "$HAVE_NEW" = 1 ]; then
+    "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
+  fi
+  "${PSQL[@]}" -c "ALTER DATABASE $ASIDE RENAME TO openwatch"
+  systemctl start openwatch
+  echo "RESTORED: the original database is back as openwatch, with openwatch $NEW_VERSION"
+)
+```
+
+The service then runs the newer version on its own database, as before the
+rollback. Keep `openwatch_failed_restore` until you know why the rollback
+stopped, then remove it.
+
+#### What was tested, and what was not
+
+The rollback block and all three recovery blocks run in a test
+(`TestUpgrade_FullRollbackRunbookBlock`). The test extracts each block from
+this page and runs it against a real PostgreSQL 16 server, with a schema built
+by the repository's own migrations and a dump taken with the scriptlet's
+`pg_dump` flags. It injects failures at each phase: a missing or truncated
+dump, a failed restore, a wrong version, a foreign-owned object, a failed
+`createdb`, a taken recovery name, a failed package transaction and a failed
+rule-library check.
+
+The package manager, `systemctl`, `journalctl`, `curl`, `rpm`, `dpkg` and
+`openwatch --version` are stand-ins that record what they were asked to do.
+The restore itself runs the same way on every distribution. The Debian and
+Ubuntu path was not run against real packages: the test proves only that the
+blocks pick `apt-get` and `dpkg --audit` when `dnf` is absent. The RHEL
+restore was run by hand on a real host on 2026-09-30, with the same restore
+commands. The restart-and-load problem step 6 guards against was observed on
+that host. The test checks that step 6 stops the block on a warning or a
+non-`200` answer, not how a real service behaves.
 
 Keep `openwatch_pre_rollback` and the pre-upgrade dump until you have
 validated the rollback, then remove them to reclaim the space. Keep the
