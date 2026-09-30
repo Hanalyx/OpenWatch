@@ -162,7 +162,10 @@ recovery point objective. A `systemd` timer or `cron` entry that calls a
 wrapper script covering both, inside one stop window, is sufficient. The
 upgrade scriptlet also leaves a pre-upgrade dump in
 `/var/lib/openwatch/backups/` on every package upgrade; that is a restore
-point for the schema, not a substitute for this schedule. Apply a
+point for the schema, not a substitute for this schedule. That dump is plain
+SQL, not the custom format this guide's `pg_restore` commands read. Restore it
+with the steps in the upgrade procedure's
+[Full rollback](UPGRADE_PROCEDURE.md#full-rollback-the-schema-advanced). Apply a
 retention policy (for example, `find /var/backups/openwatch -name '*.dump'
 -mtime +30 -delete`) and copy backups off-host.
 

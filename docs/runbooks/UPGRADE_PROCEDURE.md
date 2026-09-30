@@ -53,7 +53,11 @@ The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 2. **Stops the service**: so the new binary never runs against an old schema.
 3. **Backs up the database** with `pg_dump` to `/var/lib/openwatch/backups/`
    (your restore point; the password is passed via the environment, never on the
-   command line).
+   command line). The file is plain SQL, named
+   `openwatch-pre-upgrade-<version being installed>-<UTC stamp>.sql`, and it
+   carries no ownership or privilege statements. Restore it with `psql` as
+   shown in [Full rollback](#full-rollback-the-schema-advanced); `pg_restore`
+   cannot read it.
 4. **Applies pending migrations.** Each runs in a transaction, so a failure
    rolls back atomically: data is never left half-migrated.
 5. **On success → starts the service** on the new version.
@@ -339,26 +343,84 @@ curl -k https://localhost:8443/api/v1/health
 ### Full rollback (the schema advanced)
 
 If the schema version is higher than the one recorded in Step 2, the new
-binary's migrations ran during Step 3. Restore the pre-upgrade database dump
-(the scriptlet's, in `/var/lib/openwatch/backups/`, or your Step 1 dump),
-then reinstall the previous binary:
+binary's migrations ran during Step 3. You restore the pre-upgrade dump into
+a new, empty database and then reinstall both previous packages.
+
+These steps use the scriptlet's dump from `/var/lib/openwatch/backups/`. If
+you restore your own Step 1 dump instead, use the commands that match its
+format: a custom-format `.dump` restores with `pg_restore` as in the
+[backup and recovery guide](BACKUP_RECOVERY.md).
+
+The commands assume PostgreSQL runs on this host, as `openwatch setup`
+provisions it, so the `postgres` account can connect locally. For an external
+server, run the same SQL with an account that can create databases.
+
+Three facts about the scriptlet's dump decide how it is restored:
+
+- **It is plain SQL.** `pg_restore` refuses it. Restore it with `psql`.
+- **It has no `DROP` or `CREATE DATABASE`.** Loading it into the current
+  database fails on objects that already exist, so it goes into a new one.
+- **It has no ownership statements.** Every object belongs to the role that
+  runs the restore. Restoring as `postgres` without `SET ROLE openwatch`
+  leaves the tables owned by `postgres`, and the service cannot migrate them
+  later.
 
 ```bash
 # 1. Stop the service.
 sudo systemctl stop openwatch
 
-# 2. Restore the pre-upgrade database dump
-#    (exact pg_restore/psql commands: BACKUP_RECOVERY.md).
+# 2. Pick the dump the scriptlet took for this upgrade. Its name carries the
+#    version you are rolling back FROM. Confirm it is complete.
+ls -l /var/lib/openwatch/backups/
+DUMP=/var/lib/openwatch/backups/openwatch-pre-upgrade-<new-version>-<stamp>.sql
+sudo tail -n 5 "$DUMP" | grep 'PostgreSQL database dump complete'
 
-# 3. Reinstall the previous package (see Code-only rollback above).
+# 3. Keep the current database as a second copy, rather than dropping it.
+sudo -u postgres psql -X -c 'ALTER DATABASE openwatch RENAME TO openwatch_pre_rollback'
 
-# 4. Start and verify.
-sudo systemctl start openwatch
+# 4. Create an empty database owned by the service role.
+sudo -u postgres createdb -O openwatch openwatch
+
+# 5. Restore the dump as the service role, in one transaction that stops on
+#    the first error.
+sudo cat "$DUMP" | sudo -u postgres psql -X -1 -v ON_ERROR_STOP=1 \
+    -d openwatch -c 'SET ROLE openwatch' -f -
+echo "restore exit $?"
+
+# 6. Check the schema version and ownership before going further.
+sudo -u postgres psql -X -tA -d openwatch \
+    -c 'SELECT max(version_id) FROM goose_db_version'
+sudo -u postgres psql -X -tA -d openwatch -c "SELECT count(*) FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND pg_get_userbyid(c.relowner) <> 'openwatch'"
+
+# 7. Reinstall both previous packages in one transaction.
+# RHEL family:
+sudo dnf install ./openwatch-<old-version>.<arch>.rpm ./kensa-rules-<old-kensa-version>.noarch.rpm
+# Debian/Ubuntu:
+sudo apt install --allow-downgrades ./openwatch_<old-version>_<arch>.deb ./kensa-rules_<old-kensa-version>_all.deb
+
+# 8. Verify.
 curl -k https://localhost:8443/api/v1/health
+openwatch --version
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 ```
 
-Keep the pre-upgrade dump until you have validated the upgrade in production
-(at least several days).
+What each check must show:
+
+- Step 5 exits `0`. Any error rolls back the whole transaction and leaves the
+  new database empty, so you can fix the cause and run Step 5 again.
+- Step 6 prints the migration version you recorded in Step 2 of the upgrade,
+  then `0`.
+- In Step 7 the previous package's scriptlet runs as an upgrade. It takes
+  another dump, finds no migrations to run, and starts the service.
+- Step 8 reports `healthy` and the previous version, and `migrate --status`
+  reports no pending migrations.
+
+Keep `openwatch_pre_rollback` and the pre-upgrade dump until you have
+validated the rollback, then remove them to reclaim the space. Keep the
+pre-upgrade dump of a successful upgrade until you have validated that
+upgrade in production (at least several days).
 
 ## Updating Kensa compliance rules
 

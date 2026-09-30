@@ -19,6 +19,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only timed out is signed back in automatically when their refresh token
   is still valid; anyone else is sent to sign in. The API still refuses the
   old session. (CP `bugs/OW-090`)
+- **The report verification guide fetched a PDF instead of the JSON face.** It
+  told readers to request `export?face=json`, but the parameter is `format` and
+  its default is `pdf`. The server ignored the unknown name and returned the
+  PDF, so every genuine signed report failed the hash check and looked
+  tampered with. The guide now uses `format=json` and says how to spot the
+  wrong face. A test now fails when a documented API query parameter is not in
+  the contract. (CP `bugs/OW-091`)
+- **The full rollback steps could not restore the upgrade backup.** They sent
+  operators to `pg_restore`, but the upgrade scriptlet writes a plain-SQL dump
+  with no ownership statements. The upgrade runbook now gives the verified
+  procedure: restore into a new database as the `openwatch` role with `psql`,
+  keep the current database as a second copy, then reinstall both previous
+  packages. (CP `bugs/OW-092`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 
