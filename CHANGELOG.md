@@ -44,6 +44,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rollback block and each recovery block now restart the service and stop
   unless the rule library actually loaded. None prints its success line
   before that is proven. (CP `bugs/OW-094`)
+- **The backup and recovery guide called a restore done on a health check
+  alone.** Health answers `healthy` even when the Kensa rule library failed to
+  load and every scan fails. A restore, a rebuild on a new host, and a restart
+  after an outage now end with two checks that stop on any failure: one proves
+  the rule library loaded, and one runs a scan end to end. Both need an API
+  token that exists in the restored database. (CP `bugs/OW-094`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 

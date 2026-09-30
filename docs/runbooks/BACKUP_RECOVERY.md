@@ -175,7 +175,7 @@ retention policy (for example, `find /var/backups/openwatch -name '*.dump'
 > - **You need:** the database dump and the state archive from the same backup generation, plus its passphrase.
 > - **Run as:** root, with `/etc/openwatch/secrets.env` loaded into the shell.
 > - **What changes:** the entire database (`--clean --if-exists` replaces current contents), `credential.key`, and the rollback store; the service is stopped for the duration.
-> - **Verify with:** `pg_restore` exit 0, then a `200` from `/api/v1/health` and a signed-in check that an executed remediation still offers **Roll back**.
+> - **Verify with:** `pg_restore` exit 0, then the checks in [Prove the restored service works](#prove-the-restored-service-works): the rule library loaded and one scan completed. Health alone is not proof. Last, a signed-in check that an executed remediation still offers **Roll back**.
 > - **Recover by:** restoring the previous generation the same way; take a fresh dump of the current state first if it has any value.
 
 ### Restore the database
@@ -209,15 +209,12 @@ retention policy (for example, `find /var/backups/openwatch -name '*.dump'
    openwatch migrate
    ```
 
-4. Start the service and confirm health. The listener takes a few seconds to
-   bind after `start`; a `Connection refused` on the first try is not a
-   failure, retry it:
-
-   ```bash
-   systemctl start openwatch
-   sleep 5; curl -k https://localhost:8443/api/v1/health
-   # {"status":"healthy","db_connected":true,"version":"<installed version>"}
-   ```
+4. Restore the configuration, keys and rollback store (next section), then
+   start the service with the checks in
+   [Prove the restored service works](#prove-the-restored-service-works).
+   Do not start it with a bare `systemctl start` and a health check: health
+   reports `healthy` even when the rule library failed to load and every scan
+   fails.
 
 ### Restore configuration, keys and the rollback store
 
@@ -235,13 +232,158 @@ openssl enc -aes-256-cbc -d -pbkdf2 \
 chown openwatch:openwatch /etc/openwatch/keys/credential.key
 chmod 0600 /etc/openwatch/keys/credential.key
 chown -R openwatch:openwatch /var/lib/openwatch/kensa
-systemctl start openwatch
-sleep 5; curl -k https://localhost:8443/api/v1/health
 ```
 
-Then prove the recovery, not only the health line: sign in, open a host that
-had an executed remediation, and confirm its **Roll back** control is still
-offered. That control is what the rollback store buys you.
+Then start the service with the checks in
+[Prove the restored service works](#prove-the-restored-service-works). After
+those pass, sign in, open a host that had an executed remediation, and
+confirm its **Roll back** control is still offered. That control is what the
+rollback store buys you.
+
+### Prove the restored service works
+
+A `200` from `/api/v1/health` does not prove the service works. On a host
+where the Kensa rule library fails to load, the service still starts, health
+still answers `healthy`, and every scan and remediation fails. The service
+logs that only as a warning (CP `bugs/OW-094`). So a restore is done only
+when both blocks below finish:
+
+1. The first block restarts the service and proves it loaded its rule
+   library. It prints `VERIFIED` only after every check passes.
+2. The second block runs one compliance scan end to end. It prints
+   `SCANNED` only when the scan completes with no rule errors.
+
+Each block runs in a subshell with `set -euo pipefail`. Any failed check
+stops the block, prints the line it stopped on, and prints no success line.
+
+#### The API tokens
+
+Both blocks call the API with a token passed to `curl` on standard input, so
+the token never appears in the process list or the shell history. Neither
+block prints it.
+
+| Block | Permission it needs | A built-in role that has it |
+|---|---|---|
+| Rule library check | `scan:read` | `viewer` |
+| Scan check | `host:write` and `scan:read` | `ops_lead`, `security_admin` or `admin` |
+
+The token must be valid in the **restored** database. That means it was
+created before the backup you restored was taken, and not revoked since. A
+token created after that backup does not exist in the restored database, and
+the API answers `401`. Keep each token in a root-only file, for example:
+
+```bash
+( umask 077; printf '%s' 'owk_<the token>' > /root/openwatch-verify.token )
+```
+
+Create the tokens while the service is healthy, before you need a restore,
+and keep them with the backup plan.
+
+#### Check that the rule library loaded
+
+Fill in the value at the top. The block stops waiting for health after
+`HEALTH_WAIT` seconds (120), and gives the `/api/v1/rules` request at most 30
+seconds, so it finishes or stops within two and a half minutes. Each request
+also has a 5-second connection timeout, so a port that never answers cannot
+stall it.
+
+```bash
+(
+  set -euo pipefail
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-valid-in-the-restored-database>'
+  URL=https://localhost:8443
+  HEALTH_WAIT=120
+  trap 'echo "VERIFY STOPPED at line $LINENO. The service did not prove it loaded its rule library. Stopping it." >&2; systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2' ERR
+  case "$TOKEN_FILE" in
+    *'<'*) echo "fill in the value at the top first" >&2; false ;;
+  esac
+  test -r "$TOKEN_FILE"
+  TOKEN=$(cat "$TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
+
+  SINCE=$(date '+%Y-%m-%d %H:%M:%S')
+  systemctl restart openwatch
+  READY=no
+  END=$((SECONDS + HEALTH_WAIT))
+  while [ "$SECONDS" -lt "$END" ]; do
+    LEFT=$((END - SECONDS))
+    if [ "$LEFT" -gt 10 ]; then LEFT=10; fi
+    if curl -skf --connect-timeout 5 --max-time "$LEFT" -o /dev/null "$URL/api/v1/health"; then
+      READY=yes
+      break
+    fi
+    if [ $((SECONDS + 2)) -ge "$END" ]; then break; fi
+    sleep 2
+  done
+  [ "$READY" = yes ]
+  LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
+  [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
+  [[ "$LOG" != *"kensa rule library unavailable"* ]]
+  RULES=$(curl -sk --connect-timeout 5 --max-time 30 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  [ "$RULES" = 200 ]
+  trap - ERR
+  echo "VERIFIED: openwatch restarted, answered health, and loaded its rule library"
+)
+```
+
+If the block stops, it stops the service so nothing runs half-working. Read
+`journalctl -u openwatch -n 200 --no-pager`. A `load rule corpus` error names
+the rule file that failed. Check that the installed `kensa-rules` package
+matches the installed `openwatch` (`rpm -q openwatch kensa-rules` and
+`rpm -V kensa-rules`, or `dpkg-query -W openwatch kensa-rules` and
+`dpkg --audit`). Fix the cause, then run the block again.
+
+#### Run one scan end to end
+
+Pick a host that was reachable before the restore. Its ID is in the UI's host
+page URL, or in `GET /api/v1/hosts`. Fill in the two values at the top. The
+block starts one on-demand scan, then polls it for up to `SCAN_WAIT` seconds
+(900). Each request has a 5-second connection timeout and a 30-second limit.
+
+```bash
+(
+  set -euo pipefail
+  SCAN_TOKEN_FILE='<root-only-file-holding-an-owk-token-with-host-write-and-scan-read>'
+  HOST_ID='<id-of-a-host-that-was-reachable-before-the-restore>'
+  URL=https://localhost:8443
+  SCAN_WAIT=900
+  trap 'echo "SCAN CHECK STOPPED at line $LINENO. Do not call the restore complete." >&2' ERR
+  case "$SCAN_TOKEN_FILE $HOST_ID" in
+    *'<'*) echo "fill in the two values at the top first" >&2; false ;;
+  esac
+  [[ "$HOST_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+  test -r "$SCAN_TOKEN_FILE"
+  TOKEN=$(cat "$SCAN_TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
+  AUTH="header = \"Authorization: Bearer $TOKEN\""
+  KEY=$(cat /proc/sys/kernel/random/uuid)
+
+  RESP=$(curl -sk --connect-timeout 5 --max-time 30 -w '\n%{http_code}' -X POST \
+      -H "Idempotency-Key: $KEY" -K - "$URL/api/v1/hosts/$HOST_ID/scans" <<<"$AUTH")
+  CODE=${RESP##*$'\n'}
+  [ "$CODE" = 202 ]
+  SCAN_ID=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin)["scan_id"])' <<<"${RESP%$'\n'*}")
+  [[ "$SCAN_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+
+  STATE=unknown
+  END=$((SECONDS + SCAN_WAIT))
+  while [ "$SECONDS" -lt "$END" ]; do
+    BODY=$(curl -skf --connect-timeout 5 --max-time 30 -K - "$URL/api/v1/scans/$SCAN_ID" <<<"$AUTH")
+    STATE=$(python3 -I -S -c 'import json,sys; s=json.load(sys.stdin)["scan"]; print(s["status"], s.get("rules_error"))' <<<"$BODY")
+    case "$STATE" in
+      completed*|failed*) break ;;
+    esac
+    sleep 10
+  done
+  [ "$STATE" = "completed 0" ]
+  trap - ERR
+  echo "SCANNED: scan $SCAN_ID completed with no rule errors"
+)
+```
+
+A scan that ends `failed`, or completes with rule errors, means the restore is
+not done. Read the scan's `failure_reason` in the UI or at
+`GET /api/v1/scans/{id}`, and the service journal.
 
 ## Disaster recovery (rebuild on a new host)
 
@@ -256,19 +398,22 @@ offered. That control is what the rollback store buys you.
    `/var/lib/openwatch/kensa/` from the encrypted state archive.
 4. Restore the database dump into the new PostgreSQL database (see above).
 5. Run `openwatch migrate` to apply any pending migrations.
-6. Validate config, then start:
+6. Validate config and enable the service at boot:
 
    ```bash
    sudo -u openwatch openwatch check-config
-   sudo systemctl enable --now openwatch
-   curl -k https://localhost:8443/api/v1/health
+   sudo systemctl enable openwatch
    ```
+
+7. Start it with the checks in
+   [Prove the restored service works](#prove-the-restored-service-works).
+   Both blocks must finish before the rebuild is done.
 
 ### Recovery objectives
 
 | Scenario | Procedure | Recovery point |
 |----------|-----------|----------------|
-| Service crash / bad config | `systemctl restart openwatch`; fix config; `openwatch check-config` | None (no data loss) |
+| Service crash / bad config | Fix config; `openwatch check-config`; then [Prove the restored service works](#prove-the-restored-service-works) | None (no data loss) |
 | Database corruption | Restore latest dump; `openwatch migrate` | Last dump |
 | Full host loss | Rebuild on new host (above) | Last dump + last key backup |
 | Lost `credential.key` | No recovery for stored secrets; re-enter host credentials after restore | Credentials lost |
@@ -301,8 +446,9 @@ Common causes and checks:
 - **Invalid config.** Run `sudo -u openwatch openwatch check-config`; it
   validates and prints the resolved config with secrets redacted.
 
-After fixing the cause: `sudo systemctl restart openwatch`, then
-`curl -k https://localhost:8443/api/v1/health`.
+After fixing the cause, restart the service with the checks in
+[Prove the restored service works](#prove-the-restored-service-works). A
+`200` from `/api/v1/health` alone does not show that scans work.
 
 ### DISK_FULL: a filesystem is out of space
 
@@ -325,8 +471,9 @@ Likely sources and actions:
   means the audit-event or job-queue tables. Investigate before deleting
   rows. Do not hand-edit OpenWatch tables.
 
-If the service stopped because the disk filled, restart it after freeing space:
-`sudo systemctl restart openwatch`.
+If the service stopped because the disk filled, free space, then restart it
+with the checks in
+[Prove the restored service works](#prove-the-restored-service-works).
 
 ### HIGH_CPU: the host is CPU-saturated
 
