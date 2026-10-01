@@ -33,7 +33,7 @@ Verification runs offline. Nothing here calls back to the server.
 
 | Item | Where it comes from |
 |---|---|
-| The canonical JSON face | `GET /api/v1/reports/{id}/export?face=json` |
+| The canonical JSON face | `GET /api/v1/reports/{id}/export?format=json` |
 | `content_sha256`, `signature`, `signing_key_id` | `GET /api/v1/reports/{id}` |
 | The public key | `GET /api/v1/reports/signing-key`, or a channel you trust more |
 
@@ -51,9 +51,15 @@ report and not an unsigned one, and it is rejected as such.
 canonical JSON. The other faces are renderings of the same snapshot and hash to
 different bytes.
 
+**The query parameter is `format`, and its default is `pdf`.** A request
+without it, or with a name the API does not know, still answers `200` and
+returns the PDF. That PDF can never match `content_sha256`, so a genuine report
+would fail Step 1. Before you hash `report.json`, confirm it is JSON: it starts
+with `{`, not `%PDF`.
+
 ```bash
 curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://openwatch.example.com/api/v1/reports/$ID/export?face=json" \
+  "https://openwatch.example.com/api/v1/reports/$ID/export?format=json" \
   -o report.json
 
 curl -sS -H "Authorization: Bearer $TOKEN" \

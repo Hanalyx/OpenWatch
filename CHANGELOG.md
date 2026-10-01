@@ -19,6 +19,31 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only timed out is signed back in automatically when their refresh token
   is still valid; anyone else is sent to sign in. The API still refuses the
   old session. (CP `bugs/OW-090`)
+- **The report verification guide fetched a PDF instead of the JSON face.** It
+  told readers to request `export?face=json`, but the parameter is `format` and
+  its default is `pdf`. The server ignored the unknown name and returned the
+  PDF, so every genuine signed report failed the hash check and looked
+  tampered with. The guide now uses `format=json` and says how to spot the
+  wrong face. A test now fails when a documented API query parameter is not in
+  the contract. (CP `bugs/OW-091`)
+- **The full rollback steps could not restore the upgrade backup.** They sent
+  operators to `pg_restore`, but the upgrade scriptlet writes a plain-SQL dump
+  with no ownership statements. The upgrade runbook now gives one block that
+  stops on its own at the first failed check. It verifies the dump, keeps the
+  current database as a second copy, restores into a new database as the
+  `openwatch` role with `psql`, and checks the migration version and ownership.
+  Only then does it reinstall both previous packages. When it stops, it says
+  whether package installation had begun, and the runbook gives a separate
+  recovery block for each case. No block drops a database, and none swaps
+  databases back once installation has begun. A test runs every block from
+  the runbook against a real PostgreSQL server, with failures injected at each
+  phase. (CP `bugs/OW-092`)
+- **A rollback could leave every scan failing while health said healthy.**
+  The package scriptlet starts the service while the newer rule files are
+  still on disk, and the previous engine then fails to load its rules. The
+  rollback block and each recovery block now restart the service and stop
+  unless the rule library actually loaded. None prints its success line
+  before that is proven. (CP `bugs/OW-094`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 
