@@ -27,7 +27,7 @@ OpenWatch runs as a single Go binary (`/usr/bin/openwatch`) managed by systemd (
 > - **You need:** shell access to the OpenWatch host and to the PostgreSQL server it uses.
 > - **Run as:** a sudo-capable administrator for service and journal commands; `psql` as the `openwatch` database role using the DSN from `/etc/openwatch/secrets.env`.
 > - **What changes:** nothing; every step here reads state.
-> - **Verify with:** the symptom you started from: `/api/v1/health` returning `200`.
+> - **Verify with:** the symptom you started from, `/api/v1/health` returning `200`, then the full [Recovery verification](#recovery-verification) after any path that restarts OpenWatch.
 > - **Recover by:** nothing to recover from a diagnosis; move to [Resolution](#resolution).
 
 ### Step 1: Check PostgreSQL service status
@@ -191,11 +191,10 @@ sleep 15
 pg_isready -U openwatch -d openwatch
 ```
 
-After PostgreSQL is back, restart the OpenWatch service so it reopens its connection pool:
-
-```bash
-systemctl restart openwatch
-```
+After PostgreSQL is back, restart the OpenWatch service so it reopens its
+connection pool. Use the first block in
+[Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
+service itself and proves the rule library loaded.
 
 ### Path B: Connection pool exhaustion
 
@@ -212,11 +211,9 @@ WHERE datname = 'openwatch'
 "
 ```
 
-Then restart the OpenWatch service to reset its connection pool:
-
-```bash
-systemctl restart openwatch
-```
+Then restart the OpenWatch service to reset its connection pool. Use the
+first block in [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It
+restarts the service itself and proves the rule library loaded.
 
 If this recurs frequently, increase `max_connections` in the PostgreSQL configuration or reduce the application connection pool size.
 

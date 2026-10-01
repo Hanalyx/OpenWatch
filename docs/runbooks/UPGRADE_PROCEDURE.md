@@ -568,7 +568,11 @@ and rules request carries `--connect-timeout 3 --max-time 5`, so no single
 request can hang. The health wait gives up after at most **67 seconds**: a
 60-second deadline, plus one last request of at most 5 seconds and a 2-second
 pause. The rules check then gives up after at most **5 seconds**. A block that
-stops on either prints its `STOPPED` message; it never waits longer.
+stops on either prints its `STOPPED` message.
+
+These bounds apply to the HTTP checks only, not to a whole block.
+`systemctl restart`, `journalctl`, and the database and package commands have
+their own timing, which these numbers do not bound.
 
 #### If the block stops
 

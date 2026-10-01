@@ -206,11 +206,10 @@ openwatch --config /etc/openwatch/openwatch.toml check-config
 ```
 
 Adjust `[database].max_connections` (or the `OPENWATCH_DATABASE_MAX_CONNECTIONS`
-env override) and restart the process:
-
-```bash
-sudo systemctl restart openwatch
-```
+env override), then restart the process with the first block in
+[Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
+service itself and proves the rule library loaded. A health check alone does
+not prove the service works.
 
 ### Path C: a scheduler is doing too much work
 

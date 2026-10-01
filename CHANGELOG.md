@@ -44,6 +44,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rollback block and each recovery block now restart the service and stop
   unless the rule library actually loaded. None prints its success line
   before that is proven. (CP `bugs/OW-094`)
+- **Several runbooks called a restart or a restore done on a health check
+  alone.** Health answers `healthy` even when the Kensa rule library failed to
+  load and every scan fails. The backup and recovery guide now has two checks
+  that stop on any failure: one restarts the service and proves the rule
+  library loaded, and one runs a scan end to end. A restore, a rebuild on a
+  new host, and the restart steps in the secret rotation, service-down,
+  high-CPU, database and security-incident runbooks now point to them. A bad
+  input stops a check without touching the service, and a failed scan never
+  stops the service. The checks use the same request timeouts as the upgrade
+  rollback. (CP `bugs/OW-094`)
 
 ## [0.8.0] Eyrie (2026-09-29)
 

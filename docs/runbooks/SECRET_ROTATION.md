@@ -96,13 +96,11 @@ Impact: a brief restart while the service reconnects. The DSN lives in
    `check-config` prints the config with the DSN password redacted and exits
    non-zero on a malformed DSN.
 
-4. Restart and verify:
-
-   ```bash
-   sudo systemctl restart openwatch
-   sudo systemctl status openwatch
-   curl -k https://localhost:8443/api/v1/health
-   ```
+4. Restart and verify with the first block in
+   [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
+   service itself, and proves the new credential works end to end: the rule
+   library check fails if the service cannot reach the database. A health
+   check alone does not prove the service works.
 
 ## Rotate the JWT signing key
 
@@ -154,12 +152,13 @@ rejects keys smaller than 2048 bits at startup.
    echo "OPENWATCH_IDENTITY_JWT_PRIVATE_KEY=$NEW_JWT" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
    ```
 
-3. Restart and verify:
+3. Restart and verify with the first block in
+   [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
+   service itself. A health check alone does not prove the service works.
+   Then check the key load:
 
    ```bash
-   sudo systemctl restart openwatch
-   sudo journalctl -u openwatch --since '1 min ago' | grep -i jwt
-   curl -k https://localhost:8443/api/v1/health
+   sudo journalctl -u openwatch --since '5 min ago' | grep -i jwt
    ```
 
    If the key is missing, unparseable, or under 2048 bits, the service logs
@@ -252,9 +251,11 @@ config change, so the old key is never touched.
 
    ```bash
    echo "OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE=$NEW_DEK" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
-   sudo systemctl restart openwatch
-   curl -k https://localhost:8443/api/v1/health
    ```
+
+   Then restart and verify with the first block in
+   [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
+   service itself. A health check alone does not prove the service works.
 
 4. Re-create the SSH credentials and re-enroll MFA through the UI or API;
    secrets created before the swap fail to decrypt under the new key and must

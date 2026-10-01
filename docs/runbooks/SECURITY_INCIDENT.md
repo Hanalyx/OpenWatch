@@ -349,7 +349,7 @@ sudo iptables -I INPUT -s ATTACKER_IP -j DROP
 
 ### Restore from backup (if data was modified)
 
-If the attacker modified data, restore PostgreSQL from a known-good backup. The procedure depends on how your database is backed up (`pg_dump`/`pg_restore` or physical/PITR); follow your backup tooling's restore steps, then re-run migrations to confirm the schema is current:
+If the attacker modified data, restore PostgreSQL from a known-good backup. The procedure depends on how your database is backed up (`pg_dump`/`pg_restore` or physical/PITR). For a `pg_dump` backup, follow the [restore procedure](BACKUP_RECOVERY.md#restore-procedure). Otherwise follow your backup tooling's restore steps, then re-run migrations to confirm the schema is current:
 
 ```bash
 sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
@@ -385,7 +385,13 @@ Expect `active (running)`.
 curl -sk https://localhost:8443/api/v1/health | jq
 ```
 
-Expect `"status": "healthy"`.
+Expect `"status": "healthy"`. Health alone does not prove the service works:
+it stays `healthy` when the Kensa rule library failed to load (CP
+`bugs/OW-094`). If you restarted OpenWatch or restored data during
+containment or recovery, also run both blocks in
+[Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works), using tokens that
+were not revoked during containment. The service is recovered only when they
+print `VERIFIED` and `SCANNED`.
 
 ### 3. No live sessions for disabled accounts
 
