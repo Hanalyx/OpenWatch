@@ -69,7 +69,7 @@ a degraded `HealthResponse` body. It returns HTTP `503` with the standard
 > - **You need:** shell access to the OpenWatch host.
 > - **Run as:** a sudo-capable administrator; `check-config` runs as the `openwatch` service user with `secrets.env` loaded, as the step shows.
 > - **What changes:** nothing; every step here reads state.
-> - **Verify with:** `/api/v1/health` returning `200` once a path in [Resolution](#resolution) has run.
+> - **Verify with:** the steps in [Recovery verification](#recovery-verification) once a path in [Resolution](#resolution) has run. A `200` from `/api/v1/health` alone does not prove recovery.
 > - **Recover by:** nothing to recover from a diagnosis.
 
 ### Step 1: Check the service state
@@ -339,6 +339,13 @@ sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migr
 ```
 
 This prints the current schema version and applies nothing if already up to date.
+
+### 6. The rule library loaded and a scan completes
+
+Steps 1 to 5 can all pass while the Kensa rule library failed to load and
+every scan fails (CP `bugs/OW-094`). Run both blocks in
+[Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). The
+service is recovered only when they print `VERIFIED` and `SCANNED`.
 
 ---
 

@@ -253,8 +253,13 @@ when both blocks below finish:
 2. The second block runs one compliance scan end to end. It prints
    `SCANNED` only when the scan completes with no rule errors.
 
+Other runbooks send you here after a restart, because the same blind spot
+applies to any restart.
+
 Each block runs in a subshell with `set -euo pipefail`. Any failed check
-stops the block, prints the line it stopped on, and prints no success line.
+stops the block, prints the line it stopped on and what was or was not
+changed, and prints no success line. A block that stops on a bad input, such
+as a missing token file or an unfilled value, has not touched the service.
 
 #### The API tokens
 
@@ -267,10 +272,11 @@ block prints it.
 | Rule library check | `scan:read` | `viewer` |
 | Scan check | `host:write` and `scan:read` | `ops_lead`, `security_admin` or `admin` |
 
-The token must be valid in the **restored** database. That means it was
-created before the backup you restored was taken, and not revoked since. A
-token created after that backup does not exist in the restored database, and
-the API answers `401`. Keep each token in a root-only file, for example:
+The token must be valid in the database the service is running on. After a
+restore, that is the **restored** database: the token must have been created
+before the backup you restored was taken, and not revoked since. A token
+created after that backup does not exist there, and the API answers `401`.
+Keep each token in a root-only file, for example:
 
 ```bash
 ( umask 077; printf '%s' 'owk_<the token>' > /root/openwatch-verify.token )
@@ -279,21 +285,41 @@ the API answers `401`. Keep each token in a root-only file, for example:
 Create the tokens while the service is healthy, before you need a restore,
 and keep them with the backup plan.
 
+#### How long the checks wait
+
+The rule library check uses the same request timeouts and health wait as the
+upgrade runbook's rollback checks. The numbers are stated once, in the upgrade
+procedure's
+[How long the checks wait](UPGRADE_PROCEDURE.md#how-long-the-checks-wait).
+The scan check states its own wait below, because a scan takes minutes.
+
+These bounds apply to the HTTP checks only. `systemctl restart` and
+`journalctl` have their own timing, which these numbers do not bound. A
+restart that never returns needs `systemctl status openwatch` and the journal,
+not a longer wait.
+
 #### Check that the rule library loaded
 
-Fill in the value at the top. The block stops waiting for health after
-`HEALTH_WAIT` seconds (120), and gives the `/api/v1/rules` request at most 30
-seconds, so it finishes or stops within two and a half minutes. Each request
-also has a 5-second connection timeout, so a port that never answers cannot
-stall it.
+Fill in the value at the top, then run the block. If a check after the
+restart fails, the block stops the service, so nothing runs half-working.
 
 ```bash
 (
   set -euo pipefail
-  TOKEN_FILE='<root-only-file-holding-an-owk-token-valid-in-the-restored-database>'
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-valid-in-the-running-database>'
   URL=https://localhost:8443
-  HEALTH_WAIT=120
-  trap 'echo "VERIFY STOPPED at line $LINENO. The service did not prove it loaded its rule library. Stopping it." >&2; systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2' ERR
+  STAGE=inputs
+  on_stop() {
+    echo "VERIFY STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      inputs)
+        echo "Nothing was changed. The service was not touched." >&2 ;;
+      verify)
+        echo "The service did not prove it loaded its rule library. It is being stopped." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
   case "$TOKEN_FILE" in
     *'<'*) echo "fill in the value at the top first" >&2; false ;;
   esac
@@ -301,32 +327,27 @@ stall it.
   TOKEN=$(cat "$TOKEN_FILE")
   [[ "$TOKEN" == owk_* ]]
 
+  STAGE=verify
   SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
   READY=no
-  END=$((SECONDS + HEALTH_WAIT))
-  while [ "$SECONDS" -lt "$END" ]; do
-    LEFT=$((END - SECONDS))
-    if [ "$LEFT" -gt 10 ]; then LEFT=10; fi
-    if curl -skf --connect-timeout 5 --max-time "$LEFT" -o /dev/null "$URL/api/v1/health"; then
-      READY=yes
-      break
-    fi
-    if [ $((SECONDS + 2)) -ge "$END" ]; then break; fi
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
     sleep 2
   done
   [ "$READY" = yes ]
   LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
   [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
-  RULES=$(curl -sk --connect-timeout 5 --max-time 30 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
   trap - ERR
   echo "VERIFIED: openwatch restarted, answered health, and loaded its rule library"
 )
 ```
 
-If the block stops, it stops the service so nothing runs half-working. Read
+If the block stops after the restart, read
 `journalctl -u openwatch -n 200 --no-pager`. A `load rule corpus` error names
 the rule file that failed. Check that the installed `kensa-rules` package
 matches the installed `openwatch` (`rpm -q openwatch kensa-rules` and
@@ -337,8 +358,17 @@ matches the installed `openwatch` (`rpm -q openwatch kensa-rules` and
 
 Pick a host that was reachable before the restore. Its ID is in the UI's host
 page URL, or in `GET /api/v1/hosts`. Fill in the two values at the top. The
-block starts one on-demand scan, then polls it for up to `SCAN_WAIT` seconds
-(900). Each request has a 5-second connection timeout and a 30-second limit.
+block starts one on-demand scan and polls it until it ends.
+
+This block never stops or restarts the service. A failed scan does not mean
+the service should be taken down, and on a small install it may be the only
+thing running. The block reports the failure and leaves the service as it is.
+
+Every request carries `--connect-timeout 3 --max-time 5`, as in the rule
+library check. The scan check gives up after at most **920 seconds**: 5 for
+the request that starts the scan, a 900-second polling deadline, then one
+last poll of at most 5 seconds and a 10-second pause. As above, the bound
+covers the HTTP requests and the pauses between them.
 
 ```bash
 (
@@ -346,8 +376,17 @@ block starts one on-demand scan, then polls it for up to `SCAN_WAIT` seconds
   SCAN_TOKEN_FILE='<root-only-file-holding-an-owk-token-with-host-write-and-scan-read>'
   HOST_ID='<id-of-a-host-that-was-reachable-before-the-restore>'
   URL=https://localhost:8443
-  SCAN_WAIT=900
-  trap 'echo "SCAN CHECK STOPPED at line $LINENO. Do not call the restore complete." >&2' ERR
+  STAGE=inputs
+  on_stop() {
+    echo "SCAN CHECK STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      inputs)
+        echo "Nothing was changed. No scan was started, and the service was not touched." >&2 ;;
+      scan)
+        echo "The scan check failed. The service was left running. Do not call the restore complete." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
   case "$SCAN_TOKEN_FILE $HOST_ID" in
     *'<'*) echo "fill in the two values at the top first" >&2; false ;;
   esac
@@ -358,7 +397,8 @@ block starts one on-demand scan, then polls it for up to `SCAN_WAIT` seconds
   AUTH="header = \"Authorization: Bearer $TOKEN\""
   KEY=$(cat /proc/sys/kernel/random/uuid)
 
-  RESP=$(curl -sk --connect-timeout 5 --max-time 30 -w '\n%{http_code}' -X POST \
+  STAGE=scan
+  RESP=$(curl -sk --connect-timeout 3 --max-time 5 -w '\n%{http_code}' -X POST \
       -H "Idempotency-Key: $KEY" -K - "$URL/api/v1/hosts/$HOST_ID/scans" <<<"$AUTH")
   CODE=${RESP##*$'\n'}
   [ "$CODE" = 202 ]
@@ -366,9 +406,9 @@ block starts one on-demand scan, then polls it for up to `SCAN_WAIT` seconds
   [[ "$SCAN_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
 
   STATE=unknown
-  END=$((SECONDS + SCAN_WAIT))
-  while [ "$SECONDS" -lt "$END" ]; do
-    BODY=$(curl -skf --connect-timeout 5 --max-time 30 -K - "$URL/api/v1/scans/$SCAN_ID" <<<"$AUTH")
+  DEADLINE=$((SECONDS + 900))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    BODY=$(curl -skf --connect-timeout 3 --max-time 5 -K - "$URL/api/v1/scans/$SCAN_ID" <<<"$AUTH")
     STATE=$(python3 -I -S -c 'import json,sys; s=json.load(sys.stdin)["scan"]; print(s["status"], s.get("rules_error"))' <<<"$BODY")
     case "$STATE" in
       completed*|failed*) break ;;
