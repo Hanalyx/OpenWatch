@@ -471,7 +471,12 @@ phase it stopped in and which recovery applies:
   PHASE=database
   systemctl stop openwatch
   OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity WHERE datname = 'openwatch'")
-  [ "$OPEN" = 0 ]
+  if [ "$OPEN" != 0 ]; then
+    echo "still connected to openwatch:" >&2
+    "${PSQL[@]}" -c "SELECT pid, backend_type, usename, application_name, client_addr
+        FROM pg_stat_activity WHERE datname = 'openwatch'" >&2 || :
+    false
+  fi
   "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $ASIDE"
   runuser -u postgres -- createdb -O openwatch openwatch
 
@@ -498,15 +503,16 @@ phase it stopped in and which recovery applies:
   SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
   READY=no
-  for _ in $(seq 1 30); do
-    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
     sleep 2
   done
   [ "$READY" = yes ]
   LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
   [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
-  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
   trap - ERR
   echo "ROLLED BACK: schema $GOT restored, previous packages installed, rule library loaded"
@@ -520,13 +526,13 @@ Each check fails the block rather than printing a warning for you to notice:
 | 1 | Inputs | a value is still a placeholder, `EXPECTED` is not a number, a file is missing or unreadable, or the token file does not hold an `owk_` token |
 | 1 | Dump | the file lacks the `pg_dump` header or the `dump complete` line a finished dump ends with |
 | 1 | Aside name | `openwatch_pre_rollback` already exists from an earlier attempt |
-| 2 | Connections | anything is still connected to `openwatch` after the service stops |
+| 2 | Connections | anything is still connected to `openwatch` after the service stops. The block lists those sessions before it stops |
 | 2 | Rename and create | the rename or the new database fails |
 | 3 | Restore | `psql` hits any error. The whole restore rolls back, and the new database stays empty |
 | 4 | Version | the restored schema is not the version you recorded in Step 2 |
 | 4 | Ownership | any table, index or sequence in `public` belongs to a role other than `openwatch` |
 | 5 | Packages | the package manager fails |
-| 6 | Health | the service does not answer `/api/v1/health` within 60 seconds of the restart |
+| 6 | Health | the service does not answer `/api/v1/health` in time (see [How long the checks wait](#how-long-the-checks-wait)) |
 | 6 | Rule library | the journal since the restart says `kensa scan wiring unavailable` or `kensa rule library unavailable`, or `GET /api/v1/rules` does not answer `200` |
 
 The package manager's own scriptlet runs during step 5 as an upgrade. It
@@ -555,6 +561,15 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch
 end to end, as in the [post-upgrade checklist](#post-upgrade-checklist),
 before you call the rollback done.
 
+#### How long the checks wait
+
+The rollback block and every recovery block use the same bounds. Every health
+and rules request carries `--connect-timeout 3 --max-time 5`, so no single
+request can hang. The health wait gives up after at most **67 seconds**: a
+60-second deadline, plus one last request of at most 5 seconds and a 2-second
+pause. The rules check then gives up after at most **5 seconds**. A block that
+stops on either prints its `STOPPED` message; it never waits longer.
+
 #### If the block stops
 
 The `STOPPED` message names the line and the phase. The phase decides the
@@ -570,8 +585,16 @@ None of the recovery blocks drops a database. Each checks every name before
 it renames anything, and stops without a change when a name is missing or
 already taken. Each ends with the same checks as step 6: it restarts the
 service, waits for health, reads the journal, and calls `GET /api/v1/rules`.
-It prints its success line only after all of them pass. If a check fails
-after the databases are in place, the block stops the service and says so.
+It prints its success line only after all of them pass, and waits no longer
+than the rollback block does (see
+[How long the checks wait](#how-long-the-checks-wait)). If a check fails after
+the databases are in place, the block stops the service and says so.
+
+The keep-restored and put-back blocks compare the installed version exactly.
+They read the second word of the first line of `openwatch --version` and
+require it to equal the value you give, so `0.7.10` does not pass for
+`0.7.1`, and `0.8.1-rc.2` does not pass for `0.8.1`. Give the version exactly
+as that line prints it.
 
 Each recovery block needs a token that works in the database it leaves as
 `openwatch`:
@@ -644,7 +667,12 @@ the token file:
     systemctl stop openwatch
     OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
         WHERE datname IN ('openwatch', '$ASIDE')")
-    [ "$OPEN" = 0 ]
+    if [ "$OPEN" != 0 ]; then
+      echo "still connected to openwatch or $ASIDE:" >&2
+      "${PSQL[@]}" -c "SELECT pid, datname, backend_type, usename, application_name, client_addr
+          FROM pg_stat_activity WHERE datname IN ('openwatch', '$ASIDE')" >&2 || :
+      false
+    fi
     STAGE=renaming
     if [ "$HAVE_NEW" = 1 ]; then
       "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
@@ -656,15 +684,16 @@ the token file:
   SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
   READY=no
-  for _ in $(seq 1 30); do
-    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
     sleep 2
   done
   [ "$READY" = yes ]
   LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
   [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
-  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
   trap - ERR
   echo "RESTORED: the original database is back as openwatch, rule library loaded"
@@ -740,8 +769,11 @@ token file. The token must have been created before the upgrade:
   TOKEN=$(cat "$TOKEN_FILE")
   [[ "$TOKEN" == owk_* ]]
 
-  VERSION=$(openwatch --version)
-  [[ "$VERSION" == "openwatch $OLD_VERSION"* ]]
+  VERSION_OUT=$(openwatch --version)
+  read -r NAME INSTALLED EXTRA <<<"${VERSION_OUT%%$'\n'*}"
+  [ "$NAME" = openwatch ]
+  [ -z "$EXTRA" ]
+  [ "$INSTALLED" = "$OLD_VERSION" ] || { echo "installed openwatch is $INSTALLED, not $OLD_VERSION" >&2; false; }
   if command -v dnf >/dev/null; then
     VERIFY=$(rpm -V kensa-rules)
     [ -z "$VERIFY" ]
@@ -758,15 +790,16 @@ token file. The token must have been created before the upgrade:
   SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
   READY=no
-  for _ in $(seq 1 30); do
-    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
     sleep 2
   done
   [ "$READY" = yes ]
   LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
   [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
-  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
   trap - ERR
   echo "KEPT: the restored database, schema $GOT, runs with openwatch $OLD_VERSION, rule library loaded"
@@ -817,8 +850,11 @@ back, and proves the rule library loaded. Fill in the newer version, as
   TOKEN=$(cat "$TOKEN_FILE")
   [[ "$TOKEN" == owk_* ]]
 
-  VERSION=$(openwatch --version)
-  [[ "$VERSION" == "openwatch $NEW_VERSION"* ]]
+  VERSION_OUT=$(openwatch --version)
+  read -r NAME INSTALLED EXTRA <<<"${VERSION_OUT%%$'\n'*}"
+  [ "$NAME" = openwatch ]
+  [ -z "$EXTRA" ]
+  [ "$INSTALLED" = "$NEW_VERSION" ] || { echo "installed openwatch is $INSTALLED, not $NEW_VERSION" >&2; false; }
   HAVE_ASIDE=$(db "$ASIDE")
   [ "$HAVE_ASIDE" = 1 ] || { echo "$ASIDE does not exist: nothing to put back" >&2; false; }
   HAVE_NEW=$(db openwatch)
@@ -830,7 +866,12 @@ back, and proves the rule library loaded. Fill in the newer version, as
   systemctl stop openwatch
   OPEN=$("${PSQL[@]}" -c "SELECT count(*) FROM pg_stat_activity
       WHERE datname IN ('openwatch', '$ASIDE')")
-  [ "$OPEN" = 0 ]
+  if [ "$OPEN" != 0 ]; then
+    echo "still connected to openwatch or $ASIDE:" >&2
+    "${PSQL[@]}" -c "SELECT pid, datname, backend_type, usename, application_name, client_addr
+        FROM pg_stat_activity WHERE datname IN ('openwatch', '$ASIDE')" >&2 || :
+    false
+  fi
   STAGE=renaming
   if [ "$HAVE_NEW" = 1 ]; then
     "${PSQL[@]}" -c "ALTER DATABASE openwatch RENAME TO $FAILED"
@@ -841,15 +882,16 @@ back, and proves the rule library loaded. Fill in the newer version, as
   SINCE=$(date '+%Y-%m-%d %H:%M:%S')
   systemctl restart openwatch
   READY=no
-  for _ in $(seq 1 30); do
-    if curl -skf -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
     sleep 2
   done
   [ "$READY" = yes ]
   LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
   [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
   [[ "$LOG" != *"kensa rule library unavailable"* ]]
-  RULES=$(curl -sk -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
   [ "$RULES" = 200 ]
   trap - ERR
   echo "RESTORED: the original database is back as openwatch, with openwatch $NEW_VERSION, rule library loaded"
@@ -873,10 +915,19 @@ dump, a failed restore, a wrong version, a foreign-owned object, a failed
 `createdb`, a taken recovery name, a failed package transaction and a failed
 rule-library check. Each recovery block is also run with a health timeout,
 each journal warning, and a `/api/v1/rules` answer of `503` and of `401`. It
-must stop without its success line and leave the databases as intended.
+must stop without its success line and leave the databases as intended. Each
+of the four blocks is run with a health request and a rules request that
+hang, and must stop within the bounds in
+[How long the checks wait](#how-long-the-checks-wait). The keep-restored and
+put-back blocks are run with near-miss versions (`0.7.10` for `0.7.1`, and a
+pre-release against its final release) and must refuse them before they touch
+the service or a database.
 
 The package manager, `systemctl`, `journalctl`, `curl`, `rpm`, `dpkg` and
 `openwatch --version` are stand-ins that record what they were asked to do.
+The `curl` stand-in honors `--max-time` the way `curl` does, so the test proves
+each block passes the flag and stops on a timeout, but not that a real `curl`
+enforces it.
 The restore itself runs the same way on every distribution. The Debian and
 Ubuntu path was not run against real packages: the test proves only that the
 blocks pick `apt-get` and `dpkg --audit` when `dnf` is absent. The RHEL

@@ -142,8 +142,9 @@ func TestUpgrade_FullRollbackRunbookBlock(t *testing.T) {
 			last := -1
 			for _, want := range []string{
 				"systemctl restart openwatch",
-				`for _ in $(seq 1 30); do`,
-				`curl -skf -o /dev/null "$URL/api/v1/health"`,
+				`DEADLINE=$((SECONDS + `,
+				`while [ "$SECONDS" -lt "$DEADLINE" ]; do`,
+				`"$URL/api/v1/health"`,
 				`[ "$READY" = yes ]`,
 				`[[ "$LOG" != *"kensa scan wiring unavailable"* ]]`,
 				`[[ "$LOG" != *"kensa rule library unavailable"* ]]`,
@@ -161,6 +162,52 @@ func TestUpgrade_FullRollbackRunbookBlock(t *testing.T) {
 			}
 			if !strings.Contains(block, `[[ "$TOKEN" == owk_* ]]`) || !strings.Contains(block, "TOKEN_FILE='<") {
 				t.Fatalf("%s block lacks the token input and its owk_ guard", label)
+			}
+		}
+
+		// Every health and rules request carries both curl timeouts, and the
+		// wait the runbook documents equals the one the blocks implement:
+		// deadline + one last request's --max-time + one pause.
+		book, err := os.ReadFile(filepath.Join(root, "docs", "runbooks", "UPGRADE_PROCEDURE.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := regexp.MustCompile(`The health wait gives up after at most \*\*(\d+) seconds\*\*: a\s+(\d+)-second deadline, ` +
+			`plus one last request of at most (\d+) seconds and a (\d+)-second\s+pause\. The rules check then\s+gives up ` +
+			`after at most \*\*(\d+) seconds\*\*`).FindStringSubmatch(regexp.MustCompile(`\s+`).ReplaceAllString(string(book), " "))
+		if doc == nil {
+			t.Fatal("UPGRADE_PROCEDURE.md does not state the health and rules bounds in the expected sentence")
+		}
+		num := func(s string) int { n, _ := strconv.Atoi(s); return n }
+		docTotal, docDeadline, docMax, docPause, docRules := num(doc[1]), num(doc[2]), num(doc[3]), num(doc[4]), num(doc[5])
+		if docTotal != docDeadline+docMax+docPause {
+			t.Fatalf("the runbook says %d seconds, but %d + %d + %d = %d", docTotal, docDeadline, docMax, docPause, docDeadline+docMax+docPause)
+		}
+		curlRE := regexp.MustCompile(`(?m)^.*curl .*"\$URL/api/v1/(health|rules)".*$`)
+		maxRE := regexp.MustCompile(`--max-time (\d+)`)
+		for label, block := range map[string]string{"rollback": rb.main, "pre-install": rb.preInstall,
+			"keep-restored": rb.keepRestored, "put-back": rb.putBack} {
+			lines := curlRE.FindAllString(block, -1)
+			if len(lines) != 2 {
+				t.Fatalf("%s block has %d health/rules curl lines, want 2", label, len(lines))
+			}
+			for _, l := range lines {
+				m := maxRE.FindStringSubmatch(l)
+				if !strings.Contains(l, "--connect-timeout ") || m == nil {
+					t.Fatalf("%s block curl lacks --connect-timeout or --max-time: %s", label, strings.TrimSpace(l))
+				}
+				want := docMax
+				if strings.Contains(l, "/api/v1/rules") {
+					want = docRules
+				}
+				if num(m[1]) != want {
+					t.Fatalf("%s block curl --max-time %s, the runbook says %d: %s", label, m[1], want, strings.TrimSpace(l))
+				}
+			}
+			dl := regexp.MustCompile(`DEADLINE=\$\(\(SECONDS \+ (\d+)\)\)`).FindStringSubmatch(block)
+			pause := regexp.MustCompile(`(?m)^    sleep (\d+)$`).FindStringSubmatch(block)
+			if dl == nil || pause == nil || num(dl[1]) != docDeadline || num(pause[1]) != docPause {
+				t.Fatalf("%s block deadline %v or pause %v disagrees with the runbook (%d, %d)", label, dl, pause, docDeadline, docPause)
 			}
 		}
 
@@ -288,8 +335,17 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 		"dpkg":       record("dpkg") + "exit 0\n",
 		"openwatch":  record("openwatch") + "echo \"openwatch ${OW_VERSION:-unset}\"\necho \"  commit:    stub\"\nexit 0\n",
 		"journalctl": record("journalctl") + "[ -f /work/journal.txt ] && cat /work/journal.txt\nexit 0\n",
-		"curl": record("curl") + "cat >/dev/null 2>&1 || :\n" +
-			"case \" $* \" in *\" -w \"*) printf '%s' \"${RULES_CODE:-200}\" ;; *\" -skf \"*) exit ${HEALTH_EXIT:-0} ;; esac\nexit 0\n",
+		// curl emulates --max-time: with HEALTH_HANG or RULES_HANG set, the
+		// request "hangs" for its --max-time and exits 28 as curl does, or for
+		// HANG_SECONDS (default 600) when the flag is missing. Real curl's
+		// enforcement is not exercised (the image has no curl).
+		"curl": "#!/bin/bash\necho \"curl $*\" >> /work/called\ncat >/dev/null 2>&1 || :\n" +
+			"mt=\"\"; prev=\"\"; for a in \"$@\"; do [ \"$prev\" = --max-time ] && mt=$a; prev=$a; done\n" +
+			"hang() { sleep \"${mt:-${HANG_SECONDS:-600}}\"; [ \"$1\" = rules ] && printf 000; exit 28; }\n" +
+			"case \" $* \" in\n" +
+			"  *\" -w \"*) [ -n \"${RULES_HANG:-}\" ] && hang rules; printf '%s' \"${RULES_CODE:-200}\" ;;\n" +
+			"  *\" -skf \"*) [ -n \"${HEALTH_HANG:-}\" ] && hang health; exit ${HEALTH_EXIT:-0} ;;\n" +
+			"esac\nexit 0\n",
 	}
 	for dir, names := range map[string][]string{
 		"stubs-dnf": {"systemctl", "dnf", "apt-get", "journalctl", "curl", "rpm", "dpkg", "openwatch"},
@@ -645,6 +701,13 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 			p, f := p, f
 			t.Run("recovery "+p.label+" "+f.label, func(t *testing.T) {
 				rig.reset()
+				// Recorded harness failure (PR #888, run 4, 2026-09-30): in one full
+				// run the setup rollback for "pre-install / d rules answers 503"
+				// stopped before creating the aside, so the recovery found nothing
+				// to put back. The setup output was not captured then; this
+				// assertion and its message now capture it. A hypothesis (a
+				// just-closed session still listed in pg_stat_activity) did not
+				// reproduce in 200 tries. See the PR description for later runs.
 				code, sout, called := rig.run(fill("/work/good.sql", p.rollExp), "stubs-dnf", p.rollback)
 				wantPhase := "phase: database"
 				if p.rollback != "" {
@@ -675,6 +738,108 @@ func runRollbackCases(t *testing.T, root, image string, rb rollbackRunbook) {
 				}
 				if strings.Contains(rout, token) {
 					t.Fatal("the token was printed")
+				}
+			})
+		}
+	}
+
+	// Exact version match: keep-restored and put-back compare the second word
+	// of the first `openwatch --version` line for equality. A near miss must
+	// refuse before touching the service or any database.
+	for _, c := range []struct {
+		label, installed, want string
+		keepBlock              bool
+	}{
+		{"keep-restored refuses 0.7.10 for 0.7.1", "0.7.10", "0.7.1", true},
+		{"keep-restored refuses 0.8.1-rc.2 for 0.8.1", "0.8.1-rc.2", "0.8.1", true},
+		{"keep-restored refuses 0.8.1 for 0.8.1-rc.2", "0.8.1", "0.8.1-rc.2", true},
+		{"put-back refuses 0.8.10 for 0.8.1", "0.8.10", "0.8.1", false},
+		{"put-back refuses 0.8.1-rc.2 for 0.8.1", "0.8.1-rc.2", "0.8.1", false},
+		{"put-back refuses 0.8.1 for 0.8.1-rc.2", "0.8.1", "0.8.1-rc.2", false},
+	} {
+		c := c
+		t.Run("version "+c.label, func(t *testing.T) {
+			packagesStop(t, "version "+c.label+" rollback", "DNF_EXIT=1")
+			before := rig.databases()
+			rig.clearCalls()
+			block := putBack(c.want)
+			if c.keepBlock {
+				block = keep(c.want)
+			}
+			code, out, called := rig.run(block, "stubs-dnf", "OW_VERSION="+c.installed)
+			logCase("version "+c.label, code, called)
+			if code == 0 || successMarker.MatchString(out) || !strings.Contains(out, "installed openwatch is "+c.installed+", not "+c.want) {
+				t.Fatalf("exit %d, output:\n%s", code, out)
+			}
+			if called != "openwatch --version\n" {
+				t.Fatalf("the block acted beyond reading the version: %q", called)
+			}
+			if after := rig.databases(); after != before || rig.isOriginal("openwatch") {
+				t.Fatalf("databases changed: [%s] -> [%s]", before, after)
+			}
+		})
+	}
+	t.Run("version put-back accepts an exact pre-release match", func(t *testing.T) {
+		packagesStop(t, "version exact pre-release rollback", "DNF_EXIT=1")
+		rig.clearCalls()
+		code, out, called := rig.run(putBack("0.8.1-rc.2"), "stubs-dnf", "OW_VERSION=0.8.1-rc.2")
+		logCase("version exact pre-release", code, called)
+		if code != 0 || !strings.Contains(out, "RESTORED") || !rig.isOriginal("openwatch") {
+			t.Fatalf("exit %d, output:\n%s", code, out)
+		}
+	})
+
+	// Request timeouts: every health and rules curl carries --max-time, so a
+	// hanging endpoint ends the block within the documented bound. Health:
+	// 60 s deadline + 5 s request + 2 s pause = 67 s. Rules: 5 s. The margin
+	// covers the database work before the checks.
+	const margin = 12 * time.Second
+	type timeoutBlock struct {
+		label   string
+		setup   func(t *testing.T)
+		block   string
+		env     string
+		wantDBs string
+		origOW  bool
+	}
+	timeoutBlocks := []timeoutBlock{
+		{label: "rollback", setup: func(t *testing.T) { rig.reset() }, block: fill("/work/good.sql", expected),
+			wantDBs: "openwatch,openwatch_pre_rollback", origOW: false},
+		{label: "pre-install", setup: func(t *testing.T) {
+			rig.reset()
+			if code, _, _ := rig.run(fill("/work/good.sql", decrement(t, expected)), "stubs-dnf", ""); code == 0 {
+				t.Fatal("setup rollback did not stop")
+			}
+			rig.clearCalls()
+		}, block: preInstall, wantDBs: "openwatch,openwatch_failed_restore", origOW: true},
+		{label: "keep-restored", setup: func(t *testing.T) { packagesStop(t, "timeout keep setup", "DNF_EXIT=1"); rig.clearCalls() },
+			block: keep("0.7.1"), env: "OW_VERSION=0.7.1", wantDBs: "openwatch,openwatch_pre_rollback", origOW: false},
+		{label: "put-back", setup: func(t *testing.T) { packagesStop(t, "timeout put setup", "DNF_EXIT=1"); rig.clearCalls() },
+			block: putBack("0.8.0"), env: "OW_VERSION=0.8.0", wantDBs: "openwatch,openwatch_failed_restore", origOW: true},
+	}
+	for _, b := range timeoutBlocks {
+		for _, h := range []struct {
+			label, env string
+			bound      time.Duration
+		}{
+			{"health request hangs", "HEALTH_HANG=1 HANG_SECONDS=90", 67 * time.Second},
+			{"rules request hangs", "RULES_HANG=1 HANG_SECONDS=40", 5 * time.Second},
+		} {
+			b, h := b, h
+			t.Run("timeout "+b.label+" "+h.label, func(t *testing.T) {
+				b.setup(t)
+				start := time.Now()
+				code, out, called := rig.run(b.block, "stubs-dnf", strings.TrimSpace(b.env+" "+h.env))
+				elapsed := time.Since(start)
+				logCase("timeout "+b.label+" / "+h.label+" ("+elapsed.Round(time.Second).String()+")", code, called)
+				if code == 0 || successMarker.MatchString(out) {
+					t.Fatalf("exit %d with a success line or zero exit:\n%s", code, out)
+				}
+				if elapsed > h.bound+margin {
+					t.Fatalf("took %s, want at most %s + %s", elapsed.Round(time.Second), h.bound, margin)
+				}
+				if got := rig.databases(); got != b.wantDBs || rig.isOriginal("openwatch") != b.origOW {
+					t.Fatalf("databases [%s], openwatch original=%v; want [%s], original=%v", got, rig.isOriginal("openwatch"), b.wantDBs, b.origOW)
 				}
 			})
 		}
