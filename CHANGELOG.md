@@ -10,6 +10,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] Eyrie (2026-10-01)
+
+**0.8.0 was not released.** `v0.8.0` was tagged and built into a draft
+release, and it was never published. Its upgrade test found that after the
+upgrade to 0.8.0, a browser that still held an old session could not load any
+page, including sign-in, until its cookies were cleared by hand (CP
+`bugs/OW-090`). Under the release policy the `v0.8.0` tag and its draft stay
+where they are, unchanged, as the record of that candidate. This release
+carries the fix, and nothing is inherited from 0.8.0: every gate runs again
+against this build.
+
+The changes since 0.8.0 are the fixes below. The release notes, upgrade notes
+and known limitations for the 0.8 line are in the `0.8.0-rc.6` section; they
+apply to this release as well. Upgrading from 0.7.x still signs everyone out
+once (migration 0065), and a browser left open across the upgrade now reaches
+the sign-in page on its own.
+
 ### Fixed
 
 - **After an upgrade, a browser with an old session could not reach the sign-in page.**
