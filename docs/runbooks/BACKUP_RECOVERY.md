@@ -358,7 +358,13 @@ matches the installed `openwatch` (`rpm -q openwatch kensa-rules` and
 
 Pick a host that was reachable before the restore. Its ID is in the UI's host
 page URL, or in `GET /api/v1/hosts`. Fill in the two values at the top. The
-block starts one on-demand scan and polls it until it ends.
+block starts one on-demand scan, prints its ID as soon as the server accepts
+it, and polls it until it ends.
+
+**You need:** Python 3 with its standard `json` module, run as `python3`. The
+block uses it to read the API's JSON answers. It checks for it before it calls
+anything, and stops with `python3 with the json module is required` if it is
+missing.
 
 This block never stops or restarts the service. A failed scan does not mean
 the service should be taken down, and on a small install it may be the only
@@ -377,45 +383,71 @@ covers the HTTP requests and the pauses between them.
   HOST_ID='<id-of-a-host-that-was-reachable-before-the-restore>'
   URL=https://localhost:8443
   STAGE=inputs
+  CODE=none
+  SCAN_ID=unknown
+  OUTCOME=none
   on_stop() {
     echo "SCAN CHECK STOPPED at line $1, stage: $STAGE." >&2
     case "$STAGE" in
       inputs)
-        echo "Nothing was changed. No scan was started, and the service was not touched." >&2 ;;
-      scan)
-        echo "The scan check failed. The service was left running. Do not call the restore complete." >&2 ;;
+        echo "Nothing was changed. No scan was started, and the service was not touched." >&2
+        return ;;
+      start)
+        echo "Verification interrupted: the request that starts the scan got no usable answer (HTTP status: $CODE)." >&2
+        echo "Its outcome is unknown. A scan may have started anyway. Before you run this block again," >&2
+        echo "check this host's recent scans: GET /api/v1/scans?host_id=$HOST_ID, or the host's page in the UI." >&2 ;;
+      poll)
+        case "$OUTCOME" in
+          failed)
+            echo "Scan failed: scan $SCAN_ID ended failed, or completed with rule errors." >&2 ;;
+          unfinished)
+            echo "Scan did not finish: scan $SCAN_ID was still queued or running when the wait ended." >&2 ;;
+          *)
+            echo "Verification interrupted: a request about scan $SCAN_ID failed, so its real state is unknown." >&2 ;;
+        esac
+        echo "Inspect scan $SCAN_ID (GET /api/v1/scans/$SCAN_ID, or the UI) before you start another scan." >&2 ;;
     esac
+    echo "The service was left running. Do not call the restore complete." >&2
   }
   trap 'on_stop $LINENO' ERR
   case "$SCAN_TOKEN_FILE $HOST_ID" in
     *'<'*) echo "fill in the two values at the top first" >&2; false ;;
   esac
   [[ "$HOST_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+  python3 -I -S -c 'import json' >/dev/null 2>&1 || { echo "python3 with the json module is required" >&2; false; }
   test -r "$SCAN_TOKEN_FILE"
   TOKEN=$(cat "$SCAN_TOKEN_FILE")
   [[ "$TOKEN" == owk_* ]]
   AUTH="header = \"Authorization: Bearer $TOKEN\""
   KEY=$(cat /proc/sys/kernel/random/uuid)
 
-  STAGE=scan
+  STAGE=start
   RESP=$(curl -sk --connect-timeout 3 --max-time 5 -w '\n%{http_code}' -X POST \
       -H "Idempotency-Key: $KEY" -K - "$URL/api/v1/hosts/$HOST_ID/scans" <<<"$AUTH")
   CODE=${RESP##*$'\n'}
   [ "$CODE" = 202 ]
   SCAN_ID=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin)["scan_id"])' <<<"${RESP%$'\n'*}")
   [[ "$SCAN_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+  echo "scan started: $SCAN_ID"
 
+  STAGE=poll
   STATE=unknown
   DEADLINE=$((SECONDS + 900))
   while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    OUTCOME=interrupted
     BODY=$(curl -skf --connect-timeout 3 --max-time 5 -K - "$URL/api/v1/scans/$SCAN_ID" <<<"$AUTH")
     STATE=$(python3 -I -S -c 'import json,sys; s=json.load(sys.stdin)["scan"]; print(s["status"], s.get("rules_error"))' <<<"$BODY")
+    OUTCOME=unfinished
     case "$STATE" in
       completed*|failed*) break ;;
     esac
     sleep 10
   done
-  [ "$STATE" = "completed 0" ]
+  case "$STATE" in
+    "completed 0") ;;
+    completed*|failed*) OUTCOME=failed; false ;;
+    *) OUTCOME=unfinished; false ;;
+  esac
   trap - ERR
   echo "SCANNED: scan $SCAN_ID completed with no rule errors"
 )
@@ -423,7 +455,9 @@ covers the HTTP requests and the pauses between them.
 
 A scan that ends `failed`, or completes with rule errors, means the restore is
 not done. Read the scan's `failure_reason` in the UI or at
-`GET /api/v1/scans/{id}`, and the service journal.
+`GET /api/v1/scans/{id}`, and the service journal. When the block stops before
+the server accepted the scan, a scan may still have started: look at the host's
+recent scans before you start another one.
 
 ## Disaster recovery (rebuild on a new host)
 

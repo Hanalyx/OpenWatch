@@ -142,10 +142,11 @@ func TestRunbook_RestoreVerifyBlocksAreGuarded(t *testing.T) {
 		`*"kensa scan wiring unavailable"*`, `*"kensa rule library unavailable"*`,
 		`-K - "$URL/api/v1/rules"`, `[ "$RULES" = 200 ]`, "trap - ERR\n", "echo \"VERIFIED:")
 	inOrder(t, "scan", scan,
-		"set -euo pipefail", "SCAN_TOKEN_FILE=", "STAGE=inputs", "trap 'on_stop $LINENO' ERR",
-		"[[ \"$TOKEN\" == owk_* ]]", "STAGE=scan", "Idempotency-Key: $KEY",
-		`"$URL/api/v1/hosts/$HOST_ID/scans"`, `[ "$CODE" = 202 ]`, `"$URL/api/v1/scans/$SCAN_ID"`,
-		`[ "$STATE" = "completed 0" ]`, "trap - ERR\n", "echo \"SCANNED:")
+		"set -euo pipefail", "SCAN_TOKEN_FILE=", "STAGE=inputs", "OUTCOME=none", "trap 'on_stop $LINENO' ERR",
+		"python3 -I -S -c 'import json'", "[[ \"$TOKEN\" == owk_* ]]", "STAGE=start", "Idempotency-Key: $KEY",
+		`"$URL/api/v1/hosts/$HOST_ID/scans"`, `[ "$CODE" = 202 ]`, `echo "scan started: $SCAN_ID"`,
+		"STAGE=poll", "OUTCOME=interrupted", `"$URL/api/v1/scans/$SCAN_ID"`, "OUTCOME=unfinished",
+		`"completed 0") ;;`, "OUTCOME=failed; false", "trap - ERR\n", "echo \"SCANNED:")
 
 	// Input failures never touch the service: nothing that calls systemctl,
 	// journalctl or curl runs before the stage leaves "inputs", and the
@@ -153,7 +154,7 @@ func TestRunbook_RestoreVerifyBlocksAreGuarded(t *testing.T) {
 	for label, b := range map[string]string{"verify": verify, "scan": scan} {
 		next := "STAGE=verify"
 		if label == "scan" {
-			next = "STAGE=scan"
+			next = "STAGE=start"
 		}
 		body := b[strings.Index(b, "trap 'on_stop $LINENO' ERR"):strings.Index(b, next)]
 		for _, cmd := range []string{"systemctl", "journalctl", "curl"} {
@@ -296,6 +297,10 @@ func (f *fakeOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.sawIdemKey = r.Header.Get("Idempotency-Key") != ""
 		post := f.scanPost
 		f.mu.Unlock()
+		if post == 0 {
+			hang(r)
+			return
+		}
 		if !authorized {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -555,26 +560,44 @@ func TestRunbook_RestoreScanBlockBehaves(t *testing.T) {
 	const token = "owk_test_restore_scan_token_value"
 	const hostID = "01a0ed4c-c03a-752b-8600-a15fff968665"
 	_, _, sDeadline, sLast, sPause := scanBounds(t)
+	const scanID = "01a0f45a-3830-7d60-8dc7-12ca5e2bf816"
+	recent := "GET /api/v1/scans?host_id=" + hostID
+	inspect := "Inspect scan " + scanID + " (GET /api/v1/scans/" + scanID + ", or the UI) before you start another scan."
 	cases := []struct {
 		name       string
-		post       int
+		post       int // 0 = the request hangs
 		poll       string
 		states     []string
 		rulesError int
 		fileToken  string
 		shortWait  bool
 		wantOK     bool
+		accepted   bool     // the server answered 202, so the ID is printed before polling
+		wantMsgs   []string // exact lines the stop must print
 		bound      time.Duration
 	}{
-		{name: "scan completes", post: 202, states: []string{"queued", "running", "completed"}, fileToken: token, wantOK: true, bound: 40 * time.Second},
-		{name: "scan fails", post: 202, states: []string{"running", "failed"}, fileToken: token, bound: 30 * time.Second},
-		{name: "scan completes with rule errors", post: 202, states: []string{"completed"}, rulesError: 3, fileToken: token, bound: 15 * time.Second},
-		{name: "start refused 403", post: 403, states: []string{"completed"}, fileToken: token, bound: 15 * time.Second},
-		{name: "token not valid in this database", post: 202, states: []string{"completed"}, fileToken: "owk_a_token_created_after_the_backup", bound: 15 * time.Second},
-		{name: "poll request hangs", post: 202, poll: "hang", states: []string{"running"}, fileToken: token,
-			bound: time.Duration(sLast)*time.Second + 4*time.Second},
-		{name: "scan never finishes within the deadline", post: 202, states: []string{"running"}, fileToken: token, shortWait: true,
-			bound: time.Duration(3+sLast+sPause)*time.Second + 4*time.Second},
+		{name: "scan completes", post: 202, states: []string{"queued", "running", "completed"}, fileToken: token, wantOK: true, accepted: true, bound: 40 * time.Second},
+		{name: "start request times out", post: 0, states: []string{"completed"}, fileToken: token,
+			wantMsgs: []string{
+				"Verification interrupted: the request that starts the scan got no usable answer (HTTP status: none).",
+				"Its outcome is unknown. A scan may have started anyway. Before you run this block again,",
+				"check this host's recent scans: " + recent + ", or the host's page in the UI.",
+			}, bound: time.Duration(sLast)*time.Second + 4*time.Second},
+		{name: "start refused 403", post: 403, states: []string{"completed"}, fileToken: token,
+			wantMsgs: []string{"Verification interrupted: the request that starts the scan got no usable answer (HTTP status: 403).",
+				"check this host's recent scans: " + recent + ", or the host's page in the UI."}, bound: 15 * time.Second},
+		{name: "token not valid in this database", post: 202, states: []string{"completed"}, fileToken: "owk_a_token_created_after_the_backup",
+			wantMsgs: []string{"Verification interrupted: the request that starts the scan got no usable answer (HTTP status: 401)."}, bound: 15 * time.Second},
+		{name: "poll request times out after a 202", post: 202, poll: "hang", states: []string{"running"}, fileToken: token, accepted: true,
+			wantMsgs: []string{"Verification interrupted: a request about scan " + scanID + " failed, so its real state is unknown.", inspect},
+			bound:    time.Duration(sLast)*time.Second + 4*time.Second},
+		{name: "scan ends failed", post: 202, states: []string{"running", "failed"}, fileToken: token, accepted: true,
+			wantMsgs: []string{"Scan failed: scan " + scanID + " ended failed, or completed with rule errors.", inspect}, bound: 30 * time.Second},
+		{name: "scan completes with rule errors", post: 202, states: []string{"completed"}, rulesError: 3, fileToken: token, accepted: true,
+			wantMsgs: []string{"Scan failed: scan " + scanID + " ended failed, or completed with rule errors.", inspect}, bound: 15 * time.Second},
+		{name: "deadline passes while the scan runs", post: 202, states: []string{"running"}, fileToken: token, shortWait: true, accepted: true,
+			wantMsgs: []string{"Scan did not finish: scan " + scanID + " was still queued or running when the wait ended.", inspect},
+			bound:    time.Duration(3+sLast+sPause)*time.Second + 4*time.Second},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -611,6 +634,27 @@ func TestRunbook_RestoreScanBlockBehaves(t *testing.T) {
 				if !strings.Contains(r.stderr, "The service was left running") {
 					t.Fatalf("a failed scan must say the service was left running: %s", r.stderr)
 				}
+				for _, m := range tc.wantMsgs {
+					if !strings.Contains(r.stderr, m+"\n") {
+						t.Fatalf("stop message lacks %q\nstderr:\n%s", m, r.stderr)
+					}
+				}
+				// No stop tells the operator to simply run the block again.
+				if regexp.MustCompile(`(?i)\brerun\b|then run (it|the block|this block) again`).MatchString(r.stderr) {
+					t.Fatalf("stop message advises a plain rerun:\n%s", r.stderr)
+				}
+			}
+			started := "scan started: " + scanID + "\n"
+			if tc.accepted {
+				// The ID is printed before polling begins: it is the first
+				// line, and the stop or success comes after it.
+				if !strings.HasPrefix(r.stdout, started) {
+					t.Fatalf("stdout does not open with %q:\n%s", started, r.stdout)
+				}
+			} else {
+				if strings.Contains(r.stdout, "scan started:") || strings.Contains(r.stderr, "Inspect scan") {
+					t.Fatalf("no 202 was seen, yet a scan ID was reported\nstdout: %s\nstderr: %s", r.stdout, r.stderr)
+				}
 			}
 			if r.count("systemctl") != 0 {
 				t.Fatalf("the scan block touched the service; calls:\n%s", r.calls)
@@ -622,6 +666,81 @@ func TestRunbook_RestoreScanBlockBehaves(t *testing.T) {
 			if strings.Contains(r.stdout+r.stderr+r.calls, tc.fileToken) {
 				t.Fatal("the token appeared in output or in a stub's arguments")
 			}
+		})
+	}
+}
+
+// TestRunbook_ScanBlockNeedsPython: without a working python3 the scan block
+// stops in its inputs stage, before any API or service call.
+func TestRunbook_ScanBlockNeedsPython(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+	catPath, err := exec.LookPath("cat")
+	if err != nil {
+		t.Skip("cat not available")
+	}
+	const hostID = "01a0ed4c-c03a-752b-8600-a15fff968665"
+	for _, tc := range []struct {
+		name   string
+		python string // "" = absent from PATH; otherwise the stub body
+	}{
+		{"python3 absent from PATH", ""},
+		{"python3 present but import json fails", "exit 1\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			calls := filepath.Join(dir, "calls.log")
+			stub := func(name, body string) {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, cmd := range []string{"systemctl", "journalctl", "curl"} {
+				stub(cmd, fmt.Sprintf("echo %q >> %q\nexit 7\n", cmd, calls))
+			}
+			if tc.python != "" {
+				stub("python3", tc.python)
+			}
+			if err := os.Symlink(catPath, filepath.Join(dir, "cat")); err != nil {
+				t.Fatal(err)
+			}
+			tf := filepath.Join(dir, "token")
+			if err := os.WriteFile(tf, []byte("owk_test_python_check_token"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			b := restoreBlock(t, restoreScanHeading)
+			b = setInput(t, b, "SCAN_TOKEN_FILE", "'"+tf+"'")
+			b = setInput(t, b, "HOST_ID", "'"+hostID+"'")
+			script := filepath.Join(dir, "block.sh")
+			if err := os.WriteFile(script, []byte(b), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(bash, script)
+			cmd.Env = []string{"PATH=" + dir, "HOME=" + dir}
+			var so, se bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &so, &se
+			err := cmd.Run()
+			exit := 0
+			if ee, ok := err.(*exec.ExitError); ok {
+				exit = ee.ExitCode()
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			got, _ := os.ReadFile(calls)
+			if exit == 0 || strings.Contains(so.String(), "SCANNED:") || strings.Contains(so.String(), "scan started:") {
+				t.Fatalf("want a stop before any scan, got exit %d, stdout %q", exit, so.String())
+			}
+			if len(got) != 0 {
+				t.Fatalf("calls made without python3:\n%s", got)
+			}
+			for _, m := range []string{"python3 with the json module is required\n", "stage: inputs", "Nothing was changed"} {
+				if !strings.Contains(se.String(), m) {
+					t.Fatalf("stderr lacks %q:\n%s", m, se.String())
+				}
+			}
+			t.Logf("exit %d; calls to curl, systemctl, journalctl: 0", exit)
 		})
 	}
 }
