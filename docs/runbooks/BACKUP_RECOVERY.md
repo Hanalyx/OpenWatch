@@ -500,15 +500,28 @@ check removes when it exits.
 
 **How it signs out, and how it proves it.** The check always signs out once it
 has signed in, whether the scan passed or the check stopped. Sign-out answers
-`204` even when it revokes nothing, so that answer proves nothing. The check
-sends the session cookie again after sign-out and expects `401`. It reports
-`signed out` only when both hold. Otherwise it prints `Sign-out not confirmed`
-with both answers, and you should sign that user out of every session in the
-UI. A failed sign-out does not change the scan result: when the scan passed,
-the check still prints `SCANNED` and exits `0`, with the warning above it.
+`204` even when it revokes nothing, so that answer alone proves nothing. The
+check sends the session cookie again after sign-out and expects `401`. Only
+both answers together count as proof: `204` from sign-out, then `401` for the
+cookie. Any other answer, a timeout, a refused connection or any other request
+failure means the sign-out is not proven. A request that gets no answer is
+reported as `no answer` and never counts as proof. The check prints
+`signed out` when the sign-out is proven. Otherwise it prints
+`Sign-out not proven` with both answers, and you must sign that user out of
+every session in the UI.
+
+**`SCANNED` means both the scan and the sign-out passed.** When the scan
+passes, the check first prints
+`scan <id> completed with no rule errors (scan result only)`. That line is the
+scan's result, and it stands on its own. The check then signs out. It prints
+`SCANNED` and exits `0` only when the sign-out is proven. When the sign-out
+is not proven, it prints no `SCANNED`, stops at stage `sign-out`, and exits
+`2`: the scan passed, but the check as a whole did not.
 
 **What each stop means.** The check stops with `SCAN CHECK STOPPED` and the
-stage:
+stage. A stop at any stage but `sign-out` exits `1`. A stop at `sign-out`
+exits `2`. Every stop after sign-in also reports whether the sign-out was
+proven.
 
 | Stage | What it means | What to do |
 |---|---|---|
@@ -516,6 +529,7 @@ stage:
 | `login` | The sign-in failed. No scan was started. A `200` without an access token means the account uses MFA. | Check the password file before you try again: a wrong password counts toward the account's lockout. For MFA, use another account. |
 | `start` | The request that starts the scan got no usable answer. A scan may have started anyway. | Check the host's recent scans before you run the check again, as the message says. |
 | `poll` | The scan failed, finished with rule errors, did not finish in time, or a request about it failed. | Inspect the scan by its ID, as the message says. |
+| `sign-out` | The scan passed, and its result line stands. The check's own session could not be proven signed out. Exit `2`. | Sign that user out of every session in the UI. Then the restore is done; there is no need to scan again. |
 
 This check never stops or restarts the service. Every request it makes is
 bounded. Signing in, signing out and the cookie check each carry
@@ -541,24 +555,35 @@ Fill in the three values at the top, then run the block as root:
   JAR_DIR=$(mktemp -d)
   chmod 700 "$JAR_DIR"
   JAR="$JAR_DIR/cookies"
-  # Sign-out answers 204 even when it revokes nothing, so the answer is not
-  # the proof. The proof is that the session cookie no longer authenticates.
+  # Sign-out answers 204 even when it revokes nothing, so the answer alone is
+  # not the proof. Only a 204 from sign-out followed by a 401 for the same
+  # session cookie proves it. A request that gets no HTTP answer proves
+  # nothing: a curl failure is recorded as "no answer", never as a status.
+  SIGNOUT=not-needed
   sign_out() {
     [ "$SIGNED_IN" = yes ] || return 0
     SIGNED_IN=no
+    SIGNOUT=not-proven
     if ! grep -q 'openwatch_session' "$JAR" 2>/dev/null; then
-      echo "Sign-in issued no session cookie, so there is no session to sign out." >&2
+      if [ -z "${ACCESS:-}" ]; then
+        SIGNOUT=not-needed
+        echo "Sign-in issued no session, so there is no session to sign out." >&2
+      else
+        echo "Sign-out not proven: sign-in issued no session cookie to sign out with." >&2
+        echo "Sign out of every session for $USER_NAME in the UI." >&2
+      fi
       return 0
     fi
     local out after
     out=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
-        -b "$JAR" -X POST "$URL/api/v1/auth/logout" || echo none)
+        -b "$JAR" -X POST "$URL/api/v1/auth/logout") || out="no answer"
     after=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
-        -b "$JAR" "$URL/api/v1/rules" || echo none)
+        -b "$JAR" "$URL/api/v1/rules") || after="no answer"
     if [ "$out" = 204 ] && [ "$after" = 401 ]; then
-      echo "signed out: the check's session cookie no longer authenticates" >&2
+      SIGNOUT=proven
+      echo "signed out: sign-out answered 204, and the check's session cookie now answers 401" >&2
     else
-      echo "Sign-out not confirmed (sign-out HTTP $out, session cookie afterwards HTTP $after)." >&2
+      echo "Sign-out not proven (sign-out: $out, session cookie afterwards: $after)." >&2
       echo "Sign out of every session for $USER_NAME in the UI." >&2
     fi
   }
@@ -592,6 +617,7 @@ Fill in the three values at the top, then run the block as root:
     esac
     sign_out
     echo "The service was left running. Do not call the restore complete." >&2
+    exit 1
   }
   trap 'on_stop $LINENO' ERR
   trap 'rm -rf "$JAR_DIR"' EXIT
@@ -646,16 +672,25 @@ Fill in the three values at the top, then run the block as root:
     *) OUTCOME=unfinished; false ;;
   esac
   trap - ERR
+  echo "scan $SCAN_ID completed with no rule errors (scan result only)"
   sign_out
-  echo "SCANNED: scan $SCAN_ID completed with no rule errors"
+  if [ "$SIGNOUT" != proven ]; then
+    echo "SCAN CHECK STOPPED, stage: sign-out. The scan passed, but the check's sign-out could not be proven." >&2
+    echo "The scan result above stands on its own. The check as a whole did not pass." >&2
+    echo "Sign out of every session for $USER_NAME in the UI before you call the restore complete." >&2
+    exit 2
+  fi
+  echo "SCANNED: scan $SCAN_ID completed with no rule errors, and the check's session is signed out"
 )
 ```
 
-When it prints `SCANNED`, the restore is done. This check was run on a real
-OpenWatch 0.7.1 host on 2026-10-02 and printed `SCANNED` with a verified
-sign-out. The copy run there added a `per_page` query parameter to its cookie
-check. The block above drops it, because the API does not declare it and the
-server ignores it. Its stop paths are tested against
+When it prints `SCANNED`, the restore is done. An earlier version of this
+check was run on a real OpenWatch 0.7.1 host on 2026-10-02 and printed
+`SCANNED` with a proven sign-out. The block above differs from that copy. It
+drops a `per_page` query parameter from the cookie check, because the API does
+not declare it and the server ignores it. It also exits nonzero, with no
+`SCANNED`, when the sign-out is not proven. That copy printed `SCANNED` with a
+warning in that case. The block above has not yet been run on a real host. Its stop paths are tested against
 a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)

@@ -54,7 +54,25 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 		"python3 -I -S -c 'import json'", `test -r "$PASSWORD_FILE"`,
 		"STAGE=login", `--data-binary @- "$URL/api/v1/auth/login"`, `[ "$CODE" = 200 ]`, "SIGNED_IN=yes",
 		"STAGE=start", "Idempotency-Key: $KEY", `"$URL/api/v1/hosts/$HOST_ID/scans"`, `[ "$CODE" = 202 ]`,
-		"STAGE=poll", `"completed 0") ;;`, "trap - ERR\n", "sign_out\n", "echo \"SCANNED:")
+		"STAGE=poll", `"completed 0") ;;`, "trap - ERR\n", "(scan result only)", "sign_out\n",
+		`if [ "$SIGNOUT" != proven ]; then`, "exit 2", "echo \"SCANNED:")
+	// A stop exits 1, so a stop is never confused with the exit 2 of an
+	// unproven sign-out after a passing scan.
+	inOrder(t, "session stop", b, "on_stop() {", "sign_out\n", "exit 1\n  }")
+	if strings.Count(b, "SCANNED:") != 1 {
+		t.Errorf("the session block prints SCANNED %d times, want once", strings.Count(b, "SCANNED:"))
+	}
+
+	// A request that gets no HTTP answer must never read as a status code.
+	so := b[strings.Index(b, "sign_out() {"):strings.Index(b, "on_stop() {")]
+	if regexp.MustCompile(`\|\|\s*(echo|out=[0-9]|after=[0-9])`).MatchString(so) {
+		t.Error("sign_out falls back to an echo or a numeric status when a request fails")
+	}
+	for _, want := range []string{`|| out="no answer"`, `|| after="no answer"`, `[ "$out" = 204 ] && [ "$after" = 401 ]`} {
+		if !strings.Contains(so, want) {
+			t.Errorf("sign_out lacks %q", want)
+		}
+	}
 
 	// Nothing that sends a request runs before the stage leaves "inputs".
 	pre := b[strings.Index(b, "trap 'on_stop $LINENO' ERR"):strings.Index(b, "STAGE=login")]
@@ -80,7 +98,7 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 	if total != signIn+sTotal+signOut {
 		t.Fatalf("session wait %d != %d + %d + %d", total, signIn, sTotal, signOut)
 	}
-	for _, l := range regexp.MustCompile(`(?m)^.*curl .*$`).FindAllString(b, -1) {
+	for _, l := range regexp.MustCompile(`(?m)^[^#\n]*curl .*$`).FindAllString(b, -1) {
 		want := sLast
 		if strings.Contains(l, "-c \"$JAR\"") || strings.Contains(l, "-o /dev/null -w '%{http_code}'") && !strings.Contains(l, "Idempotency") {
 			want = signIn
@@ -109,8 +127,11 @@ type fakeSessionOpenWatch struct {
 	scanPost   int
 	scanState  string
 	rulesError int
-	logout     string // "ok", "500", "norevoke"
+	logout     string // "ok", "500", "norevoke", "drop" (connection closed, no answer)
+	probe      string // "ok", "drop", "hang", "gone" (server stops listening after sign-out)
 	revoked    bool
+	afterOut   bool // sign-out has been requested
+	stopListen func()
 	requests   []string // every request: method, URL, headers and body
 	logouts    int
 	scanPosts  int
@@ -134,6 +155,20 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	bearer := r.Header.Get("Authorization") == "Bearer "+fakeAccess
 	cookie, _ := r.Cookie("openwatch_session")
 	hasCookie := cookie != nil && cookie.Value == fakeSession
+	// The cookie replay after sign-out, when it must fail at the network
+	// level rather than answer.
+	if f.afterOut && hasCookie && r.URL.Path == "/api/v1/rules" {
+		switch f.probe {
+		case "drop":
+			dropConn(w)
+			return
+		case "hang":
+			f.mu.Unlock()
+			hang(r)
+			f.mu.Lock()
+			return
+		}
+	}
 	switch {
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v1/auth/login":
 		var req struct{ Username, Password string }
@@ -149,7 +184,14 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v1/auth/logout":
 		f.logouts++
+		f.afterOut = true
+		if f.probe == "gone" && f.stopListen != nil {
+			// New connections are refused from here on.
+			f.stopListen()
+		}
 		switch f.logout {
+		case "drop":
+			dropConn(w)
 		case "500":
 			w.WriteHeader(http.StatusInternalServerError)
 		case "norevoke":
@@ -187,6 +229,18 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		_, _ = w.Write(b)
 	default:
 		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+// dropConn closes the connection without writing an HTTP answer.
+func dropConn(w http.ResponseWriter) {
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		panic("response writer cannot hijack")
+	}
+	conn, _, err := hj.Hijack()
+	if err == nil {
+		_ = conn.Close()
 	}
 }
 
@@ -243,7 +297,16 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 	const hostID = "01a0ed4c-c03a-752b-8600-a15fff968665"
 	recent := "GET /api/v1/scans?host_id=" + hostID
 	inspect := "Inspect scan " + fakeScanID + " (GET /api/v1/scans/" + fakeScanID + ", or the UI) before you start another scan."
-	signedOut := "signed out: the check's session cookie no longer authenticates"
+	signedOut := "signed out: sign-out answered 204, and the check's session cookie now answers 401"
+	result := "scan " + fakeScanID + " completed with no rule errors (scan result only)\n"
+	signInUI := "Sign out of every session for rt-operator in the UI."
+	notProven := func(out, after string) string {
+		return "Sign-out not proven (sign-out: " + out + ", session cookie afterwards: " + after + ")."
+	}
+	// The stop for a passing scan whose sign-out is not proven.
+	unproven := []string{"SCAN CHECK STOPPED, stage: sign-out. The scan passed, but the check's sign-out could not be proven.",
+		"The scan result above stands on its own. The check as a whole did not pass.",
+		"Sign out of every session for rt-operator in the UI before you call the restore complete."}
 	cases := []struct {
 		name       string
 		login      string
@@ -251,49 +314,62 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 		state      string
 		rulesError int
 		logout     string
-		wantOK     bool
+		probe      string
+		wantExit   int
+		wantResult bool // the separate scan-result line is printed
 		wantScan   bool // the scan request is sent
 		wantLogout int  // sign-out requests sent
 		wantMsgs   []string
 	}{
 		{name: "scan completes and sign-out is proven", login: "ok", post: 202, state: "completed", logout: "ok",
-			wantOK: true, wantScan: true, wantLogout: 1, wantMsgs: []string{signedOut}},
+			wantExit: 0, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: []string{signedOut}},
 		{name: "wrong password", login: "badpw", post: 202, state: "completed", logout: "ok",
-			wantMsgs: []string{"SCAN CHECK STOPPED at line", "stage: login.",
+			wantExit: 1, wantMsgs: []string{"stage: login.",
 				"Sign-in failed (HTTP status: 401). No scan was started.",
 				"A wrong password counts toward the account's lockout. Check the file before you try again."}},
 		{name: "account uses MFA", login: "mfa", post: 202, state: "completed", logout: "ok",
-			wantMsgs: []string{"stage: login.",
+			wantExit: 1, wantMsgs: []string{"stage: login.",
 				"Sign-in answered without an access token, which is what an account with MFA gets.",
 				"No scan was started. Use an account without MFA for this check.",
-				"Sign-in issued no session cookie, so there is no session to sign out."}},
+				"Sign-in issued no session, so there is no session to sign out."}},
 		{name: "start answers 500", login: "ok", post: 500, state: "completed", logout: "ok",
-			wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: start.",
+			wantExit: 1, wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: start.",
 				"Verification interrupted: the request that starts the scan got no usable answer (HTTP status: 500).",
 				"Its outcome is unknown. A scan may have started anyway. Before you run this block again,",
 				"check this host's recent scans: " + recent + ", or the host's page in the UI.", signedOut}},
 		{name: "scan ends failed", login: "ok", post: 202, state: "failed", logout: "ok",
-			wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: poll.",
+			wantExit: 1, wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: poll.",
 				"Scan failed: scan " + fakeScanID + " ended failed, or completed with rule errors.", inspect, signedOut}},
 		{name: "scan completes with rule errors", login: "ok", post: 202, state: "completed", rulesError: 3, logout: "ok",
-			wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: poll.",
+			wantExit: 1, wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: poll.",
 				"Scan failed: scan " + fakeScanID + " ended failed, or completed with rule errors.", inspect, signedOut}},
-		{name: "sign-out answers 500", login: "ok", post: 202, state: "completed", logout: "500",
-			wantOK: true, wantScan: true, wantLogout: 1, wantMsgs: []string{
-				"Sign-out not confirmed (sign-out HTTP 500, session cookie afterwards HTTP 200).",
-				"Sign out of every session for rt-operator in the UI."}},
+		{name: "scan fails and the sign-out is not proven", login: "ok", post: 202, state: "failed", logout: "norevoke",
+			wantExit: 1, wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: poll.", notProven("204", "200"), signInUI}},
+		// A passing scan whose sign-out is not proven: exit 2, no SCANNED,
+		// and the scan's result on its own line.
 		{name: "sign-out answers 204 but revokes nothing", login: "ok", post: 202, state: "completed", logout: "norevoke",
-			wantOK: true, wantScan: true, wantLogout: 1, wantMsgs: []string{
-				"Sign-out not confirmed (sign-out HTTP 204, session cookie afterwards HTTP 200).",
-				"Sign out of every session for rt-operator in the UI."}},
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "200"), signInUI}, unproven...)},
+		{name: "sign-out answers 500", login: "ok", post: 202, state: "completed", logout: "500",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("500", "200"), signInUI}, unproven...)},
+		{name: "sign-out request gets no answer", login: "ok", post: 202, state: "completed", logout: "drop",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("no answer", "200"), signInUI}, unproven...)},
+		{name: "cookie check connection is dropped", login: "ok", post: 202, state: "completed", logout: "ok", probe: "drop",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "no answer"), signInUI}, unproven...)},
+		{name: "cookie check times out", login: "ok", post: 202, state: "completed", logout: "ok", probe: "hang",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "no answer"), signInUI}, unproven...)},
+		{name: "server goes away after sign-out", login: "ok", post: 202, state: "completed", logout: "ok", probe: "gone",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "no answer"), signInUI}, unproven...)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := &fakeSessionOpenWatch{password: password, login: tc.login, scanPost: tc.post,
-				scanState: tc.state, rulesError: tc.rulesError, logout: tc.logout}
+				scanState: tc.state, rulesError: tc.rulesError, logout: tc.logout, probe: tc.probe}
 			srv := httptest.NewTLSServer(f)
 			defer srv.Close()
+			f.mu.Lock()
+			f.stopListen = func() { _ = srv.Listener.Close() }
+			f.mu.Unlock()
 			pf := filepath.Join(t.TempDir(), "password")
 			if err := os.WriteFile(pf, []byte(password+"\n"), 0o600); err != nil {
 				t.Fatal(err)
@@ -305,23 +381,33 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 			b = setInput(t, b, "URL", srv.URL)
 			r, tmp := runSessionBlock(t, b)
 
-			printed := strings.Contains(r.stdout, "SCANNED:")
-			if tc.wantOK {
-				if r.exit != 0 || !printed {
-					t.Fatalf("want success, got exit %d, SCANNED printed %v\nstderr: %s", r.exit, printed, r.stderr)
-				}
-			} else {
-				if r.exit == 0 || printed {
-					t.Fatalf("want a stop, got exit %d, SCANNED printed %v\nstdout: %s", r.exit, printed, r.stdout)
-				}
-				if !strings.Contains(r.stderr, "The service was left running") {
-					t.Fatalf("a stop must say the service was left running: %s", r.stderr)
-				}
+			if r.exit != tc.wantExit {
+				t.Fatalf("exit %d, want %d\nstdout: %s\nstderr: %s", r.exit, tc.wantExit, r.stdout, r.stderr)
+			}
+			// SCANNED only when the scan passed AND the sign-out was proven.
+			if printed := strings.Contains(r.stdout+r.stderr, "SCANNED"); printed != (tc.wantExit == 0) {
+				t.Fatalf("SCANNED printed %v with exit %d\nstdout: %s", printed, r.exit, r.stdout)
+			}
+			if tc.wantExit == 0 && !strings.HasSuffix(r.stdout, result+"SCANNED: scan "+fakeScanID+" completed with no rule errors, and the check's session is signed out\n") {
+				t.Fatalf("success must print the scan result, then SCANNED last:\n%s", r.stdout)
+			}
+			if got := strings.Contains(r.stdout, result); got != tc.wantResult {
+				t.Fatalf("scan-result line printed %v, want %v\nstdout: %s", got, tc.wantResult, r.stdout)
+			}
+			if tc.wantExit != 0 && !strings.Contains(r.stderr, "SCAN CHECK STOPPED") {
+				t.Fatalf("a nonzero exit without a stop message: %s", r.stderr)
+			}
+			if tc.wantExit == 1 && !strings.Contains(r.stderr, "The service was left running") {
+				t.Fatalf("a stop must say the service was left running: %s", r.stderr)
 			}
 			for _, m := range tc.wantMsgs {
-				if !strings.Contains(r.stderr, m) {
+				if !strings.Contains(r.stderr, m+"\n") {
 					t.Fatalf("stderr lacks %q\nstderr:\n%s", m, r.stderr)
 				}
+			}
+			// A sign-out that is not proven is never reported as one.
+			if tc.wantExit == 2 && strings.Contains(r.stderr, "signed out:") {
+				t.Fatalf("an unproven sign-out was reported as signed out:\n%s", r.stderr)
 			}
 			f.mu.Lock()
 			scanPosts, logouts, revoked, reqs := f.scanPosts, f.logouts, f.revoked, append([]string(nil), f.requests...)
