@@ -70,7 +70,7 @@ func (h *handlers) PutHostMaintenance(w http.ResponseWriter, r *http.Request, id
 			"lookup failed", true)
 		return
 	}
-	emitAudit(r, audit.HostUpdated, hostID.String(), map[string]any{
+	emitCallerAudit(r, audit.HostUpdated, auditTarget{Type: auditResourceHost, ID: hostID.String()}, map[string]any{
 		"maintenance_mode": req.Enabled,
 	})
 	h.publishHostChange(r.Context(), hostID, eventbus.HostChangeMaintenance)

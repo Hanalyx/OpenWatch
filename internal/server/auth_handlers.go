@@ -210,7 +210,7 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if loginRefused == "mfa_invalid" {
-			emitAudit(r, audit.AuthMfaFailed, u.ID.String(), map[string]any{
+			emitUserAudit(r, audit.AuthMfaFailed, u.ID, map[string]any{
 				"reason": "otp_invalid_or_replayed",
 			})
 			writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
@@ -251,7 +251,7 @@ func (h *handlers) PostAuthLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   int(identity.RefreshTokenWindow.Seconds()),
 	})
 
-	emitAudit(r, audit.AuthLoginSuccess, u.ID.String(), map[string]any{
+	emitUserAudit(r, audit.AuthLoginSuccess, u.ID, map[string]any{
 		"username": u.Username,
 	})
 
@@ -378,7 +378,7 @@ func (h *handlers) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 			// target_conflict records that the two cookies named
 			// different families and only the session cookie's was
 			// ended. It carries no token material.
-			emitAudit(r, audit.AuthLogout, owner.String(), map[string]any{
+			emitUserAudit(r, audit.AuthLogout, owner, map[string]any{
 				"anchor":          target.Anchor,
 				"target_conflict": target.Conflict,
 			})
@@ -781,7 +781,7 @@ func (h *handlers) PostAuthMFAEnroll(w http.ResponseWriter, r *http.Request) {
 			"mfa enrollment is temporarily unavailable", true)
 		return
 	}
-	emitAudit(r, audit.AuthMfaEnrolled, id.ID, nil)
+	emitCallerAudit(r, audit.AuthMfaEnrolled, selfAuditTarget(id), nil)
 	writeJSON(w, http.StatusOK, api.AuthMFAEnrollResponse{ProvisioningUri: uri})
 }
 
@@ -851,12 +851,12 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 			"mfa confirmation is temporarily unavailable", true)
 		return
 	case otpRejected:
-		emitAudit(r, audit.AuthMfaFailed, id.ID, nil)
+		emitCallerAudit(r, audit.AuthMfaFailed, selfAuditTarget(id), nil)
 		writeError(w, http.StatusUnauthorized, "auth.mfa_invalid", "client",
 			"OTP invalid or replayed", false)
 		return
 	}
-	emitAudit(r, audit.AuthMfaValidated, id.ID, nil)
+	emitCallerAudit(r, audit.AuthMfaValidated, selfAuditTarget(id), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -900,7 +900,7 @@ func (h *handlers) PostAuthPasswordChange(w http.ResponseWriter, r *http.Request
 			err.Error(), false)
 		return
 	}
-	emitAudit(r, audit.AuthPasswordChanged, id.ID, nil)
+	emitCallerAudit(r, audit.AuthPasswordChanged, selfAuditTarget(id), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -975,7 +975,7 @@ func (h *handlers) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
 			"failed to update profile", false)
 		return
 	}
-	emitAudit(r, audit.AuthProfileUpdated, id.ID, map[string]any{
+	emitCallerAudit(r, audit.AuthProfileUpdated, selfAuditTarget(id), map[string]any{
 		"email_changed": req.Email != nil,
 	})
 	writeJSON(w, http.StatusOK, userToMe(u, string(id.RoleID)))
@@ -1004,21 +1004,10 @@ func mfaEnrolled(ctx context.Context, h *handlers, userID uuid.UUID) (bool, erro
 // rejection paths. Centralized so the detail.reason vocabulary stays
 // consistent across paths.
 func emitLoginFailure(r *http.Request, reason, username string) {
-	emitAudit(r, audit.AuthLoginFailure, "anonymous", map[string]any{
+	// No identity is established on a failed sign-in, so the actor is
+	// anonymous rather than a user named "anonymous". bugs/OW-099.
+	writeHandlerAudit(r, audit.AuthLoginFailure, "anonymous", "", auditTarget{}, map[string]any{
 		"reason":   reason,
 		"username": audit.ClipDetail(username),
-	})
-}
-
-// emitAudit wraps audit.Emit with the canonical detail shape.
-func emitAudit(r *http.Request, code audit.Code, actorID string, detail map[string]any) {
-	var detailBytes []byte
-	if detail != nil {
-		detailBytes, _ = json.Marshal(detail)
-	}
-	audit.Emit(r.Context(), code, audit.Event{
-		ActorType: "user",
-		ActorID:   actorID,
-		Detail:    detailBytes,
 	})
 }

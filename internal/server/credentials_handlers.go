@@ -105,7 +105,7 @@ func (h *handlers) PostCredentials(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	emitAudit(r, audit.CredentialCreated, id.String(), map[string]any{
+	emitCallerAudit(r, audit.CredentialCreated, auditTarget{Type: auditResourceCredential, ID: id.String()}, map[string]any{
 		"credential_id": id.String(),
 		"scope":         string(params.Scope),
 		"auth_method":   string(params.AuthMethod),
@@ -206,7 +206,7 @@ func (h *handlers) PatchCredentialByID(w http.ResponseWriter, r *http.Request, i
 		}
 		return
 	}
-	emitAudit(r, audit.CredentialUpdated, id.String(), map[string]any{
+	emitCallerAudit(r, audit.CredentialUpdated, auditTarget{Type: auditResourceCredential, ID: id.String()}, map[string]any{
 		"credential_id":  id.String(),
 		"scope":          string(res.Scope),
 		"auth_method":    string(res.AuthMethod),
@@ -291,7 +291,7 @@ func (h *handlers) PostCredentialClone(w http.ResponseWriter, r *http.Request, s
 		}
 		return
 	}
-	emitAudit(r, audit.CredentialCreated, newID.String(), map[string]any{
+	emitCallerAudit(r, audit.CredentialCreated, auditTarget{Type: auditResourceCredential, ID: newID.String()}, map[string]any{
 		"credential_id": newID.String(),
 		"cloned_from":   uuid.UUID(srcID).String(),
 		"scope":         string(params.Scope),
@@ -322,7 +322,7 @@ func (h *handlers) DeleteCredentialByID(w http.ResponseWriter, r *http.Request, 
 			"delete failed", true)
 		return
 	}
-	emitAudit(r, audit.CredentialDeleted, id.String(), map[string]any{
+	emitCallerAudit(r, audit.CredentialDeleted, auditTarget{Type: auditResourceCredential, ID: id.String()}, map[string]any{
 		"credential_id": id.String(),
 	})
 	w.WriteHeader(http.StatusNoContent)

@@ -45,6 +45,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   answered "invalid parameters" for any failed insert. Each now reports
   that only for an unknown role. (CP `bugs/OW-098`)
 
+- **Fourteen audit events named the changed object as the actor.** Events for
+  creating, changing or deleting a host, a credential or a user account, and
+  for assigning a role, recorded the id of that host, credential or user as
+  the actor. The person or token that made the change was not recorded at
+  all. Creating a custom role was also logged as a role assignment. Each event
+  now names the caller as the actor (`user` for a signed-in user, `api_key`
+  and the token's id for an API token), puts the changed object in the
+  resource fields, and role creation has its own event, `authz.role.created`.
+  A failed sign-in is now recorded with an anonymous actor instead of a user
+  named "anonymous". (CP `bugs/OW-099`)
+
+  **Rows written before this fix are not repaired.** In `host.created`,
+  `host.updated`, `host.deleted`, `credential.created`, `credential.updated`,
+  `credential.deleted`, `admin.user.created`, `admin.user.deleted`,
+  `authz.role.assigned` and `authz.role.removed` rows from earlier versions,
+  `actor_id` holds the id of the changed object, not of whoever acted, so
+  those rows do not reliably say who made the change. This release does not
+  rewrite them, and OpenWatch does not try to work out who acted.
+
 ### Changed
 
 - **Self-service endpoints refuse API tokens with 403.** `GET` and

@@ -278,6 +278,7 @@ var auditPredicates = map[string]string{
 	"authz.permission.denied": "was denied permission",
 	"authz.role.assigned":     "assigned a role",
 	"authz.role.removed":      "removed a role",
+	"authz.role.created":      "created a role",
 	// host
 	"host.created":                "created a host",
 	"host.updated":                "updated a host",

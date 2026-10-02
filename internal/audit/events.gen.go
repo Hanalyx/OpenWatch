@@ -67,6 +67,8 @@ const (
 	AuthzRoleAssigned Code = "authz.role.assigned"
 	// Role removed from user
 	AuthzRoleRemoved Code = "authz.role.removed"
+	// Custom role created
+	AuthzRoleCreated Code = "authz.role.created"
 	//
 	HostCreated Code = "host.created"
 	//
@@ -503,23 +505,31 @@ var Metadata = map[Code]EventMeta{
 		Category:    "authz",
 		Severity:    SeverityWarning,
 		Description: `Role assigned to user`,
-		ActorTypes:  nil,
-		DetailKeys:  nil,
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"role_id"},
 	},
 	AuthzRoleRemoved: {
 		Code:        AuthzRoleRemoved,
 		Category:    "authz",
 		Severity:    SeverityWarning,
 		Description: `Role removed from user`,
-		ActorTypes:  nil,
-		DetailKeys:  nil,
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"role_id"},
+	},
+	AuthzRoleCreated: {
+		Code:        AuthzRoleCreated,
+		Category:    "authz",
+		Severity:    SeverityWarning,
+		Description: `Custom role created`,
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"permissions", "role_id"},
 	},
 	HostCreated: {
 		Code:        HostCreated,
 		Category:    "host",
 		Severity:    SeverityInfo,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  nil,
 	},
 	HostUpdated: {
@@ -527,7 +537,7 @@ var Metadata = map[Code]EventMeta{
 		Category:    "host",
 		Severity:    SeverityInfo,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  nil,
 	},
 	HostDeleted: {
@@ -535,7 +545,7 @@ var Metadata = map[Code]EventMeta{
 		Category:    "host",
 		Severity:    SeverityWarning,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  nil,
 	},
 	HostConnectivityChecked: {
@@ -807,15 +817,15 @@ var Metadata = map[Code]EventMeta{
 		Category:    "credential",
 		Severity:    SeverityInfo,
 		Description: ``,
-		ActorTypes:  nil,
-		DetailKeys:  []string{"auth_method", "credential_id", "scope"},
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"auth_method", "cloned_from", "credential_id", "scope"},
 	},
 	CredentialUpdated: {
 		Code:        CredentialUpdated,
 		Category:    "credential",
 		Severity:    SeverityInfo,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  []string{"auth_method", "credential_id", "scope", "secret_rotated"},
 	},
 	CredentialDeleted: {
@@ -823,7 +833,7 @@ var Metadata = map[Code]EventMeta{
 		Category:    "credential",
 		Severity:    SeverityWarning,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  []string{"credential_id"},
 	},
 	ScanQueued: {
@@ -1423,7 +1433,7 @@ var Metadata = map[Code]EventMeta{
 		Category:    "admin",
 		Severity:    SeverityWarning,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  nil,
 	},
 	AdminUserUpdated: {
@@ -1439,7 +1449,7 @@ var Metadata = map[Code]EventMeta{
 		Category:    "admin",
 		Severity:    SeverityWarning,
 		Description: ``,
-		ActorTypes:  nil,
+		ActorTypes:  []string{"api_key", "user"},
 		DetailKeys:  nil,
 	},
 	AdminUserPasswordReset: {
@@ -1554,6 +1564,7 @@ var codeOrder = []Code{
 	AuthzPermissionDenied,
 	AuthzRoleAssigned,
 	AuthzRoleRemoved,
+	AuthzRoleCreated,
 	HostCreated,
 	HostUpdated,
 	HostDeleted,

@@ -56,7 +56,7 @@ func (h *handlers) PutAuthPolicy(w http.ResponseWriter, r *http.Request) {
 			"update auth policy failed", true)
 		return
 	}
-	emitAudit(r, audit.AuthPolicyUpdated, auth.FromContext(r.Context()).ID, map[string]any{
+	emitCallerAudit(r, audit.AuthPolicyUpdated, auditTarget{Type: auditResourceAuthPolicy}, map[string]any{
 		"require_mfa":                      p.RequireMFA,
 		"session_idle_timeout_seconds":     int(p.IdleTimeout.Seconds()),
 		"session_absolute_timeout_seconds": int(p.AbsoluteTimeout.Seconds()),

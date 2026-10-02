@@ -71,7 +71,7 @@ func (h *handlers) PostUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	emitAudit(r, audit.AdminUserCreated, u.ID.String(), map[string]any{"username": u.Username})
+	emitCallerAudit(r, audit.AdminUserCreated, auditTarget{Type: auditResourceUser, ID: u.ID.String()}, map[string]any{"username": u.Username})
 	writeJSON(w, http.StatusCreated, userResponse(u))
 }
 
@@ -107,7 +107,7 @@ func (h *handlers) DeleteUserByID(w http.ResponseWriter, r *http.Request, id ope
 	if err := h.users.SoftDelete(r.Context(), uuid.UUID(id)); mapUserAdminErr(w, err) {
 		return
 	}
-	emitAudit(r, audit.AdminUserDeleted, id.String(), nil)
+	emitCallerAudit(r, audit.AdminUserDeleted, auditTarget{Type: auditResourceUser, ID: id.String()}, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -142,7 +142,7 @@ func (h *handlers) PostUserRolesAssign(w http.ResponseWriter, r *http.Request, i
 			"assign failed", true)
 		return
 	}
-	emitAudit(r, audit.AuthzRoleAssigned, id.String(), map[string]any{"role_id": req.RoleId})
+	emitCallerAudit(r, audit.AuthzRoleAssigned, auditTarget{Type: auditResourceUser, ID: id.String()}, map[string]any{"role_id": req.RoleId})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -163,7 +163,7 @@ func (h *handlers) PostUserRolesUnassign(w http.ResponseWriter, r *http.Request,
 			"unassign failed", true)
 		return
 	}
-	emitAudit(r, audit.AuthzRoleRemoved, id.String(), map[string]any{"role_id": req.RoleId})
+	emitCallerAudit(r, audit.AuthzRoleRemoved, auditTarget{Type: auditResourceUser, ID: id.String()}, map[string]any{"role_id": req.RoleId})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -221,7 +221,7 @@ func (h *handlers) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	emitAudit(r, audit.AuthzRoleAssigned, role.ID, map[string]any{"created_role": role.ID})
+	emitCallerAudit(r, audit.AuthzRoleCreated, auditTarget{Type: auditResourceRole, ID: role.ID}, map[string]any{"role_id": role.ID, "permissions": role.Permissions})
 	writeJSON(w, http.StatusCreated, api.CustomRoleResponse{
 		Id:          role.ID,
 		Description: role.Description,
