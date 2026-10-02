@@ -302,15 +302,39 @@ func TestAuditActor_TokenCallerIsActorAsAPIKey(t *testing.T) {
 		admin := auditCaller{mode: "session", actorTyp: "user", actorID: roleUserIDs[auth.RoleAdmin].String()}
 		raw, tokenID := mintScanToken(t, url, auth.RoleAdmin)
 		tok := auditCaller{mode: "token", bearer: raw, actorTyp: "api_key", actorID: tokenID.String()}
+		ran := 0
 		for _, tc := range auditCases() {
-			t.Run(tc.name, func(t *testing.T) {
-				if tc.tokenDeferred != "" {
-					t.Skip(tc.tokenDeferred)
-				}
-				runAuditCase(t, url, pool, tc, tok, admin)
-			})
+			if tc.tokenDeferred != "" {
+				continue // TestAuditActor_TokenCallerDeferredByOW098
+			}
+			ran++
+			t.Run(tc.name, func(t *testing.T) { runAuditCase(t, url, pool, tc, tok, admin) })
+		}
+		if ran != 10 {
+			t.Fatalf("token cases run = %d, want 10 (14 minus the 4 deferred to OW-098)", ran)
 		}
 	})
+}
+
+// TestAuditActor_TokenCallerDeferredByOW098 holds the four token cases whose
+// endpoint cannot complete for a token until bugs/OW-098 merges. It carries no
+// @ac annotation on purpose: a skipped case must not count as covering AC-19.
+// When OW-098 merges, delete this test and the tokenDeferred field, so AC-19
+// runs all fourteen.
+func TestAuditActor_TokenCallerDeferredByOW098(t *testing.T) {
+	url, pool := freshAPIServer(t)
+	admin := auditCaller{mode: "session", actorTyp: "user", actorID: roleUserIDs[auth.RoleAdmin].String()}
+	raw, tokenID := mintScanToken(t, url, auth.RoleAdmin)
+	tok := auditCaller{mode: "token", bearer: raw, actorTyp: "api_key", actorID: tokenID.String()}
+	for _, tc := range auditCases() {
+		if tc.tokenDeferred == "" {
+			continue
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Skip(tc.tokenDeferred)
+			runAuditCase(t, url, pool, tc, tok, admin)
+		})
+	}
 }
 
 // @ac AC-20
