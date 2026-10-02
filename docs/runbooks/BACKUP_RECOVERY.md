@@ -498,8 +498,14 @@ variable and is passed to `curl` on standard input, as in the token-based
 check. The session cookie lives in a private temporary directory that the
 check removes when it exits.
 
-**How it signs out, and how it proves it.** The check always signs out once it
-has signed in, whether the scan passed or the check stopped. Sign-out answers
+**How it signs out, and how it proves it.** The check signs out whenever the
+sign-in left a session cookie, whether the scan passed or the check stopped.
+That includes a sign-in that set the cookie and then timed out or broke off.
+When the sign-in got no answer and left no cookie, the check cannot know
+whether the server created a session. It says the outcome is unknown, and you
+should check that user's sessions or sign the user out in the UI. It says
+there is no session only when the sign-in was refused and set no cookie.
+Sign-out answers
 `204` even when it revokes nothing, so that answer alone proves nothing. The
 check sends the session cookie again after sign-out and expects `401`. Only
 both answers together count as proof: `204` from sign-out, then `401` for the
@@ -526,7 +532,7 @@ proven.
 | Stage | What it means | What to do |
 |---|---|---|
 | `inputs` | A value at the top is unfilled, or the password file is unreadable. Nothing was sent. | Fill in the values or fix the file. |
-| `login` | The sign-in failed. No scan was started. A `200` without an access token means the account uses MFA. | Check the password file before you try again: a wrong password counts toward the account's lockout. For MFA, use another account. |
+| `login` | The sign-in failed, got no answer, or answered `200` without a usable access token. No scan was started. An account with MFA gets a `200` without an access token. | Read the sign-out outcome below the stop. Check the password file before you try again: a wrong password counts toward the account's lockout. For MFA, use another account. |
 | `start` | The request that starts the scan got no usable answer. A scan may have started anyway. | Check the host's recent scans before you run the check again, as the message says. |
 | `poll` | The scan failed, finished with rule errors, did not finish in time, or a request about it failed. | Inspect the scan by its ID, as the message says. |
 | `sign-out` | The scan passed, and its result line stands. The check's own session could not be proven signed out. Exit `2`. | Sign that user out of every session in the UI. Then the restore is done; there is no need to scan again. |
@@ -551,7 +557,8 @@ Fill in the three values at the top, then run the block as root:
   CODE=none
   SCAN_ID=unknown
   OUTCOME=none
-  SIGNED_IN=no
+  SIGN_IN=not-started
+  SIGNOUT_DONE=no
   JAR_DIR=$(mktemp -d)
   chmod 700 "$JAR_DIR"
   JAR="$JAR_DIR/cookies"
@@ -559,20 +566,29 @@ Fill in the three values at the top, then run the block as root:
   # not the proof. Only a 204 from sign-out followed by a 401 for the same
   # session cookie proves it. A request that gets no HTTP answer proves
   # nothing: a curl failure is recorded as "no answer", never as a status.
+  # Cleanup follows the cookie jar, not whether sign-in finished: a sign-in
+  # can set a session cookie and still time out or break off.
   SIGNOUT=not-needed
   sign_out() {
-    [ "$SIGNED_IN" = yes ] || return 0
-    SIGNED_IN=no
+    [ "$SIGNOUT_DONE" = no ] || return 0
+    SIGNOUT_DONE=yes
+    [ "$SIGN_IN" != not-started ] || return 0
     SIGNOUT=not-proven
     if ! grep -q 'openwatch_session' "$JAR" 2>/dev/null; then
-      if [ -z "${ACCESS:-}" ]; then
+      if [ "$SIGN_IN" = no-answer ]; then
+        echo "Sign-in outcome unknown: the sign-in request got no answer, so a session may exist on the server." >&2
+        echo "Check the sessions for $USER_NAME, or sign out of every session for $USER_NAME in the UI." >&2
+      elif [ "$CODE" != 200 ]; then
         SIGNOUT=not-needed
-        echo "Sign-in issued no session, so there is no session to sign out." >&2
+        echo "Sign-in was refused and set no session cookie, so there is no session to sign out." >&2
       else
-        echo "Sign-out not proven: sign-in issued no session cookie to sign out with." >&2
+        echo "Sign-out not proven: sign-in answered 200 but set no session cookie to sign out with." >&2
         echo "Sign out of every session for $USER_NAME in the UI." >&2
       fi
       return 0
+    fi
+    if [ "$SIGN_IN" = no-answer ] || [ "$CODE" != 200 ] || [ -z "${ACCESS:-}" ]; then
+      echo "Sign-in did not finish normally, but it set a session cookie, so the check signs it out." >&2
     fi
     local out after
     out=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
@@ -593,9 +609,11 @@ Fill in the three values at the top, then run the block as root:
       inputs)
         echo "Nothing was changed. No scan was started, and the service was not touched." >&2 ;;
       login)
-        if [ "$CODE" = 200 ]; then
-          echo "Sign-in answered without an access token, which is what an account with MFA gets." >&2
-          echo "No scan was started. Use an account without MFA for this check." >&2
+        if [ "$CODE" = "no answer" ]; then
+          echo "Sign-in got no answer: the request failed or timed out. No scan was started." >&2
+        elif [ "$CODE" = 200 ]; then
+          echo "Sign-in answered 200 without a usable access token. An account with MFA gets this answer." >&2
+          echo "No scan was started. If the account uses MFA, use an account without it for this check." >&2
         else
           echo "Sign-in failed (HTTP status: $CODE). No scan was started." >&2
           echo "A wrong password counts toward the account's lockout. Check the file before you try again." >&2
@@ -631,14 +649,15 @@ Fill in the three values at the top, then run the block as root:
   # The password goes from the file to curl's standard input, never onto a
   # command line. The access token stays in a shell variable.
   STAGE=login
+  SIGN_IN=no-answer
   RESP=$(python3 -I -S -c 'import json,sys; print(json.dumps({"username": sys.argv[1], "password": open(sys.argv[2]).read().rstrip("\n")}))' \
       "$USER_NAME" "$PASSWORD_FILE" |
     curl -sk --connect-timeout 3 --max-time 10 -c "$JAR" -w '\n%{http_code}' \
-      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/auth/login")
+      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/auth/login") || { CODE="no answer"; false; }
+  SIGN_IN=answered
   CODE=${RESP##*$'\n'}
   [ "$CODE" = 200 ]
-  SIGNED_IN=yes
-  ACCESS=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"${RESP%$'\n'*}")
+  ACCESS=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"${RESP%$'\n'*}" 2>/dev/null) || ACCESS=""
   [ -n "$ACCESS" ]
   AUTH="header = \"Authorization: Bearer $ACCESS\""
   KEY=$(cat /proc/sys/kernel/random/uuid)
@@ -684,14 +703,18 @@ Fill in the three values at the top, then run the block as root:
 )
 ```
 
-When it prints `SCANNED`, the restore is done. An earlier version of this
-check was run on a real OpenWatch 0.7.1 host on 2026-10-02 and printed
-`SCANNED` with a proven sign-out. The block above differs from that copy. It
-drops a `per_page` query parameter from the cookie check, because the API does
-not declare it and the server ignores it. It also exits nonzero, with no
-`SCANNED`, when the sign-out is not proven. That copy printed `SCANNED` with a
-warning in that case. The block above has not yet been run on a real host. Its stop paths are tested against
-a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
+When it prints `SCANNED`, the restore is done.
+
+**What was run on a real host.** On 2026-10-02 at 14:55 UTC, the previous
+version of this block (sha256
+`2b41eee3fb32d14e055e107fa6da5a18ba7788803c33119849201e6b1da33dc3`) ran on a
+real OpenWatch 0.7.1 host. It printed the scan-result line, then
+`signed out`, then `SCANNED`, and exited `0`. Two earlier drafts also printed
+`SCANNED` on that host the same day. The block above differs from that
+version only in how it handles a sign-in that breaks off: it signs out any
+session cookie the sign-in left, and it reports a sign-in with no answer as
+unknown. The block above has not been run on a real host. Its stop paths are
+tested against a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)
 

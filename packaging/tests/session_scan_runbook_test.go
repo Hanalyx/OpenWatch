@@ -47,12 +47,13 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 	// No success line without sign-in, the scan, and a sign-out attempt
 	// before it; the sign-out proof is the cookie answering 401.
 	inOrder(t, "session", b,
-		"set -euo pipefail", "USER_NAME=", "PASSWORD_FILE=", "HOST_ID=", "STAGE=inputs", "SIGNED_IN=no",
+		"set -euo pipefail", "USER_NAME=", "PASSWORD_FILE=", "HOST_ID=", "STAGE=inputs", "SIGN_IN=not-started",
 		"JAR_DIR=$(mktemp -d)", "sign_out() {", `-b "$JAR" -X POST "$URL/api/v1/auth/logout"`,
 		`-b "$JAR" "$URL/api/v1/rules`, `[ "$out" = 204 ] && [ "$after" = 401 ]`,
 		"on_stop() {", "sign_out\n", "trap 'on_stop $LINENO' ERR", `trap 'rm -rf "$JAR_DIR"' EXIT`,
 		"python3 -I -S -c 'import json'", `test -r "$PASSWORD_FILE"`,
-		"STAGE=login", `--data-binary @- "$URL/api/v1/auth/login"`, `[ "$CODE" = 200 ]`, "SIGNED_IN=yes",
+		"STAGE=login", "SIGN_IN=no-answer", `--data-binary @- "$URL/api/v1/auth/login") || { CODE="no answer"; false; }`,
+		"SIGN_IN=answered", `[ "$CODE" = 200 ]`, `[ -n "$ACCESS" ]`,
 		"STAGE=start", "Idempotency-Key: $KEY", `"$URL/api/v1/hosts/$HOST_ID/scans"`, `[ "$CODE" = 202 ]`,
 		"STAGE=poll", `"completed 0") ;;`, "trap - ERR\n", "(scan result only)", "sign_out\n",
 		`if [ "$SIGNOUT" != proven ]; then`, "exit 2", "echo \"SCANNED:")
@@ -67,6 +68,15 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 	so := b[strings.Index(b, "sign_out() {"):strings.Index(b, "on_stop() {")]
 	if regexp.MustCompile(`\|\|\s*(echo|out=[0-9]|after=[0-9])`).MatchString(so) {
 		t.Error("sign_out falls back to an echo or a numeric status when a request fails")
+	}
+	// Cleanup follows the cookie jar: the only gates are "not run twice" and
+	// "a sign-in was attempted". "No session" is said only after a definite
+	// refusal, never after a sign-in that got no answer.
+	inOrder(t, "sign_out", so, `[ "$SIGNOUT_DONE" = no ] || return 0`, `[ "$SIGN_IN" != not-started ] || return 0`,
+		`if ! grep -q 'openwatch_session' "$JAR"`, `if [ "$SIGN_IN" = no-answer ]; then`, "Sign-in outcome unknown",
+		`elif [ "$CODE" != 200 ]; then`, "there is no session to sign out")
+	if n := strings.Count(so, "|| return 0"); n != 2 {
+		t.Errorf("sign_out has %d early returns before the cookie check, want 2", n)
 	}
 	for _, want := range []string{`|| out="no answer"`, `|| after="no answer"`, `[ "$out" = 204 ] && [ "$after" = 401 ]`} {
 		if !strings.Contains(so, want) {
@@ -123,7 +133,7 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 type fakeSessionOpenWatch struct {
 	mu         sync.Mutex
 	password   string
-	login      string // "ok", "badpw", "mfa"
+	login      string // "ok", "badpw", "mfa", "stallbody", "dropbody", "stallheaders", "badjson"
 	scanPost   int
 	scanState  string
 	rulesError int
@@ -173,11 +183,34 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v1/auth/login":
 		var req struct{ Username, Password string }
 		_ = json.Unmarshal(body, &req)
+		cookie := &http.Cookie{Name: "openwatch_session", Value: fakeSession, Path: "/", Secure: true, HttpOnly: true}
 		switch {
 		case f.login == "badpw" || req.Password != f.password:
 			w.WriteHeader(http.StatusUnauthorized)
 		case f.login == "mfa":
 			fmt.Fprint(w, `{"mfa_required":true}`)
+		case f.login == "stallheaders":
+			// No status line, no headers, no cookie: the client times out.
+			f.mu.Unlock()
+			hang(r)
+			f.mu.Lock()
+		case f.login == "stallbody" || f.login == "dropbody":
+			// The cookie and headers arrive; the body never completes.
+			http.SetCookie(w, cookie)
+			w.Header().Set("Content-Length", "200")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{"access_tok`)
+			w.(http.Flusher).Flush()
+			if f.login == "dropbody" {
+				// The deferred Unlock runs during the panic.
+				panic(http.ErrAbortHandler) // closes the connection mid-body
+			}
+			f.mu.Unlock()
+			hang(r)
+			f.mu.Lock()
+		case f.login == "badjson":
+			http.SetCookie(w, cookie)
+			fmt.Fprint(w, `{"access_token": "unterminated`)
 		default:
 			http.SetCookie(w, &http.Cookie{Name: "openwatch_session", Value: fakeSession, Path: "/", Secure: true, HttpOnly: true})
 			fmt.Fprintf(w, `{"access_token":%q}`, fakeAccess)
@@ -300,6 +333,8 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 	signedOut := "signed out: sign-out answered 204, and the check's session cookie now answers 401"
 	result := "scan " + fakeScanID + " completed with no rule errors (scan result only)\n"
 	signInUI := "Sign out of every session for rt-operator in the UI."
+	noAnswer := "Sign-in got no answer: the request failed or timed out. No scan was started."
+	cookieLeft := "Sign-in did not finish normally, but it set a session cookie, so the check signs it out."
 	notProven := func(out, after string) string {
 		return "Sign-out not proven (sign-out: " + out + ", session cookie afterwards: " + after + ")."
 	}
@@ -319,19 +354,37 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 		wantResult bool // the separate scan-result line is printed
 		wantScan   bool // the scan request is sent
 		wantLogout int  // sign-out requests sent
+		noSession  bool // the check may say there is no session to sign out
 		wantMsgs   []string
 	}{
 		{name: "scan completes and sign-out is proven", login: "ok", post: 202, state: "completed", logout: "ok",
 			wantExit: 0, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: []string{signedOut}},
 		{name: "wrong password", login: "badpw", post: 202, state: "completed", logout: "ok",
-			wantExit: 1, wantMsgs: []string{"stage: login.",
+			wantExit: 1, noSession: true, wantMsgs: []string{"stage: login.",
 				"Sign-in failed (HTTP status: 401). No scan was started.",
-				"A wrong password counts toward the account's lockout. Check the file before you try again."}},
+				"A wrong password counts toward the account's lockout. Check the file before you try again.",
+				"Sign-in was refused and set no session cookie, so there is no session to sign out."}},
 		{name: "account uses MFA", login: "mfa", post: 202, state: "completed", logout: "ok",
 			wantExit: 1, wantMsgs: []string{"stage: login.",
-				"Sign-in answered without an access token, which is what an account with MFA gets.",
-				"No scan was started. Use an account without MFA for this check.",
-				"Sign-in issued no session, so there is no session to sign out."}},
+				"Sign-in answered 200 without a usable access token. An account with MFA gets this answer.",
+				"No scan was started. If the account uses MFA, use an account without it for this check.",
+				"Sign-out not proven: sign-in answered 200 but set no session cookie to sign out with.", signInUI}},
+		// Interrupted sign-in. Where a cookie was set, the check must sign it
+		// out and report the proof; where none was set and the request got
+		// no answer, the outcome is unknown, never "no session".
+		{name: "sign-in sets a cookie, then its body stalls", login: "stallbody", post: 202, state: "completed", logout: "ok",
+			wantExit: 1, wantLogout: 1, wantMsgs: []string{"stage: login.", noAnswer, cookieLeft, signedOut}},
+		{name: "sign-in sets a cookie, then the connection drops", login: "dropbody", post: 202, state: "completed", logout: "ok",
+			wantExit: 1, wantLogout: 1, wantMsgs: []string{"stage: login.", noAnswer, cookieLeft, signedOut}},
+		{name: "sign-in stalls body after a cookie, and sign-out revokes nothing", login: "stallbody", post: 202, state: "completed", logout: "norevoke",
+			wantExit: 1, wantLogout: 1, wantMsgs: []string{"stage: login.", noAnswer, cookieLeft, notProven("204", "200"), signInUI}},
+		{name: "sign-in stalls before any headers", login: "stallheaders", post: 202, state: "completed", logout: "ok",
+			wantExit: 1, wantMsgs: []string{"stage: login.", noAnswer,
+				"Sign-in outcome unknown: the sign-in request got no answer, so a session may exist on the server.",
+				"Check the sessions for rt-operator, or sign out of every session for rt-operator in the UI."}},
+		{name: "sign-in answers 200 with a cookie and malformed JSON", login: "badjson", post: 202, state: "completed", logout: "ok",
+			wantExit: 1, wantLogout: 1, wantMsgs: []string{"stage: login.",
+				"Sign-in answered 200 without a usable access token. An account with MFA gets this answer.", cookieLeft, signedOut}},
 		{name: "start answers 500", login: "ok", post: 500, state: "completed", logout: "ok",
 			wantExit: 1, wantScan: true, wantLogout: 1, wantMsgs: []string{"stage: start.",
 				"Verification interrupted: the request that starts the scan got no usable answer (HTTP status: 500).",
@@ -404,6 +457,10 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 				if !strings.Contains(r.stderr, m+"\n") {
 					t.Fatalf("stderr lacks %q\nstderr:\n%s", m, r.stderr)
 				}
+			}
+			// "No session" only after a definite refusal with no cookie.
+			if got := strings.Contains(r.stderr, "no session to sign out"); got != tc.noSession {
+				t.Fatalf("\"no session to sign out\" printed %v, want %v\nstderr:\n%s", got, tc.noSession, r.stderr)
 			}
 			// A sign-out that is not proven is never reported as one.
 			if tc.wantExit == 2 && strings.Contains(r.stderr, "signed out:") {

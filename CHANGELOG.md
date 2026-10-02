@@ -83,10 +83,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the same session cookie proves the sign-out; a request that gets no answer
   never counts. It prints `SCANNED` only when the scan passed and the sign-out
   is proven. A passing scan with an unproven sign-out prints the scan's result
-  on its own line, then stops with exit `2`. The password goes from a
-  root-only file to `curl` on standard input, never onto a command line. The
-  upgrade guide's rollback steps now point a rollback to 0.7.1 to this check.
-  An earlier version printed `SCANNED` on a real 0.7.1 host; this version is
+  on its own line, then stops with exit `2`. A sign-in that sets a session
+  cookie and then times out or breaks off is still signed out. A sign-in
+  that gets no answer and leaves no cookie is reported as unknown, never as
+  "no session". The password goes from a root-only file to `curl` on
+  standard input, never onto a command line. The upgrade guide's rollback
+  steps now point a rollback to 0.7.1 to this check. The previous version
+  printed `SCANNED` with a proven sign-out on a real 0.7.1 host on
+  2026-10-02. This version, which adds the interrupted sign-in handling, is
   tested against a stand-in server only. (CP `bugs/OW-094`, `bugs/OW-097`)
 
 ## [0.8.1] Eyrie (2026-10-01)
