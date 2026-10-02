@@ -251,7 +251,10 @@ when both blocks below finish:
 1. The first block restarts the service and proves it loaded its rule
    library. It prints `VERIFIED` only after every check passes.
 2. The second block runs one compliance scan end to end. It prints
-   `SCANNED` only when the scan completes with no rule errors.
+   `SCANNED` only when the scan completes with no rule errors. On OpenWatch
+   0.7.1 and 0.8.1, run the
+   [session-based scan check](#run-one-scan-end-to-end-with-a-user-session)
+   instead, because those versions cannot start a scan with an API token.
 
 Other runbooks send you here after a restart, because the same blind spot
 applies to any restart.
@@ -271,6 +274,9 @@ block prints it.
 |---|---|---|
 | Rule library check | `scan:read` | `viewer` |
 | Scan check | `host:write` and `scan:read` | `ops_lead`, `security_admin` or `admin` |
+
+The session-based scan check for 0.7.1 and 0.8.1 uses no token. It signs in
+as a user, as described in its own section.
 
 The token must be valid in the database the service is running on. After a
 restore, that is the **restored** database: the token must have been created
@@ -458,6 +464,199 @@ not done. Read the scan's `failure_reason` in the UI or at
 `GET /api/v1/scans/{id}`, and the service journal. When the block stops before
 the server accepted the scan, a scan may still have started: look at the host's
 recent scans before you start another one.
+
+#### Run one scan end to end with a user session
+
+Use this check instead of the one above when the restored or rolled-back
+service runs OpenWatch 0.7.1 or 0.8.1. On those versions, a scan started with
+an API token answers HTTP `500`, even though the scan runs (CP
+`bugs/OW-097`). The token-based check above therefore always stops at stage
+`start` on them. This check starts its scan from a signed-in user session,
+which those versions handle correctly.
+
+**You need:**
+
+- A user account that holds `host:write` and `scan:read`, such as one with the
+  `ops_lead`, `security_admin` or `admin` role. The account must not use MFA:
+  the check cannot answer an MFA prompt. It must exist in the database the
+  service runs on, which after a restore is the restored database.
+- That user's password in a root-only file, for example:
+
+  ```bash
+  ( umask 077; cat > /root/openwatch-verify.password )
+  ```
+
+  Type the password, press Enter, then Ctrl-D. The check ignores line breaks
+  at the end of the file.
+- Python 3 with its standard `json` module, run as `python3`, as above.
+
+**How it keeps the password out of sight.** A short Python step reads the
+password file and writes the sign-in request to `curl` on standard input. The
+password never appears in a command line, the process list, the shell history
+or the block's output. The access token the server returns stays in a shell
+variable and is passed to `curl` on standard input, as in the token-based
+check. The session cookie lives in a private temporary directory that the
+check removes when it exits.
+
+**How it signs out, and how it proves it.** The check always signs out once it
+has signed in, whether the scan passed or the check stopped. Sign-out answers
+`204` even when it revokes nothing, so that answer proves nothing. The check
+sends the session cookie again after sign-out and expects `401`. It reports
+`signed out` only when both hold. Otherwise it prints `Sign-out not confirmed`
+with both answers, and you should sign that user out of every session in the
+UI. A failed sign-out does not change the scan result: when the scan passed,
+the check still prints `SCANNED` and exits `0`, with the warning above it.
+
+**What each stop means.** The check stops with `SCAN CHECK STOPPED` and the
+stage:
+
+| Stage | What it means | What to do |
+|---|---|---|
+| `inputs` | A value at the top is unfilled, or the password file is unreadable. Nothing was sent. | Fill in the values or fix the file. |
+| `login` | The sign-in failed. No scan was started. A `200` without an access token means the account uses MFA. | Check the password file before you try again: a wrong password counts toward the account's lockout. For MFA, use another account. |
+| `start` | The request that starts the scan got no usable answer. A scan may have started anyway. | Check the host's recent scans before you run the check again, as the message says. |
+| `poll` | The scan failed, finished with rule errors, did not finish in time, or a request about it failed. | Inspect the scan by its ID, as the message says. |
+
+This check never stops or restarts the service. Every request it makes is
+bounded. Signing in, signing out and the cookie check each carry
+`--connect-timeout 3 --max-time 10`. The scan requests carry
+`--connect-timeout 3 --max-time 5`, as in the check above. The check gives up
+after at most **950 seconds**: 10 to sign in, the 920 seconds of the scan wait
+above, and 20 to sign out and check the cookie.
+
+Fill in the three values at the top, then run the block as root:
+
+```bash
+(
+  set -euo pipefail
+  USER_NAME='<user-with-host-write-and-scan-read-and-no-mfa>'
+  PASSWORD_FILE='<root-only-file-holding-that-users-password>'
+  HOST_ID='<id-of-a-host-that-was-reachable-before-the-restore>'
+  URL=https://localhost:8443
+  STAGE=inputs
+  CODE=none
+  SCAN_ID=unknown
+  OUTCOME=none
+  SIGNED_IN=no
+  JAR_DIR=$(mktemp -d)
+  chmod 700 "$JAR_DIR"
+  JAR="$JAR_DIR/cookies"
+  # Sign-out answers 204 even when it revokes nothing, so the answer is not
+  # the proof. The proof is that the session cookie no longer authenticates.
+  sign_out() {
+    [ "$SIGNED_IN" = yes ] || return 0
+    SIGNED_IN=no
+    if ! grep -q 'openwatch_session' "$JAR" 2>/dev/null; then
+      echo "Sign-in issued no session cookie, so there is no session to sign out." >&2
+      return 0
+    fi
+    local out after
+    out=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
+        -b "$JAR" -X POST "$URL/api/v1/auth/logout" || echo none)
+    after=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
+        -b "$JAR" "$URL/api/v1/rules" || echo none)
+    if [ "$out" = 204 ] && [ "$after" = 401 ]; then
+      echo "signed out: the check's session cookie no longer authenticates" >&2
+    else
+      echo "Sign-out not confirmed (sign-out HTTP $out, session cookie afterwards HTTP $after)." >&2
+      echo "Sign out of every session for $USER_NAME in the UI." >&2
+    fi
+  }
+  on_stop() {
+    echo "SCAN CHECK STOPPED at line $1, stage: $STAGE." >&2
+    case "$STAGE" in
+      inputs)
+        echo "Nothing was changed. No scan was started, and the service was not touched." >&2 ;;
+      login)
+        if [ "$CODE" = 200 ]; then
+          echo "Sign-in answered without an access token, which is what an account with MFA gets." >&2
+          echo "No scan was started. Use an account without MFA for this check." >&2
+        else
+          echo "Sign-in failed (HTTP status: $CODE). No scan was started." >&2
+          echo "A wrong password counts toward the account's lockout. Check the file before you try again." >&2
+        fi ;;
+      start)
+        echo "Verification interrupted: the request that starts the scan got no usable answer (HTTP status: $CODE)." >&2
+        echo "Its outcome is unknown. A scan may have started anyway. Before you run this block again," >&2
+        echo "check this host's recent scans: GET /api/v1/scans?host_id=$HOST_ID, or the host's page in the UI." >&2 ;;
+      poll)
+        case "$OUTCOME" in
+          failed)
+            echo "Scan failed: scan $SCAN_ID ended failed, or completed with rule errors." >&2 ;;
+          unfinished)
+            echo "Scan did not finish: scan $SCAN_ID was still queued or running when the wait ended." >&2 ;;
+          *)
+            echo "Verification interrupted: a request about scan $SCAN_ID failed, so its real state is unknown." >&2 ;;
+        esac
+        echo "Inspect scan $SCAN_ID (GET /api/v1/scans/$SCAN_ID, or the UI) before you start another scan." >&2 ;;
+    esac
+    sign_out
+    echo "The service was left running. Do not call the restore complete." >&2
+  }
+  trap 'on_stop $LINENO' ERR
+  trap 'rm -rf "$JAR_DIR"' EXIT
+  case "$USER_NAME $PASSWORD_FILE $HOST_ID" in
+    *'<'*) echo "fill in the three values at the top first" >&2; false ;;
+  esac
+  [[ "$HOST_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+  python3 -I -S -c 'import json' >/dev/null 2>&1 || { echo "python3 with the json module is required" >&2; false; }
+  test -r "$PASSWORD_FILE"
+
+  # The password goes from the file to curl's standard input, never onto a
+  # command line. The access token stays in a shell variable.
+  STAGE=login
+  RESP=$(python3 -I -S -c 'import json,sys; print(json.dumps({"username": sys.argv[1], "password": open(sys.argv[2]).read().rstrip("\n")}))' \
+      "$USER_NAME" "$PASSWORD_FILE" |
+    curl -sk --connect-timeout 3 --max-time 10 -c "$JAR" -w '\n%{http_code}' \
+      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/auth/login")
+  CODE=${RESP##*$'\n'}
+  [ "$CODE" = 200 ]
+  SIGNED_IN=yes
+  ACCESS=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"${RESP%$'\n'*}")
+  [ -n "$ACCESS" ]
+  AUTH="header = \"Authorization: Bearer $ACCESS\""
+  KEY=$(cat /proc/sys/kernel/random/uuid)
+
+  STAGE=start
+  CODE=none
+  RESP=$(curl -sk --connect-timeout 3 --max-time 5 -w '\n%{http_code}' -X POST \
+      -H "Idempotency-Key: $KEY" -K - "$URL/api/v1/hosts/$HOST_ID/scans" <<<"$AUTH")
+  CODE=${RESP##*$'\n'}
+  [ "$CODE" = 202 ]
+  SCAN_ID=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin)["scan_id"])' <<<"${RESP%$'\n'*}")
+  [[ "$SCAN_ID" =~ ^[0-9a-fA-F-]{36}$ ]]
+  echo "scan started: $SCAN_ID"
+
+  STAGE=poll
+  STATE=unknown
+  DEADLINE=$((SECONDS + 900))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    OUTCOME=interrupted
+    BODY=$(curl -skf --connect-timeout 3 --max-time 5 -K - "$URL/api/v1/scans/$SCAN_ID" <<<"$AUTH")
+    STATE=$(python3 -I -S -c 'import json,sys; s=json.load(sys.stdin)["scan"]; print(s["status"], s.get("rules_error"))' <<<"$BODY")
+    OUTCOME=unfinished
+    case "$STATE" in
+      completed*|failed*) break ;;
+    esac
+    sleep 10
+  done
+  case "$STATE" in
+    "completed 0") ;;
+    completed*|failed*) OUTCOME=failed; false ;;
+    *) OUTCOME=unfinished; false ;;
+  esac
+  trap - ERR
+  sign_out
+  echo "SCANNED: scan $SCAN_ID completed with no rule errors"
+)
+```
+
+When it prints `SCANNED`, the restore is done. This check was run on a real
+OpenWatch 0.7.1 host on 2026-10-02 and printed `SCANNED` with a verified
+sign-out. The copy run there added a `per_page` query parameter to its cookie
+check. The block above drops it, because the API does not declare it and the
+server ignores it. Its stop paths are tested against
+a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)
 

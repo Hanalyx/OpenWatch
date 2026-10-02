@@ -75,6 +75,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   credential), 503 on `mfa:verify`, or an empty feed. Sessions are not
   affected. (CP `bugs/OW-098`)
 
+- **A restore or rollback to 0.7.1 is now verified with a user session.** On
+  0.7.1 and 0.8.1, a scan started with an API token answers `500` even though
+  the scan runs (CP `bugs/OW-097`), so the backup guide's scan check could not
+  pass there. The backup guide adds a scan check that signs in as a user, runs
+  one scan, and signs out. It proves the sign-out by sending the session cookie
+  again and expecting `401`. The password goes from a root-only file to `curl`
+  on standard input, never onto a command line. The upgrade guide's rollback
+  steps now point a rollback to 0.7.1 to this check. It printed `SCANNED` on a
+  real 0.7.1 host, and its stop paths are tested. (CP `bugs/OW-094`,
+  `bugs/OW-097`)
+
 ## [0.8.1] Eyrie (2026-10-01)
 
 **0.8.0 was not released.** `v0.8.0` was tagged and built into a draft
