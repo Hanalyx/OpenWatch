@@ -29,7 +29,8 @@ set -euo pipefail
 # and this runs in CI where nobody can attach to the container.
 diagnose() {
     echo "--- systemctl status openwatch ---" >&2
-    systemctl status openwatch --no-pager 2>&1 | head -20 >&2 || true
+    st="$(systemctl status openwatch --no-pager 2>&1)" || true
+    printf '%s\n' "$st" | sed -n '1,20p' >&2 || true
     echo "--- journalctl -u openwatch ---" >&2
     journalctl -u openwatch -n 30 --no-pager 2>&1 | tail -30 >&2 || true
 }
@@ -105,7 +106,11 @@ systemctl enable --now postgresql >/dev/null 2>&1 || fail "postgresql did not st
 for _ in $(seq 1 30); do runuser -u postgres -- psql -tAqc 'SELECT 1' >/dev/null 2>&1 && break; sleep 1; done
 
 install_pkgs "$OLD_DIR"
-openwatch --version | head -1
+# Capture, then print the first line. A pipe into head can end openwatch with
+# SIGPIPE while it writes its second line, and pipefail fails the run on it
+# (bugs/OW-102, job 111006579937).
+version_out="$(openwatch --version)"
+echo "${version_out%%$'\n'*}"
 
 # Provision by hand: this is the manual procedure the v0.6.0 guide documented,
 # and the state every upgrading operator is actually in.
@@ -140,7 +145,9 @@ PGPASSWORD=u2pass psql -h 127.0.0.1 -U openwatch -d openwatch -tAqc \
 
 systemctl enable --now openwatch >/dev/null 2>&1 || fail "the previous GA service did not start"
 for _ in $(seq 1 30); do
-    curl -sk --max-time 5 https://127.0.0.1:8443/api/v1/health 2>/dev/null | grep -q db_connected && break
+    case "$(curl -sk --max-time 5 https://127.0.0.1:8443/api/v1/health 2>/dev/null || true)" in
+        *db_connected*) break ;;
+    esac
     sleep 2
 done
 old_health="$(health)"
@@ -155,7 +162,9 @@ install_pkgs "$NEW_DIR"
 
 echo ">> asserting the upgrade"
 for _ in $(seq 1 45); do
-    curl -sk --max-time 5 https://127.0.0.1:8443/api/v1/health 2>/dev/null | grep -q db_connected && break
+    case "$(curl -sk --max-time 5 https://127.0.0.1:8443/api/v1/health 2>/dev/null || true)" in
+        *db_connected*) break ;;
+    esac
     sleep 2
 done
 new_health="$(health)"
@@ -181,7 +190,8 @@ marker="$(PGPASSWORD=u2pass psql -h 127.0.0.1 -U openwatch -d openwatch -tAqc 'S
 # on a real fleet has no way back.
 ls /var/lib/openwatch/backups/* >/dev/null 2>&1 || \
     fail "no pre-upgrade backup was taken"
-echo "   backup: $(ls /var/lib/openwatch/backups/ | head -1)"
+backups="$(ls /var/lib/openwatch/backups/)" || backups=""
+echo "   backup: ${backups%%$'\n'*}"
 
 systemctl is-active --quiet openwatch || fail "the service is not active after the upgrade"
 echo ">> OK: $OLD_VER upgraded to $NEW_VER in place, schema advanced, data preserved"
