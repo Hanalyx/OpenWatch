@@ -317,8 +317,9 @@ func TestAuditActor_TokenCallerIsActorAsAPIKey(t *testing.T) {
 }
 
 // TestAuditActor_TokenCallerDeferredByOW098 holds the four token cases whose
-// endpoint cannot complete for a token until bugs/OW-098 merges. It carries no
-// @ac annotation on purpose: a skipped case must not count as covering AC-19.
+// endpoint cannot complete for a token until bugs/OW-098 merges. It is left
+// unannotated on purpose: a skipped case must not count as coverage for the
+// token criterion.
 // When OW-098 merges, delete this test and the tokenDeferred field, so AC-19
 // runs all fourteen.
 func TestAuditActor_TokenCallerDeferredByOW098(t *testing.T) {
