@@ -9,6 +9,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,6 +49,19 @@ func (h *handlers) PostHostScan(
 	ctx := r.Context()
 	hostID := uuid.UUID(id)
 
+	// The requester is the accountable user, never ident.ID: on an API
+	// token ID is the token's own id, which scan_runs.requested_by (a
+	// users FK) cannot hold. An authenticated identity with no accountable
+	// user is a binder defect, refused before any side effect.
+	// Spec api-host-scan C-05; bugs/OW-097.
+	ident := auth.FromContext(ctx)
+	requester, ok := ident.AccountableUser()
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"caller has no accountable user", false)
+		return
+	}
+
 	// 404 before any side effect.
 	if _, err := h.hosts.GetByID(ctx, hostID); err != nil {
 		if errors.Is(err, host.ErrHostNotFound) {
@@ -86,7 +100,21 @@ func (h *handlers) PostHostScan(
 		"enqueued_at":    payload.EnqueuedAt.Format(time.RFC3339Nano),
 		"hmac":           fmt.Sprintf("%x", tag[:]),
 	}
-	jobID, err := queue.Enqueue(ctx, h.pool, "scan", body)
+	// The job and its logbook row commit together or not at all. Before
+	// this, the job was enqueued first, so a failed row insert answered
+	// 500 while the worker ran the scan anyway, recorded as 'scheduled'
+	// with no requester. Spec api-host-scan C-06; bugs/OW-097.
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"enqueue failed", true)
+		return
+	}
+	// A no-op once committed. WithoutCancel so a client disconnect cannot
+	// skip the rollback of a half-built pair.
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	jobID, err := queue.Enqueue(ctx, tx, "scan", body)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"enqueue failed", true)
@@ -98,28 +126,31 @@ func (h *handlers) PostHostScan(
 		ID:            jobID,
 		HostID:        hostID,
 		TriggerSource: scanruns.TriggerOnDemand,
+		RequestedBy:   &requester,
 	}
 	if corrID, ok := correlation.From(ctx); ok {
 		run.CorrelationID = corrID
 	}
-	ident := auth.FromContext(ctx)
-	if userID, perr := uuid.Parse(ident.ID); perr == nil {
-		run.RequestedBy = &userID
-	}
-	if err := scanruns.Insert(ctx, h.pool, run); err != nil {
-		// The job is already queued; the worker's MarkRunning UPSERT
-		// will still create a row (attributed 'scheduled'). Log-only.
+	if err := scanruns.Insert(ctx, tx, run); err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"scan run record failed", true)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"enqueue failed", true)
 		return
 	}
 
 	// Audit: who asked for the scan, from where. scan.started/
 	// completed/failed follow from the executor with the same scan id.
+	// The actor is the principal (a token's own id on the token arm);
+	// requested_by is the accountable user, the same value as the run row.
 	detail, _ := json.Marshal(map[string]string{
-		"scan_id": jobID.String(),
-		"host_id": hostID.String(),
-		"trigger": string(scanruns.TriggerOnDemand),
+		"scan_id":      jobID.String(),
+		"host_id":      hostID.String(),
+		"trigger":      string(scanruns.TriggerOnDemand),
+		"requested_by": requester.String(),
 	})
 	audit.Emit(ctx, audit.ScanQueued, audit.Event{
 		ActorType: "user",

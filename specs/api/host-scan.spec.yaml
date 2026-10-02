@@ -1,7 +1,7 @@
 spec:
   id: api-host-scan
   title: On-demand compliance scan API — POST /hosts/{id}/scans
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -35,6 +35,8 @@ spec:
         - POST /api/v1/hosts/{id}/scans
         - scan_runs Insert (on_demand + requested_by + correlation id)
         - scan.queued audit emission
+        - requester attribution for session and API-token callers
+        - atomic job and run insertion
         - 400 / 403 / 404 / 409 envelope behavior
       excludes:
         - The worker execution chain (system-kensa-executor,
@@ -57,6 +59,27 @@ spec:
       enforcement: error
     - id: C-04
       description: Idempotency-Key header is required (400 when absent). The 404 host check precedes enqueue and run insertion — no side effects for unknown hosts.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        scan_runs.requested_by and the scan.queued detail's requested_by MUST
+        be the caller's accountable user (auth.Identity.AccountableUser): the
+        signed-in user on a session, the token's owner on an API token. The
+        identity's ID MUST NOT be written there, because on the token arm it
+        is the token's own id and not a users row. The audit actor stays the
+        principal (the token's id on the token arm). An authenticated caller
+        with no accountable user is refused before any side effect.
+        bugs/OW-097.
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >-
+        The queue job and its scan_runs row MUST commit in one transaction.
+        When either insert fails, neither row persists, the endpoint answers
+        5xx, no scan.queued event is emitted, and no worker can claim the
+        job. bugs/OW-097, where a failed row insert answered 500 while the
+        already-queued job ran, recorded as scheduled with no requester.
       type: technical
       enforcement: error
 
@@ -86,6 +109,26 @@ spec:
       priority: critical
       references_constraints: [C-02]
     - id: AC-07
-      description: A successful POST emits exactly one scan.queued audit event whose detail carries scan_id, host_id, and trigger on_demand, attributed to the calling user.
+      description: A successful POST from a session emits exactly one scan.queued audit event whose detail carries scan_id, host_id, trigger on_demand, and requested_by equal to the signed-in user, with actor_id equal to that same user.
       priority: high
-      references_constraints: [C-01]
+      references_constraints: [C-01, C-05]
+    - id: AC-08
+      description: >-
+        POST /hosts/{id}/scans with a real owk_ API token (role ops_lead,
+        created by the admin user) returns 202. The scan_runs row has
+        trigger_source on_demand, requested_by equal to the token's owner
+        (not the token id), and a non-empty correlation id; a job_queue row
+        with the same id exists; exactly one scan.queued event carries
+        actor_id equal to the token id and detail requested_by equal to the
+        owner.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-09
+      description: >-
+        With the scan_runs insert forced to fail for one host (a database
+        trigger), a POST from a session and a POST from an API token each
+        return 500, and afterwards the host has zero job_queue scan jobs,
+        zero scan_runs rows, and zero scan.queued events. A positive control
+        on the same counts (trigger removed) records exactly one job.
+      priority: critical
+      references_constraints: [C-06]

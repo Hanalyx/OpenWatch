@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A scan started with an API token answered 500, and the scan ran anyway.**
+  `POST /api/v1/hosts/{id}/scans` recorded the token's own id as the
+  requester. That column only accepts a user, so the insert failed. The job
+  was already queued, so the worker ran the scan and recorded it as
+  scheduled, with no requester and no `scan.queued` event. A caller that
+  retried could start a second scan. The requester is now the token's owner,
+  and the audit event names the token as the actor and the owner as
+  `requested_by`. The job and its run record are now written together, so a
+  failed request leaves no queued work. Measured on 0.7.1; 0.8.1 has the
+  same code. (CP `bugs/OW-097`)
+
 ## [0.8.1] Eyrie (2026-10-01)
 
 **0.8.0 was not released.** `v0.8.0` was tagged and built into a draft

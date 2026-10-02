@@ -251,8 +251,11 @@ func TestHostScan_EmitsScanQueuedAudit(t *testing.T) {
 				WHERE action = 'scan.queued'
 				  AND detail->>'scan_id' = $1
 				  AND detail->>'host_id' = $2
-				  AND detail->>'trigger' = 'on_demand'`,
-				body.ScanID.String(), hostID.String()).Scan(&n)
+				  AND detail->>'trigger' = 'on_demand'
+				  AND actor_id = $3
+				  AND detail->>'requested_by' = $3`,
+				body.ScanID.String(), hostID.String(),
+				roleUserIDs[auth.RoleOpsLead].String()).Scan(&n)
 			if n == 1 {
 				break
 			}

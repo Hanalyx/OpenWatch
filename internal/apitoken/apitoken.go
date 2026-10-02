@@ -166,7 +166,7 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) error {
 // Spec system-api-tokens C-02, C-04; bugs/OW-071.
 func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Identity, error) {
 	const stmt = `
-		SELECT t.id, t.role_id, t.expires_at,
+		SELECT t.id, t.role_id, t.expires_at, u.id,
 		       u.id IS NULL,
 		       u.disabled_at IS NOT NULL,
 		       u.deleted_at IS NOT NULL
@@ -175,12 +175,13 @@ func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Ident
 		WHERE t.token_hash = $1 AND t.revoked_at IS NULL`
 	var (
 		id                             uuid.UUID
+		owner                          *uuid.UUID
 		roleID                         string
 		expiresAt                      *time.Time
 		ownerAbsent, disabled, deleted bool
 	)
 	err := s.pool.QueryRow(ctx, stmt, hashToken(raw)).Scan(
-		&id, &roleID, &expiresAt, &ownerAbsent, &disabled, &deleted)
+		&id, &roleID, &expiresAt, &owner, &ownerAbsent, &disabled, &deleted)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return auth.Identity{}, ErrInvalidToken
@@ -200,5 +201,9 @@ func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Ident
 	}
 	// Best-effort usage stamp; never blocks auth on failure.
 	_, _ = s.pool.Exec(ctx, `UPDATE api_tokens SET last_used_at = now() WHERE id = $1`, id)
-	return auth.Identity{ID: id.String(), RoleID: auth.RoleID(roleID)}, nil
+	// ID stays the token's own id: it is the principal the audit trail
+	// names. UserID is the owner, the account answerable for what the token
+	// does, and the only one of the two that is a users row. ownerAbsent is
+	// refused above, so owner is set here. Spec C-05; bugs/OW-097.
+	return auth.Identity{ID: id.String(), UserID: *owner, RoleID: auth.RoleID(roleID)}, nil
 }

@@ -8,8 +8,15 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// Execer is the write surface Enqueue needs. A *pgxpool.Pool satisfies it,
+// and so does a pgx.Tx, which lets a caller commit the job together with
+// the rows that describe it, or roll both back. bugs/OW-097.
+type Execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
 
 // Enqueue persists a new job_queue row, immediately dequeuable. The caller's
 // ctx MUST carry a correlation_id; this is a programming-error guard per spec
@@ -20,7 +27,7 @@ import (
 // attempts=0 until a worker claims it via Dequeue.
 //
 // Spec system-job-queue AC-01.
-func Enqueue(ctx context.Context, pool *pgxpool.Pool, jobType string, payload any) (uuid.UUID, error) {
+func Enqueue(ctx context.Context, pool Execer, jobType string, payload any) (uuid.UUID, error) {
 	return EnqueueAfter(ctx, pool, jobType, payload, 0)
 }
 
@@ -31,7 +38,7 @@ func Enqueue(ctx context.Context, pool *pgxpool.Pool, jobType string, payload an
 // re-dequeue loop, since Dequeue skips not-yet-available rows.
 //
 // Spec system-job-queue AC-13 (delayed visibility).
-func EnqueueAfter(ctx context.Context, pool *pgxpool.Pool, jobType string, payload any, delay time.Duration) (uuid.UUID, error) {
+func EnqueueAfter(ctx context.Context, pool Execer, jobType string, payload any, delay time.Duration) (uuid.UUID, error) {
 	corrID, ok := correlation.From(ctx)
 	if !ok {
 		return uuid.Nil, ErrMissingCorrelation

@@ -147,3 +147,38 @@ func TestListAndInvalidParams(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-07
+// AC-07: the token identity names its owner as the accountable user and
+// keeps the token's own id as ID. bugs/OW-097: a handler that wrote ID into
+// a users FK failed for every token caller, because ID is not a users row.
+func TestAuthenticate_IdentityCarriesOwnerAsAccountableUser(t *testing.T) {
+	t.Run("system-api-tokens/AC-07", func(t *testing.T) {
+		svc, pool := freshService(t)
+		ctx := context.Background()
+		owner := activeOwner(t, pool)
+		raw, tok, err := svc.Create(ctx, CreateParams{Name: "ci", RoleID: auth.RoleOpsLead, CreatedBy: owner})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		id, err := svc.AuthenticateToken(ctx, raw)
+		if err != nil {
+			t.Fatalf("AuthenticateToken: %v", err)
+		}
+		if id.ID != tok.ID.String() {
+			t.Errorf("ID = %q, want the token's own id %s", id.ID, tok.ID)
+		}
+		got, ok := id.AccountableUser()
+		if !ok || got != *owner {
+			t.Errorf("AccountableUser = (%s, %v), want (%s, true)", got, ok, *owner)
+		}
+		if got == tok.ID {
+			t.Error("AccountableUser is the token id; it must be the owning user")
+		}
+		// The owner is a users row: the value can fill a users FK.
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, got).Scan(&n); err != nil || n != 1 {
+			t.Errorf("accountable user %s is not a users row (count %d, err %v)", got, n, err)
+		}
+	})
+}

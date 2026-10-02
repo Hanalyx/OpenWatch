@@ -533,11 +533,18 @@ events:
   # =========================================================================
   - code: scan.queued
     severity: info
+    # scan_id, host_id, trigger and requested_by are what POST
+    # /hosts/{id}/scans emits; requested_by is the accountable user (a
+    # token's owner on the token arm). bugs/OW-097.
     detail_schema:
       type: object
       properties:
         framework: {type: string}
         template_id: {type: [string, 'null']}
+        scan_id: {type: string}
+        host_id: {type: string}
+        trigger: {type: string}
+        requested_by: {type: string}
 
   - code: scan.started
     severity: info

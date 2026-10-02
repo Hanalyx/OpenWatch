@@ -33,6 +33,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/version"
@@ -89,9 +90,15 @@ type Counts struct {
 	Error   int
 }
 
+// Execer is the write surface Insert needs: a *pgxpool.Pool, or a pgx.Tx
+// when the run must commit together with its queue job. bugs/OW-097.
+type Execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 // Insert records a freshly-enqueued run (status 'queued'). The id MUST
 // be the queue job id so the run correlates with transactions.scan_id.
-func Insert(ctx context.Context, pool *pgxpool.Pool, r Run) error {
+func Insert(ctx context.Context, pool Execer, r Run) error {
 	if r.TriggerSource == "" {
 		return errors.New("scanruns: TriggerSource is required")
 	}
