@@ -91,17 +91,14 @@ func denyPermission(w http.ResponseWriter, r *http.Request, p Permission, id Ide
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
 
-	actorID := id.ID
-	if actorID == "" {
-		actorID = "anonymous"
-	}
 	detail, _ := json.Marshal(map[string]any{
 		"required_permission": string(p),
 		"actor_role":          string(id.RoleID),
 	})
-	audit.Emit(r.Context(), audit.AuthzPermissionDenied, audit.Event{
-		ActorType: "user",
-		ActorID:   actorID,
-		Detail:    detail,
-	})
+	// The denied caller as itself: a token is api_key, a user is user, and
+	// an unauthenticated caller is anonymous, never a user named
+	// "anonymous". bugs/OW-100.
+	ev := audit.Event{Detail: detail}
+	id.AuditActor().Set(&ev)
+	audit.Emit(r.Context(), audit.AuthzPermissionDenied, ev)
 }

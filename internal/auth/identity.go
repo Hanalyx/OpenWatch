@@ -128,6 +128,20 @@ func (i Identity) AuditActor() audit.Actor {
 	}
 }
 
+// RequestActor returns the audit actor for the request on ctx: the bound
+// identity's AuditActor (a token as itself, a user as the user). When no
+// identity is bound, which happens only on a direct call outside a request
+// (a worker, a test), it returns fallback. Services that record an
+// accountable user in their own columns use this for the audit actor, so a
+// token's action is never attributed to its owner. Spec
+// system-audit-emission C-12; bugs/OW-100.
+func RequestActor(ctx context.Context, fallback audit.Actor) audit.Actor {
+	if id := FromContext(ctx); !id.IsAnonymous && id.ID != "" {
+		return id.AuditActor()
+	}
+	return fallback
+}
+
 type ctxKey struct{}
 
 // SetIdentity returns a derived context with the identity attached.

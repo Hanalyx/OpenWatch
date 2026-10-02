@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 )
 
 // EmitFunc mirrors audit.Emit's signature so callers can substitute a
@@ -106,8 +107,8 @@ func (s *Store) SetConnectivity(ctx context.Context, cfg ConnectivityConfig, cha
 	// write.
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyConnectivity,
 				"old_value":  oldCfg,
@@ -209,8 +210,8 @@ func (s *Store) SetIntelligence(ctx context.Context, cfg IntelligenceConfig, cha
 
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyIntelligence,
 				"old_value":  oldCfg,
@@ -291,8 +292,8 @@ func (s *Store) SetDiscovery(ctx context.Context, cfg DiscoveryConfig, changedBy
 
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyDiscovery,
 				"old_value":  oldCfg,
@@ -375,8 +376,8 @@ func (s *Store) SetScan(ctx context.Context, cfg ScanConfig, changedBy string) (
 
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyScan,
 				"old_value":  oldCfg,
@@ -459,8 +460,8 @@ func (s *Store) SetScanVars(ctx context.Context, vars ScanVariables, changedBy s
 
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyScanVars,
 				"old_value":  oldVars,
@@ -535,8 +536,8 @@ func (s *Store) SetCompliance(ctx context.Context, cfg ComplianceConfig, changed
 
 	if s.emit != nil {
 		s.emit(ctx, audit.SystemConfigChanged, audit.Event{
-			ActorType: "user",
-			ActorID:   changedBy,
+			ActorType: configActor(ctx, changedBy).Type,
+			ActorID:   configActor(ctx, changedBy).ID,
 			Detail: audit.MakeDetail(map[string]any{
 				"config_key": KeyCompliance,
 				"old_value":  oldCfg,
@@ -546,4 +547,16 @@ func (s *Store) SetCompliance(ctx context.Context, cfg ComplianceConfig, changed
 		})
 	}
 	return cfg, nil
+}
+
+// configActor is the audit actor for a configuration change: the request
+// principal (api_key for a token, user for a session), falling back to a
+// user named by changedBy for a direct call outside a request. changed_by
+// stays the free-text value it always was. bugs/OW-100.
+func configActor(ctx context.Context, changedBy string) audit.Actor {
+	fallback := audit.Actor{Type: audit.ActorUser, ID: changedBy}
+	if changedBy == "" || changedBy == "anonymous" {
+		fallback = audit.AnonymousActor()
+	}
+	return auth.RequestActor(ctx, fallback)
 }

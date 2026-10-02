@@ -63,6 +63,23 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `actor_id` holds the id of the changed object, not of whoever acted, so
   those rows do not reliably say who made the change. This release does not
   rewrite them, and OpenWatch does not try to work out who acted.
+- **Audit filters and exports missed what API tokens did.** Many events
+  recorded an API token as `actor_type` `user`, so filtering the audit log or
+  its export on `api_key` returned nothing for a token's actions. This
+  affected system configuration, scan start, report generation and schedules,
+  remediation execute and rollback, permission denials and the diagnostics
+  echo. Exception, remediation and alert events went further: a token's action
+  was recorded as the person who owns the token. Each event now names the
+  caller as itself: `api_key` and the token's id for a token, `user` for a
+  signed-in user. The owner stays in the request's requester or reviewer
+  fields. (CP `bugs/OW-100`)
+
+  **Rows written before this fix are not repaired.** In earlier releases, an
+  action an API token took through the events above was recorded with
+  `actor_type` `user`. Nothing in those rows says the caller was a token, so
+  they cannot be told apart from a person's actions, and this release does not
+  rewrite them. Recording a token's action as its owner happened only in
+  unreleased builds.
 
 ### Changed
 

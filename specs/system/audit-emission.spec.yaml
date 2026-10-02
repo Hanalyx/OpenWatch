@@ -1,7 +1,7 @@
 spec:
   id: system-audit-emission
   title: Audit event emission
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 1
 
@@ -109,6 +109,24 @@ spec:
         authz.role.assigned. bugs/OW-099.
       type: security
       enforcement: error
+    - id: C-12
+      description: >-
+        v1.4.0 - Every event attributed to a request MUST name the request
+        principal as its actor, taken from the bound identity
+        (auth.Identity.AuditActor via auth.RequestActor): actor_type user
+        with the user's id for a session, actor_type api_key with the
+        token's own id for an API token, and anonymous with no id for an
+        unauthenticated caller. This holds for events emitted by services,
+        middleware and the remediation worker, not only by handlers. A
+        service that records an accountable user in its own columns
+        (requested_by, reviewed_by, acknowledged_by) MUST NOT reuse that
+        user as the audit actor: for a token that user is the owner, and
+        recording it would attribute the token's action to a person. The
+        remediation job payload carries the actor type, covered by its
+        HMAC; a payload signed before the field existed means a user.
+        bugs/OW-100.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Codegen produces events.gen.go with one typed constant per event in events.yaml.
@@ -206,3 +224,51 @@ spec:
         id.
       priority: high
       references_constraints: [C-10]
+    - id: AC-21
+      description: >-
+        v1.4.0 - Twenty audited requests are each sent by an admin session
+        and by an admin-role API token. For every row they produce, the
+        actor is the caller as itself: user and the admin's id for the
+        session; api_key and the token's id for the token, never the token's
+        owner. The requests cover system configuration (compliance, scan),
+        scan.queued, report.generated, report.schedule.created, toggled and
+        deleted, the remediation execute intent, the diagnostics echo, and
+        compliance.exception.requested, approved, rejected and revoked. They
+        also cover remediation.requested with its auto-approval,
+        remediation.approved for an approve and for a reject, and
+        alert.acknowledged, silenced, resolved and dismissed.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-22
+      description: >-
+        v1.4.0 - authz.permission.denied names the denied caller: api_key
+        and the token's id for an under-privileged token, and user with the
+        user's id for a viewer session.
+      priority: high
+      references_constraints: [C-12]
+    - id: AC-23
+      description: >-
+        v1.4.0 - After the AC-21 requests run as a token, every row naming
+        the token has actor_type api_key. GET /api/v1/audit/events with
+        actor_type=api_key returns all of them, and with actor_type=user
+        returns none. The JSON export, filtered the same two ways, gives the
+        same counts.
+      priority: critical
+      references_constraints: [C-12]
+    - id: AC-24
+      description: >-
+        v1.4.0 - host.discovery.completed names a token-bound request as
+        api_key with the token's id (never the owner), a session as user,
+        and a run with no identity as the system.
+      priority: high
+      references_constraints: [C-12]
+    - id: AC-25
+      description: >-
+        v1.4.0 - A remediation payload signed with actor type api_key
+        verifies. Removing the type, or relabeling it user, breaks the
+        HMAC. The wire round trip keeps the type, and the worker attributes
+        the job as api_key with the token's id. A payload without the type
+        still verifies and is attributed as a user. A payload with no actor
+        is system work.
+      priority: high
+      references_constraints: [C-12]
