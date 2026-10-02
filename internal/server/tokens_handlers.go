@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Hanalyx/openwatch/internal/apitoken"
+	"github.com/Hanalyx/openwatch/internal/audit"
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	openapitypes "github.com/oapi-codegen/runtime/types"
@@ -68,6 +70,9 @@ func (h *handlers) PostAPIToken(w http.ResponseWriter, r *http.Request) {
 			"create token failed", true)
 		return
 	}
+	// The secret is returned once and never audited. Spec system-api-tokens
+	// C-09; bugs/OW-101.
+	emitCallerAudit(r, audit.AuthApiTokenIssued, auditTarget{Type: auditResourceAPIToken, ID: t.ID.String()}, apiTokenAuditDetail(t))
 	writeJSON(w, http.StatusCreated, api.ApiTokenCreated{Token: raw, ApiToken: toAPIToken(t)})
 }
 
@@ -76,12 +81,35 @@ func (h *handlers) DeleteAPIToken(w http.ResponseWriter, r *http.Request, id ope
 	if denied := auth.EnforcePermission(w, r, auth.TokenDelete); denied {
 		return
 	}
-	if err := h.apiTokenSvc.Revoke(r.Context(), uuid.UUID(id)); err != nil {
+	t, revoked, err := h.apiTokenSvc.RevokeToken(r.Context(), uuid.UUID(id))
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"revoke token failed", true)
 		return
 	}
+	// Audit only a real transition. Revoking a missing or already-revoked
+	// token stays an idempotent 204 and changes nothing, so it records
+	// nothing. Spec system-api-tokens C-09; bugs/OW-101.
+	if revoked {
+		emitCallerAudit(r, audit.AuthApiTokenRevoked, auditTarget{Type: auditResourceAPIToken, ID: t.ID.String()}, apiTokenAuditDetail(t))
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiTokenAuditDetail is what an API-token event records about the token:
+// only metadata the token list already returns. Never the secret, its
+// hash, or anything that can authenticate. bugs/OW-101.
+func apiTokenAuditDetail(t apitoken.Token) map[string]any {
+	d := map[string]any{
+		"name":       t.Name,
+		"prefix":     t.Prefix,
+		"role_id":    t.RoleID,
+		"expires_at": nil,
+	}
+	if t.ExpiresAt != nil {
+		d["expires_at"] = t.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return d
 }
 
 func toAPIToken(t apitoken.Token) api.ApiToken {

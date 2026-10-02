@@ -149,6 +149,33 @@ events:
       properties:
         reason: {type: string, enum: [user_logout, admin_revoke, suspicious_activity, token_rotation, session_expiry]}
 
+  # API tokens (owk_), distinct from the session access and refresh tokens
+  # above. The secret and its hash are never recorded: the detail carries
+  # only what the token list already shows. bugs/OW-101.
+  - code: auth.api_token.issued
+    severity: info
+    description: An API token was created
+    actor_types: [user, api_key]
+    detail_schema:
+      type: object
+      properties:
+        name: {type: string}
+        prefix: {type: string, description: The non-secret display prefix that GET /tokens also returns}
+        role_id: {type: string}
+        expires_at: {type: [string, 'null']}
+
+  - code: auth.api_token.revoked
+    severity: warning
+    description: An API token was revoked
+    actor_types: [user, api_key]
+    detail_schema:
+      type: object
+      properties:
+        name: {type: string}
+        prefix: {type: string, description: The non-secret display prefix that GET /tokens also returns}
+        role_id: {type: string}
+        expires_at: {type: [string, 'null']}
+
   - code: auth.mfa.enrolled
     severity: info
     description: User completed MFA enrollment
