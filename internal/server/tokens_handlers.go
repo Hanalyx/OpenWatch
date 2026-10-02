@@ -97,13 +97,29 @@ func toAPIToken(t apitoken.Token) api.ApiToken {
 	}
 }
 
-// callerUUID returns the authenticated user's id as a *uuid.UUID, or nil
-// when the identity id is not a UUID (e.g. an API token acting on behalf
-// of automation).
+// callerUUID returns the caller's accountable user (the signed-in user, or
+// an API token's owner) for a created_by or updated_by column, or nil when
+// none is bound. It is attribution only: it grants nothing, and a
+// self-scoped read must not use it, because a token would then read its
+// owner's data. Spec system-api-tokens C-06; bugs/OW-098.
 func callerUUID(r *http.Request) *uuid.UUID {
-	id := auth.FromContext(r.Context())
-	if u, err := uuid.Parse(id.ID); err == nil {
-		return &u
+	u, ok := auth.FromContext(r.Context()).AccountableUser()
+	if !ok {
+		return nil
 	}
-	return nil
+	return &u
+}
+
+// refuseAPIToken answers 403 and returns true when the caller authenticated
+// with an API token. It guards the endpoints that act on the calling user's
+// own account or inbox (profile, preferences, MFA, password, notification
+// feed). A token is not that user: letting it act there would hand it the
+// owner's account. Spec system-api-tokens C-07; bugs/OW-098.
+func refuseAPIToken(w http.ResponseWriter, r *http.Request) bool {
+	if !auth.FromContext(r.Context()).IsAPIToken {
+		return false
+	}
+	writeError(w, http.StatusForbidden, "auth.api_token_not_allowed", "client",
+		"this endpoint acts on a signed-in user's own account; API tokens cannot use it", false)
+	return true
 }

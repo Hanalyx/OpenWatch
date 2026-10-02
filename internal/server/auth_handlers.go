@@ -709,6 +709,11 @@ func (h *handlers) GetAuthMe(w http.ResponseWriter, r *http.Request) {
 			"authentication required", false)
 		return
 	}
+	// A token is not the user whose account this acts on.
+	// Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
+		return
+	}
 	userID, err := uuid.Parse(id.ID)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "auth.required", "client",
@@ -731,6 +736,11 @@ func (h *handlers) PostAuthMFAEnroll(w http.ResponseWriter, r *http.Request) {
 	if id.IsAnonymous {
 		writeError(w, http.StatusUnauthorized, "auth.required", "client",
 			"authentication required", false)
+		return
+	}
+	// A token is not the user whose account this acts on.
+	// Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
 		return
 	}
 	userID, err := uuid.Parse(id.ID)
@@ -783,6 +793,11 @@ func (h *handlers) PostAuthMFAVerify(w http.ResponseWriter, r *http.Request) {
 	if id.IsAnonymous {
 		writeError(w, http.StatusUnauthorized, "auth.required", "client",
 			"authentication required", false)
+		return
+	}
+	// A token is not the user whose account this acts on.
+	// Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
 		return
 	}
 	var req api.AuthMFAVerifyRequest
@@ -854,6 +869,11 @@ func (h *handlers) PostAuthPasswordChange(w http.ResponseWriter, r *http.Request
 			"authentication required", false)
 		return
 	}
+	// A token is not the user whose account this acts on.
+	// Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
+		return
+	}
 	var req api.AuthPasswordChangeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation.field_required", "client",
@@ -910,6 +930,11 @@ func (h *handlers) PatchAuthMe(w http.ResponseWriter, r *http.Request) {
 	if id.IsAnonymous {
 		writeError(w, http.StatusUnauthorized, "auth.required", "client",
 			"authentication required", false)
+		return
+	}
+	// A token is not the user whose account this acts on.
+	// Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
 		return
 	}
 	userID, err := uuid.Parse(id.ID)

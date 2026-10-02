@@ -1,7 +1,7 @@
 spec:
   id: system-user-preferences
   title: Per-user UI preferences — server-side persistence + self-scoped HTTP surface
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -61,6 +61,14 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-05
+      description: >-
+        v1.1.0 - GET and PATCH /api/v1/users/me/preferences MUST refuse an
+        API token with 403 auth.api_token_not_allowed. Preferences belong to
+        a signed-in user, and a token is not that user
+        (system-api-tokens C-07, bugs/OW-098).
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: GET /api/v1/users/me/preferences as an authenticated user who has never set a preference returns 200 with an empty object {} (every key absent), not an error.
@@ -82,3 +90,8 @@ spec:
       description: The userpref service Merge against an unknown user id returns ErrUserNotFound (no row updated), and Get against an unknown user id returns ErrUserNotFound; Get for a real user with the default column returns the '{}' object.
       priority: high
       references_constraints: [C-01, C-02]
+    - id: AC-06
+      description: >-
+        v1.1.0 - With a valid API token, GET and PATCH /api/v1/users/me/preferences answer 403 auth.api_token_not_allowed, and the token owner's stored preferences are unchanged.
+      priority: high
+      references_constraints: [C-05]

@@ -1,7 +1,7 @@
 spec:
   id: system-api-tokens
   title: API service-account tokens — hashed store + bearer authentication
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -38,6 +38,8 @@ spec:
         - "AuthenticateToken: reject unknown/revoked/expired; stamp last_used_at"
         - "identity.Binder routes auth.APITokenPrefix bearer values to the token authenticator"
         - "The token identity names its owner as the accountable user"
+        - "Actor, accountable owner and effective permissions kept distinct for token callers"
+        - "Self-service and notification-feed refusal for tokens"
       excludes:
         - "Per-token permission subsets (tokens are role-scoped)"
         - "Token rotation / expiry-warning jobs (follow-up)"
@@ -84,6 +86,46 @@ spec:
         token caller takes AccountableUser, never ID. The session-cookie and
         Bearer-JWT arms of the binder set UserID to the signed-in user.
         bugs/OW-097.
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >-
+        A token acts as three distinct things, and each MUST be used for its
+        own purpose. Its id (auth.Identity.ID) is the actor: audit events,
+        signed job payloads and free-text "changed by" fields record the
+        token. Its owner (AccountableUser) is the accountable user: every
+        column that references users(id) (created_by, updated_by,
+        granted_by, requested_by, reviewed_by, acknowledged_by, resolved_by)
+        records the owner, never the token id. Every "acting on yourself"
+        rule compares the owner: separation of duties (a request opened by
+        the owner, through a session or any of the owner's tokens, cannot be
+        reviewed by the owner, through a session or any of the owner's
+        tokens), the self-disable lockout guard, and the self flag on a
+        password reset. bugs/OW-098.
+      type: security
+      enforcement: error
+    - id: C-07
+      description: >-
+        Endpoints that act on the calling user's own account or inbox MUST
+        refuse an API token with 403 auth.api_token_not_allowed, before any
+        side effect: GET and PATCH /auth/me, POST /auth/mfa:enroll, POST
+        /auth/mfa:verify, POST /auth/password:change, GET and PATCH
+        /users/me/preferences, GET /notifications/feed, POST
+        /notifications/feed:read-all and POST
+        /notifications/feed/{id}:read. A token is not that user. Resolving
+        these to the owner would let a token change its owner's password or
+        MFA, or read the owner's notifications. The identity says it is a
+        token through auth.Identity.IsAPIToken, set only by
+        AuthenticateToken; it is never inferred from ID and UserID
+        differing. bugs/OW-098.
+      type: security
+      enforcement: error
+    - id: C-08
+      description: >-
+        A token's permissions MUST come only from its own role. Recording
+        the owner as the accountable user grants nothing. A token whose role
+        lacks a permission is refused even when its owner holds it.
+        bugs/OW-098.
       type: security
       enforcement: error
     - id: C-03
@@ -155,3 +197,66 @@ spec:
         row.
       priority: critical
       references_constraints: [C-02, C-05]
+    - id: AC-08
+      description: >-
+        With a real admin-role token created by the admin user, these writes
+        succeed and record the owner, never the token id, in their
+        users-referencing column: POST /hosts, POST /credentials, POST
+        /credentials/{id}:clone, POST /users/{id}/roles:assign, PUT
+        /auth-policy, POST /sso/providers, POST /tokens, POST
+        /hosts/{id}/exceptions, POST /exceptions/{id}:approve and :reject,
+        POST /remediation/requests, POST
+        /remediation/requests/{rid}:approve, POST /alerts/{id}:acknowledge
+        and :resolve, and POST /reports/schedules.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-09
+      description: >-
+        Separation of duties across a user's session and two of their
+        tokens, for a user who holds both request and approve. An exception
+        requested by token A cannot be approved by token B, by token A, or
+        by the owner's session (409 exceptions.self_review). An exception the
+        owner's session requested cannot be rejected by the owner's token. A
+        remediation request opened by token A cannot be approved by token B
+        or rejected by the owner's session (409 remediation.self_review).
+        Each refused request leaves the status unchanged. An independent
+        authorized user then approves each one, and is recorded as the
+        reviewer.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-10
+      description: >-
+        A token cannot disable its own owner: POST /users/{owner}:disable
+        with the owner's admin-role token answers 409
+        users.cannot_disable_self, the owner stays enabled, and the token
+        keeps working. A password reset of the owner by the owner's token is
+        audited with detail self = true and the token as actor.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-11
+      description: >-
+        Each endpoint listed in C-07 answers 403 auth.api_token_not_allowed
+        to a valid token and changes nothing for the owner: profile and
+        preferences unchanged, no MFA secret, the owner's notification still
+        unread, and no feed items returned. The owner's own session still
+        reads /auth/me and its feed.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-12
+      description: >-
+        An ops_lead token owned by an admin is refused (403) for PUT
+        /auth-policy, POST /credentials, POST /exceptions/{id}:approve,
+        assigning the admin role, disabling a user, and minting an admin
+        token, all of which its owner may do. Nothing those requests would
+        change is changed. Within its own role the token succeeds.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-13
+      description: >-
+        Only the role foreign key is reported as the caller's bad input.
+        Assigning an unknown role answers ErrUnknownRole, and an unknown SSO
+        default role or token role answers ErrInvalidParams. A granted_by or
+        created_by that is not a user is reported as neither, in the users,
+        SSO and token stores.
+      priority: high
+      references_constraints: [C-06]

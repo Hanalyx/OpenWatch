@@ -86,7 +86,7 @@ func (h *handlers) PostUserResetPassword(w http.ResponseWriter, r *http.Request,
 	caller := auth.FromContext(r.Context()).ID
 	emitAudit(r, audit.AdminUserPasswordReset, caller, map[string]any{
 		"target_user_id": id.String(),
-		"self":           caller == id.String(),
+		"self":           isSelf(r, uuid.UUID(id)),
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -98,8 +98,11 @@ func (h *handlers) PostUserDisable(w http.ResponseWriter, r *http.Request, id op
 		return
 	}
 	caller := auth.FromContext(r.Context()).ID
-	// Lockout prevention: an admin must not disable their own account.
-	if caller == id.String() {
+	// Lockout prevention: an admin must not disable their own account, and
+	// neither may one of their API tokens. The comparison is on the
+	// accountable user, because a token's ID never equals its owner's.
+	// Spec system-api-tokens C-06; bugs/OW-098.
+	if isSelf(r, uuid.UUID(id)) {
 		writeError(w, http.StatusConflict, "users.cannot_disable_self", "client",
 			"you cannot disable your own account", false)
 		return
@@ -140,4 +143,13 @@ func (h *handlers) PostUserEnable(w http.ResponseWriter, r *http.Request, id ope
 		"revocation_scope": scope,
 	})
 	writeJSON(w, http.StatusOK, userResponse(u))
+}
+
+// isSelf reports whether target is the caller's accountable user: the
+// signed-in user, or an API token's owner. Every "acting on yourself" rule
+// compares this, never the identity's ID, which on a token is the token's
+// own id. Spec system-api-tokens C-06; bugs/OW-098.
+func isSelf(r *http.Request, target uuid.UUID) bool {
+	u, ok := auth.FromContext(r.Context()).AccountableUser()
+	return ok && u == target
 }

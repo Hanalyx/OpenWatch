@@ -15,6 +15,11 @@ import (
 // bell) newest-first plus the unread count for the badge. Self-scoped — a user
 // only ever sees their own rows. Spec system-notifications.
 func (h *handlers) GetNotificationFeed(w http.ResponseWriter, r *http.Request, params api.GetNotificationFeedParams) {
+	// The feed is the calling user's inbox; a token must not read its
+	// owner's. Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
+		return
+	}
 	if h.notifyFeed == nil {
 		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server", "notifications unavailable", true)
 		return
@@ -49,6 +54,11 @@ func (h *handlers) GetNotificationFeed(w http.ResponseWriter, r *http.Request, p
 // PostNotificationFeedRead marks one notification read. The store scopes the
 // update to the caller, so a user can never read another user's row (404).
 func (h *handlers) PostNotificationFeedRead(w http.ResponseWriter, r *http.Request, id openapitypes.UUID) {
+	// The feed is the calling user's inbox; a token must not read its
+	// owner's. Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
+		return
+	}
 	if h.notifyFeed == nil {
 		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server", "notifications unavailable", true)
 		return
@@ -71,6 +81,11 @@ func (h *handlers) PostNotificationFeedRead(w http.ResponseWriter, r *http.Reque
 
 // PostNotificationFeedReadAll marks every unread notification for the caller read.
 func (h *handlers) PostNotificationFeedReadAll(w http.ResponseWriter, r *http.Request) {
+	// The feed is the calling user's inbox; a token must not read its
+	// owner's. Spec system-api-tokens C-07; bugs/OW-098.
+	if refuseAPIToken(w, r) {
+		return
+	}
 	if h.notifyFeed == nil {
 		writeError(w, http.StatusServiceUnavailable, "server.unavailable", "server", "notifications unavailable", true)
 		return

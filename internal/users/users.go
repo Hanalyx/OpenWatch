@@ -20,6 +20,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -229,7 +230,7 @@ func (s *Service) CreateFederatedUser(ctx context.Context, username, email strin
 		INSERT INTO user_roles (user_id, role_id, granted_by)
 		VALUES ($1, $2, NULL)`
 	if _, err := tx.Exec(ctx, insRole, u.ID, string(role)); err != nil {
-		if isFKViolation(err) {
+		if isFKViolationOn(err, "user_roles_role_id_fkey") {
 			return User{}, ErrUnknownRole
 		}
 		return User{}, fmt.Errorf("users: assign federated role: %w", err)
@@ -667,9 +668,11 @@ func (s *Service) AssignRole(ctx context.Context, userID uuid.UUID, role auth.Ro
 		ON CONFLICT (user_id, role_id) DO NOTHING`
 	_, err := s.pool.Exec(ctx, stmt, userID, string(role), grantedBy)
 	if err != nil {
-		// Foreign-key violation on role_id surfaces as the standard pgx
-		// SQLSTATE 23503. Translate to ErrUnknownRole.
-		if isFKViolation(err) {
+		// Only the role_id foreign key means the role is unknown. A
+		// violation on granted_by or user_id is a different fault, and
+		// reporting it as an unknown role sent callers to the wrong place
+		// (bugs/OW-098).
+		if isFKViolationOn(err, "user_roles_role_id_fkey") {
 			return ErrUnknownRole
 		}
 		return fmt.Errorf("users: assign role: %w", err)
@@ -791,12 +794,14 @@ func queryUser(ctx context.Context, q identity.DBTX, stmt string, arg any) (User
 	return u, nil
 }
 
-// isFKViolation reports whether err is a pgx foreign-key SQLSTATE
-// (23503). Used to translate "role doesn't exist" to ErrUnknownRole.
-func isFKViolation(err error) bool {
-	var pgErr interface{ SQLState() string }
+// isFKViolationOn reports whether err is a foreign-key violation (SQLSTATE
+// 23503) on the named constraint. Matching the constraint, not the bare
+// SQLSTATE, keeps one table's other foreign keys from being reported as
+// this one. bugs/OW-098.
+func isFKViolationOn(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.SQLState() == "23503"
+		return pgErr.Code == "23503" && pgErr.ConstraintName == constraint
 	}
 	return false
 }

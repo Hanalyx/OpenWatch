@@ -440,9 +440,12 @@ func (h *handlers) writeRemediationAccepted(w http.ResponseWriter, rq remediatio
 	})
 }
 
-// actorUUID is the calling user's id as a UUID, for the signed job payload.
-// A principal whose id is not a UUID (a Stage 0 role name) yields uuid.Nil,
-// and the worker records system work rather than a fabricated user.
+// actorUUID is the calling principal's id as a UUID, for the signed job
+// payload: a user's id on a session, the token's own id on an API token.
+// It is the audit actor only and is never written to a users column, so a
+// token stays the actor rather than its owner (bugs/OW-098). A principal
+// whose id is not a UUID (a Stage 0 role name) yields uuid.Nil, and the
+// worker records system work rather than a fabricated user.
 func actorUUID(r *http.Request) uuid.UUID {
 	id, err := uuid.Parse(auth.FromContext(r.Context()).ID)
 	if err != nil {

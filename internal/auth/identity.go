@@ -30,6 +30,13 @@ type Identity struct {
 	// bugs/OW-097.
 	UserID uuid.UUID
 
+	// IsAPIToken is true when the request authenticated with an owk_ API
+	// token. ID is then the token's id and UserID its owner. Permissions
+	// still come from the token's own role (RoleID), never the owner's.
+	// Endpoints scoped to the calling user's own account refuse a token.
+	// Spec system-api-tokens C-06, C-07; bugs/OW-098.
+	IsAPIToken bool
+
 	// RoleID is the built-in role granting the effective permissions. Stage 2
 	// replaces this with a union of roles, but the spec only requires a
 	// single role concept for Day 8.
