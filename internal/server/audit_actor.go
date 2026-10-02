@@ -20,14 +20,6 @@ import (
 	"github.com/Hanalyx/openwatch/internal/auth"
 )
 
-// Audit actor types for request callers, from the audit taxonomy's actor
-// set. A token is recorded as itself (api_key, the token's id), never as its
-// owner: the owner is the accountable user, not the actor.
-const (
-	auditActorUser   = "user"
-	auditActorAPIKey = "api_key"
-)
-
 // Audit resource types for the objects these handlers act on.
 const (
 	auditResourceHost       = "host"
@@ -36,6 +28,7 @@ const (
 	auditResourceRole       = "role"
 	auditResourceAuthPolicy = "auth_policy"
 	auditResourceSSO        = "sso_provider"
+	auditResourceAPIToken   = "api_token"
 )
 
 // auditTarget is the object an event acted on. The zero value means the
@@ -49,13 +42,11 @@ type auditTarget struct {
 // for a session, the token itself for an API token. ok is false for an
 // anonymous identity, which no caller-attributed event should have.
 func callerAuditActor(id auth.Identity) (actorType, actorID string, ok bool) {
-	if id.IsAnonymous || id.ID == "" {
+	a := id.AuditActor()
+	if a.Type == audit.ActorAnonymous {
 		return "", "", false
 	}
-	if id.IsAPIToken {
-		return auditActorAPIKey, id.ID, true
-	}
-	return auditActorUser, id.ID, true
+	return a.Type, a.ID, true
 }
 
 // emitCallerAudit records an event performed by the authenticated caller on
@@ -73,7 +64,7 @@ func emitCallerAudit(r *http.Request, code audit.Code, target auditTarget, detai
 // or outside request identity binding: sign-in, sign-out and their MFA step,
 // where the handler has just established who the user is.
 func emitUserAudit(r *http.Request, code audit.Code, userID uuid.UUID, detail map[string]any) {
-	writeHandlerAudit(r, code, auditActorUser, userID.String(),
+	writeHandlerAudit(r, code, audit.ActorUser, userID.String(),
 		auditTarget{Type: auditResourceUser, ID: userID.String()}, detail)
 }
 

@@ -11,6 +11,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/audit"
 )
 
 // Identity is the calling user's identity carried on the request context.
@@ -108,6 +110,22 @@ func (i Identity) AccountableUser() (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return i.UserID, true
+}
+
+// AuditActor returns who the audit trail names for this identity: the
+// token itself (api_key and the token's id) for an API token, the user for
+// a session, and anonymous when nothing is bound. It is never the token's
+// owner; that is AccountableUser, a different fact recorded in a service's
+// own columns. Spec system-audit-emission C-12; bugs/OW-100.
+func (i Identity) AuditActor() audit.Actor {
+	switch {
+	case i.IsAnonymous || i.ID == "":
+		return audit.AnonymousActor()
+	case i.IsAPIToken:
+		return audit.Actor{Type: audit.ActorAPIKey, ID: i.ID}
+	default:
+		return audit.Actor{Type: audit.ActorUser, ID: i.ID}
+	}
 }
 
 type ctxKey struct{}

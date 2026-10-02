@@ -153,12 +153,27 @@ func (s *Service) List(ctx context.Context) ([]Token, error) {
 // Revoke marks a token revoked. Idempotent: revoking an already-revoked
 // or missing token is not an error.
 func (s *Service) Revoke(ctx context.Context, id uuid.UUID) error {
-	if _, err := s.pool.Exec(ctx,
-		`UPDATE api_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`, id,
-	); err != nil {
-		return fmt.Errorf("apitoken: revoke: %w", err)
+	_, _, err := s.RevokeToken(ctx, id)
+	return err
+}
+
+// RevokeToken revokes a live token and returns its non-secret metadata.
+// revoked is false when nothing changed (an unknown id, or a token already
+// revoked), so a caller can audit only a real transition. Idempotent.
+// Spec system-api-tokens C-09; bugs/OW-101.
+func (s *Service) RevokeToken(ctx context.Context, id uuid.UUID) (t Token, revoked bool, err error) {
+	err = s.pool.QueryRow(ctx, `
+		UPDATE api_tokens SET revoked_at = now()
+		WHERE id = $1 AND revoked_at IS NULL
+		RETURNING id, name, prefix, role_id, created_by, created_at, expires_at, revoked_at`, id,
+	).Scan(&t.ID, &t.Name, &t.Prefix, &t.RoleID, &t.CreatedBy, &t.CreatedAt, &t.ExpiresAt, &t.RevokedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Token{}, false, nil
 	}
-	return nil
+	if err != nil {
+		return Token{}, false, fmt.Errorf("apitoken: revoke: %w", err)
+	}
+	return t, true, nil
 }
 
 // AuthenticateToken resolves a raw token to an auth.Identity. Rejects

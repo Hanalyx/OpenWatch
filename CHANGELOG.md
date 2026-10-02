@@ -64,6 +64,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   those rows do not reliably say who made the change. This release does not
   rewrite them, and OpenWatch does not try to work out who acted.
 
+- **Creating or revoking an API token left no audit record.** Both now write
+  one: `auth.api_token.issued` and `auth.api_token.revoked`. Each names who
+  did it. A signed-in user is recorded as that user. Another API token is
+  recorded as that token, not as its owner. Each event records the token's
+  name, role, expiry and the short prefix the token list already shows. It
+  never records the token itself or its hash. Revoking a token that is
+  already revoked, or that does not exist, still answers 204 and records
+  nothing, because nothing changed. Tokens created or revoked before this
+  fix have no audit record, and this fix does not create records for them.
+  For those tokens, the only record of issuance is the `created_by` and
+  `created_at` columns of the `api_tokens` table. (CP `bugs/OW-101`)
+- **License denials did not say who was denied.** A denied feature was
+  recorded as a user with no id, for every caller. Denials from callers
+  sharing one connection could also merge into one event. Each denial now
+  names the signed-in user, or the API token that made the request. A caller
+  who is not signed in is recorded as anonymous, as before, with the
+  address it came from. (CP `bugs/OW-101`)
+
 ### Changed
 
 - **Self-service endpoints refuse API tokens with 403.** `GET` and

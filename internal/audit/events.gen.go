@@ -35,6 +35,10 @@ const (
 	AuthTokenRefreshed Code = "auth.token.refreshed"
 	// Token added to revocation blacklist
 	AuthTokenRevoked Code = "auth.token.revoked"
+	// An API token was created
+	AuthApiTokenIssued Code = "auth.api_token.issued"
+	// An API token was revoked
+	AuthApiTokenRevoked Code = "auth.api_token.revoked"
 	// User completed MFA enrollment
 	AuthMfaEnrolled Code = "auth.mfa.enrolled"
 	// MFA challenge passed during login
@@ -387,6 +391,22 @@ var Metadata = map[Code]EventMeta{
 		Description: `Token added to revocation blacklist`,
 		ActorTypes:  []string{"system", "user"},
 		DetailKeys:  []string{"reason"},
+	},
+	AuthApiTokenIssued: {
+		Code:        AuthApiTokenIssued,
+		Category:    "auth",
+		Severity:    SeverityInfo,
+		Description: `An API token was created`,
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"expires_at", "name", "prefix", "role_id"},
+	},
+	AuthApiTokenRevoked: {
+		Code:        AuthApiTokenRevoked,
+		Category:    "auth",
+		Severity:    SeverityWarning,
+		Description: `An API token was revoked`,
+		ActorTypes:  []string{"api_key", "user"},
+		DetailKeys:  []string{"expires_at", "name", "prefix", "role_id"},
 	},
 	AuthMfaEnrolled: {
 		Code:        AuthMfaEnrolled,
@@ -1548,6 +1568,8 @@ var codeOrder = []Code{
 	AuthTokenIssued,
 	AuthTokenRefreshed,
 	AuthTokenRevoked,
+	AuthApiTokenIssued,
+	AuthApiTokenRevoked,
 	AuthMfaEnrolled,
 	AuthMfaValidated,
 	AuthMfaFailed,
