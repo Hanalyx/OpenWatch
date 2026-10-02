@@ -115,9 +115,14 @@ token="$(curl -sk --max-time 20 -X POST https://127.0.0.1:8443/api/v1/auth/login
     -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PW\"}" \
     | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
 [ -n "$token" ] || fail "login failed; the admin account setup created is unusable"
-curl -sk --max-time 20 https://127.0.0.1:8443/api/v1/auth/me \
-    -H "Authorization: Bearer $token" | grep -q '"role":"admin"' || \
-    fail "the created account is not an admin"
+# Capture, then match. A pipe into grep -q can end curl with SIGPIPE, and
+# pipefail would report that as a non-admin account (bugs/OW-102).
+me="$(curl -sk --max-time 20 https://127.0.0.1:8443/api/v1/auth/me \
+    -H "Authorization: Bearer $token")" || me=""
+case "$me" in
+    *'"role":"admin"'*) ;;
+    *) fail "the created account is not an admin" ;;
+esac
 
 echo ">> file modes (system-setup AC-13)"
 [ "$(stat -c '%a' /var/lib/openwatch/setup-receipt.json)" = 600 ] || \
