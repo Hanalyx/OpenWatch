@@ -83,8 +83,7 @@ func (h *handlers) PostUserResetPassword(w http.ResponseWriter, r *http.Request,
 	if err := h.users.AdminResetPassword(r.Context(), uuid.UUID(id), req.NewPassword); mapUserAdminErr(w, err) {
 		return
 	}
-	caller := auth.FromContext(r.Context()).ID
-	emitAudit(r, audit.AdminUserPasswordReset, caller, map[string]any{
+	emitCallerAudit(r, audit.AdminUserPasswordReset, auditTarget{Type: auditResourceUser, ID: id.String()}, map[string]any{
 		"target_user_id": id.String(),
 		"self":           isSelf(r, uuid.UUID(id)),
 	})
@@ -97,7 +96,6 @@ func (h *handlers) PostUserDisable(w http.ResponseWriter, r *http.Request, id op
 	if denied := auth.EnforcePermission(w, r, auth.AdminUserManage); denied {
 		return
 	}
-	caller := auth.FromContext(r.Context()).ID
 	// Lockout prevention: an admin must not disable their own account, and
 	// neither may one of their API tokens. The comparison is on the
 	// accountable user, because a token's ID never equals its owner's.
@@ -114,7 +112,7 @@ func (h *handlers) PostUserDisable(w http.ResponseWriter, r *http.Request, id op
 	if mapUserAdminErr(w, err) {
 		return
 	}
-	emitAudit(r, audit.AdminUserDisabled, caller, map[string]any{"target_user_id": id.String()})
+	emitCallerAudit(r, audit.AdminUserDisabled, auditTarget{Type: auditResourceUser, ID: id.String()}, map[string]any{"target_user_id": id.String()})
 	writeJSON(w, http.StatusOK, userResponse(u))
 }
 
@@ -136,8 +134,7 @@ func (h *handlers) PostUserEnable(w http.ResponseWriter, r *http.Request, id ope
 	if transitioned {
 		scope = "interactive"
 	}
-	caller := auth.FromContext(r.Context()).ID
-	emitAudit(r, audit.AdminUserEnabled, caller, map[string]any{
+	emitCallerAudit(r, audit.AdminUserEnabled, auditTarget{Type: auditResourceUser, ID: id.String()}, map[string]any{
 		"target_user_id":   id.String(),
 		"transition":       transitioned,
 		"revocation_scope": scope,

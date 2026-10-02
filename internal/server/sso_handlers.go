@@ -83,7 +83,7 @@ func (h *handlers) PostSSOProvider(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "create provider failed", true)
 		return
 	}
-	emitAudit(r, audit.AdminSsoProviderCreated, auth.FromContext(r.Context()).ID, map[string]any{
+	emitCallerAudit(r, audit.AdminSsoProviderCreated, auditTarget{Type: auditResourceSSO, ID: p.ID.String()}, map[string]any{
 		"provider_id": p.ID.String(), "name": p.Name, "issuer": p.Issuer,
 	})
 	writeJSON(w, http.StatusCreated, toAPISSOProvider(p))
@@ -145,7 +145,7 @@ func (h *handlers) PutSSOProvider(w http.ResponseWriter, r *http.Request, id ope
 		}
 		return
 	}
-	emitAudit(r, audit.AdminSsoProviderUpdated, auth.FromContext(r.Context()).ID, map[string]any{
+	emitCallerAudit(r, audit.AdminSsoProviderUpdated, auditTarget{Type: auditResourceSSO, ID: p.ID.String()}, map[string]any{
 		"provider_id": p.ID.String(), "name": p.Name, "enabled": p.Enabled,
 	})
 	writeJSON(w, http.StatusOK, toAPISSOProvider(p))
@@ -168,7 +168,7 @@ func (h *handlers) DeleteSSOProvider(w http.ResponseWriter, r *http.Request, id 
 		writeError(w, http.StatusInternalServerError, "server.error", "server", "delete provider failed", true)
 		return
 	}
-	emitAudit(r, audit.AdminSsoProviderDeleted, auth.FromContext(r.Context()).ID, map[string]any{
+	emitCallerAudit(r, audit.AdminSsoProviderDeleted, auditTarget{Type: auditResourceSSO, ID: uuid.UUID(id).String()}, map[string]any{
 		"provider_id": uuid.UUID(id).String(),
 	})
 	w.WriteHeader(http.StatusNoContent)
@@ -328,7 +328,7 @@ func (h *handlers) GetAuthSSOCallback(w http.ResponseWriter, r *http.Request, id
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 		MaxAge: int(identity.RefreshTokenWindow.Seconds()),
 	})
-	emitAudit(r, audit.AuthLoginSuccess, result.UserID.String(), map[string]any{
+	emitUserAudit(r, audit.AuthLoginSuccess, result.UserID, map[string]any{
 		"method": "sso", "provider_id": uuid.UUID(id).String(), "provisioned": result.Provisioned,
 	})
 	http.Redirect(w, r, ssoSafeReturnTo(&result.RedirectTo), http.StatusFound)

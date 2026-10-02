@@ -225,25 +225,50 @@ events:
         required_permission: {type: string}
         route: {type: string}
 
+  # Role events name the caller as the actor and the user (assigned,
+  # removed) or the role (created) as the resource. bugs/OW-099.
   - code: authz.role.assigned
     severity: warning
     description: Role assigned to user
+    actor_types: [user, api_key]
+    detail_schema:
+      type: object
+      properties:
+        role_id: {type: string}
 
   - code: authz.role.removed
     severity: warning
     description: Role removed from user
+    actor_types: [user, api_key]
+    detail_schema:
+      type: object
+      properties:
+        role_id: {type: string}
+
+  - code: authz.role.created
+    severity: warning
+    description: Custom role created
+    actor_types: [user, api_key]
+    detail_schema:
+      type: object
+      properties:
+        role_id: {type: string}
+        permissions: {type: array, items: {type: string}}
 
   # =========================================================================
   # host — host management and discovery
   # =========================================================================
   - code: host.created
     severity: info
+    actor_types: [user, api_key]
 
   - code: host.updated
     severity: info
+    actor_types: [user, api_key]
 
   - code: host.deleted
     severity: warning
+    actor_types: [user, api_key]
 
   - code: host.connectivity.checked
     severity: info
@@ -504,15 +529,18 @@ events:
   # =========================================================================
   - code: credential.created
     severity: info
+    actor_types: [user, api_key]
     detail_schema:
       type: object
       properties:
         credential_id: {type: string}
         scope: {type: string, enum: [system, host]}
         auth_method: {type: string, enum: [ssh_key, password, both]}
+        cloned_from: {type: string}
 
   - code: credential.updated
     severity: info
+    actor_types: [user, api_key]
     detail_schema:
       type: object
       properties:
@@ -523,6 +551,7 @@ events:
 
   - code: credential.deleted
     severity: warning
+    actor_types: [user, api_key]
     detail_schema:
       type: object
       properties:
@@ -1083,12 +1112,14 @@ events:
   # =========================================================================
   - code: admin.user.created
     severity: warning
+    actor_types: [user, api_key]
 
   - code: admin.user.updated
     severity: warning
 
   - code: admin.user.deleted
     severity: warning
+    actor_types: [user, api_key]
 
   - code: admin.user.password_reset
     severity: warning

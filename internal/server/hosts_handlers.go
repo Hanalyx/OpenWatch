@@ -165,7 +165,7 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	emitAudit(r, audit.HostCreated, created.ID.String(), map[string]any{
+	emitCallerAudit(r, audit.HostCreated, auditTarget{Type: auditResourceHost, ID: created.ID.String()}, map[string]any{
 		"hostname":    created.Hostname,
 		"environment": created.Environment,
 	})
@@ -317,7 +317,7 @@ func (h *handlers) PatchHostByID(w http.ResponseWriter, r *http.Request, id open
 		}
 		return
 	}
-	emitAudit(r, audit.HostUpdated, updated.ID.String(), nil)
+	emitCallerAudit(r, audit.HostUpdated, auditTarget{Type: auditResourceHost, ID: updated.ID.String()}, nil)
 	h.publishHostChange(r.Context(), updated.ID, eventbus.HostChangeUpdated)
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
@@ -350,7 +350,7 @@ func (h *handlers) PostHostTarget(w http.ResponseWriter, r *http.Request, id ope
 		}
 		return
 	}
-	emitAudit(r, audit.HostUpdated, updated.ID.String(), nil)
+	emitCallerAudit(r, audit.HostUpdated, auditTarget{Type: auditResourceHost, ID: updated.ID.String()}, nil)
 	h.publishHostChange(r.Context(), updated.ID, eventbus.HostChangeUpdated)
 	writeJSON(w, http.StatusOK, hostResponse(updated))
 }
@@ -371,7 +371,7 @@ func (h *handlers) DeleteHostByID(w http.ResponseWriter, r *http.Request, id ope
 			"delete failed", true)
 		return
 	}
-	emitAudit(r, audit.HostDeleted, id.String(), nil)
+	emitCallerAudit(r, audit.HostDeleted, auditTarget{Type: auditResourceHost, ID: id.String()}, nil)
 	h.publishHostChange(r.Context(), uuid.UUID(id), eventbus.HostChangeDeleted)
 	w.WriteHeader(http.StatusNoContent)
 }
