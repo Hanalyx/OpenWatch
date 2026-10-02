@@ -97,7 +97,10 @@ rpmbuild \
     -bb "$APP_DIR/packaging/rpm/openwatch.spec" >/dev/null
 
 # Step 5: copy the artifact into app/dist/.
-RPM_OUT="$(find "$RPMTOP/RPMS" -name '*.rpm' -type f | head -n1)"
+# Capture, then take the first line. A pipe into head would let find die of
+# SIGPIPE, and pipefail would end the build on it (bugs/OW-102).
+RPM_LIST="$(find "$RPMTOP/RPMS" -name '*.rpm' -type f)"
+RPM_OUT="${RPM_LIST%%$'\n'*}"
 if [[ -z "$RPM_OUT" ]]; then
     echo "build-rpm.sh: no .rpm produced" >&2
     exit 1
