@@ -159,6 +159,17 @@ errors:
         required_permission: {type: string}
         route: {type: string}
 
+  - code: auth.api_token_not_allowed
+    http_status: 403
+    fault: policy
+    retryable: false
+    description: >-
+      The endpoint acts on a signed-in user's own account (profile,
+      preferences, MFA, password, notification feed), and the caller
+      authenticated with an API token. A token is not that user, so it is
+      refused rather than allowed to act on its owner's account. Spec
+      system-api-tokens C-07; bugs/OW-098.
+
   - code: authz.role_required
     http_status: 403
     fault: policy

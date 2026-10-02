@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -179,6 +180,27 @@ func TestAuthenticate_IdentityCarriesOwnerAsAccountableUser(t *testing.T) {
 		var n int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, got).Scan(&n); err != nil || n != 1 {
 			t.Errorf("accountable user %s is not a users row (count %d, err %v)", got, n, err)
+		}
+	})
+}
+
+// @ac AC-13
+// AC-13 (token arm): only the role_id foreign key is a caller's invalid
+// input. bugs/OW-098, where any insert failure answered 400 tokens.invalid.
+func TestCreate_OnlyTheRoleKeyIsInvalidParams(t *testing.T) {
+	t.Run("system-api-tokens/AC-13", func(t *testing.T) {
+		svc, pool := freshService(t)
+		ctx := context.Background()
+		if _, _, err := svc.Create(ctx, CreateParams{Name: "fk-a", RoleID: auth.RoleID("no_such_role"), CreatedBy: activeOwner(t, pool)}); !errors.Is(err, ErrInvalidParams) {
+			t.Errorf("unknown role: err = %v, want ErrInvalidParams", err)
+		}
+		notAUser := uuid.New()
+		_, _, err := svc.Create(ctx, CreateParams{Name: "fk-b", RoleID: auth.RoleViewer, CreatedBy: &notAUser})
+		if err == nil {
+			t.Fatal("a created_by that is not a user was accepted")
+		}
+		if errors.Is(err, ErrInvalidParams) {
+			t.Errorf("a created_by violation was reported as invalid parameters: %v", err)
 		}
 	})
 }

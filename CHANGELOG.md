@@ -22,6 +22,39 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `requested_by`. The job and its run record are now written together, so a
   failed request leaves no queued work. Measured on 0.7.1; 0.8.1 has the
   same code. (CP `bugs/OW-097`)
+- **An API token could disable its own owner.** The guard that stops an
+  admin from disabling their own account compared the caller's id with the
+  target. A token's id is never its owner's, so the guard did not apply,
+  and the owner's admin-role token could lock the owner out. The guard now
+  compares the token's owner. (CP `bugs/OW-098`)
+- **Most writes failed for API tokens.** Fifteen endpoints recorded the
+  token's own id where only a user id fits, so they answered 400 or 500 for
+  a valid request. They include creating hosts and credentials, assigning
+  roles, the auth policy, SSO providers, creating tokens, compliance
+  exceptions, remediation requests and reviews, alert acknowledge and
+  resolve, and report schedules. They now record the token's owner and
+  succeed. The audit actor is still the token. A token's permissions still
+  come only from its own role, never from its owner's. (CP `bugs/OW-098`)
+- **Separation of duties now covers API tokens.** A request opened through a
+  user's session or any of their tokens cannot be reviewed through that
+  user's session or any of their tokens. Before this fix, only a database
+  error stopped a token from approving its owner's request.
+  (CP `bugs/OW-098`)
+- **Three errors named the wrong cause.** Assigning a role answered "unknown
+  role" for any failed reference. Creating an SSO provider or an API token
+  answered "invalid parameters" for any failed insert. Each now reports
+  that only for an unknown role. (CP `bugs/OW-098`)
+
+### Changed
+
+- **Self-service endpoints refuse API tokens with 403.** `GET` and
+  `PATCH /auth/me`, `mfa:enroll`, `mfa:verify`, `password:change`, `GET` and
+  `PATCH /users/me/preferences`, and the three notification-feed endpoints
+  now answer `403 auth.api_token_not_allowed` to an API token. They act on a
+  signed-in user's own account or inbox, and a token is not that user.
+  Before, they answered 401 `auth.required` (which reads as a bad
+  credential), 503 on `mfa:verify`, or an empty feed. Sessions are not
+  affected. (CP `bugs/OW-098`)
 
 ## [0.8.1] Eyrie (2026-10-01)
 

@@ -148,10 +148,10 @@ func (h *handlers) CreateReportSchedule(w http.ResponseWriter, r *http.Request) 
 	if body.PeriodDays != nil {
 		p.Scope.PeriodDays = *body.PeriodDays
 	}
-	if id := auth.FromContext(r.Context()); !id.IsAnonymous && id.ID != "" {
-		if u, err := uuid.Parse(id.ID); err == nil {
-			p.CreatedBy = &u
-		}
+	// The accountable user, never the identity's ID (a token's own id).
+	// Spec system-api-tokens C-06; bugs/OW-098.
+	if u, ok := auth.FromContext(r.Context()).AccountableUser(); ok {
+		p.CreatedBy = &u
 	}
 
 	// The delivery channel must be an EMAIL channel (only email carries the

@@ -1,7 +1,7 @@
 spec:
   id: system-notifications
   title: Notification channels — encrypted store + SSRF-guarded delivery
-  version: "1.10.0"
+  version: "1.11.0"
   status: approved
   tier: 2
 
@@ -163,6 +163,16 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-10
+      description: >-
+        v1.11.0 - The in-app feed endpoints (GET /notifications/feed, POST
+        /notifications/feed:read-all, POST /notifications/feed/{id}:read)
+        MUST refuse an API token with 403 auth.api_token_not_allowed. The
+        feed is a signed-in user's inbox. Resolving a token to its owner
+        would show the token notifications for the owner's roles, beyond its
+        own (system-api-tokens C-07, bugs/OW-098).
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Create encrypts the config and persists config_ciphertext + target_hint; a round-trip getDecrypted returns the original URL + token, and the ciphertext column never equals the plaintext URL bytes.
@@ -341,3 +351,8 @@ spec:
         weakening system-wide trust.
       priority: high
       references_constraints: [C-03]
+    - id: AC-24
+      description: >-
+        v1.11.0 - With a valid API token, GET /notifications/feed, POST /notifications/feed:read-all and POST /notifications/feed/{id}:read on the owner's item each answer 403 auth.api_token_not_allowed, no feed item is returned, and the owner's item stays unread.
+      priority: high
+      references_constraints: [C-10]

@@ -71,11 +71,15 @@ func (h *handlers) exceptionSvcReady(w http.ResponseWriter) bool {
 	return true
 }
 
-// reviewerID returns the authenticated user's UUID, or an error
-// response if it cannot be parsed (should not happen post-auth).
+// reviewerID returns the caller's accountable user (the signed-in user, or
+// an API token's owner), or an error response when none is bound. It is
+// both the requester or reviewer recorded and the identity the
+// separation-of-duties check compares, so a token cannot review a request
+// its owner opened, through the owner's session or another of the owner's
+// tokens. Spec system-api-tokens C-06; bugs/OW-098.
 func (h *handlers) reviewerID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, err := uuid.Parse(auth.FromContext(r.Context()).ID)
-	if err != nil {
+	id, ok := auth.FromContext(r.Context()).AccountableUser()
+	if !ok {
 		writeError(w, http.StatusInternalServerError, "server.error", "server",
 			"actor id unavailable", true)
 		return uuid.Nil, false

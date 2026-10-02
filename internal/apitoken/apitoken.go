@@ -24,6 +24,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -108,8 +109,15 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (string, Token, er
 	if err := s.pool.QueryRow(ctx, stmt,
 		p.Name, hashToken(raw), prefix, string(p.RoleID), p.CreatedBy, p.ExpiresAt,
 	).Scan(&t.ID, &t.CreatedAt); err != nil {
-		// FK violation on role_id → unknown role.
-		return "", Token{}, fmt.Errorf("%w: %v", ErrInvalidParams, err)
+		// Only the role_id foreign key is a caller's invalid input. A
+		// created_by that is not a user, or an outage, is the server's
+		// fault, and reporting it as invalid parameters misled callers
+		// (bugs/OW-098).
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "api_tokens_role_id_fkey" {
+			return "", Token{}, fmt.Errorf("%w: %v", ErrInvalidParams, err)
+		}
+		return "", Token{}, fmt.Errorf("apitoken: create: %w", err)
 	}
 	t.Name = p.Name
 	t.Prefix = prefix
@@ -205,5 +213,5 @@ func (s *Service) AuthenticateToken(ctx context.Context, raw string) (auth.Ident
 	// names. UserID is the owner, the account answerable for what the token
 	// does, and the only one of the two that is a users row. ownerAbsent is
 	// refused above, so owner is set here. Spec C-05; bugs/OW-097.
-	return auth.Identity{ID: id.String(), UserID: *owner, RoleID: auth.RoleID(roleID)}, nil
+	return auth.Identity{ID: id.String(), UserID: *owner, RoleID: auth.RoleID(roleID), IsAPIToken: true}, nil
 }

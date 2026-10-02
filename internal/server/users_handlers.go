@@ -230,15 +230,14 @@ func (h *handlers) PostRolesCreate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// identityUUID returns the calling user's UUID, or nil if anonymous /
-// not parseable. Used by role-grant audit + created_by tracking.
+// identityUUID returns the caller's accountable user (the signed-in user,
+// or an API token's owner) for a column that references users(id), or nil
+// when none is bound. Never the identity's ID: on a token that is the
+// token's own id, which no users row holds. Spec system-api-tokens C-06;
+// bugs/OW-098.
 func (h *handlers) identityUUID(r *http.Request) *uuid.UUID {
-	id := auth.FromContext(r.Context())
-	if id.IsAnonymous {
-		return nil
-	}
-	u, err := uuid.Parse(id.ID)
-	if err != nil {
+	u, ok := auth.FromContext(r.Context()).AccountableUser()
+	if !ok {
 		return nil
 	}
 	return &u

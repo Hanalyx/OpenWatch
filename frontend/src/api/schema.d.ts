@@ -5212,6 +5212,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     patchAuthMe: {
@@ -5254,6 +5263,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Email already in use by another active user */
             409: {
                 headers: {
@@ -5285,6 +5303,15 @@ export interface operations {
             };
             /** @description No valid session or bearer */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5334,6 +5361,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     postAuthMFAEnroll: {
@@ -5352,6 +5388,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthMFAEnrollResponse"];
+                };
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };
@@ -5378,6 +5423,15 @@ export interface operations {
             };
             /** @description MFA OTP invalid or replayed */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5418,6 +5472,15 @@ export interface operations {
             };
             /** @description Current password wrong */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10613,6 +10676,15 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationFeed"];
                 };
             };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -10632,6 +10704,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationReadResult"];
+                };
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             503: components["responses"]["ServiceUnavailable"];
@@ -10654,6 +10735,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The caller authenticated with an API token. This endpoint acts on a signed-in user's own account, so a token is refused with auth.api_token_not_allowed. Spec system-api-tokens C-07. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
             };
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];

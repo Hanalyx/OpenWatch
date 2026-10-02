@@ -1,7 +1,7 @@
 spec:
   id: api-auth
   title: Auth HTTP surface (login, MFA, refresh, me, password change)
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -67,6 +67,16 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-07
+      description: >-
+        v1.3.0 - GET and PATCH /auth/me, POST /auth/mfa:enroll, POST
+        /auth/mfa:verify and POST /auth/password:change act on the signed-in
+        user's own account. They MUST refuse an API token with 403
+        auth.api_token_not_allowed (system-api-tokens C-07, bugs/OW-098). A
+        token previously got 401 auth.required, which reads as a bad
+        credential, or 503 on mfa:verify.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: POST /auth/login with valid username+password (no MFA enrolled) returns 200 with {access_token, refresh_token, user} body, sets the openwatch_session cookie, and emits an auth.login.success audit event.
@@ -119,3 +129,8 @@ spec:
       description: 'v1.2.0 - PATCH /api/v1/auth/me applies a PARTIAL self-profile update for the authenticated caller (full_name, display_name, email, job_title, timezone, phone) and returns the updated AuthMeResponse; omitted fields are unchanged. Changing email to one another active user already holds returns 409 (users.email_taken). The path is under /api/v1/auth/* so it is CSRF-exempt (the session cookie or bearer authorizes). Username, role, and password are not editable here.'
       priority: high
       references_constraints: [C-03]
+    - id: AC-15
+      description: >-
+        v1.3.0 - With a valid API token, GET and PATCH /auth/me, POST /auth/mfa:enroll, POST /auth/mfa:verify and POST /auth/password:change each answer 403 auth.api_token_not_allowed, and the token owner's profile, MFA enrollment and password are unchanged.
+      priority: high
+      references_constraints: [C-07]

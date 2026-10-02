@@ -28,6 +28,9 @@ func (h *handlers) meUserID(w http.ResponseWriter, r *http.Request) (uuid.UUID, 
 			"authentication required", false)
 		return uuid.Nil, false
 	}
+	if refuseAPIToken(w, r) {
+		return uuid.Nil, false
+	}
 	userID, err := uuid.Parse(id.ID)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "auth.required", "client",

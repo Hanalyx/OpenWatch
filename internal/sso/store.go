@@ -10,6 +10,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/secretkey"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -54,8 +55,15 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (Provider, error) 
 		normalizeScopes(p.Scopes), p.DefaultRole, p.Enabled, p.CreatedBy,
 	).Scan(&out.ID, &out.Name, &out.Type, &out.Issuer, &out.ClientID,
 		&out.Scopes, &out.DefaultRole, &out.Enabled, &out.CreatedAt, &out.UpdatedAt); err != nil {
-		// FK violation on default_role → unknown role.
-		return Provider{}, fmt.Errorf("%w: %v", ErrInvalidParams, err)
+		// Only the default_role foreign key is a caller's invalid input. Any
+		// other failure (a created_by that is not a user, an outage) is the
+		// server's, and reporting it as invalid parameters misled callers
+		// (bugs/OW-098).
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName == "sso_providers_default_role_fkey" {
+			return Provider{}, fmt.Errorf("%w: %v", ErrInvalidParams, err)
+		}
+		return Provider{}, fmt.Errorf("sso: create provider: %w", err)
 	}
 	return out, nil
 }

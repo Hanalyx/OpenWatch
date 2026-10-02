@@ -236,6 +236,14 @@ paths:
       x-requires-identity: true
       summary: Return the calling identity
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: Identity
           content:
@@ -262,6 +270,14 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/AuthMeUpdateRequest'}
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: Updated identity
           content:
@@ -294,6 +310,14 @@ paths:
         permission. Unset keys are simply absent (the client falls back to
         its defaults). Spec system-user-preferences + api-user-preferences.
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: The caller's stored preferences
           content:
@@ -318,6 +342,14 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/UserPreferences'}
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: The merged preferences
           content:
@@ -340,6 +372,14 @@ paths:
       x-requires-identity: true
       summary: Enroll the calling user in TOTP MFA
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: Provisioning URI returned for the authenticator app
           content:
@@ -357,6 +397,14 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/AuthMFAVerifyRequest'}
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '204':
           description: MFA verified
         '401':
@@ -376,6 +424,14 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/AuthPasswordChangeRequest'}
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '204':
           description: Password updated
         '401':
@@ -4409,6 +4465,14 @@ paths:
           schema: {type: integer, minimum: 1, maximum: 200}
           description: Max items to return (default 50).
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: The caller's notification feed
           content:
@@ -4421,6 +4485,14 @@ paths:
       x-requires-identity: true
       summary: Mark all the calling user's notifications read
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '200':
           description: Number of notifications marked read
           content:
@@ -4438,6 +4510,14 @@ paths:
           required: true
           schema: {type: string, format: uuid}
       responses:
+        '403':
+          description: >-
+            The caller authenticated with an API token. This endpoint acts on
+            a signed-in user's own account, so a token is refused with
+            auth.api_token_not_allowed. Spec system-api-tokens C-07.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '204': {description: Marked read}
         '404': {$ref: '#/components/responses/NotFound'}
         '503': {$ref: '#/components/responses/ServiceUnavailable'}
