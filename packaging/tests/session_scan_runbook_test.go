@@ -52,7 +52,7 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 		`-b "$JAR" "$URL/api/v1/rules`, `[ "$out" = 204 ] && [ "$after" = 401 ]`,
 		"on_stop() {", "sign_out\n", "trap 'on_stop $LINENO' ERR", `trap 'rm -rf "$JAR_DIR"' EXIT`,
 		"python3 -I -S -c 'import json'", `test -r "$PASSWORD_FILE"`,
-		"STAGE=login", "SIGN_IN=no-answer", `--data-binary @- "$URL/api/v1/auth/login") || { CODE="no answer"; false; }`,
+		"STAGE=login", "SIGN_IN=no-answer", `--data-binary @- "$URL/api/v1/auth/login") || { SIGNIN_CODE="no answer"; CODE=$SIGNIN_CODE; false; }`,
 		"SIGN_IN=answered", `[ "$CODE" = 200 ]`, `[ -n "$ACCESS" ]`,
 		"STAGE=start", "Idempotency-Key: $KEY", `"$URL/api/v1/hosts/$HOST_ID/scans"`, `[ "$CODE" = 202 ]`,
 		"STAGE=poll", `"completed 0") ;;`, "trap - ERR\n", "(scan result only)", "sign_out\n",
@@ -74,7 +74,23 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 	// refusal, never after a sign-in that got no answer.
 	inOrder(t, "sign_out", so, `[ "$SIGNOUT_DONE" = no ] || return 0`, `[ "$SIGN_IN" != not-started ] || return 0`,
 		`if ! grep -q 'openwatch_session' "$JAR"`, `if [ "$SIGN_IN" = no-answer ]; then`, "Sign-in outcome unknown",
-		`elif [ "$CODE" != 200 ]; then`, "there is no session to sign out")
+		`elif [ "$SIGNIN_CODE" != 200 ]; then`, "there is no session to sign out")
+	// sign_out judges the sign-in by the sign-in's own status. CODE is
+	// reused by later stages (the scan start sets it to 202), so reading it
+	// here mislabels every normal sign-in as interrupted.
+	if strings.Contains(so, `"$CODE"`) {
+		t.Error("sign_out reads $CODE, which later stages overwrite; it must read $SIGNIN_CODE")
+	}
+	for _, want := range []string{`elif [ "$SIGNIN_CODE" != 200 ]; then`, `[ "$SIGNIN_CODE" != 200 ]`} {
+		if !strings.Contains(so, want) {
+			t.Errorf("sign_out lacks %q", want)
+		}
+	}
+	inOrder(t, "sign-in status", b, "SIGNIN_CODE=none", "STAGE=login",
+		`|| { SIGNIN_CODE="no answer"; CODE=$SIGNIN_CODE; false; }`, `SIGNIN_CODE=${RESP##*$'\n'}`, "STAGE=start")
+	if n := strings.Count(b, "SIGNIN_CODE="); n != 3 {
+		t.Errorf("SIGNIN_CODE is assigned %d times, want 3 (its start value and the sign-in's two outcomes)", n)
+	}
 	if n := strings.Count(so, "|| return 0"); n != 2 {
 		t.Errorf("sign_out has %d early returns before the cookie check, want 2", n)
 	}
@@ -133,7 +149,7 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 type fakeSessionOpenWatch struct {
 	mu         sync.Mutex
 	password   string
-	login      string // "ok", "badpw", "mfa", "stallbody", "dropbody", "stallheaders", "badjson"
+	login      string // "ok", "badpw", "mfa", "stallbody", "dropbody", "stallheaders", "badjson", "nocookie"
 	scanPost   int
 	scanState  string
 	rulesError int
@@ -208,6 +224,8 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 			f.mu.Unlock()
 			hang(r)
 			f.mu.Lock()
+		case f.login == "nocookie":
+			fmt.Fprintf(w, `{"access_token":%q}`, fakeAccess)
 		case f.login == "badjson":
 			http.SetCookie(w, cookie)
 			fmt.Fprint(w, `{"access_token": "unterminated`)
@@ -382,6 +400,9 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 			wantExit: 1, wantMsgs: []string{"stage: login.", noAnswer,
 				"Sign-in outcome unknown: the sign-in request got no answer, so a session may exist on the server.",
 				"Check the sessions for rt-operator, or sign out of every session for rt-operator in the UI."}},
+		{name: "sign-in answers 200 with a token but sets no cookie", login: "nocookie", post: 202, state: "completed", logout: "ok",
+			wantExit: 2, wantResult: true, wantScan: true, wantMsgs: append([]string{
+				"Sign-out not proven: sign-in answered 200 but set no session cookie to sign out with.", signInUI}, unproven...)},
 		{name: "sign-in answers 200 with a cookie and malformed JSON", login: "badjson", post: 202, state: "completed", logout: "ok",
 			wantExit: 1, wantLogout: 1, wantMsgs: []string{"stage: login.",
 				"Sign-in answered 200 without a usable access token. An account with MFA gets this answer.", cookieLeft, signedOut}},
@@ -457,6 +478,14 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 				if !strings.Contains(r.stderr, m+"\n") {
 					t.Fatalf("stderr lacks %q\nstderr:\n%s", m, r.stderr)
 				}
+			}
+			// The interrupted-sign-in line appears only when the sign-in did
+			// not finish normally AND left a cookie. A normal sign-in (200 with
+			// a usable access token) must never print it, whatever the later
+			// stages set CODE to.
+			interrupted := tc.login == "stallbody" || tc.login == "dropbody" || tc.login == "badjson"
+			if got := strings.Contains(r.stderr, cookieLeft); got != interrupted {
+				t.Fatalf("%q printed %v, want %v\nstderr:\n%s", cookieLeft, got, interrupted, r.stderr)
 			}
 			// "No session" only after a definite refusal with no cookie.
 			if got := strings.Contains(r.stderr, "no session to sign out"); got != tc.noSession {

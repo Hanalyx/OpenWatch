@@ -90,7 +90,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   standard input, never onto a command line. The upgrade guide's rollback
   steps now point a rollback to 0.7.1 to this check. The previous version
   printed `SCANNED` with a proven sign-out on a real 0.7.1 host on
-  2026-10-02. This version, which adds the interrupted sign-in handling, is
+  2026-10-02, but also printed a false "did not finish normally" line on a
+  normal sign-in, because it read a status the scan start had overwritten.
+  This version keeps the sign-in's status in its own variable, and is
   tested against a stand-in server only. (CP `bugs/OW-094`, `bugs/OW-097`)
 
 ## [0.8.1] Eyrie (2026-10-01)

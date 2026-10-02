@@ -555,6 +555,7 @@ Fill in the three values at the top, then run the block as root:
   URL=https://localhost:8443
   STAGE=inputs
   CODE=none
+  SIGNIN_CODE=none
   SCAN_ID=unknown
   OUTCOME=none
   SIGN_IN=not-started
@@ -578,7 +579,7 @@ Fill in the three values at the top, then run the block as root:
       if [ "$SIGN_IN" = no-answer ]; then
         echo "Sign-in outcome unknown: the sign-in request got no answer, so a session may exist on the server." >&2
         echo "Check the sessions for $USER_NAME, or sign out of every session for $USER_NAME in the UI." >&2
-      elif [ "$CODE" != 200 ]; then
+      elif [ "$SIGNIN_CODE" != 200 ]; then
         SIGNOUT=not-needed
         echo "Sign-in was refused and set no session cookie, so there is no session to sign out." >&2
       else
@@ -587,7 +588,7 @@ Fill in the three values at the top, then run the block as root:
       fi
       return 0
     fi
-    if [ "$SIGN_IN" = no-answer ] || [ "$CODE" != 200 ] || [ -z "${ACCESS:-}" ]; then
+    if [ "$SIGN_IN" = no-answer ] || [ "$SIGNIN_CODE" != 200 ] || [ -z "${ACCESS:-}" ]; then
       echo "Sign-in did not finish normally, but it set a session cookie, so the check signs it out." >&2
     fi
     local out after
@@ -653,9 +654,10 @@ Fill in the three values at the top, then run the block as root:
   RESP=$(python3 -I -S -c 'import json,sys; print(json.dumps({"username": sys.argv[1], "password": open(sys.argv[2]).read().rstrip("\n")}))' \
       "$USER_NAME" "$PASSWORD_FILE" |
     curl -sk --connect-timeout 3 --max-time 10 -c "$JAR" -w '\n%{http_code}' \
-      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/auth/login") || { CODE="no answer"; false; }
+      -H 'Content-Type: application/json' --data-binary @- "$URL/api/v1/auth/login") || { SIGNIN_CODE="no answer"; CODE=$SIGNIN_CODE; false; }
   SIGN_IN=answered
-  CODE=${RESP##*$'\n'}
+  SIGNIN_CODE=${RESP##*$'\n'}
+  CODE=$SIGNIN_CODE
   [ "$CODE" = 200 ]
   ACCESS=$(python3 -I -S -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"${RESP%$'\n'*}" 2>/dev/null) || ACCESS=""
   [ -n "$ACCESS" ]
@@ -705,19 +707,19 @@ Fill in the three values at the top, then run the block as root:
 
 When it prints `SCANNED`, the restore is done.
 
-**What was run on a real host.** On 2026-10-02 at 14:55 UTC, the previous
+**What was run on a real host.** On 2026-10-02 at 22:57 UTC, the previous
 version of this block (sha256
-`2b41eee3fb32d14e055e107fa6da5a18ba7788803c33119849201e6b1da33dc3`) ran on a
-real OpenWatch 0.7.1 host. It printed the scan-result line, then
-`signed out`, then `SCANNED`, and exited `0`. Two earlier drafts also printed
-`SCANNED` on that host the same day. The block above differs from that
-version only in how it handles a sign-in that does not finish normally. When
-the sign-in gets no answer, is cut off, or returns a body without a usable
-access token, the block signs out any session cookie the sign-in left. When
-there is no cookie and no answer, it reports the outcome as unknown. It also
-rewords the messages for a refused sign-in and for a `200` without an access
-token, the answer an account with MFA gets. The block above has not been run on a real host. Its stop paths are
-tested against a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
+`0fbce1e176b6c0b4c51f3bab3a2f35fc2076768c560b8302b366610446b6e43c`) ran on a
+real OpenWatch 0.7.1 host. On a normal sign-in it printed a false line:
+`Sign-in did not finish normally, but it set a session cookie, so the check signs it out.`
+It judged the sign-in by a status the scan start had already overwritten.
+Otherwise it behaved as described: it printed the scan-result line, proved the
+sign-out by a `204` and then a `401`, printed `SCANNED`, and exited `0`. Three
+earlier versions (sha256 `8aa7ed78…`, `becf17f6…` and `2b41eee3…`) also
+printed `SCANNED` on that host the same day. The block above differs from the
+22:57 version only by keeping the sign-in's status in its own variable. The
+block above has not been run on a real host. Its stop paths are tested against
+a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)
 
