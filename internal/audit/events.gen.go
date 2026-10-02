@@ -832,7 +832,7 @@ var Metadata = map[Code]EventMeta{
 		Severity:    SeverityInfo,
 		Description: ``,
 		ActorTypes:  nil,
-		DetailKeys:  []string{"framework", "template_id"},
+		DetailKeys:  []string{"framework", "host_id", "requested_by", "scan_id", "template_id", "trigger"},
 	},
 	ScanStarted: {
 		Code:        ScanStarted,

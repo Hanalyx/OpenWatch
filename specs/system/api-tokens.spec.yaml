@@ -1,7 +1,7 @@
 spec:
   id: system-api-tokens
   title: API service-account tokens — hashed store + bearer authentication
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -37,6 +37,7 @@ spec:
         - "Create returns the raw secret once; only the SHA-256 hash is stored"
         - "AuthenticateToken: reject unknown/revoked/expired; stamp last_used_at"
         - "identity.Binder routes auth.APITokenPrefix bearer values to the token authenticator"
+        - "The token identity names its owner as the accountable user"
       excludes:
         - "Per-token permission subsets (tokens are role-scoped)"
         - "Token rotation / expiry-warning jobs (follow-up)"
@@ -55,8 +56,9 @@ spec:
         an unknown, revoked (revoked_at set), or expired (expires_at in the
         past) token, and a token whose owner may not authenticate (C-04).
         A successful authentication returns an auth.Identity
-        carrying the token's role; permissions are NOT embedded (the RBAC
-        middleware derives them from the role per request).
+        carrying the token's role and its owner (C-05); permissions are NOT
+        embedded (the RBAC middleware derives them from the role per
+        request).
       type: security
       enforcement: error
     - id: C-04
@@ -71,6 +73,17 @@ spec:
         auth.login.failure with its own reason, api_token_owner_disabled,
         api_token_owner_deleted or api_token_ownerless. This is P8 AC-95
         from bugs/doing/OW-062, and bugs/OW-071.
+      type: security
+      enforcement: error
+    - id: C-05
+      description: >-
+        A successful authentication MUST set the identity's ID to the
+        token's own id (the principal the audit trail names) and its UserID
+        to the token's owner (api_tokens.created_by), so AccountableUser
+        returns the owner. A users-referencing column written on behalf of a
+        token caller takes AccountableUser, never ID. The session-cookie and
+        Bearer-JWT arms of the binder set UserID to the signed-in user.
+        bugs/OW-097.
       type: security
       enforcement: error
     - id: C-03
@@ -134,3 +147,11 @@ spec:
           Re-enable: {while_disabled: 401, after_enable: 200, revoked_token_after_enable: 401}
         audit_read_by: "The request's correlation id"
         cookies: "Not applicable; Bearer credential"
+    - id: AC-07
+      description: >-
+        AuthenticateToken on a token created by an active user returns an
+        Identity whose ID is the token's id and whose AccountableUser is
+        (owner, true); the owner differs from the token id and is a users
+        row.
+      priority: critical
+      references_constraints: [C-02, C-05]

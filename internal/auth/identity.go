@@ -9,6 +9,8 @@ package auth
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 // Identity is the calling user's identity carried on the request context.
@@ -18,6 +20,15 @@ type Identity struct {
 	// ID is a stable string identifier for the calling principal. Stage 0
 	// uses the role name itself; Stage 2 uses the user/account UUID.
 	ID string
+
+	// UserID is the user account answerable for the request: the signed-in
+	// user on a session cookie or Bearer JWT, and the token's owner
+	// (api_tokens.created_by) on an API token. For a token, ID is the
+	// token's own id, which is not a users row, so a column that references
+	// users(id) takes UserID and never ID. uuid.Nil means none is bound.
+	// Read it through AccountableUser. Spec system-api-tokens C-05;
+	// bugs/OW-097.
+	UserID uuid.UUID
 
 	// RoleID is the built-in role granting the effective permissions. Stage 2
 	// replaces this with a union of roles, but the spec only requires a
@@ -78,6 +89,18 @@ func (i Identity) Permissions() []Permission {
 	out := make([]Permission, len(src))
 	copy(out, src)
 	return out
+}
+
+// AccountableUser returns the user account answerable for the request, and
+// false when none is bound: an anonymous identity, or one built without a
+// UserID. A caller that records a requester refuses on false rather than
+// falling back to ID, because ID names a token on the token arm.
+// Spec system-api-tokens C-05; bugs/OW-097.
+func (i Identity) AccountableUser() (uuid.UUID, bool) {
+	if i.IsAnonymous || i.UserID == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return i.UserID, true
 }
 
 type ctxKey struct{}

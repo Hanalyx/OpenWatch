@@ -382,6 +382,7 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		}
 		return withGrants(ctx, lookups, auth.Identity{
 			ID:     sess.UserID.String(),
+			UserID: sess.UserID,
 			RoleID: role,
 		}), ""
 	}
@@ -452,6 +453,7 @@ func resolveIdentity(ctx context.Context, pool *pgxpool.Pool, lookups Lookups, c
 		// caught by the registry.
 		return withGrants(ctx, lookups, auth.Identity{
 			ID:     claims.Subject,
+			UserID: uid,
 			RoleID: auth.RoleID(claims.Role),
 		}), ""
 	}
