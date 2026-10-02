@@ -711,9 +711,12 @@ version of this block (sha256
 real OpenWatch 0.7.1 host. It printed the scan-result line, then
 `signed out`, then `SCANNED`, and exited `0`. Two earlier drafts also printed
 `SCANNED` on that host the same day. The block above differs from that
-version only in how it handles a sign-in that breaks off: it signs out any
-session cookie the sign-in left, and it reports a sign-in with no answer as
-unknown. The block above has not been run on a real host. Its stop paths are
+version only in how it handles a sign-in that does not finish normally. When
+the sign-in gets no answer, is cut off, or returns a body without a usable
+access token, the block signs out any session cookie the sign-in left. When
+there is no cookie and no answer, it reports the outcome as unknown. It also
+rewords the messages for a refused sign-in and for a `200` without an access
+token, the answer an account with MFA gets. The block above has not been run on a real host. Its stop paths are
 tested against a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)
