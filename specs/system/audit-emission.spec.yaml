@@ -194,14 +194,9 @@ spec:
       references_constraints: [C-10, C-11]
     - id: AC-19
       description: >-
-        The same fourteen requests from a real owk_ API token record
-        actor_type api_key and actor_id the token's id, with the same resource
-        fields. Host create, credential create, credential clone and role
-        assign cannot complete for a token until bugs/OW-098 is fixed. This
-        criterion covers the other ten, which run. The four are held in a
-        separate, unannotated test that skips with a message naming OW-098,
-        so a skip never counts as coverage; they join this criterion when
-        OW-098 merges.
+        The same fourteen requests from a real owk_ API token (role admin)
+        record actor_type api_key and actor_id the token's own id, never its
+        owner's, with the same resource fields.
       priority: critical
       references_constraints: [C-10, C-11]
     - id: AC-20

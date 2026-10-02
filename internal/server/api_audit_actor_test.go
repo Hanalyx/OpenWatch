@@ -118,13 +118,8 @@ func auditRowsFor(t *testing.T, pool *pgxpool.Pool, corr, action string) []audit
 type auditCase struct {
 	name, action string
 	wantStatus   int
-	// tokenDeferred names why the token arm cannot run yet. Empty means the
-	// token arm runs.
-	tokenDeferred string
-	run           func(t *testing.T, url string, pool *pgxpool.Pool, c auditCaller, admin auditCaller) (corr string, status int, target auditRow)
+	run          func(t *testing.T, url string, pool *pgxpool.Pool, c auditCaller, admin auditCaller) (corr string, status int, target auditRow)
 }
-
-const deferredOW098 = "token caller blocked by bugs/OW-098 (the handler writes the token id into a users foreign key); un-skip when the OW-098 fix merges"
 
 func auditCases() []auditCase {
 	newHost := func(t *testing.T, url string, admin auditCaller) string {
@@ -162,7 +157,7 @@ func auditCases() []auditCase {
 	cred := func(id string) auditRow { return auditRow{ResourceType: "credential", ResourceID: id} }
 	user := func(id string) auditRow { return auditRow{ResourceType: "user", ResourceID: id} }
 	return []auditCase{
-		{name: "host created", action: "host.created", wantStatus: 201, tokenDeferred: deferredOW098,
+		{name: "host created", action: "host.created", wantStatus: 201,
 			run: func(t *testing.T, url string, _ *pgxpool.Pool, c, _ auditCaller) (string, int, auditRow) {
 				st, b, corr := c.call(t, url, "POST", "/api/v1/hosts", map[string]any{"hostname": "ow099-c-" + uuid.NewString()[:8], "ip_address": "198.51.100." + strconv.Itoa(int(uuid.New()[0])%200+20)})
 				id, _ := b["id"].(string)
@@ -192,7 +187,7 @@ func auditCases() []auditCase {
 				st, _, corr := c.call(t, url, "DELETE", "/api/v1/hosts/"+id, nil)
 				return corr, st, host(id)
 			}},
-		{name: "credential created", action: "credential.created", wantStatus: 201, tokenDeferred: deferredOW098,
+		{name: "credential created", action: "credential.created", wantStatus: 201,
 			run: func(t *testing.T, url string, _ *pgxpool.Pool, c, _ auditCaller) (string, int, auditRow) {
 				st, b, corr := c.call(t, url, "POST", "/api/v1/credentials", map[string]any{"scope": "system", "name": "ow099-c-" + uuid.NewString()[:8], "username": "u", "auth_method": "password", "password": "pw-ow099"})
 				id, _ := b["id"].(string)
@@ -204,7 +199,7 @@ func auditCases() []auditCase {
 				st, _, corr := c.call(t, url, "PATCH", "/api/v1/credentials/"+id, map[string]any{"description": "ow099"})
 				return corr, st, cred(id)
 			}},
-		{name: "credential created (clone)", action: "credential.created", wantStatus: 201, tokenDeferred: deferredOW098,
+		{name: "credential created (clone)", action: "credential.created", wantStatus: 201,
 			run: func(t *testing.T, url string, _ *pgxpool.Pool, c, admin auditCaller) (string, int, auditRow) {
 				src := newCred(t, url, admin)
 				hid := newHost(t, url, admin)
@@ -231,7 +226,7 @@ func auditCases() []auditCase {
 				st, _, corr := c.call(t, url, "DELETE", "/api/v1/users/"+id, nil)
 				return corr, st, user(id)
 			}},
-		{name: "role assigned", action: "authz.role.assigned", wantStatus: 204, tokenDeferred: deferredOW098,
+		{name: "role assigned", action: "authz.role.assigned", wantStatus: 204,
 			run: func(t *testing.T, url string, _ *pgxpool.Pool, c, admin auditCaller) (string, int, auditRow) {
 				id := newUser(t, url, admin)
 				st, _, corr := c.call(t, url, "POST", "/api/v1/users/"+id+"/roles:assign", map[string]any{"role_id": "auditor"})
@@ -302,40 +297,14 @@ func TestAuditActor_TokenCallerIsActorAsAPIKey(t *testing.T) {
 		admin := auditCaller{mode: "session", actorTyp: "user", actorID: roleUserIDs[auth.RoleAdmin].String()}
 		raw, tokenID := mintScanToken(t, url, auth.RoleAdmin)
 		tok := auditCaller{mode: "token", bearer: raw, actorTyp: "api_key", actorID: tokenID.String()}
-		ran := 0
-		for _, tc := range auditCases() {
-			if tc.tokenDeferred != "" {
-				continue // TestAuditActor_TokenCallerDeferredByOW098
-			}
-			ran++
+		cases := auditCases()
+		if len(cases) != 14 {
+			t.Fatalf("cases = %d, want the 14 events of OW-099", len(cases))
+		}
+		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) { runAuditCase(t, url, pool, tc, tok, admin) })
 		}
-		if ran != 10 {
-			t.Fatalf("token cases run = %d, want 10 (14 minus the 4 deferred to OW-098)", ran)
-		}
 	})
-}
-
-// TestAuditActor_TokenCallerDeferredByOW098 holds the four token cases whose
-// endpoint cannot complete for a token until bugs/OW-098 merges. It is left
-// unannotated on purpose: a skipped case must not count as coverage for the
-// token criterion.
-// When OW-098 merges, delete this test and the tokenDeferred field, so AC-19
-// runs all fourteen.
-func TestAuditActor_TokenCallerDeferredByOW098(t *testing.T) {
-	url, pool := freshAPIServer(t)
-	admin := auditCaller{mode: "session", actorTyp: "user", actorID: roleUserIDs[auth.RoleAdmin].String()}
-	raw, tokenID := mintScanToken(t, url, auth.RoleAdmin)
-	tok := auditCaller{mode: "token", bearer: raw, actorTyp: "api_key", actorID: tokenID.String()}
-	for _, tc := range auditCases() {
-		if tc.tokenDeferred == "" {
-			continue
-		}
-		t.Run(tc.name, func(t *testing.T) {
-			t.Skip(tc.tokenDeferred)
-			runAuditCase(t, url, pool, tc, tok, admin)
-		})
-	}
 }
 
 // @ac AC-20
