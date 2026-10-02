@@ -18,14 +18,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
-	"github.com/Hanalyx/openwatch/internal/license"
 )
 
 // @ac AC-16
 func TestLicenseDenial_AttributedToCaller(t *testing.T) {
 	t.Run("system-license-features/AC-16", func(t *testing.T) {
+		// freshAPIServer initializes the license in the free tier, so
+		// attestation is not enabled and the schedule answers 402.
 		url, pool := freshAPIServer(t)
-		license.Init() // free tier: attestation is not enabled
 		admin := roleUserIDs[auth.RoleAdmin]
 		raw, tokenID := mintTokenAs(t, url, auth.RoleAdmin, auth.RoleAdmin)
 		chID := uuid.New()
