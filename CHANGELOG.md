@@ -81,6 +81,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rewrite them. Recording a token's action as its owner happened only in
   unreleased builds.
 
+  **Remediation jobs queued before the upgrade keep the old attribution.** A
+  job's actor type now travels in its signed payload. A job queued before the
+  upgrade has none, so when it finishes it is recorded as `user`, even if an
+  API token queued it. OpenWatch does not work out afterward that a token
+  queued it.
+
 ### Changed
 
 - **Self-service endpoints refuse API tokens with 403.** `GET` and

@@ -9,6 +9,7 @@ package worker
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,6 +44,9 @@ func TestRemediationPayload_ActorTypeIsSignedAndLegacyMeansUser(t *testing.T) {
 		if verifyRemediation(key, relabeled, tag) {
 			t.Error("relabeling the token's job as a user left the HMAC valid")
 		}
+		t.Logf("new job, actor_type=api_key: tag %x", tag)
+		t.Logf("  same job relabeled actor_type=user verifies against that tag: %v (want false)", verifyRemediation(key, relabeled, tag))
+		t.Logf("  same job with actor_type stripped verifies against that tag: %v (want false)", verifyRemediation(key, stripped, tag))
 
 		// The wire round trip keeps the type, and the worker attributes the
 		// job to the token as api_key.
@@ -71,6 +75,8 @@ func TestRemediationPayload_ActorTypeIsSignedAndLegacyMeansUser(t *testing.T) {
 		if a := payloadActor(lparsed); a.Type != audit.ActorUser {
 			t.Errorf("legacy payloadActor type = %q, want user", a.Type)
 		}
+		t.Logf("legacy job (no actor_type field on the wire: %v): tag %x, round-trip tag %x, verifies: %v, attributed as: %s",
+			!strings.Contains(string(lraw), "actor_type"), ltag, lptag, verifyRemediation(key, lparsed, lptag), payloadActor(lparsed).Type)
 
 		// No actor id is system work.
 		sys := base
