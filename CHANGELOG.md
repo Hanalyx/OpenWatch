@@ -75,6 +75,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   credential), 503 on `mfa:verify`, or an empty feed. Sessions are not
   affected. (CP `bugs/OW-098`)
 
+- **A restore or rollback to 0.7.1 is now verified with a user session.** On
+  0.7.1 and 0.8.1, a scan started with an API token answers `500` even though
+  the scan runs (CP `bugs/OW-097`), so the backup guide's scan check could not
+  pass there. The backup guide adds a scan check that signs in as a user, runs
+  one scan, and signs out. Only a `204` from sign-out followed by a `401` for
+  the same session cookie proves the sign-out; a request that gets no answer
+  never counts. It prints `SCANNED` only when the scan passed and the sign-out
+  is proven. A passing scan with an unproven sign-out prints the scan's result
+  on its own line, then stops with exit `2`. A sign-in that sets a session
+  cookie and then times out or breaks off is still signed out. A sign-in
+  that gets no answer and leaves no cookie is reported as unknown, never as
+  "no session". The password goes from a root-only file to `curl` on
+  standard input, never onto a command line. The upgrade guide's rollback
+  steps now point a rollback to 0.7.1 to this check. The previous version
+  printed `SCANNED` with a proven sign-out on a real 0.7.1 host on
+  2026-10-02, but also printed a false "did not finish normally" line on a
+  normal sign-in, because it read a status the scan start had overwritten.
+  This version keeps the sign-in's status in its own variable, and is
+  tested against a stand-in server only. (CP `bugs/OW-094`, `bugs/OW-097`)
+
 ## [0.8.1] Eyrie (2026-10-01)
 
 **0.8.0 was not released.** `v0.8.0` was tagged and built into a draft

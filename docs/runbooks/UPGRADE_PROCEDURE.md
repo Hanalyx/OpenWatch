@@ -558,8 +558,11 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch
 
 `/api/v1/health` reports `healthy` with the previous version, and
 `migrate --status` reports no pending migrations. Then run one compliance scan
-end to end, as in the [post-upgrade checklist](#post-upgrade-checklist),
-before you call the rollback done.
+end to end before you call the rollback done. When the previous version is
+0.7.1, use the
+[session-based scan check](BACKUP_RECOVERY.md#run-one-scan-end-to-end-with-a-user-session).
+On 0.7.1 a scan started with an API token answers `500` even though the scan
+runs (CP `bugs/OW-097`), so the token-based check cannot pass there.
 
 #### How long the checks wait
 
@@ -811,7 +814,8 @@ token file. The token must have been created before the upgrade:
 ```
 
 When it reports `KEPT`, run one compliance scan end to end before you call
-the recovery complete.
+the recovery complete. On 0.7.1, use the
+[session-based scan check](BACKUP_RECOVERY.md#run-one-scan-end-to-end-with-a-user-session).
 
 ###### Put the original database back
 
