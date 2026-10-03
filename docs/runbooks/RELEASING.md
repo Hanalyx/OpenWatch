@@ -135,7 +135,9 @@ release, downloaded with `gh release download <tag>` or from the asset ids
    every boot and reports still sign, so nothing looks wrong until a restart
    invalidates every signature already issued. Record the key id in the sign-off.
 3. **Upgrade path:** install the previous GA, then upgrade to the RC; confirm the
-   service comes back and data survives.
+   service comes back and data survives. Then run the upgrade procedure's
+   Step 8 (restart, then compare the served rules with the installed rules)
+   and record its `MATCH` before any scan in the next step.
 4. **Functional walkthrough** against the release captain's test fleet:
    log in → add host → run a Kensa scan → view posture → drift → exceptions →
    export → role-based access. Record results in the sign-off checklist.

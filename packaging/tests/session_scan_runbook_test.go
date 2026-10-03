@@ -1,6 +1,7 @@
-// The session-based scan check in BACKUP_RECOVERY.md. On OpenWatch 0.7.1 and
-// 0.8.1 a scan started with an API token answers 500 while the scan runs (CP
-// bugs/OW-097), so the token-based scan check cannot pass there. This check
+// The session-based scan check in BACKUP_RECOVERY.md. On OpenWatch 0.7.1,
+// 0.8.0-rc.6 and 0.8.1 a scan started with an API token answers 500 while the
+// scan runs (CP bugs/OW-097; reproduced on 0.7.1, source inspection for the
+// other two), so the token-based scan check cannot pass there. This check
 // signs in as a user instead, runs one scan, and signs out, proving the
 // sign-out by replaying the session cookie. These tests run the block as the
 // Markdown states it, apart from its input lines, with the real curl and

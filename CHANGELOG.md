@@ -10,6 +10,50 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.2] Eyrie (2026-10-06)
+
+**0.8.0 and 0.8.1 were not released.** Each was tagged and built into a
+draft release, and neither was published.
+
+- **0.8.0** was stopped by its upgrade test. After the upgrade, a browser
+  that still held an old session could not load any page, including sign-in,
+  until its cookies were cleared by hand (CP `bugs/OW-090`).
+- **0.8.1** carried that fix, and was stopped by defects its own verification
+  found. A scan started with an API token answered `500` while the scan ran
+  unattributed (CP `bugs/OW-097`). Measuring the other handlers then found
+  that most writes failed for API tokens, and that a token could disable its
+  own owner (CP `bugs/OW-098`). The audit trail also recorded the wrong actor
+  (CP `bugs/OW-099`, `bugs/OW-100`), and API token issuance was not audited
+  (CP `bugs/OW-101`).
+
+Under the release policy the `v0.8.0` and `v0.8.1` tags and their drafts
+stay where they are, unchanged, as the record of those candidates. This
+release carries every fix from both. Nothing is inherited from either: every
+gate runs again against this build.
+
+The changes since 0.8.0 are in the `0.8.1` section and in this one. The
+release notes, upgrade notes and known limitations for the 0.8 line are in
+the `0.8.0-rc.6` section; they apply to this release as well.
+
+**Upgrade notes.** Read these before upgrading.
+
+- **Restart the service after the upgrade, then compare its rules with the
+  installed rules.** The RPM package starts the service while the outgoing
+  `kensa-rules` files are still on disk, and the service loads its rules
+  once, at startup. On a RHEL 9 host upgraded from 0.7.1, the running service
+  served two rules that `kensa-rules` 0.10.0 removed, with no warning, until
+  it restarted. The upgrade procedure's Step 8 restarts the service, proves
+  the rule library loaded, and compares the served rules with the installed
+  rules by ID. Only an RPM install was measured. Whether scans run before the
+  restart use the removed rules was not measured, so treat scans, reports and
+  scores from that window as unverified. (CP `bugs/OW-095`)
+- **API tokens now succeed on the writes that failed for them.** A token's
+  permissions still come only from its own role. A token now gets `403
+  auth.api_token_not_allowed` from the self-service endpoints listed under
+  Changed.
+- **Audit rows from earlier releases are not repaired.** The limits are
+  stated under each audit fix below.
+
 ### Fixed
 
 - **A scan started with an API token answered 500, and the scan ran anyway.**
@@ -135,6 +179,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   normal sign-in, because it read a status the scan start had overwritten.
   This version keeps the sign-in's status in its own variable, and is
   tested against a stand-in server only. (CP `bugs/OW-094`, `bugs/OW-097`)
+- **The upgrade procedure now restarts the service and compares its rules
+  with the installed rules.** A new Step 8 runs the backup guide's rule
+  library check, which restarts the service, then compares the rule IDs the
+  service serves with the IDs of the installed rule files. It prints `MATCH`
+  only when they are equal, and stops otherwise. The quick upgrade, the
+  post-upgrade checklist and the release runbook's upgrade path place it
+  before any scan and before the upgrade is called done. The comparison block
+  is tested against a stand-in server only; it has not yet been run against a
+  real OpenWatch service. (CP `bugs/OW-095`)
+- **The session-based scan check now also covers 0.8.0-rc.6.** The backup
+  guide and the upgrade rollback steps named only 0.7.1 and 0.8.1. The
+  published 0.8.0-rc.6 pre-release has the same scan handler, so a scan
+  started there with an API token also answers `500`. This is established by
+  source inspection, not by running rc.6; the `500` was reproduced on 0.7.1.
+  (CP `bugs/OW-097`)
 
 ## [0.8.1] Eyrie (2026-10-01)
 
