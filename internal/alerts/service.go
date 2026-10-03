@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -86,14 +87,17 @@ func (s *Service) transition(
 		if reason != "" {
 			detail["reason"] = reason
 		}
-		s.emit(ctx, code, audit.Event{
-			ActorType:    "user",
-			ActorID:      actorID.String(),
+		ev := audit.Event{
 			ResourceType: "alert",
 			ResourceID:   id.String(),
 			Outcome:      audit.OutcomeSuccess,
 			Detail:       audit.MakeDetail(detail),
-		})
+		}
+		// actorID is the accountable user recorded in the alert's own
+		// columns; the audit actor is the request principal, so a token's
+		// transition names the token, not its owner. bugs/OW-100.
+		auth.RequestActor(ctx, audit.Actor{Type: audit.ActorUser, ID: actorID.String()}).Set(&ev)
+		s.emit(ctx, code, ev)
 	}
 	return nil
 }

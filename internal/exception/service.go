@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 )
 
 // EmitFunc is the audit-emission shape (matches audit.Emit). Tests
@@ -335,11 +336,15 @@ func (s *Service) emitEvent(ctx context.Context, code audit.Code, e Exception, a
 	if s.emit == nil {
 		return
 	}
-	actorType := "user"
-	actorID := actor.String()
+	// actor is the accountable user (the requester or reviewer column).
+	// The audit actor is the request principal, so a token's action names
+	// the token, not its owner. With no request (expiry) it is the system.
+	// bugs/OW-100.
+	fallback := audit.Actor{Type: audit.ActorUser, ID: actor.String()}
 	if actor == uuid.Nil {
-		actorType, actorID = "system", "openwatch"
+		fallback = audit.Actor{Type: audit.ActorSystem, ID: "openwatch"}
 	}
+	who := auth.RequestActor(ctx, fallback)
 	detail, _ := json.Marshal(map[string]any{
 		"exception_id": e.ID.String(),
 		"host_id":      e.HostID.String(),
@@ -347,13 +352,13 @@ func (s *Service) emitEvent(ctx context.Context, code audit.Code, e Exception, a
 		"action":       action,
 		"status":       string(e.Status),
 	})
-	s.emit(ctx, code, audit.Event{
-		ActorType:    actorType,
-		ActorID:      actorID,
+	ev := audit.Event{
 		ResourceType: "compliance_exception",
 		ResourceID:   e.ID.String(),
 		Detail:       detail,
-	})
+	}
+	who.Set(&ev)
+	s.emit(ctx, code, ev)
 }
 
 // notifyRequested fans an "exception pending approval" notification to

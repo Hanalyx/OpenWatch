@@ -11,6 +11,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+
+	"github.com/Hanalyx/openwatch/internal/audit"
 )
 
 // Identity is the calling user's identity carried on the request context.
@@ -108,6 +110,36 @@ func (i Identity) AccountableUser() (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return i.UserID, true
+}
+
+// AuditActor returns who the audit trail names for this identity: the
+// token itself (api_key and the token's id) for an API token, the user for
+// a session, and anonymous when nothing is bound. It is never the token's
+// owner; that is AccountableUser, a different fact recorded in a service's
+// own columns. Spec system-audit-emission C-12; bugs/OW-100.
+func (i Identity) AuditActor() audit.Actor {
+	switch {
+	case i.IsAnonymous || i.ID == "":
+		return audit.AnonymousActor()
+	case i.IsAPIToken:
+		return audit.Actor{Type: audit.ActorAPIKey, ID: i.ID}
+	default:
+		return audit.Actor{Type: audit.ActorUser, ID: i.ID}
+	}
+}
+
+// RequestActor returns the audit actor for the request on ctx: the bound
+// identity's AuditActor (a token as itself, a user as the user). When no
+// identity is bound, which happens only on a direct call outside a request
+// (a worker, a test), it returns fallback. Services that record an
+// accountable user in their own columns use this for the audit actor, so a
+// token's action is never attributed to its owner. Spec
+// system-audit-emission C-12; bugs/OW-100.
+func RequestActor(ctx context.Context, fallback audit.Actor) audit.Actor {
+	if id := FromContext(ctx); !id.IsAnonymous && id.ID != "" {
+		return id.AuditActor()
+	}
+	return fallback
 }
 
 type ctxKey struct{}
