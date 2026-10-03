@@ -1,7 +1,7 @@
 spec:
   id: system-license-features
   title: License features and gating middleware
-  version: "1.2.0"
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -55,6 +55,17 @@ spec:
       type: security
       enforcement: error
 
+    - id: C-07
+      description: >-
+        v1.3.0 - license.feature_check_denied MUST name the caller as actor:
+        user and the user's id for a session, api_key and the token's own
+        id for an API token, and anonymous with no id for an unauthenticated
+        request, never user with an empty id. actor_ip stays the remote
+        address. The one-minute dedup keys on that principal (anonymous
+        callers on the remote address), so two callers' denials are never
+        merged into one event. bugs/OW-101.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Codegen produces features.gen.go with one typed Feature constant per entry in features.yaml.
@@ -129,3 +140,21 @@ spec:
         providing none.
       priority: critical
       references_constraints: [C-01]
+    - id: AC-15
+      description: >-
+        v1.3.0 - At the middleware, denials from a session, two tokens of the
+        same owner and an anonymous caller, all from one remote address and
+        port, emit four events with actors user/id, api_key/token A,
+        api_key/token B and anonymous with no id and the remote address as
+        actor_ip. A repeat by the same token, and a repeat by the anonymous
+        address, within the window emit nothing more.
+      priority: high
+      references_constraints: [C-07]
+    - id: AC-16
+      description: >-
+        v1.3.0 - Through the real binder, a 402 from POST
+        /api/v1/reports/schedules without the license records
+        license.feature_check_denied with actor user/admin's id for a
+        session and api_key/the token's id for an admin-role token.
+      priority: high
+      references_constraints: [C-07]

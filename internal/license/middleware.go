@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
 )
 
@@ -122,12 +123,21 @@ func denialSweeper() {
 // denials increment a counter that is reported on the next emit's
 // detail.suppressed_count.
 func emitDenial(r *http.Request, f Feature) {
-	// Stage 0: actor_id is unknown (auth lands Stage 2). Use a placeholder
-	// derived from remote_addr so dedup still works per-client.
-	actor := r.RemoteAddr
+	// The actor is the request's principal: a user, or an API token as
+	// itself, never its owner. An unauthenticated caller is recorded as
+	// anonymous, as before. Dedup keys on that principal, so two callers'
+	// denials are never merged into one event; an anonymous caller is
+	// keyed by remote address exactly as before, so its dedup is unchanged.
+	// A principal key ("user:<id>", "api_key:<id>") cannot equal an
+	// address. Spec system-license-features C-07; bugs/OW-101.
+	actor := auth.FromContext(r.Context()).AuditActor()
+	dedupKey := r.RemoteAddr
+	if actor.Type != audit.ActorAnonymous {
+		dedupKey = actor.Type + ":" + actor.ID
+	}
 
 	denialMu.Lock()
-	key := denialKey{feature: f, actor: actor}
+	key := denialKey{feature: f, actor: dedupKey}
 	s, ok := denialMap[key]
 	now := time.Now()
 
@@ -160,9 +170,10 @@ func emitDenial(r *http.Request, f Feature) {
 	if suppressed > 0 {
 		detail["suppressed_count"] = suppressed
 	}
-	audit.Emit(r.Context(), audit.LicenseFeatureCheckDenied, audit.Event{
-		ActorType: "user",
-		ActorIP:   r.RemoteAddr,
-		Detail:    audit.MakeDetail(detail),
-	})
+	ev := audit.Event{
+		ActorIP: r.RemoteAddr,
+		Detail:  audit.MakeDetail(detail),
+	}
+	actor.Set(&ev)
+	audit.Emit(r.Context(), audit.LicenseFeatureCheckDenied, ev)
 }

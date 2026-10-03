@@ -262,6 +262,8 @@ var auditPredicates = map[string]string{
 	"auth.token.issued":           "was issued a token",
 	"auth.token.refreshed":        "refreshed a token",
 	"auth.token.revoked":          "revoked a token",
+	"auth.api_token.issued":       "issued an API token",
+	"auth.api_token.revoked":      "revoked an API token",
 	"auth.mfa.enrolled":           "enrolled in MFA",
 	"auth.mfa.validated":          "passed MFA",
 	"auth.mfa.failed":             "failed MFA",

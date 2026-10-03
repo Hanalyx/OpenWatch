@@ -28,6 +28,7 @@ const (
 	auditResourceRole       = "role"
 	auditResourceAuthPolicy = "auth_policy"
 	auditResourceSSO        = "sso_provider"
+	auditResourceAPIToken   = "api_token"
 )
 
 // auditTarget is the object an event acted on. The zero value means the
