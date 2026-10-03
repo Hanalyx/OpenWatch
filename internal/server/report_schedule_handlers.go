@@ -181,10 +181,9 @@ func (h *handlers) CreateReportSchedule(w http.ResponseWriter, r *http.Request) 
 		"schedule_id": sch.ID.String(), "name": sch.Name, "kind": sch.Kind,
 		"frequency": string(sch.Frequency), "channel_id": sch.ChannelID.String(),
 	})
-	audit.Emit(r.Context(), audit.ReportScheduleCreated, audit.Event{
-		ActorType: "user", ActorID: ident.ID,
-		ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail,
-	})
+	ev := audit.Event{ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail}
+	ident.AuditActor().Set(&ev) // a token is api_key, not user; bugs/OW-100
+	audit.Emit(r.Context(), audit.ReportScheduleCreated, ev)
 
 	writeJSON(w, http.StatusCreated, toAPISchedule(sch))
 }
@@ -215,10 +214,9 @@ func (h *handlers) UpdateReportSchedule(w http.ResponseWriter, r *http.Request, 
 
 	ident := auth.FromContext(r.Context())
 	detail, _ := json.Marshal(map[string]any{"schedule_id": sch.ID.String(), "enabled": sch.Enabled})
-	audit.Emit(r.Context(), audit.ReportScheduleToggled, audit.Event{
-		ActorType: "user", ActorID: ident.ID,
-		ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail,
-	})
+	ev := audit.Event{ResourceType: "report_schedule", ResourceID: sch.ID.String(), Detail: detail}
+	ident.AuditActor().Set(&ev) // a token is api_key, not user; bugs/OW-100
+	audit.Emit(r.Context(), audit.ReportScheduleToggled, ev)
 
 	writeJSON(w, http.StatusOK, toAPISchedule(sch))
 }
@@ -244,10 +242,9 @@ func (h *handlers) DeleteReportSchedule(w http.ResponseWriter, r *http.Request, 
 
 	ident := auth.FromContext(r.Context())
 	detail, _ := json.Marshal(map[string]string{"schedule_id": uuid.UUID(id).String()})
-	audit.Emit(r.Context(), audit.ReportScheduleDeleted, audit.Event{
-		ActorType: "user", ActorID: ident.ID,
-		ResourceType: "report_schedule", ResourceID: uuid.UUID(id).String(), Detail: detail,
-	})
+	ev := audit.Event{ResourceType: "report_schedule", ResourceID: uuid.UUID(id).String(), Detail: detail}
+	ident.AuditActor().Set(&ev) // a token is api_key, not user; bugs/OW-100
+	audit.Emit(r.Context(), audit.ReportScheduleDeleted, ev)
 
 	w.WriteHeader(http.StatusNoContent)
 }

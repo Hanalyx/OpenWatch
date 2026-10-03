@@ -370,6 +370,7 @@ func (h *handlers) ExecuteRemediation(w http.ResponseWriter, r *http.Request, ri
 		RuleID:    rq.RuleID,
 		Action:    worker.RemediationActionExecute,
 		ActorID:   actorUUID(r),
+		ActorType: auth.FromContext(r.Context()).AuditActor().Type,
 	})
 	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
 	if err != nil {
@@ -419,6 +420,7 @@ func (h *handlers) RollbackRemediation(w http.ResponseWriter, r *http.Request, r
 		RuleID:    rq.RuleID,
 		Action:    worker.RemediationActionRollback,
 		ActorID:   actorUUID(r),
+		ActorType: auth.FromContext(r.Context()).AuditActor().Type,
 	})
 	jobID, err := queue.Enqueue(ctx, h.pool, worker.RemediationJobType, body)
 	if err != nil {
@@ -472,13 +474,13 @@ func (h *handlers) emitRemediationActQueued(ctx context.Context, r *http.Request
 	if action == worker.RemediationActionRollback {
 		code = audit.RemediationRolledBack
 	}
-	audit.Emit(ctx, code, audit.Event{
-		ActorType:    "user",
-		ActorID:      ident.ID,
+	queued := audit.Event{
 		ResourceType: "remediation_request",
 		ResourceID:   rq.ID.String(),
 		Detail:       detail,
-	})
+	}
+	ident.AuditActor().Set(&queued) // a token is api_key, not user; bugs/OW-100
+	audit.Emit(ctx, code, queued)
 }
 
 // GetRemediationPlan previews what a request's fix would do, without changing

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hanalyx/openwatch/internal/audit"
+	"github.com/Hanalyx/openwatch/internal/auth"
 )
 
 // EmitFunc is the audit-emission shape (matches audit.Emit). Tests pass a fake.
@@ -397,22 +398,22 @@ const (
 // emitAudit records one remediation.* audit row with a caller-supplied detail
 // payload (the execution path builds richer detail than emitEvent's fixed
 // shape). actor is the user who invoked the action.
-func (s *Service) emitAudit(ctx context.Context, code audit.Code, rq Request, actor uuid.UUID, detail []byte) {
+func (s *Service) emitAudit(ctx context.Context, code audit.Code, rq Request, actor audit.Actor, detail []byte) {
 	if s.emit == nil {
 		return
 	}
 	ev := audit.Event{
-		ActorType:    "system",
 		ResourceType: "remediation_request",
 		ResourceID:   rq.ID.String(),
 		Detail:       detail,
 	}
-	// A nil actor is the absence of a user, not a user with a nil id. Only a
-	// real principal is recorded as one.
-	if actor != uuid.Nil {
-		ev.ActorType = "user"
-		ev.ActorID = actor.String()
+	// A zero actor is the absence of a principal: system work, never a
+	// user with an empty id. A token arrives as itself (api_key) from the
+	// signed job payload. bugs/OW-100.
+	if actor.Type == "" || actor.ID == "" {
+		actor = audit.SystemActor()
 	}
+	actor.Set(&ev)
 	s.emit(ctx, code, ev)
 }
 
@@ -429,13 +430,16 @@ func (s *Service) emitEvent(ctx context.Context, code audit.Code, rq Request, ac
 		"outcome":    outcome,
 		"status":     string(rq.Status),
 	})
-	s.emit(ctx, code, audit.Event{
-		ActorType:    "user",
-		ActorID:      actor.String(),
+	ev := audit.Event{
 		ResourceType: "remediation_request",
 		ResourceID:   rq.ID.String(),
 		Detail:       detail,
-	})
+	}
+	// actor is the accountable requester or reviewer; the audit actor is
+	// the request principal, so a token's action names the token, not its
+	// owner. bugs/OW-100.
+	auth.RequestActor(ctx, audit.Actor{Type: audit.ActorUser, ID: actor.String()}).Set(&ev)
+	s.emit(ctx, code, ev)
 }
 
 // isUniqueViolation reports whether err is a Postgres unique-violation

@@ -53,6 +53,12 @@ type RemediationPayload struct {
 	// and the worker then records a system actor rather than inventing one.
 	// Signed when present: a job cannot be re-attributed after enqueue.
 	ActorID uuid.UUID
+	// ActorType is the audit actor type of ActorID: "user" for a session,
+	// "api_key" for an API token (the token's own id, never its owner).
+	// Empty on a payload signed before the field existed; the worker reads
+	// that as "user", which is what those jobs meant. Signed when present,
+	// so a token's job cannot be relabeled as a person's. bugs/OW-100.
+	ActorType string
 }
 
 // remediationJobBody is the wire shape stored in the queue row's JSONB. Mirror
@@ -64,6 +70,7 @@ type remediationJobBody struct {
 	Action    string `json:"action"`
 	TxnID     string `json:"txn_id,omitempty"`
 	ActorID   string `json:"actor_id,omitempty"`
+	ActorType string `json:"actor_type,omitempty"`
 	HMAC      string `json:"hmac"`
 }
 
@@ -90,6 +97,15 @@ func encodeRemediation(p RemediationPayload) []byte {
 	buf = append(buf, rule...)
 	if p.ActorID != uuid.Nil {
 		buf = append(buf, p.ActorID[:]...)
+		// The actor type follows the id, length-prefixed, only when set: a
+		// payload signed before the field existed encodes exactly as it
+		// did, and one signed with a type cannot have it stripped.
+		if p.ActorType != "" {
+			typ := []byte(p.ActorType)
+			binary.BigEndian.PutUint32(lenBuf, uint32(len(typ))) //nolint:gosec // bounded by field
+			buf = append(buf, lenBuf...)
+			buf = append(buf, typ...)
+		}
 	}
 	return buf
 }
@@ -126,6 +142,9 @@ func MarshalRemediationJob(key []byte, p RemediationPayload) map[string]any {
 	}
 	if p.ActorID != uuid.Nil {
 		body["actor_id"] = p.ActorID.String()
+		if p.ActorType != "" {
+			body["actor_type"] = p.ActorType
+		}
 	}
 	return body
 }
@@ -176,6 +195,7 @@ func parseRemediationPayload(raw []byte) (RemediationPayload, [sha256.Size]byte,
 			return RemediationPayload{}, zero, fmt.Errorf("%w: actor_id: %v", errRemMalformed, aerr)
 		}
 		p.ActorID = actorID
+		p.ActorType = body.ActorType
 	}
 	if body.HMAC == "" {
 		return RemediationPayload{}, zero, errRemMissingHMAC

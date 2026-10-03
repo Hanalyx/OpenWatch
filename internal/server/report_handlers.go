@@ -273,13 +273,9 @@ func (h *handlers) PostReportGenerate(w http.ResponseWriter, r *http.Request) {
 	detail, _ := json.Marshal(map[string]string{
 		"kind": string(rep.Kind), "scope_label": rep.ScopeLabel, "report_id": rep.ID.String(),
 	})
-	audit.Emit(r.Context(), audit.ReportGenerated, audit.Event{
-		ActorType:    "user",
-		ActorID:      ident.ID,
-		ResourceType: "report",
-		ResourceID:   rep.ID.String(),
-		Detail:       detail,
-	})
+	generated := audit.Event{ResourceType: "report", ResourceID: rep.ID.String(), Detail: detail}
+	ident.AuditActor().Set(&generated) // a token is api_key, not user; bugs/OW-100
+	audit.Emit(r.Context(), audit.ReportGenerated, generated)
 
 	writeJSON(w, http.StatusCreated, out)
 }

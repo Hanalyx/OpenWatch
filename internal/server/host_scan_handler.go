@@ -152,11 +152,11 @@ func (h *handlers) PostHostScan(
 		"trigger":      string(scanruns.TriggerOnDemand),
 		"requested_by": requester.String(),
 	})
-	audit.Emit(ctx, audit.ScanQueued, audit.Event{
-		ActorType: "user",
-		ActorID:   ident.ID,
-		Detail:    detail,
-	})
+	// The actor is the principal as itself (api_key for a token), never the
+	// owner recorded in requested_by. bugs/OW-100.
+	queued := audit.Event{Detail: detail}
+	ident.AuditActor().Set(&queued)
+	audit.Emit(ctx, audit.ScanQueued, queued)
 
 	writeJSON(w, http.StatusAccepted, api.ScanRunQueued{
 		ScanId:   jobID,

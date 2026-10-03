@@ -278,7 +278,7 @@ func (w *RemediationWorker) finishExecute(ctx context.Context, j *queue.Job,
 		}
 	}
 
-	w.svc.EmitExecuted(ctx, final, p.ActorID)
+	w.svc.EmitExecuted(ctx, final, payloadActor(p))
 	w.publishCompleted(ctx, eventbus.RemediationCompleted{
 		RequestID:   final.ID,
 		HostID:      final.HostID,
@@ -367,7 +367,7 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 			_ = queue.Fail(ctx, w.pool, j.ID, "rollback mark: "+terr.Error())
 			return
 		}
-		w.svc.EmitRolledBack(ctx, final, p.ActorID, status)
+		w.svc.EmitRolledBack(ctx, final, payloadActor(p), status)
 		w.publishCompleted(ctx, eventbus.RemediationCompleted{
 			RequestID:   final.ID,
 			HostID:      final.HostID,
@@ -386,7 +386,7 @@ func (w *RemediationWorker) processRollback(ctx context.Context, j *queue.Job, p
 
 	// Rollback did not cleanly restore: leave the request 'executed', audit
 	// the outcome, fail the job so the operator sees it did not revert.
-	w.svc.EmitRolledBack(ctx, rq, p.ActorID, status)
+	w.svc.EmitRolledBack(ctx, rq, payloadActor(p), status)
 	detail := status
 	if rbErr != nil {
 		detail = rbErr.Error()
@@ -504,4 +504,19 @@ func anyConverged(txns []remediation.ExecTxn) bool {
 func mustEvidence(v map[string]any) []byte {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// payloadActor is the audit actor a signed job carries: the token itself
+// (api_key) or the user who invoked the action. No actor id is system
+// work. A payload signed before actor_type existed means a user.
+// bugs/OW-100.
+func payloadActor(p RemediationPayload) audit.Actor {
+	if p.ActorID == uuid.Nil {
+		return audit.SystemActor()
+	}
+	t := p.ActorType
+	if t == "" {
+		t = audit.ActorUser
+	}
+	return audit.Actor{Type: t, ID: p.ActorID.String()}
 }

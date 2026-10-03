@@ -17,6 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Hanalyx/openwatch/internal/audit"
 )
 
 // MarkExecuting transitions an 'approved' request to 'executing' under a row
@@ -238,7 +240,7 @@ func (s *Service) FirstReversibleTxn(ctx context.Context, id uuid.UUID) (uuid.UU
 // partially_applied, failed). It used to be a boolean collapsed to
 // "executed" or "failed", which audited a staged transaction as a failure
 // while the request said staged (api-remediation AC-09; CP bugs/OW-042).
-func (s *Service) EmitExecuted(ctx context.Context, rq Request, actor uuid.UUID) {
+func (s *Service) EmitExecuted(ctx context.Context, rq Request, actor audit.Actor) {
 	if s.emit == nil {
 		return
 	}
@@ -253,7 +255,7 @@ func (s *Service) EmitExecuted(ctx context.Context, rq Request, actor uuid.UUID)
 }
 
 // EmitRolledBack records the remediation.rolled_back audit event.
-func (s *Service) EmitRolledBack(ctx context.Context, rq Request, actor uuid.UUID, status string) {
+func (s *Service) EmitRolledBack(ctx context.Context, rq Request, actor audit.Actor, status string) {
 	if s.emit == nil {
 		return
 	}

@@ -268,7 +268,8 @@ func (h *handlers) PostDiagnosticsEcho(w http.ResponseWriter, r *http.Request, p
 	eventID := uuid.Must(uuid.NewV7())
 	audit.Emit(r.Context(), audit.IntegrationPluginExecuted, audit.Event{
 		ID:        eventID,
-		ActorType: "user",
+		ActorType: auth.FromContext(r.Context()).AuditActor().Type, // bugs/OW-100
+		ActorID:   auth.FromContext(r.Context()).AuditActor().ID,
 		Action:    audit.IntegrationPluginExecuted, // placeholder until diagnostics.* code exists
 		Detail: audit.MakeDetail(map[string]interface{}{
 			"endpoint": "diagnostics:echo",
@@ -486,7 +487,8 @@ func (h *handlers) PostDiagnosticsPremiumEcho(w http.ResponseWriter, r *http.Req
 	eventID := uuid.Must(uuid.NewV7())
 	audit.Emit(r.Context(), audit.IntegrationPluginExecuted, audit.Event{
 		ID:        eventID,
-		ActorType: "user",
+		ActorType: auth.FromContext(r.Context()).AuditActor().Type, // bugs/OW-100
+		ActorID:   auth.FromContext(r.Context()).AuditActor().ID,
 		Detail: audit.MakeDetail(map[string]interface{}{
 			"endpoint": "diagnostics:premium-echo",
 			"message":  req.Message,
@@ -804,7 +806,8 @@ func requireDiagnosticEcho(w http.ResponseWriter, r *http.Request, _ *pgxpool.Po
 	eventID := uuid.Must(uuid.NewV7())
 	audit.Emit(r.Context(), audit.IntegrationPluginExecuted, audit.Event{
 		ID:        eventID,
-		ActorType: "user",
+		ActorType: auth.FromContext(r.Context()).AuditActor().Type, // bugs/OW-100
+		ActorID:   auth.FromContext(r.Context()).AuditActor().ID,
 		Action:    audit.IntegrationPluginExecuted,
 		Detail: audit.MakeDetail(map[string]interface{}{
 			"endpoint": endpointLabel,

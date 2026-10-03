@@ -753,11 +753,7 @@ func (s *Service) emitAuditSuccess(ctx context.Context, hostID uuid.UUID, f Syst
 	// is bound on ctx) from an automated scheduled run (the scheduler's
 	// background ctx has no identity). Without this the event was emitted
 	// with no actor and read as the misleading "Someone".
-	if id := auth.FromContext(ctx); !id.IsAnonymous {
-		ev.ActorType = "user"
-		ev.ActorID = id.ID
-	} else {
-		ev.ActorType = "system"
-	}
+	// A token-triggered run is typed api_key, not user (bugs/OW-100).
+	auth.RequestActor(ctx, audit.SystemActor()).Set(&ev)
 	s.emit(ctx, audit.HostDiscoveryCompleted, ev)
 }
