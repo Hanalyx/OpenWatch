@@ -252,7 +252,7 @@ when both blocks below finish:
    library. It prints `VERIFIED` only after every check passes.
 2. The second block runs one compliance scan end to end. It prints
    `SCANNED` only when the scan completes with no rule errors. On OpenWatch
-   0.7.1 and 0.8.1, run the
+   0.7.1, 0.8.0-rc.6 and 0.8.1, run the
    [session-based scan check](#run-one-scan-end-to-end-with-a-user-session)
    instead, because those versions cannot start a scan with an API token.
 
@@ -275,7 +275,7 @@ block prints it.
 | Rule library check | `scan:read` | `viewer` |
 | Scan check | `host:write` and `scan:read` | `ops_lead`, `security_admin` or `admin` |
 
-The session-based scan check for 0.7.1 and 0.8.1 uses no token. It signs in
+The session-based scan check for 0.7.1, 0.8.0-rc.6 and 0.8.1 uses no token. It signs in
 as a user, as described in its own section.
 
 The token must be valid in the database the service is running on. After a
@@ -468,10 +468,14 @@ recent scans before you start another one.
 #### Run one scan end to end with a user session
 
 Use this check instead of the one above when the restored or rolled-back
-service runs OpenWatch 0.7.1 or 0.8.1. On those versions, a scan started with
-an API token answers HTTP `500`, even though the scan runs (CP
+service runs OpenWatch 0.7.1, 0.8.0-rc.6 or 0.8.1. On those versions, a scan
+started with an API token answers HTTP `500`, even though the scan runs (CP
 `bugs/OW-097`). The token-based check above therefore always stops at stage
-`start` on them. This check starts its scan from a signed-in user session,
+`start` on them. The `500` was reproduced on a running 0.7.1 service. For
+0.8.0-rc.6 and 0.8.1 the evidence is source inspection, not a runtime
+reproduction: the scan handler file is identical to 0.7.1's, and it records an
+API token's own ID as the scan's requester, a column that accepts only a
+user. This check starts its scan from a signed-in user session,
 which those versions handle correctly.
 
 **You need:**

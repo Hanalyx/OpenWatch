@@ -29,7 +29,7 @@ migration mechanics, see the [database migrations guide](DATABASE_MIGRATIONS.md)
 > - **You need:** the [Before you upgrade](#before-you-upgrade) checklist done, including the full backup.
 > - **Run as:** a sudo-capable administrator; the package scriptlet runs the migration as the service user.
 > - **What changes:** the installed packages, the database schema (migrated inside the package transaction), and the service (stopped and started by the scriptlet).
-> - **Verify with:** `openwatch --version` showing the new version and `/api/v1/health` returning `200`.
+> - **Verify with:** `openwatch --version` showing the new version, `/api/v1/health` returning `200`, then [Step 8](#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules) printing `MATCH`. Run no scan, and do not call the upgrade done, until it does.
 > - **Recover by:** [Rollback](#rollback): decided from the observed schema version, not from which step you reached.
 
 On a single-instance install an upgrade is **one command**. The package
@@ -63,6 +63,12 @@ The scriptlet runs **only on upgrade**, never on a fresh install, and does:
 5. **On success → starts the service** on the new version.
    **On failure → leaves the service stopped**, prints the restore path, and
    exits non-zero so `dnf`/`apt` flag that the upgrade needs attention.
+
+On an RPM upgrade, the scriptlet starts the service before the outgoing
+`kensa-rules` files are removed, so the service can serve rules the upgrade
+removed. Restart it and compare the served rules with the installed rules,
+as in [Step 8](#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules),
+before you run a scan.
 
 Preview what would change before upgrading:
 
@@ -312,6 +318,97 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OP
 
 The `version` field in both `/api/v1/health` and `/api/v1/version` should report
 the new version. Sign in at `https://<host>:8443/` and confirm the UI loads.
+These checks do not finish the upgrade: run Step 8 before any scan, and before
+you call the upgrade done.
+
+### Step 8: Restart, then confirm the served rules match the installed rules
+
+On an RPM upgrade, the package scriptlet starts the service inside the
+package transaction, while the outgoing `kensa-rules` files are still on disk. The service loads
+its rule library once, at startup. So after an upgrade that removes or renames
+rules, the running service keeps serving the removed rules until it restarts.
+Nothing warns: health answers `healthy`, the journal shows no rule-load
+warning, and `rpm -V` is clean (CP `bugs/OW-095`).
+
+This was measured on a RHEL 9 host upgraded from 0.7.1 with `kensa-rules`
+0.9.0 to 0.8.1 with `kensa-rules` 0.10.0, in one transaction. The running
+service served 781 rules, and the installed package holds 779. The two extra
+rules were `shell-idle-timeout-tmout` and `shell-timeout-600`, both removed in
+0.10.0. After a restart, the served rules matched the installed rules exactly,
+by ID.
+
+Do the following after every upgrade, on RPM and DEB hosts alike, and before
+you run a scan.
+
+1. Restart the service and prove it loaded its rule library. Run the backup
+   guide's
+   [Check that the rule library loaded](BACKUP_RECOVERY.md#check-that-the-rule-library-loaded).
+   It restarts the service and prints `VERIFIED` only when every check passes.
+2. Confirm that the rule files on disk are the package's files. No output
+   means clean.
+
+   ```bash
+   sudo rpm -V kensa-rules           # RPM
+   sudo dpkg --verify kensa-rules    # DEB
+   ```
+
+3. Compare the rules the service serves with the rules installed, by ID. The
+   block needs an API token with `scan:read` (the `viewer` role has it) in a
+   root-only file, the same kind of token as step 1. The token goes to `curl`
+   on standard input, so it does not appear in the process list, and the block
+   never prints it. The comparison needs `python3` with PyYAML
+   (`python3-pyyaml` on RHEL, `python3-yaml` on Debian and Ubuntu). Run it as
+   root.
+
+   ```bash
+   (
+     set -euo pipefail
+     TOKEN_FILE='<root-only-file-holding-an-owk-token-with-scan-read>'
+     URL=https://localhost:8443
+     case "$TOKEN_FILE" in
+       *'<'*) echo "fill in the value at the top first" >&2; exit 1 ;;
+     esac
+     test -r "$TOKEN_FILE"
+     TOKEN=$(cat "$TOKEN_FILE")
+     [[ "$TOKEN" == owk_* ]]
+     SERVED=$(mktemp)
+     trap 'rm -f "$SERVED"' EXIT
+     curl -skf --connect-timeout 3 --max-time 30 -K - "$URL/api/v1/rules" > "$SERVED" <<<"header = \"Authorization: Bearer $TOKEN\"" ||
+       { echo "the rules request failed (curl exit $?); check the token and that the service is up" >&2; exit 1; }
+     python3 - "$SERVED" <<'EOF'
+   import glob, json, sys, yaml
+   served = {r["id"] for r in json.load(open(sys.argv[1]))["rules"]}
+   installed = set()
+   for path in glob.glob("/usr/share/kensa/rules/**/*.yml", recursive=True):
+       doc = yaml.safe_load(open(path))
+       if isinstance(doc, dict) and "id" in doc:
+           installed.add(doc["id"])
+   print("served:", len(served), "installed:", len(installed))
+   print("served but not installed:", sorted(served - installed))
+   print("installed but not served:", sorted(installed - served))
+   print("MATCH" if served == installed else "MISMATCH")
+   sys.exit(0 if served == installed else 1)
+   EOF
+   )
+   ```
+
+4. The last line must read `MATCH`, with both lists empty. If it reads
+   `MISMATCH`, run steps 1 to 3 again. If it still reads `MISMATCH`, stop and
+   contact support. Do not scan until it reads `MATCH`.
+
+What this step does and does not establish:
+
+- **Only an RPM install was measured.** A DEB install was not. Its package
+  scripts also start the service during the upgrade, but `dpkg` removes old
+  files at a different point than `rpm` does. Whether a DEB upgrade is exposed
+  is not known, so follow the same steps.
+- **Scans run before the restart are unverified.** Whether a scan run in that
+  window evaluates the removed rules, and how scoring treats them, was not
+  measured. Treat scans, reports and scores from the window between the
+  upgrade and the restart as unverified.
+- **The restart does not change stored data.** It takes a few seconds.
+- **The comparison reads only the rule files.** It finds rules as the engine
+  does: every `*.yml` file under `/usr/share/kensa/rules`, by its `id`.
 
 ## Rollback
 
@@ -559,10 +656,12 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch
 `/api/v1/health` reports `healthy` with the previous version, and
 `migrate --status` reports no pending migrations. Then run one compliance scan
 end to end before you call the rollback done. When the previous version is
-0.7.1, use the
+0.7.1 or 0.8.0-rc.6, use the
 [session-based scan check](BACKUP_RECOVERY.md#run-one-scan-end-to-end-with-a-user-session).
-On 0.7.1 a scan started with an API token answers `500` even though the scan
-runs (CP `bugs/OW-097`), so the token-based check cannot pass there.
+On those versions a scan started with an API token answers `500` even though
+the scan runs (CP `bugs/OW-097`), so the token-based check cannot pass there.
+That was reproduced on 0.7.1; for 0.8.0-rc.6 it is established by source
+inspection, as the backup guide states.
 
 #### How long the checks wait
 
@@ -1048,7 +1147,8 @@ versions and must be operator-supervised; doing it silently from a package
 upgrade would risk the whole database. Plan it separately, with its own backup:
 follow your distribution's procedure, stop `openwatch.service` first so no
 connections are open, then start it again afterward and run the
-[verification](#step-7-verify-the-upgrade) checks. (Minor PostgreSQL and
+[verification](#step-7-verify-the-upgrade) checks and
+[Step 8](#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules). (Minor PostgreSQL and
 dependency updates are handled by `dnf`/`apt` via package dependencies: nothing
 extra to do.)
 
@@ -1098,6 +1198,7 @@ still names a reachable server with the right password.
 - [ ] `/api/v1/health` returns `healthy` with `db_connected:true`.
 - [ ] `/api/v1/version` reports the new version.
 - [ ] `journalctl -u openwatch` shows a clean startup and no recurring errors.
+- [ ] After a restart, the served rules match the installed rules by ID ([Step 8](#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules) prints `MATCH`).
 - [ ] An administrator can sign in at `https://<host>:8443/`.
 - [ ] A compliance scan completes end to end.
 - [ ] The upgrade is recorded in your change log.
