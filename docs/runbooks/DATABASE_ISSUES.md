@@ -111,7 +111,8 @@ LIMIT 10;
 
 ```bash
 # Host disk for the PostgreSQL data directory
-df -h "$(psql -U openwatch -d openwatch -tAc 'SHOW data_directory;')"
+# SHOW data_directory needs a superuser or pg_read_all_settings; the openwatch role has neither
+df -h "$(sudo -u postgres psql -tAc 'SHOW data_directory;')"
 
 # Database size
 psql -U openwatch -d openwatch -c "
@@ -198,18 +199,74 @@ service itself and proves the rule library loaded.
 
 ### Path B: Connection pool exhaustion
 
-If connections are near `max_connections`:
+If connections are near `max_connections`, look at the idle-in-transaction
+connections first. Some of them are OpenWatch doing its job, so do not
+terminate them blindly.
+
+OpenWatch holds a transaction open, idle, for the whole of each host scan and
+each host intelligence collection. The transaction holds a per-host advisory
+lock (`pg_advisory_xact_lock`) so that two workers never work on the same host
+at once. A scan has no per-scan timeout today (spec `system-kensa-executor`
+C-04 calls for 600 seconds; CP `bugs/OW-109`), so a scan stuck on a host keeps
+its transaction open until the scan returns or the service restarts.
+
+Terminating one of these backends is not harmless:
+
+- **Scan.** The scan keeps running over SSH and still writes its results, but
+  its host lock is gone. A second scan of the same host can then start
+  alongside it.
+- **Intelligence collection.** The schedule update is written in that
+  transaction, so it is lost and the host is collected again.
+
+List idle-in-transaction connections and whether each holds an advisory lock:
 
 ```bash
-# Terminate idle-in-transaction connections (safe to kill)
 psql -U openwatch -d openwatch -c "
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE datname = 'openwatch'
-  AND state = 'idle in transaction'
-  AND query_start < now() - interval '10 minutes';
+SELECT a.pid,
+       now() - a.xact_start   AS in_transaction_for,
+       now() - a.state_change AS idle_for,
+       EXISTS (SELECT 1 FROM pg_locks l
+               WHERE l.pid = a.pid AND l.locktype = 'advisory' AND l.granted) AS holds_advisory_lock,
+       left(a.query, 70) AS last_query
+FROM pg_stat_activity a
+WHERE a.datname = 'openwatch'
+  AND a.state = 'idle in transaction'
+ORDER BY a.xact_start;
 "
 ```
+
+`last_query` tells the two apart. A scan shows
+`SELECT pg_advisory_xact_lock($1)`; an intelligence collection shows
+`SELECT pg_try_advisory_xact_lock(hashtext($1)::int8)`. The lock key is a hash
+of the host id, so this view does not name the host. To see which scans are in
+flight and for how long:
+
+```bash
+psql -U openwatch -d openwatch -c "
+SELECT id, host_id, started_at, now() - started_at AS running_for
+FROM scan_runs
+WHERE status = 'running'
+ORDER BY started_at;
+"
+```
+
+Terminate only the idle transactions that hold no advisory lock. Terminating
+one rolls back whatever it had not committed:
+
+```bash
+psql -U openwatch -d openwatch -c "
+SELECT pg_terminate_backend(a.pid)
+FROM pg_stat_activity a
+WHERE a.datname = 'openwatch'
+  AND a.state = 'idle in transaction'
+  AND a.state_change < now() - interval '10 minutes'
+  AND NOT EXISTS (SELECT 1 FROM pg_locks l
+                  WHERE l.pid = a.pid AND l.locktype = 'advisory');
+"
+```
+
+Terminate a scan or collection backend only when you accept the effects above,
+for example a scan that has hung on an unreachable host.
 
 Then restart the OpenWatch service to reset its connection pool. Use the
 first block in [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It
@@ -258,7 +315,7 @@ If PostgreSQL data volume is full:
 
 ```bash
 # Check data directory usage
-du -sh "$(psql -U openwatch -d openwatch -tAc 'SHOW data_directory;')"
+du -sh "$(sudo -u postgres psql -tAc 'SHOW data_directory;')"
 
 # Run vacuum to reclaim space (does not require exclusive lock)
 psql -U openwatch -d openwatch -c "VACUUM VERBOSE;"
