@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.18.1"
+  version: "1.19.0"
   status: approved
   tier: 1
 
@@ -351,7 +351,30 @@ spec:
         continued to the upload, because `echo` succeeds (CP bugs/OW-047). The block is
         a subshell with `set -e`, the gate ends it with a non-zero exit before any
         upload, and the export is shredded on every exit path. Bound by executing the
-        block with `gpg` and `gh` stubbed, the same shape as AC-25.
+        block with `gpg` and `gh` stubbed (AC-24). v1.19.0 corrects this reference,
+        which named AC-25 before any AC-25 existed.
+      type: technical
+      enforcement: error
+
+    - id: C-16
+      description: >-
+        The two race-test invocations (CP bugs/OW-066) MUST run in two jobs at the
+        same time, each against its own PostgreSQL service: one tests every package
+        except internal/server, the other tests internal/server alone, so the gate
+        takes about as long as the slower one rather than their sum. Every package is
+        still tested exactly once. The "Quality + security gates" check MUST be an
+        aggregate job that needs both test jobs and the path-detection job, runs under
+        `if: always()`, and itself fails unless, for a Go-relevant change, both test
+        jobs succeeded, or, for any other change, both were skipped. GitHub counts a
+        job skipped because a dependency failed as passing a required check, so a
+        check that relied on `needs:` alone could pass while a test job failed.
+        Before `specter ingest`, the aggregate job MUST check that each result file
+        exists, is not empty and parses, and that the two go test streams together
+        report every package from `go list ./...` exactly once; `specter ingest`
+        silently ingests nothing from an empty or malformed go test JSON file. The
+        path filter is unchanged, so a CHANGELOG-only change still skips the Go
+        suite (CP bugs/OW-086, not fixed here). Added v1.19.0 at the user's
+        direction on 2026-10-05.
       type: technical
       enforcement: error
 
@@ -380,7 +403,7 @@ spec:
       description: make help lists every gate target (vet, lint, vuln, test-race, check) with one-line descriptions so contributors discover them without reading the Makefile.
       priority: high
     - id: AC-07
-      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy gate steps (Go setup, lint, vuln, the race+coverage test run, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check.
+      description: .github/workflows/go-ci.yml exists, triggers on every PR/push to main without a paths filter, references the Go source paths (cmd/, internal/, ...) in a path-detection step, and gates the heavy work (Go setup, lint, vuln, the race+coverage test runs, specter) on that step so non-Go PRs short-circuit to success while still reporting the required "Quality + security gates" status check. Since v1.19.0 the step lives in a `changes` job whose output the test jobs read (C-16).
       priority: critical
       references_constraints: [C-06]
     - id: AC-08
@@ -403,7 +426,10 @@ spec:
         budget. Both exit statuses are preserved (a later success never masks an
         earlier failure), both JSON streams are kept and uploaded on every
         outcome, specter ingests both, and the job declares an explicit timeout-
-        minutes that covers both phases plus the artifact upload.
+        minutes that covers both phases plus the artifact upload. v1.19.0 (C-16):
+        the two invocations run in two parallel jobs instead of one step; each job
+        fails on its own exit status, declares its own timeout-minutes, and keeps
+        its JSON stream for the aggregate job, which ingests and uploads both.
       priority: critical
       references_constraints: [C-06]
     - id: AC-10
@@ -1222,3 +1248,33 @@ spec:
         disk, fails.
       priority: critical
       references_constraints: [C-15]
+    - id: AC-25
+      description: >-
+        go-ci.yml, parsed as YAML: a `changes` job exposes the paths step's verdict;
+        internal/server's `go test -race -json -timeout` invocation and the
+        every-other-package invocation run in two different jobs, neither needing
+        the other, each gated on that verdict, each with its own postgres service,
+        and the internal/server job does not enumerate every package. Exactly one
+        job is named "Quality + security gates". It needs `changes` and both test
+        jobs, runs under `if: always()`, sets no continue-on-error, and has a
+        verdict step, also under `always()`, whose env binds each needed job's
+        result and the path verdict. That step's script is executed: it passes
+        only for a Go change with both test jobs succeeded, or a non-Go change with
+        both skipped, and fails for any failed, cancelled or skipped test job on a
+        Go change, a test job that ran on a non-Go change, a failed path
+        detection, and a missing or unknown verdict.
+      priority: critical
+      references_constraints: [C-06, C-16]
+    - id: AC-26
+      description: >-
+        scripts/check-test-streams.py passes on a complete set of result files and
+        fails, with a message naming the problem, when: any file is missing or
+        empty; a go test stream has a line that is not a JSON object or reports no
+        package result; the server stream reports a package other than
+        internal/server; a package is reported by both streams, by neither, or is
+        not in the package list; the JUnit file does not parse or holds no
+        testcase. In go-ci.yml the aggregate job fetches each producing job's
+        artifact by exact name, runs the check before `specter ingest`, and sets
+        no continue-on-error on either.
+      priority: critical
+      references_constraints: [C-16]
