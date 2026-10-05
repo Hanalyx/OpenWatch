@@ -167,10 +167,11 @@ jobs:
 
       # SBOM: syft scans the actual (signed) binary and packages and emits
       # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
+      # Pinned by version and tarball sha256 (packaging/sbom/install-syft.sh).
+      # Unpinned, syft moved to CycloneDX 1.7 while AC-09 requires 1.5
+      # (CP bugs/OW-111).
       - name: Install syft
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
-            | sh -s -- -b "$HOME/.local/bin"
+        run: bash packaging/sbom/install-syft.sh "$HOME/.local/bin"
 
       - name: Generate CycloneDX SBOMs
         run: |
@@ -185,7 +186,7 @@ jobs:
           for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb dist/kensa-rules-*.rpm dist/kensa-rules_*.deb; do
             [ -e "$art" ] || continue
             name="$(basename "$art")"
-            syft scan "file:$art" -o "cyclonedx-json=dist/${name}.cdx.json"
+            syft scan "file:$art" -o "cyclonedx-json@1.5=dist/${name}.cdx.json"
           done
           ls -l dist/*.cdx.json
 
