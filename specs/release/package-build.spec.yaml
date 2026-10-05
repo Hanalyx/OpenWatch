@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -200,6 +200,20 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-17
+      description: >
+        RPM and DEB packages must carry THIRD-PARTY-NOTICES.md, OpenWatch's
+        LICENSE, upstream license texts and a source manifest under
+        /usr/share/licenses/openwatch/. The inventory covers linked Go modules
+        for both Linux targets and all locked npm entries, with runtime
+        candidates separate from build/test-only entries. Scoped, nested and
+        optional entries must not be dropped. Go license versions and text
+        hashes require review. Collection fails for stale installed npm
+        versions or missing runtime license text; dev-only license texts are
+        outside the shipped bundle. Generated inventory drift fails CI.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: scripts/build-rpm.sh produces a single .rpm file under app/dist/ on a system with rpmbuild installed.
@@ -359,3 +373,21 @@ spec:
         that composes the name from the raw VERSION fails to stage it.
       priority: critical
       references_constraints: [C-12, C-16]
+    - id: AC-27
+      description: >
+        The notices generator retains scoped, nested and optional npm entries,
+        separates tooling, verifies reviewed Go license hashes, and produces
+        deterministic output. Mutations of a version, license text or generated
+        inventory fail verification. Missing runtime license text fails
+        collection. The bundle includes the OFL font license texts unchanged.
+      priority: high
+      references_constraints: [C-17]
+    - id: AC-28
+      description: >
+        Both package builders invoke license-bundle and stage its files at
+        /usr/share/licenses/openwatch/. Tests exercise the real packaging
+        scripts with a fixture binary and inspect built package payloads when
+        the package tools are installed. CI runs the same license-bundle
+        check after installing locked frontend dependencies.
+      priority: high
+      references_constraints: [C-17]
