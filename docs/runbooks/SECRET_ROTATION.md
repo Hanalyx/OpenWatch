@@ -64,51 +64,22 @@ the job queue from the DEK (HKDF-SHA256). The previous Python build's
 
 ## Rotate the database password
 
-> **Before you start**
-> - **You need:** the new password recorded in your secrets manager, a maintenance window, and a healthy service (see [Before you rotate](#before-you-rotate)).
-> - **Run as:** root for the `secrets.env` edit and restart; the PostgreSQL superuser or the `openwatch` role for `ALTER ROLE`.
-> - **What changes:** the PostgreSQL role's password and the DSN line in `/etc/openwatch/secrets.env`; the service restarts.
-> - **Verify with:** `check-config` printing the redacted DSN and `/api/v1/health` returning `200` with `db_connected: true`.
-> - **Recover by:** setting the previous password back with `ALTER ROLE` and restoring the previous DSN line, then restarting.
+Use the procedure in
+[Rotate the database credential](SECURITY_INCIDENT.md#rotate-the-database-credential).
+It is the same whether or not the password was exposed. It changes only the
+password: it sets it on the role through the current DSN, proves the new
+password connects, and only then rewrites the password inside the DSN in
+`/etc/openwatch/secrets.env`. It keeps the host, port, database, `sslmode`, the
+file's other lines, its mode and its owner. Neither password appears on a
+command line.
 
-Impact: a brief restart while the service reconnects. The DSN lives in
-`/etc/openwatch/secrets.env`, which the systemd unit loads via
-`EnvironmentFile=-/etc/openwatch/secrets.env`.
+Do not retype the whole DSN or rewrite it with `sed`. `openwatch setup` writes
+a loopback DSN with `sslmode=disable`, and a PostgreSQL with SSL off refuses
+`sslmode=require`, so a retyped DSN can break a working install.
 
-1. Choose a new password and set it on the PostgreSQL role:
-
-   ```bash
-   sudo -u postgres psql -c "ALTER ROLE openwatch WITH PASSWORD 'new-strong-password';"
-   ```
-
-2. Replace only the DSN line in `/etc/openwatch/secrets.env`. The file can carry
-   other `OPENWATCH_*` overrides (the credential key path after a DEK rotation,
-   a logging level); rewriting the whole file drops them.
-
-   ```bash
-   sudo sed -i 's|^OPENWATCH_DATABASE_DSN=.*|OPENWATCH_DATABASE_DSN=postgres://openwatch:new-strong-password@127.0.0.1:5432/openwatch?sslmode=disable|' /etc/openwatch/secrets.env
-   sudo chown root:openwatch /etc/openwatch/secrets.env
-   sudo chmod 0640 /etc/openwatch/secrets.env
-   grep -c '^OPENWATCH_DATABASE_DSN=' /etc/openwatch/secrets.env   # must print 1
-   ```
-
-   Use `sslmode=require` or stronger for any PostgreSQL that is not on the
-   loopback interface.
-
-3. Validate the resolved config before restarting:
-
-   ```bash
-   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
-   ```
-
-   `check-config` prints the config with the DSN password redacted and exits
-   non-zero on a malformed DSN.
-
-4. Restart and verify with the first block in
-   [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
-   service itself, and proves the new credential works end to end: the rule
-   library check fails if the service cannot reach the database. A health
-   check alone does not prove the service works.
+Impact: a brief restart while the service reconnects. Recover by setting the
+previous password back on the role and restoring the previous DSN line, then
+restarting.
 
 ## Rotate the JWT signing key
 
@@ -220,6 +191,11 @@ the change stays readable only under the old key. Until you re-enter them:
 - Every scan or remediation job queued before the change fails when a worker
   claims it, because its signature no longer matches. See step 1.
 
+> **What this procedure is.** It replaces the DEK and requires you to
+> re-enter, by hand, every secret the old key protected. It does not carry any
+> secret forward. Rolling back is clean only until you re-enter the first
+> secret (step 6).
+>
 > **Not supported: re-encryption.** OpenWatch has no re-encryption, rekey or
 > rotation command. None of the [CLI subcommands](../guides/ENVIRONMENT_REFERENCE.md#cli-subcommands)
 > re-wraps stored secrets, and the ciphertext format is not a documented
@@ -324,19 +300,43 @@ config change, so the old key is never touched.
      type the SMTP password again; the edit cannot carry over a password it
      cannot decrypt.
    - SSO providers: enter each client secret again
-     (`PUT /api/v1/sso/providers/{id}`).
+     (`PUT /api/v1/sso/providers/{id}`). Then sign in through each provider.
+     A provider whose secret cannot be decrypted sends the browser to
+     `/login?sso_error=provider`, the same answer as an unreachable identity
+     provider, and the audit event does not say which. Treat that answer after
+     the rotation as a secret you have not re-entered yet.
 
    Then unpause the scan scheduler with the same command, setting
    `.maintenance_global = false`.
 
-6. Rollback, at any point before you delete the old key: remove the
-   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML value)
-   and restart. The old key was never modified, so every original secret
-   decrypts again. Verified on 0.8.0-rc.3 in both directions.
+6. Rollback is clean only **before you re-enter the first secret**. Remove
+   the `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML
+   value) and restart. The old key was never modified, so every original
+   secret decrypts again. Every secret you re-entered in step 5 was encrypted
+   under the new key, so after a rollback it becomes unreadable and must be
+   entered again. Once you start step 5, finish it rather than roll back.
 
 7. Only after every secret is re-entered and an SSH-backed action succeeds
    (post-rotation checklist): delete the old key file and the root-only copy,
    and record the rotation in your secrets manager.
+
+**What was tested.** On 2026-10-05 this procedure ran against a disposable
+OpenWatch instance, built from the 0.8.2 code, with a webhook channel, an SSO
+provider and a scan job queued under the old key:
+
+- **After the key change, before re-entry:**
+  - the queued job failed with `hmac_rejected: signature does not match
+    payload`;
+  - the channel's test failed to decrypt its config;
+  - the stored SSO secret decrypted only under the old key.
+- **After re-entry:** both secrets decrypted only under the new key, the
+  channel's test reached delivery, and a job queued under the new key passed
+  the signature check.
+- **Rollback:** before re-entry, every secret decrypted again. After re-entry,
+  the re-entered secrets did not.
+
+MFA, SSH credentials and whole-dispatch notification delivery were not part
+of that run; their behavior here is taken from the code.
 
 > Loss warning: if you change `credential_key_file` without keeping the old
 > key, every secret it protected is unrecoverable: SSH credentials, MFA

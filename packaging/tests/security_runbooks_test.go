@@ -372,3 +372,29 @@ exit "$code"
 		}
 	})
 }
+
+// SECRET_ROTATION's database password section used to carry its own unsafe
+// procedure (a password on the command line, a sed rewrite of the whole DSN).
+// It must point to the validated procedure in SECURITY_INCIDENT instead, and
+// the DEK rollback must say it is clean only before the first re-entry.
+func TestSecretRotation_DatabasePasswordUsesTheValidatedProcedure(t *testing.T) {
+	doc := readRunbook(t, "SECRET_ROTATION.md")
+	section := secRunbookSection(t, doc, "## Rotate the database password")
+	if !strings.Contains(section, "(SECURITY_INCIDENT.md#rotate-the-database-credential)") {
+		t.Error("the database password section does not point to the validated procedure")
+	}
+	for _, bad := range []string{"sed -i", "ALTER ROLE", "new-strong-password", "127.0.0.1:5432"} {
+		if strings.Contains(section, bad) {
+			t.Errorf("the database password section still carries its own procedure: %q", bad)
+		}
+	}
+	dek := secRunbookSection(t, doc, "## Rotate the credential DEK")
+	for _, want := range []string{"before you re-enter the first secret", "It does not carry any\n> secret forward"} {
+		if !strings.Contains(dek, want) {
+			t.Errorf("the DEK procedure lacks %q", want)
+		}
+	}
+	if strings.Contains(dek, "at any point before you delete the old key") {
+		t.Error("the DEK rollback still claims to work at any point; it breaks re-entered secrets")
+	}
+}
