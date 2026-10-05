@@ -44,19 +44,20 @@ release is supported.
 - **Published** means its GitHub release is public and not marked as a
   pre-release. Merging a change, creating a tag or building a draft release does
   not make a version supported.
-- **Until 0.8.3 is published,** the latest published stable release is 0.7.1,
-  and 0.7.1 is supported.
-- **Once 0.8.3 is published,** it is the only supported release. 0.7.1 and
-  every earlier release are no longer supported. Users on an earlier version
-  should upgrade promptly.
+- **Today the latest published stable release is 0.7.1,** and it stays supported
+  until the next stable release is published.
+- **When the next stable release is published,** it becomes the only supported
+  release. 0.7.1 and every earlier release are no longer supported. Each later
+  publication moves support the same way. Users on an earlier version should
+  upgrade promptly.
 - **Security fixes target the latest published stable release.** Backports to
   older releases are not promised.
 
 | Version | Supported |
 |---------|-----------|
-| The latest published stable release: 0.7.1 until 0.8.3 is published, then 0.8.3 | Yes |
+| The latest published stable release (0.7.1 today) | Yes |
 | Any earlier stable release | No. Upgrade to the latest published stable release |
-| 0.8.0, 0.8.1, 0.8.2 | No. Tagged and built as drafts and never published |
+| A tagged or drafted release that was not published, such as 0.8.0, 0.8.1 and 0.8.2 | No. Not a stable release |
 | Release candidates, such as 0.8.0-rc.6 | No. Pre-releases for evaluation, not stable releases |
 
 ### The tested upgrade path
@@ -65,14 +66,25 @@ Upgrade with the [upgrade procedure](docs/runbooks/UPGRADE_PROCEDURE.md). Upgrad
 the `openwatch` and `kensa-rules` packages together, in one transaction. The
 package upgrade takes a database backup and applies migrations itself.
 
-What has been tested for the 0.8 line:
+What has been tested, by version:
 
-- **0.7.1 to 0.8, on a real RHEL 9 host.** The 0.8 candidates were upgraded
-  from 0.7.1 by following the upgrade procedure, including Step 8.
-- **Package upgrades in CI on Rocky Linux 9 and AlmaLinux 10.** CI upgrades the
-  published 0.6.0 release, not 0.7.1, to the build under test.
-- **Fresh installs in CI on Debian 12 and Ubuntu 24.04.** An upgrade from an
-  earlier release on Debian or Ubuntu is not tested.
+- **Full service upgrades on a real RHEL 9 host,** against a running service
+  with its database. 0.7.1 to 0.8.0-rc.6 on 2026-09-30. 0.7.1 to 0.8.2 on
+  2026-10-04, following the upgrade procedure including the Step 8 restart and
+  rule comparison.
+- **Rollbacks on the same host.** The full rollback to 0.7.1 was run by hand on
+  2026-09-30. The code-only rollback from 0.8.2 to 0.8.1 was run on 2026-10-05.
+- **RPM package upgrades in CI**, on Rocky Linux 9 and AlmaLinux 10. CI upgrades
+  the published 0.6.0 release to the build under test, with migrations.
+- **DEB package compatibility in CI**, on Ubuntu 24.04. CI upgrades the published
+  0.7.1 `openwatch` and `kensa-rules` packages to the build under test. It checks
+  that the package manager installs, upgrades and rolls back the pair correctly,
+  and refuses mismatched pairs. It runs without systemd or a database, so it
+  does not test migrations or the running service. The same checks run for RPM
+  on Rocky Linux 9.
+- **Fresh installs in CI** on Debian 12 and Ubuntu 24.04, among others.
+
+A full service upgrade on Debian or Ubuntu has not been tested.
 
 Precautions when upgrading from 0.7.x to 0.8.x. The release notes in
 [CHANGELOG.md](CHANGELOG.md) give the details:
