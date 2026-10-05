@@ -35,6 +35,8 @@ type ciStep struct {
 	If       string            `yaml:"if"`
 	Run      string            `yaml:"run"`
 	Env      map[string]string `yaml:"env"`
+	Uses     string            `yaml:"uses"`
+	With     map[string]string `yaml:"with"`
 	Continue any               `yaml:"continue-on-error"`
 }
 
@@ -253,4 +255,124 @@ func contains(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// @ac AC-26
+// AC-26: the result files reach specter ingest checked. The checker is run
+// against fixtures for each way a file can be lost or broken, and the
+// workflow is read for where it runs.
+func TestCIGates_TestStreamsAreCheckedBeforeIngest(t *testing.T) {
+	t.Run("release-ci-gates/AC-26", func(t *testing.T) {
+		dir := appDir(t)
+		const srv = "github.com/Hanalyx/openwatch/internal/server"
+		const a, b = "github.com/Hanalyx/openwatch/internal/a", "github.com/Hanalyx/openwatch/internal/b"
+		pkgEvent := func(pkg, action string) string {
+			return `{"Action":"` + action + `","Package":"` + pkg + `"}` + "\n"
+		}
+		testEvent := func(pkg string) string {
+			return `{"Action":"pass","Package":"` + pkg + `","Test":"TestX"}` + "\n"
+		}
+		good := map[string]string{
+			"packages": a + "\n" + b + "\n" + srv + "\n",
+			"others":   testEvent(a) + pkgEvent(a, "pass") + pkgEvent(b, "skip"),
+			"server":   testEvent(srv) + pkgEvent(srv, "pass"),
+			"junit":    `<testsuites><testsuite name="s"><testcase name="c"/></testsuite></testsuites>`,
+		}
+		cases := []struct {
+			name  string
+			edit  map[string]string // file -> content; "\x00" removes the file
+			pass  bool
+			error string
+		}{
+			{"complete", nil, true, ""},
+			{"server stream missing", map[string]string{"server": "\x00"}, false, "is missing"},
+			{"others stream missing", map[string]string{"others": "\x00"}, false, "is missing"},
+			{"junit missing", map[string]string{"junit": "\x00"}, false, "is missing"},
+			{"package list missing", map[string]string{"packages": "\x00"}, false, "is missing"},
+			{"server stream empty", map[string]string{"server": ""}, false, "is empty"},
+			{"others stream empty", map[string]string{"others": "\n"}, false, "is empty"},
+			{"package list empty", map[string]string{"packages": ""}, false, "is empty"},
+			{"junit empty", map[string]string{"junit": ""}, false, "is empty"},
+			{"server stream malformed", map[string]string{"server": "{not json\n"}, false, "is not JSON"},
+			{"server stream truncated", map[string]string{"server": testEvent(srv) + `{"Action":"pa`}, false, "is not JSON"},
+			{"others stream not an object", map[string]string{"others": "[1]\n"}, false, "not a JSON object"},
+			{"server stream has no package result", map[string]string{"server": testEvent(srv)}, false, "no package result"},
+			{"server stream reports another package", map[string]string{"server": pkgEvent(srv, "pass") + pkgEvent(a, "pass")}, false, "want only"},
+			{"package in both streams", map[string]string{"others": pkgEvent(a, "pass") + pkgEvent(b, "pass") + pkgEvent(srv, "pass")}, false, "both streams"},
+			{"package in neither stream", map[string]string{"others": pkgEvent(a, "pass")}, false, "no result"},
+			{"result for an unlisted package", map[string]string{"packages": a + "\n" + srv + "\n"}, false, "not listed"},
+			{"junit malformed", map[string]string{"junit": "<testsuites><broken"}, false, "does not parse"},
+			{"junit has no testcase", map[string]string{"junit": "<testsuites/>"}, false, "no testcase"},
+		}
+		for _, c := range cases {
+			tmp := t.TempDir()
+			args := []string{"-S", filepath.Join(dir, "scripts", "check-test-streams.py")}
+			for _, f := range []string{"packages", "others", "server", "junit"} {
+				content, edited := c.edit[f]
+				if !edited {
+					content = good[f]
+				}
+				path := filepath.Join(tmp, f)
+				if content != "\x00" {
+					if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				args = append(args, "--"+f, path)
+			}
+			out, err := exec.Command("python3", args...).CombinedOutput()
+			if passed := err == nil; passed != c.pass {
+				t.Errorf("%s: passed=%v, want %v\n%s", c.name, passed, c.pass, out)
+				continue
+			}
+			if !c.pass && !strings.Contains(string(out), c.error) {
+				t.Errorf("%s: output does not name the problem (%q):\n%s", c.name, c.error, out)
+			}
+		}
+
+		raw, err := os.ReadFile(filepath.Join(dir, ".github/workflows/go-ci.yml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wf ciWorkflow
+		if err := yaml.Unmarshal(raw, &wf); err != nil {
+			t.Fatal(err)
+		}
+		var gates ciJob
+		for _, j := range wf.Jobs {
+			if j.Name == requiredCheck {
+				gates = j
+			}
+		}
+		check, ingest := -1, -1
+		for i, s := range gates.Steps {
+			if strings.Contains(s.Run, "scripts/check-test-streams.py") {
+				check = i
+			}
+			if strings.Contains(s.Run, "specter ingest") {
+				ingest = i
+			}
+			if (strings.Contains(s.Run, "check-test-streams") || strings.Contains(s.Run, "specter ingest")) &&
+				(s.Continue != nil || strings.Contains(s.Run, "|| true")) {
+				t.Errorf("step %q can fail without failing the job", s.Name)
+			}
+		}
+		if check < 0 || ingest < 0 || check > ingest {
+			t.Errorf("the stream check (step %d) must run before specter ingest (step %d)", check, ingest)
+		}
+		var downloads []string
+		for _, s := range gates.Steps {
+			if strings.HasPrefix(s.Uses, "actions/download-artifact@") {
+				if s.With["pattern"] != "" || s.With["name"] == "" {
+					t.Errorf("download step %q must name its artifact exactly; a pattern that matches nothing succeeds", s.Name)
+				}
+				downloads = append(downloads, s.With["name"])
+			}
+		}
+		for _, want := range []string{"go-ci-checks-results", "go-ci-server-results"} {
+			if !contains(downloads, want) {
+				t.Errorf("the gates job does not download %q by name (downloads: %q)", want, downloads)
+			}
+		}
+	})
 }

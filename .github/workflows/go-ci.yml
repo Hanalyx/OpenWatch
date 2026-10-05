@@ -75,6 +75,11 @@ jobs:
             head="${{ github.sha }}"
             changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
           fi
+          # Known limitation, kept as is: a change to CHANGELOG.md alone
+          # matches nothing here and skips the Go suite, including the tests
+          # that validate the changelog (CP bugs/OW-086). The job split in
+          # release-ci-gates C-16 left this pattern unchanged on purpose.
+          #
           # The two pin files govern gates this job validates through
           # packaging/tests. A pin-only change used to match nothing here,
           # skip the Go suite, and report green having checked nothing:
@@ -319,6 +324,9 @@ jobs:
           # both, so a green phase 2 never masks a red phase 1. Both JSON
           # streams reach specter ingest and the artifact upload.
           ALL=$(go list ./...)
+          # The gates job checks at run time that the two streams together
+          # report exactly these packages, each once (check-test-streams.py).
+          printf '%s\n' "$ALL" > /tmp/go-packages.txt
           OTHERS=$(printf '%s\n' "$ALL" | grep -v '^github.com/Hanalyx/openwatch/internal/server$')
           # The arithmetic has to close, or a package could be tested twice
           # or not at all without anyone noticing. internal/server runs in
@@ -393,7 +401,8 @@ jobs:
           path: |
             /tmp/go-test.json
             /tmp/vitest-junit.xml
-          if-no-files-found: ignore
+            /tmp/go-packages.txt
+          if-no-files-found: error
           retention-days: 1
 
   server-tests:
@@ -469,7 +478,7 @@ jobs:
         with:
           name: go-ci-server-results
           path: /tmp/go-test-server.json
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 1
 
   gates:
@@ -524,13 +533,34 @@ jobs:
           install -m 0755 /tmp/specter /usr/local/bin/specter
           specter --version
 
-      - name: fetch both test streams
+      # Each stream is fetched by its exact name, so an absent artifact
+      # fails the step; a pattern that matches nothing would not.
+      - name: fetch the checks job's results
         if: needs.changes.outputs.go == 'true'
         uses: actions/download-artifact@v4
         with:
-          pattern: go-ci-*-results
-          merge-multiple: true
+          name: go-ci-checks-results
           path: /tmp
+
+      - name: fetch the server-tests job's results
+        if: needs.changes.outputs.go == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: go-ci-server-results
+          path: /tmp
+
+      # specter ingest refuses a missing file or malformed JUnit, but accepts
+      # an empty or malformed go test JSON file and ingests nothing from it.
+      # This checks every file before ingest, and that the two streams
+      # together report every package exactly once.
+      - name: check the test streams
+        if: needs.changes.outputs.go == 'true'
+        run: >-
+          python3 -S scripts/check-test-streams.py
+          --packages /tmp/go-packages.txt
+          --others /tmp/go-test.json
+          --server /tmp/go-test-server.json
+          --junit /tmp/vitest-junit.xml
 
       - name: specter ingest
         if: needs.changes.outputs.go == 'true'

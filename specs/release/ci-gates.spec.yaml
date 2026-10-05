@@ -368,7 +368,13 @@ spec:
         jobs succeeded, or, for any other change, both were skipped. GitHub counts a
         job skipped because a dependency failed as passing a required check, so a
         check that relied on `needs:` alone could pass while a test job failed.
-        Added v1.19.0 at the user's direction on 2026-10-05.
+        Before `specter ingest`, the aggregate job MUST check that each result file
+        exists, is not empty and parses, and that the two go test streams together
+        report every package from `go list ./...` exactly once; `specter ingest`
+        silently ingests nothing from an empty or malformed go test JSON file. The
+        path filter is unchanged, so a CHANGELOG-only change still skips the Go
+        suite (CP bugs/OW-086, not fixed here). Added v1.19.0 at the user's
+        direction on 2026-10-05.
       type: technical
       enforcement: error
 
@@ -1259,3 +1265,16 @@ spec:
         detection, and a missing or unknown verdict.
       priority: critical
       references_constraints: [C-06, C-16]
+    - id: AC-26
+      description: >-
+        scripts/check-test-streams.py passes on a complete set of result files and
+        fails, with a message naming the problem, when: any file is missing or
+        empty; a go test stream has a line that is not a JSON object or reports no
+        package result; the server stream reports a package other than
+        internal/server; a package is reported by both streams, by neither, or is
+        not in the package list; the JUnit file does not parse or holds no
+        testcase. In go-ci.yml the aggregate job fetches each producing job's
+        artifact by exact name, runs the check before `specter ingest`, and sets
+        no continue-on-error on either.
+      priority: critical
+      references_constraints: [C-16]
