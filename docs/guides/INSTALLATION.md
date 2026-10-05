@@ -924,7 +924,7 @@ sudo systemctl start openwatch
 To preview what an upgrade would apply without changing anything:
 
 ```bash
-sudo -u openwatch openwatch migrate --status
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'
 ```
 
 Tunables live in `/etc/openwatch/upgrade.conf` (a `noreplace` config file):

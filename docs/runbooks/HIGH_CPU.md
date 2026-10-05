@@ -202,7 +202,8 @@ oversized pool against an undersized PostgreSQL can amplify CPU contention. Insp
 the resolved value:
 
 ```bash
-openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 Adjust `[database].max_connections` (or the `OPENWATCH_DATABASE_MAX_CONNECTIONS`
@@ -220,16 +221,17 @@ needed):
 
 ```bash
 # Read the current config, flip only the maintenance flag, write it back.
+# GET returns {config, defaults}; PUT takes only the config object.
 # Every field is required on PUT (a partial body is refused with
 # validation.range_exceeded, because a missing interval_sec reads as 0).
 curl -sk -H "Authorization: Bearer $TOKEN" \
   https://localhost:8443/api/v1/system/intelligence/config \
-  | jq '.maintenance_global = true' \
+  | jq '.config | .maintenance_global = true' \
   | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
       --data-binary @- https://localhost:8443/api/v1/system/intelligence/config
 
-# Verify, then unpause the same way with `.maintenance_global = false`.
-curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .maintenance_global
+# Verify, then unpause the same way with `.config | .maintenance_global = false`.
+curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .config.maintenance_global
 ```
 
 Discovery pauses the same way through `/api/v1/system/discovery/config`. A

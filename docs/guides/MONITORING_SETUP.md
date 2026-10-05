@@ -129,12 +129,17 @@ curl -k -H "Authorization: Bearer $TOKEN" \
 The audit-events endpoint is cursor-paginated. For
 direct inspection during an incident you can also read the table with `psql`:
 
+The DSN is set only in `/etc/openwatch/secrets.env`, so the command loads that
+file as the `openwatch` user. The SQL goes in on standard input, which keeps its
+quotes intact. Every `psql` command on this page works the same way.
+
 ```bash
-psql "$OPENWATCH_DATABASE_DSN" -c \
-  "SELECT recorded_at, action, severity, actor_type, actor_id, outcome
-   FROM audit_events
-   ORDER BY recorded_at DESC
-   LIMIT 50;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+SELECT recorded_at, action, severity, actor_type, actor_id, outcome
+FROM audit_events
+ORDER BY recorded_at DESC
+LIMIT 50;
+SQL
 ```
 
 Indexed columns include `recorded_at`, `action`, `severity`, and
@@ -175,7 +180,7 @@ sudo systemctl enable --now openwatch  # start now and at boot
 Before restarting after a config change, validate the resolved configuration:
 
 ```bash
-sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 Other CLI subcommands: `migrate` applies pending
@@ -211,13 +216,13 @@ The service is unreachable or `GET /api/v1/health` does not return `200`.
 
    ```bash
    sudo systemctl status postgresql
-   psql "$OPENWATCH_DATABASE_DSN" -c 'SELECT 1;'
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"'
    ```
 
 4. If the config is suspect, validate it before restarting:
 
    ```bash
-   sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'
    ```
 
 5. Restart and confirm recovery:
@@ -253,16 +258,18 @@ Disk pressure on the OpenWatch or PostgreSQL data volume.
 3. Check the PostgreSQL data directory and database size:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT pg_size_pretty(pg_database_size(current_database()));"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+   SELECT pg_size_pretty(pg_database_size(current_database()));
+   SQL
    ```
 
    The `audit_events` table grows over time. Confirm its size before pruning,
    and follow your retention policy:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT pg_size_pretty(pg_total_relation_size('audit_events'));"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+   SELECT pg_size_pretty(pg_total_relation_size('audit_events'));
+   SQL
    ```
 
 4. After freeing space, confirm the service is healthy
@@ -294,20 +301,21 @@ The OpenWatch process is consuming excessive CPU.
    endpoint. `maintenance_global: true` keeps the scheduler loop ticking but
    makes it run no cycles (intelligence), enqueue no jobs (discovery), or
    dispatch no scans (scan); nothing else is suppressed. Needs
-   `system_config:write`.
+   `system:config_write`.
 
 ```bash
    # Read the current config, flip only the maintenance flag, write it back.
+   # GET returns {config, defaults}; PUT takes only the config object.
    # Every field is required on PUT (a partial body is refused with
    # validation.range_exceeded, because a missing interval_sec reads as 0).
    curl -sk -H "Authorization: Bearer $TOKEN" \
      https://localhost:8443/api/v1/system/intelligence/config \
-     | jq '.maintenance_global = true' \
+     | jq '.config | .maintenance_global = true' \
      | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
          --data-binary @- https://localhost:8443/api/v1/system/intelligence/config
 
-   # Verify, then unpause the same way with `.maintenance_global = false`.
-   curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .maintenance_global
+   # Verify, then unpause the same way with `.config | .maintenance_global = false`.
+   curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/intelligence/config | jq .config.maintenance_global
    ```
 
    The discovery and scan schedulers pause the same way through
@@ -316,11 +324,12 @@ The OpenWatch process is consuming excessive CPU.
 4. Check PostgreSQL for long-running or stuck queries:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT pid, now()-query_start AS runtime, state, left(query,80)
-      FROM pg_stat_activity
-      WHERE state <> 'idle'
-      ORDER BY runtime DESC NULLS LAST LIMIT 10;"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+   SELECT pid, now()-query_start AS runtime, state, left(query,80)
+   FROM pg_stat_activity
+   WHERE state <> 'idle'
+   ORDER BY runtime DESC NULLS LAST LIMIT 10;
+   SQL
    ```
 
 5. If the process is wedged rather than merely busy, capture the journal context
@@ -335,13 +344,14 @@ failures.
    are the durable security record:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT recorded_at, action, severity, actor_type, actor_id, outcome
-      FROM audit_events
-      WHERE severity IN ('warning','critical')
-         OR action LIKE 'auth.%'
-      ORDER BY recorded_at DESC
-      LIMIT 100;"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+   SELECT recorded_at, action, severity, actor_type, actor_id, outcome
+   FROM audit_events
+   WHERE severity IN ('warning','critical')
+      OR action LIKE 'auth.%'
+   ORDER BY recorded_at DESC
+   LIMIT 100;
+   SQL
    ```
 
 2. Cross-reference with the journal for the same window, filtering by correlation

@@ -314,10 +314,11 @@ API tokens are not touched by either step; list and delete the ones that may
 be exposed through `/api/v1/tokens`. The full procedure, with rollback, is in
 the [secret rotation runbook](SECRET_ROTATION.md#rotate-the-jwt-signing-key).
 
-Confirm the configured path before generating a new key: `openwatch check-config` prints the resolved configuration with secrets redacted:
+Confirm the configured path before generating a new key: `openwatch check-config` prints the resolved configuration with secrets redacted. Load `secrets.env` first, because the key path can be set there:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 > Do not rotate the credential DEK (`[identity].credential_key_file`) during an incident unless you have a re-encryption plan. Changing that key makes every stored SSH credential and MFA secret unreadable.
@@ -352,7 +353,8 @@ sudo iptables -I INPUT -s ATTACKER_IP -j DROP
 If the attacker modified data, restore PostgreSQL from a known-good backup. The procedure depends on how your database is backed up (`pg_dump`/`pg_restore` or physical/PITR). For a `pg_dump` backup, follow the [restore procedure](BACKUP_RECOVERY.md#restore-procedure). Otherwise follow your backup tooling's restore steps, then re-run migrations to confirm the schema is current:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate'
 ```
 
 > A backup/restore tool is not part of the OpenWatch binary today; database backup is an operator responsibility. This is tracked as roadmap, not an implemented feature.
@@ -361,7 +363,8 @@ sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migr
 
 ```bash
 # Validate the resolved config (secrets redacted, listen address, TLS paths)
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config'
 
 # Confirm TLS material is in place and correctly owned
 ls -l /etc/openwatch/tls/cert.pem /etc/openwatch/tls/key.pem
