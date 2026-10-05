@@ -7,14 +7,34 @@
 # internal/server runs alone, CP bugs/OW-066), and `specter sync` (spec
 # validation + strict AC coverage).
 #
+# Job layout (release-ci-gates C-16). The two test invocations run in two
+# jobs at the same time, each with its own PostgreSQL service, so the gate
+# takes about as long as the slower one instead of their sum:
+#
+#   changes        detects Go-relevant paths once; the others read its output
+#   checks         everything except internal/server: tidy, generated code,
+#                  vet, lint, vuln, the Specter gate, the race tests of every
+#                  other package, vitest
+#   server-tests   internal/server alone under -race, with its own budget
+#   gates          "Quality + security gates", the only required check. It
+#                  needs all three, always runs, and fails unless each needed
+#                  job ended the way the change requires. It also runs the
+#                  release checker tests, and specter ingest and sync over
+#                  both test streams.
+#
+# The required check must stay meaningful. GitHub treats a job skipped
+# because a dependency failed as passing a required check, so the gates job
+# runs under `if: always()` and reads every needed job's result itself rather
+# than relying on `needs:` to stop it.
+#
 # Spec: specs/release/ci-gates.spec.yaml.
 
 name: Go CI
 
-# Triggers on every push/PR to main. The gates job detects whether the
-# change touches Go-relevant paths; if not, the job short-circuits to
-# success so the required-status-check ("Quality + security gates") is
-# present even for doc-only / meta-only PRs. This avoids the "missing
+# Triggers on every push/PR to main. The changes job detects whether the
+# change touches Go-relevant paths; if not, the two test jobs are skipped and
+# the gates job passes, so the required-status-check ("Quality + security
+# gates") is present even for doc-only / meta-only PRs. This avoids the "missing
 # required check" bootstrap problem
 # described in .github/BRANCH_MANAGEMENT.md under Troubleshooting.
 on:
@@ -27,16 +47,59 @@ permissions:
   contents: read
 
 jobs:
-  gates:
-    name: Quality + security gates
+  changes:
+    name: Detect Go-relevant changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      go: ${{ steps.paths.outputs.go }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Detect whether this push/PR touches Go-relevant paths (or the
+      # workflow file itself). For doc/meta-only changes the job
+      # skips both test jobs — this keeps "Quality + security
+      # gates" present as a green check on every PR.
+      - id: paths
+        name: Detect Go-relevant changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+            changed=$(git diff --name-only "$base" "$head" || git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD")
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+            changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
+          fi
+          # The two pin files govern gates this job validates through
+          # packaging/tests. A pin-only change used to match nothing here,
+          # skip the Go suite, and report green having checked nothing:
+          # PR #839 merged that way and left main red on AC-11. Keep them in
+          # this pattern; release-ci-gates AC-16 reads it from this file and
+          # fails if either is removed.
+          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|\.github/workflows/go-ci\.yml$)'; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "Go-relevant changes detected — running full pipeline."
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Doc/meta-only change — gate trivially passes."
+          fi
+
+  checks:
+    name: Vet, lint, vuln, Specter gate and race tests (all but internal/server)
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     # Explicit budget (CP bugs/OW-066), not the 360-minute platform default:
-    # the shared test phase can run to its 900 s per-package ceiling, the
-    # internal/server phase to its own ceiling, and the rest of the job
-    # (build, vet, lint, vuln, specter, vitest, upload) has measured at 5 to
-    # 8 minutes. 60 minutes covers both ceilings plus that with margin and
+    # the race tests can run to their 900 s per-package ceiling, and the rest
+    # of the job (build, vet, lint, vuln, specter gate, vitest, upload) has
+    # measured at 5 to 8 minutes. 45 minutes covers both with margin and
     # still fails a job that has wedged.
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -73,39 +136,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Detect whether this push/PR touches Go-relevant paths (or the
-      # workflow file itself). For doc/meta-only changes the job
-      # short-circuits to success below — this keeps "Quality + security
-      # gates" present as a green check on every PR.
-      - id: paths
-        name: Detect Go-relevant changes
-        working-directory: ${{ github.workspace }}
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
-            changed=$(git diff --name-only "$base" "$head" || git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD")
-          else
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
-            changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
-          fi
-          # The two pin files govern gates this job validates through
-          # packaging/tests. A pin-only change used to match nothing here,
-          # skip the Go suite, and report green having checked nothing:
-          # PR #839 merged that way and left main red on AC-11. Keep them in
-          # this pattern; release-ci-gates AC-16 reads it from this file and
-          # fails if either is removed.
-          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|\.github/workflows/go-ci\.yml$)'; then
-            echo "go=true" >> "$GITHUB_OUTPUT"
-            echo "Go-relevant changes detected — running full pipeline."
-          else
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "Doc/meta-only change — gate trivially passes."
-          fi
-
       - name: Set up Go
-        if: steps.paths.outputs.go == 'true'
         uses: actions/setup-go@v6
         with:
           go-version: '1.26.6'
@@ -118,7 +149,6 @@ jobs:
       # built with Go 1.24 and refuses Go 1.25+ configs), so a toolchain
       # bump invalidates the cache and triggers a fresh build.
       - name: Cache golangci-lint binary
-        if: steps.paths.outputs.go == 'true'
         id: cache-golangci-bin
         uses: actions/cache@v6
         with:
@@ -126,7 +156,7 @@ jobs:
           key: golangci-bin-v1.64.8-go1.26.6-${{ runner.os }}
 
       - name: Set up golangci-lint
-        if: steps.paths.outputs.go == 'true' && steps.cache-golangci-bin.outputs.cache-hit != 'true'
+        if: steps.cache-golangci-bin.outputs.cache-hit != 'true'
         # Build from source against the runner's Go toolchain (see cache
         # key rationale above). Only runs on a cache miss.
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
@@ -135,7 +165,6 @@ jobs:
       # prior results and only re-lints changed packages. restore-keys
       # falls back to the newest partial cache when no exact hit.
       - name: Cache golangci-lint analysis cache
-        if: steps.paths.outputs.go == 'true'
         uses: actions/cache@v6
         with:
           path: ~/.cache/golangci-lint
@@ -144,11 +173,9 @@ jobs:
             golangci-cache-${{ runner.os }}-
 
       - name: golangci-lint version
-        if: steps.paths.outputs.go == 'true'
         run: golangci-lint --version
 
       - name: Set up specter
-        if: steps.paths.outputs.go == 'true'
         # The version is DERIVED from the tracked .specter-version file, never
         # written here. An earlier revision declared it in `env:` and then
         # compared the two, which detects drift but is still two places to
@@ -175,7 +202,6 @@ jobs:
       # `go mod tidy` mutates go.mod/go.sum by design; readonly would
       # block it. Drift is detected via the follow-up `git diff` instead.
       - name: go mod tidy + diff
-        if: steps.paths.outputs.go == 'true'
         env:
           GOFLAGS: ""
         run: |
@@ -191,7 +217,6 @@ jobs:
       # contract. Cheap (no Node), so it runs early. The frontend schema.d.ts
       # half is checked after Node is set up, below.
       - name: Verify generated Go API stubs are in sync
-        if: steps.paths.outputs.go == 'true'
         run: |
           make generate-api
           git diff --exit-code -- internal/server/api/server.gen.go || {
@@ -200,37 +225,19 @@ jobs:
           }
 
       - name: make vet
-        if: steps.paths.outputs.go == 'true'
         run: make vet
 
       - name: make lint
-        if: steps.paths.outputs.go == 'true'
         run: make lint
 
       - name: make vuln
-        if: steps.paths.outputs.go == 'true'
         run: make vuln
-
-      # The release readiness checker decides go/no-go for a candidate, so its
-      # own guards have to hold: evidence tied to an artifact digest goes
-      # stale when the bits change, an unreadable checksum list fails closed,
-      # and an agent cannot satisfy a gate that requires a human observer.
-      # Stdlib only and no network, so this runs unconditionally and fast.
-      # -S disables site packages. The checker is standard library only by
-      # design (see release-status.py's header), and this runner happens to
-      # have PyYAML installed, so without -S an accidental third-party import
-      # would pass here and fail on a runner that does not.
-      - name: release gate checker tests
-        run: |
-          python3 -S scripts/test_release_status.py
-          python3 -S scripts/test_specter_gate.py
 
       # Node and the frontend install move AHEAD of the Specter gate because
       # the gate asks Vitest for the real collected test titles rather than
       # guessing them from source. The vitest run further down reuses this
       # same install; nothing is installed twice.
       - name: Set up Node.js
-        if: steps.paths.outputs.go == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -238,7 +245,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        if: steps.paths.outputs.go == 'true'
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
@@ -271,19 +277,17 @@ jobs:
       # 102 warnings of the SAME 277. The 232 reachability annotations
       # repaired are the first two kinds.
       - name: specter gate (annotations + structural coverage)
-        if: steps.paths.outputs.go == 'true'
         run: python3 -S scripts/specter-gate.py
 
-      # Single full-suite run that BOTH detects data races and emits the
-      # JSON specter ingests — replacing the previous two end-to-end passes
+      # Single race run of every package except internal/server that BOTH
+      # detects data races and emits the JSON specter ingests — replacing the previous two end-to-end passes
       # (`make test-race` + a separate non-race `go test -json`), which ran
       # the whole serial DB-bound suite twice. Coverage is unaffected: the
       # only `//go:build !race` test file holds constants (with a `race`
       # twin), so every test still compiles+runs under -race, and the perf
       # budgets are non-gating (internal/perftest.Budgetf). Timeout raised
       # to 600s because race instrumentation slows the hot DB packages.
-      - name: go test (race + json) for specter ingest
-        if: steps.paths.outputs.go == 'true'
+      - name: go test (race + json), every package except internal/server
         # OPENWATCH_PACKAGING_BUILD=1 opts the native package-build + runtime-boot
         # tests into this run so their AC coverage is enforced in CI; a plain
         # local `go test ./...` skips them (they take minutes and write into
@@ -296,34 +300,29 @@ jobs:
           # ships inside the kensa module, so api-system-scan-config/AC-08 runs
           # here instead of skipping (100% outcome coverage requires it).
           export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
-          # -timeout is per package. Two invocations, every package exactly
-          # once (CP bugs/OW-066). internal/server is the database-heavy suite:
+          # -timeout is per package. Two invocations in two jobs, every
+          # package exactly once (CP bugs/OW-066). internal/server is the
+          # database-heavy suite:
           # on the hosted runner it ran 794 s on main and timed out at 900 s on
           # two PRs with no failing test, the same tests simply running 27% to
           # 48% slower while sharing the PostgreSQL service with three sibling
           # packages under -p 4. Phase 1 runs everything else under the shared
           # 900 s ceiling, so a hang anywhere else still fails at 15 minutes.
-          # Phase 2 runs internal/server alone under 1800 s. Isolation on its
-          # own measured 885 s (run 35635263290): the same tests at the same
+          # Phase 2 (the server-tests job) runs internal/server alone under
+          # 1800 s, at the same time as this one, against its own service.
+          # Isolation on its own measured 885 s (run 35635263290): the same tests at the same
           # per-test speed as the contended base, so the budget is what closes
           # the margin. 1800 s is sized from evidence, base 794 s times the
           # worst observed slowdown 1.63 is 1294 s, and doubles the time to
           # detect a hang in this one package, which the founder accepted.
-          # Both exit statuses are kept:
-          # a green phase 2 never masks a red phase 1. Both JSON streams are
-          # kept for specter ingest and the artifact upload.
-          report() {
-            echo "::group::Failed tests ($1)"
-            jq -r 'select(.Action=="fail" and .Test != null) | "FAIL  \(.Package)  \(.Test)"' "$2" | sort -u
-            echo "::endgroup::"
-            echo "::group::Failure output ($1, last 80 lines)"
-            jq -r 'select(.Action=="output" and (.Output | ascii_downcase | test("--- fail|panic:|fatal error|error:"))) | "\(.Package): \(.Output)"' "$2" | tail -80
-            echo "::endgroup::"
-          }
+          # Each job fails on its own exit status and the gates job requires
+          # both, so a green phase 2 never masks a red phase 1. Both JSON
+          # streams reach specter ingest and the artifact upload.
           ALL=$(go list ./...)
           OTHERS=$(printf '%s\n' "$ALL" | grep -v '^github.com/Hanalyx/openwatch/internal/server$')
           # The arithmetic has to close, or a package could be tested twice
-          # or not at all without anyone noticing.
+          # or not at all without anyone noticing. internal/server runs in
+          # the server-tests job, which tests exactly that one package.
           if [ "$(printf '%s\n' "$ALL" | wc -l)" -ne $(( $(printf '%s\n' "$OTHERS" | wc -l) + 1 )) ]; then
             echo "::error::package split does not close: internal/server must be exactly one package of $(printf '%s\n' "$ALL" | wc -l)"
             exit 1
@@ -331,12 +330,9 @@ jobs:
           # shellcheck disable=SC2086
           go test -race -json -timeout 900s -p 4 $OTHERS > /tmp/go-test.json
           EXIT1=$?
-          [ "$EXIT1" -ne 0 ] && report "phase 1: every package except internal/server" /tmp/go-test.json
-          go test -race -json -timeout 1800s ./internal/server/ > /tmp/go-test-server.json
-          EXIT2=$?
-          [ "$EXIT2" -ne 0 ] && report "phase 2: internal/server" /tmp/go-test-server.json
-          echo "phase 1 exit $EXIT1, phase 2 exit $EXIT2"
-          [ "$EXIT1" -eq 0 ] && [ "$EXIT2" -eq 0 ]
+          [ "$EXIT1" -ne 0 ] && bash scripts/go-test-report.sh "every package except internal/server" /tmp/go-test.json
+          echo "go test exit $EXIT1"
+          [ "$EXIT1" -eq 0 ]
 
       # Frontend Vitest run for specter ingest. The specs/frontend/ specs
       # reference tests in frontend/tests/pages/*. Without these JUnit
@@ -345,27 +341,25 @@ jobs:
       # /tmp/vitest-junit.xml which specter ingest reads alongside the Go
       # test results.
       - name: frontend vitest (junit) for specter ingest
-        if: steps.paths.outputs.go == 'true'
         working-directory: frontend
         run: |
           set +e
           npx vitest run --reporter=junit --outputFile=/tmp/vitest-junit.xml --reporter=default
           EXIT=$?
-          # Record the exit code but DON'T fail here: specter ingest (next
-          # step) still needs to read the JUnit file, and specter sync should
-          # report which ACs the failures left uncovered before we abort.
-          # The "Enforce frontend tests passed" step below turns a non-zero
-          # result into a hard build failure once specter has run.
+          # Record the exit code but DON'T fail here: the frontend API type
+          # check below still runs, and the JUnit file is kept for the gates
+          # job, whose specter ingest and sync report which ACs the failures
+          # left uncovered. The "Enforce frontend tests passed" step below
+          # turns a non-zero result into a hard failure of this job.
           echo "$EXIT" > /tmp/vitest-exit
           if [ "$EXIT" -ne 0 ]; then
-            echo "::warning::Vitest reported test failures — specter coverage below shows affected ACs; the build fails at the enforcement step."
+            echo "::warning::Vitest reported test failures — the gates job's specter coverage shows affected ACs; this job fails at the enforcement step."
           fi
 
       # OpenAPI-first drift guard (frontend half): the committed client types
       # must match api/openapi.yaml. Runs here because the vitest step above has
       # already installed frontend node_modules (openapi-typescript).
       - name: Verify generated frontend API types are in sync
-        if: steps.paths.outputs.go == 'true'
         working-directory: frontend
         run: |
           npm run api:types
@@ -374,28 +368,13 @@ jobs:
             exit 1;
           }
 
-      - name: specter ingest
-        if: steps.paths.outputs.go == 'true'
-        run: specter ingest --go-test /tmp/go-test.json --go-test /tmp/go-test-server.json --junit /tmp/vitest-junit.xml
-
-      - name: specter sync (AC coverage thresholds)
-        if: steps.paths.outputs.go == 'true'
-        # --tests '**/*' broadens default discovery to include .test.tsx
-        # files. Specter's `sync` coverage phase does not honor
-        # settings.tests_glob in specter.yaml (the `coverage` subcommand
-        # does — known specter quirk). The annotation walker still
-        # filters on @spec / @ac, so non-test files in the broad glob
-        # are skipped at parse time.
-        run: specter sync --tests '**/*'
-
-      # Hard frontend-test gate. Vitest failures are deferred above so
-      # specter can ingest the JUnit results and report coverage first; this
-      # step makes a real frontend test failure fail the build. A frontend
+      # Hard frontend-test gate. Vitest failures are deferred above so the
+      # JUnit results still reach specter in the gates job; this step makes a
+      # real frontend test failure fail this job, and so the required check. A frontend
       # regression that does not happen to map to a spec AC would otherwise
       # slip through (specter only gates annotated ACs), so this is the
       # backstop that keeps `npm test` authoritative in CI.
       - name: Enforce frontend tests passed
-        if: steps.paths.outputs.go == 'true'
         run: |
           EXIT=$(cat /tmp/vitest-exit 2>/dev/null || echo 1)
           if [ "$EXIT" -ne 0 ]; then
@@ -404,8 +383,171 @@ jobs:
           fi
           echo "frontend vitest suite passed"
 
+      # Keep this job's results for the gates job on every outcome, so a
+      # failure still leaves its JSON for specter ingest and the upload.
+      - name: keep test results for the gates job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ci-checks-results
+          path: |
+            /tmp/go-test.json
+            /tmp/vitest-junit.xml
+          if-no-files-found: ignore
+          retention-days: 1
+
+  server-tests:
+    name: Race tests (internal/server)
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    # The package's own 1800 s -timeout plus setup, with margin.
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openwatch
+          POSTGRES_PASSWORD: openwatch_ci
+          POSTGRES_DB: openwatch_go_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      OPENWATCH_TEST_DSN: postgres://openwatch:openwatch_ci@127.0.0.1:5432/openwatch_go_test?sslmode=disable
+      # Spec system-supply-chain C-03 / AC-05: pin every go command in
+      # this workflow to read-only module resolution so a typo in
+      # go.mod or an out-of-band fetch attempt fails the build instead
+      # of silently mutating the lockfile.
+      GOFLAGS: -mod=readonly
+      # Test-DB isolation guard: CI's openwatch_go_test name already
+      # ends in _test so the runtime guard accepts it without bypass.
+      OPENWATCH_TEST_DSN_ALLOW_NONTEST: "no"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.6'
+          cache: true
+          cache-dependency-path: go.sum
+
+      # The embedded spec and the SPA stub the package compiles against.
+      # Both are gitignored, so a fresh checkout has neither.
+      - name: Stage the embedded files
+        run: make internal/server/openapi_embed.yaml internal/server/spa/index.html
+
+      # internal/server alone, at the same time as the checks job (CP
+      # bugs/OW-066 for why it runs alone). The 1800 s budget and its
+      # derivation are in the checks job's test step; this is the same
+      # invocation it used to run as phase 2 of that step.
+      - name: go test (race + json), internal/server
+        run: |
+          set +e
+          export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
+          go test -race -json -timeout 1800s ./internal/server/ > /tmp/go-test-server.json
+          EXIT2=$?
+          [ "$EXIT2" -ne 0 ] && bash scripts/go-test-report.sh "internal/server" /tmp/go-test-server.json
+          echo "go test exit $EXIT2"
+          [ "$EXIT2" -eq 0 ]
+
+      - name: keep test results for the gates job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ci-server-results
+          path: /tmp/go-test-server.json
+          if-no-files-found: ignore
+          retention-days: 1
+
+  gates:
+    name: Quality + security gates
+    needs: [changes, checks, server-tests]
+    # always(): this is the only required check, and GitHub counts a job that
+    # was skipped because a dependency failed as passing one. Running always
+    # and checking every needed result below is what makes a red test job
+    # turn this check red.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The release readiness checker decides go/no-go for a candidate, so its
+      # own guards have to hold: evidence tied to an artifact digest goes
+      # stale when the bits change, an unreadable checksum list fails closed,
+      # and an agent cannot satisfy a gate that requires a human observer.
+      # Stdlib only and no network, so this runs unconditionally and fast.
+      # -S disables site packages. The checker is standard library only by
+      # design (see release-status.py's header), and this runner happens to
+      # have PyYAML installed, so without -S an accidental third-party import
+      # would pass here and fail on a runner that does not.
+      - name: release gate checker tests
+        run: |
+          python3 -S scripts/test_release_status.py
+          python3 -S scripts/test_specter_gate.py
+
+      - name: Set up specter
+        if: needs.changes.outputs.go == 'true'
+        # The version is DERIVED from the tracked .specter-version file, never
+        # written here. An earlier revision declared it in `env:` and then
+        # compared the two, which detects drift but is still two places to
+        # edit; scripts/specter-gate.py reads the same file and refuses to run
+        # against any other build.
+        run: |
+          SPECTER_VERSION="$(tr -d '[:space:]' < .specter-version)"
+          if [ -z "$SPECTER_VERSION" ]; then
+            echo "::error::.specter-version is missing or empty"
+            exit 1
+          fi
+          echo "Installing specter $SPECTER_VERSION (from .specter-version)"
+          curl -fsSL "https://github.com/Hanalyx/specter/releases/download/v${SPECTER_VERSION}/specter_${SPECTER_VERSION}_linux_amd64.tar.gz" \
+              -o /tmp/specter.tar.gz
+          tar -xzf /tmp/specter.tar.gz -C /tmp specter
+          install -m 0755 /tmp/specter /usr/local/bin/specter
+          specter --version
+
+      - name: fetch both test streams
+        if: needs.changes.outputs.go == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: go-ci-*-results
+          merge-multiple: true
+          path: /tmp
+
+      - name: specter ingest
+        if: needs.changes.outputs.go == 'true'
+        run: specter ingest --go-test /tmp/go-test.json --go-test /tmp/go-test-server.json --junit /tmp/vitest-junit.xml
+
+      - name: specter sync (AC coverage thresholds)
+        if: needs.changes.outputs.go == 'true'
+        # --tests '**/*' broadens default discovery to include .test.tsx
+        # files. Specter's `sync` coverage phase does not honor
+        # settings.tests_glob in specter.yaml (the `coverage` subcommand
+        # does — known specter quirk). The annotation walker still
+        # filters on @spec / @ac, so non-test files in the broad glob
+        # are skipped at parse time.
+        run: specter sync --tests '**/*'
+
       - name: upload specter artifacts
-        if: always() && steps.paths.outputs.go == 'true'
+        if: always() && needs.changes.outputs.go == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: specter-results
@@ -416,8 +558,37 @@ jobs:
             /tmp/vitest-junit.xml
           retention-days: 7
 
+
+      # The verdict. A Go change needs both test jobs to have succeeded; a
+      # doc-only change needs both to have been skipped. Anything else
+      # (failure, cancellation, a skip on a Go change, an unset output) fails
+      # the required check.
+      - name: require every needed job
+        if: always()
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          GO: ${{ needs.changes.outputs.go }}
+          CHECKS: ${{ needs.checks.result }}
+          SERVER: ${{ needs.server-tests.result }}
+        run: |
+          echo "changes=$CHANGES go=$GO checks=$CHECKS server-tests=$SERVER"
+          if [ "$CHANGES" != "success" ]; then
+            echo "::error::path detection did not succeed ($CHANGES)"
+            exit 1
+          fi
+          case "$GO" in
+            true)  want=success ;;
+            false) want=skipped ;;
+            *)     echo "::error::path detection produced no verdict (go='$GO')"; exit 1 ;;
+          esac
+          if [ "$CHECKS" != "$want" ] || [ "$SERVER" != "$want" ]; then
+            echo "::error::with go=$GO both test jobs must be $want: checks=$CHECKS, server-tests=$SERVER"
+            exit 1
+          fi
+          echo "all needed jobs ended as required"
+
   # Hanalyx documentation style gate. Runs as its own job on purpose: the
-  # "gates" job above short-circuits to success on doc-only changes, so a
+  # test jobs above are skipped on doc-only changes, so a
   # step inside it would be skipped exactly when documentation is what
   # changed. Enforces the prohibited list from the Context Plane at
   # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
