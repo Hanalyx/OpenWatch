@@ -423,23 +423,100 @@ Step 2. Same number, code-only rollback. Higher number, full rollback.
 
 ### Code-only rollback (the schema did not advance)
 
-If the target version applied no new migrations (the version recorded in
-Step 2 is unchanged), reinstall the previous package. The previous package's
-scriptlet runs too, finds nothing to migrate, and starts the service.
+Use this when the upgrade applied no new migrations: the version
+`migrate --status` printed in Step 2 is still the current version. The block
+checks that before it changes anything, and stops if the schema advanced. In
+that case use [Full rollback](#full-rollback-the-schema-advanced) instead.
 
-If the upgrade also installed a newer `kensa-rules`, roll it back in the same
-command. The package manager refuses an `openwatch` whose engine is older
-than the installed corpus, and changes nothing:
+Reinstall the previous `openwatch` and `kensa-rules` together. The package
+manager refuses an `openwatch` whose engine is older than the installed
+corpus, and changes nothing. The previous package's scriptlet runs too, finds
+nothing to migrate, and starts the service.
+
+**Starting is not proof** (CP `bugs/OW-094`). The scriptlet starts the service
+inside the package transaction, while the newer `kensa-rules` files are still
+on disk. The engine reads the rule library once, at startup, so the running
+service can fail to load its rules while health answers `healthy`. The block
+therefore restarts the service after the transaction and proves the rule
+library loaded, as the full rollback does.
+
+Fill in the four values at the top, then run the block as root. The token
+needs `scan:read`; see [The API token](#the-api-token).
 
 ```bash
-sudo systemctl stop openwatch
-# RHEL family:
-sudo dnf install ./openwatch-<old-version>.<arch>.rpm ./kensa-rules-<old-kensa-version>.noarch.rpm
-# Debian/Ubuntu:
-sudo apt install --allow-downgrades ./openwatch_<old-version>_<arch>.deb ./kensa-rules_<old-kensa-version>_all.deb
-sudo systemctl start openwatch
-curl -k https://localhost:8443/api/v1/health
+(
+  set -euo pipefail
+  EXPECTED='<migration-version-from-step-2>'
+  OLD_OPENWATCH='<absolute-path-to-previous-openwatch-package>'
+  OLD_KENSA='<absolute-path-to-previous-kensa-rules-package>'
+  TOKEN_FILE='<root-only-file-holding-an-owk-token-with-scan-read>'
+  URL=https://localhost:8443
+  PSQL=(runuser -u postgres -- psql -X -q -tA -v ON_ERROR_STOP=1)
+  PHASE=inputs
+  on_stop() {
+    echo "STOPPED at line $1, phase: $PHASE." >&2
+    case "$PHASE" in
+      inputs)
+        echo "Nothing was changed. The packages and the service were not touched." >&2 ;;
+      packages|verify)
+        echo "Package installation HAD begun. The database was not touched." >&2
+        systemctl stop openwatch || echo "Could not stop openwatch; stop it yourself." >&2
+        echo "Read journalctl -u openwatch and rpm -q openwatch kensa-rules (or dpkg-query -W)," >&2
+        echo "fix the cause, then run this block again." >&2 ;;
+    esac
+  }
+  trap 'on_stop $LINENO' ERR
+
+  echo "1. checking the inputs"
+  case "$EXPECTED $OLD_OPENWATCH $OLD_KENSA $TOKEN_FILE" in
+    *'<'*) echo "fill in the four values at the top first" >&2; false ;;
+  esac
+  [[ "$EXPECTED" =~ ^[0-9]+$ ]]
+  test -r "$OLD_OPENWATCH"
+  test -r "$OLD_KENSA"
+  test -r "$TOKEN_FILE"
+  TOKEN=$(cat "$TOKEN_FILE")
+  [[ "$TOKEN" == owk_* ]]
+  GOT=$("${PSQL[@]}" -d openwatch -c 'SELECT max(version_id) FROM goose_db_version')
+  if [ "$GOT" != "$EXPECTED" ]; then
+    echo "The schema is at $GOT, not $EXPECTED: it advanced. Use the full rollback." >&2
+    false
+  fi
+
+  echo "2. installing the previous packages"
+  PHASE=packages
+  if command -v dnf >/dev/null; then
+    dnf install -y "$OLD_OPENWATCH" "$OLD_KENSA"
+  else
+    apt-get install -y --allow-downgrades "$OLD_OPENWATCH" "$OLD_KENSA"
+  fi
+
+  echo "3. restarting the service and proving the rule library loaded"
+  PHASE=verify
+  SINCE=$(date '+%Y-%m-%d %H:%M:%S')
+  systemctl restart openwatch
+  READY=no
+  DEADLINE=$((SECONDS + 60))
+  while [ "$SECONDS" -lt "$DEADLINE" ]; do
+    if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$URL/api/v1/health"; then READY=yes; break; fi
+    sleep 2
+  done
+  [ "$READY" = yes ]
+  LOG=$(journalctl -u openwatch --since "$SINCE" --no-pager -o cat)
+  [[ "$LOG" != *"kensa scan wiring unavailable"* ]]
+  [[ "$LOG" != *"kensa rule library unavailable"* ]]
+  RULES=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' -K - "$URL/api/v1/rules" <<<"header = \"Authorization: Bearer $TOKEN\"")
+  [ "$RULES" = 200 ]
+  trap - ERR
+  echo "ROLLED BACK (code only): schema $GOT unchanged, previous packages installed, rule library loaded"
+)
 ```
+
+It uses the same bounds as the full rollback (see
+[How long the checks wait](#how-long-the-checks-wait)). When it prints
+`ROLLED BACK`, run one compliance scan end to end before you call the
+rollback done. On 0.7.0 through 0.8.1, use the
+[session-based scan check](BACKUP_RECOVERY.md#run-one-scan-end-to-end-with-a-user-session).
 
 ### Full rollback (the schema advanced)
 

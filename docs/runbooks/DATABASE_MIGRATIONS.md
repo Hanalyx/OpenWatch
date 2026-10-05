@@ -73,19 +73,18 @@ migrations applied — version 50 -> 51
 When the schema is already current it reports that no migrations were pending
 (the version is unchanged). A failure aborts before changing the version.
 
-Run `openwatch migrate` after every package upgrade and before starting (or
-restarting) the service, so the schema matches the binary. The systemd unit runs
-`openwatch serve` and does not run migrations on boot: `serve` and `migrate` are
-separate subcommands.
+The systemd unit runs `openwatch serve` and does not run migrations on boot:
+`serve` and `migrate` are separate subcommands. A package upgrade migrates for
+you. The package scriptlet stops the service, writes a backup, runs
+`openwatch migrate`, and starts the service again, inside the package
+transaction. Running `openwatch migrate` by hand afterwards is a safe check: it
+reports that nothing is pending.
 
-A typical upgrade sequence:
-
-```bash
-sudo systemctl stop openwatch
-sudo dnf upgrade openwatch          # or: sudo apt install --only-upgrade openwatch
-sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate'
-sudo systemctl start openwatch
-```
+Do not use a hand-written stop, upgrade, migrate, start sequence. Upgrade both
+packages in one transaction and finish with the restart and rule check in the
+[upgrade procedure](UPGRADE_PROCEDURE.md#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules).
+The service the scriptlet starts can keep serving rules the upgrade removed
+until it restarts (CP `bugs/OW-095`).
 
 ## Checking the current schema version
 
@@ -100,8 +99,8 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch
 To inspect the version table directly with `psql`:
 
 ```bash
-psql "$OPENWATCH_DATABASE_DSN" -c \
-  "SELECT version_id, is_applied, tstamp FROM goose_db_version ORDER BY id DESC LIMIT 5;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c \
+  "SELECT version_id, is_applied, tstamp FROM goose_db_version ORDER BY id DESC LIMIT 5;"'
 ```
 
 The highest `version_id` with `is_applied = true` is the current schema version.
@@ -182,22 +181,37 @@ Plan accordingly:
 
 The `migrate` subcommand can take the pre-migration backup for you: pass
 `--backup-dir <dir>` and it writes a plain-SQL `pg_dump` (`--no-owner
---no-privileges`) into that directory before applying any pending migration.
-This is the recommended path on production upgrades:
+--no-privileges`) into that directory before it applies anything. It writes the
+dump whenever the database already has a schema, even when no migration is
+pending. A failed backup stops the command before it migrates. The package
+scriptlet already does this on every upgrade, into
+`/var/lib/openwatch/backups`.
+
+To take one by hand, run it the way the scriptlet does: as root, with
+`secrets.env` loaded, into the same directory. That directory is
+`root:openwatch` mode `0750`, so the `openwatch` user cannot write to it, and
+`/var/backups` is root-owned too.
 
 ```bash
-sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --backup-dir /var/backups/openwatch'
+sudo sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml migrate --backup-dir /var/lib/openwatch/backups'
 ```
 
-Because this dump is plain SQL, restore it with `psql`, not `pg_restore`:
-
-```bash
-psql "$OPENWATCH_DATABASE_DSN" < /var/backups/openwatch/openwatch_20260610T120000Z.sql
-```
+The file is named `openwatch-pre-upgrade-<version>-<UTC stamp>.sql`, where
+`<version>` is the version of the `openwatch` binary that ran the command. It is
+plain SQL with no ownership statements and no `DROP` statements, so
+`pg_restore` cannot read it. Loading it into the existing `openwatch` database
+fails on every object that already exists. Restore it into a new database
+instead, as the
+[full rollback](UPGRADE_PROCEDURE.md#full-rollback-the-schema-advanced) in the
+upgrade procedure does. That block verifies the dump, keeps the current database
+aside, restores as the `openwatch` role, and checks the version and ownership.
 
 To take the backup yourself instead, use `pg_dump` before applying migrations to
 any environment you cannot afford to lose. If you choose the custom archive
-format instead of plain SQL, use `pg_restore` to restore it:
+format instead of plain SQL, use `pg_restore` to restore it. Both commands read
+`OPENWATCH_DATABASE_DSN`, which is set only in `/etc/openwatch/secrets.env`, so
+run them in a root shell after `set -a; . /etc/openwatch/secrets.env; set +a`,
+from a directory with room for the dump:
 
 ```bash
 pg_dump "$OPENWATCH_DATABASE_DSN" \
@@ -222,7 +236,7 @@ Symptom: `openwatch migrate: connect postgres://…: …`.
 - Confirm PostgreSQL is reachable and the DSN is correct:
 
   ```bash
-  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"
+  sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"'
   ```
 
 - Confirm `OPENWATCH_DATABASE_DSN` is set in `/etc/openwatch/secrets.env` and
@@ -243,8 +257,8 @@ so a failure leaves the database at the last fully-applied version. To recover:
 1. Read the error and inspect the current version:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT version_id, is_applied FROM goose_db_version ORDER BY id DESC LIMIT 5;"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c \
+     "SELECT version_id, is_applied FROM goose_db_version ORDER BY id DESC LIMIT 5;"'
    ```
 
 2. Fix the offending migration file (only if it has never shipped) or write a
@@ -261,8 +275,8 @@ Confirm the binary version and the applied schema version line up:
 
 ```bash
 openwatch --version
-psql "$OPENWATCH_DATABASE_DSN" -c \
-  "SELECT max(version_id) FROM goose_db_version WHERE is_applied;"
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c \
+  "SELECT max(version_id) FROM goose_db_version WHERE is_applied;"'
 ```
 
 If the version is behind the binary, run `openwatch migrate` and restart:
