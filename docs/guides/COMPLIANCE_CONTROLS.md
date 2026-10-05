@@ -27,10 +27,10 @@ produced enough rule outcomes to be scored. See
 | AC-2 | Account Management | User CRUD with RBAC (five roles: viewer, auditor, ops_lead, security_admin, admin) | User list from the Users API; user audit events |
 | AC-3 | Access Enforcement | Role-based permission checks on each route | `403` denials in the audit log; permission registry served by the API |
 | AC-6 | Least Privilege | Five built-in roles (least-privilege viewer baseline) | Role list from `/api/v1/roles` |
-| AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `429` responses with `Retry-After`; rate-limit denials in the audit log |
+| AC-7 | Unsuccessful Logon Attempts | Per-IP sliding-window rate limit on the auth endpoints (login, MFA verify); 429 + Retry-After | `auth.login.failure` and `auth.mfa.failed` audit events; the `429` + `Retry-After` responses are returned to the client and are not recorded in the audit log |
 | AC-11 | Session Lock | Inactivity timeout (default 15 minutes, configurable from 5 minutes to 24 hours) | Session-timeout value in the running configuration |
 | AC-12 | Session Termination | Session cookie and JWT expiration (30 min access, 7 day refresh) | Token expiry observed on the API; logout audit events |
-| AC-17 | Remote Access | SSH with NIST SP 800-57 key validation | Host-key validation behavior on connect |
+| AC-17 | Remote Access | SSH with a NIST SP 800-57 strength check on the client private key; host keys are trust-on-first-use and a changed key is refused | Weak-key rejection when a credential is saved; host-key mismatch refusal on connect |
 
 ### Audit and accountability (AU)
 
@@ -39,7 +39,7 @@ produced enough rule outcomes to be scored. See
 | AU-2 | Event Logging | Structured audit events for auth/scan/admin actions | Audit events from `/api/v1/audit/events` |
 | AU-3 | Content of Audit Records | User, timestamp, action, resource, outcome | Fields in each record from `/api/v1/audit/events` |
 | AU-6 | Audit Record Review | Audit query API (`/api/v1/audit/events`) | Query results from `/api/v1/audit/events` |
-| AU-9 | Protection of Audit Information | Audit events stored append-only in PostgreSQL | Append-only audit records in the database |
+| AU-9 | Protection of Audit Information | Audit events stored in PostgreSQL. The application only inserts audit rows; append-only is application behavior, not enforced by the database. No trigger, rule or revoked privilege prevents changes, and the service's database role owns the table and can update or delete rows | Audit records in the database; protect them with database access controls outside OpenWatch |
 | AU-12 | Audit Record Generation | API routes generate audit events | Events emitted per action in the audit log |
 
 ### Configuration management (CM)
@@ -72,7 +72,7 @@ produced enough rule outcomes to be scored. See
 | Control | Title | OpenWatch Implementation | Evidence |
 |---------|-------|-------------------------|----------|
 | SC-8 | Transmission Confidentiality | TLS 1.2/1.3 for all connections | HTTPS-only listener on port 8443 |
-| SC-8(1) | Cryptographic Protection | The `-fips` build's cryptographic operations run through the FIPS 140-3 crypto module (Go GOFIPS140); TLS cipher-suite selection itself is the Go standard-library default and is not pinned to a FIPS-approved suite list | FIPS mode reported by `openwatch --version` |
+| SC-8(1) | Cryptographic Protection | A FIPS binary, built from source with `make build-fips` (no FIPS package is published), runs its cryptographic operations through the FIPS 140-3 crypto module (Go GOFIPS140); TLS cipher-suite selection itself is the Go standard-library default and is not pinned to a FIPS-approved suite list | FIPS mode reported by `openwatch --version` |
 | SC-10 | Network Disconnect | Configurable session timeout | Session-timeout value in the running configuration |
 | SC-12 | Cryptographic Key Establishment | AES-256-GCM with environment-sourced keys | Key files under `/etc/openwatch/keys/` |
 | SC-13 | Cryptographic Protection | FIPS via the Go-native FIPS module | FIPS mode reported by `openwatch --version` |
@@ -154,8 +154,9 @@ OpenWatch serves the REST API over HTTPS on port 8443. Authenticate with a sessi
 cookie obtained from `/api/v1/auth/login`, or with a Bearer token.
 
 ```bash
-# Query audit events for a date range
-curl "https://localhost:8443/api/v1/audit/events?since=2026-01-01T00:00:00Z&until=2026-02-17T23:59:59Z" \
+# Export audit events for a date range (needs audit:export)
+curl -D export_headers.txt \
+  "https://localhost:8443/api/v1/audit/events/export?format=json&since=2026-01-01T00:00:00Z&until=2026-02-17T23:59:59Z" \
   -H "Authorization: Bearer $TOKEN" > audit_evidence.json
 
 # Export fleet compliance score
@@ -163,6 +164,13 @@ curl https://localhost:8443/api/v1/fleet/score \
   -H "Authorization: Bearer $TOKEN" > fleet_score_evidence.json
 ```
 
+> The export returns at most 10,000 events, newest first. When it hits that cap
+> it sets the `X-OpenWatch-Export-Truncated: true` response header, so check
+> `export_headers.txt`. For a larger window, split the date range or page
+> through `GET /api/v1/audit/events` with `limit` (maximum 200). Pass each
+> response's `next_cursor` back as `?cursor=` until it is null. That list
+> endpoint returns 50 events per page by default.
+>
 > Per-host compliance posture and trend are also available directly:
 > `GET /api/v1/hosts/{id}/compliance` and `GET /api/v1/hosts/{id}/compliance/trend`.
 > The running binary serves its current API contract at `/api/v1/openapi.yaml` (viewer at `/docs`);

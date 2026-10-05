@@ -179,8 +179,13 @@ curl -sk -X POST https://localhost:8443/api/v1/credentials \
 
 ## Step 5: Verify connectivity
 
-Confirm OpenWatch can reach the host over SSH before relying on automatic
-checks. In the UI this is the host's connectivity action; via the API:
+Confirm OpenWatch can reach the host and log in before relying on automatic
+checks. Two calls answer two different questions.
+
+The connectivity check tests network reachability of the host's SSH port only.
+It opens a TCP connection and reads the SSH banner. It sends no credentials, so
+it cannot detect a wrong username or key. It returns `200` even when the host is
+down; read `reachable` and `error_type` in the response:
 
 ```bash
 curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/connectivity:check" \
@@ -188,9 +193,18 @@ curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/connectivity:chec
   -H "Idempotency-Key: $(uuidgen)" | jq .
 ```
 
-A failure here means SSH cannot connect: wrong credentials, an unreachable
-address, or a firewall blocking TCP/22. Fix that before expecting compliance
-results.
+Discovery checks the credential. It opens one SSH session with the host's
+credential and collects OS facts. It needs `host:write`. In the UI this is the
+host's **Reconnect** action; via the API:
+
+```bash
+curl -sk -X POST "https://localhost:8443/api/v1/hosts/$HOST_ID/discovery:run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $(uuidgen)" | jq .
+```
+
+A `200` returns the collected system facts. A `502` means the SSH connection or
+the credential failed. Fix that before expecting compliance results.
 
 ## Step 6: Let automatic compliance checks run
 
@@ -304,12 +318,16 @@ psql "<dsn>" -c "SELECT 1;"
 
 If the schema is behind, run `openwatch migrate`.
 
-**Connectivity check fails for a host.** SSH cannot connect. Confirm the address
-and port, that the credential username and key/password are correct, and that
-TCP/22 is open from the OpenWatch host to the target.
+**Connectivity check reports `reachable: false`.** OpenWatch cannot open a TCP
+connection to the host's SSH port or read its SSH banner. Confirm the address
+and port, and that the port is open from the OpenWatch host to the target. This
+check does not test credentials.
+
+**Discovery returns `502`.** The SSH connection or login failed. Confirm the
+credential username and key or password, then select **Reconnect** again.
 
 **A host shows all-zero compliance counts.** No compliance cycle has completed
-yet. Confirm the connectivity check passes (Step 5), then watch
+yet. Confirm discovery succeeds (Step 5), then watch
 `journalctl -u openwatch -f` for discovery and compliance activity. The
 schedulers run on an adaptive cadence, so the first result is not instantaneous.
 
