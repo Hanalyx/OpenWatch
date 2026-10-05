@@ -49,6 +49,7 @@ mkdir -p "$DIST_DIR"
 # frontend SPA is arch-independent).
 echo ">> building openwatch binary (version=${VERSION}, arch=${ARCH})"
 GOOS=linux GOARCH="$ARCH" CGO_ENABLED=0 make build VERSION="$VERSION" >/dev/null
+make license-bundle
 
 # Step 2: stage the package tree.
 STAGE="$(mktemp -d)"
@@ -57,6 +58,8 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/DEBIAN"
 mkdir -p "$STAGE/usr/bin"
 mkdir -p "$STAGE/usr/lib/openwatch"
+mkdir -p "$STAGE/usr/share/licenses/openwatch"
+install -m 0644 "$DIST_DIR/licenses/"* "$STAGE/usr/share/licenses/openwatch/"
 # TLS directory ships empty (0750); postinst generates the demo cert/key into
 # it (generate-if-absent). The cert/key files are not part of the payload, so
 # an upgrade cannot revert an operator's replacement certificate.

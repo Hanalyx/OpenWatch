@@ -75,6 +75,9 @@ hardened systemd unit. A demo TLS cert is generated at install time
 install -d -m 0755                  %{buildroot}/usr/bin
 install -m 0755 openwatch           %{buildroot}/usr/bin/openwatch
 
+install -d -m 0755 %{buildroot}/usr/share/licenses/openwatch
+install -m 0644 licenses/* %{buildroot}/usr/share/licenses/openwatch/
+
 install -d -m 0750                  %{buildroot}/etc/openwatch
 # TLS directory. The demo cert + key are NOT shipped in the payload — if they
 # were, a package upgrade would silently overwrite an operator's replacement
@@ -150,6 +153,7 @@ fi
 systemctl daemon-reload || :
 
 %files
+%license /usr/share/licenses/openwatch
 %attr(0755, root, root)             /usr/bin/openwatch
 %dir %attr(0750, root, openwatch)   /etc/openwatch
 # TLS dir ships empty (0750); %post generates the demo cert/key into it

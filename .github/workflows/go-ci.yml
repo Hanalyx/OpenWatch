@@ -86,7 +86,7 @@ jobs:
           # PR #839 merged that way and left main red on AC-11. Keep them in
           # this pattern; release-ci-gates AC-16 reads it from this file and
           # fails if either is removed.
-          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|\.github/workflows/go-ci\.yml$)'; then
+          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|THIRD-PARTY-NOTICES\.md$|\.github/workflows/go-ci\.yml$)'; then
             echo "go=true" >> "$GITHUB_OUTPUT"
             echo "Go-relevant changes detected — running full pipeline."
           else
@@ -252,6 +252,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci --no-audit --no-fund
+
+      - name: Verify third-party notices and license texts
+        run: make license-bundle
 
       # The Specter gate: pinned version, zero annotation ERRORS and WARNINGS
       # (info is not blocking), and 100% structural coverage. The policy lives in

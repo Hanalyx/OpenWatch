@@ -259,12 +259,22 @@ release-status-test:
 docs-style:
 	python3 -S scripts/doc-style-gate.py
 
+.PHONY: notices check-notices license-bundle
+notices: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
+	python3 -S scripts/third-party-notices.py --write
+
+check-notices: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
+	python3 -S scripts/third-party-notices.py --check
+
+license-bundle: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
+	python3 -S scripts/third-party-notices.py --check --bundle $(DIST_DIR)/licenses
+
 # ci-local: run locally what CI's "Quality + security gates" job runs, so a
 # failure is caught before the ~9-minute push round-trip. `make check` alone
 # omits the generated-code, spec, and frontend gates — this target is the
 # full mirror.
 .PHONY: ci-local
-ci-local: check-generated vet lint vuln spec-check test-race docs-style
+ci-local: check-generated vet lint vuln spec-check test-race docs-style license-bundle
 	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
 	@if [ -z "$$OPENWATCH_TEST_DSN" ]; then \
 	  echo ""; \

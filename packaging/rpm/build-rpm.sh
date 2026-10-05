@@ -55,6 +55,7 @@ mkdir -p "$DIST_DIR"
 # --version` reports the real pre-release, not the tilde-encoded RPM form.
 echo ">> building openwatch binary (version=${VERSION}, arch=${RPM_ARCH})"
 GOOS=linux GOARCH="$GOARCH" CGO_ENABLED=0 make build VERSION="$VERSION" >/dev/null
+make license-bundle
 
 # Step 2: stage the rpmbuild tree.
 RPMTOP="$(mktemp -d)"
@@ -67,6 +68,7 @@ SRC_DIR="$STAGE_DIR/openwatch-${RPM_VERSION}"
 mkdir -p "$SRC_DIR"
 
 cp "$DIST_DIR/openwatch"                      "$SRC_DIR/openwatch"
+cp -R "$DIST_DIR/licenses"                    "$SRC_DIR/licenses"
 cp "$APP_DIR/packaging/common/openwatch.toml" "$SRC_DIR/openwatch.toml"
 cp "$APP_DIR/packaging/common/openwatch.service" "$SRC_DIR/openwatch.service"
 cp "$APP_DIR/packaging/common/provision-identity-keys.sh" "$SRC_DIR/provision-identity-keys.sh"
