@@ -49,7 +49,7 @@ func TestRunbook_SessionScanBlockIsGuarded(t *testing.T) {
 	// before it; the sign-out proof is the cookie answering 401.
 	inOrder(t, "session", b,
 		"set -euo pipefail", "USER_NAME=", "PASSWORD_FILE=", "HOST_ID=", "STAGE=inputs", "SIGN_IN=not-started",
-		"JAR_DIR=$(mktemp -d)", "sign_out() {", `-b "$JAR" -X POST "$URL/api/v1/auth/logout"`,
+		"JAR_DIR=$(mktemp -d)", "sign_out() {", `-b "$JAR" -K - -X POST "$URL/api/v1/auth/logout" <<<"header = \"X-CSRF-Token: $xsrf\""`,
 		`-b "$JAR" "$URL/api/v1/rules`, `[ "$out" = 204 ] && [ "$after" = 401 ]`,
 		"on_stop() {", "sign_out\n", "trap 'on_stop $LINENO' ERR", `trap 'rm -rf "$JAR_DIR"' EXIT`,
 		"python3 -I -S -c 'import json'", `test -r "$PASSWORD_FILE"`,
@@ -155,6 +155,7 @@ type fakeSessionOpenWatch struct {
 	scanState  string
 	rulesError int
 	logout     string // "ok", "500", "norevoke", "drop" (connection closed, no answer)
+	csrf       bool   // sign-out enforces the double-submit token, as 0.8.0-rc.6 and later do
 	probe      string // "ok", "drop", "hang", "gone" (server stops listening after sign-out)
 	revoked    bool
 	afterOut   bool // sign-out has been requested
@@ -167,6 +168,7 @@ type fakeSessionOpenWatch struct {
 const (
 	fakeAccess  = "eyJ-fake-access-token-value"
 	fakeSession = "fake-session-cookie-value"
+	fakeXSRF    = "fake-xsrf-token-value"
 	fakeScanID  = "01a0f45a-3830-7d60-8dc7-12ca5e2bf816"
 )
 
@@ -201,6 +203,9 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		var req struct{ Username, Password string }
 		_ = json.Unmarshal(body, &req)
 		cookie := &http.Cookie{Name: "openwatch_session", Value: fakeSession, Path: "/", Secure: true, HttpOnly: true}
+		// The real sign-in sets XSRF-TOKEN on every version from 0.7.0 on: not
+		// HttpOnly, Secure, SameSite=Lax (internal/server/csrf.go setCSRFCookie).
+		xsrfCookie := &http.Cookie{Name: "XSRF-TOKEN", Value: fakeXSRF, Path: "/", Secure: true, SameSite: http.SameSiteLaxMode}
 		switch {
 		case f.login == "badpw" || req.Password != f.password:
 			w.WriteHeader(http.StatusUnauthorized)
@@ -214,6 +219,7 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		case f.login == "stallbody" || f.login == "dropbody":
 			// The cookie and headers arrive; the body never completes.
 			http.SetCookie(w, cookie)
+			http.SetCookie(w, xsrfCookie)
 			w.Header().Set("Content-Length", "200")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{"access_tok`)
@@ -229,14 +235,28 @@ func (f *fakeSessionOpenWatch) ServeHTTP(w http.ResponseWriter, r *http.Request)
 			fmt.Fprintf(w, `{"access_token":%q}`, fakeAccess)
 		case f.login == "badjson":
 			http.SetCookie(w, cookie)
+			http.SetCookie(w, xsrfCookie)
 			fmt.Fprint(w, `{"access_token": "unterminated`)
+		case f.login == "noxsrf":
+			// A session cookie but no XSRF-TOKEN cookie.
+			http.SetCookie(w, cookie)
+			fmt.Fprintf(w, `{"access_token":%q}`, fakeAccess)
 		default:
-			http.SetCookie(w, &http.Cookie{Name: "openwatch_session", Value: fakeSession, Path: "/", Secure: true, HttpOnly: true})
+			http.SetCookie(w, cookie)
+			http.SetCookie(w, xsrfCookie)
 			fmt.Fprintf(w, `{"access_token":%q}`, fakeAccess)
 		}
 	case r.Method == http.MethodPost && r.URL.Path == "/api/v1/auth/logout":
 		f.logouts++
 		f.afterOut = true
+		if f.csrf && hasCookie {
+			x, xerr := r.Cookie("XSRF-TOKEN")
+			if xerr != nil || x.Value == "" || r.Header.Get("X-CSRF-Token") != x.Value {
+				// authz.csrf_invalid, refused before any revocation.
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+		}
 		if f.probe == "gone" && f.stopListen != nil {
 			// New connections are refused from here on.
 			f.stopListen()
@@ -370,10 +390,11 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 		logout     string
 		probe      string
 		wantExit   int
-		wantResult bool // the separate scan-result line is printed
-		wantScan   bool // the scan request is sent
-		wantLogout int  // sign-out requests sent
-		noSession  bool // the check may say there is no session to sign out
+		wantResult bool   // the separate scan-result line is printed
+		wantScan   bool   // the scan request is sent
+		wantLogout int    // sign-out requests sent
+		noSession  bool   // the check may say there is no session to sign out
+		mode       string // "" runs with and without sign-out CSRF; "csrf" or "nocsrf" runs one
 		wantMsgs   []string
 	}{
 		{name: "scan completes and sign-out is proven", login: "ok", post: 202, state: "completed", logout: "ok",
@@ -434,104 +455,121 @@ func TestRunbook_SessionScanBlockBehaves(t *testing.T) {
 			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "no answer"), signInUI}, unproven...)},
 		{name: "server goes away after sign-out", login: "ok", post: 202, state: "completed", logout: "ok", probe: "gone",
 			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("204", "no answer"), signInUI}, unproven...)},
+		// Sign-in set a session cookie but no XSRF-TOKEN. Before 0.8.0-rc.6
+		// sign-out does not check it; from rc.6 on it answers 403 and revokes
+		// nothing, so the check fails safe: exit 2, never SCANNED.
+		{name: "no XSRF cookie, sign-out without CSRF", login: "noxsrf", post: 202, state: "completed", logout: "ok", mode: "nocsrf",
+			wantExit: 0, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: []string{signedOut}},
+		{name: "no XSRF cookie, sign-out enforces CSRF", login: "noxsrf", post: 202, state: "completed", logout: "ok", mode: "csrf",
+			wantExit: 2, wantResult: true, wantScan: true, wantLogout: 1, wantMsgs: append([]string{notProven("403", "200"), signInUI}, unproven...)},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			f := &fakeSessionOpenWatch{password: password, login: tc.login, scanPost: tc.post,
-				scanState: tc.state, rulesError: tc.rulesError, logout: tc.logout, probe: tc.probe}
-			srv := httptest.NewTLSServer(f)
-			defer srv.Close()
-			f.mu.Lock()
-			f.stopListen = func() { _ = srv.Listener.Close() }
-			f.mu.Unlock()
-			pf := filepath.Join(t.TempDir(), "password")
-			if err := os.WriteFile(pf, []byte(password+"\n"), 0o600); err != nil {
-				t.Fatal(err)
+		for _, csrf := range []bool{false, true} {
+			if (tc.mode == "csrf" && !csrf) || (tc.mode == "nocsrf" && csrf) {
+				continue
 			}
-			b := restoreBlock(t, sessionScanHeading)
-			b = setInput(t, b, "USER_NAME", "'rt-operator'")
-			b = setInput(t, b, "PASSWORD_FILE", "'"+pf+"'")
-			b = setInput(t, b, "HOST_ID", "'"+hostID+"'")
-			b = setInput(t, b, "URL", srv.URL)
-			r, tmp := runSessionBlock(t, b)
+			tc, csrf := tc, csrf
+			name := tc.name + " (sign-out without CSRF, 0.7.x)"
+			if csrf {
+				name = tc.name + " (sign-out enforces CSRF, 0.8.0-rc.6 and later)"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				f := &fakeSessionOpenWatch{password: password, login: tc.login, scanPost: tc.post,
+					scanState: tc.state, rulesError: tc.rulesError, logout: tc.logout, probe: tc.probe, csrf: csrf}
+				srv := httptest.NewTLSServer(f)
+				defer srv.Close()
+				f.mu.Lock()
+				f.stopListen = func() { _ = srv.Listener.Close() }
+				f.mu.Unlock()
+				pf := filepath.Join(t.TempDir(), "password")
+				if err := os.WriteFile(pf, []byte(password+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				b := restoreBlock(t, sessionScanHeading)
+				b = setInput(t, b, "USER_NAME", "'rt-operator'")
+				b = setInput(t, b, "PASSWORD_FILE", "'"+pf+"'")
+				b = setInput(t, b, "HOST_ID", "'"+hostID+"'")
+				b = setInput(t, b, "URL", srv.URL)
+				r, tmp := runSessionBlock(t, b)
 
-			if r.exit != tc.wantExit {
-				t.Fatalf("exit %d, want %d\nstdout: %s\nstderr: %s", r.exit, tc.wantExit, r.stdout, r.stderr)
-			}
-			// SCANNED only when the scan passed AND the sign-out was proven.
-			if printed := strings.Contains(r.stdout+r.stderr, "SCANNED"); printed != (tc.wantExit == 0) {
-				t.Fatalf("SCANNED printed %v with exit %d\nstdout: %s", printed, r.exit, r.stdout)
-			}
-			if tc.wantExit == 0 && !strings.HasSuffix(r.stdout, result+"SCANNED: scan "+fakeScanID+" completed with no rule errors, and the check's session is signed out\n") {
-				t.Fatalf("success must print the scan result, then SCANNED last:\n%s", r.stdout)
-			}
-			if got := strings.Contains(r.stdout, result); got != tc.wantResult {
-				t.Fatalf("scan-result line printed %v, want %v\nstdout: %s", got, tc.wantResult, r.stdout)
-			}
-			if tc.wantExit != 0 && !strings.Contains(r.stderr, "SCAN CHECK STOPPED") {
-				t.Fatalf("a nonzero exit without a stop message: %s", r.stderr)
-			}
-			if tc.wantExit == 1 && !strings.Contains(r.stderr, "The service was left running") {
-				t.Fatalf("a stop must say the service was left running: %s", r.stderr)
-			}
-			for _, m := range tc.wantMsgs {
-				if !strings.Contains(r.stderr, m+"\n") {
-					t.Fatalf("stderr lacks %q\nstderr:\n%s", m, r.stderr)
+				if r.exit != tc.wantExit {
+					t.Fatalf("exit %d, want %d\nstdout: %s\nstderr: %s", r.exit, tc.wantExit, r.stdout, r.stderr)
 				}
-			}
-			// The interrupted-sign-in line appears only when the sign-in did
-			// not finish normally AND left a cookie. A normal sign-in (200 with
-			// a usable access token) must never print it, whatever the later
-			// stages set CODE to.
-			interrupted := tc.login == "stallbody" || tc.login == "dropbody" || tc.login == "badjson"
-			if got := strings.Contains(r.stderr, cookieLeft); got != interrupted {
-				t.Fatalf("%q printed %v, want %v\nstderr:\n%s", cookieLeft, got, interrupted, r.stderr)
-			}
-			// "No session" only after a definite refusal with no cookie.
-			if got := strings.Contains(r.stderr, "no session to sign out"); got != tc.noSession {
-				t.Fatalf("\"no session to sign out\" printed %v, want %v\nstderr:\n%s", got, tc.noSession, r.stderr)
-			}
-			// A sign-out that is not proven is never reported as one.
-			if tc.wantExit == 2 && strings.Contains(r.stderr, "signed out:") {
-				t.Fatalf("an unproven sign-out was reported as signed out:\n%s", r.stderr)
-			}
-			f.mu.Lock()
-			scanPosts, logouts, revoked, reqs := f.scanPosts, f.logouts, f.revoked, append([]string(nil), f.requests...)
-			f.mu.Unlock()
-			if (scanPosts > 0) != tc.wantScan {
-				t.Fatalf("scan requests sent: %d, want sent=%v", scanPosts, tc.wantScan)
-			}
-			if logouts != tc.wantLogout {
-				t.Fatalf("sign-out requests: %d, want %d", logouts, tc.wantLogout)
-			}
-			if tc.logout == "ok" && tc.wantLogout == 1 && !revoked {
-				t.Fatal("sign-out did not send the session cookie, so nothing was revoked")
-			}
-			// The password reaches the server only in the sign-in body.
-			for _, q := range reqs {
-				if strings.Contains(q, password) && !strings.HasPrefix(q, "POST /api/v1/auth/login ") {
-					t.Fatalf("the password left the sign-in request: %s", q)
+				// SCANNED only when the scan passed AND the sign-out was proven.
+				if printed := strings.Contains(r.stdout+r.stderr, "SCANNED"); printed != (tc.wantExit == 0) {
+					t.Fatalf("SCANNED printed %v with exit %d\nstdout: %s", printed, r.exit, r.stdout)
 				}
-				if strings.HasPrefix(q, "POST /api/v1/auth/login ") && strings.Contains(strings.SplitN(q, " ", 4)[2], password) {
-					t.Fatal("the password appeared in the sign-in request's URL or headers")
+				if tc.wantExit == 0 && !strings.HasSuffix(r.stdout, result+"SCANNED: scan "+fakeScanID+" completed with no rule errors, and the check's session is signed out\n") {
+					t.Fatalf("success must print the scan result, then SCANNED last:\n%s", r.stdout)
 				}
-			}
-			// The password and the access token appear in no command line and
-			// no output.
-			for _, secret := range []string{password, fakeAccess, fakeSession} {
-				if strings.Contains(r.stdout+r.stderr+r.calls, secret) {
-					t.Fatalf("a secret appeared in output or in a command line\ncalls:\n%s", r.calls)
+				if got := strings.Contains(r.stdout, result); got != tc.wantResult {
+					t.Fatalf("scan-result line printed %v, want %v\nstdout: %s", got, tc.wantResult, r.stdout)
 				}
-			}
-			if r.count("systemctl") != 0 {
-				t.Fatalf("the session block touched the service; calls:\n%s", r.calls)
-			}
-			if left, _ := os.ReadDir(tmp); len(left) != 0 {
-				t.Fatalf("the cookie directory was left behind: %v", left)
-			}
-			t.Logf("elapsed %s", r.elapsed.Round(time.Millisecond))
-		})
+				if tc.wantExit != 0 && !strings.Contains(r.stderr, "SCAN CHECK STOPPED") {
+					t.Fatalf("a nonzero exit without a stop message: %s", r.stderr)
+				}
+				if tc.wantExit == 1 && !strings.Contains(r.stderr, "The service was left running") {
+					t.Fatalf("a stop must say the service was left running: %s", r.stderr)
+				}
+				for _, m := range tc.wantMsgs {
+					if !strings.Contains(r.stderr, m+"\n") {
+						t.Fatalf("stderr lacks %q\nstderr:\n%s", m, r.stderr)
+					}
+				}
+				// The interrupted-sign-in line appears only when the sign-in did
+				// not finish normally AND left a cookie. A normal sign-in (200 with
+				// a usable access token) must never print it, whatever the later
+				// stages set CODE to.
+				interrupted := tc.login == "stallbody" || tc.login == "dropbody" || tc.login == "badjson"
+				if got := strings.Contains(r.stderr, cookieLeft); got != interrupted {
+					t.Fatalf("%q printed %v, want %v\nstderr:\n%s", cookieLeft, got, interrupted, r.stderr)
+				}
+				// "No session" only after a definite refusal with no cookie.
+				if got := strings.Contains(r.stderr, "no session to sign out"); got != tc.noSession {
+					t.Fatalf("\"no session to sign out\" printed %v, want %v\nstderr:\n%s", got, tc.noSession, r.stderr)
+				}
+				// A sign-out that is not proven is never reported as one.
+				if tc.wantExit == 2 && strings.Contains(r.stderr, "signed out:") {
+					t.Fatalf("an unproven sign-out was reported as signed out:\n%s", r.stderr)
+				}
+				f.mu.Lock()
+				scanPosts, logouts, revoked, reqs := f.scanPosts, f.logouts, f.revoked, append([]string(nil), f.requests...)
+				f.mu.Unlock()
+				if (scanPosts > 0) != tc.wantScan {
+					t.Fatalf("scan requests sent: %d, want sent=%v", scanPosts, tc.wantScan)
+				}
+				if logouts != tc.wantLogout {
+					t.Fatalf("sign-out requests: %d, want %d", logouts, tc.wantLogout)
+				}
+				if tc.logout == "ok" && tc.wantLogout == 1 && tc.wantExit != 2 && !revoked {
+					t.Fatal("sign-out did not send the session cookie, so nothing was revoked")
+				}
+				// The password reaches the server only in the sign-in body.
+				for _, q := range reqs {
+					if strings.Contains(q, password) && !strings.HasPrefix(q, "POST /api/v1/auth/login ") {
+						t.Fatalf("the password left the sign-in request: %s", q)
+					}
+					if strings.HasPrefix(q, "POST /api/v1/auth/login ") && strings.Contains(strings.SplitN(q, " ", 4)[2], password) {
+						t.Fatal("the password appeared in the sign-in request's URL or headers")
+					}
+				}
+				// The password and the access token appear in no command line and
+				// no output.
+				for _, secret := range []string{password, fakeAccess, fakeSession, fakeXSRF} {
+					if strings.Contains(r.stdout+r.stderr+r.calls, secret) {
+						t.Fatalf("a secret appeared in output or in a command line\ncalls:\n%s", r.calls)
+					}
+				}
+				if r.count("systemctl") != 0 {
+					t.Fatalf("the session block touched the service; calls:\n%s", r.calls)
+				}
+				if left, _ := os.ReadDir(tmp); len(left) != 0 {
+					t.Fatalf("the cookie directory was left behind: %v", left)
+				}
+				t.Logf("elapsed %s", r.elapsed.Round(time.Millisecond))
+			})
+		}
 	}
 }
 

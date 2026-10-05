@@ -252,7 +252,7 @@ when both blocks below finish:
    library. It prints `VERIFIED` only after every check passes.
 2. The second block runs one compliance scan end to end. It prints
    `SCANNED` only when the scan completes with no rule errors. On OpenWatch
-   0.7.1, 0.8.0-rc.6 and 0.8.1, run the
+   0.7.0 through 0.8.1, run the
    [session-based scan check](#run-one-scan-end-to-end-with-a-user-session)
    instead, because those versions cannot start a scan with an API token.
 
@@ -275,7 +275,7 @@ block prints it.
 | Rule library check | `scan:read` | `viewer` |
 | Scan check | `host:write` and `scan:read` | `ops_lead`, `security_admin` or `admin` |
 
-The session-based scan check for 0.7.1, 0.8.0-rc.6 and 0.8.1 uses no token. It signs in
+The session-based scan check for 0.7.0 through 0.8.1 uses no token. It signs in
 as a user, as described in its own section.
 
 The token must be valid in the database the service is running on. After a
@@ -468,15 +468,16 @@ recent scans before you start another one.
 #### Run one scan end to end with a user session
 
 Use this check instead of the one above when the restored or rolled-back
-service runs OpenWatch 0.7.1, 0.8.0-rc.6 or 0.8.1. On those versions, a scan
-started with an API token answers HTTP `500`, even though the scan runs (CP
-`bugs/OW-097`). The token-based check above therefore always stops at stage
-`start` on them. The `500` was reproduced on a running 0.7.1 service. For
-0.8.0-rc.6 and 0.8.1 the evidence is source inspection, not a runtime
-reproduction: the scan handler file is identical to 0.7.1's, and it records an
-API token's own ID as the scan's requester, a column that accepts only a
-user. This check starts its scan from a signed-in user session,
-which those versions handle correctly.
+service runs OpenWatch 0.7.0 through 0.8.1, including the 0.8.0 release
+candidates. On those versions, a scan started with an API token answers HTTP
+`500`, even though the scan runs (CP `bugs/OW-097`). The token-based check
+above therefore always stops at stage `start` on them. The `500` was
+reproduced on a running 0.7.1 service. For the other versions the evidence is
+source inspection, not a runtime reproduction: the scan handler file is
+identical from 0.7.0 through 0.8.1, and it records an API token's own ID as the
+scan's requester, a column that accepts only a user. A scan started from a
+signed-in user session records the user and starts normally on those
+versions, so this check starts its scan that way.
 
 **You need:**
 
@@ -504,6 +505,12 @@ check removes when it exits.
 
 **How it signs out, and how it proves it.** The check signs out whenever the
 sign-in left a session cookie, whether the scan passed or the check stopped.
+From 0.8.0-rc.6 on, sign-out requires the double-submit CSRF token: the
+`XSRF-TOKEN` cookie that sign-in set, sent back in the `X-CSRF-Token` header.
+Without it, sign-out answers `403` and revokes nothing (CP `bugs/OW-106`). The
+check reads that cookie from its own cookie jar and sends it on every
+version; earlier versions set the same cookie and ignore the header. The
+token goes to `curl` on standard input, like the access token.
 That includes a sign-in that set the cookie and then timed out or broke off.
 When the sign-in got no answer and left no cookie, the check cannot know
 whether the server created a session. It says the outcome is unknown, and you
@@ -595,9 +602,14 @@ Fill in the three values at the top, then run the block as root:
     if [ "$SIGN_IN" = no-answer ] || [ "$SIGNIN_CODE" != 200 ] || [ -z "${ACCESS:-}" ]; then
       echo "Sign-in did not finish normally, but it set a session cookie, so the check signs it out." >&2
     fi
-    local out after
+    local out after xsrf
+    # From 0.8.0-rc.6 on, sign-out requires the double-submit CSRF token: the
+    # XSRF-TOKEN cookie that sign-in set, sent back as X-CSRF-Token. Earlier
+    # versions set the same cookie and ignore the header. The token goes to
+    # curl on standard input, never onto a command line.
+    xsrf=$(awk -F'\t' '$6 == "XSRF-TOKEN" { v = $7 } END { print v }' "$JAR" 2>/dev/null) || xsrf=""
     out=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
-        -b "$JAR" -X POST "$URL/api/v1/auth/logout") || out="no answer"
+        -b "$JAR" -K - -X POST "$URL/api/v1/auth/logout" <<<"header = \"X-CSRF-Token: $xsrf\"") || out="no answer"
     after=$(curl -sk --connect-timeout 3 --max-time 10 -o /dev/null -w '%{http_code}' \
         -b "$JAR" "$URL/api/v1/rules") || after="no answer"
     if [ "$out" = 204 ] && [ "$after" = 401 ]; then
@@ -720,10 +732,21 @@ It judged the sign-in by a status the scan start had already overwritten.
 Otherwise it behaved as described: it printed the scan-result line, proved the
 sign-out by a `204` and then a `401`, printed `SCANNED`, and exited `0`. Three
 earlier versions (sha256 `8aa7ed78…`, `becf17f6…` and `2b41eee3…`) also
-printed `SCANNED` on that host the same day. The block above differs from the
-22:57 version only by keeping the sign-in's status in its own variable. The
-block above has not been run on a real host. Its stop paths are tested against
-a stand-in server (`TestRunbook_SessionScanBlockBehaves`).
+printed `SCANNED` on that host the same day. The next version, which keeps the
+sign-in's status in its own variable, printed `SCANNED` on 0.7.1 on 2026-10-03
+and 2026-10-04.
+
+On 2026-10-05 that version and the block above both ran on a real OpenWatch
+0.8.2 host, which enforces sign-out CSRF:
+
+- **That version** sent no CSRF token. Sign-out answered `403`, the session
+  cookie still answered `200`, and the check stopped at `sign-out` with exit
+  `2` (CP `bugs/OW-106`).
+- **The block above** answered `204`, then `401`, printed `SCANNED`, and
+  exited `0`.
+
+Its stop paths are tested against a stand-in server, with and without sign-out
+CSRF (`TestRunbook_SessionScanBlockBehaves`).
 
 ## Disaster recovery (rebuild on a new host)
 
