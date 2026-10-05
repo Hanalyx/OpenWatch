@@ -167,10 +167,11 @@ jobs:
 
       # SBOM: syft scans the actual (signed) binary and packages and emits
       # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
+      # Pinned by version and tarball sha256 (packaging/sbom/install-syft.sh).
+      # Unpinned, syft moved to CycloneDX 1.7 while AC-09 requires 1.5
+      # (CP bugs/OW-111).
       - name: Install syft
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
-            | sh -s -- -b "$HOME/.local/bin"
+        run: bash packaging/sbom/install-syft.sh "$HOME/.local/bin"
 
       - name: Generate CycloneDX SBOMs
         run: |
@@ -185,9 +186,26 @@ jobs:
           for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb dist/kensa-rules-*.rpm dist/kensa-rules_*.deb; do
             [ -e "$art" ] || continue
             name="$(basename "$art")"
-            syft scan "file:$art" -o "cyclonedx-json=dist/${name}.cdx.json"
+            syft scan "file:$art" -o "cyclonedx-json@1.5=dist/${name}.cdx.json"
           done
           ls -l dist/*.cdx.json
+
+      # syft cannot see the React UI the binary embeds, and a package SBOM lists
+      # only the package. packaging/sbom/merge-and-check.sh adds the frontend's
+      # runtime npm components (complete against the runtime lockfile; only
+      # proven files are marked as shipped) and, for each package, the Go
+      # modules of the binary it ships. It checks each SBOM against the
+      # lockfile, the binary's build info and the artifact digest, then
+      # validates every SBOM against the vendored CycloneDX 1.5 schema.
+      # package-smoke runs the same script on every pull request's build.
+      # Spec system-supply-chain C-09.
+      - name: Add frontend components to the SBOMs and verify them
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 -m venv "$RUNNER_TEMP/sbom-venv"
+          "$RUNNER_TEMP/sbom-venv/bin/pip" install --quiet --require-hashes --no-deps -r packaging/sbom/requirements.txt
+          bash packaging/sbom/merge-and-check.sh "$RUNNER_TEMP/sbom-venv/bin/python"
 
       - name: Checksums
         run: |

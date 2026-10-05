@@ -1,0 +1,3 @@
+# Schema validator for the release SBOM check (scripts/sbom-merge.py validate).
+# Pure Python, no dependencies. Installed with --require-hashes --no-deps.
+fastjsonschema==2.21.1 --hash=sha256:c9e5b7e908310918cf494a434eeb31384dd84a98b57a30bcb1f535015b554667

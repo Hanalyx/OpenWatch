@@ -18,6 +18,10 @@
 //   AC-09  TestSupplyChain_SBOMSchemaURLPresent
 //   AC-10  TestSupplyChain_AllowlistIncludesGostdAndInternal
 //   AC-11  TestSupplyChain_CrossReferencesCIGates
+//   AC-12  TestSupplyChain_SBOMFrontendInventory   (sbom_merge_test.go)
+//   AC-13  TestSupplyChain_SBOMMergePreservesGraph (sbom_merge_test.go)
+//   AC-14  TestSupplyChain_SBOMCheck               (sbom_merge_test.go)
+//   AC-15  TestSupplyChain_ReleaseMergesSBOMs      (sbom_merge_test.go)
 
 package packaging_test
 

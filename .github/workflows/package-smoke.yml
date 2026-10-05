@@ -18,6 +18,9 @@ on:
     paths:
       - 'packaging/**'
       - '.github/workflows/package-smoke.yml'
+      # The SBOM check below reads these.
+      - 'scripts/sbom-merge.py'
+      - 'frontend/package-lock.json'
       - '.github/scripts/install-rpmbuild.sh'
       # The installer itself. Without these, a change to how setup provisions
       # PostgreSQL or edits pg_hba.conf does not run the jobs that prove setup
@@ -52,6 +55,28 @@ jobs:
         run: bash .github/scripts/install-rpmbuild.sh
       - name: Build packages
         run: make packages
+      # The release SBOM path, run before release, on every artifact release.yml
+      # scans: pinned syft writes CycloneDX 1.5, then the same script
+      # release.yml runs merges the frontend components into the openwatch
+      # SBOMs, checks them against the runtime lockfile, the binary's build
+      # info and each artifact's digest, and validates every SBOM's schema.
+      # The validator is installed in this job only, pinned by hash.
+      # Spec system-supply-chain C-09.
+      - name: Generate, merge and validate the SBOMs
+        run: |
+          set -euo pipefail
+          bash packaging/sbom/install-syft.sh "$HOME/.local/bin"
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 -m venv "$RUNNER_TEMP/sbom-venv"
+          "$RUNNER_TEMP/sbom-venv/bin/pip" install --quiet --require-hashes --no-deps -r packaging/sbom/requirements.txt
+          for art in dist/openwatch dist/openwatch-*.rpm dist/openwatch_*.deb dist/kensa-rules-*.rpm dist/kensa-rules_*.deb; do
+            [ -e "$art" ] || continue
+            syft scan "file:$art" -q -o "cyclonedx-json@1.5=dist/$(basename "$art").cdx.json"
+          done
+          bash packaging/sbom/merge-and-check.sh "$RUNNER_TEMP/sbom-venv/bin/python"
+          for f in dist/*.cdx.json; do
+            python3 scripts/sbom-merge.py summary --sbom "$f"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: packages

@@ -1,8 +1,15 @@
 spec:
   id: system-supply-chain
   title: Supply-chain governance — module allowlist, vulnerability, SBOM
-  version: "1.1.0"
+  version: "1.2.0"
   status: draft
+  # v1.2.0: C-09 and AC-12 to AC-15. The release SBOMs carry the frontend's
+  # runtime npm components, complete against the runtime lockfile, and say
+  # which files are proven to ship. Each package SBOM carries the Go modules
+  # of the binary it ships. The same merge and checks run on every pull
+  # request's package build. syft is pinned by version and hash and asked for
+  # CycloneDX 1.5: unpinned, it emitted 1.7, which AC-09 rejects (CP
+  # bugs/OW-111). CP bugs/OW-110.
   # v1.1.0 — allowlist gained github.com/go-pdf/fpdf (pure-Go PDF, used for
   # the bounded executive report face; core fonts are built in, so it adds
   # no font files and stays airgap-safe). Its sole transitive dep,
@@ -84,6 +91,34 @@ spec:
       description: The depguard allow list MUST permit $gostd (Go standard library) and github.com/Hanalyx/openwatch (the internal module); without these, every file would fail
       type: technical
       enforcement: error
+    - id: C-09
+      description: >
+        The SBOM of every openwatch release artifact (the binary, each RPM and
+        each DEB) MUST include one component per runtime (non-dev) entry of
+        frontend/package-lock.json, so it is complete against the runtime
+        lockfile. It MUST NOT claim to list the JavaScript that ships. Each component carries purl, version and the lockfile
+        license. The lockfile integrity value identifies the npm registry
+        tarball, not installed or shipped bytes: it MUST be recorded on the
+        component's distribution external reference, never in the component's
+        own hashes, with the property openwatch:hash-source. The property
+        openwatch:evidence is lockfile, which claims nothing about the bundle,
+        or bundle-files-verified, which claims only that the listed files ship:
+        a file of the installed package, at the locked version, is
+        byte-identical to an embedded SPA file whose bytes are in the shipped
+        binary. A verified component records how many package files matched,
+        how many files the installed package has, and each match. One
+        name@version installed at several paths is one component listing every
+        path and every dependency edge; if the entries differ in integrity,
+        license or tarball URL, the merge MUST fail. A package SBOM MUST also
+        carry the Go modules of the binary it ships. Combining MUST keep every
+        syft component and dependency edge unchanged, keep bom-refs unique, and
+        leave no dependency ref unresolved. Each combined SBOM MUST be checked
+        against the lockfile, the binary's build info and the artifact's
+        digest, and every SBOM MUST validate against the CycloneDX 1.5 schema,
+        both on each pull request's package build and in the release workflow.
+        Schema validity alone is not completeness.
+      type: security
+      enforcement: error
 
   # Process note (not a spec-enforced constraint): adding or upgrading a
   # third-party module MUST update both app/go.mod AND the depguard
@@ -137,3 +172,58 @@ spec:
       description: This spec cross-references release-ci-gates by mentioning system-release-ci-gates C-03 in its description; verifies the govulncheck dependency is non-orphan.
       priority: medium
       references_constraints: [C-07]
+    - id: AC-12
+      description: >
+        The merge builds one component per runtime lockfile package: dev
+        entries are excluded; scoped, nested and optional entries are kept.
+        The integrity hash sits on a distribution reference with
+        openwatch:hash-source, not in the component's hashes. A package is
+        bundle-files-verified only when an installed file at the locked version
+        matches an embedded SPA file byte for byte and those bytes are in the
+        binary, and it records the matched count, its file count and each
+        match. An installed version that differs from the lockfile, a match
+        absent from the binary, or a match below the minimum size leaves it
+        labeled lockfile. Duplicate name@version entries that differ in
+        integrity, license or tarball URL fail the merge; those that agree keep
+        every path and the union of their dependencies. A lockfile entry with
+        no license, integrity or tarball URL, or an unresolvable required
+        dependency, fails the merge.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-13
+      description: >
+        Combining keeps every syft component and dependency edge unchanged,
+        adds the shipped binary's Go modules to a package SBOM, makes the
+        artifact and its package component depend on the Go main module and
+        the frontend, and refuses a bom-ref collision with different content.
+      priority: high
+      references_constraints: [C-09]
+    - id: AC-14
+      description: >
+        The check passes a correctly combined SBOM and reports each of these
+        mutations: a missing or extra npm component; a changed version or
+        license; a changed distribution URL or hash; the tarball hash moved
+        into the component's hashes or left unlabeled; a bundle-files-verified
+        label with no verified file, a wrong verified count, a file count below
+        it, or an occurrence absent from the binary; a lockfile label with
+        verified files; a Go module set that differs from the binary's build
+        info; an artifact digest mismatch; a duplicate bom-ref; and an
+        unresolved dependency ref. The vendored CycloneDX 1.5 schemas match
+        their recorded hashes, the combined SBOM validates against them when
+        the validator is installed, and the real lockfile's duplicate entries
+        agree.
+      priority: high
+      references_constraints: [C-09, C-06]
+    - id: AC-15
+      description: >
+        syft is installed by packaging/sbom/install-syft.sh at a pinned
+        version, verified against a pinned tarball sha256, and asked for
+        cyclonedx-json@1.5 in release.yml and package-smoke. Both workflows run
+        packaging/sbom/merge-and-check.sh, which extracts the binary from each
+        openwatch package, merges, checks, and validates every SBOM. The
+        schema validator is installed with --require-hashes from
+        packaging/sbom/requirements.txt, only in the release job and in
+        package-smoke's package build job. package-smoke runs when the merge
+        script or the frontend lockfile changes.
+      priority: high
+      references_constraints: [C-09]
