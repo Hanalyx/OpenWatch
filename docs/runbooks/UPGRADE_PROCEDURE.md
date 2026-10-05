@@ -269,7 +269,8 @@ ls -t /var/lib/openwatch/backups/ | head -1     # the pre-upgrade dump the scrip
 Catch missing or renamed config keys before starting the server:
 
 ```bash
-sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 This prints the resolved configuration with secrets redacted and exits non-zero
@@ -1165,7 +1166,7 @@ sudo journalctl -u openwatch -n 200 --no-pager
 Common causes:
 
 - Invalid or incomplete config: run
-  `sudo -u openwatch openwatch --config /etc/openwatch/openwatch.toml check-config`.
+  `sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'`.
 - Missing database secret: confirm `/etc/openwatch/secrets.env` defines
   `OPENWATCH_DATABASE_DSN`.
 - Missing signing/encryption key material. The server refuses to start without
@@ -1177,7 +1178,7 @@ Common causes:
 
 Re-run the command and read the error. The most common cause is the database
 being unreachable or the DSN being wrong; verify with
-`psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"`. Because migrations are
+`sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"'`. Because migrations are
 idempotent, a partial run can be retried after the underlying issue is fixed. If
 the schema is in an unexpected state, restore the pre-upgrade backup.
 

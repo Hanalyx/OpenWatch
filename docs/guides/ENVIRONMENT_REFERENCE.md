@@ -261,7 +261,7 @@ The service is not responding on `8443`.
 
    ```bash
    sudo systemctl status postgresql
-   psql "$OPENWATCH_DATABASE_DSN" -c 'SELECT 1;'
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -c "SELECT 1;"'
    ```
 
 4. Restart and watch the logs:
@@ -329,10 +329,11 @@ A full disk most often manifests as failed writes to `/var/lib/openwatch`,
 3. If PostgreSQL is the hot process, look for long-running or stuck queries:
 
    ```bash
-   psql "$OPENWATCH_DATABASE_DSN" -c \
-     "SELECT pid, state, now() - query_start AS runtime, left(query, 80) AS query
-        FROM pg_stat_activity
-       WHERE state <> 'idle' ORDER BY runtime DESC LIMIT 10;"
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+   SELECT pid, state, now() - query_start AS runtime, left(query, 80) AS query
+     FROM pg_stat_activity
+    WHERE state <> 'idle' ORDER BY runtime DESC LIMIT 10;
+   SQL
    ```
 
 4. Reduce database connection pressure with `OPENWATCH_DATABASE_MAX_CONNECTIONS`

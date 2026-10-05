@@ -416,9 +416,15 @@ psql -h 127.0.0.1 -U openwatch -d openwatch -c "\
    the usual cause. The intelligence and discovery schedulers can be paused
    without a restart by setting `maintenance_global=true`:
    ```bash
-   # via the API, as an admin token:
-   # PUT /api/v1/system/intelligence/config   {"maintenance_global": true}
-   # PUT /api/v1/system/discovery/config      {"maintenance_global": true}
+   # Needs a token with system:config_write. GET returns {config, defaults};
+   # PUT takes the full config object, so send back .config with the flag set.
+   for c in intelligence discovery; do
+     curl -sk -H "Authorization: Bearer $TOKEN" \
+       "https://localhost:8443/api/v1/system/$c/config" \
+       | jq '.config | .maintenance_global = true' \
+       | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+           --data-binary @- "https://localhost:8443/api/v1/system/$c/config"
+   done
    ```
 3. If a separate `worker` is saturating the host, raise `--poll-interval` toward
    its 5s ceiling, or move the worker to its own host.

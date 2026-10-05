@@ -240,7 +240,8 @@ as a `200` followed by write errors in the journal, not as a `503`.
 ### 4. Migrations are current (if you restarted after recovery)
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate'
 ```
 
 This is idempotent: it applies any pending migrations and prints the current

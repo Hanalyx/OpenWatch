@@ -73,13 +73,15 @@ Common causes are an unreachable database (check
 migrations. To verify the resolved configuration without starting the server:
 
 ```bash
-openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 To confirm the schema is current:
 
 ```bash
-openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  openwatch --config /etc/openwatch/openwatch.toml migrate'
 ```
 
 `migrate` is idempotent; if everything is applied it prints the current version
@@ -337,7 +339,7 @@ PostgreSQL. Replace `<dsn>` with the value from
 2. If it crash-loops, look for the boot-time fatal log line (missing key, bad
    DSN, validation error). Fix the config, then `systemctl restart openwatch`.
 3. Validate config out-of-band before restarting:
-   `openwatch --config /etc/openwatch/openwatch.toml check-config`.
+   `sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'`.
 4. Confirm the dependency is up: `systemctl status postgresql`.
 5. After restart, confirm recovery:
    `curl -sk https://localhost:8443/api/v1/health`.

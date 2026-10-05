@@ -41,7 +41,8 @@ is a dump plus the configuration.
 > database.
 
 The default key paths above come from the shipped configuration; confirm yours with
-`sudo -u openwatch openwatch check-config`, which prints the resolved
+`sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'`,
+which prints the resolved
 `jwt_private_key` and `credential_key_file` paths.
 
 ### What you do not need to back up
@@ -764,7 +765,7 @@ CSRF (`TestRunbook_SessionScanBlockBehaves`).
 6. Validate config and enable the service at boot:
 
    ```bash
-   sudo -u openwatch openwatch check-config
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
    sudo systemctl enable openwatch
    ```
 
@@ -806,8 +807,9 @@ Common causes and checks:
   files exist at the paths from `openwatch check-config`.
 - **TLS cert or key missing/unreadable.** The log mentions `cert.pem`. Confirm
   `/etc/openwatch/tls/` files exist and the `openwatch` user can read the key.
-- **Invalid config.** Run `sudo -u openwatch openwatch check-config`; it
-  validates and prints the resolved config with secrets redacted.
+- **Invalid config.** Run
+  `sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'`;
+  it validates and prints the resolved config with secrets redacted.
 
 After fixing the cause, restart the service with the checks in
 [Prove the restored service works](#prove-the-restored-service-works). A
@@ -852,10 +854,11 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
 - On the PostgreSQL host, look for expensive queries:
   `psql "$OPENWATCH_DATABASE_DSN" -c "SELECT pid, state, query_start, left(query,80) FROM pg_stat_activity WHERE state <> 'idle' ORDER BY query_start;"`.
 - The schedulers honor a maintenance switch. To pause intelligence collection
-  while you investigate, an admin can `PUT /api/v1/system/intelligence/config`
-  with `maintenance_global=true` (and the discovery equivalent at
-  `/api/v1/system/discovery/config`). The startup log notes when either is
-  paused.
+  while you investigate, an admin reads `GET /api/v1/system/intelligence/config`,
+  sets `maintenance_global` to `true` inside its `config` object, and `PUT`s
+  that whole object back. A body carrying only `maintenance_global` is refused.
+  The discovery equivalent is at `/api/v1/system/discovery/config`. The
+  startup log notes when either is paused.
 - As a last resort, `sudo systemctl restart openwatch` clears any runaway
   in-process loop without losing data (queued jobs resume).
 

@@ -216,8 +216,9 @@ There is no Prometheus endpoint and no Grafana stack in the current build (see
 - **Audit and queue state**: query PostgreSQL directly:
 
   ```bash
-  psql "$OPENWATCH_DATABASE_DSN" -c \
-    "SELECT status, count(*) FROM job_queue GROUP BY status;"
+  sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN"' <<'SQL'
+  SELECT status, count(*) FROM job_queue GROUP BY status;
+  SQL
   ```
 
   A growing count of non-terminal jobs means workers are not keeping up; add

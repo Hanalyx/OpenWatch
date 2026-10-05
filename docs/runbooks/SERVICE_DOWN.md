@@ -121,10 +121,13 @@ Look for the fatal startup messages emitted before the process exits non-zero:
 
 `check-config` loads the same config layers the service uses (defaults → TOML →
 env → flags), prints the resolved values with secrets redacted, and validates
-them. Exit `0` means valid.
+them. Exit `0` means valid. Load `secrets.env` first, as the unit's
+`EnvironmentFile=` does. Without it, `check-config` shows the TOML `dsn`, not
+the DSN the service uses.
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 ### Step 5: Confirm PostgreSQL is reachable
@@ -197,7 +200,8 @@ credentials/`pg_hba.conf` reject the service. Check the DSN the service actually
 uses (`OPENWATCH_DATABASE_DSN` overrides the TOML `dsn`):
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
 The summary prints the DSN with the password redacted; confirm host, port,
@@ -236,7 +240,8 @@ If the binary was upgraded but migrations were not applied, the server can start
 but error on queries. Apply pending migrations (idempotent), then restart:
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate'
 sudo systemctl restart openwatch
 ```
 
@@ -335,7 +340,8 @@ journalctl -u openwatch --since "5 minutes ago" | grep -iE "error|fatal" || echo
 ### 5. Migrations are current
 
 ```bash
-sudo -u openwatch /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  /usr/bin/openwatch --config /etc/openwatch/openwatch.toml migrate'
 ```
 
 This prints the current schema version and applies nothing if already up to date.
