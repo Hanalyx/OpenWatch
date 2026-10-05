@@ -16,7 +16,9 @@ This runbook covers containment, investigation, and recovery for a suspected com
 - Spike in failed-login audit events (`auth.login.failure`).
 - Successful logins for accounts that should be inactive (`auth.login.success`).
 - Permission-denied events on privileged endpoints (`authz.permission.denied`).
-- Unexpected role grants (`authz.role.assigned`) or account changes (`account.user.created`, `account.user.deleted`).
+- Unexpected OpenWatch role grants (`authz.role.assigned`, `authz.role.created`) or account changes (`admin.user.created`, `admin.user.deleted`, `admin.user.enabled`, `admin.user.password_reset`).
+- API tokens issued or revoked that nobody expected (`auth.api_token.issued`, `auth.api_token.revoked`).
+- Operating-system accounts added or removed on a monitored host (`account.user.created`, `account.user.deleted`). These describe the host, not OpenWatch users.
 - Threshold detections raised by the intelligence collector: `security.login.failed_threshold`, `security.login.new_source_ip`, `account.sudo.failure_threshold`.
 - Credential changes (`credential.created`, `credential.deleted`) you did not authorize.
 - Config-file tampering reported on a monitored host (`system.config.file_changed`).
@@ -47,8 +49,10 @@ SELECT occurred_at, action, outcome, actor_label, actor_ip, resource_type, resou
 FROM audit_events
 WHERE action IN (
   'auth.login.failure','auth.login.success','authz.permission.denied',
-  'authz.role.assigned','authz.role.removed',
-  'account.user.created','account.user.deleted',
+  'authz.role.assigned','authz.role.removed','authz.role.created',
+  'admin.user.created','admin.user.deleted','admin.user.disabled',
+  'admin.user.enabled','admin.user.password_reset',
+  'auth.api_token.issued','auth.api_token.revoked',
   'credential.created','credential.deleted'
 )
   AND occurred_at > now() - interval '24 hours'
@@ -141,14 +145,41 @@ LIMIT 50;
 
 ### Authorization and account changes
 
+These are OpenWatch's own accounts, roles and API tokens. `resource_id` is
+the user id, the role id or the API token id.
+
 ```bash
 psql -U openwatch -d openwatch -c "
-SELECT occurred_at, action, outcome, actor_label, actor_ip, resource_id, detail
+SELECT occurred_at, action, outcome, actor_label, actor_ip, resource_type, resource_id, detail
 FROM audit_events
 WHERE action IN (
-  'authz.permission.denied','authz.role.assigned','authz.role.removed',
-  'account.user.created','account.user.deleted'
+  'authz.permission.denied','authz.role.assigned','authz.role.removed','authz.role.created',
+  'admin.user.created','admin.user.deleted','admin.user.disabled',
+  'admin.user.enabled','admin.user.password_reset',
+  'auth.api_token.issued','auth.api_token.revoked'
 )
+  AND occurred_at > now() - interval '7 days'
+ORDER BY occurred_at DESC
+LIMIT 50;
+"
+```
+
+Two ways to create an account write no `admin.user.created` or
+`authz.role.assigned` event: `openwatch create-admin` on the host, and the
+first SSO sign-in of a federated user. Compare the account list below against
+these events, and treat an account with no matching event as unexplained until
+you find its source.
+
+`account.user.created` and `account.user.deleted` are different events. The
+host intelligence collector records them when an operating-system account
+appears or disappears on a monitored host, with `resource_type = 'host'`.
+Query them separately when you suspect a monitored host:
+
+```bash
+psql -U openwatch -d openwatch -c "
+SELECT occurred_at, action, resource_id AS host_id, detail
+FROM audit_events
+WHERE action IN ('account.user.created','account.user.deleted')
   AND occurred_at > now() - interval '7 days'
 ORDER BY occurred_at DESC
 LIMIT 50;
@@ -157,29 +188,31 @@ LIMIT 50;
 
 ### Current user accounts and role grants
 
-The `users` table has no `is_active` flag; disabled accounts are soft-deleted (`deleted_at` set). Roles live in `user_roles`, not on the user row.
+The `users` table has no `is_active` flag. A disabled account has `disabled_at` set and can be enabled again; a deleted account has `deleted_at` set. Roles live in `user_roles`, not on the user row.
 
 ```bash
 # Recently created or modified accounts
 psql -U openwatch -d openwatch -c "
-SELECT id, username, email, created_at, updated_at, deleted_at
+SELECT id, username, email, created_at, updated_at, disabled_at, deleted_at
 FROM users
 ORDER BY created_at DESC
 LIMIT 20;
 "
 
-# Who holds elevated roles right now
+# Who holds an elevated built-in role or any custom role right now
 psql -U openwatch -d openwatch -c "
-SELECT u.username, ur.role_id, ur.granted_at, ur.granted_by
+SELECT u.username, ur.role_id, r.is_built_in, r.permissions,
+       ur.granted_at, ur.granted_by, u.disabled_at
 FROM user_roles ur
 JOIN users u ON u.id = ur.user_id
-WHERE ur.role_id IN ('admin','security_admin','ops_lead')
+JOIN roles r ON r.id = ur.role_id
+WHERE (ur.role_id IN ('admin','security_admin','ops_lead') OR NOT r.is_built_in)
   AND u.deleted_at IS NULL
 ORDER BY ur.granted_at DESC;
 "
 ```
 
-The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [User roles](../guides/USER_ROLES.md) for the full permission sets.
+The five built-in roles, in increasing privilege, are `viewer`, `auditor`, `ops_lead`, `security_admin`, and `admin`. See [User roles](../guides/USER_ROLES.md) for the full permission sets. A custom role (`is_built_in` false) carries its grants in `roles.permissions`; built-in roles leave that column empty because their grants are in the binary. The query lists every custom-role holder, so read each custom role's `permissions` to judge whether it is elevated.
 
 ### Active sessions and refresh tokens
 
@@ -262,12 +295,12 @@ curl -sk -X POST \
 
 Deleting the account (`DELETE /api/v1/users/USER_ID`, audited as `admin.user.deleted`) also ends its interactive credentials, but it removes the account from the active-uniqueness indexes and cannot be undone through the API. Prefer disable while the investigation is open.
 
-If the API is unavailable, soft-delete directly. The binders refuse a deleted account's interactive credentials on every request, but this path revokes no rows and writes no audit event:
+If the API is unavailable, disable directly. Sign-in, the session and bearer binders, refresh tokens and the API tokens the user created all refuse a disabled account on every request. This path revokes no rows and writes no audit event, so revoke the user's sessions as above and record what you did. `POST /api/v1/users/USER_ID:enable` reverses it once the API is back:
 
 ```bash
 psql -U openwatch -d openwatch -c "
-UPDATE users SET deleted_at = now()
-WHERE username = 'USERNAME' AND deleted_at IS NULL;
+UPDATE users SET disabled_at = now(), updated_at = now()
+WHERE username = 'USERNAME' AND deleted_at IS NULL AND disabled_at IS NULL;
 "
 ```
 
@@ -321,20 +354,125 @@ sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
   /usr/bin/openwatch --config /etc/openwatch/openwatch.toml check-config'
 ```
 
-> Do not rotate the credential DEK (`[identity].credential_key_file`) during an incident unless you have a re-encryption plan. Changing that key makes every stored SSH credential and MFA secret unreadable.
+> Do not rotate the credential DEK (`[identity].credential_key_file`) during an incident unless you have a re-entry plan. Changing that key makes every stored SSH credential, MFA secret, notification channel config and SSO client secret unreadable, and fails every scan or remediation job already queued. See [Rotate the credential DEK](SECRET_ROTATION.md#rotate-the-credential-dek).
 
 ### Rotate the database credential
 
-If the database password may be exposed:
+If the database password may be exposed, change only the password. The
+host, port, database name and `sslmode` in the existing DSN stay as they are.
+`openwatch setup` writes a loopback DSN with `sslmode=disable`, and a
+PostgreSQL with SSL off refuses `sslmode=require`, so retyping the whole DSN
+can break a working install.
 
-```bash
-# Set a new password in PostgreSQL
-psql -U openwatch -d openwatch -c "ALTER ROLE openwatch WITH PASSWORD 'NEW_PASSWORD_HERE';"
+1. Put the new password in a root-only file, so it never appears on a command
+   line or in shell history:
 
-# Update the DSN in the secrets file, then restart
-sudo sed -i 's#OPENWATCH_DATABASE_DSN=.*#OPENWATCH_DATABASE_DSN=postgres://openwatch:NEW_PASSWORD_HERE@127.0.0.1:5432/openwatch?sslmode=require#' /etc/openwatch/secrets.env
-sudo systemctl restart openwatch
-```
+   ```bash
+   sudo sh -c 'umask 077; cat > /root/openwatch-db.password'
+   ```
+
+   Type the password, press Enter, then Ctrl-D. The script below ignores the
+   line break at the end.
+
+2. Set the password on the role, prove it, and write it into the DSN. Run
+   this as root. It connects as the role itself through the current DSN, so it
+   works for a local or a remote PostgreSQL and needs no superuser. Neither
+   password ever appears on a command line: `psql` gets the DSN without its
+   password, and the password through `PGPASSWORD`. It sets the new password,
+   then connects with it, and only then rewrites `secrets.env`. It
+   percent-encodes the password inside the URL, and it keeps the file's other
+   lines, its mode and its owner. It hashes the password as `scram-sha-256`, as
+   `openwatch setup` does, whatever the server default.
+
+   ```bash
+   sudo python3 - <<'PY'
+   import os, subprocess, sys, tempfile, urllib.parse
+
+   ENV = "/etc/openwatch/secrets.env"
+   KEY = "OPENWATCH_DATABASE_DSN="
+   with open("/root/openwatch-db.password") as f:
+       pw = f.read().rstrip("\r\n")
+   if not pw:
+       sys.exit("the password file is empty")
+   with open(ENV) as f:
+       lines = f.read().splitlines(keepends=True)
+   hits = [i for i, line in enumerate(lines) if line.startswith(KEY)]
+   if len(hits) != 1:
+       sys.exit(f"expected one {KEY} line in {ENV}, found {len(hits)}")
+   i = hits[0]
+   old = lines[i][len(KEY):].rstrip("\r\n")
+   dsn = urllib.parse.urlsplit(old)
+   userinfo, at, hostport = dsn.netloc.rpartition("@")
+   if dsn.scheme not in ("postgres", "postgresql") or not at or not userinfo:
+       sys.exit("the DSN is not a postgres:// URL with a user name; edit it by hand")
+   user, colon, old_quoted = userinfo.partition(":")
+   if not colon or not old_quoted:
+       sys.exit("the DSN holds no password; this procedure rotates the password in the DSN")
+   old_pw = urllib.parse.unquote(old_quoted)
+   bare = urllib.parse.urlunsplit(dsn._replace(netloc=f"{user}@{hostport}"))
+   new = urllib.parse.urlunsplit(
+       dsn._replace(netloc=f"{user}:{urllib.parse.quote(pw, safe='')}@{hostport}"))
+
+   def psql(password, sql):
+       # The DSN on the command line carries no password; PGPASSWORD does.
+       return subprocess.run(["psql", "-X", "-q", "-tA", "-v", "ON_ERROR_STOP=1", bare],
+                             input=sql, text=True, capture_output=True,
+                             env=dict(os.environ, PGPASSWORD=password))
+
+   # 1. Set the new password, connected as the role itself with the old one.
+   literal = "'" + pw.replace("'", "''") + "'"
+   r = psql(old_pw, "SET password_encryption = 'scram-sha-256';\n"
+                    f"ALTER ROLE CURRENT_USER WITH PASSWORD {literal};\n")
+   if r.returncode != 0:
+       sys.exit("ALTER ROLE failed; secrets.env is unchanged\n" + r.stderr)
+
+   # 2. Prove the new password connects before touching secrets.env.
+   r = psql(pw, "SELECT current_user;\n")
+   if r.returncode != 0:
+       sys.exit("ALTER ROLE succeeded, but the new password did not connect. The role now has the "
+                "NEW password and secrets.env still holds the OLD one. Do not restart; fix "
+                "pg_hba.conf or set the DSN by hand first.\n" + r.stderr)
+
+   # 3. Replace only the password in the DSN line. Keep mode and owner.
+   lines[i] = KEY + new + "\n"
+   st = os.stat(ENV)
+   fd, tmp = tempfile.mkstemp(dir=os.path.dirname(ENV))
+   with os.fdopen(fd, "w") as f:
+       f.writelines(lines)
+   os.chown(tmp, st.st_uid, st.st_gid)
+   os.chmod(tmp, st.st_mode & 0o7777)
+   os.replace(tmp, ENV)
+   print(f"password changed and proven for {r.stdout.strip()}; user, host, port, database and options kept")
+   PY
+   ```
+
+   The service accepts only a `postgres://` or `postgresql://` URL DSN
+   (`check-config` enforces it), and that is the form the script edits. If
+   PostgreSQL logs DDL (`log_statement` set to `ddl` or `all`), its log now
+   holds the new password in clear text.
+
+3. Check the config before restarting:
+
+   ```bash
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch --config /etc/openwatch/openwatch.toml check-config'
+   ```
+
+   `check-config` validates the DSN's form but does not connect. The script
+   already proved the new password connects.
+
+4. Restart, check health, and remove the password file once the password is
+   in your secrets manager:
+
+   ```bash
+   sudo systemctl restart openwatch
+   timeout 60 sh -c 'until curl -skf --max-time 5 https://localhost:8443/api/v1/health; do sleep 2; done' \
+     && echo || echo "health did not answer within 60 seconds; read journalctl -u openwatch"
+   sudo shred -u /root/openwatch-db.password
+   ```
+
+   Expect `"db_connected":true`. A restart takes a few seconds, so the
+   check retries for up to 60 seconds. Then work through
+   [Recovery verification](#recovery-verification).
 
 `secrets.env` should be owned `root:openwatch` and mode `0640`. See the [installation guide](../guides/INSTALLATION.md) for the canonical secret-handling procedure.
 
@@ -425,7 +563,7 @@ LIMIT 5;
 
 ### 5. Elevated role grants match expectations
 
-Re-run the role-grant query from the Investigation section and confirm only authorized accounts hold `admin`, `security_admin`, or `ops_lead`.
+Re-run the role-grant query from the Investigation section and confirm only authorized accounts hold `admin`, `security_admin`, `ops_lead`, or a custom role with elevated permissions.
 
 ---
 
@@ -478,6 +616,6 @@ Escalate immediately for any of:
 The following do not exist in the current Go build; do not rely on them during an incident:
 
 - **Prometheus / metrics endpoint**: There is no Prometheus metric or `/metrics` scrape target. Use audit-event queries instead.
-- **Account-lockout columns**: `users` has no failed-login counter or lockout timestamp. Brute-force containment is manual (block the IP, revoke sessions, soft-delete the account). The `security.login.failed_threshold` event is a host-intelligence signal, not a control-plane lockout.
+- **Account-lockout columns**: `users` has no failed-login counter or lockout timestamp. Brute-force containment is manual (block the IP, revoke sessions, disable the account). The `security.login.failed_threshold` event is a host-intelligence signal, not a control-plane lockout.
 - **Admin session-management API**: There is no endpoint to list or revoke another user's sessions; `POST /api/v1/auth/logout` revokes only the caller's session. Use the database `UPDATE` statements above for administrative revocation.
 - **Built-in backup/restore tooling**: Database backup and restore are operator responsibilities; the binary provides only `migrate`.

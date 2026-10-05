@@ -25,15 +25,23 @@ file, then built-in defaults.
 |--------|----------------|-----------|-----------------|
 | Database DSN (incl. password) | `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` | Service start, `migrate`, `create-admin` | Brief restart |
 | JWT signing key (RSA private key) | `[identity].jwt_private_key` file (default `/etc/openwatch/keys/jwt_private.pem`) | Service start | Invalidates access tokens only. Browser sessions, refresh tokens and API tokens are database rows and survive; revoke them separately (see below) |
-| Credential DEK (AES-256 key) | `[identity].credential_key_file` file (default `/etc/openwatch/keys/credential.key`) | Service start | Every stored SSH credential and MFA secret is readable only under the key that encrypted it. Never overwrite the file in place |
+| Credential DEK (AES-256 key) | `[identity].credential_key_file` file (default `/etc/openwatch/keys/credential.key`) | Service start | Every stored SSH credential, MFA secret, notification channel config and SSO client secret is readable only under the key that encrypted it. The job-queue signing key is derived from it, so queued scan and remediation jobs fail after a change. Never overwrite the file in place |
 | TLS certificate and key | `[server].tls_cert` / `[server].tls_key` (default `/etc/openwatch/tls/{cert,key}.pem`) | Read on each TLS handshake | New connections pick up the new cert; restart to drop keep-alives |
 
 > The server refuses to start if either the credential DEK or the JWT key path
 > is empty or the file fails to load.
 
 There is no separate "master key" or second "encryption key" on this stack. The
-single credential DEK encrypts every at-rest secret (SSH credentials and MFA
-secrets) with AES-256-GCM. The previous Python build's
+single credential DEK encrypts every at-rest secret with AES-256-GCM:
+
+- SSH credentials.
+- MFA (TOTP) secrets.
+- Notification channel configs: Slack and webhook URLs, and email settings
+  including the SMTP password.
+- SSO provider client secrets.
+
+The service also derives the HMAC key that signs scan and remediation jobs on
+the job queue from the DEK (HKDF-SHA256). The previous Python build's
 `OPENWATCH_SECRET_KEY` / `OPENWATCH_MASTER_KEY` / `OPENWATCH_ENCRYPTION_KEY` /
 `REDIS_PASSWORD` variables no longer exist.
 
@@ -56,51 +64,22 @@ secrets) with AES-256-GCM. The previous Python build's
 
 ## Rotate the database password
 
-> **Before you start**
-> - **You need:** the new password recorded in your secrets manager, a maintenance window, and a healthy service (see [Before you rotate](#before-you-rotate)).
-> - **Run as:** root for the `secrets.env` edit and restart; the PostgreSQL superuser or the `openwatch` role for `ALTER ROLE`.
-> - **What changes:** the PostgreSQL role's password and the DSN line in `/etc/openwatch/secrets.env`; the service restarts.
-> - **Verify with:** `check-config` printing the redacted DSN and `/api/v1/health` returning `200` with `db_connected: true`.
-> - **Recover by:** setting the previous password back with `ALTER ROLE` and restoring the previous DSN line, then restarting.
+Use the procedure in
+[Rotate the database credential](SECURITY_INCIDENT.md#rotate-the-database-credential).
+It is the same whether or not the password was exposed. It changes only the
+password: it sets it on the role through the current DSN, proves the new
+password connects, and only then rewrites the password inside the DSN in
+`/etc/openwatch/secrets.env`. It keeps the host, port, database, `sslmode`, the
+file's other lines, its mode and its owner. Neither password appears on a
+command line.
 
-Impact: a brief restart while the service reconnects. The DSN lives in
-`/etc/openwatch/secrets.env`, which the systemd unit loads via
-`EnvironmentFile=-/etc/openwatch/secrets.env`.
+Do not retype the whole DSN or rewrite it with `sed`. `openwatch setup` writes
+a loopback DSN with `sslmode=disable`, and a PostgreSQL with SSL off refuses
+`sslmode=require`, so a retyped DSN can break a working install.
 
-1. Choose a new password and set it on the PostgreSQL role:
-
-   ```bash
-   sudo -u postgres psql -c "ALTER ROLE openwatch WITH PASSWORD 'new-strong-password';"
-   ```
-
-2. Replace only the DSN line in `/etc/openwatch/secrets.env`. The file can carry
-   other `OPENWATCH_*` overrides (the credential key path after a DEK rotation,
-   a logging level); rewriting the whole file drops them.
-
-   ```bash
-   sudo sed -i 's|^OPENWATCH_DATABASE_DSN=.*|OPENWATCH_DATABASE_DSN=postgres://openwatch:new-strong-password@127.0.0.1:5432/openwatch?sslmode=disable|' /etc/openwatch/secrets.env
-   sudo chown root:openwatch /etc/openwatch/secrets.env
-   sudo chmod 0640 /etc/openwatch/secrets.env
-   grep -c '^OPENWATCH_DATABASE_DSN=' /etc/openwatch/secrets.env   # must print 1
-   ```
-
-   Use `sslmode=require` or stronger for any PostgreSQL that is not on the
-   loopback interface.
-
-3. Validate the resolved config before restarting:
-
-   ```bash
-   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch check-config'
-   ```
-
-   `check-config` prints the config with the DSN password redacted and exits
-   non-zero on a malformed DSN.
-
-4. Restart and verify with the first block in
-   [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
-   service itself, and proves the new credential works end to end: the rule
-   library check fails if the service cannot reach the database. A health
-   check alone does not prove the service works.
+Impact: a brief restart while the service reconnects. Recover by setting the
+previous password back on the role and restoring the previous DSN line, then
+restarting.
 
 ## Rotate the JWT signing key
 
@@ -191,28 +170,37 @@ forced re-logins.
 ## Rotate the credential DEK
 
 > **Before you start**
-> - **You need:** a verified copy of the current DEK at a distinct protected path, a database backup, the list of every stored SSH credential and MFA secret you will re-enter, and a maintenance window.
-> - **Run as:** root for the key files, config and restart; a user with `credential:write` for the re-entry.
-> - **What changes:** the key path in `openwatch.toml`, then every stored credential and MFA secret as you re-enter them.
-> - **Verify with:** a scan succeeding on a host whose credential was re-entered, and MFA login for a re-enrolled user.
+> - **You need:** a verified copy of the current DEK at a distinct protected path, a database backup, the list of every SSH credential, MFA enrollment, notification channel and SSO provider whose secret you will re-enter, an empty job queue, and a maintenance window.
+> - **Run as:** root for the key files, config and restart; for the re-entry, a user with `credential:write`, `notification:write` and `admin:sso_provider`.
+> - **What changes:** the key path in `openwatch.toml`, then every stored secret as you re-enter it.
+> - **Verify with:** a scan succeeding on a host whose credential was re-entered, MFA login for a re-enrolled user, a test message on each notification channel, and a sign-in through each SSO provider.
 > - **Recover by:** switching the config back to the backed-up key path and restarting; the copy you verified first is what makes this possible.
 
 Impact: high. The DEK is a single 32-byte AES-256 key that directly encrypts
-every stored SSH credential and every MFA secret with AES-256-GCM. There is no
-per-credential wrapped key, so changing the DEK without re-encrypting every row
-makes those secrets permanently unreadable.
+every secret listed in [Secrets at a glance](#secrets-at-a-glance) with
+AES-256-GCM. There is no per-secret wrapped key, so every secret stored before
+the change stays readable only under the old key. Until you re-enter them:
 
-> **Not yet implemented.** OpenWatch does not ship a re-encryption or rekey
-> command. None of the [CLI subcommands](../guides/ENVIRONMENT_REFERENCE.md#cli-subcommands)
-> re-wraps stored secrets. Rotating
-> the DEK in place therefore requires either
-> re-entering the affected secrets by hand or a one-off migration written for
-> your deployment. An online rotation command is roadmap work; until it lands,
-> treat DEK rotation as a manual, planned operation.
+- Scans and other SSH-backed actions fail for every host that uses an old
+  credential.
+- Users with MFA enrolled cannot complete the MFA step.
+- Notification delivery stops for **every** channel, not only the unreadable
+  ones: the dispatcher loads all enabled channels at once and gives up when
+  one fails to decrypt. Re-enter or disable every enabled channel.
+- Sign-in through an SSO provider with an old client secret fails.
+- Every scan or remediation job queued before the change fails when a worker
+  claims it, because its signature no longer matches. See step 1.
 
-### Option A: re-enter secrets (no custom tooling)
-
-This is the supported path when you have a manageable number of credentials.
+> **What this procedure is.** It replaces the DEK and requires you to
+> re-enter, by hand, every secret the old key protected. It does not carry any
+> secret forward. Rolling back is clean only until you re-enter the first
+> secret (step 6).
+>
+> **Not supported: re-encryption.** OpenWatch has no re-encryption, rekey or
+> rotation command. None of the [CLI subcommands](../guides/ENVIRONMENT_REFERENCE.md#cli-subcommands)
+> re-wraps stored secrets, and the ciphertext format is not a documented
+> interface. Rotating the DEK therefore means re-entering every secret it
+> protects by hand. Treat it as a planned operation sized by that list.
 
 **Never overwrite `/etc/openwatch/keys/credential.key` in place.** The
 previous version of this procedure did, and told you afterwards to "keep the
@@ -222,7 +210,45 @@ credential fail with `message authentication failed`, and only an
 out-of-band copy of the old key recovered them. Rotation is a new file plus a
 config change, so the old key is never touched.
 
-1. Back up the database (`pg_dump`), then take a verified copy of the current
+1. Let the job queue drain. A scan or remediation job carries an HMAC made
+   with the key derived from the DEK, and the worker checks it before doing
+   anything. After the change, every job queued under the old key fails: the
+   row in `job_queue` ends `failed` with `last_error` set to
+   `hmac_rejected: signature does not match payload`, a
+   `scheduler.job.hmac_rejected` audit event records `"failure":
+   "hmac_mismatch"`, and a scan's `scan_runs` row ends `failed` with
+   `failure_reason` `hmac_rejected`. Nothing retries a rejected job; request
+   any on-demand scan or remediation again after the rotation.
+
+   Pause the adaptive scan scheduler. This needs `system:config_write`. The
+   `GET` wraps the settings in `config`, and the `PUT` takes them unwrapped
+   with every field present:
+
+   ```bash
+   curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/v1/system/scan/config \
+     | jq '.config | .maintenance_global = true' \
+     | curl -sk -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+         --data-binary @- https://localhost:8443/api/v1/system/scan/config
+   ```
+
+   Start no on-demand scans or remediations. Then wait until this reports
+   `(0 rows)`:
+
+   ```bash
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; psql "$OPENWATCH_DATABASE_DSN" -X' <<'SQL'
+   SELECT job_type, status, count(*)
+   FROM job_queue
+   WHERE status IN ('pending', 'processing')
+     AND job_type IN ('scan', 'remediation')
+   GROUP BY 1, 2;
+   SQL
+   ```
+
+   If you run a separate `openwatch worker` process, it derives its own key
+   from its own DEK setting. Point it at the new key and restart it together
+   with the service, or it rejects every job the service signs.
+
+2. Back up the database (`pg_dump`), then take a verified copy of the current
    key to a root-only location and confirm the two are byte-identical:
 
    ```bash
@@ -234,7 +260,7 @@ config change, so the old key is never touched.
    your secrets manager as well; it is the only thing that can read the
    secrets you are about to abandon.
 
-2. Generate the new key at a **distinct path**. The DEK file is owned by the
+3. Generate the new key at a **distinct path**. The DEK file is owned by the
    service user, so generate as root and hand it over with mode `0600` (the
    loader rejects any key readable by group or other):
 
@@ -245,7 +271,7 @@ config change, so the old key is never touched.
    sudo chmod 0600 "$NEW_DEK"
    ```
 
-3. Point the service at the new key and restart. Add a line to
+4. Point the service at the new key and restart. Add a line to
    `/etc/openwatch/secrets.env` (or set `[identity].credential_key_file` in
    the TOML):
 
@@ -257,32 +283,65 @@ config change, so the old key is never touched.
    [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
    service itself. A health check alone does not prove the service works.
 
-4. Re-create the SSH credentials and re-enroll MFA through the UI or API;
-   secrets created before the swap fail to decrypt under the new key and must
-   be replaced. **Administrator MFA first:** if the first admin has MFA
-   enrolled, its secret is one of the rows that just became unreadable, so
-   re-enroll it before signing out, or have a second administrator ready.
+5. Re-enter every secret through the UI or API; secrets created before the
+   swap fail to decrypt under the new key and must be replaced.
+   **Administrator MFA first:** if the first admin has MFA enrolled, its
+   secret is one of the rows that just became unreadable, so re-enroll it
+   before signing out, or have a second administrator ready.
 
-5. Rollback, at any point before you delete the old key: remove the
-   `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML value)
-   and restart. The old key was never modified, so every original secret
-   decrypts again. Verified on 0.8.0-rc.3 in both directions.
+   - SSH credentials: re-create them (`/api/v1/credentials`).
+   - MFA: each enrolled user re-enrolls from a session that was open before
+     the restart (`POST /api/v1/auth/mfa:enroll`, then `mfa:verify`).
+     Sessions survive the restart. A user with no open session cannot pass
+     the MFA step and so cannot re-enroll; OpenWatch has no administrator
+     MFA reset.
+   - Notification channels: edit each channel and re-enter its whole config
+     (`PATCH /api/v1/notifications/channels/{id}`). For an email channel,
+     type the SMTP password again; the edit cannot carry over a password it
+     cannot decrypt.
+   - SSO providers: enter each client secret again
+     (`PUT /api/v1/sso/providers/{id}`). Then sign in through each provider.
+     A provider whose secret cannot be decrypted sends the browser to
+     `/login?sso_error=provider`, the same answer as an unreachable identity
+     provider, and the audit event does not say which. Treat that answer after
+     the rotation as a secret you have not re-entered yet.
 
-6. Only after every secret is re-entered and an SSH-backed action succeeds
+   Then unpause the scan scheduler with the same command, setting
+   `.maintenance_global = false`.
+
+6. Rollback is clean only **before you re-enter the first secret**. Remove
+   the `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML
+   value) and restart. The old key was never modified, so every original
+   secret decrypts again. Every secret you re-entered in step 5 was encrypted
+   under the new key, so after a rollback it becomes unreadable and must be
+   entered again. Once you start step 5, finish it rather than roll back.
+
+7. Only after every secret is re-entered and an SSH-backed action succeeds
    (post-rotation checklist): delete the old key file and the root-only copy,
    and record the rotation in your secrets manager.
 
-### Option B: offline re-encryption (custom)
+**What was tested.** On 2026-10-05 this procedure ran against a disposable
+OpenWatch instance, built from the 0.8.2 code, with a webhook channel, an SSO
+provider and a scan job queued under the old key:
 
-For a large credential set, write a one-off program that opens the database,
-decrypts each ciphertext column with the old DEK, re-encrypts it with the new
-DEK, and updates the row, then swaps the key file and restarts. This is
-deployment-specific code; there is no in-tree tool for it. Always run it against
-a `pg_dump` restore first.
+- **After the key change, before re-entry:**
+  - the queued job failed with `hmac_rejected: signature does not match
+    payload`;
+  - the channel's test failed to decrypt its config;
+  - the stored SSO secret decrypted only under the old key.
+- **After re-entry:** both secrets decrypted only under the new key, the
+  channel's test reached delivery, and a job queued under the new key passed
+  the signature check.
+- **Rollback:** before re-entry, every secret decrypted again. After re-entry,
+  the re-entered secrets did not.
 
-> Loss warning: if you change `credential_key_file` without re-encrypting and
-> without keeping the old key, all stored SSH credentials and MFA secrets are
-> unrecoverable. Back up before rotating.
+MFA, SSH credentials and whole-dispatch notification delivery were not part
+of that run; their behavior here is taken from the code.
+
+> Loss warning: if you change `credential_key_file` without keeping the old
+> key, every secret it protected is unrecoverable: SSH credentials, MFA
+> secrets, notification channel configs and SSO client secrets. Back up before
+> rotating.
 
 ## Rotate the TLS certificate
 
@@ -333,6 +392,11 @@ enforced by the software.
 - [ ] For a DEK rotation: an SSH-backed action (host liveness or a Kensa scan)
       succeeds against a host whose credential you re-entered, and the verified
       copy of the old key is still in your secrets manager until then.
+- [ ] For a DEK rotation: each notification channel delivers a test message
+      (`POST /api/v1/notifications/channels/{id}:test`), and a sign-in through
+      each SSO provider succeeds.
+- [ ] For a DEK rotation: no `scheduler.job.hmac_rejected` audit event since
+      the restart, and the scan scheduler is unpaused.
 - [ ] The `system.startup` audit event recorded the restart (visible in the
       audit log / `journalctl -u openwatch`).
 - [ ] The new secret value is stored in your secrets manager and the rotation
