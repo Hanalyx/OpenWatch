@@ -69,8 +69,9 @@ audit event. The exception register is one of the built-in report kinds.
 
 ### Remediation with a plan and a rollback
 
-A remediation request shows its plan before anything runs, waits for approval,
-and records each phase as it executes. Kensa applies fixes through 29 typed
+A remediation request shows its plan before anything runs and records each
+phase as it executes. In Core, a single-rule request is approved automatically
+when it is submitted; there is no separate approval step. Kensa applies fixes through 29 typed
 mechanisms and keeps the pre-change state in a durable store so a fix can be
 rolled back. [Hosts and remediation](HOSTS_AND_REMEDIATION.md) covers the
 workflow.
@@ -206,8 +207,8 @@ workflows for CI/CD and SIEM integration.
 
 | You are | You use | Built-in role |
 |---|---|---|
-| A system administrator running a Linux fleet | Hosts, credentials, scans, alerts, executing approved fixes | `ops_lead` |
-| A security engineer setting and enforcing baselines | Framework lenses, remediation approval, audit export | `security_admin` |
+| A system administrator running a Linux fleet | Hosts, credentials, scans, viewing alerts, requesting and executing fixes (alert actions need `alert:write`, which this role lacks today) | `ops_lead` |
+| A security engineer setting and enforcing baselines | Framework lenses, alert handling, audit export | `security_admin` |
 | A compliance officer or auditor | Trend, reports, exception approval, audit export | `auditor` |
 | Anyone who needs to look and not touch | Read-only views | `viewer` |
 | The platform administrator | Users, roles, SSO, settings, retention | `admin` |

@@ -62,8 +62,11 @@ trust-on-first-use basis and **persists** the accepted key in PostgreSQL
 later connection compares against it and is rejected if the key changed
 (`ErrHostKeyMismatch`). Because the store is durable, a service restart does not
 re-trust hosts, so an attacker cannot MITM the first scan after a restart to
-harvest credentials. Presented keys are also strength-validated per NIST SP
-800-57 (RSA >= 2048, Ed25519 always accepted). To rotate a host's key
+harvest credentials. OpenWatch does not check the strength of a presented host
+key; the trust decision is first-use plus mismatch refusal only. The NIST SP
+800-57 strength check (RSA >= 2048, ECDSA >= P-256, Ed25519 always accepted,
+DSA refused) applies to the operator's SSH client private key. It runs when a
+credential is saved and again before each connection. To rotate a host's key
 intentionally (a re-provisioned host), delete its row from `ssh_known_hosts` so
 the next connection re-learns it.
 
@@ -108,9 +111,13 @@ install guide. Set the key file to mode `0600`, owned `openwatch:openwatch`.
 
 ### FIPS builds
 
-A FIPS build is available that uses the Go-native FIPS 140-3 module, not an
-OpenSSL provider. It ships as a separate `-fips` artifact. The FIPS binary
-reports its FIPS status:
+A FIPS build uses the Go-native FIPS 140-3 module, not an OpenSSL provider. It
+is not a published package. No release workflow builds or publishes a FIPS
+artifact, and the RPM and DEB packages are standard builds. To get a FIPS
+binary, build from source with `make build-fips`. The target sets
+`GOFIPS140=v1.0.0` on the standard Go toolchain and writes
+`dist/openwatch-fips`. The FIPS binary reports its FIPS status, measured from
+the running binary:
 
 ```bash
 openwatch --version
@@ -120,7 +127,8 @@ openwatch --version
 
 
 > The standard package build is not FIPS-validated. If you require FIPS 140-3,
-> deploy the `-fips` artifact and confirm `fips: true` from `openwatch --version`.
+> build and deploy `dist/openwatch-fips` from source, then confirm `fips: true`
+> from `openwatch --version`.
 > The legacy "RHEL OpenSSL FIPS provider" / `fips-mode-setup` approach from the
 > archived Python stack does not apply.
 
@@ -492,7 +500,8 @@ Cryptography and keys
       refuses to start otherwise).
 - [ ] `OPENWATCH_DATABASE_DSN` in `secrets.env` (mode `0640`, `root:openwatch`),
       not in the world-readable TOML.
-- [ ] For FIPS environments: the `-fips` build is deployed and
+- [ ] For FIPS environments: a binary built from source with `make build-fips`
+      is deployed (no FIPS package is published), and
       `openwatch --version` reports `fips: true`.
 
 Identity and access

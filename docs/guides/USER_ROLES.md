@@ -87,9 +87,18 @@ surface: `host:write`, `host:connectivity_check`, `host:intelligence_refresh`,
 `remediation:request`, the free `remediation:execute`/`remediation:rollback`
 host-mutating verbs, and the exception request/comment verbs.
 
+Known limitation: `ops_lead` cannot act on alerts today. Every alert action
+(acknowledge, silence, resolve, dismiss) checks `alert:write`, which only
+`security_admin` and `admin` hold. An `ops_lead` user therefore gets `403` on
+each of them, even though the role holds `alert:acknowledge` and
+`alert:resolve`.
+
 Cannot delete hosts, manage credentials beyond reading them, approve
-remediations (separation of duties: a different `security_admin`/`admin`
-approves), install licenses or policies, or manage users.
+remediations, install licenses or policies, or manage users. In Core, a
+single-rule remediation request is approved automatically when it is
+submitted, so an `ops_lead` request runs without a second person's approval.
+The request/approve workflow with separation of duties is not available in
+Core.
 
 ### `security_admin`
 
@@ -212,6 +221,11 @@ way.
 | `admin:retention_policy` | - | - | - | - | Y |
 | `admin:sso_provider` | - | - | - | - | Y |
 | `admin:system_setting` | - | - | - | - | Y |
+
+The alert action routes check `alert:write`, not `alert:acknowledge` or
+`alert:resolve`. This is a known limitation: only roles with `alert:write`
+(`security_admin` and `admin`) can acknowledge, silence, resolve or dismiss an
+alert.
 
 `security_admin` grants `audit:*`, which includes `audit:export`; the `auditor`
 row grants `audit:export` explicitly. For both, per-host export is free and the

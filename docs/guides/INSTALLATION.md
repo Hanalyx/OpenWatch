@@ -176,6 +176,10 @@ Guided mode asks about the database, the service and the administrator in turn,
 with the detected values filled in. Press Enter to accept a section, or `e` to
 edit it. Nothing is written until you confirm the plan.
 
+Known limitation: editing the listen host or port in the service section does
+not change where the service listens. See
+[Changing the listen port](#changing-the-listen-port).
+
 It finishes by proving the install rather than declaring it done:
 
 ```
@@ -303,9 +307,9 @@ safe to attach to a ticket.
 | `--manage-pg-hba` | Edit `pg_hba.conf` on a PostgreSQL `setup` did not install |
 | `--no-manage-pg-hba` | Never edit `pg_hba.conf`, even on a cluster `setup` provisioned |
 | `--no-firewall` | Do not open the listen port |
-| `--db-mode provision\|existing` | Provision PostgreSQL, or use one that already runs |
+| `--db-mode provision\|existing` | Provision PostgreSQL. `existing` does not work today; see [Using a database you already run](#using-a-database-you-already-run) |
 | `--db-host`, `--db-port`, `--db-name`, `--db-role` | Database connection and names |
-| `--listen-port` | HTTPS port (default 8443) |
+| `--listen-port` | Does not change the port the service listens on (known limitation). `setup` uses it only for the port preflight, the firewall rule, the privileged-port capability and the health-check URL. See [Changing the listen port](#changing-the-listen-port) |
 | `--admin-username`, `--admin-email` | First administrator |
 | `--admin-password-from`, `--db-password-from` | `generate`, `prompt`, `env:NAME`, or `file:PATH` |
 
@@ -313,18 +317,36 @@ There is deliberately no `--password` option: a password on the command line is
 visible in the process table and lands in shell history. Use `env:NAME` or
 `file:PATH`.
 
-### Using a database you already run
+### Changing the listen port
 
-```bash
-sudo openwatch setup --db-mode existing --db-host db.internal --db-port 5432
+`setup` does not write the listen address to `/etc/openwatch/openwatch.toml` or
+to the environment, so the service keeps listening on `0.0.0.0:8443` whatever
+`--listen-port` or the guided edit says. This is a known defect. To change the
+port, set `listen` in the `[server]` section of `/etc/openwatch/openwatch.toml`,
+then restart the service:
+
+```toml
+[server]
+listen = "0.0.0.0:9443"
 ```
 
-`setup` then validates rather than provisions: it checks the server is
-reachable and supported, and creates the role and database only if they are
-missing. It never installs or initializes a remote PostgreSQL.
+`OPENWATCH_SERVER_LISTEN` overrides the same setting (see
+[Configuration layering](#configuration-layering)). Open the new port in the
+host firewall yourself. A port below 1024 also needs
+`AmbientCapabilities=CAP_NET_BIND_SERVICE` on the unit.
 
-A non-loopback host requires TLS. `sslmode` is raised off `disable`
-automatically, and a plan that sets it back is rejected.
+### Using a database you already run
+
+`setup --db-mode existing` does not work today. This is a known defect. The
+mode accepts `--db-host` and `--db-port`, but its checks and its role and
+database creation run through the local PostgreSQL socket as the `postgres`
+user. They never contact the remote server.
+
+To use a database you already run, follow the manual installation instead.
+Create the role and a database it owns on that server yourself. Then set
+`OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env` to point at it (Step 4
+of the manual install) and continue from Step 5. Use an `sslmode` other than
+`disable` for a server that is not on loopback.
 
 ### Unattended and repeated installs
 
