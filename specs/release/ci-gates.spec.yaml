@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.19.0"
+  version: "1.20.0"
   status: approved
   tier: 1
 
@@ -378,6 +378,15 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-17
+      description: >-
+        codeql.yml scans pull requests to main, runs daily on a schedule, and can be
+        dispatched by hand. It does not scan pushes to main. Release gate Q2 reads a
+        passing "Analyze Code (javascript)" check run on the tagged commit, so
+        codeql.yml also scans every pushed release tag (`v*`), and the workflow's
+        job and language matrix must still produce that check-run name.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: make vet target exists and runs `go vet ./...` against the full module.
@@ -1278,3 +1287,14 @@ spec:
         no continue-on-error on either.
       priority: critical
       references_constraints: [C-16]
+    - id: AC-27
+      description: >-
+        codeql.yml, parsed as YAML, triggers on pull_request to main, on a schedule
+        whose cron runs every day, and on workflow_dispatch; its push trigger lists
+        no branches and has tag patterns that match both a release tag (v0.8.3) and
+        a release-candidate tag (v0.8.0-rc.6). For every github-check gate in
+        release/gates.toml whose check is a CodeQL "Analyze Code (<language>)" run,
+        codeql.yml has a job named "Analyze Code" whose language matrix includes
+        that language.
+      priority: high
+      references_constraints: [C-17]

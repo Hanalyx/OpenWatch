@@ -16,7 +16,7 @@ relying on them.
 | File | Trigger | Purpose |
 |------|---------|---------|
 | `go-ci.yml` | push/PR to `main` | Quality and security gates: vet, lint, govulncheck, race tests against PostgreSQL, spec coverage |
-| `codeql.yml` | push/PR to `main`/`develop`, weekly | CodeQL static analysis (JavaScript/TypeScript) |
+| `codeql.yml` | PR to `main`/`develop`, `v*` tag, daily, manual | CodeQL static analysis (JavaScript/TypeScript) |
 | `release.yml` | `v*` tags, manual | Build RPM/DEB (amd64 + arm64), SBOMs, signing, publish a GitHub Release |
 | `package-smoke.yml` | `v*` tags, packaging PRs, manual | Install built packages on RPM/DEB distros and smoke-test |
 | `branch-naming.yml` | PR to `main` | Enforce the branch-prefix policy |
@@ -58,8 +58,11 @@ with `GOFLAGS=-mod=readonly`. See `specs/release/ci-gates.spec.yaml`.
 
 ## Security analysis: `codeql.yml`
 
-Runs CodeQL on push and pull requests to `main`/`develop` and weekly (Mondays). The
-language matrix is `javascript` only. The Python tree was archived, so TypeScript
+Runs CodeQL on pull requests to `main`/`develop`, daily on the default branch, on
+`v*` tag pushes, and on manual dispatch. It does not run on pushes to `main`. The
+tag scan exists for release gate Q2, which needs a passing
+`Analyze Code (javascript)` check run on the tagged commit. The language matrix is
+`javascript` only. The Python tree was archived, so TypeScript
 and JavaScript cover the `frontend/` SPA. Results land in the GitHub Security tab.
 
 Go static analysis is handled by `make lint` and `make vuln` inside `go-ci.yml`
