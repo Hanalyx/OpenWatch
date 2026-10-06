@@ -266,17 +266,19 @@ sudo journalctl -u openwatch -o cat | jq .        # pretty-print
 ## Background scan worker
 
 The `serve` process drains the job queue on its own, so a single-node install
-needs nothing extra. To run scan execution as a dedicated process (separate
-resource limits, or a separate host), run the `worker` subcommand:
+needs nothing extra. To run scan execution as a dedicated process with separate
+resource limits, on the same host as `serve`, run the `worker` subcommand:
 
 ```bash
-sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch worker --poll-interval 1s'
+sudo -u openwatch sh -c 'cd /var/lib/openwatch; set -a; . /etc/openwatch/secrets.env; OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db; set +a; openwatch worker --poll-interval 1s'
 ```
 
 `--poll-interval` controls the empty-queue sleep between dequeue attempts
 (1s default, 5s max).
 The worker needs the same `secrets.env`, JWT key, and credential DEK as `serve`,
 because it decrypts host credentials and derives the queue HMAC key from the DEK.
+It also runs remediation jobs and keeps their rollback capture in the Kensa
+store, so it needs the same `OPENWATCH_KENSA_STORE_PATH` as `serve`.
 There is no packaged worker unit; if you split it out, model a unit on
 `openwatch.service` with `ExecStart=/usr/bin/openwatch worker`.
 

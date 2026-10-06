@@ -22,7 +22,7 @@ is a dump plus the configuration.
 |------|------|----------------|-----------------------------|
 | PostgreSQL database | external PostgreSQL server | Hosts, scans, transactions, findings, users, roles, encrypted credentials, audit events, job queue, system config | No |
 | Remediation rollback store | `/var/lib/openwatch/kensa/` (`remediation.db` plus its `-wal` and `-shm` files) | Kensa's durable capture of each host's pre-change state. A rollback of an executed or staged fix reads it; PostgreSQL holds only the journal of what happened, not the bytes needed to undo it | No: a fix executed before the loss can no longer be rolled back |
-| Credential encryption key | `/etc/openwatch/keys/credential.key` | AES-256 key that encrypts stored SSH credentials and MFA secrets in the database | No |
+| Credential encryption key | `/etc/openwatch/keys/credential.key` | AES-256 key that encrypts SSH credential passwords, private keys and key passphrases, TOTP MFA secrets, notification channel settings and SSO client secrets in the database. The job-queue signing key is derived from it | No |
 | JWT signing key | `/etc/openwatch/keys/jwt_private.pem` | Signs access tokens; losing it means clients re-authenticate (sessions and refresh tokens are in the database and survive) | Partially |
 | Database secret | `/etc/openwatch/secrets.env` | Holds `OPENWATCH_DATABASE_DSN` | No |
 | Configuration | `/etc/openwatch/openwatch.toml` | Server, database, and logging settings | Re-creatable by hand |
@@ -33,10 +33,12 @@ is a dump plus the configuration.
 > packaging contract to be durable, and it only matters on the day you need to
 > undo a remediation. Copy it with the service stopped so the WAL is quiescent.
 
-> The `credential.key` is the most important non-database item. SSH credentials
-> and MFA secrets in the database are encrypted with it. If you restore a
-> database dump but lose `credential.key`, those secrets are unrecoverable and
-> you must re-enter every host credential. Back up `credential.key` and the
+> The `credential.key` is the most important non-database item. SSH credentials,
+> MFA secrets, notification channel settings and SSO client secrets in the
+> database are encrypted with it. If you restore a database dump but lose
+> `credential.key`, those secrets are unrecoverable: you must re-enter every host
+> credential, notification channel and SSO client secret, and users must enroll
+> MFA again. Jobs queued under the old key also fail. Back up `credential.key` and the
 > database together, and store the key with at least the same protection as the
 > database.
 
@@ -884,11 +886,13 @@ journalctl -u openwatch -n 200 --no-pager | grep -iE 'scheduler|worker|scan'
      `OPENWATCH_DATABASE_DSN` in `/etc/openwatch/secrets.env`.
    - Replace the TLS certificate and key in `/etc/openwatch/tls/`.
    - Rotating the JWT signing key (`/etc/openwatch/keys/jwt_private.pem`)
-     invalidates all existing sessions and forces re-login.
+     invalidates access tokens only. Browser sessions, refresh tokens and API
+     tokens are database rows and survive; revoke them separately, as
+     [Rotate the JWT signing key](SECRET_ROTATION.md#rotate-the-jwt-signing-key)
+     describes.
    - The credential DEK (`/etc/openwatch/keys/credential.key`) cannot be rotated
-     by swapping the file alone: stored credentials are encrypted under it. Do
-     not replace it without a migration path, or stored host credentials become
-     undecryptable.
+     by swapping the file alone: every secret listed above is encrypted under it.
+     Follow [Rotate the credential DEK](SECRET_ROTATION.md#rotate-the-credential-dek).
 
 4. **Review access.** Audit user accounts and role assignments. Roles and
    permissions are defined in

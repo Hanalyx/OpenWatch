@@ -95,17 +95,15 @@ SELECT blocked.pid AS blocked_pid,
        blocking.pid AS blocking_pid,
        blocking.query AS blocking_query
 FROM pg_stat_activity AS blocked
-JOIN pg_locks AS blocked_locks ON blocked.pid = blocked_locks.pid
-JOIN pg_locks AS blocking_locks
-    ON blocked_locks.locktype = blocking_locks.locktype
-    AND blocked_locks.relation = blocking_locks.relation
-    AND blocked_locks.pid != blocking_locks.pid
-    AND blocking_locks.granted
-JOIN pg_stat_activity AS blocking ON blocking_locks.pid = blocking.pid
-WHERE NOT blocked_locks.granted
+CROSS JOIN LATERAL unnest(pg_blocking_pids(blocked.pid)) AS b(pid)
+JOIN pg_stat_activity AS blocking ON blocking.pid = b.pid
 LIMIT 10;
 "
 ```
+
+`pg_blocking_pids` covers every lock type, including the per-host advisory lock
+a scan holds for its whole run, so a second scan waiting on the same host shows
+here.
 
 ### Step 6: Check disk space
 
