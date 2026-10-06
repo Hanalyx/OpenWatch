@@ -10,6 +10,167 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.3] Eyrie (2026-10-06)
+
+**0.8.0, 0.8.1 and 0.8.2 were not released.** Each was tagged and built into
+a draft release, and none was published.
+
+- **0.8.0** and **0.8.1** stopped for the reasons given in the `0.8.2`
+  section.
+- **0.8.2** was stopped by its documentation review. The review found
+  operator procedures that would damage a running install or report success
+  without proving it. It also found security and compliance claims the code
+  does not support, and a support policy that named a release that will never
+  ship (CP `bugs/OW-105`). The packages shipped no third-party notices or
+  license texts, and the SBOMs did not list the web UI's dependencies (CP
+  `bugs/OW-110`).
+
+Under the release policy the `v0.8.0`, `v0.8.1` and `v0.8.2` tags and their
+drafts stay where they are, unchanged, as the record of those candidates.
+This release carries every fix from all three. Nothing is inherited from any
+of them: every gate runs again against this build.
+
+The OpenWatch binary has no code change since 0.8.2; this release changes
+documentation, packaging and the release tooling. The changes since 0.8.0
+are in the `0.8.1` and `0.8.2` sections and in this one. The release notes,
+upgrade notes and known limitations for the 0.8 line are in the `0.8.0-rc.6`
+section, and the `0.8.2` upgrade notes also apply.
+
+**Upgrade notes.** Read these before upgrading.
+
+- **This release ends support for 0.7.1.** Once 0.8.3 is published, it is the
+  only supported release, and security fixes target it alone. Upgrade from
+  0.7.1 promptly. `SECURITY.md` gives the tested upgrade path and its
+  precautions.
+- **Follow the upgrade procedure through Step 8.** The upgrade from 0.7.x
+  still signs everyone out once (migration 0065), and the service must be
+  restarted and its rules compared with the installed rules before any scan
+  (CP `bugs/OW-095`).
+- **Both packages now install license files.** `/usr/share/licenses/openwatch/`
+  holds `LICENSE`, `THIRD-PARTY-NOTICES.md`, `THIRD-PARTY-LICENSES.txt` and
+  `license-manifest.json`. The RPM marks them as license files.
+
+**Known limitations.** These ship in this release, in addition to those in
+the `0.8.0-rc.6` section. The guides now state each one.
+
+- **`ops_lead` cannot act on alerts.** The role is granted
+  `alert:acknowledge` and `alert:resolve`, but every alert action checks
+  `alert:write`, which only `security_admin` and `admin` hold. An `ops_lead`
+  user gets `403`. (CP `bugs/OW-107`)
+- **`setup --listen-port` does not change the service port.** It opens the
+  firewall and runs its checks for the new port, but the service still
+  listens on 8443. `setup --db-mode existing` creates and checks everything
+  through the local PostgreSQL socket, so it does not work against a remote
+  database. The installation guide gives the supported way to do each.
+  (CP `bugs/OW-108`)
+- **A scan has no time limit.** The specified 600-second per-scan timeout is
+  not implemented, so a scan stuck on one host holds that host's scan lock
+  until it ends. (CP `bugs/OW-109`)
+- **The SBOMs list the web UI's dependencies from the lockfile.** Each
+  openwatch SBOM is complete against the runtime entries of the frontend
+  lockfile. It does not prove which JavaScript ships, because the build drops
+  unused code. Only the two bundled fonts are verified file by file against
+  the shipped UI.
+
+### Added
+
+- **Packages ship third-party notices and license texts.** The RPM and the
+  DEB install the notices, OpenWatch's license, the upstream license texts
+  and a source manifest under `/usr/share/licenses/openwatch/`. The notices
+  are generated from `go.mod`, `go.sum` and the frontend lockfile. They now
+  cover every scoped and nested npm package and the bundled Inter and
+  JetBrains Mono fonts (OFL-1.1), which the old file left out. A build fails
+  when the inventory is stale or a runtime license text is missing.
+  (CP `bugs/OW-110`)
+- **The SBOMs list the web UI's npm packages.** Each openwatch binary and
+  package SBOM now carries one component per runtime lockfile entry, with its
+  version, license and dependency edges, and each package SBOM also lists the
+  Go modules of the binary it contains. Every component says what supports
+  it: `lockfile`, or `bundle-files-verified` with the files that matched. The
+  lockfile's SHA-512 is recorded as the hash of the npm download, not of
+  shipped files. (CP `bugs/OW-110`)
+
+### Changed
+
+- **SBOMs are CycloneDX 1.5, from a pinned syft.** The release workflow
+  installed syft's latest version, so the published v0.7.1 and v0.8.0-rc.6
+  SBOMs came out as CycloneDX 1.7 while the specification promises 1.5. The
+  workflow now installs syft 1.54.0, checks its download against a pinned
+  hash, and requests CycloneDX 1.5. Every SBOM is checked against the 1.5
+  schema before release. Published SBOMs are not changed. (CP `bugs/OW-111`)
+- **Only the latest published stable release is supported.** `SECURITY.md`
+  said support would move to 0.8.x when 0.8.0 shipped. Support now moves to
+  each stable release when it is published, and earlier releases stop being
+  supported. Unpublished drafts and release candidates are not supported
+  releases. It also lists the tested upgrade path by version, and states
+  that a 0.x release can need significant migration work. (CP `bugs/OW-105`)
+
+### Fixed
+
+- **The session-based scan check could not sign out on 0.8.0-rc.6 and
+  later.** Sign-out there requires the CSRF token, which the check did not
+  send, so it answered `403`, left its session open and stopped. The check now
+  sends the token, and works on every version from 0.7.0. The versions it
+  covers are now stated as 0.7.0 through 0.8.1. (CP `bugs/OW-106`)
+- **Rotating the credential key per the runbook broke alerting, SSO and
+  queued jobs.** The runbook said the key protects only SSH credentials and
+  MFA secrets. It also encrypts notification channel settings and SSO client
+  secrets, and it signs queued jobs. The runbook now drains the queue first,
+  re-enters every affected secret, and says when a rollback is still clean.
+  (CP `bugs/OW-105`)
+- **The incident runbook missed OpenWatch account changes.** Its queries
+  looked for host operating-system user events. They now look for OpenWatch
+  user, role and API token events. Its database password rotation forced a
+  host and an SSL mode that break a standard install. It now changes only the
+  password, and proves the new one works before saving it. (CP `bugs/OW-105`)
+- **The database runbook called killing idle transactions safe.** A running
+  scan holds its host lock in one. Killing it lets a second scan of the same
+  host start. The runbook now says what a kill does and how to spot those
+  connections first. (CP `bugs/OW-105`)
+- **The code-only rollback called itself done on a health check.** It now
+  checks that the schema did not change, installs both previous packages
+  together, restarts, and stops unless the rule library loaded.
+  (CP `bugs/OW-105`)
+- **The migration backup and restore steps could not work.** The backup ran
+  as a user that cannot write its directory. The restore loaded the dump into
+  the live database and named the wrong file. Both now point to the paths and
+  steps the upgrade procedure uses. (CP `bugs/OW-105`)
+- **Runbook commands ran without the database secret.** Commands run as the
+  `openwatch` user did not load `/etc/openwatch/secrets.env`, so they used the
+  wrong connection or failed. They now load it. The maintenance-mode change
+  sent the whole settings response back and was always refused. It now sends
+  only the settings. (CP `bugs/OW-105`)
+- **Several guides claimed behavior the code does not have.** The hardening
+  guide said SSH host keys are checked for strength, and that a FIPS package
+  is published. The compliance guide cited audit events that are never
+  written and append-only storage that nothing enforces. The roles and
+  introduction guides described an approval step that Core does not have. The
+  quick start called a credential-free port check a credential test. Each
+  guide now states what the code does. (CP `bugs/OW-105`)
+- **The report signing key's trust-anchor command printed a wrong value.** It
+  ran `openssl` under `sudo` with a `<( )` input that `sudo` cannot pass on,
+  so `openssl` failed and the pipeline still printed `e3b0c442…b855`, the
+  SHA-256 of empty input. If you recorded that value as your trust anchor,
+  derive it again with the corrected command in the production deployment
+  guide, which prints a value only when every step succeeds. (CP `bugs/OW-105`)
+- **Workers belong on the `serve` host.** The scaling and production guides
+  offered `openwatch worker` for capacity on other hosts. A remediation
+  rollback reads its capture from the local Kensa store, and any process can
+  claim a rollback, so a worker elsewhere would hold captures that the other
+  processes cannot read. The guides now describe workers only on the `serve`
+  host with the same store path, which the worker unit example now sets.
+  (CP `bugs/OW-105`)
+- **More guide corrections.** The API guide no longer lists a user-update
+  route that does not exist, gives the scan list its required `host_id`, and
+  names the ten routes an API token cannot use. The hosts guide points to
+  Reconnect instead of a disabled button and uses a real rule id. The scanning
+  guide describes the Compliance tab's actual filters. The backup guide lists
+  everything the credential key encrypts and states that JWT key rotation ends
+  access tokens only. The database runbook's lock query now shows advisory-lock
+  waits. The upgrade procedure no longer calls `migrate --status` a preview,
+  and the contributor guide's build command works on a fresh clone.
+  (CP `bugs/OW-105`)
+
 ## [0.8.2] Eyrie (2026-10-04)
 
 **0.8.0 and 0.8.1 were not released.** Each was tagged and built into a
