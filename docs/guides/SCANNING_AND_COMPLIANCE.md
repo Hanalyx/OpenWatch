@@ -220,8 +220,8 @@ the **Compliance** tab.
 - **Compliance score**: passing rules over rules that reached a verdict (for
   example, 85.0%). It can be absent; absent is not zero
 - **Summary bar**: pass, fail, error, and skipped counts
-- **Severity breakdown**: counts by critical, high, medium, low
-- **Findings table**: sortable, filterable list of all findings
+- **Rules table**: a search box and status filters (all, fail, pass, skipped,
+  error) with counts
 
 ### Finding details
 

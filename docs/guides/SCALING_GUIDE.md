@@ -20,13 +20,15 @@ OpenWatch has two long-lived processes and one database:
 | Component | What it does | How you scale it today |
 |-----------|--------------|------------------------|
 | `openwatch serve` | HTTPS API + embedded UI + in-process schedulers (liveness, intelligence, discovery) **and an in-process worker that drains the scan-job queue** | Raise `[server].scan_concurrency` (how many scans run at once in this process); then vertical CPU/RAM. Holds Kensa's remediation rollback store locally (`/var/lib/openwatch/kensa/`), so it is not stateless. |
-| `openwatch worker` | An **optional, additional** process that also drains the scan-job queue and runs Kensa scans over SSH | Run one or more for extra/off-box capacity. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so the serve worker and any `openwatch worker` processes cooperate without double-claiming a job. |
+| `openwatch worker` | An **optional, additional** process that also drains the scan-job queue and runs Kensa scans over SSH | Run one or more on the `serve` host for extra capacity. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, so the serve worker and any `openwatch worker` processes cooperate without double-claiming a job. |
 | PostgreSQL | Records: hosts, scans, transactions, audit events, queue (keys and the rollback store live on the serve host) | Vertical first (CPU, RAM, faster disk), then tune `max_connections` and the OpenWatch pool size. |
 
 `openwatch serve` runs an in-process worker that **does** drain the scan-job
 queue: the single-binary deployment scans with no extra process. By default it
 runs **`scan_concurrency` (4) scans concurrently**. A separate `openwatch worker`
-is optional, for additional or off-box capacity.
+is optional, for additional capacity on the same host. Any process can claim a
+remediation rollback, and a rollback reads the capture from the local Kensa
+store, so run workers on the `serve` host with the same store path.
 
 **What a dedicated worker does not do.** A worker process has no event bus and
 no alert router (they live in `serve`), and processes share nothing but
@@ -98,6 +100,8 @@ Type=simple
 User=openwatch
 Group=openwatch
 EnvironmentFile=-/etc/openwatch/secrets.env
+Environment=OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db
+WorkingDirectory=/var/lib/openwatch
 ExecStart=/usr/bin/openwatch --config /etc/openwatch/openwatch.toml worker
 Restart=on-failure
 RestartSec=5s
@@ -105,6 +109,9 @@ RestartSec=5s
 [Install]
 WantedBy=multi-user.target
 ```
+
+The worker also runs remediation jobs and keeps their rollback pre-state in the
+Kensa store, so give it the same `OPENWATCH_KENSA_STORE_PATH` as `serve`.
 
 Use a systemd template (for example `openwatch-worker@.service`) if you want to
 run several workers on one host. The worker shares the same configuration,

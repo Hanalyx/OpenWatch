@@ -78,12 +78,11 @@ installed on target hosts.
 
 ### Testing connectivity
 
-After saving credentials, select **Test Connection** to verify that OpenWatch
-can reach the host via SSH. The test checks:
-
-- Network reachability
-- SSH port availability
-- Authentication success
+After saving credentials, select the host's **Reconnect** action. It runs
+discovery, which opens one SSH session with the host's credential, so it checks
+network reachability, the SSH port and authentication. A `502` means the
+connection or login failed. The Credentials page shows a Test connection
+button, but it is disabled and does nothing yet.
 
 Fix any connection issues before running a scan.
 
@@ -407,7 +406,7 @@ authoritative role-to-permission mapping is served by the roles API,
 
 ## Best practices
 
-1. **Test credentials before scanning.** Use the Test Connection button to
+1. **Test credentials before scanning.** Use the host's **Reconnect** action to
    confirm SSH access before running a compliance scan.
 2. **Use SSH keys, not passwords.** Key-based authentication is more secure
    and works reliably with automated scanning.
@@ -475,7 +474,7 @@ auto-approve on request. The Enterprise bulk track keeps the approve/reject step
 RID=$(curl -s -X POST https://openwatch.example.com:8443/api/v1/remediation/requests \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"host_id": "HOST_UUID", "rule_id": "sshd-disable-root-login"}' \
+  -d '{"host_id": "HOST_UUID", "rule_id": "ssh-disable-root-login"}' \
   | jq -r '.id')
 
 # 2. Execute it (mutates the host; runs serialized per host).
