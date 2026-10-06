@@ -70,7 +70,10 @@ removed. Restart it and compare the served rules with the installed rules,
 as in [Step 8](#step-8-restart-then-confirm-the-served-rules-match-the-installed-rules),
 before you run a scan.
 
-Preview what would change before upgrading:
+Confirm the database is current before upgrading. This checks the installed
+version only: it cannot show the migrations the new package applies.
+[Step 5](#step-5-confirm-the-migration-the-scriptlet-applied) confirms the
+version the upgrade reached.
 
 ```bash
 sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch migrate --status'

@@ -42,7 +42,7 @@ locally at `docs/engineering/ARCHITECTURE.md`, but it is not tracked.)
 ## Build, run, test
 
 ```bash
-go build -o dist/openwatch ./cmd/openwatch && ./dist/openwatch serve   # API+SPA on :8443
+make build && ./dist/openwatch serve                                   # API+SPA on :8443
 cd frontend && npm install && npm run dev                              # Vite HMR on :5173
 ```
 

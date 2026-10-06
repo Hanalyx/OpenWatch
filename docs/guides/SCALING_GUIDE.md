@@ -98,6 +98,8 @@ Type=simple
 User=openwatch
 Group=openwatch
 EnvironmentFile=-/etc/openwatch/secrets.env
+Environment=OPENWATCH_KENSA_STORE_PATH=/var/lib/openwatch/kensa/remediation.db
+WorkingDirectory=/var/lib/openwatch
 ExecStart=/usr/bin/openwatch --config /etc/openwatch/openwatch.toml worker
 Restart=on-failure
 RestartSec=5s
@@ -105,6 +107,9 @@ RestartSec=5s
 [Install]
 WantedBy=multi-user.target
 ```
+
+The worker also runs remediation jobs and keeps their rollback pre-state in the
+Kensa store, so give it the same `OPENWATCH_KENSA_STORE_PATH` as `serve`.
 
 Use a systemd template (for example `openwatch-worker@.service`) if you want to
 run several workers on one host. The worker shares the same configuration,

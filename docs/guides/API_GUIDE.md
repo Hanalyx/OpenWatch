@@ -39,7 +39,7 @@ When the OpenAPI document and this guide disagree, the OpenAPI document wins.
 - An optional `X-Correlation-Id` header is propagated through logs and audit
   events. If you omit it, the server generates one and returns it in the
   response.
-- Paginated lists (`/api/v1/audit/events`, `/api/v1/scans`, `/api/v1/alerts`,
+- Paginated lists (`/api/v1/audit/events`, `/api/v1/scans?host_id=<id>`, `/api/v1/alerts`,
   `/api/v1/intelligence/events`, `/api/v1/activity`) take `limit` and an
   opaque `cursor`. Each page carries `next_cursor`; pass its value as the
   next request's `cursor`, and stop when it is absent or null. Other lists
@@ -137,7 +137,11 @@ token. The request body is `{username, password}` with an optional `otp`
 ```
 
 All later examples assume `-H "Authorization: Bearer $TOKEN"`, where
-`$TOKEN` is an API token or an access token.
+`$TOKEN` is an API token or an access token. Ten routes act on the signed-in
+user's own account or inbox and accept only a user's access token; an API
+token gets `403 auth.api_token_not_allowed`. They are `GET` and `PATCH
+/api/v1/auth/me`, `password:change`, `mfa:enroll`, `mfa:verify`, `GET` and
+`PATCH /api/v1/users/me/preferences`, and the three notification-feed routes.
 
 ### Refresh, identity, and log out
 
@@ -325,7 +329,6 @@ through the API. These are admin-level controls.
 | `GET` | `/api/v1/users` | List users. |
 | `POST` | `/api/v1/users` | Create a user. Body: `{username, email, password}`. |
 | `GET` | `/api/v1/users/{id}` | Get a user. |
-| `PATCH` | `/api/v1/users/{id}` | Update a user. |
 | `DELETE` | `/api/v1/users/{id}` | Delete a user. |
 | `POST` | `/api/v1/users/{id}/roles:assign` | Assign a role. Body: `{role_id}`. |
 | `POST` | `/api/v1/users/{id}/roles:unassign` | Remove a role. |
@@ -476,7 +479,7 @@ As of `v0.2.0`, the compliance workflow IS exposed over `api/v1` (it is no
 longer worker-internal only):
 
 - **Scans**: trigger with `POST /api/v1/hosts/{id}/scans`; browse durable
-  per-scan history + per-rule evidence + OSCAL export under `/api/v1/scans` and
+  per-scan history + per-rule evidence + OSCAL export under `/api/v1/scans?host_id=<id>` and
   `/api/v1/scans/{id}` (scan:read).
 - **Remediation**: request/approve/reject + execute/rollback under
   `/api/v1/remediation/requests` (sub-actions `:approve`, `:dry-run`,
