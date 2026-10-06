@@ -147,6 +147,29 @@ the `0.8.0-rc.6` section. The guides now state each one.
   introduction guides described an approval step that Core does not have. The
   quick start called a credential-free port check a credential test. Each
   guide now states what the code does. (CP `bugs/OW-105`)
+- **The report signing key's trust-anchor command printed a wrong value.** It
+  ran `openssl` under `sudo` with a `<( )` input that `sudo` cannot pass on,
+  so `openssl` failed and the pipeline still printed `e3b0c442…b855`, the
+  SHA-256 of empty input. If you recorded that value as your trust anchor,
+  derive it again with the corrected command in the production deployment
+  guide, which prints a value only when every step succeeds. (CP `bugs/OW-105`)
+- **Workers belong on the `serve` host.** The scaling and production guides
+  offered `openwatch worker` for capacity on other hosts. A remediation
+  rollback reads its capture from the local Kensa store, and any process can
+  claim a rollback, so a worker elsewhere would hold captures that the other
+  processes cannot read. The guides now describe workers only on the `serve`
+  host with the same store path, which the worker unit example now sets.
+  (CP `bugs/OW-105`)
+- **More guide corrections.** The API guide no longer lists a user-update
+  route that does not exist, gives the scan list its required `host_id`, and
+  names the ten routes an API token cannot use. The hosts guide points to
+  Reconnect instead of a disabled button and uses a real rule id. The scanning
+  guide describes the Compliance tab's actual filters. The backup guide lists
+  everything the credential key encrypts and states that JWT key rotation ends
+  access tokens only. The database runbook's lock query now shows advisory-lock
+  waits. The upgrade procedure no longer calls `migrate --status` a preview,
+  and the contributor guide's build command works on a fresh clone.
+  (CP `bugs/OW-105`)
 
 ## [0.8.2] Eyrie (2026-10-04)
 
