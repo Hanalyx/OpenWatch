@@ -44,18 +44,19 @@ release is supported.
 - **Published** means its GitHub release is public and not marked as a
   pre-release. Merging a change, creating a tag or building a draft release does
   not make a version supported.
-- **Today the latest published stable release is 0.7.1,** and it stays supported
-  until the next stable release is published.
+- **Today the latest published stable release is 0.8.3,** published on
+  2026-10-07. It stays supported until the next stable release is published.
+- **0.7.1 and every earlier release stopped being supported** when 0.8.3 was
+  published. Users on an earlier version should upgrade promptly.
 - **When the next stable release is published,** it becomes the only supported
-  release. 0.7.1 and every earlier release are no longer supported. Each later
-  publication moves support the same way. Users on an earlier version should
-  upgrade promptly.
+  release, and 0.8.3 is no longer supported. Each later publication moves
+  support the same way.
 - **Security fixes target the latest published stable release.** Backports to
   older releases are not promised.
 
 | Version | Supported |
 |---------|-----------|
-| The latest published stable release (0.7.1 today) | Yes |
+| The latest published stable release (0.8.3 today) | Yes |
 | Any earlier stable release | No. Upgrade to the latest published stable release |
 | A tagged or drafted release that was not published, such as 0.8.0, 0.8.1 and 0.8.2 | No. Not a stable release |
 | Release candidates, such as 0.8.0-rc.6 | No. Pre-releases for evaluation, not stable releases |
