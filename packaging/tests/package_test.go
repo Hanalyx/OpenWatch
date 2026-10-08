@@ -66,31 +66,6 @@ func runMake(t *testing.T, dir, target string) {
 	}
 }
 
-func findArtifact(t *testing.T, dir, glob string) string {
-	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(dir, glob))
-	if err != nil {
-		t.Fatalf("glob %s: %v", glob, err)
-	}
-	if len(matches) == 0 {
-		t.Fatalf("no artifact matching %s under %s", glob, dir)
-	}
-	// Prefer the newest match (later runs of the same glob).
-	newest := matches[0]
-	newestInfo, _ := os.Stat(newest)
-	for _, m := range matches[1:] {
-		mi, err := os.Stat(m)
-		if err != nil {
-			continue
-		}
-		if mi.ModTime().After(newestInfo.ModTime()) {
-			newest = m
-			newestInfo = mi
-		}
-	}
-	return newest
-}
-
 func rpmQuery(t *testing.T, rpmPath, format string) string {
 	t.Helper()
 	cmd := exec.Command("rpm", "-qp", "--queryformat", format, rpmPath)
@@ -125,22 +100,20 @@ func debContents(t *testing.T, debPath string) string {
 	return stdout.String()
 }
 
-// rpmPath returns the RPM under dist/, building it if necessary.
+// rpmPath builds the RPM and returns the file the build reported writing.
 func rpmPath(t *testing.T) string {
 	t.Helper()
 	dir := appDir(t)
 	haveTool(t, "rpmbuild")
-	runMake(t, dir, "rpm")
-	return findArtifact(t, filepath.Join(dir, "dist"), "openwatch-*.rpm")
+	return freshArtifact(t, dir, "rpm", `^openwatch-[^/]+\.rpm$`)
 }
 
-// debPath returns the DEB under dist/, building it if necessary.
+// debPath builds the DEB and returns the file the build reported writing.
 func debPath(t *testing.T) string {
 	t.Helper()
 	dir := appDir(t)
 	haveTool(t, "dpkg-deb")
-	runMake(t, dir, "deb")
-	return findArtifact(t, filepath.Join(dir, "dist"), "openwatch_*.deb")
+	return freshArtifact(t, dir, "deb", `^openwatch_[^/]+\.deb$`)
 }
 
 // @ac AC-01
@@ -198,7 +171,7 @@ func TestSpec_RPMParses(t *testing.T) {
 // The demo TLS cert is provisioned at install time, NOT shipped (AC-22).
 func TestRPM_PayloadContents(t *testing.T) {
 	t.Run("release-package-build/AC-04", func(t *testing.T) {
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		out := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
 		mustHave := []string{
 			"/usr/bin/openwatch",
@@ -217,7 +190,7 @@ func TestRPM_PayloadContents(t *testing.T) {
 // AC-05: DEB control file names the package, depends, and maintainer.
 func TestDEB_ControlShape(t *testing.T) {
 	t.Run("release-package-build/AC-05", func(t *testing.T) {
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		info := debInfo(t, deb)
 		mustHave := []string{
 			"Package: openwatch",
@@ -237,7 +210,7 @@ func TestDEB_ControlShape(t *testing.T) {
 // TLS cert is provisioned at install time, NOT shipped (AC-22).
 func TestDEB_PayloadContents(t *testing.T) {
 	t.Run("release-package-build/AC-06", func(t *testing.T) {
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		out := debContents(t, deb)
 		mustHave := []string{
 			"./usr/bin/openwatch",
@@ -256,7 +229,7 @@ func TestDEB_PayloadContents(t *testing.T) {
 // AC-07: RPM post-install runs systemctl daemon-reload.
 func TestRPM_PostScriptReloadsSystemd(t *testing.T) {
 	t.Run("release-package-build/AC-07", func(t *testing.T) {
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		// %{POSTIN} pulls the post-install scriptlet body.
 		out := rpmQuery(t, rpm, "%{POSTIN}")
 		if !strings.Contains(out, "systemctl daemon-reload") {
@@ -269,7 +242,7 @@ func TestRPM_PostScriptReloadsSystemd(t *testing.T) {
 // AC-08: DEB postinst runs systemctl daemon-reload.
 func TestDEB_PostinstReloadsSystemd(t *testing.T) {
 	t.Run("release-package-build/AC-08", func(t *testing.T) {
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		body := readDebControlScript(t, deb, "postinst")
 		if !strings.Contains(body, "systemctl daemon-reload") {
 			t.Errorf("postinst lacks systemctl daemon-reload: %s", body)
@@ -281,7 +254,7 @@ func TestDEB_PostinstReloadsSystemd(t *testing.T) {
 // AC-09: RPM pre-uninstall stops and disables the service.
 func TestRPM_PreUninstallStopsService(t *testing.T) {
 	t.Run("release-package-build/AC-09", func(t *testing.T) {
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		out := rpmQuery(t, rpm, "%{PREUN}")
 		if !strings.Contains(out, "systemctl stop openwatch") {
 			t.Errorf("preun lacks systemctl stop: %s", out)
@@ -296,7 +269,7 @@ func TestRPM_PreUninstallStopsService(t *testing.T) {
 // AC-10: DEB prerm stops and disables the service.
 func TestDEB_PrermStopsService(t *testing.T) {
 	t.Run("release-package-build/AC-10", func(t *testing.T) {
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		body := readDebControlScript(t, deb, "prerm")
 		if !strings.Contains(body, "systemctl stop openwatch") {
 			t.Errorf("prerm lacks systemctl stop: %s", body)
@@ -311,7 +284,7 @@ func TestDEB_PrermStopsService(t *testing.T) {
 // AC-11: both packages create the openwatch user + group at pre-install.
 func TestBoth_CreateSystemUser(t *testing.T) {
 	t.Run("release-package-build/AC-11", func(t *testing.T) {
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		rpmPreIn := rpmQuery(t, rpm, "%{PREIN}")
 		if !strings.Contains(rpmPreIn, "useradd") && !strings.Contains(rpmPreIn, "adduser") {
 			t.Errorf("RPM pre script lacks user creation: %s", rpmPreIn)
@@ -320,7 +293,7 @@ func TestBoth_CreateSystemUser(t *testing.T) {
 			t.Errorf("RPM pre script lacks group creation: %s", rpmPreIn)
 		}
 
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		body := readDebControlScript(t, deb, "preinst")
 		if !strings.Contains(body, "adduser") && !strings.Contains(body, "useradd") {
 			t.Errorf("DEB preinst lacks user creation: %s", body)
@@ -425,24 +398,22 @@ func TestBuild_MultiArchSupport(t *testing.T) {
 	})
 }
 
-// kensaRulesRPMPath returns the kensa-rules noarch RPM under dist/,
-// building it via `make kensa-rules` if necessary.
+// kensaRulesRPMPath returns the shared, read-only kensa-rules noarch RPM.
+// Every caller only reads it (see shared_package_test.go).
 func kensaRulesRPMPath(t *testing.T) string {
 	t.Helper()
-	dir := appDir(t)
-	haveTool(t, "rpmbuild")
-	runMake(t, dir, "kensa-rules")
-	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules-*.rpm")
+	requirePackagingBuild(t)
+	haveTool(t, sharedKensaRPM.tool)
+	return sharedKensaRPM.get(t, appDir(t))
 }
 
-// kensaRulesDebPath returns the kensa-rules all DEB under dist/, building
-// it via `make kensa-rules` if necessary.
+// kensaRulesDebPath returns the shared, read-only kensa-rules all DEB.
+// Every caller only reads it (see shared_package_test.go).
 func kensaRulesDebPath(t *testing.T) string {
 	t.Helper()
-	dir := appDir(t)
-	haveTool(t, "dpkg-deb")
-	runMake(t, dir, "kensa-rules")
-	return findArtifact(t, filepath.Join(dir, "dist"), "kensa-rules_*.deb")
+	requirePackagingBuild(t)
+	haveTool(t, sharedKensaDEB.tool)
+	return sharedKensaDEB.get(t, appDir(t))
 }
 
 // @ac AC-15
@@ -574,11 +545,11 @@ func TestKeys_PostInstallProvisions(t *testing.T) {
 		const helperPath = "/usr/lib/openwatch/provision-identity-keys.sh"
 
 		// Scriptlets call the helper.
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		if post := rpmQuery(t, rpm, "%{POSTIN}"); !strings.Contains(post, helperPath) {
 			t.Errorf("RPM %%post does not invoke %s:\n%s", helperPath, post)
 		}
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		if body := readDebControlScript(t, deb, "postinst"); !strings.Contains(body, helperPath) {
 			t.Errorf("DEB postinst does not invoke %s:\n%s", helperPath, body)
 		}
@@ -649,7 +620,7 @@ func TestKeys_NotInPayload(t *testing.T) {
 			jwt    = "jwt_private.pem"
 			dek    = "credential.key"
 		)
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
 		if !strings.Contains(rpmFiles, helper) {
 			t.Errorf("RPM payload missing the provisioning helper %s", helper)
@@ -661,7 +632,7 @@ func TestKeys_NotInPayload(t *testing.T) {
 			t.Errorf("RPM payload MUST NOT contain key files; got:\n%s", rpmFiles)
 		}
 
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		debFiles := debContents(t, deb)
 		if !strings.Contains(debFiles, helper) {
 			t.Errorf("DEB payload missing the provisioning helper %s", helper)
@@ -688,11 +659,11 @@ func TestTLS_PostInstallProvisions(t *testing.T) {
 		const helperPath = "/usr/lib/openwatch/provision-tls-cert.sh"
 
 		// Scriptlets call the TLS helper.
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		if post := rpmQuery(t, rpm, "%{POSTIN}"); !strings.Contains(post, helperPath) {
 			t.Errorf("RPM %%post does not invoke %s:\n%s", helperPath, post)
 		}
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		if body := readDebControlScript(t, deb, "postinst"); !strings.Contains(body, helperPath) {
 			t.Errorf("DEB postinst does not invoke %s:\n%s", helperPath, body)
 		}
