@@ -807,7 +807,7 @@ jobs:
   # read this job, which exists only to say that the FULL pipeline ran on this
   # commit and every part of it succeeded. On the documentation path it is
   # skipped, and a skipped job is not evidence. It runs under always() so a
-  # failed or cancelled dependency makes it fail rather than skip quietly.
+  # failed or canceled dependency makes it fail rather than skip quietly.
   full-evidence:
     name: Full test evidence
     needs: [changes, checks, server-tests, docs-tests, gates]

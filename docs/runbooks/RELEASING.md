@@ -113,6 +113,29 @@ not the ones being published, and the checker reports it as STALE.
   documentation path, where the full suite is skipped. Pushing the tag runs the
   full pipeline on the tagged commit, so wait for that run before running the
   checker.
+
+  How the checker reads several runs of one commit:
+  - Within one run, only the latest attempt counts. A re-run replaces the
+    attempts before it, so a failure re-run to success passes and a success
+    re-run to failure fails.
+  - Across separate runs of `go-ci.yml` on the commit, such as the push to
+    `main` and the tag's run: any run still in progress makes the gate
+    PENDING, and any run whose evidence failed, was canceled or did not
+    succeed makes it FAIL, even beside a success. A skipped job means that
+    run took the documentation path; it is not evidence and does not count
+    against a success.
+
+**Historical releases keep their recorded decision.** This requirement applies
+to candidates whose own commit carries it, from `release-ci-gates` 1.23.0 on.
+A release is judged by the checker and `release/gates.toml` at the commit
+where its decision was recorded. v0.8.3's GO was recorded by
+`scripts/release-status.py` and `release/gates.toml` at `79f18f78`, and that
+record stands. Running a newer checker against an older tag reports these gates
+MISSING, because its commit predates the evidence job; that does not revise
+the decision, and the checker prints a note when the gate definitions differ.
+An older tag cannot gain the evidence either: re-running its workflow runs the
+workflow file at that tag, which has no evidence job and, before this change,
+did not run on tags at all.
 - `package-smoke` green. It is now four job groups, not one. `smoke` installs
   the packages on almalinux 9 and 10, rockylinux 9, oraclelinux 9, fedora 41,
   debian 12 and ubuntu 24.04, and checks the binary runs and the system user and

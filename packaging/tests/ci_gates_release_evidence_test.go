@@ -270,8 +270,8 @@ func TestCIGates_ReleaseGatesReadFullTestEvidence(t *testing.T) {
 				passed++
 			}
 		}
-		if passed != 10 {
-			t.Errorf("FullTestEvidenceIsRequired: %d cases passed, want 10\n%s", passed, out)
+		if passed != 16 {
+			t.Errorf("FullTestEvidenceIsRequired: %d cases passed, want 16\n%s", passed, out)
 		}
 	})
 }
@@ -285,6 +285,11 @@ func TestCIGates_RunbookRequiresFullTestEvidence(t *testing.T) {
 			"`Full test evidence` succeeded on the candidate's own commit",
 			`A green "Quality + security gates" check is not enough`,
 			"Pushing the tag runs the\n  full pipeline on the tagged commit",
+			"Within one run, only the latest attempt counts.",
+			"makes it FAIL, even beside a success",
+			"**Historical releases keep their recorded decision.**",
+			"v0.8.3's GO was recorded by",
+			"An older tag cannot gain the evidence either",
 		} {
 			if !strings.Contains(book, want) {
 				t.Errorf("RELEASING.md is missing %q", want)

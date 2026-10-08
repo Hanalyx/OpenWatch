@@ -446,19 +446,33 @@ spec:
         regardless of the change, so the tagged commit gets the full suite even when
         its own change was documentation-only.
         THE EVIDENCE. A job named "Full test evidence" runs only on the full path,
-        under `always()` so a failed or cancelled dependency fails it instead of
+        under `always()` so a failed or canceled dependency fails it instead of
         skipping it. It succeeds only when path detection succeeded with the full
         verdict, both test jobs and the aggregate succeeded, and the documentation
-        job was skipped; anything else, including a missing, failed, cancelled or
+        job was skipped; anything else, including a missing, failed, canceled or
         unexpectedly skipped dependency, fails it. On the documentation path it is
         skipped.
         THE GATES. Release gates Q1 and S1 to S7 read that job through the
         `workflow-job` evidence kind, which identifies it by the workflow FILE that
-        produced it as well as by its name, across every run and attempt of that
-        workflow on the commit. Only a success counts; a skipped, failed,
-        cancelled, neutral or timed-out job is FAIL, an unfinished one PENDING, no
-        such job or no such run MISSING, and an unreadable API ERROR. No release
-        gate reads "Quality + security gates" as evidence.
+        produced it as well as by its name. No release gate reads "Quality +
+        security gates" as evidence.
+        SELECTION never lets a passing result hide a failing one. Within one run
+        only the LATEST attempt counts: an intentional re-run supersedes earlier
+        attempts in both directions. Across SEPARATE runs of that workflow on the
+        commit: any run still pending (including a run that has not created the
+        job yet) makes the gate PENDING; any run whose latest result is not
+        success or skipped (failed, canceled, neutral, timed out, two jobs of the
+        name in one attempt) makes it FAIL even beside a success; otherwise a
+        success makes it PASS, because a skipped job is a documentation-path run
+        that is not evidence and does not contradict one. Only skipped is FAIL; no
+        run, or no run with the job, is MISSING; an unreadable API is ERROR.
+        HISTORICAL RELEASES. The requirement applies to candidates whose own commit
+        carries it. A release is judged by the checker and release/gates.toml at
+        the commit where its decision was recorded; v0.8.3's GO, recorded at
+        79f18f78, stands. A newer checker reading an older tag reports these gates
+        MISSING and prints a note that the gate definitions differ; that does not
+        revise a recorded decision. Re-running an older tag's workflow cannot
+        produce the evidence, because it runs that tag's workflow file.
         Branch protection still requires "Quality + security gates"; pull requests
         are unaffected. Added v1.23.0 at the user's direction on 2026-10-08.
       type: technical
@@ -1468,7 +1482,7 @@ spec:
         job's result and the path verdict, and its script, executed, passes only
         when changes, both test jobs and the aggregate succeeded, the verdict is
         `true` and the documentation job was skipped; it fails when any of them
-        failed, was cancelled, was skipped or is missing, and when the verdict is
+        failed, was canceled, was skipped or is missing, and when the verdict is
         not `true`.
       priority: critical
       references_constraints: [C-19]
@@ -1480,20 +1494,28 @@ spec:
         `github-check` on "Quality + security gates". scripts/release-status.py,
         exercised with stubbed GitHub responses, passes a successful evidence job;
         fails a skipped one beside a successful aggregate (a documentation-only
-        commit), a failed, cancelled, neutral or timed-out one, and a successful
+        commit), a failed, canceled, neutral or timed-out one, and a successful
         job of that name from another workflow file beside a skipped one from
         go-ci.yml; reports MISSING for no evidence job in a finished run and for no
         go-ci.yml run; PENDING for an unfinished job and for a run still in progress
         that has not created it; ERROR for an unreadable API; and passes a
         commit whose documentation-path run skipped the job when another run of
-        go-ci.yml on the same commit succeeded it.
+        go-ci.yml on the same commit succeeded it. It reads jobs with
+        `filter=latest`, so within one run a failure re-run to success passes and a
+        success re-run to failure fails; across separate runs, a success beside a
+        failure fails in either order, a success beside a pending run is PENDING,
+        and two jobs of the name in one attempt fail. It reports whether the gate
+        definitions at the tag's commit differ from the ones it is reading.
       priority: critical
       references_constraints: [C-19]
     - id: AC-36
       description: >-
         docs/runbooks/RELEASING.md requires "Full test evidence" to have succeeded
         on the candidate's own commit, states that a green "Quality + security
-        gates" check is not enough, and states that pushing the tag runs the full
-        pipeline on the tagged commit.
+        gates" check is not enough, states that pushing the tag runs the full
+        pipeline on the tagged commit, states the latest-attempt and
+        separate-runs selection rule, and states that historical releases keep
+        their recorded decision, naming v0.8.3's GO at 79f18f78, and that an older
+        tag cannot gain the evidence by re-running its workflow.
       priority: high
       references_constraints: [C-19]
