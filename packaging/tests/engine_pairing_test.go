@@ -259,7 +259,7 @@ func TestUpgrade_PackageManagerEnforcesEngineCorpusPairing(t *testing.T) {
 		dir := t.TempDir()
 
 		t.Run("rpm", func(t *testing.T) {
-			newOW, newKR := rpmPath(t), kensaRulesRPMPath(t)
+			newOW, newKR := sharedRPMPath(t), kensaRulesRPMPath(t)
 			arch := rpmQuery(t, newOW, "%{ARCH}")
 			oldOW := buildFixtureRPM(t, dir, arch, rpmFixture{name: "openwatch", epoch: "1", version: "0.7.1"})
 			oldKR := buildFixtureRPM(t, dir, "noarch", rpmFixture{name: "kensa-rules", version: "0.9.0"})
@@ -290,7 +290,7 @@ func TestUpgrade_PackageManagerEnforcesEngineCorpusPairing(t *testing.T) {
 		})
 
 		t.Run("deb", func(t *testing.T) {
-			newOW, newKR := debPath(t), kensaRulesDebPath(t)
+			newOW, newKR := sharedDEBPath(t), kensaRulesDebPath(t)
 			arch := debField(t, newOW, "Architecture")
 			base := debBase(t, arch, newOW, newKR)
 			oldOW := statusEntry{pkg: "openwatch", version: pairingOldOW, arch: arch}

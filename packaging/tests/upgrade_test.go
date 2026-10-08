@@ -123,7 +123,7 @@ func TestUpgrade_PayloadShipsUpgradeFiles(t *testing.T) {
 			"/var/lib/openwatch/backups",
 		}
 
-		rpm := rpmPath(t)
+		rpm := sharedRPMPath(t)
 		rpmFiles := rpmQuery(t, rpm, "[%{FILENAMES}\n]")
 		for _, f := range want {
 			if !strings.Contains(rpmFiles, f) {
@@ -135,7 +135,7 @@ func TestUpgrade_PayloadShipsUpgradeFiles(t *testing.T) {
 			t.Errorf("upgrade.conf not in file list: %s", cfgs)
 		}
 
-		deb := debPath(t)
+		deb := sharedDEBPath(t)
 		debFiles := debContents(t, deb)
 		for _, f := range want {
 			if !strings.Contains(debFiles, f) {
@@ -174,7 +174,7 @@ func TestUpgrade_PackagesDeclareEngineCorpusPairing(t *testing.T) {
 	t.Run("release-upgrade/AC-08", func(t *testing.T) {
 		v := linkedKensaVersion(t)
 
-		owRPM := rpmPath(t)
+		owRPM := sharedRPMPath(t)
 		if got := rpmQuery(t, owRPM, "[%{PROVIDENAME} %{PROVIDEFLAGS:depflags} %{PROVIDEVERSION}\n]"); !strings.Contains(got, "openwatch-kensa-engine = "+v+"\n") {
 			t.Errorf("openwatch RPM provides:\n%s\nwant openwatch-kensa-engine = %s", got, v)
 		}
@@ -186,7 +186,7 @@ func TestUpgrade_PackagesDeclareEngineCorpusPairing(t *testing.T) {
 			t.Errorf("kensa-rules RPM requires:\n%s\nwant openwatch-kensa-engine >= %s", got, v)
 		}
 
-		owDEB := debPath(t)
+		owDEB := sharedDEBPath(t)
 		if got, want := debField(t, owDEB, "Provides"), "openwatch-kensa-engine (= "+v+")"; !strings.Contains(got, want) {
 			t.Errorf("openwatch DEB Provides = %q, want it to contain %q", got, want)
 		}
