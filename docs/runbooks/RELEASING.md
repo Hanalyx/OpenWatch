@@ -28,7 +28,7 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 |-----|----------|----------|
 | `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; RPMs GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
-| every PR | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage |
+| every PR, `main`, `v*` | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage. A `v*` tag always runs the full pipeline on the tagged commit, and its `Full test evidence` job is what gates Q1 and S1 to S7 read |
 
 ---
 
@@ -100,9 +100,19 @@ so a review or a fleet result recorded against an RC describes bytes that are
 not the ones being published, and the checker reports it as STALE.
 
 **Automated (CI):**
-- `go-ci` green on `main` at the RC commit: includes `specter sync` at **100% AC
-  coverage** (the `release-admin-signoff` C-01 requirement) and the composition
-  E2E (`internal/server/api_admin_*signoff*_test.go`, real session cookies).
+- **`Full test evidence` succeeded on the candidate's own commit.** This is a
+  job in `go-ci.yml`, and gates Q1 and S1 to S7 read it. It succeeds only when
+  the full pipeline ran on that commit and every part of it passed:
+  - the race tests;
+  - `specter sync` at **100% AC coverage** (the `release-admin-signoff` C-01
+    requirement);
+  - the composition E2E (`internal/server/api_admin_*signoff*_test.go`, real
+    session cookies).
+
+  A green "Quality + security gates" check is not enough: it also passes on the
+  documentation path, where the full suite is skipped. Pushing the tag runs the
+  full pipeline on the tagged commit, so wait for that run before running the
+  checker.
 - `package-smoke` green. It is now four job groups, not one. `smoke` installs
   the packages on almalinux 9 and 10, rockylinux 9, oraclelinux 9, fedora 41,
   debian 12 and ubuntu 24.04, and checks the binary runs and the system user and

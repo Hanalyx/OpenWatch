@@ -430,7 +430,7 @@ class ManifestIsLoadable(unittest.TestCase):
     kinds, so a typo in gates.toml surfaces here rather than as a gate that
     silently never applies."""
 
-    KINDS = {"github-check", "github-check-all", "release-asset",
+    KINDS = {"github-check", "github-check-all", "workflow-job", "release-asset",
              "signed-tag", "per-platform", "attestation", "doc-review",
              "asset-digests", "checksums-signature", "tag-identity"}
 
@@ -1444,6 +1444,134 @@ class TagIdentityIsCheckedOnOrigin(unittest.TestCase):
         status, note = rs.verify_tag_identity("v0.8.0", "d" * 40)
         self.assertEqual(status, rs.ERROR)
         self.assertIn("origin", note)
+
+
+class FullTestEvidenceIsRequired(unittest.TestCase):
+    """Release gates Q1 and S1 to S7 read a job, not the aggregate check
+    (release-ci-gates C-19, CP bugs/OW-086 tracks B and C). Only a success of
+    that job, in a run of that workflow file on the exact commit, counts. A
+    documentation-only commit passes "Quality + security gates" with the full
+    suite skipped; it must not pass these gates."""
+
+    COMMIT = "c" * 40
+    WF = ".github/workflows/go-ci.yml"
+    JOB = "Full test evidence"
+    GATE = {"id": "Q1", "title": "Quality and security gates", "evidence": "workflow-job",
+            "workflow": WF, "job": JOB, "blocking": True}
+
+    def fake(self, runs, jobs, fail=None):
+        """runs: [(id, path)] or [(id, path, status)]; jobs: {id: [(name, status, conclusion)]}."""
+        def sh(*args, check=False):
+            url = next((a for a in args if a.startswith("repos/")), "")
+            if fail and fail in url:
+                return 1, ""
+            if "/actions/runs?head_sha=" in url:
+                if self.COMMIT not in url:
+                    return 0, ""
+                return 0, "\n".join("\t".join((r + ("completed",))[:3]) for r in runs)
+            for rid, js in jobs.items():
+                if f"/actions/runs/{rid}/jobs" in url:
+                    return 0, "\n".join("\t".join(j) for j in js)
+            return 1, ""
+        return sh
+
+    def verdict(self, runs, jobs, fail=None, gate=None):
+        saved = rs.sh
+        rs.sh = self.fake(runs, jobs, fail)
+        try:
+            out = list(rs.evaluate({"gate": [gate or self.GATE]}, "v9.9.9", self.COMMIT,
+                                   workdir=Path(tempfile.mkdtemp())))
+        finally:
+            rs.sh = saved
+        self.assertEqual(len(out), 1, out)
+        return out[0][2], out[0][3]
+
+    def other_jobs(self):
+        return [("Quality + security gates", "completed", "success"),
+                ("Detect Go-relevant changes", "completed", "success")]
+
+    def test_a_full_run_with_the_evidence_job_succeeded_passes(self):
+        status, note = self.verdict([("1", self.WF)],
+                                    {"1": self.other_jobs() + [(self.JOB, "completed", "success")]})
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_documentation_only_success_does_not_pass(self):
+        # The aggregate check succeeded; the evidence job was skipped because
+        # the full suite did not run.
+        status, note = self.verdict([("1", self.WF)],
+                                    {"1": self.other_jobs() + [(self.JOB, "completed", "skipped")]})
+        self.assertEqual(status, rs.FAIL, note)
+        self.assertIn("skipped", note)
+
+    def test_an_aggregate_success_without_any_evidence_job_is_missing(self):
+        # A run from before the evidence job existed, or the job removed.
+        status, note = self.verdict([("1", self.WF)], {"1": self.other_jobs()})
+        self.assertEqual(status, rs.MISSING, note)
+        self.assertIn("no job named", note)
+
+    def test_no_run_of_the_workflow_on_the_commit_is_missing(self):
+        status, note = self.verdict([], {})
+        self.assertEqual(status, rs.MISSING, note)
+
+    def test_the_same_job_name_in_another_workflow_is_not_evidence(self):
+        status, note = self.verdict([("7", ".github/workflows/other.yml")],
+                                    {"7": [(self.JOB, "completed", "success")]})
+        self.assertEqual(status, rs.MISSING, note)
+        status, note = self.verdict(
+            [("1", self.WF), ("7", ".github/workflows/other.yml")],
+            {"1": [(self.JOB, "completed", "skipped")], "7": [(self.JOB, "completed", "success")]})
+        self.assertEqual(status, rs.FAIL, note)
+
+    def test_failed_cancelled_or_skipped_evidence_fails(self):
+        for concl in ("failure", "cancelled", "skipped", "neutral", "timed_out"):
+            with self.subTest(conclusion=concl):
+                status, _ = self.verdict([("1", self.WF)], {"1": [(self.JOB, "completed", concl)]})
+                self.assertEqual(status, rs.FAIL)
+
+    def test_an_unfinished_evidence_job_is_pending(self):
+        status, _ = self.verdict([("1", self.WF)], {"1": [(self.JOB, "in_progress", "")]})
+        self.assertEqual(status, rs.PENDING)
+        # A running workflow that has not created the job yet is pending,
+        # not missing; a finished one without the job is missing.
+        status, note = self.verdict([("1", self.WF, "in_progress")], {"1": self.other_jobs()})
+        self.assertEqual(status, rs.PENDING, note)
+        status, note = self.verdict([("1", self.WF, "completed")], {"1": self.other_jobs()})
+        self.assertEqual(status, rs.MISSING, note)
+
+    def test_a_successful_rerun_or_tag_run_on_the_same_commit_passes(self):
+        # A documentation-path run on main (skipped) and the tag's full run.
+        status, note = self.verdict(
+            [("1", self.WF), ("2", self.WF)],
+            {"1": [(self.JOB, "completed", "skipped")], "2": [(self.JOB, "completed", "success")]})
+        self.assertEqual(status, rs.PASS, note)
+        # A failed attempt, then a successful one, in one run.
+        status, note = self.verdict(
+            [("1", self.WF)], {"1": [(self.JOB, "completed", "failure"), (self.JOB, "completed", "success")]})
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_an_unreadable_api_is_an_error_not_a_pass(self):
+        status, _ = self.verdict([("1", self.WF)], {"1": [(self.JOB, "completed", "success")]},
+                                 fail="/actions/runs?head_sha=")
+        self.assertEqual(status, rs.ERROR)
+        status, _ = self.verdict([("1", self.WF)], {"1": [(self.JOB, "completed", "success")]},
+                                 fail="/actions/runs/1/jobs")
+        self.assertEqual(status, rs.ERROR)
+
+    def test_the_shipped_full_suite_gates_read_the_evidence_job(self):
+        import tomllib
+        with rs.GATES.open("rb") as fh:
+            gates = tomllib.load(fh)["gate"]
+        by_id = {g["id"]: g for g in gates}
+        for gid in ["Q1"] + [f"S{i}" for i in range(1, 8)]:
+            with self.subTest(gate=gid):
+                g = by_id[gid]
+                self.assertEqual(g.get("evidence"), "workflow-job")
+                self.assertEqual(g.get("workflow"), self.WF)
+                self.assertEqual(g.get("job"), self.JOB)
+        for g in gates:
+            with self.subTest(gate=g["id"]):
+                self.assertFalse(g.get("evidence") == "github-check" and g.get("check") == "Quality + security gates",
+                                 "the aggregate check also passes on the documentation path; it is not release evidence")
 
 
 if __name__ == "__main__":

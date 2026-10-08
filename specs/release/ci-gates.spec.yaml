@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.22.0"
+  version: "1.23.0"
   status: approved
   tier: 1
 
@@ -432,6 +432,35 @@ spec:
         EVERY `scripts/test_*.py` runs in the aggregate job on both paths, found by
         glob; finding none, or any script failing, fails the job.
         Added v1.22.0 at the user's direction on 2026-10-08.
+      type: technical
+      enforcement: error
+
+    - id: C-19
+      description: >-
+        A release MUST be backed by FULL test evidence on its exact commit, not by a
+        green aggregate (CP bugs/OW-086 tracks B and C). The "Quality + security
+        gates" check legitimately succeeds on the documentation path (C-18) with the
+        full suite skipped, so it cannot be release evidence.
+        THE EXACT COMMIT. go-ci.yml runs on a pushed `v*` tag as well as on main and
+        pull requests, and path selection sends a release tag to the full pipeline
+        regardless of the change, so the tagged commit gets the full suite even when
+        its own change was documentation-only.
+        THE EVIDENCE. A job named "Full test evidence" runs only on the full path,
+        under `always()` so a failed or cancelled dependency fails it instead of
+        skipping it. It succeeds only when path detection succeeded with the full
+        verdict, both test jobs and the aggregate succeeded, and the documentation
+        job was skipped; anything else, including a missing, failed, cancelled or
+        unexpectedly skipped dependency, fails it. On the documentation path it is
+        skipped.
+        THE GATES. Release gates Q1 and S1 to S7 read that job through the
+        `workflow-job` evidence kind, which identifies it by the workflow FILE that
+        produced it as well as by its name, across every run and attempt of that
+        workflow on the commit. Only a success counts; a skipped, failed,
+        cancelled, neutral or timed-out job is FAIL, an unfinished one PENDING, no
+        such job or no such run MISSING, and an unreadable API ERROR. No release
+        gate reads "Quality + security gates" as evidence.
+        Branch protection still requires "Quality + security gates"; pull requests
+        are unaffected. Added v1.23.0 at the user's direction on 2026-10-08.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1420,3 +1449,51 @@ spec:
         glob.
       priority: high
       references_constraints: [C-18]
+    - id: AC-33
+      description: >-
+        go-ci.yml, parsed as YAML, runs on push to main, on push of tags whose
+        patterns match both v0.8.3 and v0.8.0-rc.6, and on pull requests to main.
+        The "Detect Go-relevant changes" step's script, executed against a real
+        git repository with a documentation-only change, writes `go=true` for a
+        push whose ref type is tag and `go=false` for the same change pushed to a
+        branch.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-34
+      description: >-
+        go-ci.yml has exactly one job named "Full test evidence". It needs
+        `changes`, both test jobs, the documentation job and the "Quality +
+        security gates" job, runs under `always() && needs.changes.outputs.go ==
+        'true'`, and sets no continue-on-error. Its verdict step binds each needed
+        job's result and the path verdict, and its script, executed, passes only
+        when changes, both test jobs and the aggregate succeeded, the verdict is
+        `true` and the documentation job was skipped; it fails when any of them
+        failed, was cancelled, was skipped or is missing, and when the verdict is
+        not `true`.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-35
+      description: >-
+        In release/gates.toml, Q1 and S1 to S7 use the `workflow-job` evidence kind
+        naming `.github/workflows/go-ci.yml` and a job whose name equals the
+        "Full test evidence" job's name in go-ci.yml, and no gate uses a
+        `github-check` on "Quality + security gates". scripts/release-status.py,
+        exercised with stubbed GitHub responses, passes a successful evidence job;
+        fails a skipped one beside a successful aggregate (a documentation-only
+        commit), a failed, cancelled, neutral or timed-out one, and a successful
+        job of that name from another workflow file beside a skipped one from
+        go-ci.yml; reports MISSING for no evidence job in a finished run and for no
+        go-ci.yml run; PENDING for an unfinished job and for a run still in progress
+        that has not created it; ERROR for an unreadable API; and passes a
+        commit whose documentation-path run skipped the job when another run of
+        go-ci.yml on the same commit succeeded it.
+      priority: critical
+      references_constraints: [C-19]
+    - id: AC-36
+      description: >-
+        docs/runbooks/RELEASING.md requires "Full test evidence" to have succeeded
+        on the candidate's own commit, states that a green "Quality + security
+        gates" check is not enough, and states that pushing the tag runs the full
+        pipeline on the tagged commit.
+      priority: high
+      references_constraints: [C-19]

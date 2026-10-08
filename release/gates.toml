@@ -10,6 +10,9 @@
 #
 # Evidence kinds:
 #   github-check  a named check run on the candidate tag's commit
+#   workflow-job  a job, by name, in runs of one named workflow file on the
+#                 candidate tag's commit; only a success counts, and a
+#                 skipped job is never evidence (release-ci-gates C-19)
 #   release-asset an asset on the candidate's release, draft or published
 #   asset-digests every manifested asset downloaded and hashed against SHA256SUMS
 #   checksums-signature  SHA256SUMS.asc verified against security/KEYS
@@ -104,8 +107,9 @@ upgrade-from-ga = "v0.6.0 could not run on this platform at all: its DEB shipped
 id = "Q1"
 title = "Quality and security gates"
 proves = "gofmt, vet, golangci-lint incl. gosec, govulncheck, race tests, frontend build"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 blocking = true
 
 [[gate]]
@@ -299,9 +303,13 @@ blocking = true
 # hold that closed.
 #
 # Each names the exact spec and acceptance criterion that proves it, and each
-# is satisfied by the same "Quality + security gates" check run, which runs the
-# frontend vitest suite, the Go tests and the 100% specter structural coverage
-# step. The citation is not decoration: scripts/test_release_status.py resolves
+# is satisfied by the same full test evidence: the "Full test evidence" job in
+# go-ci.yml, which succeeds only when the full pipeline ran on the commit and
+# every part of it succeeded (the frontend vitest suite, the Go tests, the
+# stream check and the specter coverage thresholds). Until v1.23.0 of
+# release-ci-gates these gates read the "Quality + security gates" check run,
+# which also passes on the documentation path where the full suite is skipped
+# (CP bugs/OW-086, release-ci-gates C-19). The citation is not decoration: scripts/test_release_status.py resolves
 # every spec and ac below against the tracked specs and against a test file
 # that annotates them, so a renamed criterion fails here rather than leaving a
 # gate quietly proving nothing.
@@ -313,8 +321,9 @@ blocking = true
 id = "S1"
 title = "An all-skipped scan renders no score"
 proves = "A host whose rules were all skipped shows no score, not 0%"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "frontend-host-compliance-tab"
 ac = "AC-11"
 blocking = true
@@ -323,8 +332,9 @@ blocking = true
 id = "S2"
 title = "Coverage-unavailable presentation is exercised"
 proves = "Both unavailable coverage states render distinctly, and neither is called not applicable"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "frontend-groups"
 ac = "AC-06"
 blocking = true
@@ -333,8 +343,9 @@ blocking = true
 id = "S3"
 title = "An authoritative fleet null overrides local data"
 proves = "Mounted HostsListPage: score_pct null renders no score even with host rows a mean could be computed from, and score_pct 0 renders a genuine zero"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "frontend-hosts-list"
 ac = "AC-26"
 blocking = true
@@ -343,8 +354,9 @@ blocking = true
 id = "S4"
 title = "Cross-formula points produce no delta, direction or color"
 proves = "Two days scored by different formulas yield no delta, no arrow, no directional color, and a visible explanation"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "frontend-dashboard"
 ac = "AC-07"
 blocking = true
@@ -353,8 +365,9 @@ blocking = true
 id = "S5"
 title = "Same-server verification states its trust limitation"
 proves = "A report verified against the key this server serves says it proves consistency, not authenticity, and never claims offline verification"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "frontend-reports"
 ac = "AC-08"
 blocking = true
@@ -363,8 +376,9 @@ blocking = true
 id = "S6"
 title = "The arithmetic guard recognizes the compliance alias"
 proves = "AC-31 scans the TypeScript field `compliance`, the host-view-model alias for a score, and not only the server-side field names"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "system-compliance-scoring"
 ac = "AC-31"
 blocking = true
@@ -373,8 +387,9 @@ blocking = true
 id = "S7"
 title = "The arithmetic guard handles postfix ! on either operand"
 proves = "AC-31 sees through TypeScript's non-null assertion, so `h.compliance! + n` and `n + h.compliance!` are both detected"
-evidence = "github-check"
-check = "Quality + security gates"
+evidence = "workflow-job"
+workflow = ".github/workflows/go-ci.yml"
+job = "Full test evidence"
 spec = "system-compliance-scoring"
 ac = "AC-31"
 blocking = true

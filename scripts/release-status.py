@@ -14,6 +14,8 @@ install step of its own.
 Evidence comes from three places and nowhere else:
 
   github-check   check runs on the tag's commit, via `gh api`
+  workflow-job   a job, by name, in runs of one named workflow file on the
+                 tag's commit, via `gh api` (release-ci-gates C-19)
   release-asset  assets on the GitHub release for the tag, via `gh release`
   attestation    files under release/attestations/, scoped to an artifact
                  digest so evidence follows the bits rather than the tag
@@ -420,6 +422,52 @@ def check_runs(commit):
     return runs
 
 
+def workflow_job_conclusions(commit, workflow, job):
+    """Every conclusion of the job named `job`, across every run and attempt of
+    the workflow file `workflow` on `commit`.
+
+    Returns None when the API cannot be read, otherwise (runs, conclusions):
+    runs is how many runs of that workflow exist for the commit, and an
+    unfinished job counts as PENDING. A run that has not finished may not have
+    created the job yet, so such a run with no job of that name adds PENDING
+    rather than leaving the evidence looking absent. The job is identified by the workflow
+    FILE that produced it as well as its name, so a job of the same name in
+    another workflow cannot stand in for it (release-ci-gates C-19).
+    """
+    rc, out = sh(
+        "gh", "api", "--paginate",
+        f"repos/{{owner}}/{{repo}}/actions/runs?head_sha={commit}&per_page=100",
+        "--jq", ".workflow_runs[] | [(.id | tostring), .path, .status] | @tsv",
+    )
+    if rc != 0:
+        return None
+    ids = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[1] == workflow:
+            ids.append((parts[0], parts[2]))
+    conclusions = []
+    for rid, run_status in ids:
+        found = False
+        rc, out = sh(
+            "gh", "api", "--paginate",
+            f"repos/{{owner}}/{{repo}}/actions/runs/{rid}/jobs?filter=all&per_page=100",
+            "--jq", '.jobs[] | [.name, .status, (.conclusion // "")] | @tsv',
+        )
+        if rc != 0:
+            return None
+        for line in out.splitlines():
+            parts = line.split("\t")
+            if len(parts) != 3 or parts[0] != job:
+                continue
+            _, status, conclusion = parts
+            found = True
+            conclusions.append(conclusion if status == "completed" and conclusion else PENDING)
+        if not found and run_status != "completed":
+            conclusions.append(PENDING)
+    return len(ids), conclusions
+
+
 KEYS = REPO / "security" / "KEYS"
 
 # Assets the manifest must account for. SHA256SUMS lists every package and
@@ -723,6 +771,7 @@ def evaluate(gates, tag, commit, workdir=None):
     if workdir is None:
         workdir = Path(tempfile.mkdtemp(prefix="release-status-"))
     runs = check_runs(commit)
+    job_cache = {}
     info = release_info(tag)
     assets = release_assets(tag, info)
     digests = release_digests(tag, info)
@@ -744,6 +793,33 @@ def evaluate(gates, tag, commit, workdir=None):
                 yield gid, g["title"], PENDING, f"{name} is still running"
             else:
                 yield gid, g["title"], FAIL, f"{name}: {runs[name]}"
+
+        elif kind == "workflow-job":
+            # Full test evidence (C-19). Only a successful job counts. A
+            # skipped job means the full suite did not run on this commit,
+            # which is what a documentation-only change produces; it is never
+            # evidence, however green the aggregate check was.
+            wf, job = g["workflow"], g["job"]
+            key = (wf, job)
+            if key not in job_cache:
+                job_cache[key] = workflow_job_conclusions(commit, wf, job)
+            res = job_cache[key]
+            if res is None:
+                yield gid, g["title"], ERROR, "could not read workflow runs (gh auth?)"
+                continue
+            nruns, concl = res
+            if nruns == 0:
+                yield gid, g["title"], MISSING, f"no {wf} run on {commit[:8]}"
+            elif not concl:
+                yield gid, g["title"], MISSING, f"{wf} ran on {commit[:8]} but produced no job named {job!r}"
+            elif "success" in concl:
+                yield gid, g["title"], PASS, f"{job} ({wf}) on {commit[:8]}"
+            elif PENDING in concl:
+                yield gid, g["title"], PENDING, f"{job} is still running"
+            else:
+                yield (gid, g["title"], FAIL,
+                       f"{job}: {', '.join(sorted(set(concl)))}; the full test suite has no "
+                       f"successful run on {commit[:8]}")
 
         elif kind == "github-check-all":
             # One gate, many named check runs. Every one must pass, and a
