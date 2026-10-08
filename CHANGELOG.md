@@ -12,419 +12,144 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.8.3] Eyrie (2026-10-06)
 
-**0.8.0, 0.8.1 and 0.8.2 were not released.** Each was tagged and built into
-a draft release, and none was published.
+This is the first published release of the 0.8 line. If you run 0.7.1, this
+section lists everything that changes for you. Versions 0.8.0, 0.8.1 and
+0.8.2 were built and tested but never published, so there is nothing to
+install between 0.7.1 and 0.8.3.
 
-- **0.8.0** and **0.8.1** stopped for the reasons given in the `0.8.2`
-  section.
-- **0.8.2** was stopped by its documentation review. The review found
-  operator procedures that would damage a running install or report success
-  without proving it. It also found security and compliance claims the code
-  does not support, and a support policy that named a release that will never
-  ship (CP `bugs/OW-105`). The packages shipped no third-party notices or
-  license texts, and the SBOMs did not list the web UI's dependencies (CP
-  `bugs/OW-110`).
+### Before you upgrade
 
-Under the release policy the `v0.8.0`, `v0.8.1` and `v0.8.2` tags and their
-drafts stay where they are, unchanged, as the record of those candidates.
-This release carries every fix from all three. Nothing is inherited from any
-of them: every gate runs again against this build.
+- **Plan for everyone to sign in again.** The upgrade ends every browser
+  session and refresh token once. API tokens (`owk_`) keep working.
+- **Replace API tokens that have no owner.** They stop working after the
+  upgrade. List them before you upgrade:
+  `SELECT id, name, prefix FROM api_tokens WHERE created_by IS NULL AND revoked_at IS NULL;`
+- **Upgrade `openwatch` and `kensa-rules` in one transaction.** The package
+  manager now refuses a `kensa-rules` upgrade that the installed `openwatch`
+  cannot load.
+- **Restart the service after the upgrade, then compare its rules.** Follow
+  the upgrade procedure through Step 8 before you run a scan. Until the
+  restart, the service can keep serving rules the upgrade removed.
+- **Send the CSRF token when an API client signs out with cookies.**
+  `POST /api/v1/auth/logout` now answers `403 authz.csrf_invalid` without the
+  `X-CSRF-Token` header that matches the `XSRF-TOKEN` cookie.
+- **Use a signed-in session, not an API token, for self-service routes.**
+  `GET` and `PATCH /api/v1/auth/me`, password change, MFA enrollment and
+  verification, user preferences and the notification feed now answer
+  `403 auth.api_token_not_allowed` to an API token.
+- **Check scripts that read compliance scores.** The single-host score is now
+  computed by the server, a group average is an object instead of a number,
+  and any score can be empty (`null`) when no rule produced a verdict.
+- **Check scripts that export the audit log.** An unknown query parameter
+  now returns `400` instead of exporting everything, and downloading the log
+  now requires the `audit:export` permission.
+- **Expect some hosts to show "never scanned" until their next scan.** This
+  affects hosts whose results predate scan history.
+- **Read the full rollback steps before you start.** A rollback to 0.7.1
+  restores the backup the upgrade takes. Reinstalling the old package alone is
+  not enough.
 
-The OpenWatch binary has no code change since 0.8.2; this release changes
-documentation, packaging and the release tooling. The changes since 0.8.0
-are in the `0.8.1` and `0.8.2` sections and in this one. The release notes,
-upgrade notes and known limitations for the 0.8 line are in the `0.8.0-rc.6`
-section, and the `0.8.2` upgrade notes also apply.
+0.7.1 stops being supported when this release is published. `SECURITY.md`
+lists the tested upgrade path.
 
-**Upgrade notes.** Read these before upgrading.
+### Security
 
-- **This release ends support for 0.7.1.** Once 0.8.3 is published, it is the
-  only supported release, and security fixes target it alone. Upgrade from
-  0.7.1 promptly. `SECURITY.md` gives the tested upgrade path and its
-  precautions.
-- **Follow the upgrade procedure through Step 8.** The upgrade from 0.7.x
-  still signs everyone out once (migration 0065), and the service must be
-  restarted and its rules compared with the installed rules before any scan
-  (CP `bugs/OW-095`).
-- **Both packages now install license files.** `/usr/share/licenses/openwatch/`
-  holds `LICENSE`, `THIRD-PARTY-NOTICES.md`, `THIRD-PARTY-LICENSES.txt` and
-  `license-manifest.json`. The RPM marks them as license files.
-
-**Known limitations.** These ship in this release, in addition to those in
-the `0.8.0-rc.6` section. The guides now state each one.
-
-- **`ops_lead` cannot act on alerts.** The role is granted
-  `alert:acknowledge` and `alert:resolve`, but every alert action checks
-  `alert:write`, which only `security_admin` and `admin` hold. An `ops_lead`
-  user gets `403`. (CP `bugs/OW-107`)
-- **`setup --listen-port` does not change the service port.** It opens the
-  firewall and runs its checks for the new port, but the service still
-  listens on 8443. `setup --db-mode existing` creates and checks everything
-  through the local PostgreSQL socket, so it does not work against a remote
-  database. The installation guide gives the supported way to do each.
-  (CP `bugs/OW-108`)
-- **A scan has no time limit.** The specified 600-second per-scan timeout is
-  not implemented, so a scan stuck on one host holds that host's scan lock
-  until it ends. (CP `bugs/OW-109`)
-- **The SBOMs list the web UI's dependencies from the lockfile.** Each
-  openwatch SBOM is complete against the runtime entries of the frontend
-  lockfile. It does not prove which JavaScript ships, because the build drops
-  unused code. Only the two bundled fonts are verified file by file against
-  the shipped UI.
+- **Access tokens are bound to the session that issued them.** Signing out,
+  or an administrator ending a session, now also ends its access tokens.
+- **Disabled and deleted accounts can't sign in through SSO.** Re-enabling an
+  account also signs it out.
+- **API tokens act only with their own role.** A token can no longer disable
+  its own owner, and it can't review a request its owner opened.
+- **Idempotent requests are cached per caller.** A replayed request can no
+  longer return another user's response.
+- **Two diagnostics routes now require a permission.** An anonymous caller can
+  no longer read the license holder's name from `GET /api/v1/license`.
 
 ### Added
 
-- **Packages ship third-party notices and license texts.** The RPM and the
-  DEB install the notices, OpenWatch's license, the upstream license texts
-  and a source manifest under `/usr/share/licenses/openwatch/`. The notices
-  are generated from `go.mod`, `go.sum` and the frontend lockfile. They now
-  cover every scoped and nested npm package and the bundled Inter and
-  JetBrains Mono fonts (OFL-1.1), which the old file left out. A build fails
-  when the inventory is stale or a runtime license text is missing.
-  (CP `bugs/OW-110`)
-- **The SBOMs list the web UI's npm packages.** Each openwatch binary and
-  package SBOM now carries one component per runtime lockfile entry, with its
-  version, license and dependency edges, and each package SBOM also lists the
-  Go modules of the binary it contains. Every component says what supports
-  it: `lockfile`, or `bundle-files-verified` with the files that matched. The
-  lockfile's SHA-512 is recorded as the hash of the npm download, not of
-  shipped files. (CP `bugs/OW-110`)
+- **Packages install license files.** `/usr/share/licenses/openwatch/` holds
+  OpenWatch's license, the third-party notices, the upstream license texts and
+  a source manifest.
+- **The SBOMs list the web interface's npm packages.** Each SBOM marks which
+  packages come from the lockfile and which files were verified in the shipped
+  interface.
+- **Signed reports carry a `provenance` block.** It records the scoring
+  formula, the engine versions and rule set behind the score, and how many
+  hosts took part. Reports signed before this release keep verifying.
+- **A report verification guide** in `docs/runbooks/REPORT_VERIFICATION.md`.
 
 ### Changed
 
-- **SBOMs are CycloneDX 1.5, from a pinned syft.** The release workflow
-  installed syft's latest version, so the published v0.7.1 and v0.8.0-rc.6
-  SBOMs came out as CycloneDX 1.7 while the specification promises 1.5. The
-  workflow now installs syft 1.54.0, checks its download against a pinned
-  hash, and requests CycloneDX 1.5. Every SBOM is checked against the 1.5
-  schema before release. Published SBOMs are not changed. (CP `bugs/OW-111`)
-- **Only the latest published stable release is supported.** `SECURITY.md`
-  said support would move to 0.8.x when 0.8.0 shipped. Support now moves to
-  each stable release when it is published, and earlier releases stop being
-  supported. Unpublished drafts and release candidates are not supported
-  releases. It also lists the tested upgrade path by version, and states
-  that a 0.x release can need significant migration work. (CP `bugs/OW-105`)
+- **Kensa 0.10.0** and its `kensa-rules` 0.10.0 rule set.
+- **Only the latest published stable release is supported.**
+- **SBOMs are CycloneDX 1.5**, made by a pinned version of syft.
+- **A skipped rule shows as "No verdict"**, not as "not applicable".
+- **The API returns a JSON error body for every error**, and each operation
+  states the permission it requires.
+- **A compliance change is not shown across a scoring-formula change.**
+
+### Removed
+
+- **Quotas**, which were never enforced.
+- **The `license_gated` field** from `GET /api/v1/auth/permissions:registry`.
 
 ### Fixed
 
-- **The session-based scan check could not sign out on 0.8.0-rc.6 and
-  later.** Sign-out there requires the CSRF token, which the check did not
-  send, so it answered `403`, left its session open and stopped. The check now
-  sends the token, and works on every version from 0.7.0. The versions it
-  covers are now stated as 0.7.0 through 0.8.1. (CP `bugs/OW-106`)
-- **Rotating the credential key per the runbook broke alerting, SSO and
-  queued jobs.** The runbook said the key protects only SSH credentials and
-  MFA secrets. It also encrypts notification channel settings and SSO client
-  secrets, and it signs queued jobs. The runbook now drains the queue first,
-  re-enters every affected secret, and says when a rollback is still clean.
-  (CP `bugs/OW-105`)
-- **The incident runbook missed OpenWatch account changes.** Its queries
-  looked for host operating-system user events. They now look for OpenWatch
-  user, role and API token events. Its database password rotation forced a
-  host and an SSL mode that break a standard install. It now changes only the
-  password, and proves the new one works before saving it. (CP `bugs/OW-105`)
-- **The database runbook called killing idle transactions safe.** A running
-  scan holds its host lock in one. Killing it lets a second scan of the same
-  host start. The runbook now says what a kill does and how to spot those
-  connections first. (CP `bugs/OW-105`)
-- **The code-only rollback called itself done on a health check.** It now
-  checks that the schema did not change, installs both previous packages
-  together, restarts, and stops unless the rule library loaded.
-  (CP `bugs/OW-105`)
-- **The migration backup and restore steps could not work.** The backup ran
-  as a user that cannot write its directory. The restore loaded the dump into
-  the live database and named the wrong file. Both now point to the paths and
-  steps the upgrade procedure uses. (CP `bugs/OW-105`)
-- **Runbook commands ran without the database secret.** Commands run as the
-  `openwatch` user did not load `/etc/openwatch/secrets.env`, so they used the
-  wrong connection or failed. They now load it. The maintenance-mode change
-  sent the whole settings response back and was always refused. It now sends
-  only the settings. (CP `bugs/OW-105`)
-- **Several guides claimed behavior the code does not have.** The hardening
-  guide said SSH host keys are checked for strength, and that a FIPS package
-  is published. The compliance guide cited audit events that are never
-  written and append-only storage that nothing enforces. The roles and
-  introduction guides described an approval step that Core does not have. The
-  quick start called a credential-free port check a credential test. Each
-  guide now states what the code does. (CP `bugs/OW-105`)
-- **The report signing key's trust-anchor command printed a wrong value.** It
-  ran `openssl` under `sudo` with a `<( )` input that `sudo` cannot pass on,
-  so `openssl` failed and the pipeline still printed `e3b0c442…b855`, the
-  SHA-256 of empty input. If you recorded that value as your trust anchor,
-  derive it again with the corrected command in the production deployment
-  guide, which prints a value only when every step succeeds. (CP `bugs/OW-105`)
-- **Workers belong on the `serve` host.** The scaling and production guides
-  offered `openwatch worker` for capacity on other hosts. A remediation
-  rollback reads its capture from the local Kensa store, and any process can
-  claim a rollback, so a worker elsewhere would hold captures that the other
-  processes cannot read. The guides now describe workers only on the `serve`
-  host with the same store path, which the worker unit example now sets.
-  (CP `bugs/OW-105`)
-- **More guide corrections.** The API guide no longer lists a user-update
-  route that does not exist, gives the scan list its required `host_id`, and
-  names the ten routes an API token cannot use. The hosts guide points to
-  Reconnect instead of a disabled button and uses a real rule id. The scanning
-  guide describes the Compliance tab's actual filters. The backup guide lists
-  everything the credential key encrypts and states that JWT key rotation ends
-  access tokens only. The database runbook's lock query now shows advisory-lock
-  waits. The upgrade procedure no longer calls `migrate --status` a preview,
-  and the contributor guide's build command works on a fresh clone.
-  (CP `bugs/OW-105`)
+- **A browser left open across the upgrade reaches the sign-in page** instead
+  of an error.
+- **API tokens can create and change hosts, credentials, roles, exceptions,
+  remediation requests, alerts and report schedules.** Most of these failed
+  for tokens before.
+- **The audit log names who acted.** Actions taken with an API token are
+  recorded as that token, and changes to hosts, credentials and users name the
+  caller, not the changed object. Rows written before this release are not
+  corrected.
+- **Creating or revoking an API token is audited**, and a license denial
+  records who was denied.
+- **Errors name the real cause.** Assigning a role, and creating an SSO
+  provider or an API token, report "unknown role" or "invalid parameters" only
+  when that is the cause.
+- **If a signed report failed verification with the previous guide, verify it
+  again.** The guide requested the PDF instead of the JSON face, so a genuine
+  report could look altered.
+- **Drift alerts fire, and custom roles grant their permissions.**
+- **A rollback proves the rule library loaded** before it reports success.
+- **If you recorded a report-signing trust anchor** with the command in the
+  previous production deployment guide, derive it again with the corrected
+  command. The old command could print `e3b0c442…b855`, which is not a key.
+- **Run `openwatch worker` only on the `serve` host**, with the same Kensa
+  store path. A worker on another host keeps remediation captures that a
+  rollback can't read.
+- **Operator runbooks were corrected.** Rotating the credential key now
+  re-enters every secret it protects, including notification channels and SSO
+  client secrets. Incident queries find OpenWatch account changes. The backup,
+  restore, maintenance and database steps now run as written. A restore or
+  rollback to 0.7.1 is checked by signing in, running one scan and signing out.
+- **The guides describe what OpenWatch does today.** This covers host-key
+  checks, FIPS builds, remediation approval, audit evidence, API routes and
+  the Compliance tab.
 
-## [0.8.2] Eyrie (2026-10-04)
+### Known limitations
 
-**0.8.0 and 0.8.1 were not released.** Each was tagged and built into a
-draft release, and neither was published.
-
-- **0.8.0** was stopped by its upgrade test. After the upgrade, a browser
-  that still held an old session could not load any page, including sign-in,
-  until its cookies were cleared by hand (CP `bugs/OW-090`).
-- **0.8.1** carried that fix, and was stopped by defects its own verification
-  found. A scan started with an API token answered `500` while the scan ran
-  unattributed (CP `bugs/OW-097`). Measuring the other handlers then found
-  that most writes failed for API tokens, and that a token could disable its
-  own owner (CP `bugs/OW-098`). The audit trail also recorded the wrong actor
-  (CP `bugs/OW-099`, `bugs/OW-100`), and API token issuance was not audited
-  (CP `bugs/OW-101`).
-
-Under the release policy the `v0.8.0` and `v0.8.1` tags and their drafts
-stay where they are, unchanged, as the record of those candidates. This
-release carries every fix from both. Nothing is inherited from either: every
-gate runs again against this build.
-
-The changes since 0.8.0 are in the `0.8.1` section and in this one. The
-release notes, upgrade notes and known limitations for the 0.8 line are in
-the `0.8.0-rc.6` section; they apply to this release as well.
-
-**Upgrade notes.** Read these before upgrading.
-
-- **Restart the service after the upgrade, then compare its rules with the
-  installed rules.** The RPM package starts the service while the outgoing
-  `kensa-rules` files are still on disk, and the service loads its rules
-  once, at startup. On a RHEL 9 host upgraded from 0.7.1, the running service
-  served two rules that `kensa-rules` 0.10.0 removed, with no warning, until
-  it restarted. The upgrade procedure's Step 8 restarts the service, proves
-  the rule library loaded, and compares the served rules with the installed
-  rules by ID. Only an RPM install was measured. Whether scans run before the
-  restart use the removed rules was not measured, so treat scans, reports and
-  scores from that window as unverified. (CP `bugs/OW-095`)
-- **API tokens now succeed on the writes that failed for them.** A token's
-  permissions still come only from its own role. A token now gets `403
-  auth.api_token_not_allowed` from the self-service endpoints listed under
-  Changed.
-- **Audit rows from earlier releases are not repaired.** The limits are
-  stated under each audit fix below.
-
-### Fixed
-
-- **A scan started with an API token answered 500, and the scan ran anyway.**
-  `POST /api/v1/hosts/{id}/scans` recorded the token's own id as the
-  requester. That column only accepts a user, so the insert failed. The job
-  was already queued, so the worker ran the scan and recorded it as
-  scheduled, with no requester and no `scan.queued` event. A caller that
-  retried could start a second scan. The requester is now the token's owner,
-  and the audit event names the token as the actor and the owner as
-  `requested_by`. The job and its run record are now written together, so a
-  failed request leaves no queued work. Measured on 0.7.1; 0.8.1 has the
-  same code. (CP `bugs/OW-097`)
-- **An API token could disable its own owner.** The guard that stops an
-  admin from disabling their own account compared the caller's id with the
-  target. A token's id is never its owner's, so the guard did not apply,
-  and the owner's admin-role token could lock the owner out. The guard now
-  compares the token's owner. (CP `bugs/OW-098`)
-- **Most writes failed for API tokens.** Fifteen endpoints recorded the
-  token's own id where only a user id fits, so they answered 400 or 500 for
-  a valid request. They include creating hosts and credentials, assigning
-  roles, the auth policy, SSO providers, creating tokens, compliance
-  exceptions, remediation requests and reviews, alert acknowledge and
-  resolve, and report schedules. They now record the token's owner and
-  succeed. The audit actor is still the token. A token's permissions still
-  come only from its own role, never from its owner's. (CP `bugs/OW-098`)
-- **Separation of duties now covers API tokens.** A request opened through a
-  user's session or any of their tokens cannot be reviewed through that
-  user's session or any of their tokens. Before this fix, only a database
-  error stopped a token from approving its owner's request.
-  (CP `bugs/OW-098`)
-- **Three errors named the wrong cause.** Assigning a role answered "unknown
-  role" for any failed reference. Creating an SSO provider or an API token
-  answered "invalid parameters" for any failed insert. Each now reports
-  that only for an unknown role. (CP `bugs/OW-098`)
-
-- **Fourteen audit events named the changed object as the actor.** Events for
-  creating, changing or deleting a host, a credential or a user account, and
-  for assigning a role, recorded the id of that host, credential or user as
-  the actor. The person or token that made the change was not recorded at
-  all. Creating a custom role was also logged as a role assignment. Each event
-  now names the caller as the actor (`user` for a signed-in user, `api_key`
-  and the token's id for an API token), puts the changed object in the
-  resource fields, and role creation has its own event, `authz.role.created`.
-  A failed sign-in is now recorded with an anonymous actor instead of a user
-  named "anonymous". (CP `bugs/OW-099`)
-
-  **Rows written before this fix are not repaired.** In `host.created`,
-  `host.updated`, `host.deleted`, `credential.created`, `credential.updated`,
-  `credential.deleted`, `admin.user.created`, `admin.user.deleted`,
-  `authz.role.assigned` and `authz.role.removed` rows from earlier versions,
-  `actor_id` holds the id of the changed object, not of whoever acted, so
-  those rows do not reliably say who made the change. This release does not
-  rewrite them, and OpenWatch does not try to work out who acted.
-- **Audit filters and exports missed what API tokens did.** Many events
-  recorded an API token as `actor_type` `user`, so filtering the audit log or
-  its export on `api_key` returned nothing for a token's actions. This
-  affected system configuration, scan start, report generation and schedules,
-  remediation execute and rollback, permission denials and the diagnostics
-  echo. Exception, remediation and alert events went further: a token's action
-  was recorded as the person who owns the token. Each event now names the
-  caller as itself: `api_key` and the token's id for a token, `user` for a
-  signed-in user. The owner stays in the request's requester or reviewer
-  fields. (CP `bugs/OW-100`)
-
-  **Rows written before this fix are not repaired.** In earlier releases, an
-  action an API token took through the events above was recorded with
-  `actor_type` `user`. Nothing in those rows says the caller was a token, so
-  they cannot be told apart from a person's actions, and this release does not
-  rewrite them. Recording a token's action as its owner happened only in
-  unreleased builds.
-
-  **Remediation jobs queued before the upgrade keep the old attribution.** A
-  job's actor type now travels in its signed payload. A job queued before the
-  upgrade has none, so when it finishes it is recorded as `user`, even if an
-  API token queued it. OpenWatch does not work out afterward that a token
-  queued it.
-
-- **Creating or revoking an API token left no audit record.** Both now write
-  one: `auth.api_token.issued` and `auth.api_token.revoked`. Each names who
-  did it. A signed-in user is recorded as that user. Another API token is
-  recorded as that token, not as its owner. Each event records the token's
-  name, role, expiry and the short prefix the token list already shows. It
-  never records the token itself or its hash. Revoking a token that is
-  already revoked, or that does not exist, still answers 204 and records
-  nothing, because nothing changed. Tokens created or revoked before this
-  fix have no audit record, and this fix does not create records for them.
-  For those tokens, the only record of issuance is the `created_by` and
-  `created_at` columns of the `api_tokens` table. (CP `bugs/OW-101`)
-- **License denials did not say who was denied.** A denied feature was
-  recorded as a user with no id, for every caller. Denials from callers
-  sharing one connection could also merge into one event. Each denial now
-  names the signed-in user, or the API token that made the request. A caller
-  who is not signed in is recorded as anonymous, as before, with the
-  address it came from. (CP `bugs/OW-101`)
-
-### Changed
-
-- **Self-service endpoints refuse API tokens with 403.** `GET` and
-  `PATCH /auth/me`, `mfa:enroll`, `mfa:verify`, `password:change`, `GET` and
-  `PATCH /users/me/preferences`, and the three notification-feed endpoints
-  now answer `403 auth.api_token_not_allowed` to an API token. They act on a
-  signed-in user's own account or inbox, and a token is not that user.
-  Before, they answered 401 `auth.required` (which reads as a bad
-  credential), 503 on `mfa:verify`, or an empty feed. Sessions are not
-  affected. (CP `bugs/OW-098`)
-
-- **A restore or rollback to 0.7.1 is now verified with a user session.** On
-  0.7.1 and 0.8.1, a scan started with an API token answers `500` even though
-  the scan runs (CP `bugs/OW-097`), so the backup guide's scan check could not
-  pass there. The backup guide adds a scan check that signs in as a user, runs
-  one scan, and signs out. Only a `204` from sign-out followed by a `401` for
-  the same session cookie proves the sign-out; a request that gets no answer
-  never counts. It prints `SCANNED` only when the scan passed and the sign-out
-  is proven. A passing scan with an unproven sign-out prints the scan's result
-  on its own line, then stops with exit `2`. A sign-in that sets a session
-  cookie and then times out or breaks off is still signed out. A sign-in
-  that gets no answer and leaves no cookie is reported as unknown, never as
-  "no session". The password goes from a root-only file to `curl` on
-  standard input, never onto a command line. The upgrade guide's rollback
-  steps now point a rollback to 0.7.1 to this check. The previous version
-  printed `SCANNED` with a proven sign-out on a real 0.7.1 host on
-  2026-10-02, but also printed a false "did not finish normally" line on a
-  normal sign-in, because it read a status the scan start had overwritten.
-  This version keeps the sign-in's status in its own variable, and is
-  tested against a stand-in server only. (CP `bugs/OW-094`, `bugs/OW-097`)
-- **The upgrade procedure now restarts the service and compares its rules
-  with the installed rules.** A new Step 8 runs the backup guide's rule
-  library check, which restarts the service, then compares the rule IDs the
-  service serves with the IDs of the installed rule files. It prints `MATCH`
-  only when they are equal, and stops otherwise. The quick upgrade, the
-  post-upgrade checklist and the release runbook's upgrade path place it
-  before any scan and before the upgrade is called done. The comparison block
-  is tested against a stand-in server only; it has not yet been run against a
-  real OpenWatch service. (CP `bugs/OW-095`)
-- **The session-based scan check now also covers 0.8.0-rc.6.** The backup
-  guide and the upgrade rollback steps named only 0.7.1 and 0.8.1. The
-  published 0.8.0-rc.6 pre-release has the same scan handler, so a scan
-  started there with an API token also answers `500`. This is established by
-  source inspection, not by running rc.6; the `500` was reproduced on 0.7.1.
-  (CP `bugs/OW-097`)
-
-## [0.8.1] Eyrie (2026-10-01)
-
-**0.8.0 was not released.** `v0.8.0` was tagged and built into a draft
-release, and it was never published. Its upgrade test found that after the
-upgrade to 0.8.0, a browser that still held an old session could not load any
-page, including sign-in, until its cookies were cleared by hand (CP
-`bugs/OW-090`). Under the release policy the `v0.8.0` tag and its draft stay
-where they are, unchanged, as the record of that candidate. This release
-carries the fix, and nothing is inherited from 0.8.0: every gate runs again
-against this build.
-
-The changes since 0.8.0 are the fixes below. The release notes, upgrade notes
-and known limitations for the 0.8 line are in the `0.8.0-rc.6` section; they
-apply to this release as well. Upgrading from 0.7.x still signs everyone out
-once (migration 0065), and a browser left open across the upgrade now reaches
-the sign-in page on its own.
-
-### Fixed
-
-- **After an upgrade, a browser with an old session could not reach the sign-in page.**
-  The upgrade to 0.8.0 ends every session. A browser that still held the
-  old cookies got a raw JSON error on every page, including sign-in, until
-  its cookies were cleared by hand. Pages now load. A user whose session
-  only timed out is signed back in automatically when their refresh token
-  is still valid; anyone else is sent to sign in. The API still refuses the
-  old session. (CP `bugs/OW-090`)
-- **The report verification guide fetched a PDF instead of the JSON face.** It
-  told readers to request `export?face=json`, but the parameter is `format` and
-  its default is `pdf`. The server ignored the unknown name and returned the
-  PDF, so every genuine signed report failed the hash check and looked
-  tampered with. The guide now uses `format=json` and says how to spot the
-  wrong face. A test now fails when a documented API query parameter is not in
-  the contract. (CP `bugs/OW-091`)
-- **The full rollback steps could not restore the upgrade backup.** They sent
-  operators to `pg_restore`, but the upgrade scriptlet writes a plain-SQL dump
-  with no ownership statements. The upgrade runbook now gives one block that
-  stops on its own at the first failed check. It verifies the dump, keeps the
-  current database as a second copy, restores into a new database as the
-  `openwatch` role with `psql`, and checks the migration version and ownership.
-  Only then does it reinstall both previous packages. When it stops, it says
-  whether package installation had begun, and the runbook gives a separate
-  recovery block for each case. No block drops a database, and none swaps
-  databases back once installation has begun. A test runs every block from
-  the runbook against a real PostgreSQL server, with failures injected at each
-  phase. (CP `bugs/OW-092`)
-- **A rollback could leave every scan failing while health said healthy.**
-  The package scriptlet starts the service while the newer rule files are
-  still on disk, and the previous engine then fails to load its rules. The
-  rollback block and each recovery block now restart the service and stop
-  unless the rule library actually loaded. None prints its success line
-  before that is proven. (CP `bugs/OW-094`)
-- **Several runbooks called a restart or a restore done on a health check
-  alone.** Health answers `healthy` even when the Kensa rule library failed to
-  load and every scan fails. The backup and recovery guide now has two checks
-  that stop on any failure: one restarts the service and proves the rule
-  library loaded, and one runs a scan end to end. A restore, a rebuild on a
-  new host, and the restart steps in the secret rotation, service-down,
-  high-CPU, database and security-incident runbooks now point to them. A bad
-  input stops a check without touching the service, and a failed scan never
-  stops the service. The checks use the same request timeouts as the upgrade
-  rollback. (CP `bugs/OW-094`)
-
-## [0.8.0] Eyrie (2026-09-29)
-
-General-availability release of the 0.8 line. The only change from
-`0.8.0-rc.6` is this version. Read the `0.8.0-rc.6` section below for the
-release notes, the upgrade notes and the known limitations. The sections for
-earlier candidates record what each one changed. Nothing is inherited from any
-candidate: every gate runs again against this build.
+- **Changing your own password doesn't sign out your other sessions.** Ask an
+  administrator to reset it to end them.
+- **Settings shows only the current session.**
+- **A Bearer-only sign-out doesn't revoke the access token.** It expires 30
+  minutes after issue.
+- **Install `kensa-rules` only from the OpenWatch release.** A package of the
+  same name published by Kensa is not checked against your `openwatch`.
+- **Drift doesn't tell a rule-set update from a host change.**
+- **Scan variable values aren't type checked when saved.**
+- **`ops_lead` can't act on alerts.** Assign `security_admin` instead.
+- **`setup --listen-port` doesn't change the service port**, and
+  `setup --db-mode existing` doesn't work with a remote database. The
+  installation guide gives the supported steps.
+- **A scan has no time limit.**
+- **The SBOMs list the web interface's packages from the lockfile.** They
+  don't prove which JavaScript ships. Only the two bundled fonts are verified
+  file by file.
+- **The Compliance tab doesn't show why a rule produced no verdict.** The scan
+  records the reason. The API returns it as `skip_reason`.
 
 ## [0.8.0-rc.6] Eyrie (2026-09-27)
 
