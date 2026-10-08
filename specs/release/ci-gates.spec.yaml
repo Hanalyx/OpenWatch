@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.20.0"
+  version: "1.20.1"
   status: approved
   tier: 1
 
@@ -1080,6 +1080,10 @@ spec:
             nested_visible: true
           - pattern: '/openwatch'
             root_probe: openwatch
+          # Release attestations are internal evidence; .gitkeep is the one
+          # tracked file there (TestRepoHygiene_AttestationsAreNeverTracked).
+          - pattern: '/release/attestations/*'
+            root_probe: release/attestations/probe.toml
         planted_guide: docs/runbooks/examples/ac14-probe/NESTED_GUIDE.md
         # pragma: allowlist secret -- a PROBE PATH, not a secret. The name has
         # to be one the security rules match, or the test would prove nothing.
