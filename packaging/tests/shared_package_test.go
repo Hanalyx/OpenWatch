@@ -241,9 +241,24 @@ func (p *sharedPackage) verify(appDir string) error {
 	return nil
 }
 
-// sourceFingerprint hashes what the package is built from: the commit, every
-// uncommitted change to tracked files, the content of untracked files that
-// are not ignored, and the build-setting environment.
+// sourceFingerprint hashes the repository state the package is built from,
+// and the build settings (CP bugs/OW-115 defines the contract):
+//
+//  1. the HEAD commit;
+//  2. every uncommitted change to tracked paths, which includes a tracked
+//     symlink's target text;
+//  3. every untracked entry that is not ignored, as its path plus
+//     untrackedEntry's description of it: a regular file by its permission
+//     bits and content, a symlink by its stored target text;
+//  4. the build-setting environment.
+//
+// A symlink is link metadata: retargeting it moves the fingerprint, but the
+// link is never followed. Content reached through a link is covered only when
+// the target is itself a repository path listed above. A target outside the
+// repository or under an ignored path is an external build input, like the
+// module cache, node_modules, the toolchains and ignored generated files. The
+// fingerprint does not cover external inputs, and a change to one during a
+// test run is not detected.
 func sourceFingerprint(appDir string) (string, error) {
 	h := sha256.New()
 	git := func(args ...string) ([]byte, error) {
@@ -276,17 +291,45 @@ func sourceFingerprint(appDir string) (string, error) {
 		if len(name) == 0 {
 			continue
 		}
-		sum, err := fileSHA256(filepath.Join(appDir, string(name)))
+		entry, err := untrackedEntry(filepath.Join(appDir, string(name)))
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(h, "%s\x00%s\x00", name, sum)
+		fmt.Fprintf(h, "%s\x00%s\x00", name, entry)
 	}
 	for _, k := range buildSettingEnv {
 		v, ok := os.LookupEnv(k)
 		fmt.Fprintf(h, "%s\x00%t\x00%s\x00", k, ok, v)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// untrackedEntry describes one untracked path without following a symlink:
+// "symlink:<target text>" for a link, whatever it points at and whether or
+// not the target exists, and "file:<perm>:<sha256>" for a regular file.
+// Anything else fails, so an entry the contract does not describe cannot
+// pass unhashed.
+func untrackedEntry(path string) (string, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	switch mode := info.Mode(); {
+	case mode&os.ModeSymlink != 0:
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "", err
+		}
+		return "symlink:" + target, nil
+	case mode.IsRegular():
+		sum, err := fileSHA256(path)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("file:%o:%s", mode.Perm(), sum), nil
+	default:
+		return "", fmt.Errorf("untracked %s is a %v, which the source fingerprint does not describe", path, mode.Type())
+	}
 }
 
 // makeTarget runs one make target and returns its stdout.

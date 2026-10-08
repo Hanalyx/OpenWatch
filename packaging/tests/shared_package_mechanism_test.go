@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -271,5 +272,132 @@ func TestSharedPackage_FingerprintTracksSourceAndSettings(t *testing.T) {
 			t.Errorf("%s: fingerprint did not change", s.name)
 		}
 		prev = got
+	}
+}
+
+// CP bugs/OW-115. A symlink is link metadata: the fingerprint records its
+// target text and never follows it. Directory, file and dangling links all
+// fingerprint, retargeting any of them moves the fingerprint, and content
+// reached only through a link outside the repository does not, which is the
+// stated external-input limitation.
+func TestSharedPackage_FingerprintTreatsSymlinksAsLinks(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	repo := t.TempDir()
+	outside := t.TempDir() // external build inputs live here
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := func(target, name string) {
+		t.Helper()
+		p := filepath.Join(repo, name)
+		os.Remove(p)
+		if err := os.Symlink(target, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, k := range buildSettingEnv {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+
+	write(filepath.Join(outside, "modules", "a.js"), "a\n")
+	write(filepath.Join(outside, "modules2", "a.js"), "a\n")
+	write(filepath.Join(outside, "tool.conf"), "x=1\n")
+	write(filepath.Join(outside, "other.conf"), "x=1\n")
+
+	run("init", "-q")
+	write(filepath.Join(repo, ".gitignore"), "/dist/\n")
+	write(filepath.Join(repo, "main.go"), "package main\n")
+	run("add", ".")
+	run("commit", "-q", "-m", "base")
+	link("main.go", "tracked-link")
+	run("add", "tracked-link")
+	run("commit", "-q", "-m", "tracked link")
+
+	// Untracked, not ignored: a directory link, a file link, a dangling link,
+	// and a link to an untracked repository file.
+	link(filepath.Join(outside, "modules"), "node_modules")
+	link(filepath.Join(outside, "tool.conf"), "tool.conf")
+	link(filepath.Join(outside, "missing"), "gone")
+	write(filepath.Join(repo, "data.txt"), "v1\n")
+	link("data.txt", "data-link")
+
+	fp := func() string {
+		t.Helper()
+		s, err := sourceFingerprint(repo)
+		if err != nil {
+			t.Fatalf("fingerprint: %v", err)
+		}
+		return s
+	}
+	base := fp()
+	if again := fp(); again != base {
+		t.Fatalf("fingerprint is not stable with symlinks present: %s then %s", base, again)
+	}
+
+	// External content reached only through a link is not repository state.
+	write(filepath.Join(outside, "tool.conf"), "x=2\n")
+	write(filepath.Join(outside, "modules", "b.js"), "b\n")
+	if got := fp(); got != base {
+		t.Error("changing content outside the repository, reached through a link, moved the fingerprint; " +
+			"the contract records the link, not what it reaches")
+	}
+
+	steps := []struct {
+		name   string
+		change func()
+	}{
+		{"directory link retargeted", func() { link(filepath.Join(outside, "modules2"), "node_modules") }},
+		{"file link retargeted", func() { link(filepath.Join(outside, "other.conf"), "tool.conf") }},
+		{"dangling link retargeted", func() { link(filepath.Join(outside, "missing2"), "gone") }},
+		{"in-repository link target edited", func() { write(filepath.Join(repo, "data.txt"), "v2\n") }},
+		{"tracked link retargeted", func() { link(".gitignore", "tracked-link") }},
+		{"untracked file made executable", func() {
+			if err := os.Chmod(filepath.Join(repo, "data.txt"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"link replaced by a file", func() {
+			os.Remove(filepath.Join(repo, "gone"))
+			write(filepath.Join(repo, "gone"), filepath.Join(outside, "missing2"))
+		}},
+	}
+	prev := fp()
+	for _, s := range steps {
+		s.change()
+		got := fp()
+		if got == prev {
+			t.Errorf("%s: fingerprint did not change", s.name)
+		}
+		prev = got
+	}
+
+	// An entry the contract does not describe fails rather than passing
+	// unhashed. git does not list a named pipe as untracked, so this guards
+	// untrackedEntry itself rather than a path the fingerprint reaches today.
+	pipe := filepath.Join(t.TempDir(), "pipe")
+	if err := syscall.Mkfifo(pipe, 0o644); err != nil {
+		t.Skipf("mkfifo: %v", err)
+	}
+	if _, err := untrackedEntry(pipe); err == nil {
+		t.Error("untrackedEntry described a named pipe; an entry outside the contract must fail closed")
 	}
 }
