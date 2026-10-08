@@ -129,6 +129,11 @@ func TestFIPS_LinksFIPSModule(t *testing.T) {
 // serves /health with the same response shape as the non-FIPS binary.
 func TestFIPS_TLSHandshakeAndHealth(t *testing.T) {
 	t.Run("release-fips-build/AC-05", func(t *testing.T) {
+		// The build gate comes first: this test needs a native build, so
+		// without one it skips for that reason whether or not a database
+		// is configured. The documentation path runs without both and
+		// accepts only the build reason (release-ci-gates C-18).
+		requirePackagingBuild(t)
 		dsn := os.Getenv("OPENWATCH_TEST_DSN")
 		if dsn == "" {
 			t.Skip("set OPENWATCH_TEST_DSN to run FIPS runtime test")

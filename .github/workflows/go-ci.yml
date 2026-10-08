@@ -16,11 +16,17 @@
 #                  vet, lint, vuln, the Specter gate, the race tests of every
 #                  other package, vitest
 #   server-tests   internal/server alone under -race, with its own budget
+#   docs-tests     the documentation path (C-18): packaging/tests alone,
+#                  without native builds, for a change that touches no code,
+#                  spec, tooling or CI path. Targeted validation, not full
+#                  coverage.
 #   gates          "Quality + security gates", the only required check. It
-#                  needs all three, always runs, and fails unless each needed
-#                  job ended the way the change requires. It also runs the
-#                  release checker tests, and specter ingest and sync over
-#                  both test streams.
+#                  needs all four, always runs, and fails unless each needed
+#                  job ended the way the change requires. It also runs every
+#                  scripts/test_*.py; specter ingest and sync over both test
+#                  streams on the full path; and, on the documentation path,
+#                  a check of that job's results and a partial ingest that
+#                  rejects failed criteria without claiming coverage.
 #
 # The required check must stay meaningful. GitHub treats a job skipped
 # because a dependency failed as passing a required check, so the gates job
@@ -31,12 +37,11 @@
 
 name: Go CI
 
-# Triggers on every push/PR to main. The changes job detects whether the
-# change touches Go-relevant paths; if not, the two test jobs are skipped and
-# the gates job passes, so the required-status-check ("Quality + security
-# gates") is present even for doc-only / meta-only PRs. This avoids the "missing
-# required check" bootstrap problem
-# described in .github/BRANCH_MANAGEMENT.md under Troubleshooting.
+# Triggers on every push/PR to main. The changes job selects the full
+# pipeline or the documentation path, and the gates job reports "Quality +
+# security gates" on every change either way. This avoids the "missing
+# required check" bootstrap problem described in .github/BRANCH_MANAGEMENT.md
+# under Troubleshooting.
 on:
   push:
     branches: [main]
@@ -58,41 +63,72 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Detect whether this push/PR touches Go-relevant paths (or the
-      # workflow file itself). For doc/meta-only changes the job
-      # skips both test jobs — this keeps "Quality + security
-      # gates" present as a green check on every PR.
+      # Selects one of two paths for this change (release-ci-gates C-18):
+      #
+      #   go=true   the full pipeline: every test, full Specter ingest and the
+      #             coverage thresholds. Any change to code, specs, tooling or
+      #             CI, and any mixed change.
+      #   go=false  the documentation path: targeted validation by the tests
+      #             that read documents (packaging/tests, the Python checks).
+      #             Only a change that touches nothing in the pattern below.
+      #
+      # It fails closed. An unknown event, an unusable base, a failed diff,
+      # an empty change list or a failed match selects the full pipeline, so
+      # an error can never produce a passing skip. --no-renames lists both
+      # sides of a rename and every deleted path, so moving a code file into
+      # docs/ still selects the full pipeline.
+      #
+      # The two pin files govern gates this job validates through
+      # packaging/tests. A pin-only change used to match nothing here, skip
+      # the Go suite, and report green having checked nothing: PR #839 merged
+      # that way and left main red on AC-11. Keep them in this pattern;
+      # release-ci-gates AC-16 reads it from this file and fails if either is
+      # removed.
+      #
+      # The match reads a here-string, not a pipe: under -o pipefail a writer
+      # killed by SIGPIPE after `grep -q` exits early would turn a match into
+      # a failure.
       - id: paths
         name: Detect Go-relevant changes
         working-directory: ${{ github.workspace }}
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
-            changed=$(git diff --name-only "$base" "$head" || git diff --name-only "origin/${{ github.event.pull_request.base.ref }}...HEAD")
-          else
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
-            changed=$(git diff --name-only "$base" "$head" 2>/dev/null || git ls-files)
-          fi
-          # Known limitation, kept as is: a change to CHANGELOG.md alone
-          # matches nothing here and skips the Go suite, including the tests
-          # that validate the changelog (CP bugs/OW-086). The job split in
-          # release-ci-gates C-16 left this pattern unchanged on purpose.
-          #
-          # The two pin files govern gates this job validates through
-          # packaging/tests. A pin-only change used to match nothing here,
-          # skip the Go suite, and report green having checked nothing:
-          # PR #839 merged that way and left main red on AC-11. Keep them in
-          # this pattern; release-ci-gates AC-16 reads it from this file and
-          # fails if either is removed.
-          if echo "$changed" | grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|THIRD-PARTY-NOTICES\.md$|\.github/workflows/go-ci\.yml$)'; then
+          full() {
             echo "go=true" >> "$GITHUB_OUTPUT"
-            echo "Go-relevant changes detected — running full pipeline."
-          else
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "Doc/meta-only change — gate trivially passes."
+            echo "Full pipeline: $1"
+            exit 0
+          }
+          case "$EVENT" in
+            pull_request) base="$PR_BASE"; head="$PR_HEAD"; range="$PR_BASE...$PR_HEAD" ;;
+            push)         base="$PUSH_BEFORE"; head="$PUSH_AFTER"; range="$PUSH_BEFORE..$PUSH_AFTER" ;;
+            *)            full "event '$EVENT' has no change range" ;;
+          esac
+          if [ -z "$base" ] || [ -z "$head" ] || [ -z "${base//0/}" ]; then
+            full "no usable base for '$range'"
           fi
+          if ! changed=$(git diff --name-only --no-renames "$range"); then
+            full "git diff failed for '$range'"
+          fi
+          if [ -z "$changed" ]; then
+            full "no changed paths listed for '$range'"
+          fi
+          echo "Changed paths:"
+          printf '  %s\n' $changed
+          if grep -qE '^(cmd/|internal/|api/|frontend/|specs/|configs/|audit/|auth/|license/|packaging/|scripts/|release/|go\.mod|go\.sum|Makefile|specter\.yaml|sqlc\.yaml|\.golangci\.yml|\.specter-version$|\.doc-style-version$|THIRD-PARTY-NOTICES\.md$|\.github/(workflows|scripts|actions)/)' <<<"$changed"; then
+            full "a code, spec, tooling or CI path changed"
+          else
+            rc=$?
+          fi
+          if [ "$rc" -ne 1 ]; then
+            full "the path match failed (grep exit $rc)"
+          fi
+          echo "go=false" >> "$GITHUB_OUTPUT"
+          echo "Documentation path: targeted validation by the tests that read documents."
 
   checks:
     name: Vet, lint, vuln, Specter gate and race tests (all but internal/server)
@@ -484,9 +520,72 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The documentation path (release-ci-gates C-18). A change that touches no
+  # code, spec, tooling or CI path still changes inputs that tests read:
+  # CHANGELOG.md, README.md, SECURITY.md, the guides and runbooks,
+  # release/gates.toml and the other documents packaging/tests opens. This
+  # job runs that whole package with its documented prerequisites and no
+  # native package builds. It is TARGETED validation, not full coverage;
+  # the full pipeline stays responsible for that. No PostgreSQL: it enables
+  # no test here, since every database test also needs a native build, and
+  # an unexpected database skip fails scripts/check-doc-stream.py.
+  docs-tests:
+    name: Documentation validation (packaging tests, partial)
+    needs: changes
+    if: needs.changes.outputs.go == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      GOFLAGS: -mod=readonly
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.6'
+          cache: true
+          cache-dependency-path: go.sum
+
+      # The embedded spec and the SPA stub the package compiles against.
+      - name: Stage the embedded files
+        run: make internal/server/openapi_embed.yaml internal/server/spa/index.html
+
+      # The whole package, never a list of test names. Native builds stay
+      # off (OPENWATCH_PACKAGING_BUILD unset), and so does the database; the
+      # tests that need either skip with a fixed message, which the gates
+      # job checks against the permitted set.
+      - name: go test (race + json), packaging/tests, documentation path
+        run: |
+          set +e
+          unset OPENWATCH_PACKAGING_BUILD OPENWATCH_TEST_DSN
+          export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
+          go test -race -count=1 -json -timeout 900s ./packaging/tests/ > /tmp/go-test-docs.json
+          EXIT=$?
+          [ "$EXIT" -ne 0 ] && bash scripts/go-test-report.sh "packaging/tests (documentation path)" /tmp/go-test-docs.json
+          echo "go test exit $EXIT"
+          [ "$EXIT" -eq 0 ]
+
+      - name: keep test results for the gates job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-ci-docs-results
+          path: /tmp/go-test-docs.json
+          if-no-files-found: error
+          retention-days: 1
+
   gates:
     name: Quality + security gates
-    needs: [changes, checks, server-tests]
+    needs: [changes, checks, server-tests, docs-tests]
     # always(): this is the only required check, and GitHub counts a job that
     # was skipped because a dependency failed as passing one. Running always
     # and checking every needed result below is what makes a red test job
@@ -511,13 +610,33 @@ jobs:
       # design (see release-status.py's header), and this runner happens to
       # have PyYAML installed, so without -S an accidental third-party import
       # would pass here and fail on a runner that does not.
-      - name: release gate checker tests
+      #
+      # Every scripts/test_*.py runs here, on both paths, found by glob so a
+      # new script cannot be left out (release-ci-gates AC-32). Finding none
+      # is a failure, and so is any script that fails; every script runs
+      # before the step reports.
+      - name: Python test scripts
         run: |
-          python3 -S scripts/test_release_status.py
-          python3 -S scripts/test_specter_gate.py
+          shopt -s nullglob
+          scripts=(scripts/test_*.py)
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "::error::no scripts/test_*.py found; the Python checks did not run"
+            exit 1
+          fi
+          failed=0
+          for s in "${scripts[@]}"; do
+            echo "::group::$s"
+            if ! python3 -S "$s"; then
+              echo "::error::$s failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "ran ${#scripts[@]} Python test scripts"
+          [ "$failed" -eq 0 ]
 
       - name: Set up specter
-        if: needs.changes.outputs.go == 'true'
+        if: needs.changes.outputs.go == 'true' || needs.changes.outputs.go == 'false'
         # The version is DERIVED from the tracked .specter-version file, never
         # written here. An earlier revision declared it in `env:` and then
         # compared the two, which detects drift but is still two places to
@@ -592,10 +711,57 @@ jobs:
           retention-days: 7
 
 
-      # The verdict. A Go change needs both test jobs to have succeeded; a
-      # doc-only change needs both to have been skipped. Anything else
-      # (failure, cancellation, a skip on a Go change, an unset output) fails
-      # the required check.
+      # The documentation path (release-ci-gates C-18). Its results are
+      # partial by construction: packaging/tests only, no native builds. They
+      # are checked as results, not as an upload, then ingested into a FRESH
+      # Specter output and checked for failed criteria. specter sync is not
+      # run on them: the coverage thresholds are global, and partial results
+      # would fail them while proving nothing about the rest.
+      - name: fetch the documentation job's results
+        if: needs.changes.outputs.go == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: go-ci-docs-results
+          path: /tmp
+
+      - name: check the documentation stream
+        if: needs.changes.outputs.go == 'false'
+        run: python3 -S scripts/check-doc-stream.py --stream /tmp/go-test-docs.json
+
+      - name: specter ingest (documentation path, partial)
+        if: needs.changes.outputs.go == 'false'
+        run: |
+          rm -f .specter-results.json
+          if [ -e .specter-results.json ]; then
+            echo "::error::could not remove an earlier .specter-results.json"
+            exit 1
+          fi
+          since="$(date +%s.%N)"
+          specter ingest --go-test /tmp/go-test-docs.json
+          python3 -S scripts/check-specter-partial.py --results .specter-results.json --stream /tmp/go-test-docs.json --since "$since"
+          {
+            echo "### Documentation path: partial validation"
+            echo ""
+            echo "Only packaging/tests ran, without native package builds. Failed criteria are rejected; coverage thresholds are not evaluated here."
+            echo "Full test and coverage enforcement runs on code, spec, tooling and CI changes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload partial specter artifacts
+        if: always() && needs.changes.outputs.go == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: specter-results-partial
+          path: |
+            .specter-results.json
+            /tmp/go-test-docs.json
+          retention-days: 7
+
+      # The verdict. A Go change needs both full-path test jobs to have
+      # succeeded and the documentation job skipped; any other change needs
+      # the documentation job to have succeeded and both full-path jobs
+      # skipped. Anything else (failure, cancellation, a skip on the path
+      # that should run, an unset or unknown verdict) fails the required
+      # check.
       - name: require every needed job
         if: always()
         env:
@@ -603,26 +769,27 @@ jobs:
           GO: ${{ needs.changes.outputs.go }}
           CHECKS: ${{ needs.checks.result }}
           SERVER: ${{ needs.server-tests.result }}
+          DOCS: ${{ needs.docs-tests.result }}
         run: |
-          echo "changes=$CHANGES go=$GO checks=$CHECKS server-tests=$SERVER"
+          echo "changes=$CHANGES go=$GO checks=$CHECKS server-tests=$SERVER docs-tests=$DOCS"
           if [ "$CHANGES" != "success" ]; then
             echo "::error::path detection did not succeed ($CHANGES)"
             exit 1
           fi
           case "$GO" in
-            true)  want=success ;;
-            false) want=skipped ;;
+            true)  want_full=success; want_docs=skipped ;;
+            false) want_full=skipped; want_docs=success ;;
             *)     echo "::error::path detection produced no verdict (go='$GO')"; exit 1 ;;
           esac
-          if [ "$CHECKS" != "$want" ] || [ "$SERVER" != "$want" ]; then
-            echo "::error::with go=$GO both test jobs must be $want: checks=$CHECKS, server-tests=$SERVER"
+          if [ "$CHECKS" != "$want_full" ] || [ "$SERVER" != "$want_full" ] || [ "$DOCS" != "$want_docs" ]; then
+            echo "::error::with go=$GO want checks=$want_full server-tests=$want_full docs-tests=$want_docs; got checks=$CHECKS server-tests=$SERVER docs-tests=$DOCS"
             exit 1
           fi
           echo "all needed jobs ended as required"
 
   # Hanalyx documentation style gate. Runs as its own job on purpose: the
-  # test jobs above are skipped on doc-only changes, so a
-  # step inside it would be skipped exactly when documentation is what
+  # full-path test jobs above are skipped on documentation-only changes, so
+  # a step inside them would be skipped exactly when documentation is what
   # changed. Enforces the prohibited list from the Context Plane at
   # dev/DEVELOPER_DOCUMENTATION_STYLE_GUIDE: em dashes, emojis, AI speak,
   # US English spelling, and a per-file reading level.
