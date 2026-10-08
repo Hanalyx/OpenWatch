@@ -1849,9 +1849,24 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 			t.Error("docs/runbooks/RELEASING.md does not tell the reviewer to leave the " +
 				"attestation untracked while the decision is open")
 		}
-		if !regexp.MustCompile(`(?i)commit the attestation after publication`).MatchString(string(book)) {
-			t.Error("docs/runbooks/RELEASING.md does not defer committing the attestation " +
-				"until after publication, so the audit commit could change the released commit")
+		// Attestations are internal evidence. After publication they are
+		// archived outside the repository and checksummed, never committed.
+		if !regexp.MustCompile(`(?i)archive the attestation internally after publication`).MatchString(string(book)) {
+			t.Error("docs/runbooks/RELEASING.md does not tell the reviewer to archive the " +
+				"attestation internally after publication")
+		}
+		if !strings.Contains(string(book), "sha256sum -c SHA256SUMS") {
+			t.Error("docs/runbooks/RELEASING.md does not verify a checksum manifest over " +
+				"the archived attestations")
+		}
+		for _, re := range []string{
+			`(?i)commit the attestations?\b`,
+			`(?i)git add[^\n]*release/attestations`,
+		} {
+			if loc := regexp.MustCompile(re).FindString(string(book)); loc != "" {
+				t.Errorf("docs/runbooks/RELEASING.md tells the reader to commit an "+
+					"attestation (%q); attestations stay internal", loc)
+			}
 		}
 
 		// The behavior lives in Python. Run it rather than restate it.

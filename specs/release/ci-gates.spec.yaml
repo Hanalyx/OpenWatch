@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.20.1"
+  version: "1.21.1"
   status: approved
   tier: 1
 
@@ -1151,8 +1151,10 @@ spec:
         describe them. It MUST resolve the candidate commit explicitly from the tag
         (`git rev-list -n 1`) and generate the skeleton for that commit, never for a
         branch name or for whatever HEAD happens to be. It MUST keep the attestation
-        untracked while the decision is open and commit it only after publication, so
-        the audit commit cannot change what was released. The GA stage MUST cut its tag
+        untracked while the decision is open, and after publication it MUST archive the
+        attestation in internal storage outside the repository and verify a checksum
+        manifest over it. Attestations are internal evidence: the runbook MUST NOT tell
+        anyone to commit or upload one. The GA stage MUST cut its tag
         with the same version-derived block as a candidate, from the final-version
         commit, and MUST publish through `scripts/release-publish.py` rather than by
         any command that could rebuild or re-upload (C-14). Removing the skeleton

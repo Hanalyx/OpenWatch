@@ -222,9 +222,19 @@ review: a verdict recorded against an RC describes a different commit.
    including a documentation fix found during the review, means a new
    candidate and a new review.
 
-8. **Commit the attestation after publication**, not before. By then the
-   released commit is fixed, so the audit commit that records the evidence
-   cannot change what was released.
+8. **Archive the attestation internally after publication. Never commit it
+   and never upload it.** Attestations are internal evidence. Copy each one
+   to the internal release evidence store, outside the repository, then
+   write a checksum manifest beside them and verify it:
+
+   ```bash
+   sha256sum -- *.toml > SHA256SUMS
+   sha256sum -c SHA256SUMS
+   ```
+
+   Record the store's location and the manifest's checksum in the internal
+   release ledger. The file in `release/attestations/` stays untracked, so
+   nothing about the evidence can change what was released.
 
 The attestation's `tag` is the tag it was performed against. A GA review says
 `v0.8.0`; an RC review says `v0.8.0-rc.N`. Relabeling one as the other would
@@ -286,7 +296,8 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
    is not what was verified: treat every attestation for the tag as stale and
    investigate before announcing.
 
-5. **Commit the attestations** (D1 and the fleet files) after publication.
+5. **Archive the attestations internally** (D1, the fleet files and H1) after
+   publication, as Stage 3b step 8 describes. Never commit or upload them.
 
 ### When a GA candidate fails
 
