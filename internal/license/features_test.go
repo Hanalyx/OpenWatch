@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -249,30 +250,10 @@ func TestIsEnabled_P99Latency(t *testing.T) {
 			_ = IsEnabled(RemediationExecution)
 			durs[i] = time.Since(start)
 		}
-		// Sort ascending for p99 pick.
-		for i := 1; i < n; i++ {
-			for j := i; j > 0 && durs[j-1] > durs[j]; j-- {
-				durs[j-1], durs[j] = durs[j], durs[j-1]
-			}
-			if i > 10 {
-				break // partial sort is enough — full would dominate test time
-			}
-		}
-		// Pick p99 from a small sample; relying on partial-sort above is
-		// brittle. Replace with stdlib sort for a true p99.
-		sortDurations := func(d []time.Duration) {
-			// insertion sort O(n^2) is fine here; this runs once.
-			for i := 1; i < len(d); i++ {
-				v := d[i]
-				j := i - 1
-				for j >= 0 && d[j] > v {
-					d[j+1] = d[j]
-					j--
-				}
-				d[j+1] = v
-			}
-		}
-		sortDurations(durs)
+		// Sort ascending and pick the true p99. The standard library sort is
+		// O(n log n); the insertion sort it replaces was O(n^2) and took
+		// longer than the 100K measured calls themselves.
+		slices.Sort(durs)
 		p99 := durs[int(float64(n)*0.99)]
 		// 50ns is the spec target. Race detector adds ~20x overhead on
 		// hot-path atomic loads; multiplier compensates.
