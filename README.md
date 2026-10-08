@@ -4,7 +4,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Go CI](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml/badge.svg)](https://github.com/Hanalyx/OpenWatch/actions/workflows/go-ci.yml)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://hanalyx.github.io/OpenWatch/)
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://www.hanalyx.com/docs/openwatch/)
 [![GitHub Discussions](https://img.shields.io/github/discussions/Hanalyx/OpenWatch)](https://github.com/Hanalyx/OpenWatch/discussions)
 
 ---
@@ -78,7 +78,7 @@ model. Then three starting points: an **operator** reads
 | Introduction | [docs/guides/INTRODUCTION.md](docs/guides/INTRODUCTION.md) |
 | API contract | [api/openapi.yaml](api/openapi.yaml) (source of truth) |
 | API guide | [docs/guides/API_GUIDE.md](docs/guides/API_GUIDE.md) |
-| Full documentation | [hanalyx.github.io/OpenWatch](https://hanalyx.github.io/OpenWatch/) |
+| Full documentation | [hanalyx.com/docs/openwatch](https://www.hanalyx.com/docs/openwatch/) |
 | Quickstart | [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md) |
 | Production deployment | [docs/guides/PRODUCTION_DEPLOYMENT.md](docs/guides/PRODUCTION_DEPLOYMENT.md) |
 | Security hardening | [docs/guides/SECURITY_HARDENING.md](docs/guides/SECURITY_HARDENING.md) |
