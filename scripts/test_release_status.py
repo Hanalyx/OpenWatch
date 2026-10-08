@@ -17,8 +17,11 @@ already separated from its judgement, so eval_attestation can be driven
 directly with the inputs those functions would have returned.
 """
 
+import contextlib
 import importlib.util
 import os
+import shutil
+import tempfile
 import re
 import subprocess
 import sys
@@ -34,6 +37,21 @@ _spec.loader.exec_module(rs)
 GOOD_SHA = "a" * 64
 OTHER_SHA = "b" * 64
 DIGESTS = {GOOD_SHA: "openwatch-0.7.0-1.x86_64.rpm"}
+
+
+@contextlib.contextmanager
+def attest_dir(files):
+    """Point the checker at a temporary attestation directory holding files."""
+    d = Path(tempfile.mkdtemp(prefix="ow-attest-"))
+    for name, body in files.items():
+        (d / name).write_text(body, encoding="utf-8")
+    saved = rs.ATTEST_DIR
+    rs.ATTEST_DIR = d
+    try:
+        yield d
+    finally:
+        rs.ATTEST_DIR = saved
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def att(**kw):
@@ -471,11 +489,28 @@ class ManifestIsLoadable(unittest.TestCase):
                 self.assertIn(g["ac"], annotated[g["spec"]],
                               f"no test annotates {g['spec']}/{g['ac']}")
 
-    def test_shipped_attestations_parse(self):
-        for a in rs.load_attestations():
+    def test_attestations_load_from_the_directory(self):
+        # The repository tracks no attestation, so the loader is exercised on
+        # files written here rather than on whatever happens to be present.
+        with attest_dir({
+            "b.toml": 'kind = "clean-install"\nartifact_sha256 = "%s"\n' % GOOD_SHA,
+            "a.toml": 'kind = "idempotence"\nartifact_sha256 = "%s"\n' % OTHER_SHA,
+            "notes.txt": "not an attestation\n",
+        }):
+            loaded = rs.load_attestations()
+        self.assertEqual([a["_file"] for a in loaded], ["a.toml", "b.toml"])
+        for a in loaded:
             with self.subTest(f=a["_file"]):
                 self.assertIn("kind", a)
                 self.assertIn("artifact_sha256", a)
+
+    def test_a_missing_directory_loads_nothing(self):
+        saved = rs.ATTEST_DIR
+        rs.ATTEST_DIR = Path(tempfile.mkdtemp()) / "absent"
+        try:
+            self.assertEqual(rs.load_attestations(), [])
+        finally:
+            rs.ATTEST_DIR = saved
 
 
 # ------------------------------------------------- documentation review gate
@@ -966,12 +1001,18 @@ class SkeletonEncodesEveryLegalPath(unittest.TestCase):
 
 
 class OrdinaryAttestationSelection(unittest.TestCase):
-    """The three shipped v0.7 attestations are the reason this matters: two of
-    them share kind and platform and differ only by candidate."""
+    """The v0.7 attestations once tracked here (now archived internally) are the
+    reason this matters: two of them share kind and platform and differ only
+    by candidate."""
 
     RC3 = "1" * 64
     RC4 = "2" * 64
     RPM = "openwatch-0.7.0-1.x86_64.rpm"
+
+    def toml(self, tag, sha):
+        return ('kind = "clean-install"\nplatform = "rhel9"\n'
+                f'tag = "{tag}"\nartifact = "{self.RPM}"\n'
+                f'artifact_sha256 = "{sha}"\nperformed_by = "openwatch-agent"\n')
 
     def shipped(self):
         return [
@@ -1030,8 +1071,14 @@ class OrdinaryAttestationSelection(unittest.TestCase):
         self.assertIn("clean-install-rhel9-aaa-rc4.toml", problem[1])
         self.assertIn("clean-install-rhel9-zzz-rc3.toml", problem[1])
 
-    def test_the_shipped_attestations_are_still_selectable(self):
-        shipped = rs.load_attestations()
+    def test_attestations_loaded_from_files_are_selectable(self):
+        files = {
+            "clean-install-rhel9-zzz-rc3.toml": self.toml("v0.7.0-rc.3", self.RC3),
+            "clean-install-rhel9-aaa-rc4.toml": self.toml("v0.7.0-rc.4", self.RC4),
+        }
+        with attest_dir(files):
+            shipped = rs.load_attestations()
+        self.assertEqual(len(shipped), 2)
         by_kind = {}
         for a in shipped:
             by_kind.setdefault((a["kind"], a.get("platform")), []).append(a)

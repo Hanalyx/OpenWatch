@@ -846,6 +846,14 @@ internal/server/spa/
 .env.local
 *.local.toml
 
+# Release attestations are internal evidence. The checker reads them from
+# release/attestations/ while a release decision is open; after publication
+# they are archived outside the repository. Never commit one. The directory is
+# kept by .gitkeep so `cp <file> release/attestations/` lands inside it.
+# packaging/tests TestRepoHygiene_AttestationsAreNeverTracked enforces this.
+/release/attestations/*
+!/release/attestations/.gitkeep
+
 # IDE
 .idea/
 .vscode/
