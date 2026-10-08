@@ -167,8 +167,23 @@ func TestCIGates_ServerTestsRunInParallelBehindAnAggregateCheck(t *testing.T) {
 			t.Errorf("job %q enumerates every package; it must test internal/server only", serverJob)
 		}
 
-		// The aggregate: needs all three, always runs, never continues on error.
-		for _, id := range []string{"changes", serverJob, othersJob} {
+		// The documentation path's job (C-18, amended into this criterion in
+		// v1.22.0): the one job gated on the opposite verdict.
+		docsJob := ""
+		for id, j := range wf.Jobs {
+			if j.If == "needs.changes.outputs.go == 'false'" {
+				if docsJob != "" {
+					t.Errorf("jobs %q and %q both run on the documentation path", docsJob, id)
+				}
+				docsJob = id
+			}
+		}
+		if docsJob == "" {
+			t.Fatal("no job runs on the documentation path (if: needs.changes.outputs.go == 'false')")
+		}
+
+		// The aggregate: needs all four, always runs, never continues on error.
+		for _, id := range []string{"changes", serverJob, othersJob, docsJob} {
 			if !contains(gates.needs(), id) {
 				t.Errorf("%q does not need %q", requiredCheck, id)
 			}
@@ -207,6 +222,7 @@ func TestCIGates_ServerTestsRunInParallelBehindAnAggregateCheck(t *testing.T) {
 			"GO":      "${{ needs.changes.outputs.go }}",
 			"CHECKS":  "${{ needs." + othersJob + ".result }}",
 			"SERVER":  "${{ needs." + serverJob + ".result }}",
+			"DOCS":    "${{ needs." + docsJob + ".result }}",
 		}
 		for k, v := range wantEnv {
 			if verdict.Env[k] != v {
@@ -215,34 +231,41 @@ func TestCIGates_ServerTestsRunInParallelBehindAnAggregateCheck(t *testing.T) {
 		}
 
 		cases := []struct {
-			changes, gov, checks, server string
-			pass                         bool
+			changes, gov, checks, server, docs string
+			pass                               bool
 		}{
-			{"success", "true", "success", "success", true},
-			{"success", "false", "skipped", "skipped", true},
-			{"success", "true", "failure", "success", false},
-			{"success", "true", "success", "failure", false},
-			{"success", "true", "cancelled", "success", false},
-			{"success", "true", "success", "cancelled", false},
-			{"success", "true", "skipped", "success", false},
-			{"success", "true", "success", "skipped", false},
-			{"success", "false", "success", "skipped", false},
-			{"success", "false", "skipped", "failure", false},
-			{"success", "false", "success", "success", false},
-			{"success", "false", "failure", "failure", false},
-			{"failure", "", "skipped", "skipped", false},
-			{"failure", "false", "skipped", "skipped", false},
-			{"cancelled", "true", "success", "success", false},
-			{"success", "", "skipped", "skipped", false},
-			{"success", "maybe", "success", "success", false},
+			{"success", "true", "success", "success", "skipped", true},
+			{"success", "false", "skipped", "skipped", "success", true},
+			{"success", "true", "failure", "success", "skipped", false},
+			{"success", "true", "success", "failure", "skipped", false},
+			{"success", "true", "cancelled", "success", "skipped", false},
+			{"success", "true", "success", "cancelled", "skipped", false},
+			{"success", "true", "skipped", "success", "skipped", false},
+			{"success", "true", "success", "skipped", "skipped", false},
+			{"success", "true", "success", "success", "success", false},
+			{"success", "true", "success", "success", "failure", false},
+			{"success", "false", "success", "skipped", "success", false},
+			{"success", "false", "skipped", "failure", "success", false},
+			{"success", "false", "success", "success", "success", false},
+			{"success", "false", "failure", "failure", "success", false},
+			{"success", "false", "skipped", "skipped", "failure", false},
+			{"success", "false", "skipped", "skipped", "cancelled", false},
+			{"success", "false", "skipped", "skipped", "skipped", false},
+			{"success", "false", "skipped", "skipped", "", false},
+			{"failure", "", "skipped", "skipped", "skipped", false},
+			{"failure", "false", "skipped", "skipped", "success", false},
+			{"cancelled", "true", "success", "success", "skipped", false},
+			{"success", "", "skipped", "skipped", "skipped", false},
+			{"success", "maybe", "success", "success", "skipped", false},
 		}
 		for _, c := range cases {
 			cmd := exec.Command("bash", "-c", verdict.Run)
-			cmd.Env = append(os.Environ(), "CHANGES="+c.changes, "GO="+c.gov, "CHECKS="+c.checks, "SERVER="+c.server)
+			cmd.Env = append(os.Environ(), "CHANGES="+c.changes, "GO="+c.gov, "CHECKS="+c.checks,
+				"SERVER="+c.server, "DOCS="+c.docs)
 			out, err := cmd.CombinedOutput()
 			if passed := err == nil; passed != c.pass {
-				t.Errorf("changes=%s go=%q checks=%s server=%s: passed=%v, want %v\n%s",
-					c.changes, c.gov, c.checks, c.server, passed, c.pass, out)
+				t.Errorf("changes=%s go=%q checks=%s server=%s docs=%s: passed=%v, want %v\n%s",
+					c.changes, c.gov, c.checks, c.server, c.docs, passed, c.pass, out)
 			}
 		}
 	})

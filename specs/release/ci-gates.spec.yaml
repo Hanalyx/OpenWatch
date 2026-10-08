@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.21.1"
+  version: "1.22.0"
   status: approved
   tier: 1
 
@@ -371,10 +371,14 @@ spec:
         Before `specter ingest`, the aggregate job MUST check that each result file
         exists, is not empty and parses, and that the two go test streams together
         report every package from `go list ./...` exactly once; `specter ingest`
-        silently ingests nothing from an empty or malformed go test JSON file. The
-        path filter is unchanged, so a CHANGELOG-only change still skips the Go
-        suite (CP bugs/OW-086, not fixed here). Added v1.19.0 at the user's
-        direction on 2026-10-05.
+        silently ingests nothing from an empty or malformed go test JSON file.
+        Added v1.19.0 at the user's direction on 2026-10-05.
+        AMENDED v1.22.0. The v1.19.0 text said the path filter was unchanged, so a
+        CHANGELOG-only change still skipped the Go suite (CP bugs/OW-086, not fixed
+        there). C-18 now governs a change outside the Go-relevant pattern: it takes
+        the documentation path instead of skipping every test, and the aggregate
+        additionally needs that path's job. For a Go-relevant change the
+        aggregate's rule above is unchanged, with the documentation job skipped.
       type: technical
       enforcement: error
 
@@ -385,6 +389,49 @@ spec:
         passing "Analyze Code (javascript)" check run on the tagged commit, so
         codeql.yml also scans every pushed release tag (`v*`), and the workflow's
         job and language matrix must still produce that check-run name.
+      type: technical
+      enforcement: error
+
+    - id: C-18
+      description: >-
+        A change outside the Go-relevant pattern MUST run the tests that read the
+        changed inputs, instead of skipping every test (CP bugs/OW-086). Documents
+        are test inputs: packaging/tests reads CHANGELOG.md, README.md,
+        SECURITY.md, the guides and runbooks, release/gates.toml and other
+        tracked files outside the pattern, measured on 2026-10-08 by tracing every
+        test's file opens. Such a change takes the DOCUMENTATION PATH, which is
+        TARGETED validation and not full coverage; the full pipeline remains
+        responsible for full coverage.
+        PATH SELECTION fails closed. Any changed path that matches the Go-relevant
+        pattern selects the full pipeline, so a mixed change is a full change. The
+        pattern covers code, specs, tooling, release configuration and every
+        workflow, script and action under `.github/`. The change list includes
+        deleted paths and BOTH sides of a rename, so a code file renamed into a
+        documentation path selects the full pipeline. An unknown event, an empty
+        or all-zero base, a failed diff, an empty change list, or a failed match
+        selects the full pipeline; no error can produce a passing skip. The match
+        MUST NOT read from a pipe whose writer can be killed by SIGPIPE.
+        THE DOCUMENTATION JOB runs the whole packaging/tests package, never a list
+        of test names, with its documented prerequisites (the embedded spec and the
+        SPA stub), `-count=1`, native package builds off, and no database. Its
+        results are accepted only if the package passed once, at least one test
+        passed, none failed, no build failed, and every skipped test's own last
+        logged line is one of a fixed set of permitted skip messages: the native
+        build opt-in and the two opt-in container suites that also skip on the
+        full path. A permitted message counts only on a test that actually
+        skipped; a skip for any other reason, including a missing database, tool
+        or setup step, fails. Known limitation: a test that wrongly began to use a
+        permitted message would be accepted, because nothing compares the run with
+        an earlier one.
+        SPECTER on the documentation path ingests only that job's results, into an
+        output removed first, and rejects a missing, malformed or stale results
+        file (older than the ingest, or naming a criterion the stream did not
+        exercise), any failed criterion, and zero passed criteria. It MUST NOT run
+        `specter sync` or claim outcome coverage: the thresholds are global. The
+        full path keeps full ingest and threshold enforcement unchanged.
+        EVERY `scripts/test_*.py` runs in the aggregate job on both paths, found by
+        glob; finding none, or any script failing, fails the job.
+        Added v1.22.0 at the user's direction on 2026-10-08.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1278,8 +1325,14 @@ spec:
         both skipped, and fails for any failed, cancelled or skipped test job on a
         Go change, a test job that ran on a non-Go change, a failed path
         detection, and a missing or unknown verdict.
+        AMENDED v1.22.0 (C-18): the aggregate also needs the documentation job and
+        its verdict step binds that job's result. It passes only for a Go change
+        with both test jobs succeeded and the documentation job skipped, or a
+        non-Go change with the documentation job succeeded and both test jobs
+        skipped; it fails when the documentation job failed, was cancelled, ran on
+        a Go change, or was skipped on a non-Go change.
       priority: critical
-      references_constraints: [C-06, C-16]
+      references_constraints: [C-06, C-16, C-18]
     - id: AC-26
       description: >-
         scripts/check-test-streams.py passes on a complete set of result files and
@@ -1304,3 +1357,66 @@ spec:
         that language.
       priority: high
       references_constraints: [C-17]
+    - id: AC-28
+      description: >-
+        The "Detect Go-relevant changes" step's script, read from go-ci.yml and
+        executed against real git repositories, writes `go=true` to GITHUB_OUTPUT
+        for: a code change; a mixed code and documentation change; a deleted code
+        file; a code file renamed into docs/; a documentation file renamed into a
+        code path; a workflow change; a .github/scripts change; a
+        release/gates.toml change; a pull request and a push whose range lists no
+        paths; an all-zero push base; an unknown event; and a base that does not
+        exist. It writes `go=false` for a documentation-only pull request and push.
+        It writes exactly one verdict in every case, and the match reads no pipe.
+      priority: critical
+      references_constraints: [C-18]
+    - id: AC-29
+      description: >-
+        go-ci.yml, parsed as YAML, has exactly one job whose script runs
+        `go test` on `./packaging/tests/` alone for the documentation path. It
+        needs `changes`, runs only when the verdict is `false`, has no services and
+        sets no continue-on-error. Its steps stage the embedded spec and the SPA
+        stub before the test, its test command uses `-count=1` and `-json`, names
+        no `-run` filter and no other package, unsets OPENWATCH_PACKAGING_BUILD and
+        OPENWATCH_TEST_DSN, and it uploads the stream by exact artifact name with
+        if-no-files-found error.
+      priority: critical
+      references_constraints: [C-18]
+    - id: AC-30
+      description: >-
+        scripts/check-doc-stream.py passes on a stream with a passing package
+        result, a passing test and only permitted skips, and labels the result
+        partial. It fails, naming the problem, for a missing, empty, non-JSON or
+        non-object stream; zero or two package results, a failed one, or another
+        package; a build failure; a failed test; no passing test; a skip with no
+        message or any message outside the permitted set, including a missing
+        database or tool; and a permitted message that is not the skipped test's
+        own last logged line. Every permitted message appears as a t.Skip literal
+        in packaging/tests. In go-ci.yml the aggregate job fetches the
+        documentation results by exact name and runs this check on the
+        documentation path, without continue-on-error.
+      priority: critical
+      references_constraints: [C-18]
+    - id: AC-31
+      description: >-
+        scripts/check-specter-partial.py passes fresh, well-formed results with a
+        passed criterion and no failed one, and labels them partial. It fails for a
+        missing or malformed file or entry, a file modified before the ingest
+        started, a criterion the stream did not exercise, a failed criterion, and
+        zero passed criteria. In go-ci.yml the documentation-path ingest step
+        removes the earlier results file before `specter ingest`, records the
+        start time, ingests only the documentation stream and runs this check; no
+        step on that path runs `specter sync`; and the full path still runs the
+        stream check, ingest of both streams and `specter sync`.
+      priority: critical
+      references_constraints: [C-16, C-18]
+    - id: AC-32
+      description: >-
+        The aggregate job runs every scripts/test_*.py by glob on both paths, with
+        no path condition. The step, executed against a directory of scripts,
+        fails when the glob finds none and when any one script fails, runs every
+        script even after one fails, and passes when all pass. The scripts that
+        test check-doc-stream.py and check-specter-partial.py exist and match the
+        glob.
+      priority: high
+      references_constraints: [C-18]

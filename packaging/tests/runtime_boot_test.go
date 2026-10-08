@@ -41,9 +41,12 @@ func insecureTLS() *tls.Config {
 
 // runtimeBootDSN returns the DSN to test the binary against. Skips
 // the test when not configured, matching the in-process integration
-// tests' convention.
+// tests' convention. The runtime boot tests also need a native build,
+// so that gate is checked first: without a build they skip for that
+// reason whether or not a database is configured (release-ci-gates C-18).
 func runtimeBootDSN(t *testing.T) string {
 	t.Helper()
+	requirePackagingBuild(t)
 	dsn := os.Getenv("OPENWATCH_TEST_DSN")
 	if dsn == "" {
 		t.Skip("set OPENWATCH_TEST_DSN to run runtime boot tests")
