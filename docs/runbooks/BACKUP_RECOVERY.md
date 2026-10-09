@@ -1,6 +1,6 @@
 # Backup and recovery
 
-**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.8.3 (Eyrie)
+**Last updated:** 2026-07-30 · **Applies to:** OpenWatch v0.8.4 (Eyrie)
 
 This guide covers backup, restore, and disaster recovery for an OpenWatch
 deployment. OpenWatch is a single Go binary (`/usr/bin/openwatch`) that serves
