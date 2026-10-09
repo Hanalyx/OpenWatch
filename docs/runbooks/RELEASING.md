@@ -260,7 +260,19 @@ fresh.
    `performed_at` is an ISO date that is not in the future. `artifact` and
    `artifact_sha256` are the matching pair from the candidate's `SHA256SUMS`.
    Then recompute `docs_sha256` over the finished entries. A verdict of anything
-   other than `accurate` is a NO-GO: there is no waiver.
+   other than `accurate` is a NO-GO, with one narrow exception.
+
+   **Accepted defects** (`release-ci-gates` C-22). The release captain may
+   accept a documentation defect for one candidate instead of replacing the
+   candidate. The acceptance is a record in the tracked
+   `release/doc-review-exceptions.toml`, added through a reviewed pull request:
+   the candidate's tag and commit, the document's path and exact blob, the
+   findings, the acceptance, and the pull requests that fix it on `main`. For
+   that document only, write `verdict = "accepted-defect"`, `exception = "<the
+   record's id>"` and `otherwise_accurate = true`, the last only if nothing
+   else in the document is wrong. Never write `accurate` for it. The checker
+   refuses the entry unless a record matches the candidate and the blob
+   exactly. Today the registry holds only the two v0.8.4 records.
 
    For an inheriting review, `performed_by` and `performed_at` describe your
    fresh reviews only; inherited entries carry no verdict and no date. After

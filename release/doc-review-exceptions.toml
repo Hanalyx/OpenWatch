@@ -1,0 +1,46 @@
+# Accepted documentation defects for gate D1 (release-ci-gates C-22).
+#
+# A D1 verdict is "accurate" or the review fails, with one narrow exception:
+# a document the release captain has explicitly accepted as defective for ONE
+# candidate. Each record binds the acceptance to that candidate's tag and
+# commit, to the exact blob of one document, to the named findings, and to the
+# pull requests that fix them on main. The reviewer may then record that
+# document as "accepted-defect", never as "accurate", and only if nothing else
+# in it is wrong.
+#
+# This file holds the v0.8.4 records and nothing else. Adding a record for any
+# other candidate, document or defect is a new policy amendment, reviewed as
+# such; packaging/tests enforces that.
+
+[[exception]]
+id = "v0.8.4-branch-management-ci-paths"
+candidate_tag = "v0.8.4"
+commit = "474d9af26e457fc6a47b5475fab87394433a687b"  # pragma: allowlist secret
+path = ".github/BRANCH_MANAGEMENT.md"
+blob = "e64a6d9179d69698aa58db6393b43f13c13af5e7"  # pragma: allowlist secret
+findings = [
+  "Lines 206 to 207: \"All of these must pass for the single required check (`Quality + security gates`) to go green\" is false for a documentation-only change, which goes green on the documentation path without vet, lint, vuln, the race suite, Vitest or specter sync.",
+  "Lines 13 to 15: describes go-ci as building and testing the Go module without mentioning the documentation path.",
+  "Line 232: states that specter sync gates 100% coverage without saying it runs on the full path only.",
+]
+accepted_by = "release captain"
+accepted_at = "2026-10-09"
+acceptance = "Accepted by the release captain on 2026-10-09 as a contributor-documentation defect that changes no verified package behavior or operator upgrade procedure, for v0.8.4 only. Never accurate."
+fixes = ["#930 (7caf1c2b6623d277ee774be1e01a59b52ac9237f)"]
+
+[[exception]]
+id = "v0.8.4-workflows-readme-ci-paths"
+candidate_tag = "v0.8.4"
+commit = "474d9af26e457fc6a47b5475fab87394433a687b"  # pragma: allowlist secret
+path = ".github/workflows/README.md"
+blob = "bc96f6b1dcad3bbaadd0d99946994b4980a95494"  # pragma: allowlist secret
+findings = [
+  "Lines 32 to 34: \"A path-detection step short-circuits to success for doc/meta-only changes\" is false since #922: a documentation-only change runs the packaging Go tests, the Python checks and a partial Specter ingest, and the required check fails if any of them fails.",
+  "Lines 18 and 32 to 33: the triggers omit the v* tag trigger added in #925.",
+  "Lines 36 to 54: describes the race tests as two invocations in one job with one PostgreSQL service; since #909 they are two parallel jobs, each with its own service.",
+  "The Full test evidence job (#925), which the release gates read, is not mentioned.",
+]
+accepted_by = "release captain"
+accepted_at = "2026-10-09"
+acceptance = "Accepted by the release captain on 2026-10-09 as a contributor-documentation defect that changes no verified package behavior or operator upgrade procedure, for v0.8.4 only. Never accurate."
+fixes = ["#931 (e8b4c96050dd69c77c819c4958f74148a2115174)"]
