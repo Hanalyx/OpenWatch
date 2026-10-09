@@ -10,34 +10,58 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.8.4] Eyrie (2026-10-13)
+## [0.8.4] Eyrie (2026-10-10)
 
 A security release. It changes no OpenWatch code. It rebuilds 0.8.3 with
 Go 1.26.9 and `golang.org/x/net` v0.60.0, which fix twelve vulnerabilities
-published on 2026-10-08. Upgrade promptly.
+published on 2026-10-08. Upgrade promptly. Every earlier release was built
+with an affected Go version; only 0.8.3 was assessed in detail.
 
 ### Security
 
 - **Built with Go 1.26.9 and `golang.org/x/net` v0.60.0** (0.8.3 used Go
   1.26.6 and v0.57.0). The `x/net` update also raises `golang.org/x/crypto` to
   v0.57.0, `x/sync` to v0.23.0, `x/sys` to v0.48.0 and `x/text` to v0.42.0.
-- **HTTP/2 issues in the HTTPS listener, reachable without signing in.** The
-  listener (port 8443 by default) accepts HTTP/2 from any client that can
-  reach it. The advisories describe a server crash (GO-2026-6617), memory
-  exhaustion through trailer headers (GO-2026-6603), excessive CPU use
-  (GO-2026-6611) and wrong flow-control accounting (GO-2026-6612).
-- **Other server issues reachable without signing in:** no limit on the size
-  of parsed Range headers for static files (GO-2026-6609), and a memory-limit
-  bypass in MIME header parsing (GO-2026-6608).
-- **Issues that need more than network access:**
-  - GO-2026-6613 needs a handler that answers CONNECT with a 2xx status.
-    OpenWatch has none.
-  - GO-2026-6610 and GO-2026-6605 affect outbound HTTP, and need a malicious
-    upstream such as an identity provider or a proxy.
-  - GO-2026-6607 affects TLS connections that use Encrypted Client Hello.
-    OpenWatch does not configure it.
-  - GO-2026-6599 and GO-2026-6600 affect `html/template`. OpenWatch reaches
-    it only through the API documentation page, which renders fixed content.
+- **What was and was not shown.** `govulncheck` finds code affected by all
+  twelve advisories reachable in 0.8.3. On a running 0.8.3 server we observed
+  one thing: it negotiates HTTP/2 with a client that has not signed in. We
+  have not reproduced any of the attacks. The impacts below come from the Go
+  advisories.
+- **Exposed in the default configuration.** Any client that can reach the
+  HTTPS listener (port 8443 by default) can send the input these advisories
+  describe, without signing in:
+  - HTTP/2 server: a crash (GO-2026-6617), memory exhaustion through Trailer
+    headers (GO-2026-6603), excessive CPU from repeated window-size changes
+    (GO-2026-6611), and the connection flow-control limit bypassed by a
+    double refund (GO-2026-6612).
+  - A Range header with many small ranges can use excessive CPU
+    (GO-2026-6609). OpenWatch reaches the affected function through the
+    static files of the API documentation page under `/docs/`.
+  - An HTTP/1 connection keeps being read as HTTP after a 2xx answer to
+    CONNECT (GO-2026-6613). The API documentation page answers
+    `CONNECT /docs/` with 200. The advisory says the harm is mostly request
+    smuggling through a proxy in front of the server.
+- **Depends on inputs or configuration.**
+  - HTTP/2 client issues (GO-2026-6610, and the client side of 6611). They
+    affect outbound HTTP, such as OIDC sign-in and webhook notifications, when
+    the remote server is malicious or compromised. The response smuggling
+    that 6610 describes also needs OpenWatch to forward responses to an HTTP/1
+    client. We found no such forwarding path.
+  - `html/template` escaping (GO-2026-6599, GO-2026-6600). The API
+    documentation page runs `html/template` on every request, without sign-in.
+    Whether anything is escaped wrongly depends on the template and its data.
+    Here the data is set once at startup from fixed values, not taken from
+    the request.
+- **Not applicable, as far as we found.**
+  - GO-2026-6605 needs OpenWatch to send a CONNECT request with a body. Its
+    outbound requests are fixed GET and POST requests. The API documentation
+    page has a proxy that would forward a client's method, and it is off.
+  - GO-2026-6607 needs Encrypted Client Hello keys on the server. OpenWatch
+    sets none, and Go reaches the affected code only after decrypting with
+    such a key.
+  - GO-2026-6608 is triggered by multipart form parsing, which `govulncheck`
+    does not find reachable. It does reach the fixed header parser through
+    HTTP trailer handling in outbound requests.
 - **Until you upgrade,** limiting which clients can reach the listener lowers
   the risk. It does not remove it.
 
