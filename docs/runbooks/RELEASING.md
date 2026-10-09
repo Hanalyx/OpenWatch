@@ -260,19 +260,22 @@ fresh.
    `performed_at` is an ISO date that is not in the future. `artifact` and
    `artifact_sha256` are the matching pair from the candidate's `SHA256SUMS`.
    Then recompute `docs_sha256` over the finished entries. A verdict of anything
-   other than `accurate` is a NO-GO, with one narrow exception.
+   other than `accurate` is a NO-GO. There is no general waiver.
 
-   **Accepted defects** (`release-ci-gates` C-22). The release captain may
-   accept a documentation defect for one candidate instead of replacing the
-   candidate. The acceptance is a record in the tracked
-   `release/doc-review-exceptions.toml`, added through a reviewed pull request:
-   the candidate's tag and commit, the document's path and exact blob, the
-   findings, the acceptance, and the pull requests that fix it on `main`. For
-   that document only, write `verdict = "accepted-defect"`, `exception = "<the
-   record's id>"` and `otherwise_accurate = true`, the last only if nothing
-   else in the document is wrong. Never write `accurate` for it. The checker
-   refuses the entry unless a record matches the candidate and the blob
-   exactly. Today the registry holds only the two v0.8.4 records.
+   **The one exception: C-22, for two v0.8.4 documents.** `release-ci-gates`
+   C-22 lets the D1 review of v0.8.4 record `.github/BRANCH_MANAGEMENT.md` and
+   `.github/workflows/README.md` as `accepted-defect`, never `accurate`. Their
+   inaccuracies are registered in `release/doc-review-exceptions.toml`, which
+   holds the technical scope only: candidate, paths, exact blobs, defect
+   descriptions and the fixing pull requests (#930, #931). The release
+   captain's acceptance is internal: add one `[[defect_acceptance]]` entry per
+   document to the attestation, naming the record's id, with `accepted_by`,
+   `accepted_at` and the acceptance wording. On each of those two entries write
+   `verdict = "accepted-defect"`, `exception = "<the record's id>"` and
+   `otherwise_accurate = true`, the last only if nothing else in the document
+   is wrong. Never write `accurate` for them. The checker refuses the entry
+   unless the registered scope and the internal acceptance both match. C-22
+   covers nothing else: no other candidate, document or defect.
 
    For an inheriting review, `performed_by` and `performed_at` describe your
    fresh reviews only; inherited entries carry no verdict and no date. After

@@ -578,26 +578,33 @@ spec:
         v0.8.4: two contributor-documentation defects that change no verified
         package behavior or operator upgrade procedure are accepted rather than
         rebuilding the security patch, and are never marked accurate.
-        THE REGISTRY. Acceptances live in the tracked file
-        `release/doc-review-exceptions.toml`, reviewed like code. Each record
-        binds one acceptance to a candidate tag and commit, one document path and
-        its exact blob at that commit, a non-empty list of findings, the
-        captain's acceptance (a non-agent `accepted_by`, an `accepted_at` date
-        that is not in the future, and its wording), and a non-empty list of fixes,
-        each naming the pull request (`#NNN`) that corrects the defect on `main`.
-        The registry holds exactly the v0.8.4 records for
-        `.github/BRANCH_MANAGEMENT.md` and `.github/workflows/README.md` at
+        TWO RECORDS MUST AGREE. The tracked, public file
+        `release/doc-review-exceptions.toml` carries the TECHNICAL SCOPE only: for
+        each record an id, the candidate tag and commit, one document path and
+        its exact blob at that commit, a non-empty list of defect descriptions,
+        and a non-empty list of public fix references, each naming the pull
+        request (`#NNN`) that corrects the defect on `main`. It carries no
+        acceptance, date or identity, and a record that does is refused. The
+        captain's acceptance is INTERNAL: the D1 attestation carries one
+        `[[defect_acceptance]]` entry per accepted document, naming the registry
+        record's id, with a non-agent `accepted_by`, an `accepted_at` date that is
+        not in the future, and the acceptance wording. The registry holds exactly
+        the v0.8.4 records for `.github/BRANCH_MANAGEMENT.md` and
+        `.github/workflows/README.md` at
         `474d9af26e457fc6a47b5475fab87394433a687b`, fixed by #930 and #931. Any
         other record, for another candidate, document or defect, is a new
         amendment and is refused until the spec and its tests are changed.
         THE VERDICT. A reviewed entry may carry `verdict = "accepted-defect"` only
         with `exception`, naming a registry record, and `otherwise_accurate = true`,
         the reviewer's statement that nothing in the document is wrong beyond the
-        accepted findings. The checker refuses it unless the record exists, is
-        complete, and matches the candidate's tag and commit and the entry's path
-        and blob exactly. Any other verdict is refused as before. The manifest
-        digest records the verdict `accepted-defect`, and the gate's note reports
-        each accepted defect as not accurate.
+        registered defects. The checker refuses it unless the record exists, is a
+        complete technical scope and matches the candidate's tag and commit and
+        the entry's path and blob exactly, AND exactly one complete internal
+        acceptance names that record. An acceptance that no accepted-defect
+        document uses, a duplicate acceptance, or an acceptance in a review with
+        no accepted defect is refused. Any other verdict is refused as before. The
+        manifest digest records the verdict `accepted-defect`, and the gate's note
+        reports each accepted defect as not accurate.
         NOTHING ELSE CHANGES. An accepted defect is never accurate, so it is never
         inherited under C-21. Every other gate, the inheritance rules, fresh F1 to
         F3 and H1, and separate publication authorization are unchanged. When a
@@ -1723,22 +1730,28 @@ spec:
       description: >-
         A documentation review passes with an `accepted-defect` entry only when
         the entry names a registered exception and states `otherwise_accurate =
-        true`, and the record is complete and matches the candidate's tag, commit,
-        the entry's path and its blob; the gate's note reports the document as an
-        accepted defect, not accurate. Each of these fails with its cause: an
-        accepted-defect entry without the exception or the statement, or with the
-        statement false; an exception not in the registry; a record for another
-        tag, commit, path or blob; a record whose acceptor is an agent, whose date
-        is in the future, or whose findings, acceptance or fixes are missing, or
-        whose fixes name no pull request; an `accurate` entry carrying an
-        exception; any verdict other than `accurate` or `accepted-defect`; an
-        unreadable registry; and a manifest digest that does not record the
-        verdict. An inheriting review may carry an accepted defect, and an
+        true`, the record is a complete technical scope matching the candidate's
+        tag, commit, the entry's path and its blob, and exactly one complete
+        internal `[[defect_acceptance]]` entry names that record; the gate's note
+        reports the document as an accepted defect, not accurate. Each of these
+        fails with its cause: an accepted-defect entry without the exception or
+        the statement, or with the statement false; an exception not in the
+        registry; a record for another tag, commit, path or blob; a record whose
+        findings or fixes are missing or whose fixes name no pull request; a
+        registry record carrying an acceptance, date or identity; no internal
+        acceptance for the record; an internal acceptance whose acceptor is empty
+        or an agent, whose date is not an ISO date or is in the future, whose
+        wording is empty, or which carries other fields; a duplicate acceptance,
+        one no accepted-defect document uses, or one in a review with no accepted
+        defect; an `accurate` entry carrying an exception; any verdict other than
+        `accurate` or `accepted-defect`; an unreadable registry; and a manifest
+        digest that does not record the verdict. An inheriting review may carry an accepted defect, and an
         accepted defect in a prior review is never inherited. The tracked registry
-        holds exactly the two v0.8.4 records, bound to `474d9af2`, to the blobs of
+        holds exactly the two v0.8.4 records, carrying the technical scope fields
+        and nothing else, bound to `474d9af2`, to the blobs of
         `.github/BRANCH_MANAGEMENT.md` and `.github/workflows/README.md` at that
         commit as read from Git, and to fixes #930 and #931. The runbook describes
-        the exception and the skeleton generator no longer says there is no
-        exception at all.
+        the exception as C-22 only, for the registered v0.8.4 documents, and states
+        that there is no general waiver; the skeleton generator says the same.
       priority: critical
       references_constraints: [C-22]

@@ -1,14 +1,15 @@
 # Accepted documentation defects for gate D1 (release-ci-gates C-22).
 #
-# A D1 verdict is "accurate" or the review fails, with one narrow exception:
-# a document the release captain has explicitly accepted as defective for ONE
-# candidate. Each record binds the acceptance to that candidate's tag and
-# commit, to the exact blob of one document, to the named findings, and to the
-# pull requests that fix them on main. The reviewer may then record that
-# document as "accepted-defect", never as "accurate", and only if nothing else
-# in it is wrong.
+# This file is tracked and public, so it carries the TECHNICAL SCOPE only:
+# the candidate's tag and commit, one document path and its exact blob at that
+# commit, the defect descriptions, and the public pull requests that fix them
+# on main. It does not carry the acceptance, its date or who accepted it.
+# Those are internal: the release captain's acceptance is recorded in the D1
+# attestation as a [[defect_acceptance]] entry naming the record's id, and the
+# checker accepts a document as "accepted-defect" only when both agree. Such a
+# document is never "accurate".
 #
-# This file holds the v0.8.4 records and nothing else. Adding a record for any
+# This file holds the two v0.8.4 records and nothing else. A record for any
 # other candidate, document or defect is a new policy amendment, reviewed as
 # such; packaging/tests enforces that.
 
@@ -23,9 +24,6 @@ findings = [
   "Lines 13 to 15: describes go-ci as building and testing the Go module without mentioning the documentation path.",
   "Line 232: states that specter sync gates 100% coverage without saying it runs on the full path only.",
 ]
-accepted_by = "release captain"
-accepted_at = "2026-10-09"
-acceptance = "Accepted by the release captain on 2026-10-09 as a contributor-documentation defect that changes no verified package behavior or operator upgrade procedure, for v0.8.4 only. Never accurate."
 fixes = ["#930 (7caf1c2b6623d277ee774be1e01a59b52ac9237f)"]
 
 [[exception]]
@@ -40,7 +38,4 @@ findings = [
   "Lines 36 to 54: describes the race tests as two invocations in one job with one PostgreSQL service; since #909 they are two parallel jobs, each with its own service.",
   "The Full test evidence job (#925), which the release gates read, is not mentioned.",
 ]
-accepted_by = "release captain"
-accepted_at = "2026-10-09"
-acceptance = "Accepted by the release captain on 2026-10-09 as a contributor-documentation defect that changes no verified package behavior or operator upgrade procedure, for v0.8.4 only. Never accurate."
 fixes = ["#931 (e8b4c96050dd69c77c819c4958f74148a2115174)"]

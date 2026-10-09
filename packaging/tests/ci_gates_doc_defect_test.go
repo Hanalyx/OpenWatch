@@ -36,7 +36,7 @@ func TestCIGates_DocumentationReviewAcceptsOnlyRegisteredDefects(t *testing.T) {
 			}
 		}
 		for class, want := range map[string]int{
-			"DocReviewAcceptedDefects": 11,
+			"DocReviewAcceptedDefects": 15,
 			"AcceptedDefectRegistry":   3,
 		} {
 			if passed[class] != want {
@@ -52,20 +52,47 @@ func TestCIGates_DocumentationReviewAcceptsOnlyRegisteredDefects(t *testing.T) {
 
 		book := readAppFile(t, "docs/runbooks/RELEASING.md")
 		for _, want := range []struct{ frag, why string }{
-			{"release-ci-gates` C-22", "the procedure must name the rule that allows the exception"},
+			{"C-22 lets the D1 review of v0.8.4", "the procedure must name the rule and its single candidate"},
 			{"release/doc-review-exceptions.toml", "the procedure must point at the registry"},
-			{"Never write `accurate` for it.", "an accepted defect is never recorded as accurate"},
+			{"Never write `accurate` for them.", "an accepted defect is never recorded as accurate"},
+			{"There is no general waiver.", "C-22 is not a general waiver"},
+			{"C-22\n   covers nothing else", "the exception is scoped to the two v0.8.4 documents"},
 		} {
 			if !strings.Contains(book, want.frag) {
 				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
 			}
 		}
-		if strings.Contains(book, "there is no waiver.") {
-			t.Error("docs/runbooks/RELEASING.md still says there is no waiver; C-22 is one")
-		}
 		gen := readAppFile(t, "scripts/doc-review-skeleton.py")
-		if strings.Contains(gen, "there is no waiver mechanism") {
-			t.Error("the skeleton generator still says there is no waiver mechanism")
+		if !strings.Contains(gen, "there is no general waiver") {
+			t.Error("the skeleton generator does not say there is no general waiver")
+		}
+
+	})
+}
+
+// @ac AC-41
+// AC-41, privacy half: the tracked registry is public, so it carries the
+// technical scope only, and the captain's acceptance is recorded in the internal
+// attestation, where the runbook tells the reviewer to put it.
+func TestCIGates_AcceptedDefectAcceptanceStaysInternal(t *testing.T) {
+	t.Run("release-ci-gates/AC-41", func(t *testing.T) {
+		registry := readAppFile(t, "release/doc-review-exceptions.toml")
+		for _, field := range []string{"accepted_by", "accepted_at", "acceptance ="} {
+			if strings.Contains(registry, field) {
+				t.Errorf("release/doc-review-exceptions.toml carries %q; the public registry holds "+
+					"the technical scope only, and the acceptance is internal", field)
+			}
+		}
+		book := readAppFile(t, "docs/runbooks/RELEASING.md")
+		for _, want := range []string{"[[defect_acceptance]]", "captain's acceptance is internal"} {
+			if !strings.Contains(book, want) {
+				t.Errorf("docs/runbooks/RELEASING.md is missing %q: the captain's acceptance is "+
+					"recorded in the internal attestation", want)
+			}
+		}
+		checker := readAppFile(t, "scripts/release-status.py")
+		if !strings.Contains(checker, "the registered scope alone is not the captain's ") {
+			t.Error("the checker does not refuse a registered defect that has no internal acceptance")
 		}
 	})
 }

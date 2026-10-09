@@ -260,15 +260,18 @@ INHERITED_VERDICT = "inherited"
 
 # Accepted documentation defects (release-ci-gates C-22, added in 1.26.0). A
 # D1 verdict is "accurate" or nothing, with one narrow exception: a document
-# the release captain has explicitly accepted as defective for one candidate,
-# recorded in the tracked registry below with the candidate commit, the exact
-# blob, the findings and the fixes. Such a document is never "accurate"; it is
-# "accepted-defect", and only where a registry record matches it exactly.
+# the release captain has explicitly accepted as defective for one candidate.
+# Two records must agree. The tracked registry below carries the technical
+# scope only (candidate, path, exact blob, defect descriptions and public fix
+# references). The captain's acceptance, its date and the captain's identity
+# are internal and live in the D1 attestation as [[defect_acceptance]]. Such a
+# document is never "accurate"; it is "accepted-defect".
 DOC_EXCEPTION_RULE = "release-ci-gates 1.26.0 C-22"
 ACCEPTED_DEFECT = "accepted-defect"
 EXCEPTIONS_FILE = REPO / "release" / "doc-review-exceptions.toml"
-EXCEPTION_STRINGS = ("id", "candidate_tag", "commit", "path", "blob",
-                     "accepted_by", "accepted_at", "acceptance")
+EXCEPTION_STRINGS = ("id", "candidate_tag", "commit", "path", "blob")
+EXCEPTION_FIELDS = set(EXCEPTION_STRINGS) | {"findings", "fixes"}
+ACCEPTANCE_FIELDS = {"exception", "accepted_by", "accepted_at", "acceptance"}
 
 
 def load_doc_exceptions(path=None):
@@ -296,16 +299,17 @@ def load_doc_exceptions(path=None):
 
 
 def _bad_exception_record(rec):
-    """A diagnostic if a registry record is not a usable acceptance, else None."""
+    """A diagnostic if a registry record is not a usable technical scope, else
+    None. The registry is tracked and public, so it carries no acceptance,
+    date or identity; those are internal (see _bad_acceptance)."""
+    if set(rec) != EXCEPTION_FIELDS:
+        return (f"a registry record carries exactly {', '.join(sorted(EXCEPTION_FIELDS))}; "
+                f"got {', '.join(sorted(rec))}. The acceptance, its date and the "
+                "captain's identity belong in the internal attestation")
     for field in EXCEPTION_STRINGS:
         value = rec.get(field)
         if not isinstance(value, str) or not value.strip():
             return f"{field} is missing or empty"
-    who = rec["accepted_by"].strip()
-    if who.endswith("-agent"):
-        return "accepted_by is an agent; only the release captain can accept a defect"
-    if bad := _bad_performed_at(rec["accepted_at"]):
-        return bad.replace("performed_at", "accepted_at")
     for field in ("findings", "fixes"):
         value = rec.get(field)
         if (not isinstance(value, list) or not value
@@ -316,13 +320,44 @@ def _bad_exception_record(rec):
     return None
 
 
+def _bad_acceptance(a):
+    """A diagnostic if an internal [[defect_acceptance]] entry is not a usable
+    captain's acceptance, else None."""
+    if not isinstance(a, dict) or set(a) != ACCEPTANCE_FIELDS:
+        return (f"a defect_acceptance entry carries exactly "
+                f"{', '.join(sorted(ACCEPTANCE_FIELDS))}")
+    for field in sorted(ACCEPTANCE_FIELDS):
+        if not isinstance(a[field], str) or not a[field].strip():
+            return f"defect_acceptance.{field} is missing or empty"
+    if a["accepted_by"].strip().endswith("-agent"):
+        return "accepted_by is an agent; only the release captain can accept a defect"
+    if bad := _bad_performed_at(a["accepted_at"]):
+        return bad.replace("performed_at", "accepted_at")
+    return None
+
+
 def _check_accepted_defects(att, tag, commit, exceptions):
     """(paths, None) for the accepted-defect entries of a review, or (None,
-    diagnostic). Each must match one registry record exactly: this candidate's
-    tag and commit, the document's path and blob."""
+    diagnostic). Each must match one registry record exactly (this candidate's
+    tag and commit, the document's path and blob) AND one internal
+    [[defect_acceptance]] entry in the attestation naming that record."""
     rows = [r for r in att.get("reviewed", []) or [] if r.get("verdict") == ACCEPTED_DEFECT]
+    accepts = att.get("defect_acceptance", [])
+    if not isinstance(accepts, list):
+        return None, "defect_acceptance must be an array of tables"
     if not rows:
+        if accepts:
+            return None, ("defect_acceptance entries without any accepted-defect document; "
+                          "an acceptance applies to a document recorded as accepted-defect")
         return [], None
+    by_id = {}
+    for a in accepts:
+        if bad := _bad_acceptance(a):
+            return None, bad
+        if a["exception"] in by_id:
+            return None, f"two defect_acceptance entries name {a['exception']!r}"
+        by_id[a["exception"]] = a
+    used = set()
     if isinstance(exceptions, str):
         return None, f"the accepted-defect registry cannot be read: {exceptions}"
     exceptions = exceptions or {}
@@ -345,7 +380,16 @@ def _check_accepted_defects(att, tag, commit, exceptions):
                 return None, (f"{where}: exception {rec['id']!r} was accepted for "
                               f"{field} {rec[field]!r}, not {want!r}; it does not extend to "
                               "another candidate, document or version of the document")
+        if rec["id"] not in by_id:
+            return None, (f"{where}: no defect_acceptance entry in this attestation names "
+                          f"{rec['id']!r}; the registered scope alone is not the captain's "
+                          "acceptance")
+        used.add(rec["id"])
         paths.append(r["path"].encode("utf-8"))
+    extra = sorted(set(by_id) - used)
+    if extra:
+        return None, (f"defect_acceptance names {', '.join(extra)}, which no accepted-defect "
+                      "document in this review uses")
     return paths, None
 
 
