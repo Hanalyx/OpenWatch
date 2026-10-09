@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.24.0"
+  version: "1.25.0"
   status: approved
   tier: 1
 
@@ -288,7 +288,9 @@ spec:
         `X.Y.Z-rc.N` cannot satisfy a `vX.Y.Z` tag (release-package-build C-14), so GA is a
         new commit, and a new commit and new artifacts carry NO evidence forward. Nothing is
         inherited from any release candidate: no promotion flag, no carried verdict, no
-        per-blob reuse of a documentation review.
+        per-blob reuse of a documentation review. The one exception is C-21: a documentation
+        review may inherit, per document, from the review of the last PUBLISHED release,
+        never from a release candidate.
 
         THE FINAL-VERSION COMMIT sets `VERSION="X.Y.Z"` in `packaging/version.env`, the README
         version phrase and the newest CHANGELOG heading `[X.Y.Z] <codename> (<date>)`, where
@@ -312,8 +314,9 @@ spec:
         `security/KEYS` in a throwaway keyring, reading only gpg's machine status. The
         evaluator MUST resolve the tag on origin through the API, dereferencing an annotated
         tag, and MUST fail when it names a commit other than the one under evaluation: a
-        moved or stale tag is a different candidate. Fresh F1, F2, F3, H1 and a full D1 are
-        performed by the founder against the GA tag, commit and digests. The evaluator MUST
+        moved or stale tag is a different candidate. Fresh F1, F2, F3 and H1, and a D1 that is
+        fresh for every document C-21 does not let it inherit, are performed by the founder
+        against the GA tag, commit and digests. The evaluator MUST
         report the release state (draft, pre-release, published) with its verdict.
 
         PUBLISHED ONLY ON GO AND ONLY BY THE FLIP. `scripts/release-publish.py` MUST refuse
@@ -516,6 +519,55 @@ spec:
         well-formed COMPLETE result for the expected invocation and the current tree;
         a missing, partial, mismatched or stale result is never success.
         Added v1.24.0 at the user's direction on 2026-10-08.
+      type: technical
+      enforcement: error
+    - id: C-21
+      description: >-
+        A documentation review (gate D1) MAY inherit, per document, the verdict
+        recorded for the LAST PUBLISHED release, and nothing else carries over.
+        Founder direction, 2026-10-09: D1 requires fresh human review of documents
+        modified since the last published release; an unchanged document may reuse
+        its prior review only after its Git blob is verified identical and the prior
+        attestation is linked.
+        WHAT MAY BE INHERITED. Only a document whose path and blob at the candidate
+        commit equal the path and blob covered by the prior release's documentation
+        review. A changed, new or renamed document is reviewed fresh. Executable
+        tests, assets, signatures, fleet checks (F1 to F3) and the captain's
+        signature (H1) are never inherited.
+        THE PRIOR. The last published release is the published, non-pre-release
+        GitHub release with the latest publication time whose tagged commit is an
+        ancestor of the candidate commit and is not the candidate commit. Drafts and
+        pre-releases never qualify. The attestation names it in an `[inherits]`
+        table: its tag, its commit, the sha256 of the prior attestation file, and the
+        prior's docs_sha256. The checker finds the prior attestation by that digest
+        among the attestations present for the run. A prior that is a full review
+        MUST still pass when verified as it was decided: by the checker at the prior
+        release's own tagged commit, over that release's document set and
+        SHA256SUMS. Only that review is re-checked; the prior release is not held to
+        today's other gates. A prior that itself inherits was decided under this rule
+        and is followed back under it.
+        THE RECORD. Inherited documents are listed as `[[inherited]]` entries with a
+        path and a blob only: no verdict and no date of their own. performed_by and
+        performed_at describe the fresh reviews. Every candidate document is listed
+        exactly once, as reviewed or as inherited, and docs_sha256 covers both, an
+        inherited entry hashing with the verdict "inherited".
+        MATCHING BYTES ARE NOT ENOUGH. A changed dependency or behavior can make an
+        unchanged document inaccurate. The reviewer MUST check the non-document
+        changes between the prior release and the candidate for effects on every
+        inherited document and record that by setting `inherits.changes_reviewed`
+        to exactly `<prior commit>..<candidate commit>`. The skeleton generator's
+        --inherit-from mode lists those changes and puts an unchanged document that
+        names a changed file under fresh review by default.
+        CANDIDATES TAGGED BEFORE THIS RULE. A candidate is judged by the policy it
+        was tagged under unless the captain explicitly approves applying a later
+        amendment to that candidate; that approval is not a general license to judge
+        releases under later rules. The captain approved applying C-21 to v0.8.4
+        (tagged under 1.23.0) on 2026-10-09. When an inheriting review is accepted
+        for a candidate whose own tagged checker lacks this rule, the checker prints
+        the candidate's own policy version, this amendment and the full checker
+        commit, and the decision record carries all three. The tag and its tagged
+        files are not changed.
+        Added v1.25.0 at the user's direction on 2026-10-09.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1598,3 +1650,34 @@ spec:
         script or guide says a push is safe.
       priority: high
       references_constraints: [C-20]
+    - id: AC-40
+      description: >-
+        A documentation review that inherits from the last published release
+        passes when it reviews every changed or new document fresh and inherits only
+        documents whose path and blob match the prior review, with the prior named
+        by digest and, when it is a full review, still passing under the checker at
+        its own release's tagged commit over that release's document set. Each of
+        these fails or
+        is reported with its cause: inheriting a document changed since the prior
+        release; an inherited entry that does not match the candidate tree; a
+        document listed twice or as both reviewed and inherited; an inherited entry
+        carrying a verdict or other field; a fresh verdict that is not `accurate`;
+        inherited entries without an `[inherits]` table; a `changes_reviewed` that is
+        not exactly the prior..candidate range; a prior that is not the last
+        published ancestor release (STALE); a prior attestation that is absent
+        (MISSING) or no longer passes, or whose docs_sha256 differs from the one
+        named; a docs_sha256 that does not cover both sets; and an evaluation with
+        no way to resolve the prior (ERROR). A chain of inheriting reviews is
+        followed back to a full review. The last-published-release lookup excludes
+        drafts, pre-releases, releases that are not ancestors of the candidate and
+        any release on the candidate's own commit. A full prior review is verified by
+        the checker loaded from the prior release's tagged commit: a verdict that
+        checker accepts stands and one it refuses fails. A review without inheritance
+        is judged exactly as before. The skeleton generator's --inherit-from mode
+        splits the documents, puts an unchanged document that names a changed
+        non-document file under fresh review, writes pending verdicts, no identity
+        and an empty changes_reviewed, and records the prior file's sha256.
+        The runbook's Stage 3b describes inheritance and runs the generator with
+        --inherit-from.
+      priority: critical
+      references_constraints: [C-14, C-21]

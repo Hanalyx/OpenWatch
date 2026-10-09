@@ -201,8 +201,18 @@ whose path ends in `.md`, with no directory exclusions, so `.github`, `.claude`
 and `scripts/README.md` are reviewed like any other document.
 
 The evidence is bound to the candidate, not to a date. Reviewing recently
-proves nothing; reviewing these bytes does. The GA candidate gets its own full
-review: a verdict recorded against an RC describes a different commit.
+proves nothing; reviewing these bytes does. A verdict recorded against an RC
+describes a different commit, so nothing is ever carried over from an RC.
+
+**Inheriting from the last published release** (`release-ci-gates` C-21). A
+document whose path and blob are unchanged since the last published release
+may keep the verdict recorded in that release's review instead of being read
+again. Every other document gets a fresh read: changed, new and renamed
+documents, and any unchanged document whose subject changed, such as a page
+that describes a workflow that was edited. Matching bytes do not prove the
+behavior a document describes is unchanged. Only the documentation review can
+inherit; tests, assets, fleet checks and the captain's signature are always
+fresh.
 
 1. **Cut the candidate first and wait for its assets.** The attestation names
    an artifact and its digest, and both come from the candidate's `SHA256SUMS`
@@ -228,6 +238,19 @@ review: a verdict recorded against an RC describes a different commit.
    It writes one entry per document with `verdict = "pending"`, and leaves the
    human identity blank. It cannot fill either in for you.
 
+   To inherit from the last published release, pass its archived review:
+
+   ```bash
+   python3 -S scripts/doc-review-skeleton.py --commit "$COMMIT" --tag "$TAG" \
+     --inherit-from <archive>/doc-review-<previous tag>.toml > /tmp/doc-review-$TAG.toml
+   ```
+
+   Unchanged documents go under `[[inherited]]`; everything else under
+   `[[reviewed]]`. An unchanged document that names a changed file is put under
+   `[[reviewed]]` with a comment saying why. The skeleton lists every
+   non-document file changed since that release: check each for effects on the
+   inherited documents, and move any affected document to `[[reviewed]]`.
+
 4. **Read the files as they are at that commit**, not as they are in your
    working tree. `git show "$COMMIT:path/to/doc.md"` is the safe way; a
    checkout that has moved on is a different document.
@@ -239,12 +262,27 @@ review: a verdict recorded against an RC describes a different commit.
    Then recompute `docs_sha256` over the finished entries. A verdict of anything
    other than `accurate` is a NO-GO: there is no waiver.
 
+   For an inheriting review, `performed_by` and `performed_at` describe your
+   fresh reviews only; inherited entries carry no verdict and no date. After
+   checking the listed changes, set `inherits.changes_reviewed` to exactly
+   `<previous commit>..<candidate commit>`. `docs_sha256` covers both lists, an
+   inherited entry hashing with the verdict `inherited`.
+
 6. **Run the checker with the completed attestation present.**
 
    ```bash
    cp /tmp/doc-review-$TAG.toml release/attestations/
    python3 -S scripts/release-status.py --tag "$TAG"
    ```
+
+   An inheriting review also needs the previous release's review present, as
+   archived: the checker finds it by its sha256, checks that its release is the
+   last published one before this candidate, and re-checks that review with the
+   checker from that release's own tag, over its own documents and `SHA256SUMS`.
+   The split the generator writes is provisional: naming a changed file is a
+   flag, not a dependency analysis, so decide for every inherited document
+   whether a behavior change makes it inaccurate. Copy it into `release/attestations/`
+   for the run; it stays untracked like the new one.
 
    **Leave that file untracked while the decision is open.** It is a working
    document until D1 passes; committing it earlier records a review that has not
@@ -302,7 +340,8 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
 
 3. **Run Stage 3 and Stage 3b against the GA candidate.** Automated gates on
    the GA commit; fresh F1, F2, F3 and H1 by the founder against the draft's
-   packages; a full D1 against the GA commit's documentation. The checker
+   packages; a D1 against the GA commit's documentation, fresh for every
+   document C-21 does not let it inherit. The checker
    downloads every asset from the draft, hashes it against `SHA256SUMS`, and
    verifies `SHA256SUMS.asc` against `security/KEYS` (gates A1 and A2), then
    reports the release state with the verdict:
