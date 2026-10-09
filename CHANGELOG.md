@@ -10,6 +10,44 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.4] Eyrie (2026-10-13)
+
+A security release. It changes no OpenWatch code. It rebuilds 0.8.3 with
+Go 1.26.9 and `golang.org/x/net` v0.60.0, which fix twelve vulnerabilities
+published on 2026-10-08. Upgrade promptly.
+
+### Security
+
+- **Built with Go 1.26.9 and `golang.org/x/net` v0.60.0** (0.8.3 used Go
+  1.26.6 and v0.57.0). The `x/net` update also raises `golang.org/x/crypto` to
+  v0.57.0, `x/sync` to v0.23.0, `x/sys` to v0.48.0 and `x/text` to v0.42.0.
+- **HTTP/2 issues in the HTTPS listener, reachable without signing in.** The
+  listener (port 8443 by default) accepts HTTP/2 from any client that can
+  reach it. The advisories describe a server crash (GO-2026-6617), memory
+  exhaustion through trailer headers (GO-2026-6603), excessive CPU use
+  (GO-2026-6611) and wrong flow-control accounting (GO-2026-6612).
+- **Other server issues reachable without signing in:** no limit on the size
+  of parsed Range headers for static files (GO-2026-6609), and a memory-limit
+  bypass in MIME header parsing (GO-2026-6608).
+- **Issues that need more than network access:**
+  - GO-2026-6613 needs a handler that answers CONNECT with a 2xx status.
+    OpenWatch has none.
+  - GO-2026-6610 and GO-2026-6605 affect outbound HTTP, and need a malicious
+    upstream such as an identity provider or a proxy.
+  - GO-2026-6607 affects TLS connections that use Encrypted Client Hello.
+    OpenWatch does not configure it.
+  - GO-2026-6599 and GO-2026-6600 affect `html/template`. OpenWatch reaches
+    it only through the API documentation page, which renders fixed content.
+- **Until you upgrade,** limiting which clients can reach the listener lowers
+  the risk. It does not remove it.
+
+### Upgrade notes
+
+- **From 0.8.3:** upgrade the `openwatch` package and restart the service, as
+  the upgrade procedure describes. `kensa-rules` stays at 0.10.0, and no
+  database migration runs.
+- **From 0.7.1:** the 0.8.3 section below applies in full.
+
 ## [0.8.3] Eyrie (2026-10-06)
 
 This is the first published release of the 0.8 line. If you run 0.7.1, this
