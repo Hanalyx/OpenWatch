@@ -144,10 +144,14 @@ def docs_manifest_digest(entries):
     return h.hexdigest()
 
 
-def _reviewed_entries(att):
-    """[(path_bytes, blob, verdict)] or a diagnostic string."""
-    rows = att.get("reviewed")
-    if not isinstance(rows, list) or not rows:
+def _reviewed_entries(att, allow_empty=False):
+    """[(path_bytes, blob, verdict)] or a diagnostic string.
+
+    A review that inherits (C-21) may have no fresh entries at all, when no
+    document changed since the last published release. A full review may not.
+    """
+    rows = att.get("reviewed", [] if allow_empty else None)
+    if not isinstance(rows, list) or (not rows and not allow_empty):
         return "carries no reviewed entries"
     out = []
     for i, r in enumerate(rows):
@@ -229,6 +233,143 @@ def _bad_performed_at(value):
     return None
 
 
+# Documentation-review inheritance (release-ci-gates C-21, added in 1.25.0).
+# A D1 review may carry, per document, the verdict recorded for the LAST
+# PUBLISHED release, but only for a document whose path and blob are unchanged
+# since then. Nothing else carries over: not from a release candidate, not for
+# a changed document, and never for executable tests, assets, fleet checks or
+# the captain's signature. The marker below lets a run say when it applies a
+# rule the candidate's own tagged checker did not have.
+DOC_INHERITANCE_RULE = "release-ci-gates 1.25.0 C-21"
+INHERIT_FIELDS = ("tag", "commit", "attestation_sha256", "docs_sha256",
+                  "changes_reviewed")
+# A chain of inheriting reviews is followed back to a full one. The bound only
+# stops a malformed chain from looping; real chains are one or two links.
+INHERIT_DEPTH = 8
+INHERITED_VERDICT = "inherited"
+
+
+def _inherited_entries(att):
+    """[(path_bytes, blob)] or a diagnostic string."""
+    rows = att.get("inherited")
+    if not isinstance(rows, list) or not rows:
+        return "has an [inherits] table but no inherited entries"
+    out = []
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict) or set(r) != {"path", "blob"}:
+            return (f"inherited[{i}] must carry exactly path and blob; an inherited "
+                    "entry has no verdict or date of its own; got "
+                    f"{sorted(r) if isinstance(r, dict) else type(r).__name__}")
+        if not all(isinstance(r[k], str) for k in ("path", "blob")):
+            return f"inherited[{i}] has a non-string field"
+        out.append((r["path"].encode("utf-8"), r["blob"]))
+    return out
+
+
+def _effective_docs(att):
+    """{path_bytes: blob} that a review covers, reviewed and inherited alike.
+
+    Only called on a review that has already passed, so its entries are
+    well-formed."""
+    out = {}
+    for r in att.get("reviewed", []) or []:
+        out[r["path"].encode("utf-8")] = r["blob"]
+    for r in att.get("inherited", []) or []:
+        out[r["path"].encode("utf-8")] = r["blob"]
+    return out
+
+
+def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
+    """(status, note) for a review that carries an [inherits] table (C-21)."""
+    f = att["_file"]
+    inh = att.get("inherits")
+    if not isinstance(inh, dict):
+        return FAIL, (f"{f}: inherited entries need an [inherits] table naming the "
+                      "prior release's review")
+    for field in INHERIT_FIELDS:
+        value = inh.get(field)
+        if not isinstance(value, str) or not value.strip():
+            return FAIL, f"{f}: inherits.{field} is missing or not a non-empty string"
+    want_range = f"{inh['commit']}..{commit}"
+    if inh["changes_reviewed"] != want_range:
+        return FAIL, (f"{f}: inherits.changes_reviewed must be {want_range}: the "
+                      "reviewer states that the changes between the prior release and "
+                      "this candidate were checked for effects on every inherited "
+                      f"document; it reads {inh['changes_reviewed']!r}")
+    if depth >= INHERIT_DEPTH:
+        return FAIL, f"{f}: the chain of inherited reviews is longer than {INHERIT_DEPTH}"
+    if resolve_prior is None:
+        return ERROR, (f"{f}: inherits from {inh['tag']}, and this evaluation cannot "
+                       "read the prior release's review")
+
+    prior = resolve_prior(inh, tag, commit)
+    if prior[0] != "ok":
+        return prior[0], f"{f}: {prior[1]}"
+    _, p_att, p_cand, p_digests = prior
+    pf = p_att.get("_file", "?")
+    if (p_att.get("kind") != "documentation-review" or p_att.get("tag") != inh["tag"]
+            or p_att.get("commit") != inh["commit"]):
+        return FAIL, (f"{f}: {pf} is not the documentation review of {inh['tag']} "
+                      f"({inh['commit'][:12]})")
+    if p_att.get("docs_sha256") != inh["docs_sha256"]:
+        return FAIL, (f"{f}: inherits.docs_sha256 is {inh['docs_sha256'][:12]}, but "
+                      f"{pf} records {str(p_att.get('docs_sha256'))[:12]}")
+    p_status, p_note = eval_doc_review(p_att, p_cand, inh["tag"], inh["commit"],
+                                       p_digests, resolve_prior, depth + 1)
+    if p_status != PASS:
+        return FAIL, (f"{f}: the {inh['tag']} review it inherits from does not hold "
+                      f"({p_status}: {p_note})")
+
+    reviewed = _reviewed_entries(att, allow_empty=True)
+    if isinstance(reviewed, str):
+        return FAIL, f"{f}: {reviewed}"
+    inherited = _inherited_entries(att)
+    if isinstance(inherited, str):
+        return FAIL, f"{f}: {inherited}"
+
+    seen = {}
+    for path in [p for p, _, _ in reviewed] + [p for p, _ in inherited]:
+        seen[path] = seen.get(path, 0) + 1
+    dupes = sorted(p for p, n in seen.items() if n > 1)
+    if dupes:
+        return FAIL, (f"{f}: a document is listed twice, or as both reviewed and "
+                      f"inherited: {_show(dupes)}")
+    bad = sorted(p for p, _, v in reviewed if v != "accurate")
+    if bad:
+        return FAIL, (f"{f}: every reviewed verdict must be 'accurate'; "
+                      f"not accurate: {_show(bad)}")
+
+    combined = reviewed + [(p, b, INHERITED_VERDICT) for p, b in inherited]
+    added, removed, edited, renamed = diff_docs(candidate, combined)
+    if added or removed or edited or renamed:
+        bits = []
+        if added:
+            bits.append(f"added {_show(added)}")
+        if removed:
+            bits.append(f"removed {_show(removed)}")
+        if edited:
+            bits.append(f"edited {_show(edited)}")
+        for old, new in renamed:
+            bits.append(f"renamed {old.decode('utf-8', 'backslashreplace')} -> "
+                        f"{new.decode('utf-8', 'backslashreplace')}")
+        return STALE, f"{f}: the review does not describe this tree: " + "; ".join(bits)
+
+    prior_docs = _effective_docs(p_att)
+    changed = sorted(p for p, b in inherited if prior_docs.get(p) != b)
+    if changed:
+        return FAIL, (f"{f}: inherited documents differ from the ones reviewed for "
+                      f"{inh['tag']}, so they need a fresh review: {_show(changed)}")
+
+    want = docs_manifest_digest(combined)
+    if want != att["docs_sha256"]:
+        return FAIL, (f"{f}: docs_sha256 is {att['docs_sha256'][:12]}, "
+                      f"the reviewed and inherited entries hash to {want[:12]}")
+    return PASS, (f"{f} ({att['performed_by'].strip()}, {att['performed_at']}, "
+                  f"{len(reviewed)} documents reviewed for this candidate; "
+                  f"{len(inherited)} inherited from {inh['tag']} via {pf}, "
+                  f"under {DOC_INHERITANCE_RULE})")
+
+
 # Every top-level scalar the evaluator reads. A TOML file can carry any type
 # under any key, so each one is checked before it is used: an integer where a
 # string belongs must produce a verdict, not a traceback, because a checker
@@ -237,8 +378,12 @@ DOC_SCALARS = ("tag", "commit", "artifact", "artifact_sha256", "docs_sha256",
                "performed_by", "performed_at")
 
 
-def eval_doc_review(att, candidate, tag, commit, digests):
-    """(status, note) for one documentation-review attestation."""
+def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _depth=0):
+    """(status, note) for one documentation-review attestation.
+
+    A review that carries an [inherits] table is judged by C-21 (see
+    _eval_inheriting_review); every other review must cover every document
+    afresh."""
     for field in DOC_SCALARS:
         value = att.get(field)
         if value is None:
@@ -278,6 +423,9 @@ def eval_doc_review(att, candidate, tag, commit, digests):
     if candidate is None:
         return ERROR, (f"{att['_file']}: the candidate tree could not be read at "
                        f"{commit[:12]}")
+
+    if "inherits" in att or "inherited" in att:
+        return _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, _depth)
 
     reviewed = _reviewed_entries(att)
     if isinstance(reviewed, str):
@@ -780,12 +928,15 @@ def load_attestations():
         return []
     out = []
     for f in sorted(ATTEST_DIR.glob("*.toml")):
+        raw = f.read_bytes()
         try:
-            with f.open("rb") as fh:
-                a = tomllib.load(fh)
-        except tomllib.TOMLDecodeError as e:
+            a = tomllib.loads(raw.decode("utf-8"))
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
             die(f"{f.name}: {e}")
         a["_file"] = f.name
+        # An inheriting review names its prior by this digest (C-21), so the
+        # prior is identified by its bytes, not by its filename.
+        a["_sha256"] = hashlib.sha256(raw).hexdigest()
         out.append(a)
     return out
 
@@ -813,6 +964,78 @@ def eval_attestation(att, digests, human_required):
     who = att.get("performed_by", "?")
     when = att.get("performed_at", "?")
     return PASS, f"{att['_file']} ({who}, {when})"
+
+
+def last_published_release(tag, commit):
+    """(tag, commit) of the last PUBLISHED release before the candidate, () when
+    there is none, or None when it cannot be determined.
+
+    "Last" is by publication time, among published, non-pre-release releases
+    whose tagged commit is an ancestor of the candidate commit and is not the
+    candidate itself. Drafts and pre-releases are never a source of inherited
+    review (C-14, C-21); the ancestry test keeps a later release from being
+    chosen when an older candidate is re-evaluated."""
+    rc, out = sh("gh", "api", "--paginate", "repos/{owner}/{repo}/releases", "--jq",
+                 ".[] | select(.draft == false and .prerelease == false) "
+                 "| [.tag_name, .published_at] | @tsv")
+    if rc != 0:
+        return None
+    found = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 2 or parts[0] == tag:
+            continue
+        rel_tag, published = parts
+        rc, rel_commit = sh("git", "rev-list", "-n", "1", rel_tag)
+        if rc != 0 or not rel_commit:
+            return None
+        if rel_commit == commit:
+            continue
+        rc, _ = sh("git", "merge-base", "--is-ancestor", rel_commit, commit)
+        if rc == 0:
+            found.append((published, rel_tag, rel_commit))
+    if not found:
+        return ()
+    _, rel_tag, rel_commit = max(found)
+    return rel_tag, rel_commit
+
+
+def make_prior_resolver(atts):
+    """The C-21 lookup an inheriting review needs, bound to this run's data.
+
+    Returns ("ok", attestation, candidate_docs, digests) for the prior release,
+    or (status, note) explaining why the prior review cannot be used."""
+    def resolve(inh, tag, commit):
+        latest = last_published_release(tag, commit)
+        if latest is None:
+            return (ERROR, "cannot read the published releases or their tags, so the "
+                           "last published release cannot be identified")
+        if latest == ():
+            return (FAIL, f"no published release precedes {tag}, so nothing can be "
+                          "inherited; review every document")
+        rel_tag, rel_commit = latest
+        if inh["tag"] != rel_tag:
+            return (STALE, f"inherits from {inh['tag']}, but the last published release "
+                           f"before {tag} is {rel_tag}; reviews are inherited only from "
+                           "the last published release")
+        if inh["commit"] != rel_commit:
+            return (STALE, f"inherits from {inh['tag']} at {inh['commit'][:12]}, but "
+                           f"{rel_tag} names {rel_commit[:12]}")
+        match = [a for a in atts if a.get("_sha256") == inh["attestation_sha256"]]
+        if not match:
+            return (MISSING, f"the {rel_tag} documentation review (sha256 "
+                             f"{inh['attestation_sha256'][:12]}) is not in "
+                             "release/attestations/; copy it there from the internal "
+                             "archive for this run")
+        try:
+            p_cand = candidate_docs(rel_commit)
+        except PathNotEncodable as e:
+            return (ERROR, f"a {rel_tag} path is not valid UTF-8: "
+                           f"{e.raw.decode('utf-8', 'backslashreplace')!r}")
+        if p_cand is None:
+            return (ERROR, f"cannot read the tree at {rel_commit[:12]}")
+        return ("ok", match[0], p_cand, release_digests(rel_tag))
+    return resolve
 
 
 def evaluate(gates, tag, commit, workdir=None):
@@ -974,7 +1197,8 @@ def evaluate(gates, tag, commit, workdir=None):
             if problem:
                 yield gid, g["title"], problem[0], problem[1]
                 continue
-            status, note = eval_doc_review(att, cand, tag, commit, digests)
+            status, note = eval_doc_review(att, cand, tag, commit, digests,
+                                           make_prior_resolver(atts))
             yield gid, label_of(g), status, note
 
         elif kind == "attestation":
@@ -1043,6 +1267,15 @@ def main():
 
     blocking = [r for r in rows if r[2] in BAD]
     print()
+    if any(DOC_INHERITANCE_RULE in r[3] for r in rows):
+        rc, tagged = sh_bytes("git", "show", f"{commit}:scripts/release-status.py")
+        if rc != 0 or DOC_INHERITANCE_RULE.encode() not in tagged:
+            _, head = sh("git", "rev-parse", "HEAD")
+            print(f"NOTE: D1 accepted inherited documentation reviews under "
+                  f"{DOC_INHERITANCE_RULE}.\n"
+                  f"  {tag}'s own checker ({commit[:8]}) does not have that rule. This\n"
+                  f"  verdict is the checker's at {head[:8]}; record that commit with the\n"
+                  f"  decision. The tag and its tagged files are unchanged.\n")
     differ = gate_definitions_differ(commit)
     if differ is None:
         print(f"NOTE: release/gates.toml could not be read at {commit[:8]}; cannot tell "

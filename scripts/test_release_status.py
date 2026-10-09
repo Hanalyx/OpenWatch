@@ -949,6 +949,289 @@ class DocReviewSelectionIsCandidateBound(unittest.TestCase):
         self.assertIn("attests tag v0.7.1", problem[1])
 
 
+# ---- documentation-review inheritance (release-ci-gates C-21, AC-40) ----
+
+PRIOR_TAG, PRIOR_COMMIT = "v0.7.1", "b" * 40
+PRIOR_SHA = "d" * 64
+PRIOR_DIGESTS = {PRIOR_SHA: "openwatch-0.7.1-1.x86_64.rpm"}
+# The prior release had both documents; README.md is unchanged since, and
+# NESTED.md was edited for the candidate (blob 2 now, blob 5 then).
+PRIOR_CAND = [(b"README.md", "1" * 40), (b"docs/guides/NESTED.md", "5" * 40)]
+PRIOR_ACCURATE = [(p, b, "accurate") for p, b in PRIOR_CAND]
+
+
+def prior_att(**kw):
+    a = doc_att(PRIOR_ACCURATE, _file="doc-review-v0.7.1.toml", tag=PRIOR_TAG,
+                commit=PRIOR_COMMIT, artifact=PRIOR_DIGESTS[PRIOR_SHA],
+                artifact_sha256=PRIOR_SHA, performed_at="2026-08-01")
+    a["_sha256"] = "e" * 64
+    a.update(kw)
+    return a
+
+
+def inheriting_att(reviewed, inherited, **kw):
+    """A candidate review that reads `reviewed` fresh and inherits `inherited`."""
+    records = list(reviewed) + [(p, b, "inherited") for p, b in inherited]
+    a = doc_att(reviewed, docs_sha256=_expected_digest(records))
+    a["inherited"] = [{"path": p.decode(), "blob": b} for p, b in inherited]
+    a["inherits"] = {"tag": PRIOR_TAG, "commit": PRIOR_COMMIT,
+                     "attestation_sha256": "e" * 64,
+                     "docs_sha256": prior_att()["docs_sha256"],
+                     "changes_reviewed": f"{PRIOR_COMMIT}..{COMMIT}"}
+    for k, v in kw.items():
+        if k == "inherits":
+            a["inherits"].update(v)
+        else:
+            a[k] = v
+    return a
+
+
+def resolver(prior=None, problem=None):
+    def resolve(inh, tag, commit):
+        if problem:
+            return problem
+        return ("ok", prior or prior_att(), PRIOR_CAND, PRIOR_DIGESTS)
+    return resolve
+
+
+FRESH = [(b"docs/guides/NESTED.md", "2" * 40, "accurate")]
+INHERIT = [(b"README.md", "1" * 40)]
+
+
+def run_inherit(att, resolve=None, candidate=None):
+    return rs.eval_doc_review(att, CAND if candidate is None else candidate, TAG, COMMIT,
+                              DIGESTS, resolver() if resolve is None else resolve)
+
+
+class DocReviewInheritance(unittest.TestCase):
+    """C-21: a review may inherit, per document, the verdict recorded for the
+    last published release, only for a document unchanged since then."""
+
+    def test_reviewing_the_changed_and_inheriting_the_unchanged_passes(self):
+        status, note = run_inherit(inheriting_att(FRESH, INHERIT))
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("1 documents reviewed for this candidate", note)
+        self.assertIn("1 inherited from v0.7.1", note)
+        self.assertIn(rs.DOC_INHERITANCE_RULE, note)
+
+    def test_a_document_changed_since_the_prior_release_cannot_be_inherited(self):
+        att = inheriting_att([], [(b"README.md", "1" * 40), (b"docs/guides/NESTED.md", "2" * 40)])
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("need a fresh review: docs/guides/NESTED.md", note)
+
+    def test_an_inherited_entry_that_does_not_match_the_candidate_is_stale(self):
+        cand = [(b"README.md", "9" * 40), (b"docs/guides/NESTED.md", "2" * 40)]
+        status, note = run_inherit(inheriting_att(FRESH, INHERIT), candidate=cand)
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("edited README.md", note)
+
+    def test_every_document_is_covered_once(self):
+        both = inheriting_att(FRESH + [(b"README.md", "1" * 40, "accurate")], INHERIT)
+        status, note = run_inherit(both)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("both reviewed and inherited", note)
+        missing = inheriting_att([], INHERIT)
+        status, note = run_inherit(missing)
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("added docs/guides/NESTED.md", note)
+
+    def test_an_inherited_entry_has_no_verdict_or_date_of_its_own(self):
+        att = inheriting_att(FRESH, INHERIT)
+        att["inherited"][0]["verdict"] = "accurate"
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("exactly path and blob", note)
+
+    def test_fresh_verdicts_must_still_be_accurate(self):
+        att = inheriting_att([(b"docs/guides/NESTED.md", "2" * 40, "pending")], INHERIT)
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not accurate: docs/guides/NESTED.md", note)
+
+    def test_inherited_entries_need_an_inherits_table(self):
+        att = inheriting_att(FRESH, INHERIT)
+        del att["inherits"]
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("need an [inherits] table", note)
+
+    def test_the_reviewer_must_state_the_checked_change_range(self):
+        for value in ("", "yes", f"{PRIOR_COMMIT}..{'f' * 40}"):
+            with self.subTest(value=value):
+                att = inheriting_att(FRESH, INHERIT, inherits={"changes_reviewed": value})
+                status, note = run_inherit(att)
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn("changes_reviewed", note)
+
+    def test_only_the_last_published_release_can_be_inherited_from(self):
+        problem = (rs.STALE, "inherits from v0.7.1, but the last published release before "
+                             "v0.8.0-rc.1 is v0.8.0")
+        status, note = run_inherit(inheriting_att(FRESH, INHERIT), resolver(problem=problem))
+        self.assertEqual(status, rs.STALE)
+        self.assertIn("last published release", note)
+
+    def test_a_missing_prior_attestation_is_missing_evidence(self):
+        problem = (rs.MISSING, "the v0.7.1 documentation review is not in release/attestations/")
+        status, _ = run_inherit(inheriting_att(FRESH, INHERIT), resolver(problem=problem))
+        self.assertEqual(status, rs.MISSING)
+
+    def test_the_prior_review_must_still_hold_against_its_own_release(self):
+        for broken, why in ((prior_att(performed_by="openwatch-agent"), "agent"),
+                            (prior_att(artifact_sha256=GOOD_SHA), "not in this candidate"),
+                            (prior_att(tag="v0.7.0"), "is not the documentation review")):
+            with self.subTest(why=why):
+                status, note = run_inherit(inheriting_att(FRESH, INHERIT), resolver(prior=broken))
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn(why, note)
+
+    def test_the_prior_review_is_bound_by_its_recorded_digest(self):
+        att = inheriting_att(FRESH, INHERIT, inherits={"docs_sha256": "0" * 64})
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("inherits.docs_sha256", note)
+
+    def test_the_manifest_covers_reviewed_and_inherited_entries(self):
+        att = inheriting_att(FRESH, INHERIT, docs_sha256=_expected_digest(FRESH))
+        status, note = run_inherit(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("reviewed and inherited entries hash", note)
+
+    def test_without_a_resolver_inheritance_is_not_accepted(self):
+        status, _ = rs.eval_doc_review(inheriting_att(FRESH, INHERIT), CAND, TAG, COMMIT, DIGESTS)
+        self.assertEqual(status, rs.ERROR)
+
+    def test_a_chain_is_followed_back_to_a_full_review(self):
+        # The prior itself inherits README.md from an older full review.
+        older = prior_att(_file="doc-review-v0.7.0.toml", tag="v0.7.0", commit="0" * 40,
+                          _sha256="f" * 64)
+        mid_records = [(b"docs/guides/NESTED.md", "5" * 40, "accurate"),
+                       (b"README.md", "1" * 40, "inherited")]
+        mid = prior_att(reviewed=[{"path": "docs/guides/NESTED.md", "blob": "5" * 40,
+                                   "verdict": "accurate"}],
+                        inherited=[{"path": "README.md", "blob": "1" * 40}],
+                        docs_sha256=_expected_digest(mid_records),
+                        inherits={"tag": "v0.7.0", "commit": "0" * 40,
+                                  "attestation_sha256": "f" * 64,
+                                  "docs_sha256": older["docs_sha256"],
+                                  "changes_reviewed": f"{'0' * 40}..{PRIOR_COMMIT}"})
+
+        def chain(inh, tag, commit):
+            if inh["tag"] == PRIOR_TAG:
+                return ("ok", mid, PRIOR_CAND, PRIOR_DIGESTS)
+            return ("ok", older, PRIOR_CAND, PRIOR_DIGESTS)
+        att = inheriting_att(FRESH, INHERIT, inherits={"docs_sha256": mid["docs_sha256"]})
+        status, note = run_inherit(att, chain)
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_full_review_is_judged_exactly_as_before(self):
+        status, note = rs.eval_doc_review(doc_att(ACCURATE), CAND, TAG, COMMIT, DIGESTS,
+                                          resolver())
+        self.assertEqual(status, rs.PASS, note)
+        self.assertNotIn("inherited", note)
+
+
+class LastPublishedReleaseIsTheOnlySource(unittest.TestCase):
+    """Drafts and pre-releases never supply an inherited review, and a release
+    that is not an ancestor of the candidate is not 'before' it."""
+
+    def run_with(self, releases, commits, ancestors, tag="v0.8.4", commit="9" * 40):
+        saved = rs.sh
+
+        def fake(*args, **kw):
+            if args[:2] == ("gh", "api"):
+                return 0, "\n".join(f"{t}\t{p}" for t, p in releases)
+            if args[:3] == ("git", "rev-list", "-n"):
+                return 0, commits[args[4]]
+            if args[:3] == ("git", "merge-base", "--is-ancestor"):
+                return (0 if args[3] in ancestors else 1), ""
+            raise AssertionError(args)
+        rs.sh = fake
+        try:
+            return rs.last_published_release(tag, commit)
+        finally:
+            rs.sh = saved
+
+    def test_the_latest_published_ancestor_is_chosen(self):
+        got = self.run_with([("v0.8.3", "2026-10-07T23:09:23Z"), ("v0.7.1", "2026-08-04T09:11:08Z")],
+                            {"v0.8.3": "3" * 40, "v0.7.1": "1" * 40}, {"3" * 40, "1" * 40})
+        self.assertEqual(got, ("v0.8.3", "3" * 40))
+
+    def test_a_later_release_that_is_not_an_ancestor_is_ignored(self):
+        got = self.run_with([("v0.8.5", "2026-11-01T00:00:00Z"), ("v0.8.3", "2026-10-07T23:09:23Z")],
+                            {"v0.8.5": "5" * 40, "v0.8.3": "3" * 40}, {"3" * 40})
+        self.assertEqual(got, ("v0.8.3", "3" * 40))
+
+    def test_the_candidate_itself_is_never_its_own_prior(self):
+        got = self.run_with([("v0.8.4", "2026-10-10T00:00:00Z"), ("v0.8.3", "2026-10-07T23:09:23Z")],
+                            {"v0.8.4": "9" * 40, "v0.8.3": "3" * 40}, {"3" * 40})
+        self.assertEqual(got, ("v0.8.3", "3" * 40))
+
+    def test_another_published_tag_on_the_candidate_commit_is_not_before_it(self):
+        got = self.run_with([("v0.8.4-hotfix", "2026-10-11T00:00:00Z"), ("v0.8.3", "2026-10-07T23:09:23Z")],
+                            {"v0.8.4-hotfix": "9" * 40, "v0.8.3": "3" * 40}, {"9" * 40, "3" * 40})
+        self.assertEqual(got, ("v0.8.3", "3" * 40))
+
+    def test_no_published_ancestor_is_an_empty_answer(self):
+        self.assertEqual(self.run_with([], {}, set()), ())
+
+    def test_the_query_excludes_drafts_and_pre_releases(self):
+        src = (rs.REPO / "scripts" / "release-status.py").read_text(encoding="utf-8")
+        self.assertIn("select(.draft == false and .prerelease == false)", src)
+
+
+class SkeletonCanInheritFromThePublishedReview(unittest.TestCase):
+    """--inherit-from splits the documents and flags unchanged ones that name a
+    changed file; it never writes a verdict or a human identity."""
+
+    def test_split_and_flag(self):
+        repo = Path(tempfile.mkdtemp(prefix="ow-inherit-"))
+        try:
+            _git(repo, "init", "-q")
+            _git(repo, "config", "user.email", "t@example.com")
+            _git(repo, "config", "user.name", "T")
+            (repo / "SAME.md").write_text("unchanged prose\n", encoding="utf-8")
+            (repo / "MENTIONS.md").write_text("see build-config.yml\n", encoding="utf-8")
+            (repo / "EDITED.md").write_text("v1\n", encoding="utf-8")
+            (repo / "build-config.yml").write_text("a: 1\n", encoding="utf-8")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", "prior")
+            prior = _git(repo, "rev-parse", "HEAD").decode().strip()
+            blobs = {n: _git(repo, "rev-parse", f"{prior}:{n}").decode().strip()
+                     for n in ("SAME.md", "MENTIONS.md", "EDITED.md")}
+            prior_file = repo / "prior.toml"
+            body = [f'kind = "documentation-review"', 'tag = "v1.0.0"', f'commit = "{prior}"',
+                    'docs_sha256 = "' + "c" * 64 + '"']
+            for n, b in blobs.items():
+                body += ["[[reviewed]]", f'path = "{n}"', f'blob = "{b}"', 'verdict = "accurate"']
+            prior_file.write_text("\n".join(body) + "\n", encoding="utf-8")
+            (repo / "EDITED.md").write_text("v2\n", encoding="utf-8")
+            (repo / "build-config.yml").write_text("a: 2\n", encoding="utf-8")
+            (repo / "NEW.md").write_text("new\n", encoding="utf-8")
+            _git(repo, "add", "EDITED.md", "build-config.yml", "NEW.md")
+            _git(repo, "commit", "-qm", "candidate")
+            cand = _git(repo, "rev-parse", "HEAD").decode().strip()
+
+            gen = rs.REPO / "scripts" / "doc-review-skeleton.py"
+            r = subprocess.run([sys.executable, "-S", str(gen), "--commit", cand, "--tag", "v1.0.1",
+                                "--inherit-from", str(prior_file)], cwd=repo, capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr.decode())
+            out = r.stdout.decode("utf-8")
+            parsed = tomllib.loads(out)
+            self.assertEqual({e["path"] for e in parsed["inherited"]}, {"SAME.md"})
+            self.assertEqual({e["path"] for e in parsed["reviewed"]},
+                             {"MENTIONS.md", "EDITED.md", "NEW.md"})
+            self.assertTrue(all(e["verdict"] == "pending" for e in parsed["reviewed"]))
+            self.assertTrue(all(set(e) == {"path", "blob"} for e in parsed["inherited"]))
+            self.assertEqual(parsed["performed_by"], "")
+            self.assertEqual(parsed["inherits"]["changes_reviewed"], "")
+            self.assertEqual(parsed["inherits"]["attestation_sha256"],
+                             hashlib.sha256(prior_file.read_bytes()).hexdigest())
+            self.assertIn("names changed build-config.yml", out)
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+
+
 class SkeletonEncodesEveryLegalPath(unittest.TestCase):
     """Git permits any byte but NUL and "/" in a path component, so a tracked
     filename can carry a quote, a backslash, a newline or a control character.
