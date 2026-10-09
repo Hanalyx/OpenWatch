@@ -20,6 +20,9 @@
 #                  without native builds, for a change that touches no code,
 #                  spec, tooling or CI path. Targeted validation, not full
 #                  coverage.
+#   full-evidence  "Full test evidence": the release gates' evidence (C-19).
+#                  Runs only on the full path and succeeds only if every
+#                  full-path job did. Skipped on the documentation path.
 #   gates          "Quality + security gates", the only required check. It
 #                  needs all four, always runs, and fails unless each needed
 #                  job ended the way the change requires. It also runs every
@@ -45,6 +48,10 @@ name: Go CI
 on:
   push:
     branches: [main]
+    # A release tag runs the full pipeline on the exact commit it names, so
+    # the release gates read full test evidence from that commit even when
+    # its own change was documentation-only (release-ci-gates C-19).
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -93,6 +100,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
@@ -103,6 +112,11 @@ jobs:
             echo "Full pipeline: $1"
             exit 0
           }
+          # A release tag always takes the full pipeline (C-19). The empty
+          # push base below would select it too; this states it.
+          if [ "$EVENT" = "push" ] && [ "$REF_TYPE" = "tag" ]; then
+            full "release tag '$REF_NAME'"
+          fi
           case "$EVENT" in
             pull_request) base="$PR_BASE"; head="$PR_HEAD"; range="$PR_BASE...$PR_HEAD" ;;
             push)         base="$PUSH_BEFORE"; head="$PUSH_AFTER"; range="$PUSH_BEFORE..$PUSH_AFTER" ;;
@@ -786,6 +800,47 @@ jobs:
             exit 1
           fi
           echo "all needed jobs ended as required"
+
+  # Release evidence (release-ci-gates C-19, CP bugs/OW-086 tracks B and C).
+  # The release gates do not read "Quality + security gates": that check also
+  # passes on the documentation path, where the full suite is skipped. They
+  # read this job, which exists only to say that the FULL pipeline ran on this
+  # commit and every part of it succeeded. On the documentation path it is
+  # skipped, and a skipped job is not evidence. It runs under always() so a
+  # failed or canceled dependency makes it fail rather than skip quietly.
+  full-evidence:
+    name: Full test evidence
+    needs: [changes, checks, server-tests, docs-tests, gates]
+    if: always() && needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: require the whole full pipeline
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          GO: ${{ needs.changes.outputs.go }}
+          CHECKS: ${{ needs.checks.result }}
+          SERVER: ${{ needs.server-tests.result }}
+          DOCS: ${{ needs.docs-tests.result }}
+          GATES: ${{ needs.gates.result }}
+        run: |
+          echo "changes=$CHANGES go=$GO checks=$CHECKS server-tests=$SERVER docs-tests=$DOCS gates=$GATES"
+          bad=0
+          want() {
+            if [ "$2" != "$3" ]; then
+              echo "::error::$1 is '$2', want '$3'; this commit has no full test evidence"
+              bad=1
+            fi
+          }
+          want changes "$CHANGES" success
+          want go "$GO" true
+          want checks "$CHECKS" success
+          want server-tests "$SERVER" success
+          want docs-tests "$DOCS" skipped
+          want gates "$GATES" success
+          [ "$bad" -eq 0 ]
+          echo "full test evidence: every full-path job succeeded on ${GITHUB_SHA}"
 
   # Hanalyx documentation style gate. Runs as its own job on purpose: the
   # full-path test jobs above are skipped on documentation-only changes, so

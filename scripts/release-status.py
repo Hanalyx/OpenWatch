@@ -14,6 +14,8 @@ install step of its own.
 Evidence comes from three places and nowhere else:
 
   github-check   check runs on the tag's commit, via `gh api`
+  workflow-job   a job, by name, in runs of one named workflow file on the
+                 tag's commit, via `gh api` (release-ci-gates C-19)
   release-asset  assets on the GitHub release for the tag, via `gh release`
   attestation    files under release/attestations/, scoped to an artifact
                  digest so evidence follows the bits rather than the tag
@@ -420,6 +422,105 @@ def check_runs(commit):
     return runs
 
 
+def workflow_job_conclusions(commit, workflow, job):
+    """The result of the job named `job` in each run of the workflow file
+    `workflow` on `commit`.
+
+    Returns None when the API cannot be read, otherwise a list with one entry
+    per run of that workflow on the commit, each (run id, result):
+
+      * Within one run, only the LATEST attempt counts (`filter=latest`). An
+        intentional re-run supersedes the attempts before it, in both
+        directions: a failure re-run to success is a success, and a success
+        re-run to failure is a failure.
+      * result is the job's conclusion; PENDING while the job, or a run that
+        has not created it yet, is unfinished; None when a finished run has no
+        such job.
+
+    Separate runs are kept separate; release_evidence_verdict decides between
+    them. The job is identified by the workflow FILE as well as its name, so a
+    job of the same name in another workflow cannot stand in for it
+    (release-ci-gates C-19).
+    """
+    rc, out = sh(
+        "gh", "api", "--paginate",
+        f"repos/{{owner}}/{{repo}}/actions/runs?head_sha={commit}&per_page=100",
+        "--jq", ".workflow_runs[] | [(.id | tostring), .path, .status] | @tsv",
+    )
+    if rc != 0:
+        return None
+    runs = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[1] == workflow:
+            runs.append((parts[0], parts[2]))
+    results = []
+    for rid, run_status in runs:
+        rc, out = sh(
+            "gh", "api", "--paginate",
+            f"repos/{{owner}}/{{repo}}/actions/runs/{rid}/jobs?filter=latest&per_page=100",
+            "--jq", '.jobs[] | [.name, .status, (.conclusion // "")] | @tsv',
+        )
+        if rc != 0:
+            return None
+        found = [p for p in (ln.split("\t") for ln in out.splitlines()) if len(p) == 3 and p[0] == job]
+        if len(found) > 1:
+            # Two jobs of that name in one run's latest attempt is a workflow
+            # nobody intended; do not pick one.
+            results.append((rid, "ambiguous"))
+        elif found:
+            _, status, conclusion = found[0]
+            results.append((rid, conclusion if status == "completed" and conclusion else PENDING))
+        else:
+            results.append((rid, PENDING if run_status != "completed" else None))
+    return results
+
+
+def release_evidence_verdict(results, job, workflow, commit):
+    """Decide a workflow-job gate from the per-run results (release-ci-gates
+    C-19). A success never hides another run's failure:
+
+      * no run of the workflow on the commit, or no run with the job: MISSING;
+      * any run still pending: PENDING, because its outcome could contradict;
+      * any run whose latest result is anything but success or skipped
+        (failure, canceled, timed out, neutral, ambiguous...): FAIL, even
+        beside a success, because the commit has failing evidence;
+      * otherwise, at least one success: PASS. A skipped job means that run
+        took the documentation path; it is not evidence, and it does not
+        contradict a full run's success;
+      * otherwise (only skipped): FAIL.
+    """
+    if not results:
+        return MISSING, f"no {workflow} run on {commit[:8]}"
+    seen = [(rid, r) for rid, r in results if r is not None]
+    if not seen:
+        return MISSING, f"{workflow} ran on {commit[:8]} but produced no job named {job!r}"
+    summary = ", ".join(f"run {rid}: {r}" for rid, r in seen)
+    if any(r == PENDING for _, r in seen):
+        return PENDING, f"{job} is still running ({summary})"
+    bad = [(rid, r) for rid, r in seen if r not in ("success", "skipped")]
+    if bad:
+        return FAIL, (f"{job} did not succeed in every run on {commit[:8]} ({summary}); "
+                      f"a success elsewhere does not outweigh it")
+    if any(r == "success" for _, r in seen):
+        return PASS, f"{job} ({workflow}) on {commit[:8]} ({summary})"
+    return FAIL, f"{job}: skipped in every run ({summary}); the full suite did not run on {commit[:8]}"
+
+
+def gate_definitions_differ(commit):
+    """True when release/gates.toml at `commit` differs from the one this
+    checker is reading, False when identical, None when unreadable.
+
+    A release is judged by the checker and gate definitions at the commit
+    where its decision was recorded. Reading an older release with newer
+    definitions answers a different question, so the caller says so.
+    """
+    rc, out = sh_bytes("git", "show", f"{commit}:release/gates.toml")
+    if rc != 0:
+        return None
+    return out != GATES.read_bytes()
+
+
 KEYS = REPO / "security" / "KEYS"
 
 # Assets the manifest must account for. SHA256SUMS lists every package and
@@ -723,6 +824,7 @@ def evaluate(gates, tag, commit, workdir=None):
     if workdir is None:
         workdir = Path(tempfile.mkdtemp(prefix="release-status-"))
     runs = check_runs(commit)
+    job_cache = {}
     info = release_info(tag)
     assets = release_assets(tag, info)
     digests = release_digests(tag, info)
@@ -744,6 +846,22 @@ def evaluate(gates, tag, commit, workdir=None):
                 yield gid, g["title"], PENDING, f"{name} is still running"
             else:
                 yield gid, g["title"], FAIL, f"{name}: {runs[name]}"
+
+        elif kind == "workflow-job":
+            # Full test evidence (C-19). Only a successful job counts. A
+            # skipped job means the full suite did not run on this commit,
+            # which is what a documentation-only change produces; it is never
+            # evidence, however green the aggregate check was.
+            wf, job = g["workflow"], g["job"]
+            key = (wf, job)
+            if key not in job_cache:
+                job_cache[key] = workflow_job_conclusions(commit, wf, job)
+            res = job_cache[key]
+            if res is None:
+                yield gid, g["title"], ERROR, "could not read workflow runs (gh auth?)"
+                continue
+            status, note = release_evidence_verdict(res, job, wf, commit)
+            yield gid, g["title"], status, note
 
         elif kind == "github-check-all":
             # One gate, many named check runs. Every one must pass, and a
@@ -925,6 +1043,17 @@ def main():
 
     blocking = [r for r in rows if r[2] in BAD]
     print()
+    differ = gate_definitions_differ(commit)
+    if differ is None:
+        print(f"NOTE: release/gates.toml could not be read at {commit[:8]}; cannot tell "
+              "whether these gate definitions are the ones that applied to it.\n")
+    elif differ:
+        print(f"NOTE: these gate definitions differ from release/gates.toml at {tag} "
+              f"({commit[:8]}).\n"
+              "  A release is judged by the checker and gate definitions at the commit\n"
+              "  where its decision was recorded. For a release already decided under\n"
+              "  older definitions, this run does not revise that record; run the checker\n"
+              "  from that commit to reproduce it.\n")
     if blocking:
         print(f"VERDICT: NO-GO ({len(blocking)} blocking "
               f"{'gate' if len(blocking) == 1 else 'gates'} unmet)")

@@ -430,7 +430,7 @@ class ManifestIsLoadable(unittest.TestCase):
     kinds, so a typo in gates.toml surfaces here rather than as a gate that
     silently never applies."""
 
-    KINDS = {"github-check", "github-check-all", "release-asset",
+    KINDS = {"github-check", "github-check-all", "workflow-job", "release-asset",
              "signed-tag", "per-platform", "attestation", "doc-review",
              "asset-digests", "checksums-signature", "tag-identity"}
 
@@ -1445,6 +1445,178 @@ class TagIdentityIsCheckedOnOrigin(unittest.TestCase):
         self.assertEqual(status, rs.ERROR)
         self.assertIn("origin", note)
 
+
+class FullTestEvidenceIsRequired(unittest.TestCase):
+    """Release gates Q1 and S1 to S7 read a job, not the aggregate check
+    (release-ci-gates C-19, CP bugs/OW-086 tracks B and C). Only a success of
+    that job, in a run of that workflow file on the exact commit, counts. A
+    documentation-only commit passes "Quality + security gates" with the full
+    suite skipped; it must not pass these gates.
+
+    Selection: within a run, the latest attempt counts (an intentional re-run
+    supersedes earlier attempts). Across separate runs, any pending run makes
+    the gate PENDING, and any run whose latest result is not success or
+    skipped makes it FAIL, even beside a success."""
+
+    COMMIT = "c" * 40
+    WF = ".github/workflows/go-ci.yml"
+    JOB = "Full test evidence"
+    GATE = {"id": "Q1", "title": "Quality and security gates", "evidence": "workflow-job",
+            "workflow": WF, "job": JOB, "blocking": True}
+
+    def fake(self, runs, attempts, fail=None):
+        """runs: [(id, path)] or [(id, path, status)].
+        attempts: {id: [attempt 1 jobs, attempt 2 jobs, ...]}, each a list of
+        (name, status, conclusion). The jobs API is served only with
+        filter=latest, and returns the last attempt, as GitHub does."""
+        def sh(*args, check=False):
+            url = next((a for a in args if a.startswith("repos/")), "")
+            if fail and fail in url:
+                return 1, ""
+            if "/actions/runs?head_sha=" in url:
+                if self.COMMIT not in url:
+                    return 0, ""
+                return 0, "\n".join("\t".join((r + ("completed",))[:3]) for r in runs)
+            for rid, atts in attempts.items():
+                if f"/actions/runs/{rid}/jobs" in url:
+                    if "filter=latest" not in url:
+                        raise AssertionError(f"jobs must be read with filter=latest: {url}")
+                    return 0, "\n".join("\t".join(j) for j in atts[-1])
+            return 1, ""
+        return sh
+
+    def verdict(self, runs, attempts, fail=None):
+        saved = rs.sh
+        rs.sh = self.fake(runs, attempts, fail)
+        try:
+            out = list(rs.evaluate({"gate": [self.GATE]}, "v9.9.9", self.COMMIT,
+                                   workdir=Path(tempfile.mkdtemp())))
+        finally:
+            rs.sh = saved
+        self.assertEqual(len(out), 1, out)
+        return out[0][2], out[0][3]
+
+    def ev(self, conclusion, status="completed"):
+        return [("Quality + security gates", "completed", "success"), (self.JOB, status, conclusion)]
+
+    # --- one run ---------------------------------------------------------
+
+    def test_a_full_run_with_the_evidence_job_succeeded_passes(self):
+        status, note = self.verdict([("1", self.WF)], {"1": [self.ev("success")]})
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_documentation_only_success_does_not_pass(self):
+        # The aggregate succeeded; the evidence job was skipped because the
+        # full suite did not run.
+        status, note = self.verdict([("1", self.WF)], {"1": [self.ev("skipped")]})
+        self.assertEqual(status, rs.FAIL, note)
+        self.assertIn("skipped", note)
+
+    def test_an_aggregate_success_without_any_evidence_job_is_missing(self):
+        status, note = self.verdict([("1", self.WF)],
+                                    {"1": [[("Quality + security gates", "completed", "success")]]})
+        self.assertEqual(status, rs.MISSING, note)
+        self.assertIn("no job named", note)
+
+    def test_no_run_of_the_workflow_on_the_commit_is_missing(self):
+        status, note = self.verdict([], {})
+        self.assertEqual(status, rs.MISSING, note)
+
+    def test_failed_cancelled_or_other_evidence_fails(self):
+        for concl in ("failure", "cancelled", "neutral", "timed_out", "action_required"):
+            with self.subTest(conclusion=concl):
+                status, _ = self.verdict([("1", self.WF)], {"1": [self.ev(concl)]})
+                self.assertEqual(status, rs.FAIL)
+
+    # --- re-runs within one run: the latest attempt decides ---------------
+
+    def test_a_failure_rerun_to_success_passes(self):
+        status, note = self.verdict([("1", self.WF)], {"1": [self.ev("failure"), self.ev("success")]})
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_a_success_rerun_to_failure_fails(self):
+        status, note = self.verdict([("1", self.WF)], {"1": [self.ev("success"), self.ev("failure")]})
+        self.assertEqual(status, rs.FAIL, note)
+
+    def test_a_rerun_still_running_is_pending(self):
+        status, _ = self.verdict([("1", self.WF, "in_progress")],
+                                 {"1": [self.ev("success"), self.ev("", "in_progress")]})
+        self.assertEqual(status, rs.PENDING)
+
+    # --- separate runs on one commit: a success never hides a failure -------
+
+    def test_success_in_one_run_and_failure_in_another_fails(self):
+        for order in ((("1", "success"), ("2", "failure")), (("1", "failure"), ("2", "success"))):
+            with self.subTest(order=order):
+                status, note = self.verdict([(rid, self.WF) for rid, _ in order],
+                                            {rid: [self.ev(c)] for rid, c in order})
+                self.assertEqual(status, rs.FAIL, note)
+                self.assertIn("does not outweigh", note)
+
+    def test_success_beside_a_pending_run_is_pending(self):
+        status, note = self.verdict([("1", self.WF), ("2", self.WF, "in_progress")],
+                                    {"1": [self.ev("success")], "2": [self.ev("", "queued")]})
+        self.assertEqual(status, rs.PENDING, note)
+        # A running workflow that has not created the job yet is pending too.
+        status, note = self.verdict([("1", self.WF), ("2", self.WF, "in_progress")],
+                                    {"1": [self.ev("success")],
+                                     "2": [[("Detect Go-relevant changes", "in_progress", "")]]})
+        self.assertEqual(status, rs.PENDING, note)
+
+    def test_a_documentation_path_run_beside_a_full_success_passes(self):
+        # The push to main took the documentation path (skipped); the tag's run
+        # took the full path. Skipped is not evidence and is not a contradiction.
+        status, note = self.verdict([("1", self.WF), ("2", self.WF)],
+                                    {"1": [self.ev("skipped")], "2": [self.ev("success")]})
+        self.assertEqual(status, rs.PASS, note)
+
+    def test_the_same_job_name_in_another_workflow_is_not_evidence(self):
+        status, note = self.verdict([("7", ".github/workflows/other.yml")], {"7": [self.ev("success")]})
+        self.assertEqual(status, rs.MISSING, note)
+        status, note = self.verdict([("1", self.WF), ("7", ".github/workflows/other.yml")],
+                                    {"1": [self.ev("skipped")], "7": [self.ev("success")]})
+        self.assertEqual(status, rs.FAIL, note)
+
+    def test_two_evidence_jobs_in_one_attempt_are_not_picked_from(self):
+        status, note = self.verdict([("1", self.WF)],
+                                    {"1": [[(self.JOB, "completed", "success"), (self.JOB, "completed", "failure")]]})
+        self.assertEqual(status, rs.FAIL, note)
+
+    def test_an_unreadable_api_is_an_error_not_a_pass(self):
+        for fail in ("/actions/runs?head_sha=", "/actions/runs/1/jobs"):
+            with self.subTest(fail=fail):
+                status, _ = self.verdict([("1", self.WF)], {"1": [self.ev("success")]}, fail=fail)
+                self.assertEqual(status, rs.ERROR)
+
+    # --- the shipped manifest, and historical definitions -----------------
+
+    def test_the_shipped_full_suite_gates_read_the_evidence_job(self):
+        import tomllib
+        with rs.GATES.open("rb") as fh:
+            gates = tomllib.load(fh)["gate"]
+        by_id = {g["id"]: g for g in gates}
+        for gid in ["Q1"] + [f"S{i}" for i in range(1, 8)]:
+            with self.subTest(gate=gid):
+                g = by_id[gid]
+                self.assertEqual(g.get("evidence"), "workflow-job")
+                self.assertEqual(g.get("workflow"), self.WF)
+                self.assertEqual(g.get("job"), self.JOB)
+        for g in gates:
+            with self.subTest(gate=g["id"]):
+                self.assertFalse(g.get("evidence") == "github-check" and g.get("check") == "Quality + security gates",
+                                 "the aggregate check also passes on the documentation path; it is not release evidence")
+
+    def test_differing_historical_gate_definitions_are_reported(self):
+        saved = rs.sh_bytes
+        try:
+            rs.sh_bytes = lambda *a: (0, rs.GATES.read_bytes())
+            self.assertIs(rs.gate_definitions_differ("d" * 40), False)
+            rs.sh_bytes = lambda *a: (0, b"version = 1\n")
+            self.assertIs(rs.gate_definitions_differ("d" * 40), True)
+            rs.sh_bytes = lambda *a: (128, b"")
+            self.assertIsNone(rs.gate_definitions_differ("d" * 40))
+        finally:
+            rs.sh_bytes = saved
 
 if __name__ == "__main__":
     unittest.main(verbosity=2, argv=[sys.argv[0]])
