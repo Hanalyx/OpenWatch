@@ -36,7 +36,7 @@ func TestCIGates_DocumentationReviewInheritsOnlyUnchangedDocuments(t *testing.T)
 			}
 		}
 		for class, want := range map[string]int{
-			"DocReviewInheritance":                     16,
+			"DocReviewInheritance":                     18,
 			"LastPublishedReleaseIsTheOnlySource":      6,
 			"SkeletonCanInheritFromThePublishedReview": 1,
 		} {
@@ -54,6 +54,37 @@ func TestCIGates_DocumentationReviewInheritsOnlyUnchangedDocuments(t *testing.T)
 		} {
 			if !strings.Contains(book, want.frag) {
 				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
+			}
+		}
+	})
+}
+
+// @ac AC-40
+// AC-40, runbook half: the reviewer is told that the generated split is
+// provisional, and that the prior review is re-checked by the checker from the
+// prior release's own tag rather than by today's rules.
+func TestCIGates_DocumentationReviewInheritanceIsProvisionalAndVerifiedAsDecided(t *testing.T) {
+	t.Run("release-ci-gates/AC-40", func(t *testing.T) {
+		book := readAppFile(t, "docs/runbooks/RELEASING.md")
+		for _, want := range []struct{ frag, why string }{
+			{"The split the generator writes is provisional",
+				"a text scan of changed file names is a flag, not a dependency analysis"},
+			{"checker from that release's own tag",
+				"the prior review is verified as it was decided, not by today's rules"},
+		} {
+			if !strings.Contains(book, want.frag) {
+				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
+			}
+		}
+		gen := readAppFile(t, "scripts/doc-review-skeleton.py")
+		if !strings.Contains(gen, "PROVISIONAL SPLIT") {
+			t.Error("the inheriting skeleton does not say its split is provisional")
+		}
+		checker := readAppFile(t, "scripts/release-status.py")
+		for _, want := range []string{"Candidate's own policy:", "Amendment applied:", "Checker commit:"} {
+			if !strings.Contains(checker, want) {
+				t.Errorf("the checker's NOTE does not print %q; a decision under a later rule "+
+					"must record the candidate's policy, the amendment and the checker commit", want)
 			}
 		}
 	})

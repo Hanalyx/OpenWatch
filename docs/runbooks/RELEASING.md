@@ -277,8 +277,11 @@ fresh.
 
    An inheriting review also needs the previous release's review present, as
    archived: the checker finds it by its sha256, checks that its release is the
-   last published one before this candidate, and re-checks it against that
-   release's own tree and `SHA256SUMS`. Copy it into `release/attestations/`
+   last published one before this candidate, and re-checks that review with the
+   checker from that release's own tag, over its own documents and `SHA256SUMS`.
+   The split the generator writes is provisional: naming a changed file is a
+   flag, not a dependency analysis, so decide for every inherited document
+   whether a behavior change makes it inaccurate. Copy it into `release/attestations/`
    for the run; it stays untracked like the new one.
 
    **Leave that file untracked while the decision is open.** It is a working

@@ -305,7 +305,7 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     prior = resolve_prior(inh, tag, commit)
     if prior[0] != "ok":
         return prior[0], f"{f}: {prior[1]}"
-    _, p_att, p_cand, p_digests = prior
+    _, p_att, p_cand, p_digests, p_eval = prior
     pf = p_att.get("_file", "?")
     if (p_att.get("kind") != "documentation-review" or p_att.get("tag") != inh["tag"]
             or p_att.get("commit") != inh["commit"]):
@@ -314,8 +314,15 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     if p_att.get("docs_sha256") != inh["docs_sha256"]:
         return FAIL, (f"{f}: inherits.docs_sha256 is {inh['docs_sha256'][:12]}, but "
                       f"{pf} records {str(p_att.get('docs_sha256'))[:12]}")
-    p_status, p_note = eval_doc_review(p_att, p_cand, inh["tag"], inh["commit"],
-                                       p_digests, resolve_prior, depth + 1)
+    if "inherits" in p_att or "inherited" in p_att:
+        # The prior was itself decided under C-21, so it is judged by C-21.
+        p_status, p_note = eval_doc_review(p_att, p_cand, inh["tag"], inh["commit"],
+                                           p_digests, resolve_prior, depth + 1)
+    else:
+        # A full review is verified as it was decided: by its own release's
+        # checker, over its own release's document set. Only its D1 review is
+        # re-checked; its release is not held to today's other gates.
+        p_status, p_note = p_eval(p_att, p_digests)
     if p_status != PASS:
         return FAIL, (f"{f}: the {inh['tag']} review it inherits from does not hold "
                       f"({p_status}: {p_note})")
@@ -367,7 +374,7 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     return PASS, (f"{f} ({att['performed_by'].strip()}, {att['performed_at']}, "
                   f"{len(reviewed)} documents reviewed for this candidate; "
                   f"{len(inherited)} inherited from {inh['tag']} via {pf}, "
-                  f"under {DOC_INHERITANCE_RULE})")
+                  f"under {DOC_INHERITANCE_RULE}; prior review: {p_note})")
 
 
 # Every top-level scalar the evaluator reads. A TOML file can carry any type
@@ -966,6 +973,18 @@ def eval_attestation(att, digests, human_required):
     return PASS, f"{att['_file']} ({who}, {when})"
 
 
+def tagged_policy_version(commit):
+    """The release-ci-gates spec version at `commit`, or None."""
+    rc, raw = sh_bytes("git", "show", f"{commit}:specs/release/ci-gates.spec.yaml")
+    if rc != 0:
+        return None
+    for line in raw.decode("utf-8", "replace").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("version:"):
+            return stripped.split(":", 1)[1].strip().strip('"')
+    return None
+
+
 def last_published_release(tag, commit):
     """(tag, commit) of the last PUBLISHED release before the candidate, () when
     there is none, or None when it cannot be determined.
@@ -1034,8 +1053,42 @@ def make_prior_resolver(atts):
                            f"{e.raw.decode('utf-8', 'backslashreplace')!r}")
         if p_cand is None:
             return (ERROR, f"cannot read the tree at {rel_commit[:12]}")
-        return ("ok", match[0], p_cand, release_digests(rel_tag))
+        tagged = load_tagged_checker(rel_commit)
+
+        def p_eval(att, digests):
+            if tagged is None:
+                return ERROR, (f"cannot load {rel_tag}'s own checker at "
+                               f"{rel_commit[:12]}, so its review cannot be verified "
+                               "as it was decided")
+            try:
+                cand = tagged.candidate_docs(rel_commit)
+                status, note = tagged.eval_doc_review(att, cand, rel_tag, rel_commit, digests)
+            except Exception as e:  # an old checker failing is a verdict, not a crash
+                return ERROR, f"{rel_tag}'s own checker failed: {type(e).__name__}: {e}"
+            return status, f"{note}, verified by {rel_tag}'s own checker ({rel_commit[:8]})"
+        return ("ok", match[0], p_cand, release_digests(rel_tag), p_eval)
     return resolve
+
+
+def load_tagged_checker(commit):
+    """scripts/release-status.py as it was at `commit`, loaded as a module, or
+    None. Used to verify a prior release's documentation review by the rules
+    and document set it was decided under (C-21)."""
+    rc, src = sh_bytes("git", "show", f"{commit}:scripts/release-status.py")
+    if rc != 0 or not src:
+        return None
+    path = Path(tempfile.mkdtemp(prefix="release-status-")) / "release_status_tagged.py"
+    path.write_bytes(src)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(f"release_status_{commit[:12]}", path)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        return None
+    if not hasattr(mod, "eval_doc_review") or not hasattr(mod, "candidate_docs"):
+        return None
+    return mod
 
 
 def evaluate(gates, tag, commit, workdir=None):
@@ -1271,11 +1324,17 @@ def main():
         rc, tagged = sh_bytes("git", "show", f"{commit}:scripts/release-status.py")
         if rc != 0 or DOC_INHERITANCE_RULE.encode() not in tagged:
             _, head = sh("git", "rev-parse", "HEAD")
-            print(f"NOTE: D1 accepted inherited documentation reviews under "
-                  f"{DOC_INHERITANCE_RULE}.\n"
-                  f"  {tag}'s own checker ({commit[:8]}) does not have that rule. This\n"
-                  f"  verdict is the checker's at {head[:8]}; record that commit with the\n"
-                  f"  decision. The tag and its tagged files are unchanged.\n")
+            _, dirty = sh("git", "status", "--porcelain", "--", "scripts", "release")
+            own = tagged_policy_version(commit) or "unknown"
+            print(f"NOTE: D1 used a policy amendment the candidate was not tagged under.\n"
+                  f"  Candidate's own policy:  release-ci-gates {own} at {commit}\n"
+                  f"                           (no documentation-review inheritance)\n"
+                  f"  Amendment applied:       {DOC_INHERITANCE_RULE}\n"
+                  f"  Checker commit:          {head}"
+                  f"{' (with local changes: not a recordable run)' if dirty else ''}\n"
+                  f"  Record all three with the decision. Applying a later rule to an earlier\n"
+                  f"  candidate needs the captain's explicit approval for that candidate.\n"
+                  f"  The tag and its tagged files are unchanged.\n")
     differ = gate_definitions_differ(commit)
     if differ is None:
         print(f"NOTE: release/gates.toml could not be read at {commit[:8]}; cannot tell "

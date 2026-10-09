@@ -986,11 +986,16 @@ def inheriting_att(reviewed, inherited, **kw):
     return a
 
 
-def resolver(prior=None, problem=None):
+def original_checker(att, digests):
+    """Stands in for the prior release's own checker in these tests."""
+    return rs.eval_doc_review(att, PRIOR_CAND, PRIOR_TAG, PRIOR_COMMIT, digests)
+
+
+def resolver(prior=None, problem=None, p_eval=original_checker):
     def resolve(inh, tag, commit):
         if problem:
             return problem
-        return ("ok", prior or prior_att(), PRIOR_CAND, PRIOR_DIGESTS)
+        return ("ok", prior or prior_att(), PRIOR_CAND, PRIOR_DIGESTS, p_eval)
     return resolve
 
 
@@ -1118,11 +1123,54 @@ class DocReviewInheritance(unittest.TestCase):
 
         def chain(inh, tag, commit):
             if inh["tag"] == PRIOR_TAG:
-                return ("ok", mid, PRIOR_CAND, PRIOR_DIGESTS)
-            return ("ok", older, PRIOR_CAND, PRIOR_DIGESTS)
+                return ("ok", mid, PRIOR_CAND, PRIOR_DIGESTS, original_checker)
+            return ("ok", older, PRIOR_CAND, PRIOR_DIGESTS,
+                    lambda att, d: rs.eval_doc_review(att, PRIOR_CAND, "v0.7.0", "0" * 40, d))
         att = inheriting_att(FRESH, INHERIT, inherits={"docs_sha256": mid["docs_sha256"]})
         status, note = run_inherit(att, chain)
         self.assertEqual(status, rs.PASS, note)
+
+    def test_a_full_prior_review_is_verified_by_its_own_release_s_checker(self):
+        # The prior's original checker decides it, not today's rules: a verdict
+        # today's checker would refuse still stands if the original accepted it,
+        # and one the original refuses fails.
+        refused_today = prior_att(performed_by="openwatch-agent")
+        status, note = run_inherit(inheriting_att(FRESH, INHERIT),
+                                   resolver(prior=refused_today,
+                                            p_eval=lambda a, d: (rs.PASS, "original: accepted")))
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("original: accepted", note)
+        status, note = run_inherit(inheriting_att(FRESH, INHERIT),
+                                   resolver(p_eval=lambda a, d: (rs.FAIL, "original: refused")))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("original: refused", note)
+
+    def test_the_tagged_checker_is_loaded_from_the_prior_commit(self):
+        repo = Path(tempfile.mkdtemp(prefix="ow-tagged-"))
+        cwd = os.getcwd()
+        try:
+            _git(repo, "init", "-q")
+            _git(repo, "config", "user.email", "t@example.com")
+            _git(repo, "config", "user.name", "T")
+            (repo / "scripts").mkdir()
+            (repo / "scripts" / "release-status.py").write_text(
+                "MARK = 'original'\n"
+                "def candidate_docs(c):\n    return []\n"
+                "def eval_doc_review(*a):\n    return 'PASS', 'x'\n", encoding="utf-8")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-qm", "old checker")
+            old = _git(repo, "rev-parse", "HEAD").decode().strip()
+            (repo / "scripts" / "release-status.py").write_text("MARK = 'newer'\n", encoding="utf-8")
+            _git(repo, "commit", "-qam", "newer")
+            os.chdir(repo)
+            mod = rs.load_tagged_checker(old)
+            self.assertIsNotNone(mod)
+            self.assertEqual(mod.MARK, "original")
+            self.assertIsNone(rs.load_tagged_checker("HEAD"),
+                              "a checker without eval_doc_review cannot verify a review")
+        finally:
+            os.chdir(cwd)
+            shutil.rmtree(repo, ignore_errors=True)
 
     def test_a_full_review_is_judged_exactly_as_before(self):
         status, note = rs.eval_doc_review(doc_att(ACCURATE), CAND, TAG, COMMIT, DIGESTS,
