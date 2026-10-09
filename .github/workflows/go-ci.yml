@@ -194,7 +194,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.9'
           cache: true
           cache-dependency-path: go.sum
 
@@ -208,7 +208,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin/golangci-lint
-          key: golangci-bin-v1.64.8-go1.26.6-${{ runner.os }}
+          key: golangci-bin-v1.64.8-go1.26.9-${{ runner.os }}
 
       - name: Set up golangci-lint
         if: steps.cache-golangci-bin.outputs.cache-hit != 'true'
@@ -502,7 +502,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.9'
           cache: true
           cache-dependency-path: go.sum
 
@@ -565,7 +565,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.6'
+          go-version: '1.26.9'
           cache: true
           cache-dependency-path: go.sum
 
