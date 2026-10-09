@@ -96,3 +96,32 @@ func TestCIGates_AcceptedDefectAcceptanceStaysInternal(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-41
+// AC-41, binding half: the registered blobs are checked against the candidate
+// commit itself. The Python case skips only in a shallow checkout that lacks
+// the commit; this criterion runs where the history is present and requires
+// the case to run and pass, so the skip can never stand in for the check.
+func TestCIGates_AcceptedDefectBlobsAreReadFromTheCandidate(t *testing.T) {
+	t.Run("release-ci-gates/AC-41", func(t *testing.T) {
+		haveTool(t, "python3")
+		haveTool(t, "git")
+		const candidate = "474d9af26e457fc6a47b5475fab87394433a687b" // pragma: allowlist secret
+		have := exec.Command("git", "cat-file", "-e", candidate+"^{commit}")
+		have.Dir = appDir(t)
+		if err := have.Run(); err != nil {
+			t.Fatalf("commit %s is not in this checkout; this criterion needs full history to "+
+				"read the registered blobs (actions/checkout fetch-depth: 0)", candidate[:12])
+		}
+		cmd := exec.Command("python3", "-S", filepath.Join("scripts", "test_release_status.py"))
+		cmd.Dir = appDir(t)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("scripts/test_release_status.py: %v\n%s", err, tailOf(out, 40))
+		}
+		want := "(__main__.AcceptedDefectRegistry.test_the_registered_blobs_are_the_tagged_blobs) ... ok"
+		if !strings.Contains(string(out), want) {
+			t.Errorf("the registry blob check did not run and pass against %s", candidate[:12])
+		}
+	})
+}

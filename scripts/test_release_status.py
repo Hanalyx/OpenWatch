@@ -1503,6 +1503,16 @@ class AcceptedDefectRegistry(unittest.TestCase):
         cwd = os.getcwd()
         os.chdir(rs.REPO)
         try:
+            # A shallow checkout (the aggregate CI job fetches depth 1) does not
+            # have the candidate commit. Skip only then, and say so: the Go
+            # criterion AC-41 runs this suite in the full-history jobs and
+            # requires this case to pass, not skip. A present commit with the
+            # wrong path or blob still fails here.
+            have = subprocess.run(["git", "cat-file", "-e", f"{self.CANDIDATE}^{{commit}}"],
+                                  capture_output=True)
+            if have.returncode != 0:
+                self.skipTest(f"{self.CANDIDATE[:12]} is not in this shallow checkout; "
+                              "AC-41 runs this case with full history")
             for path, (blob, _) in self.EXPECTED.items():
                 got = subprocess.run(["git", "rev-parse", f"{self.CANDIDATE}:{path}"],
                                      capture_output=True, text=True)
