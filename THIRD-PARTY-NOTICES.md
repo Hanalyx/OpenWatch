@@ -42,11 +42,11 @@ Content hashes identify the inputs without a date that changes on each run.
 
 | Input | SHA-256 |
 |---|---|
-| `go.mod` | `4f46953150226315d05198554d728c5bb9bf9ee96563e364dd0b3df2e3000e28` |
-| `go.sum` | `9885408117f6f67ec09aab68fc80d9873a40c5929d4ba04348774a9675b60624` |
+| `go.mod` | `7d123ba33fe32fe609033958fc62d770febd7534d193c2efc08274a6dd3de9a4` |
+| `go.sum` | `9d472e1fa329e29d1c1e82d3edbfa81446b2a460fba1e828677257fa24f3e240` |
 | `frontend/package.json` | `e6540953c7768c1f9d2e3095d5a0bef9512de2053cbcfc189e9b56c564e503f7` |
 | `frontend/package-lock.json` | `648935775727fe7145294f9780decd8c961e3821fee3a53b8190ce58a27cea19` |
-| `packaging/third-party-go-licenses.json` | `6087c830ed961258f15e7a77a763991b184fe3a204fc73b07bef06513852582f` |
+| `packaging/third-party-go-licenses.json` | `34d7dec0af6bf54bbb9fc049de68cf06b7bfec129e2c36152cf0346374f8ed84` |
 
 ## Go modules
 
@@ -76,11 +76,11 @@ Content hashes identify the inputs without a date that changes on each run.
 | `github.com/swaggest/swgui` | v1.8.7 | Apache-2.0 |
 | `github.com/vearutop/statigz` | v1.4.0 | MIT |
 | `go.uber.org/multierr` | v1.11.0 | MIT |
-| `golang.org/x/crypto` | v0.56.0 | BSD-3-Clause |
-| `golang.org/x/net` | v0.57.0 | BSD-3-Clause |
-| `golang.org/x/sync` | v0.22.0 | BSD-3-Clause |
-| `golang.org/x/sys` | v0.47.0 | BSD-3-Clause |
-| `golang.org/x/text` | v0.41.0 | BSD-3-Clause |
+| `golang.org/x/crypto` | v0.57.0 | BSD-3-Clause |
+| `golang.org/x/net` | v0.60.0 | BSD-3-Clause |
+| `golang.org/x/sync` | v0.23.0 | BSD-3-Clause |
+| `golang.org/x/sys` | v0.48.0 | BSD-3-Clause |
+| `golang.org/x/text` | v0.42.0 | BSD-3-Clause |
 | `gopkg.in/yaml.v3` | v3.0.1 | MIT AND Apache-2.0 |
 | `modernc.org/libc` | v1.73.4 | BSD-3-Clause |
 | `modernc.org/mathutil` | v1.7.1 | BSD-3-Clause |

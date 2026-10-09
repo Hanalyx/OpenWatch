@@ -170,35 +170,35 @@
     }
   },
   "golang.org/x/crypto": {
-    "version": "v0.56.0",
-    "license": "BSD-3-Clause",
-    "files": {
-      "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
-    }
-  },
-  "golang.org/x/net": {
     "version": "v0.57.0",
     "license": "BSD-3-Clause",
     "files": {
       "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
     }
   },
+  "golang.org/x/net": {
+    "version": "v0.60.0",
+    "license": "BSD-3-Clause",
+    "files": {
+      "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    }
+  },
   "golang.org/x/sync": {
-    "version": "v0.22.0",
+    "version": "v0.23.0",
     "license": "BSD-3-Clause",
     "files": {
       "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
     }
   },
   "golang.org/x/sys": {
-    "version": "v0.47.0",
+    "version": "v0.48.0",
     "license": "BSD-3-Clause",
     "files": {
       "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
     }
   },
   "golang.org/x/text": {
-    "version": "v0.41.0",
+    "version": "v0.42.0",
     "license": "BSD-3-Clause",
     "files": {
       "LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
