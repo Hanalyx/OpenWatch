@@ -1280,6 +1280,249 @@ class SkeletonCanInheritFromThePublishedReview(unittest.TestCase):
             shutil.rmtree(repo, ignore_errors=True)
 
 
+# ---- accepted documentation defects (release-ci-gates C-22, AC-41) ----
+
+def exception_record(**kw):
+    """A registry record: technical scope only."""
+    rec = {"id": "x-nested", "candidate_tag": TAG, "commit": COMMIT,
+           "path": "docs/guides/NESTED.md", "blob": "2" * 40,
+           "findings": ["line 3: says X; the behavior is Y"], "fixes": ["#999 (abc)"]}
+    rec.update(kw)
+    return rec
+
+
+def acceptance(**kw):
+    """The captain's internal acceptance, carried in the attestation."""
+    a = {"exception": "x-nested", "accepted_by": "A. Captain", "accepted_at": "2026-10-09",
+         "acceptance": "accepted for this candidate only; never accurate"}
+    a.update(kw)
+    return a
+
+
+def defect_att(entry_kw=None, accepts=None, **kw):
+    """A full review: README.md accurate, NESTED.md an accepted defect."""
+    records = [(b"README.md", "1" * 40, "accurate"),
+               (b"docs/guides/NESTED.md", "2" * 40, "accepted-defect")]
+    a = doc_att(records)
+    entry = {"path": "docs/guides/NESTED.md", "blob": "2" * 40, "verdict": "accepted-defect",
+             "exception": "x-nested", "otherwise_accurate": True}
+    entry.update(entry_kw or {})
+    for k in [k for k, v in entry.items() if v is None]:
+        del entry[k]
+    a["reviewed"][1] = entry
+    a["defect_acceptance"] = [acceptance()] if accepts is None else accepts
+    a.update(kw)
+    return a
+
+
+def run_defect(att, exceptions=None, **kw):
+    ex = {"x-nested": exception_record()} if exceptions is None else exceptions
+    return rs.eval_doc_review(att, CAND, kw.get("tag", TAG), kw.get("commit", COMMIT),
+                              DIGESTS, None, 0, ex)
+
+
+class DocReviewAcceptedDefects(unittest.TestCase):
+    """C-22: a captain-accepted defect, registered for one candidate, one
+    document blob and named findings, is recorded as accepted-defect and never
+    as accurate."""
+
+    def test_a_registered_accepted_defect_passes_and_is_reported_not_accurate(self):
+        status, note = run_defect(defect_att())
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("1 accepted defects under " + rs.DOC_EXCEPTION_RULE, note)
+        self.assertIn("not accurate: docs/guides/NESTED.md", note)
+
+    def test_the_entry_must_name_the_exception_and_state_the_rest_is_accurate(self):
+        for missing in ("exception", "otherwise_accurate"):
+            with self.subTest(missing=missing):
+                status, note = run_defect(defect_att({missing: None}))
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn("exception and otherwise_accurate", note)
+        status, note = run_defect(defect_att({"otherwise_accurate": False}))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("otherwise_accurate = true", note)
+
+    def test_an_unregistered_exception_fails(self):
+        status, note = run_defect(defect_att({"exception": "made-up"}))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not in release/doc-review-exceptions.toml", note)
+        status, note = run_defect(defect_att(), exceptions={})
+        self.assertEqual(status, rs.FAIL)
+
+    def test_the_exception_does_not_extend_to_another_candidate_document_or_version(self):
+        for field, value in (("candidate_tag", "v0.8.5"), ("commit", "d" * 40),
+                             ("path", "README.md"), ("blob", "9" * 40)):
+            with self.subTest(field=field):
+                status, note = run_defect(defect_att(),
+                                          {"x-nested": exception_record(**{field: value})})
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn("does not extend to another candidate", note)
+
+    def test_the_registered_scope_must_be_complete(self):
+        for field, value, why in (("findings", [], "findings"),
+                                  ("fixes", ["the README"], "#NNN"),
+                                  ("blob", " ", "blob")):
+            with self.subTest(field=field):
+                status, note = run_defect(defect_att(),
+                                          {"x-nested": exception_record(**{field: value})})
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn(why, note)
+
+    def test_the_public_registry_cannot_carry_the_acceptance(self):
+        for field in ("accepted_by", "accepted_at", "acceptance"):
+            with self.subTest(field=field):
+                status, note = run_defect(defect_att(),
+                                          {"x-nested": exception_record(**{field: "x"})})
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn("belong in the internal attestation", note)
+
+    def test_the_registered_scope_alone_is_not_an_acceptance(self):
+        status, note = run_defect(defect_att(accepts=[]))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("the registered scope alone is not the captain's acceptance", note)
+        status, note = run_defect(defect_att(accepts=[acceptance(exception="other")]))
+        self.assertEqual(status, rs.FAIL)
+
+    def test_the_internal_acceptance_must_be_a_complete_human_record(self):
+        for field, value, why in (("accepted_by", "openwatch-agent", "agent"),
+                                  ("accepted_by", "  ", "accepted_by"),
+                                  ("accepted_at", "2999-01-01", "future"),
+                                  ("accepted_at", "yesterday", "ISO"),
+                                  ("acceptance", " ", "acceptance")):
+            with self.subTest(field=field, value=value):
+                status, note = run_defect(defect_att(accepts=[acceptance(**{field: value})]))
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn(why, note)
+        extra = acceptance(); extra["note"] = "x"
+        status, note = run_defect(defect_att(accepts=[extra]))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("carries exactly", note)
+
+    def test_an_acceptance_must_be_used_once_and_only_by_its_document(self):
+        status, note = run_defect(defect_att(accepts=[acceptance(), acceptance()]))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("two defect_acceptance entries", note)
+        status, note = run_defect(defect_att(accepts=[acceptance(), acceptance(exception="spare")]))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("which no accepted-defect document in this review uses", note)
+        plain = doc_att(ACCURATE)
+        plain["defect_acceptance"] = [acceptance()]
+        status, note = run_defect(plain)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("without any accepted-defect document", note)
+
+    def test_an_accurate_entry_cannot_carry_an_exception(self):
+        att = defect_att({"verdict": "accurate"})
+        status, note = run_defect(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("exactly path, blob and verdict", note)
+
+    def test_no_other_verdict_is_accepted(self):
+        for verdict in ("accepted", "waived", "inaccurate"):
+            with self.subTest(verdict=verdict):
+                att = defect_att()
+                att["reviewed"][1] = {"path": "docs/guides/NESTED.md", "blob": "2" * 40,
+                                      "verdict": verdict}
+                status, note = run_defect(att)
+                self.assertEqual(status, rs.FAIL)
+                self.assertIn("not accurate: docs/guides/NESTED.md", note)
+
+    def test_an_unreadable_registry_fails_any_accepted_defect(self):
+        status, note = run_defect(defect_att(), exceptions="bad.toml: broken")
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("registry cannot be read", note)
+
+    def test_the_manifest_records_the_accepted_defect_verdict(self):
+        att = defect_att(docs_sha256=_expected_digest(ACCURATE))
+        status, note = run_defect(att)
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("docs_sha256", note)
+
+    def test_an_inheriting_review_can_carry_an_accepted_defect(self):
+        records = [(b"docs/guides/NESTED.md", "2" * 40, "accepted-defect")]
+        att = inheriting_att(records, INHERIT)
+        att["reviewed"][0].update({"exception": "x-nested", "otherwise_accurate": True})
+        att["defect_acceptance"] = [acceptance()]
+        status, note = rs.eval_doc_review(att, CAND, TAG, COMMIT, DIGESTS, resolver(), 0,
+                                          {"x-nested": exception_record()})
+        self.assertEqual(status, rs.PASS, note)
+        self.assertIn("1 accepted defects", note)
+
+    def test_an_accepted_defect_is_never_inherited(self):
+        # The prior release recorded README.md as an accepted defect; the
+        # candidate tries to inherit it. Nothing accurate was recorded for it.
+        prior = prior_att()
+        prior["reviewed"][0] = {"path": "README.md", "blob": "1" * 40,
+                                "verdict": "accepted-defect", "exception": "old",
+                                "otherwise_accurate": True}
+        status, note = rs.eval_doc_review(inheriting_att(FRESH, INHERIT), CAND, TAG, COMMIT,
+                                          DIGESTS, resolver(prior=prior,
+                                                            p_eval=lambda a, d: (rs.PASS, "ok")))
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("need a fresh review: README.md", note)
+
+
+class AcceptedDefectRegistry(unittest.TestCase):
+    """The tracked registry holds exactly the captain-accepted v0.8.4 records."""
+
+    CANDIDATE = "474d9af26e457fc6a47b5475fab87394433a687b"  # pragma: allowlist secret
+    EXPECTED = {
+        ".github/BRANCH_MANAGEMENT.md": ("e64a6d9179d69698aa58db6393b43f13c13af5e7", "#930"),  # pragma: allowlist secret
+        ".github/workflows/README.md": ("bc96f6b1dcad3bbaadd0d99946994b4980a95494", "#931"),  # pragma: allowlist secret
+    }
+
+    def test_loading(self):
+        d = Path(tempfile.mkdtemp(prefix="ow-exc-"))
+        try:
+            self.assertEqual(rs.load_doc_exceptions(d / "absent.toml"), {})
+            (d / "dup.toml").write_text('[[exception]]\nid = "a"\n[[exception]]\nid = "a"\n',
+                                        encoding="utf-8")
+            self.assertIsInstance(rs.load_doc_exceptions(d / "dup.toml"), str)
+            (d / "bad.toml").write_text("[[exception\n", encoding="utf-8")
+            self.assertIsInstance(rs.load_doc_exceptions(d / "bad.toml"), str)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_the_tracked_registry_is_exactly_the_v0_8_4_acceptance(self):
+        ex = rs.load_doc_exceptions()
+        self.assertIsInstance(ex, dict, ex)
+        self.assertEqual(len(ex), 2, "the registry holds the two v0.8.4 records and nothing "
+                                     "else; another record is a new policy amendment")
+        self.assertEqual({r["path"] for r in ex.values()}, set(self.EXPECTED))
+        for rec in ex.values():
+            with self.subTest(path=rec["path"]):
+                self.assertIsNone(rs._bad_exception_record(rec))
+                self.assertEqual(set(rec), rs.EXCEPTION_FIELDS,
+                                 "the public registry carries the technical scope only")
+                self.assertEqual((rec["candidate_tag"], rec["commit"]), ("v0.8.4", self.CANDIDATE))
+                blob, fix = self.EXPECTED[rec["path"]]
+                self.assertEqual(rec["blob"], blob)
+                self.assertTrue(any(fix in x for x in rec["fixes"]))
+
+    def test_the_registered_blobs_are_the_tagged_blobs(self):
+        cwd = os.getcwd()
+        os.chdir(rs.REPO)
+        try:
+            # A shallow checkout (the aggregate CI job fetches depth 1) does not
+            # have the candidate commit. Skip only then, and say so: the Go
+            # criterion AC-41 runs this suite in the full-history jobs and
+            # requires this case to pass, not skip. A present commit with the
+            # wrong path or blob still fails here.
+            have = subprocess.run(["git", "cat-file", "-e", f"{self.CANDIDATE}^{{commit}}"],
+                                  capture_output=True)
+            if have.returncode != 0:
+                self.skipTest(f"{self.CANDIDATE[:12]} is not in this shallow checkout; "
+                              "AC-41 runs this case with full history")
+            for path, (blob, _) in self.EXPECTED.items():
+                got = subprocess.run(["git", "rev-parse", f"{self.CANDIDATE}:{path}"],
+                                     capture_output=True, text=True)
+                self.assertEqual(got.returncode, 0, f"cannot read {path} at the candidate: "
+                                                    f"{got.stderr.strip()}")
+                self.assertEqual(got.stdout.strip(), blob)
+        finally:
+            os.chdir(cwd)
+
+
 class SkeletonEncodesEveryLegalPath(unittest.TestCase):
     """Git permits any byte but NUL and "/" in a path component, so a tracked
     filename can carry a quote, a backslash, a newline or a control character.

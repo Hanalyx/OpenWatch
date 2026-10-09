@@ -32,6 +32,7 @@ import json
 import datetime
 import hashlib
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -155,8 +156,17 @@ def _reviewed_entries(att, allow_empty=False):
         return "carries no reviewed entries"
     out = []
     for i, r in enumerate(rows):
-        if not isinstance(r, dict) or set(r) != {"path", "blob", "verdict"}:
-            return (f"reviewed[{i}] must carry exactly path, blob and verdict; "
+        # An accepted-defect entry (C-22) carries two more fields: the
+        # registered exception it relies on, and the reviewer's statement that
+        # the document is otherwise accurate. Every other entry carries exactly
+        # path, blob and verdict.
+        accepted = isinstance(r, dict) and r.get("verdict") == ACCEPTED_DEFECT
+        want = ({"path", "blob", "verdict", "exception", "otherwise_accurate"} if accepted
+                else {"path", "blob", "verdict"})
+        if not isinstance(r, dict) or set(r) != want:
+            fields = ("path, blob, verdict, exception and otherwise_accurate" if accepted
+                      else "path, blob and verdict")
+            return (f"reviewed[{i}] must carry exactly {fields}; "
                     f"got {sorted(r) if isinstance(r, dict) else type(r).__name__}")
         if not all(isinstance(r[k], str) for k in ("path", "blob", "verdict")):
             return f"reviewed[{i}] has a non-string field"
@@ -248,6 +258,147 @@ INHERIT_FIELDS = ("tag", "commit", "attestation_sha256", "docs_sha256",
 INHERIT_DEPTH = 8
 INHERITED_VERDICT = "inherited"
 
+# Accepted documentation defects (release-ci-gates C-22, added in 1.26.0). A
+# D1 verdict is "accurate" or nothing, with one narrow exception: a document
+# the release captain has explicitly accepted as defective for one candidate.
+# Two records must agree. The tracked registry below carries the technical
+# scope only (candidate, path, exact blob, defect descriptions and public fix
+# references). The captain's acceptance, its date and the captain's identity
+# are internal and live in the D1 attestation as [[defect_acceptance]]. Such a
+# document is never "accurate"; it is "accepted-defect".
+DOC_EXCEPTION_RULE = "release-ci-gates 1.26.0 C-22"
+ACCEPTED_DEFECT = "accepted-defect"
+EXCEPTIONS_FILE = REPO / "release" / "doc-review-exceptions.toml"
+EXCEPTION_STRINGS = ("id", "candidate_tag", "commit", "path", "blob")
+EXCEPTION_FIELDS = set(EXCEPTION_STRINGS) | {"findings", "fixes"}
+ACCEPTANCE_FIELDS = {"exception", "accepted_by", "accepted_at", "acceptance"}
+
+
+def load_doc_exceptions(path=None):
+    """{id: record} from the tracked registry, {} when it does not exist, or a
+    diagnostic string when it cannot be read."""
+    path = EXCEPTIONS_FILE if path is None else path
+    if not Path(path).is_file():
+        return {}
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        return f"{Path(path).name}: {e}"
+    rows = data.get("exception", [])
+    if not isinstance(rows, list):
+        return f"{Path(path).name}: exception must be an array of tables"
+    out = {}
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str):
+            return f"{Path(path).name}: exception[{i}] has no id"
+        if r["id"] in out:
+            return f"{Path(path).name}: duplicate exception id {r['id']!r}"
+        out[r["id"]] = r
+    return out
+
+
+def _bad_exception_record(rec):
+    """A diagnostic if a registry record is not a usable technical scope, else
+    None. The registry is tracked and public, so it carries no acceptance,
+    date or identity; those are internal (see _bad_acceptance)."""
+    if set(rec) != EXCEPTION_FIELDS:
+        return (f"a registry record carries exactly {', '.join(sorted(EXCEPTION_FIELDS))}; "
+                f"got {', '.join(sorted(rec))}. The acceptance, its date and the "
+                "captain's identity belong in the internal attestation")
+    for field in EXCEPTION_STRINGS:
+        value = rec.get(field)
+        if not isinstance(value, str) or not value.strip():
+            return f"{field} is missing or empty"
+    for field in ("findings", "fixes"):
+        value = rec.get(field)
+        if (not isinstance(value, list) or not value
+                or not all(isinstance(x, str) and x.strip() for x in value)):
+            return f"{field} must be a non-empty list of strings"
+    if not all(re.search(r"#\d+", x) for x in rec["fixes"]):
+        return "every fix must name the pull request that corrects the defect (#NNN)"
+    return None
+
+
+def _bad_acceptance(a):
+    """A diagnostic if an internal [[defect_acceptance]] entry is not a usable
+    captain's acceptance, else None."""
+    if not isinstance(a, dict) or set(a) != ACCEPTANCE_FIELDS:
+        return (f"a defect_acceptance entry carries exactly "
+                f"{', '.join(sorted(ACCEPTANCE_FIELDS))}")
+    for field in sorted(ACCEPTANCE_FIELDS):
+        if not isinstance(a[field], str) or not a[field].strip():
+            return f"defect_acceptance.{field} is missing or empty"
+    if a["accepted_by"].strip().endswith("-agent"):
+        return "accepted_by is an agent; only the release captain can accept a defect"
+    if bad := _bad_performed_at(a["accepted_at"]):
+        return bad.replace("performed_at", "accepted_at")
+    return None
+
+
+def _check_accepted_defects(att, tag, commit, exceptions):
+    """(paths, None) for the accepted-defect entries of a review, or (None,
+    diagnostic). Each must match one registry record exactly (this candidate's
+    tag and commit, the document's path and blob) AND one internal
+    [[defect_acceptance]] entry in the attestation naming that record."""
+    rows = [r for r in att.get("reviewed", []) or [] if r.get("verdict") == ACCEPTED_DEFECT]
+    accepts = att.get("defect_acceptance", [])
+    if not isinstance(accepts, list):
+        return None, "defect_acceptance must be an array of tables"
+    if not rows:
+        if accepts:
+            return None, ("defect_acceptance entries without any accepted-defect document; "
+                          "an acceptance applies to a document recorded as accepted-defect")
+        return [], None
+    by_id = {}
+    for a in accepts:
+        if bad := _bad_acceptance(a):
+            return None, bad
+        if a["exception"] in by_id:
+            return None, f"two defect_acceptance entries name {a['exception']!r}"
+        by_id[a["exception"]] = a
+    used = set()
+    if isinstance(exceptions, str):
+        return None, f"the accepted-defect registry cannot be read: {exceptions}"
+    exceptions = exceptions or {}
+    paths = []
+    for r in rows:
+        where = r["path"]
+        if r.get("otherwise_accurate") is not True:
+            return None, (f"{where}: an accepted defect needs otherwise_accurate = true, the "
+                          "reviewer's statement that nothing else in the document is wrong")
+        rec = exceptions.get(r.get("exception"))
+        if not isinstance(r.get("exception"), str) or rec is None:
+            return None, (f"{where}: exception {r.get('exception')!r} is not in "
+                          "release/doc-review-exceptions.toml; a defect can be accepted only "
+                          "by a registered, captain-accepted exception")
+        if bad := _bad_exception_record(rec):
+            return None, f"{where}: exception {rec['id']!r} is not usable: {bad}"
+        for field, want in (("candidate_tag", tag), ("commit", commit),
+                            ("path", r["path"]), ("blob", r["blob"])):
+            if rec[field] != want:
+                return None, (f"{where}: exception {rec['id']!r} was accepted for "
+                              f"{field} {rec[field]!r}, not {want!r}; it does not extend to "
+                              "another candidate, document or version of the document")
+        if rec["id"] not in by_id:
+            return None, (f"{where}: no defect_acceptance entry in this attestation names "
+                          f"{rec['id']!r}; the registered scope alone is not the captain's "
+                          "acceptance")
+        used.add(rec["id"])
+        paths.append(r["path"].encode("utf-8"))
+    extra = sorted(set(by_id) - used)
+    if extra:
+        return None, (f"defect_acceptance names {', '.join(extra)}, which no accepted-defect "
+                      "document in this review uses")
+    return paths, None
+
+
+def _accepted_note(paths):
+    if not paths:
+        return ""
+    return (f"; {len(paths)} accepted defects under {DOC_EXCEPTION_RULE}, not accurate: "
+            f"{_show(sorted(paths))}")
+
 
 def _inherited_entries(att):
     """[(path_bytes, blob)] or a diagnostic string."""
@@ -273,13 +424,17 @@ def _effective_docs(att):
     well-formed."""
     out = {}
     for r in att.get("reviewed", []) or []:
-        out[r["path"].encode("utf-8")] = r["blob"]
+        # An accepted defect (C-22) was never found accurate, so there is
+        # nothing to inherit from it.
+        if r.get("verdict") == "accurate":
+            out[r["path"].encode("utf-8")] = r["blob"]
     for r in att.get("inherited", []) or []:
         out[r["path"].encode("utf-8")] = r["blob"]
     return out
 
 
-def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
+def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth,
+                            exceptions=None):
     """(status, note) for a review that carries an [inherits] table (C-21)."""
     f = att["_file"]
     inh = att.get("inherits")
@@ -317,7 +472,7 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     if "inherits" in p_att or "inherited" in p_att:
         # The prior was itself decided under C-21, so it is judged by C-21.
         p_status, p_note = eval_doc_review(p_att, p_cand, inh["tag"], inh["commit"],
-                                           p_digests, resolve_prior, depth + 1)
+                                           p_digests, resolve_prior, depth + 1, exceptions)
     else:
         # A full review is verified as it was decided: by its own release's
         # checker, over its own release's document set. Only its D1 review is
@@ -341,10 +496,14 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     if dupes:
         return FAIL, (f"{f}: a document is listed twice, or as both reviewed and "
                       f"inherited: {_show(dupes)}")
-    bad = sorted(p for p, _, v in reviewed if v != "accurate")
+    bad = sorted(p for p, _, v in reviewed if v not in ("accurate", ACCEPTED_DEFECT))
     if bad:
-        return FAIL, (f"{f}: every reviewed verdict must be 'accurate'; "
+        return FAIL, (f"{f}: every reviewed verdict must be 'accurate', or "
+                      f"'{ACCEPTED_DEFECT}' under a registered exception; "
                       f"not accurate: {_show(bad)}")
+    accepted, problem = _check_accepted_defects(att, tag, commit, exceptions)
+    if problem:
+        return FAIL, f"{f}: {problem}"
 
     combined = reviewed + [(p, b, INHERITED_VERDICT) for p, b in inherited]
     added, removed, edited, renamed = diff_docs(candidate, combined)
@@ -374,7 +533,8 @@ def _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, depth):
     return PASS, (f"{f} ({att['performed_by'].strip()}, {att['performed_at']}, "
                   f"{len(reviewed)} documents reviewed for this candidate; "
                   f"{len(inherited)} inherited from {inh['tag']} via {pf}, "
-                  f"under {DOC_INHERITANCE_RULE}; prior review: {p_note})")
+                  f"under {DOC_INHERITANCE_RULE}{_accepted_note(accepted)}; "
+                  f"prior review: {p_note})")
 
 
 # Every top-level scalar the evaluator reads. A TOML file can carry any type
@@ -385,7 +545,8 @@ DOC_SCALARS = ("tag", "commit", "artifact", "artifact_sha256", "docs_sha256",
                "performed_by", "performed_at")
 
 
-def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _depth=0):
+def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _depth=0,
+                    exceptions=None):
     """(status, note) for one documentation-review attestation.
 
     A review that carries an [inherits] table is judged by C-21 (see
@@ -432,7 +593,8 @@ def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _d
                        f"{commit[:12]}")
 
     if "inherits" in att or "inherited" in att:
-        return _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, _depth)
+        return _eval_inheriting_review(att, candidate, tag, commit, resolve_prior, _depth,
+                                       exceptions)
 
     reviewed = _reviewed_entries(att)
     if isinstance(reviewed, str):
@@ -445,10 +607,14 @@ def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _d
     if dupes:
         return FAIL, f"{att['_file']}: duplicate reviewed path: {_show(dupes)}"
 
-    bad = sorted(p for p, _, v in reviewed if v != "accurate")
+    bad = sorted(p for p, _, v in reviewed if v not in ("accurate", ACCEPTED_DEFECT))
     if bad:
-        return FAIL, (f"{att['_file']}: every verdict must be 'accurate'; "
+        return FAIL, (f"{att['_file']}: every verdict must be 'accurate', or "
+                      f"'{ACCEPTED_DEFECT}' under a registered exception; "
                       f"not accurate: {_show(bad)}")
+    accepted, problem = _check_accepted_defects(att, tag, commit, exceptions)
+    if problem:
+        return FAIL, f"{att['_file']}: {problem}"
 
     added, removed, edited, renamed = diff_docs(candidate, reviewed)
     if added or removed or edited or renamed:
@@ -469,7 +635,8 @@ def eval_doc_review(att, candidate, tag, commit, digests, resolve_prior=None, _d
         return FAIL, (f"{att['_file']}: docs_sha256 is {att['docs_sha256'][:12]}, "
                       f"the reviewed entries hash to {want[:12]}")
     return PASS, (f"{att['_file']} ({att.get('performed_by', '?')}, "
-                  f"{att['performed_at']}, {len(reviewed)} documents)")
+                  f"{att['performed_at']}, {len(reviewed)} documents"
+                  f"{_accepted_note(accepted)})")
 
 
 def select_attestation(atts, kind, digests, platform=None):
@@ -1251,7 +1418,8 @@ def evaluate(gates, tag, commit, workdir=None):
                 yield gid, g["title"], problem[0], problem[1]
                 continue
             status, note = eval_doc_review(att, cand, tag, commit, digests,
-                                           make_prior_resolver(atts))
+                                           make_prior_resolver(atts),
+                                           exceptions=load_doc_exceptions())
             yield gid, label_of(g), status, note
 
         elif kind == "attestation":
@@ -1320,16 +1488,18 @@ def main():
 
     blocking = [r for r in rows if r[2] in BAD]
     print()
-    if any(DOC_INHERITANCE_RULE in r[3] for r in rows):
+    used = [rule for rule in (DOC_INHERITANCE_RULE, DOC_EXCEPTION_RULE)
+            if any(rule in r[3] for r in rows)]
+    if used:
         rc, tagged = sh_bytes("git", "show", f"{commit}:scripts/release-status.py")
-        if rc != 0 or DOC_INHERITANCE_RULE.encode() not in tagged:
+        later = [rule for rule in used if rc != 0 or rule.encode() not in tagged]
+        if later:
             _, head = sh("git", "rev-parse", "HEAD")
             _, dirty = sh("git", "status", "--porcelain", "--", "scripts", "release")
             own = tagged_policy_version(commit) or "unknown"
             print(f"NOTE: D1 used a policy amendment the candidate was not tagged under.\n"
                   f"  Candidate's own policy:  release-ci-gates {own} at {commit}\n"
-                  f"                           (no documentation-review inheritance)\n"
-                  f"  Amendment applied:       {DOC_INHERITANCE_RULE}\n"
+                  f"  Amendment applied:       {'; '.join(later)}\n"
                   f"  Checker commit:          {head}"
                   f"{' (with local changes: not a recordable run)' if dirty else ''}\n"
                   f"  Record all three with the decision. Applying a later rule to an earlier\n"
