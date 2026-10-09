@@ -15,7 +15,7 @@ relying on them.
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `go-ci.yml` | push/PR to `main` | Quality and security gates: vet, lint, govulncheck, race tests against PostgreSQL, spec coverage |
+| `go-ci.yml` | push/PR to `main`, `v*` tags | Quality and security gates: vet, lint, govulncheck, race tests against PostgreSQL, spec coverage; a shorter documentation path for documentation-only changes; the `Full test evidence` job release gates read |
 | `codeql.yml` | PR to `main`/`develop`, `v*` tag, daily, manual | CodeQL static analysis (JavaScript/TypeScript) |
 | `release.yml` | `v*` tags, manual | Build RPM/DEB (amd64 + arm64), SBOMs, signing, publish a GitHub Release |
 | `package-smoke.yml` | `v*` tags, packaging PRs, manual | Install built packages on RPM/DEB distros and smoke-test |
@@ -29,29 +29,47 @@ workflow). The branch-prefix policy is documented in `.github/BRANCH_MANAGEMENT.
 
 ## Core CI: `go-ci.yml`
 
-The pre-merge gate. The job is named **Quality + security gates** and runs on every
-push and PR to `main`. A path-detection step short-circuits to success for
-doc/meta-only changes so the required status check is always present.
+The pre-merge gate and the source of release test evidence. It runs on every push
+and pull request to `main` and on every pushed `v*` tag. The required status check
+is the aggregate job **Quality + security gates**, which runs on every event so the
+check is always present.
 
-When Go-relevant paths change, the job runs against a `postgres:16-alpine` service
-container and executes:
+The **Detect Go-relevant changes** job picks one of two paths. A release tag always
+takes the full path. Otherwise a change to code, specs, packaging, scripts,
+tooling or CI takes the full path, and any other change takes the documentation
+path.
 
-- `go mod tidy` followed by a `git diff` check (fails if `go.mod`/`go.sum` drifted)
-- `make vet`
-- `make lint` (golangci-lint, built from source to match the runner toolchain)
-- `make vuln` (govulncheck)
-- the `go test -race -json` run: the race detector plus the full integration
-  suite against PostgreSQL, emitting the JSON that `specter` ingests. Every
-  package runs exactly once, in two invocations: everything except
-  `internal/server` under the shared 900 s per-package budget, then
-  `internal/server` alone under its own 1800 s budget, so the database-heavy suite
-  does not compete with sibling packages for the PostgreSQL service and a
-  hang elsewhere still fails at the shared budget. Both exit statuses and
-  both JSON streams are kept. It replaced the former separate `make
-  test-race` + non-race `go test -json` runs (which walked the DB-bound suite
-  twice)
-- frontend `vitest` (JUnit), also ingested by `specter` for spec AC coverage
-- `specter sync` to enforce coverage thresholds
+**Full path.** Two jobs run in parallel, each with its own `postgres:16-alpine`
+service container:
+
+- **Vet, lint, vuln, Specter gate and race tests (all but internal/server)**:
+  - `go mod tidy` followed by a `git diff` check (fails if `go.mod`/`go.sum`
+    drifted), and the generated API stubs checked against `api/openapi.yaml`
+  - `make vet`
+  - `make lint` (golangci-lint, built from source to match the runner toolchain)
+  - `make vuln` (govulncheck)
+  - `make license-bundle` and the Specter gate
+  - `go test -race -json` for every package except `internal/server`, under a
+    900 s per-package budget
+  - frontend `vitest` (JUnit), and the generated frontend API types checked
+- **Race tests (internal/server)**: `go test -race -json` for `internal/server`
+  alone, under its own 1800 s budget.
+
+Every package runs exactly once, and the database-heavy server suite does not
+share a PostgreSQL service with its siblings. The aggregate then runs the Python
+checks under `scripts/`, checks the test streams, and runs `specter ingest` and
+`specter sync` to enforce coverage thresholds. **Full test evidence** succeeds
+only when that whole pipeline ran and passed. The release gates read it, not the
+aggregate, because the aggregate also passes on the documentation path.
+
+**Documentation path.** **Documentation validation (packaging tests, partial)**
+runs `go test -race` on `packaging/tests`, without native package builds or a
+database. The aggregate runs the Python checks, checks that documentation test
+stream and runs a partial Specter ingest. It fails if any of these fails. The full
+Go suites, Vitest and `specter sync` do not run, and **Full test evidence** is
+skipped.
+
+A separate **Doc Style** job checks the tracked documents on every run.
 
 The DSN is supplied via `OPENWATCH_TEST_DSN`; module resolution is pinned read-only
 with `GOFLAGS=-mod=readonly`. See `specs/release/ci-gates.spec.yaml`.
