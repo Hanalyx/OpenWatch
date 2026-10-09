@@ -46,11 +46,19 @@ make build && ./dist/openwatch serve                                   # API+SPA
 cd frontend && npm install && npm run dev                              # Vite HMR on :5173
 ```
 
-Before pushing, run the local mirror of the CI gate:
+Before pushing, run the strict local gate:
 
 ```bash
-make ci-local     # check-generated + vet + lint + vuln + spec-check + test-race + vitest
+python3 -S scripts/ci-strict.py   # or: make ci-strict (make ci-local is an alias)
 ```
+
+It checks every prerequisite first: a `_test` database, the pinned Specter and
+golangci-lint versions, lockfile-matching `node_modules`, and the packaging tools.
+Then it runs the gates and reports passed, failed and not-run tests. Exit 0 is
+COMPLETE, 1 FAILED, 3 INCOMPLETE (something required did not run, even if you
+accepted the gap with `--allow-not-run`), and 4 REFUSED (another run holds the
+lock). `make` turns every failure into exit 2, so run the script directly when you
+need the code. For quick feedback while editing, `make ci-quick`, which is not CI.
 
 Narrower targets: `make check` (vet/lint/vuln/test-race), `make check-generated`
 (OpenAPI drift), `make spec-check` (Specter gates), `make test` /

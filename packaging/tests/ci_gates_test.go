@@ -681,8 +681,9 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 			}
 		}
 
-		// ci-local must reach the gate, or the documented local mirror of CI
-		// is missing the one gate this AC exists to enforce.
+		// The local gate must reach this gate, or the documented local mirror
+		// of CI is missing the one gate this AC exists to enforce. ci-local
+		// is an alias of ci-strict, whose script runs it (C-20).
 		mk := readAppFile(t, "Makefile")
 		ciLocal := ""
 		for _, code := range codeLines(mk) {
@@ -694,8 +695,14 @@ func TestCIGates_DocStyleGateIsSharedAndCoversTheTree(t *testing.T) {
 		if ciLocal == "" {
 			t.Fatal("no ci-local target in the Makefile")
 		}
-		if !strings.Contains(ciLocal, target) {
-			t.Errorf("ci-local does not depend on %s: %q", target, ciLocal)
+		if !strings.Contains(ciLocal, "ci-strict") {
+			t.Errorf("ci-local does not delegate to ci-strict: %q", ciLocal)
+		}
+		if !regexp.MustCompile(`(?m)^ci-strict:\n\tpython3 -S scripts/ci-strict\.py`).MatchString(mk) {
+			t.Error("ci-strict does not run python3 -S scripts/ci-strict.py")
+		}
+		if runner := readAppFile(t, "scripts/ci-strict.py"); !strings.Contains(runner, `"`+target+`": ["make", "`+target+`"]`) {
+			t.Errorf("scripts/ci-strict.py does not run make %s", target)
 		}
 
 		// The pre-commit hook must ignore any file list it is handed. Keying

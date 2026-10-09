@@ -110,11 +110,12 @@ Found a vulnerability? Email security@hanalyx.com as described in
 The Go tree lives at the repo root. `make build` builds the UI, embeds it and
 writes `dist/openwatch`; a bare `go build ./...` fails on a fresh clone
 because the server embeds a directory that only the build produces.
-`make ci-local` runs what CI runs.
+`make ci-strict` runs the strict local gate. It reports which gates and tests
+ran, and says INCOMPLETE when a prerequisite is missing.
 
 ```bash
 make build             # Go 1.26 backend + React 19 frontend, one binary
-make ci-local          # build, vet, tests, spec coverage, doc style
+make ci-strict         # strict local gate (make ci-local is an alias)
 ```
 
 The legacy Python implementation is archived outside the repo and is no longer

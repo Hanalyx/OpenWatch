@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.23.0"
+  version: "1.24.0"
   status: approved
   tier: 1
 
@@ -475,6 +475,47 @@ spec:
         produce the evidence, because it runs that tag's workflow file.
         Branch protection still requires "Quality + security gates"; pull requests
         are unaffected. Added v1.23.0 at the user's direction on 2026-10-08.
+      type: technical
+      enforcement: error
+
+    - id: C-20
+      description: >-
+        Local CI MUST report what actually ran. `make ci-local` used to warn after
+        the fact that database tests were skipped and then print that every gate
+        passed and the change was safe to push; a missing Specter, a linter at the
+        wrong version, and native package tests that never ran were not reported.
+        The strict local gate is scripts/ci-strict.py; `make ci-strict` runs it and
+        `make ci-local` is an alias. No local target claims a push is safe.
+        PREFLIGHT FIRST. Before any expensive work it checks every prerequisite and
+        reports all that are missing at once: a reachable test database whose name
+        ends in _test, Specter at exactly `.specter-version`, golangci-lint at
+        exactly the Makefile's GOLANGCI_VERSION, govulncheck, node_modules matching
+        the lockfile, the native packaging tools and the toolchain. A missing
+        prerequisite that was not accepted by name stops the run with nothing else
+        run.
+        RESULTS. Exit 0 COMPLETE means every required gate ran and passed and the
+        only tests not run are the opt-ins hosted CI skips too, named by their exact
+        skip message. 1 FAILED means a gate or a test failed. 3 INCOMPLETE means
+        nothing failed but a required gate or test did not run, including a gap
+        accepted with --allow-not-run: accepting a gap records it and never turns the
+        run into exit 0. 4 REFUSED means another invocation holds the lock. The
+        script's exit code is authoritative; make turns any failure into 2, so the
+        Makefile and the guides say to run the script directly for the code.
+        DATABASE ISOLATION. Hosted parallelism is not copied onto one local database:
+        the Go tests run hosted CI's split (internal/server alone, then every other
+        package), one phase after the other, with -p 1. Specter coverage is evaluated
+        only over complete test results.
+        INVOCATIONS. One invocation runs at a time: a lock taken atomically refuses a
+        second invocation while its owner is alive, and a lock whose owner is gone is
+        reclaimed and kept aside. Each invocation writes only its own directory under
+        the git directory, outside the working tree, and never deletes another's. Its
+        result is written through a temporary file and a rename, carries the
+        invocation id, the commit and a digest of uncommitted changes, and is then
+        pointed to from latest.json the same way. An interrupted run leaves no result
+        and does not move latest.json. --check-result accepts only a finished,
+        well-formed COMPLETE result for the expected invocation and the current tree;
+        a missing, partial, mismatched or stale result is never success.
+        Added v1.24.0 at the user's direction on 2026-10-08.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1519,3 +1560,41 @@ spec:
         tag cannot gain the evidence by re-running its workflow.
       priority: high
       references_constraints: [C-19]
+    - id: AC-37
+      description: >-
+        scripts/ci-strict.py, driven with a fake machine, exits 0 for a complete run
+        whose only skipped test has a hosted-skip message; 1 for a failed gate, and
+        for a failed test even when go test exited 0; 3 for a test skipped with any
+        other message; 3 with no gate run when prerequisites are missing and not
+        accepted, reporting every missing prerequisite including a golangci-lint at
+        another version than the pin, and counting as node_modules drift a version
+        mismatch, an absent required package or an installed package the lockfile
+        does not list, but not an absent optional package; 3 for a gap accepted with --allow-not-run, with
+        the other gates still run and the gap recorded; and never evaluates coverage
+        over incomplete results. Its Go tests run internal/server first and alone,
+        then the other packages with -p 1. No output, script or Makefile text claims
+        a push is safe. Every hosted-skip message is a t.Skip literal in the tests.
+      priority: critical
+      references_constraints: [C-20]
+    - id: AC-38
+      description: >-
+        A second invocation while a live owner holds the lock exits 4, runs nothing
+        and changes no state; a lock whose owner is gone is reclaimed and kept aside
+        and released at the end. Two invocations write two result directories and the
+        first result is unchanged; latest.json points to the newest. An interrupted
+        run leaves no result, keeps latest.json and releases the lock. A failed write
+        leaves the previous file whole. --check-result rejects a missing, malformed,
+        unfinished, incomplete, failed, other-invocation or other-tree result and
+        accepts a matching COMPLETE one.
+      priority: critical
+      references_constraints: [C-20]
+    - id: AC-39
+      description: >-
+        The Makefile's ci-strict target runs `python3 -S scripts/ci-strict.py`,
+        ci-local depends only on ci-strict, and ci-quick ends by saying it is not CI.
+        The strict runner runs the make targets vet, lint, vuln, spec-check,
+        docs-style, check-generated and license-bundle. AGENTS.md documents the four
+        exit codes and running the script directly for them, and no Makefile line,
+        script or guide says a push is safe.
+      priority: high
+      references_constraints: [C-20]

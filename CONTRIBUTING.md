@@ -153,7 +153,7 @@ docs(api): update scanning endpoint documentation
 
 ```bash
 # Backend tests (Go) — from the repo root
-make ci-local                        # what CI runs: build, vet, tests, spec coverage, doc style
+python3 -S scripts/ci-strict.py      # strict local gate: exit 0 complete, 1 failed, 3 incomplete, 4 refused
 make test                            # Go tests alone
 make spec-check                      # Specter structural coverage alone (CI requires 100%)
 

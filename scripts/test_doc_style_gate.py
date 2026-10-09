@@ -20,6 +20,7 @@ editing. `--changed` resolves a commit range and cannot see it. `--all` can.
 Contract: specs/release/ci-gates.spec.yaml, C-08 / AC-12.
 """
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -55,8 +56,10 @@ def uncommented(lines):
 
 # --- Structural checks over the production callers ---------------------------------------------
 
-def check_makefile(text):
-    """Problems with the Makefile's docs-style target and its use by ci-local."""
+def check_makefile(text, runner=None):
+    """Problems with the Makefile's docs-style target and its use by the local
+    gate. `ci-local` is an alias of `ci-strict`, whose script runs the gate
+    (release-ci-gates C-20)."""
     problems = []
     lines = text.splitlines()
     recipe, seen_target = [], False
@@ -89,11 +92,17 @@ def check_makefile(text):
 
     for ln in uncommented(lines):
         if ln.startswith("ci-local:"):
-            if MAKE_TARGET not in ln.split(":", 1)[1].split():
-                problems.append(f"ci-local does not depend on {MAKE_TARGET}")
+            if "ci-strict" not in ln.split(":", 1)[1].split():
+                problems.append("ci-local does not delegate to ci-strict")
             break
     else:
         problems.append("no ci-local target in the Makefile")
+    if not re.search(r"(?m)^ci-strict:\n\tpython3 -S scripts/ci-strict\.py", text):
+        problems.append("ci-strict does not run python3 -S scripts/ci-strict.py")
+    if runner is None:
+        runner = (Path(__file__).resolve().parent / "ci-strict.py").read_text()
+    if f'"{MAKE_TARGET}": ["make", "{MAKE_TARGET}"]' not in runner:
+        problems.append(f"scripts/ci-strict.py does not run make {MAKE_TARGET}")
     return problems
 
 
@@ -205,8 +214,11 @@ class EachCheckRejectsTheMutationItExistsToCatch(unittest.TestCase):
     def test_ci_local_dropping_the_gate_fails(self):
         text = read(MAKEFILE)
         line = [ln for ln in text.splitlines() if ln.startswith("ci-local:")][0]
-        broken = text.replace(line, line.replace(f" {MAKE_TARGET}", ""), 1)
-        self.assertTrue(check_makefile(broken), "ci-local without the gate was accepted")
+        broken = text.replace(line, "ci-local: vet", 1)
+        self.assertTrue(check_makefile(broken), "ci-local that no longer reaches the strict gate was accepted")
+        runner = (Path(__file__).resolve().parent / "ci-strict.py").read_text()
+        broken_runner = runner.replace(f'"{MAKE_TARGET}": ["make", "{MAKE_TARGET}"]', '"docs": ["true"]', 1)
+        self.assertTrue(check_makefile(text, broken_runner), "a strict runner without the gate was accepted")
 
     def test_ci_job_bypassing_the_make_target_fails(self):
         broken = read(WORKFLOW).replace(f"run: make {MAKE_TARGET}",

@@ -269,22 +269,35 @@ check-notices: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 license-bundle: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 	python3 -S scripts/third-party-notices.py --check --bundle $(DIST_DIR)/licenses
 
-# ci-local: run locally what CI's "Quality + security gates" job runs, so a
-# failure is caught before the ~9-minute push round-trip. `make check` alone
-# omits the generated-code, spec, and frontend gates — this target is the
-# full mirror.
-.PHONY: ci-local
-ci-local: check-generated vet lint vuln spec-check test-race docs-style license-bundle
-	cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npx vitest run
-	@if [ -z "$$OPENWATCH_TEST_DSN" ]; then \
-	  echo ""; \
-	  echo "ci-local WARNING: OPENWATCH_TEST_DSN is unset, so every DB-gated suite was SKIPPED."; \
-	  echo "  CI runs them. A change can pass here and fail there; that happened three times"; \
-	  echo "  on the v0.7 branches. Start the local test database and re-run:"; \
-	  echo "      make test-db && eval \"\$$(scripts/test-db.sh dsn)\" && make ci-local"; \
-	  echo ""; \
-	fi
-	@echo "ci-local: all gates passed — safe to push"
+# ci-strict: the final local gate for a revision (release-ci-gates C-20). It
+# preflights every prerequisite before any expensive work, runs the gates and
+# hosted CI's test split (one phase after the other, -p 1, on the one local
+# database), and reports passed, failed and not-run tests. It makes no claim
+# about whether to push.
+#
+# The SCRIPT's exit code is authoritative: 0 complete, 1 failed, 3 incomplete
+# (nothing failed, but a required gate or test did not run, including a gap
+# accepted with --allow-not-run), 4 refused (another invocation is running).
+# make turns any non-zero exit into 2, so a caller that needs the verdict runs
+# `python3 -S scripts/ci-strict.py` directly, or checks the result file with
+# `python3 -S scripts/ci-strict.py --check-result FILE --expect-id ID`.
+# Pass gaps through CI_STRICT_ARGS, e.g. CI_STRICT_ARGS="--allow-not-run lint".
+.PHONY: ci-strict ci-local ci-quick
+ci-strict:
+	python3 -S scripts/ci-strict.py $(CI_STRICT_ARGS)
+
+# ci-local: the old name, kept as an alias of the strict gate.
+ci-local: ci-strict
+
+# ci-quick: fast feedback while editing. vet, the tests of the packages with
+# changed Go files, and the doc-style gate. It is NOT CI and says so.
+ci-quick: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
+	go vet ./...
+	@pkgs=$$( { git diff --name-only HEAD -- '*.go'; git ls-files --others --exclude-standard -- '*.go'; } \
+	  | xargs -r -n1 dirname | sort -u | sed 's#^#./#'); \
+	if [ -n "$$pkgs" ]; then go test -count=1 $$pkgs; else echo "ci-quick: no changed Go packages"; fi
+	$(MAKE) docs-style
+	@echo "ci-quick: quick checks passed; this is not CI. Run make ci-strict for the final local gate."
 
 ## test-db: start the local test database (mirrors the CI service container)
 .PHONY: test-db test-db-down
