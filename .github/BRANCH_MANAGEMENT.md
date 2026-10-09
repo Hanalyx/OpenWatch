@@ -10,9 +10,17 @@ root (`github.com/Hanalyx/openwatch`, go 1.26) with an embedded React frontend:
 | `frontend/` | React 19 + TypeScript + Vite + Vitest | `go-ci.yml` (Vitest results ingested by specter) |
 | `packaging/` | RPM / DEB native packages | `release.yml` |
 
-`go-ci.yml` is the single gating pipeline. It builds and tests the Go module,
-runs the frontend Vitest suite for spec coverage, and gates the
-`Quality + security gates` check.
+`go-ci.yml` is the single gating pipeline, and `Quality + security gates` is its
+required check. What it runs depends on the change:
+
+- **Full path.** A change to code, specs, packaging, scripts, tooling or CI, and
+  every pushed `v*` release tag. It builds and tests the Go module, runs the
+  frontend Vitest suite for spec coverage, and records the `Full test evidence`
+  job that the release gates read.
+- **Documentation path.** A change to documentation only. It runs the Go tests
+  in `packaging/tests` (without native package builds or a database), the
+  Python checks under `scripts/`, and a partial Specter ingest. The Go module's
+  full suites, Vitest and `specter sync` do not run.
 
 ## Branch naming
 
@@ -203,8 +211,10 @@ These are durable rules; treat them as load-bearing.
 
 ### Go (backend)
 
-Enforced by the root `Makefile` and `go-ci.yml`. All of these must pass for the
-single required check (`Quality + security gates`) to go green:
+Enforced by the root `Makefile` and `go-ci.yml`. On the full path, all of these
+must pass for the single required check (`Quality + security gates`) to go
+green. On the documentation path they do not run, and the required check rests
+on the documentation validation described above:
 
 - `make vet`: `go vet ./...`
 - `make lint`: `golangci-lint` (vet, ineffassign, staticcheck, unused,
@@ -229,7 +239,8 @@ For specs marked `status: approved`:
 - Every `AC-N` must have a corresponding test annotated with
   `// @ac AC-N` and a `// @spec <name>` file header (Go tests, plus
   `frontend/` Vitest tests for `specs/frontend/`)
-- 100% coverage on approved specs is gated by `specter sync` in `go-ci.yml`
+- 100% coverage on approved specs is gated by `specter sync` in `go-ci.yml`,
+  on the full path
 
 If you change scope, update the spec AND the source code AND the tests in
 the same PR. Spec drift is caught at CI, not in review.
