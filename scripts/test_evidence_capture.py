@@ -298,6 +298,8 @@ class CaptureSecrets(Case):
                              secrets=self.secrets())
         path = os.path.join(self.dir, "cap.withheld-secret")
         self.assertEqual(cm.exception.path, path)
+        self.assertEqual(self.listing(), ["cap.withheld-secret"])  # no temporary left
+        self.assertNotIn(SECRET, str(cm.exception))
         self.assertEqual(sorted(os.listdir(path)), ["SHA256SUMS", "exit", "record.json"])
         rec = ec.verify_capture(path, allow_incomplete=True)
         self.assertEqual(rec["withheld"], [{"secret_env": "OW_TEST_SECRET", "stream": "stdout"}])  # pragma: allowlist secret
@@ -464,6 +466,24 @@ class CaptureVerify(Case):
         with self.assertRaises(ec.VerifyError):
             ec.verify_capture(os.path.join(self.dir, "slow"), allow_incomplete=True)
 
+    def test_an_incomplete_capture_relabeled_complete_fails(self):
+        with self.assertRaises(ec.CaptureIncomplete) as cm:
+            self.run_capture(sh("echo some; exec sleep 5"), name="slow", timeout=0.2)
+        forged = os.path.join(self.dir, "slow")
+        os.rename(cm.exception.path, forged)
+        rec_path = os.path.join(forged, "record.json")
+        os.chmod(rec_path, 0o600)
+        with open(rec_path) as f:
+            rec = json.load(f)
+        rec["status"] = "complete"
+        with open(rec_path, "w") as f:
+            json.dump(rec, f)
+        self.path = forged
+        self.reseal()
+        with self.assertRaises(ec.VerifyError) as err:
+            ec.verify_capture(forged)
+        self.assertIn("interrupted, timed out or never started", str(err.exception))
+
     def test_a_symlink_fails(self):
         os.unlink(os.path.join(self.path, "stderr"))
         os.symlink("/etc/hostname", os.path.join(self.path, "stderr"))
@@ -507,9 +527,9 @@ class CaptureTransfer(Case):
                 if kind == "dir":
                     ti.type = tarfile.DIRTYPE
                     tf.addfile(ti)
-                elif kind == "sym":
-                    ti.type = tarfile.SYMTYPE
-                    ti.linkname = "/etc/passwd"
+                elif kind in ("sym", "hard"):
+                    ti.type = tarfile.SYMTYPE if kind == "sym" else tarfile.LNKTYPE
+                    ti.linkname = data.decode()
                     tf.addfile(ti)
                 else:
                     ti.size = len(data)
@@ -529,9 +549,16 @@ class CaptureTransfer(Case):
         return out
 
     def assert_failed_kept(self):
-        self.assertFalse(os.path.exists(os.path.join(self.local, "f2-staged")))
-        self.assertTrue(os.path.isdir(os.path.join(self.local, "f2-staged.transfer-failed")))
-        self.assertEqual([n for n in os.listdir(self.local) if n.startswith(".")], [])
+        """Failed material is isolated in NAME.transfer-failed and never verifies."""
+        self.assertEqual(os.listdir(self.local), ["f2-staged.transfer-failed"])
+        failed = os.path.join(self.local, "f2-staged.transfer-failed")
+        self.assertEqual(os.stat(failed).st_mode & 0o777, 0o700)
+        self.assertEqual(sorted(os.listdir(failed)), ["REASON", "received", "transfer"])
+        for sub in ("transfer", "received"):
+            with self.assertRaises(ec.VerifyError, msg=sub):
+                ec.verify_capture(os.path.join(failed, sub), allow_incomplete=True)
+        with self.assertRaises(ec.VerifyError):
+            ec.verify_capture(failed, allow_incomplete=True)
 
     def test_a_good_transfer_verifies_and_is_named(self):
         rec = self.fetch(self.tar_cmd(), machine_id=HOST["machine_id"])
@@ -552,9 +579,39 @@ class CaptureTransfer(Case):
     def test_a_failed_transfer_command_keeps_its_stderr(self):
         with self.assertRaises(ec.TransferError):
             self.fetch(sh("echo 'ssh: connect to host rhn02 port 22: timed out' >&2; exit 255"))
-        self.assertEqual(os.listdir(self.local), ["f2-staged.transfer"])
-        with open(os.path.join(self.local, "f2-staged.transfer", "stderr"), "rb") as f:
+        failed = os.path.join(self.local, "f2-staged.transfer-failed")
+        self.assertEqual(os.listdir(self.local), ["f2-staged.transfer-failed"])
+        self.assertEqual(sorted(os.listdir(failed)), ["REASON", "transfer"])
+        with open(os.path.join(failed, "transfer", "stderr"), "rb") as f:
             self.assertIn(b"timed out", f.read())
+        with self.assertRaises(ec.VerifyError):
+            ec.verify_capture(os.path.join(failed, "transfer"))
+
+    def test_an_interrupted_transfer_is_isolated(self):
+        with self.assertRaises(ec.TransferError):
+            self.fetch(sh("exec sleep 30"), timeout=0.3)
+        failed = os.path.join(self.local, "f2-staged.transfer-failed")
+        self.assertEqual(os.listdir(self.local), ["f2-staged.transfer-failed"])
+        self.assertEqual(sorted(os.listdir(failed)), ["REASON", "transfer"])
+        with self.assertRaises(ec.VerifyError):
+            ec.verify_capture(os.path.join(failed, "transfer"), allow_incomplete=True)
+
+    def test_no_supplied_secret_reaches_a_transferred_artifact(self):
+        secrets = {"OW_TEST_SECRET": SECRET}
+        with self.assertRaises(ec.SecretInEvidence):
+            ec.capture(sh('echo "$OW_TEST_SECRET"'), self.remote, "leak", TAG, COMMIT,
+                       host=HOST, secrets=secrets)
+        cmd = ["tar", "-C", self.remote, "-cf", "-", "leak.withheld-secret"]
+        with self.assertRaises(ec.TransferError):
+            ec.fetch(cmd, self.local, "leak", TAG, COMMIT)
+        shutil.rmtree(self.local)
+        os.mkdir(self.local)
+        rec = ec.fetch(cmd, self.local, "leak", TAG, COMMIT, allow_incomplete=True)
+        self.assertEqual(rec["status"], ec.WITHHELD)
+        for root, _dirs, files in os.walk(self.dir):
+            for n in files:
+                with open(os.path.join(root, n), "rb") as f:
+                    self.assertNotIn(SECRET.encode(), f.read(), os.path.join(root, n))
 
     def test_a_truncated_transfer_fails(self):
         size = len(subprocess.run(self.tar_cmd(), stdout=subprocess.PIPE).stdout)
@@ -584,7 +641,14 @@ class CaptureTransfer(Case):
     def test_unsafe_members_are_refused(self):
         for bad, reason in (([("../escape", b"x", "file")], "refused tar member"),
                             ([("/abs", b"x", "file")], "refused tar member"),
-                            ([("f2-staged/link", None, "sym")], "not a regular file"),
+                            ([("f2-staged/link", b"/etc/passwd", "sym")], "not a regular file"),
+                            ([("f2-staged/up", b"../../outside", "sym")], "not a regular file"),
+                            ([("f2-staged/hard", b"../../etc/passwd", "hard")],
+                             "not a regular file"),
+                            ([("f2-staged/hard2", b"f2-staged/stdout", "hard")],
+                             "not a regular file"),
+                            ([("f2-staged/../escape", b"x", "file")], "refused tar member"),
+                            ([("../", None, "dir")], "refused tar member"),
                             ([("f2-staged/sub/deep", b"x", "file")], "refused tar member"),
                             ([("other/stdout", b"x", "file")], "top-level directories")):
             shutil.rmtree(self.local)
@@ -593,8 +657,18 @@ class CaptureTransfer(Case):
                 self.fetch(self.custom_tar(self.remote_members() + bad))
             self.assertIn(reason, str(cm.exception))
             self.assert_failed_kept()
-            self.assertFalse(os.path.exists(os.path.join(self.dir, "escape")))
-            self.assertFalse(os.path.exists("/abs"))
+            self.assertEqual(sorted(os.listdir(self.dir)), ["crafted.tar", "local", "remote"])
+            self.assertFalse(os.path.lexists(os.path.join(self.dir, "outside")))
+            self.assertFalse(os.path.lexists(os.path.join(self.dir, "escape")))
+            self.assertFalse(os.path.lexists("/abs"))
+
+    def test_a_symlink_in_place_of_a_stream_is_refused(self):
+        members = [m for m in self.remote_members() if m[0] != "f2-staged/stdout"]
+        members.append(("f2-staged/stdout", b"/etc/passwd", "sym"))
+        with self.assertRaises(ec.TransferError) as cm:
+            self.fetch(self.custom_tar(members))
+        self.assertIn("not a regular file", str(cm.exception))
+        self.assert_failed_kept()
 
     def test_the_wrong_capture_is_refused(self):
         ec.capture(["true"], self.remote, "other", TAG, COMMIT, host=HOST)

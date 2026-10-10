@@ -39,12 +39,26 @@ streams are deleted rather than redacted, and the capture is kept as
 `NAME.withheld-secret` with the record alone. Redaction would turn raw evidence
 into a derived view.
 
+This protects the secret values supplied to the capture, and nothing more. It
+is not a scanner for every secret a command might print: a credential the
+command reads or prints by itself, without being supplied, is kept like any
+other output. Keep such commands out of evidence, or supply the value so it is
+checked. The inline-credential check on arguments is a guard for common forms,
+not a guarantee.
+
 `fetch` brings a capture made on another host back to this one. The transfer
 command (for example `ssh -q host sudo tar -C /root/evidence -cf - NAME`) must
 write a tar of one capture directory to stdout. The transfer is itself captured
 as `NAME.transfer`. The capture is unpacked into a hidden directory and checked
 against its own SHA256SUMS, record and binding, and only then renamed to NAME.
-A capture that fails any check is kept as `NAME.transfer-failed` for diagnosis.
+When any check fails, everything that arrived is isolated in
+`NAME.transfer-failed/`: `transfer/` (the transfer's capture), `received/`
+(what was unpacked) and `REASON`. Neither subdirectory carries a capture name,
+so neither ever verifies as evidence.
+
+Checksums detect accidental change and inconsistent edits. They do not prove
+who wrote a capture: anyone able to rewrite every file consistently can forge
+one. Keep the evidence store's permissions and its own checksum manifest.
 
 Standard library only; the tests run under `python3 -S`.
 Spec: release-evidence-capture.
@@ -503,6 +517,12 @@ def verify_capture(path, tag=None, commit=None, machine_id=None, allow_incomplet
     with open(os.path.join(path, EXIT)) as f:
         if f.read() != _exit_text(record.get("exit") or {}):
             raise VerifyError("%s: %s disagrees with the record" % (base, EXIT))
+    exit_info = record.get("exit") or {}
+    if status == COMPLETE and (exit_info.get("start_error") is not None
+                               or exit_info.get("interrupted_by") is not None
+                               or exit_info.get("timed_out") is not False):
+        raise VerifyError("%s: the record says complete, but its exit record says the "
+                          "command was interrupted, timed out or never started" % base)
     if status != WITHHELD:
         for s in STREAMS:
             meta = (record.get("streams") or {}).get(s) or {}
@@ -565,12 +585,34 @@ def _extract_one_capture(tar_path, dest):
         return tops.pop()
 
 
+def _quarantine(out_dir, name, transfer_path, received_path, reason):
+    """Isolate everything from a failed transfer in NAME.transfer-failed.
+
+    The directory holds `transfer/` (the transfer's own capture), `received/`
+    (whatever was unpacked) and `REASON`. Neither subdirectory carries its
+    capture's name, so verify_capture refuses both: failed material can be
+    read for diagnosis but never accepted as evidence.
+    """
+    failed = os.path.join(out_dir, name + ".transfer-failed")
+    os.mkdir(failed, 0o700)
+    if transfer_path is not None:
+        os.rename(transfer_path, os.path.join(failed, "transfer"))
+    if received_path is not None:
+        _fsync_dir(received_path)
+        os.rename(received_path, os.path.join(failed, "received"))
+    _write_new(os.path.join(failed, "REASON"), (reason + "\n").encode())
+    _fsync_dir(failed)
+    _fsync_dir(out_dir)
+    return failed
+
+
 def fetch(transfer_argv, out_dir, name, tag, commit, machine_id=None, allow_incomplete=False,
           timeout=None):
     """Bring back a capture made elsewhere, verified before it is named.
 
     Returns the record. Raises TransferError when the transfer failed or the
-    capture does not verify; what arrived is then kept as NAME.transfer-failed.
+    capture does not verify; everything that arrived is then isolated in
+    NAME.transfer-failed (see _quarantine).
     """
     check_name(name)
     check_candidate(tag, commit)
@@ -586,12 +628,15 @@ def fetch(transfer_argv, out_dir, name, tag, commit, machine_id=None, allow_inco
         trec = capture(transfer_argv, out_dir, tname, tag, commit, timeout=timeout,
                        purpose="transfer of capture %s" % name, _transfer=True)
     except CaptureIncomplete as e:
-        raise TransferError("the transfer of %s did not finish (%s); see %s"
-                            % (name, e.record["status"], e.path))
+        reason = "the transfer did not finish (%s)" % e.record["status"]
+        failed = _quarantine(out_dir, name, e.path, None, reason)
+        raise TransferError("capture %s: %s; isolated in %s" % (name, reason, failed))
     tpath = trec["path"]
     if trec["exit"]["code"] != 0:
-        raise TransferError("the transfer command ended with %s; its stderr is in %s"
-                            % (_exit_text(trec["exit"]).strip(), os.path.join(tpath, "stderr")))
+        reason = ("the transfer command ended with %s; see transfer/stderr"
+                  % _exit_text(trec["exit"]).strip())
+        failed = _quarantine(out_dir, name, tpath, None, reason)
+        raise TransferError("capture %s: %s; isolated in %s" % (name, reason, failed))
 
     tmp = os.path.join(out_dir, ".%s.partial-%s" % (name, uuid.uuid4()))
     os.mkdir(tmp, 0o700)
@@ -605,12 +650,10 @@ def fetch(transfer_argv, out_dir, name, tag, commit, machine_id=None, allow_inco
         final = os.path.join(out_dir, top)
         if os.path.lexists(final):
             raise TransferError("%s appeared during the transfer" % final)
-    except Exception as e:  # anything that arrived is kept for diagnosis
-        _fsync_dir(tmp)
-        os.rename(tmp, failed)
-        _fsync_dir(out_dir)
-        raise TransferError("capture %s did not arrive intact: %s. What arrived is kept at %s"
-                            % (name, e, failed))
+    except Exception as e:  # anything that arrived is isolated for diagnosis
+        reason = "the capture did not arrive intact: %s" % e
+        failed = _quarantine(out_dir, name, tpath, tmp, reason)
+        raise TransferError("capture %s: %s; isolated in %s" % (name, reason, failed))
     os.rename(tmp, final)
     _fsync_dir(out_dir)
     record["path"] = final

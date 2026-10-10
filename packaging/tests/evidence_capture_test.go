@@ -98,7 +98,7 @@ func TestEvidenceCapture_KeepsInterruptedCaptures(t *testing.T) {
 // AC-06: verification catches any change to a sealed capture.
 func TestEvidenceCapture_VerifiesSealedCaptures(t *testing.T) {
 	t.Run("release-evidence-capture/AC-06", func(t *testing.T) {
-		requireEvidenceCaptureClass(t, "CaptureVerify", 8)
+		requireEvidenceCaptureClass(t, "CaptureVerify", 9)
 	})
 }
 
@@ -106,6 +106,6 @@ func TestEvidenceCapture_VerifiesSealedCaptures(t *testing.T) {
 // AC-07: a remote capture is verified after transfer, before it is named.
 func TestEvidenceCapture_VerifiesAfterTransfer(t *testing.T) {
 	t.Run("release-evidence-capture/AC-07", func(t *testing.T) {
-		requireEvidenceCaptureClass(t, "CaptureTransfer", 12)
+		requireEvidenceCaptureClass(t, "CaptureTransfer", 15)
 	})
 }

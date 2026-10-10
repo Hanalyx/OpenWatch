@@ -72,7 +72,11 @@ spec:
         in an argument or the capture's binding, or an inline credential
         argument, is refused before the command runs. Only the variable names
         are recorded. A secret value found in a stream deletes the streams and
-        keeps the record alone; the stream is never redacted.
+        keeps the record alone; the stream is never redacted, and the capture is
+        not complete. This protects the secret values supplied to the capture; it
+        is not a scanner for credentials a command reads or prints on its own,
+        and the inline-credential check is a guard for common forms, not a
+        guarantee.
       type: security
       enforcement: error
     - id: C-05
@@ -89,7 +93,10 @@ spec:
         its status requires, each regular and matching SHA256SUMS, the record
         agrees with the streams, the exit file and the directory name, the
         binding matches what the caller expects, and, unless incompleteness is
-        explicitly allowed, the capture is complete.
+        explicitly allowed, the capture is complete. A record that says complete
+        while its exit record says interrupted, timed out or not started is
+        refused. Checksums detect accidental change and inconsistent edits; they
+        do not authenticate the writer.
       type: technical
       enforcement: error
     - id: C-07
@@ -97,7 +104,10 @@ spec:
         A capture brought from another host is captured in transit, unpacked
         only if it is one directory of regular files with safe names, verified
         against its own checksums and the expected binding, and only then given
-        its final name. Anything that fails is kept as NAME.transfer-failed.
+        its final name. Members are written only as named regular files inside
+        the destination; links of any kind are refused. When anything fails,
+        the transfer's capture and whatever was unpacked are isolated together
+        in NAME.transfer-failed, where nothing verifies as evidence.
       type: technical
       enforcement: error
 
@@ -142,10 +152,12 @@ spec:
         shorter than eight characters is refused; the command receives the
         secret through its environment and only the variable name is recorded.
         A secret printed to stdout, including one straddling the 1 MiB read
-        boundary, produces NAME.withheld-secret with no stream files, a record
-        naming the stream and variable, and no copy of the value anywhere in the
-        output directory. The CLI reads secrets by variable name, exits 3 on a
-        withheld capture and 1 for an unset variable.
+        boundary, produces NAME.withheld-secret with no stream files, no
+        temporary directory left behind, a record naming the stream and
+        variable, an error that does not contain the value, and no copy of the
+        value anywhere in the output directory; default verification rejects
+        it. The CLI reads secrets by variable name, exits 3 on a withheld
+        capture and 1 for an unset variable, and prints no secret value.
       priority: critical
       references_constraints: [C-04]
     - id: AC-05
@@ -165,20 +177,26 @@ spec:
         changed stream, a stream or exit file rewritten together with its
         SHA256SUMS, an extra file, a missing file, a symlink in place of a
         stream, and an incomplete capture renamed to the complete name each
-        fail verification, and the CLI exits 1.
+        fail verification, and the CLI exits 1. An interrupted capture renamed
+        to the complete name with its record relabeled complete and its
+        checksums rewritten also fails.
       priority: critical
       references_constraints: [C-06]
     - id: AC-07
       description: >-
         A capture transferred by tar is verified and named, with the transfer
         kept as its own verified capture, through the library and the CLI. A
-        failed transfer command keeps its stderr. A truncated archive, a
-        corrupted file, a missing file, an unlisted extra file, a '..' or
-        absolute path, a symlink, a nested path, a second top-level directory,
-        another capture's name, another commit and another machine id each
-        fail, leave no final directory and no hidden directory, and keep what
-        arrived as NAME.transfer-failed. An incomplete remote capture is
-        accepted only when allowed. A retry is refused until the failed
-        transfer is moved aside.
+        failed or interrupted transfer command is isolated with its stderr. A
+        truncated archive, a corrupted file, a missing file, an unlisted extra
+        file, a '..' or absolute path, a '..' directory, a symlink or hard link
+        pointing inside or outside the destination, a symlink in place of a
+        stream, a nested path, a second top-level directory, another capture's
+        name, another commit and another machine id each fail; each leaves no
+        final directory, no hidden directory and nothing written outside the
+        destination, and isolates the transfer capture and the unpacked files
+        in NAME.transfer-failed, where neither verifies. An incomplete remote
+        capture is accepted only when allowed. A remote capture withheld for a
+        secret arrives with no copy of the value. A retry is refused until the
+        failed transfer is moved aside.
       priority: critical
       references_constraints: [C-07]
