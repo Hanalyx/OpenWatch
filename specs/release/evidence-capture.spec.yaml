@@ -1,0 +1,184 @@
+spec:
+  id: release-evidence-capture
+  title: Release evidence capture
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: Raw, bound and verified evidence for release preparation
+    description: >
+      Release preparation runs commands on the build workstation and on fleet
+      hosts, and their output becomes the evidence a release captain signs
+      against. During v0.8.4 two capture defects reached the captain: a
+      banner-stripping filter deleted a real line from two host snapshots and
+      produced a false finding, and evidence was reported from filtered views
+      rather than kept raw. scripts/evidence_capture.py is the one way release
+      scripts capture evidence. It keeps raw stdout, raw stderr and the exit
+      status, publishes a capture only when it is complete and checksummed,
+      binds it to the host, the release candidate and the invocation, keeps
+      secrets out of arguments and evidence, and verifies a capture made on
+      another host after transfer, before it is named.
+    related_specs:
+      - release-ci-gates
+      - release-upgrade
+
+  objective:
+    summary: >
+      A capture directory either holds the unfiltered record of one command,
+      bound to where, for what and when it ran, or says plainly why it does
+      not. Nothing downstream can mistake a partial, altered or misattributed
+      capture for evidence.
+    scope:
+      includes:
+        - The capture, verify and fetch operations in scripts/evidence_capture.py
+        - Its command-line interface
+        - Its tests in scripts/test_evidence_capture.py
+      excludes:
+        - The release-preparation skill and runbooks built on the library
+        - Human verdicts, sign-offs and publication, which stay captain actions
+        - Running the library on fleet hosts, which the skill covers
+
+  constraints:
+    - id: C-01
+      description: >-
+        A capture keeps the command's stdout and stderr exactly as written, in
+        separate files, and its exit status, including death by signal. No
+        filtering happens before the files are written; a non-zero exit is
+        recorded evidence, not a capture failure.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        A capture is written in a hidden temporary directory and renamed to its
+        final name only after its files, record and SHA256SUMS are written and
+        synced. An existing capture is never overwritten. A capture that did not
+        complete normally is kept under a name carrying its status.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Every capture records the candidate's tag and full commit SHA, the
+        identity of the host it ran on as read on that host, and the invocation:
+        a unique id, the argument vector, working directory, operator and UTC
+        start and finish times. A malformed tag or commit is refused before the
+        command runs.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        Secrets reach the command only through its environment. A secret value
+        in an argument or the capture's binding, or an inline credential
+        argument, is refused before the command runs. Only the variable names
+        are recorded. A secret value found in a stream deletes the streams and
+        keeps the record alone; the stream is never redacted.
+      type: security
+      enforcement: error
+    - id: C-05
+      description: >-
+        An interrupted capture stops the command's whole process group, killing
+        it after a grace period if it ignores the request, and keeps what was
+        captured. A timed-out command is handled the same way. A command that
+        cannot start is recorded as not started.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        Verification accepts a capture only when its files are exactly the ones
+        its status requires, each regular and matching SHA256SUMS, the record
+        agrees with the streams, the exit file and the directory name, the
+        binding matches what the caller expects, and, unless incompleteness is
+        explicitly allowed, the capture is complete.
+      type: technical
+      enforcement: error
+    - id: C-07
+      description: >-
+        A capture brought from another host is captured in transit, unpacked
+        only if it is one directory of regular files with safe names, verified
+        against its own checksums and the expected binding, and only then given
+        its final name. Anything that fails is kept as NAME.transfer-failed.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Binary, non-UTF-8 and login-banner content, output without a trailing
+        newline and six million bytes of output are kept byte for byte; stderr
+        is kept separately; exit 0, a non-zero exit and death by signal are each
+        recorded in the exit file and the record; the record's stream digests
+        match the files; and the run subcommand exits 0 for a complete capture
+        while reporting the command's own status.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        A complete capture leaves only its final directory, holding exactly
+        stdout, stderr, exit, record.json and SHA256SUMS, each mode 0600, and
+        sha256sum --check --strict accepts the sums. A second capture under the
+        same name is refused and the first is unchanged, including when the
+        first is incomplete. A capturer killed with SIGKILL leaves only a hidden
+        partial directory. Names that are hidden, contain a path, carry a status
+        or transfer suffix, or contain '.partial-' are refused.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        The record holds the candidate tag and commit, the host identity, the
+        invocation id, argv, purpose and ordered UTC times. The default host
+        identity is the running host's hostname and /etc/machine-id. A tag that
+        is not a release tag and a commit that is not 40 lowercase hex
+        characters are refused before the command runs and before any directory
+        is created. Verification against another tag, commit or machine id
+        fails.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        A secret value in an argument or the purpose is refused before the
+        command runs; inline password, token, API key, DSN and URL credentials
+        are refused while a --token-file style argument is accepted; a secret
+        shorter than eight characters is refused; the command receives the
+        secret through its environment and only the variable name is recorded.
+        A secret printed to stdout, including one straddling the 1 MiB read
+        boundary, produces NAME.withheld-secret with no stream files, a record
+        naming the stream and variable, and no copy of the value anywhere in the
+        output directory. The CLI reads secrets by variable name, exits 3 on a
+        withheld capture and 1 for an unset variable.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        SIGTERM to the capturer produces NAME.interrupted holding the output
+        captured so far, the CLI exits 143, the command's process is gone, and
+        default verification rejects the capture. A command that ignores SIGTERM
+        is killed by SIGKILL after the grace period. Signal handlers are
+        restored after a capture. A timeout produces NAME.timed-out with its
+        partial output. An unstartable command produces NAME.not-started and the
+        CLI exits 4.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        An untouched capture verifies, through the library and the CLI. A
+        changed stream, a stream or exit file rewritten together with its
+        SHA256SUMS, an extra file, a missing file, a symlink in place of a
+        stream, and an incomplete capture renamed to the complete name each
+        fail verification, and the CLI exits 1.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        A capture transferred by tar is verified and named, with the transfer
+        kept as its own verified capture, through the library and the CLI. A
+        failed transfer command keeps its stderr. A truncated archive, a
+        corrupted file, a missing file, an unlisted extra file, a '..' or
+        absolute path, a symlink, a nested path, a second top-level directory,
+        another capture's name, another commit and another machine id each
+        fail, leave no final directory and no hidden directory, and keep what
+        arrived as NAME.transfer-failed. An incomplete remote capture is
+        accepted only when allowed. A retry is refused until the failed
+        transfer is moved aside.
+      priority: critical
+      references_constraints: [C-07]

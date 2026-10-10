@@ -34,6 +34,12 @@ gate is `make check` (see the Makefile).
 | `check-commit-message.py` | Validate commit messages against OpenWatch conventions. |
 | `risk_assessment.py` | Security-automation risk scoring (invoked by GitHub workflows). |
 
+## Release preparation
+
+| Script | Purpose |
+|--------|---------|
+| `evidence_capture.py` | Capture a command's raw stdout, stderr and exit status as release evidence. Each capture is bound to the candidate, the host and the invocation, sealed with SHA256SUMS, and verified again after transfer from a fleet host. Secrets go through named environment variables only. Spec: `release-evidence-capture`. Run `python3 -S scripts/evidence_capture.py --help` for usage. |
+
 > Note: a few of these helpers are written in Python purely as CI/dev tooling
 > (commit-message linting, spec validation, CodeQL/risk automation). They are
 > not part of the OpenWatch runtime, which is entirely Go.
