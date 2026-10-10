@@ -40,6 +40,7 @@ domains:
             - release-fips-build
             - release-stage-0-signoff
             - release-ci-gates
+            - release-evidence-capture
             - system-auth-identity
             - system-user-management
             - system-credential-store
