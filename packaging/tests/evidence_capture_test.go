@@ -163,3 +163,17 @@ func TestEvidenceCapture_TransferRefusesEscapesAndIsolatesFailures(t *testing.T)
 			"CaptureTransfer.test_a_failed_transfer_command_keeps_its_stderr")
 	})
 }
+
+// @ac AC-08
+// AC-08: output from processes that outlive the command is captured or
+// excluded, never written into a sealed capture.
+func TestEvidenceCapture_DescendantsCannotWriteIntoSealedEvidence(t *testing.T) {
+	t.Run("release-evidence-capture/AC-08", func(t *testing.T) {
+		requireEvidenceCaptureClass(t, "CaptureDescendants", 6)
+		requireEvidenceCaptureCases(t,
+			"CaptureDescendants.test_a_descendant_writing_after_the_parent_exits_is_captured",
+			"CaptureDescendants.test_a_descendant_printing_a_supplied_secret_late_is_withheld",
+			"CaptureDescendants.test_a_descendant_holding_the_streams_open_times_out",
+			"CaptureDescendants.test_an_escaped_writer_cannot_reach_sealed_evidence")
+	})
+}

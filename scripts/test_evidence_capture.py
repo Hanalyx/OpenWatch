@@ -77,6 +77,13 @@ class Case(unittest.TestCase):
         return False
 
 
+def kill_quietly(pid):
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def pid_alive(pid):
     try:
         os.kill(pid, 0)
@@ -403,6 +410,203 @@ class CaptureInterruption(Case):
                      COMMIT, "--", "/nonexistent/evidence-command")
         p.communicate(timeout=30)
         self.assertEqual(p.returncode, 4)
+
+
+ESCAPED = """
+import os, sys
+gate, pidfile, donefile = sys.argv[1:4]
+os.setsid()  # leave the capture's process group, as a daemonizing child would
+with open(pidfile, "w") as f:
+    f.write(str(os.getpid()))
+with open(gate) as g:
+    g.read(1)
+try:
+    os.write(1, b"late-escaped\\n")
+    result = "wrote"
+except OSError as e:
+    result = "refused: %s" % e.strerror
+with open(donefile, "w") as f:
+    f.write(result)
+"""
+
+
+DEADLINE = 20
+
+
+class CaptureDescendants(Case):
+    """AC-08: output from processes that outlive the command is captured or excluded.
+
+    The descendant blocks on a FIFO gate. The gate opens only after the parent
+    has exited and either the capture has returned or a second has passed, so
+    a capture that stops at the parent's exit always loses the race."""
+
+    def setUp(self):
+        Case.setUp(self)
+        for name in ("holder.pid", "escaped.pid"):
+            self.addCleanup(self.kill_from_pidfile, os.path.join(self.dir, name))
+        self.gate = os.path.join(self.dir, "gate")
+        os.mkfifo(self.gate)
+        self.parent_pid = os.path.join(self.dir, "parent.pid")
+        old = ec.KILL_GRACE
+        ec.KILL_GRACE = 0.5
+        self.addCleanup(setattr, ec, "KILL_GRACE", old)
+
+    def run(self, result=None):
+        # A capture that never returns must fail this test by name, within
+        # seconds, rather than hang the suite. SIGALRM is not one of the
+        # signals capture() handles.
+        def expired(_signum, _frame):
+            raise AssertionError("the capture did not return within %ds" % DEADLINE)
+        previous = signal.signal(signal.SIGALRM, expired)
+        signal.alarm(DEADLINE)
+        try:
+            return Case.run(self, result)
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous)
+
+    def kill_from_pidfile(self, path):
+        try:
+            with open(path) as f:
+                kill_quietly(int(f.read()))
+        except (OSError, ValueError):
+            pass
+
+    def release_after_parent_exits(self, returned, released):
+        def run():
+            self.wait_for(lambda: os.path.exists(self.parent_pid)
+                          and os.path.getsize(self.parent_pid) > 0)
+            with open(self.parent_pid) as f:
+                pid = int(f.read())
+            self.wait_for(lambda: not pid_alive(pid))
+            returned.wait(1.0)
+            released.set()
+            with open(self.gate, "w") as g:
+                g.write("x")
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        return t
+
+    def late_writer(self, late):
+        return sh("( read _ < '%s'; %s ) & echo $$ > '%s'; echo early"
+                  % (self.gate, late, self.parent_pid))
+
+    def test_a_descendant_writing_after_the_parent_exits_is_captured(self):
+        returned, released = threading.Event(), threading.Event()
+        t = self.release_after_parent_exits(returned, released)
+        try:
+            rec = self.run_capture(self.late_writer("echo late"))
+            released_before_return = released.is_set()
+        finally:
+            returned.set()
+            t.join(10)
+        self.assertTrue(released_before_return, "the capture returned before the gate opened")
+        self.assertEqual(self.read("cap", "stdout"), b"early\nlate\n")
+        self.assertEqual(rec["status"], ec.COMPLETE)
+        self.assertIs(rec["exit"].get("streams_closed"), True)
+        ec.verify_capture(os.path.join(self.dir, "cap"))
+
+    def test_a_descendant_printing_a_supplied_secret_late_is_withheld(self):
+        returned, released = threading.Event(), threading.Event()
+        t = self.release_after_parent_exits(returned, released)
+        released_before_return = None
+        try:
+            with self.assertRaises(ec.SecretInEvidence):
+                try:
+                    self.run_capture(self.late_writer('echo "$OW_TEST_SECRET"'),
+                                     secrets={"OW_TEST_SECRET": SECRET})
+                finally:
+                    released_before_return = released.is_set()
+        finally:
+            returned.set()
+            t.join(10)
+        self.assertTrue(released_before_return, "the capture returned before the gate opened")
+        self.assertEqual(self.listing(), ["cap.withheld-secret", "gate", "parent.pid"])
+        for root, _dirs, files in os.walk(self.dir):
+            for n in files:
+                if n == "gate":
+                    continue
+                with open(os.path.join(root, n), "rb") as f:
+                    self.assertNotIn(SECRET.encode(), f.read(), n)
+
+    def test_a_descendant_holding_the_streams_open_times_out(self):
+        pidfile = os.path.join(self.dir, "holder.pid")
+        t0 = time.monotonic()
+        with self.assertRaises(ec.CaptureIncomplete) as cm:
+            self.run_capture(sh("sleep 1000 & echo $! > '%s'; echo early" % pidfile),
+                             timeout=1)
+        self.assertLess(time.monotonic() - t0, 10)
+        rec = cm.exception.record
+        self.assertEqual(rec["status"], ec.TIMED_OUT)
+        self.assertIs(rec["exit"].get("streams_closed"), True)
+        with open(pidfile) as f:
+            holder = int(f.read())
+        self.assertTrue(self.wait_for(lambda: not pid_alive(holder)), "holder survived")
+        self.assertEqual(self.read("cap.timed-out", "stdout"), b"early\n")
+        with self.assertRaises(ec.VerifyError):
+            ec.verify_capture(cm.exception.path)
+
+    def test_interruption_while_a_descendant_holds_the_streams(self):
+        timer = threading.Timer(0.5, os.kill, (os.getpid(), signal.SIGTERM))
+        timer.start()
+        pidfile = os.path.join(self.dir, "holder.pid")
+        try:
+            with self.assertRaises(ec.CaptureIncomplete) as cm:
+                self.run_capture(sh("sleep 1000 & echo $! > '%s'; echo early" % pidfile))
+        finally:
+            # If the capture returned early, the signal must not reach a
+            # process with no handler installed.
+            timer.cancel()
+        self.assertEqual(cm.exception.record["status"], ec.INTERRUPTED)
+        self.assertEqual(self.read("cap.interrupted", "stdout"), b"early\n")
+
+    def test_an_escaped_writer_cannot_reach_sealed_evidence(self):
+        script = os.path.join(self.dir, "escaped.py")
+        with open(script, "w") as f:
+            f.write(ESCAPED)
+        pidfile = os.path.join(self.dir, "escaped.pid")
+        donefile = os.path.join(self.dir, "escaped.done")
+        argv = ["sh", "-c", '"$0" -S "$1" "$2" "$3" "$4" & echo early',
+                sys.executable, script, self.gate, pidfile, donefile]
+        t0 = time.monotonic()
+        with self.assertRaises(ec.CaptureIncomplete) as cm:
+            self.run_capture(argv, timeout=1)
+        self.assertLess(time.monotonic() - t0, 10)
+        rec = cm.exception.record
+        self.assertEqual(rec["status"], ec.TIMED_OUT)
+        self.assertIs(rec["exit"].get("streams_closed"), False)
+        path = cm.exception.path
+        before = self.read("cap.timed-out", "stdout")
+        self.assertTrue(os.path.exists(pidfile), "the escaped writer never started")
+        with open(self.gate, "w") as g:
+            g.write("x")
+        self.assertTrue(self.wait_for(lambda: os.path.exists(donefile)))
+        with open(donefile) as f:
+            self.assertTrue(f.read().startswith("refused"), "the escaped write was accepted")
+        self.assertEqual(self.read("cap.timed-out", "stdout"), before)
+        self.assertEqual(before, b"early\n")
+        ec.verify_capture(path, allow_incomplete=True)
+        with self.assertRaises(ec.VerifyError):
+            ec.verify_capture(path)
+
+    def test_a_complete_record_with_open_streams_is_refused(self):
+        self.run_capture(["true"])
+        path = os.path.join(self.dir, "cap")
+        rec_path = os.path.join(path, "record.json")
+        os.chmod(rec_path, 0o600)
+        with open(rec_path) as f:
+            rec = json.load(f)
+        rec["exit"]["streams_closed"] = False
+        with open(rec_path, "w") as f:
+            json.dump(rec, f)
+        names = sorted(n for n in os.listdir(path) if n != "SHA256SUMS")
+        sums = "".join("%s  %s\n" % (ec._sha256_file(os.path.join(path, n)), n) for n in names)
+        os.chmod(os.path.join(path, "SHA256SUMS"), 0o600)
+        with open(os.path.join(path, "SHA256SUMS"), "w") as f:
+            f.write(sums)
+        with self.assertRaises(ec.VerifyError) as cm:
+            ec.verify_capture(path)
+        self.assertIn("streams were still open", str(cm.exception))
 
 
 class CaptureVerify(Case):

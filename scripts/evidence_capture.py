@@ -27,6 +27,16 @@ killed capture can never be mistaken for a finished one. A capture that did not
 finish normally keeps what it captured, under a name that says so:
 `NAME.interrupted`, `NAME.timed-out` or `NAME.not-started`.
 
+The command writes to pipes, never to the capture's files; only this process
+writes those. Collection ends when the command has exited and every process
+holding its stdout or stderr has closed them, so output from a descendant that
+outlives the command is captured, and nothing can write into a sealed capture.
+A timeout or an interruption still applies while descendants hold the streams.
+If a writer has left the command's process group and survives the kill, the
+capture stops collecting, records `streams_closed: false` and is incomplete.
+Without --timeout, a descendant that never closes the streams keeps the capture
+waiting; release scripts should always set one.
+
 A non-zero exit is evidence, not a capture failure: the capture is complete and
 `exit` records the status. The `run` subcommand therefore exits 0 whenever the
 capture is complete; read `exit` for the command's status.
@@ -71,6 +81,7 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import signal
 import socket
 import stat
@@ -275,6 +286,12 @@ def _find_secrets(path, secrets):
     return sorted(hits)
 
 
+def _write_all(fd, data):
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
+
+
 def _exit_text(exit_info):
     if exit_info.get("start_error") is not None:
         return "not-started\n"
@@ -354,20 +371,30 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
 
     env = os.environ.copy()
     env.update(secrets)
+    # The stream files are opened here and written only by this process. The
+    # command and everything it starts get pipes, never these descriptors, so
+    # nothing it leaves behind can write into a sealed capture.
     fds = dict((s, os.open(os.path.join(tmp, s), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
                for s in STREAMS)
     caught = []
     timed_out = False
+    streams_closed = None
     record["invocation"]["started_at"] = _now()
     try:
         try:
-            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=fds["stdout"],
-                                    stderr=fds["stderr"], env=env, cwd=cwd,
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, env=env, cwd=cwd,
                                     start_new_session=True)
         except OSError as e:
             exit_info = {"code": None, "signal": None, "start_error": str(e)}
         else:
+            pipes = {proc.stdout.fileno(): "stdout", proc.stderr.fileno(): "stderr"}
+            sel = selectors.DefaultSelector()
+            for fd in pipes:
+                os.set_blocking(fd, False)
+                sel.register(fd, selectors.EVENT_READ)
             stop_requested = [None]
+            killed_at = [None]
 
             def on_signal(signum, _frame):
                 caught.append(signum)
@@ -381,26 +408,54 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
                 for s in handled:
                     previous[s] = signal.signal(s, on_signal)
             started = time.monotonic()
+            rc = None
+            streams_closed = False
             try:
+                # Collection ends when the command has exited AND every writer
+                # has closed both pipes: a descendant that outlives the command
+                # is still captured, and timeout and interruption stay armed
+                # until then.
                 while True:
-                    try:
-                        rc = proc.wait(timeout=POLL)
+                    if rc is None:
+                        rc = proc.poll()
+                    if rc is not None and not sel.get_map():
+                        streams_closed = True
                         break
-                    except subprocess.TimeoutExpired:
-                        pass
                     now = time.monotonic()
                     if timeout is not None and not timed_out and now - started > timeout:
                         timed_out = True
-                        stop_requested[0] = now
+                        if stop_requested[0] is None:
+                            stop_requested[0] = now
                         _signal_group(proc, signal.SIGTERM)
-                    if stop_requested[0] is not None and now - stop_requested[0] > KILL_GRACE:
-                        _signal_group(proc, signal.SIGKILL)
+                    if stop_requested[0] is not None:
+                        if killed_at[0] is None and now - stop_requested[0] > KILL_GRACE:
+                            _signal_group(proc, signal.SIGKILL)
+                            killed_at[0] = now
+                        if killed_at[0] is not None and rc is not None \
+                                and now - killed_at[0] > KILL_GRACE:
+                            # A writer outside the process group still holds a
+                            # pipe. Stop collecting; the capture is incomplete.
+                            break
+                    for key, _mask in sel.select(timeout=POLL):
+                        try:
+                            chunk = os.read(key.fd, 1 << 16)
+                        except BlockingIOError:
+                            continue
+                        if chunk:
+                            _write_all(fds[pipes[key.fd]], chunk)
+                        else:
+                            sel.unregister(key.fd)
             finally:
                 for s, h in previous.items():
                     signal.signal(s, h)
+                sel.close()
+                proc.stdout.close()
+                proc.stderr.close()
             if caught or timed_out:
                 # Anything the command started in its session goes too.
                 _signal_group(proc, signal.SIGKILL)
+            if rc is None:
+                rc = proc.wait()
             exit_info = {"code": rc if rc >= 0 else None, "signal": -rc if rc < 0 else None,
                          "start_error": None}
     finally:
@@ -419,6 +474,7 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
     else:
         status = COMPLETE
     exit_info["timed_out"] = timed_out
+    exit_info["streams_closed"] = streams_closed
     record["exit"] = exit_info
 
     leaks = []
@@ -520,9 +576,11 @@ def verify_capture(path, tag=None, commit=None, machine_id=None, allow_incomplet
     exit_info = record.get("exit") or {}
     if status == COMPLETE and (exit_info.get("start_error") is not None
                                or exit_info.get("interrupted_by") is not None
-                               or exit_info.get("timed_out") is not False):
+                               or exit_info.get("timed_out") is not False
+                               or exit_info.get("streams_closed") is not True):
         raise VerifyError("%s: the record says complete, but its exit record says the "
-                          "command was interrupted, timed out or never started" % base)
+                          "command was interrupted, timed out or never started, or its "
+                          "streams were still open" % base)
     if status != WITHHELD:
         for s in STREAMS:
             meta = (record.get("streams") or {}).get(s) or {}

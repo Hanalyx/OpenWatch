@@ -111,6 +111,17 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-08
+      description: >-
+        The command and its descendants write to pipes, never to the capture's
+        files. A capture is complete only when the command has exited and every
+        writer has closed both streams; timeout and interruption remain in force
+        until then. A writer that survives forced termination ends collection
+        and leaves the capture incomplete, recorded with streams_closed false.
+        A complete record with open streams is refused by verification.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: >-
@@ -200,3 +211,20 @@ spec:
         failed transfer is moved aside.
       priority: critical
       references_constraints: [C-07]
+    - id: AC-08
+      description: >-
+        With the descendant released only after the parent exits and after the
+        capture would have returned at the parent's exit: a descendant's late
+        ordinary output is in the complete capture, which returns only after it
+        and verifies; a descendant's late supplied secret produces
+        NAME.withheld-secret with no copy of the value anywhere. A descendant
+        holding the streams open is stopped by the timeout, with the capture
+        timed out and the holder killed; an interruption while a descendant holds
+        the streams is kept as interrupted. A writer that leaves the process
+        group survives the timeout, the capture returns within a bounded time
+        as timed out with streams_closed false, and its later write is refused
+        while the sealed stream and its checksums are unchanged. A complete
+        record claiming open streams fails verification. Each case fails by
+        name within a deadline rather than hanging the suite.
+      priority: critical
+      references_constraints: [C-08]
