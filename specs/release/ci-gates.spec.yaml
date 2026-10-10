@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.26.0"
+  version: "1.27.0"
   status: approved
   tier: 1
 
@@ -295,7 +295,8 @@ spec:
         THE FINAL-VERSION COMMIT sets `VERSION="X.Y.Z"` in `packaging/version.env`, the README
         version phrase and the newest CHANGELOG heading `[X.Y.Z] <codename> (<date>)`, where
         the date is the INTENDED PUBLICATION DATE, and is prepared through review and merged.
-        The tag is cut from it by the same version-derived block a candidate uses.
+        The tag is cut from it by the same `scripts/release_tag.py` commands a candidate uses,
+        naming the final-version commit by its full SHA (release-tagging).
 
         BUILT ONCE INTO A DRAFT. For a bare tag `release.yml` MUST publish the assets into a
         draft release, and MUST REFUSE TO BUILD any tag for which a release, draft or
@@ -1382,8 +1383,9 @@ spec:
         attestation in internal storage outside the repository and verify a checksum
         manifest over it. Attestations are internal evidence: the runbook MUST NOT tell
         anyone to commit or upload one. The GA stage MUST cut its tag
-        with the same version-derived block as a candidate, from the final-version
-        commit, and MUST publish through `scripts/release-publish.py` rather than by
+        with the same `scripts/release_tag.py` commands as a candidate, naming the
+        final-version commit by its full SHA, and no `git tag` command may appear in
+        the runbook, and MUST publish through `scripts/release-publish.py` rather than by
         any command that could rebuild or re-upload (C-14). Removing the skeleton
         command, the explicit commit resolution, or the publish-script invocation MUST
         fail.

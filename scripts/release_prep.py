@@ -50,7 +50,12 @@ _spec.loader.exec_module(ec)
 LIBRARY = _here / "evidence_capture.py"
 SNAPSHOT = _here.parent / "release" / "prep" / "f2-host-snapshot.sh"
 
-SSH_OPTIONS = ["-q", "-o", "LogLevel=ERROR", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
+# Command-line -o options take precedence over every ssh_config file, so these
+# hold whatever the operator's configuration says. BatchMode alone is not
+# enough: a config file can set StrictHostKeyChecking=no or accept-new, and an
+# agent can offer a key other than the one named with --ssh-key.
+SSH_OPTIONS = ["-q", "-o", "LogLevel=ERROR", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
+               "-o", "StrictHostKeyChecking=yes", "-o", "IdentitiesOnly=yes"]
 # Added to a phase's own timeout for the SSH session that wraps it.
 SSH_MARGIN = 60
 
@@ -115,8 +120,10 @@ class Host(object):
         else:
             if not a.ssh_target:
                 raise PrepError("--ssh-target is required")
-            self.transport = ["ssh"] + SSH_OPTIONS + (["-i", a.ssh_key] if a.ssh_key else []) \
-                + [a.ssh_target]
+            if not a.ssh_key:
+                raise PrepError("--ssh-key is required: the identity is named, never left to "
+                                "an agent or a default file")
+            self.transport = ["ssh"] + SSH_OPTIONS + ["-i", a.ssh_key, "--", a.ssh_target]
         self.sudo = shlex.split(a.sudo)
         self.python = a.remote_python
         self.remote_dir = "%s/%s/f2" % (a.remote_dir.rstrip("/"), a.tag)

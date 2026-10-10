@@ -1,0 +1,130 @@
+spec:
+  id: release-tagging
+  title: Release tagging on an explicit candidate commit
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: Explicit-SHA release tags (CP bugs/OW-118)
+    description: >
+      A release tag names the commit every gate was evaluated against. The
+      runbook block it replaces derived the version correctly but tagged
+      whatever main was at. While v0.8.4 was cut, main advanced past the chosen
+      candidate with the same VERSION, so that block would have tagged the
+      later commit under the candidate's name with no check failing.
+      scripts/release_tag.py takes the candidate as a full SHA, checks it,
+      signs it with the named release key, verifies the tag, and pushes only
+      that tag. It records no release decision; signing and pushing remain the
+      release captain's actions.
+    related_specs:
+      - release-package-build
+      - release-ci-gates
+
+  objective:
+    summary: >
+      A tag can name only the recorded candidate, signed by the release key,
+      and only after every check passed in a dry run's terms.
+    scope:
+      includes:
+        - scripts/release_tag.py and its dry-run, --sign and --push modes
+      excludes:
+        - Choosing the candidate, signing decisions and publication
+        - Moving, deleting or reusing any tag
+
+  constraints:
+    - id: C-01
+      description: >-
+        The candidate is a full 40-character lowercase commit SHA that exists
+        and is an ancestor of origin/main after a fetch of main. A branch name,
+        HEAD, a short SHA or any other spelling is refused.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The tag is "v" plus VERSION from packaging/version.env at the candidate
+        commit, never typed and never read from another commit. VERSION, the
+        README version phrase and the newest CHANGELOG heading at the candidate
+        agree, and the candidate's own packaging/check-tag-version.sh accepts
+        the tag.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        A tag that exists locally, on origin, or on any GitHub release including
+        drafts is refused, and a release list that cannot be read is refused.
+        Origin's tags are checked without fetching them.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        The key is named by its full fingerprint, is a primary key in
+        security/KEYS at the candidate, and has its secret key available. It is
+        passed to git explicitly, so the repository's user.signingkey cannot
+        choose it.
+      type: security
+      enforcement: error
+    - id: C-05
+      description: >-
+        The default mode signs nothing. --sign creates the tag on the candidate
+        and verifies it is an annotated tag object naming exactly that commit
+        under that name with a VALIDSIG from the key; it pushes nothing. --push
+        re-runs every check, re-verifies the local tag, pushes
+        refs/tags/<tag> only with tag following disabled both in the command's
+        configuration and on its command line (push.followTags would otherwise
+        send every annotated tag reachable from the candidate, and another tag
+        on GitHub can start another release workflow), and checks origin's tag
+        object and peeled commit.
+        Nothing moves or deletes a tag.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        A dry run reports each check and creates no tag anywhere. With main
+        advanced past the candidate under the same VERSION, --sign then --push
+        tag the candidate, not main. main, HEAD, origin/main, a 12-character
+        SHA, an upper-case SHA and a 41-character string are refused, as are an
+        unknown commit and a commit on a side branch.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        A README or CHANGELOG version that disagrees with version.env at the
+        candidate is refused; a VERSION that makes no release tag is refused;
+        a candidate whose own check-tag-version.sh refuses is refused with that
+        script's message; and with main at a later version, the tag derived for
+        the candidate is the candidate's version.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        A local tag, a tag on origin (reported as on origin, with no tag
+        fetched), a release or draft using the tag, and a release list that
+        cannot be read are each refused before signing.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        A key that is not in security/KEYS at the candidate, a fingerprint that
+        is short, lower-case or not a fingerprint, and a key in KEYS whose
+        secret key is absent are each refused.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        --sign leaves a verified annotated tag on the candidate and nothing on
+        origin. --push sends that tag only: origin's branches are unchanged,
+        an unrelated local tag and a local commit stay unpushed, and origin's
+        tag object and peeled commit match. With push.followTags=true in the
+        repository and global configuration, and annotated tags on the
+        candidate and on its parent, origin receives only the candidate's tag. --push refuses an unsigned tag, a
+        tag signed by another key, a lightweight tag and a tag on another
+        commit, each with its reason, and pushes nothing. A signing failure
+        leaves no tag and pushes nothing. With user.signingkey naming another
+        key and tag.gpgSign set, the tag is still signed by --key. --sign and
+        --push cannot be combined.
+      priority: critical
+      references_constraints: [C-05]

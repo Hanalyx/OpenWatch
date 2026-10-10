@@ -40,6 +40,7 @@ gate is `make check` (see the Makefile).
 |--------|---------|
 | `evidence_capture.py` | Capture a command's raw stdout, stderr and exit status as release evidence. Each capture is bound to the candidate, the host and the invocation, sealed with SHA256SUMS, and verified again after transfer from a fleet host. Secrets go through named environment variables only. Spec: `release-evidence-capture`. Run `python3 -S scripts/evidence_capture.py --help` for usage. |
 | `release_prep.py` | Maintained release-preparation steps built on `evidence_capture.py`. `f2` runs the F2 staged-remediation check on one fleet host in three phases (preflight, staged, after). It prompts rollback only after the staged capture verifies, then builds a packet with the captain's fields left blank. Spec: `release-preparation`. Skill: `.claude/skills/release-prep/SKILL.md`. |
+| `release_tag.py` | Cut a release tag on an explicit candidate commit (RELEASING.md Stage 2; CP `bugs/OW-118`). It takes the full SHA and the release key's fingerprint. A dry run checks the candidate's ancestry, version agreement, that the tag exists nowhere, and the key against `security/KEYS`, then stops. `--sign` signs with that key and verifies the tag; `--push` pushes that one tag and checks origin. Spec: `release-tagging`. |
 
 > Note: a few of these helpers are written in Python purely as CI/dev tooling
 > (commit-message linting, spec validation, CodeQL/risk automation). They are

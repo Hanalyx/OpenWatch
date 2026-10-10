@@ -1,7 +1,7 @@
 spec:
   id: release-preparation
   title: Release preparation, F2 staged-remediation evidence
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -90,6 +90,14 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-07
+      description: >-
+        The SSH command sets StrictHostKeyChecking=yes, IdentitiesOnly=yes and
+        BatchMode=yes on the command line, which takes precedence over every
+        ssh_config file, and names its identity with an explicit key; a run
+        without --ssh-key or --ssh-target is refused.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: >-
@@ -159,3 +167,14 @@ spec:
         only writes are to and removal of its temporary file.
       priority: critical
       references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        The constructed command carries StrictHostKeyChecking=yes,
+        IdentitiesOnly=yes and BatchMode=yes, never accept-new or no, and ends
+        with -i KEY -- TARGET; a missing key or target is refused. Under an
+        ssh_config that sets StrictHostKeyChecking no and IdentitiesOnly no,
+        `ssh -G` reports the effective values as true and yes for the
+        constructed command, while the same config does weaken a command
+        without the options.
+      priority: critical
+      references_constraints: [C-07]

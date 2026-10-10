@@ -1843,11 +1843,17 @@ func TestCIGates_DocumentationReviewGate(t *testing.T) {
 			t.Errorf("docs/runbooks/RELEASING.md types a tag: %q; every tag is derived "+
 				"from version.env by the Stage 2 block", strings.TrimSpace(ln))
 		}
-		// Exactly one tagging block in the whole runbook, under Stage 2.
-		tagLines := regexp.MustCompile(`(?m)^\s*git tag `).FindAllString(string(book), -1)
-		if len(tagLines) != 1 {
-			t.Errorf("docs/runbooks/RELEASING.md has %d `git tag` lines; the single "+
-				"version-derived block is the only tagging path", len(tagLines))
+		// One tagging path in the whole runbook: scripts/release_tag.py on an
+		// explicit candidate SHA (release-tagging; CP bugs/OW-118). A bare
+		// `git tag` tags whatever HEAD is, which is how a later commit could be
+		// tagged under the candidate's name.
+		if tagLines := regexp.MustCompile(`(?m)^\s*git tag `).FindAllString(string(book), -1); len(tagLines) != 0 {
+			t.Errorf("docs/runbooks/RELEASING.md has %d `git tag` lines; tagging goes "+
+				"through scripts/release_tag.py only", len(tagLines))
+		}
+		if n := len(regexp.MustCompile(`(?m)^python3 -S scripts/release_tag\.py --commit "\$CANDIDATE" --key "\$KEY" --sign\b`).FindAllString(string(book), -1)); n != 1 {
+			t.Errorf("docs/runbooks/RELEASING.md signs a tag %d times through "+
+				"scripts/release_tag.py; the Stage 2 commands are the one tagging path", n)
 		}
 
 		// The attestation stays untracked until the release exists. A

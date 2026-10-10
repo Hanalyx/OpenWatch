@@ -50,37 +50,59 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 ## Stage 2: Cut the release candidate
 
 > **Before you start**
-> - **You need:** the Stage 1 commit merged on `main`, the signing key `4AA0538FE239E50C` unlocked in your own terminal, and a clean working tree.
+> - **You need:** the Stage 1 commit merged on `main`, its full SHA recorded as the candidate, and the signing key `4AA0538FE239E50C` unlocked in your own terminal.
 > - **Run as:** the release captain, from an interactive shell (signing cannot run from automation).
 > - **What changes:** one signed tag on `origin`; pushing it starts `release.yml` and `package-smoke.yml`.
 > - **Verify with:** the tag appears on `origin` and `release.yml` runs against it; `scripts/release-status.py --tag` reports PENDING then PASS per gate.
 > - **Recover by:** nothing that moves or deletes the tag. A refused or failed candidate keeps its tag; take the next number (see below).
 
-The tag is read from `packaging/version.env`, never typed. The Stage 1 commit
-must be merged first, so the tag names a commit on `main` whose `version.env`
-carries the candidate version. `v0.8.0-rc.1` was tagged by hand against
-`VERSION="0.8.0"` and refused by the hosted check after it had been signed and
-pushed (CP `bugs/OW-037`). The local check below catches that before the tag
-exists.
+The candidate is a commit, named by its full SHA, typed once from the release
+record and never derived from a branch. The tag name is read from
+`packaging/version.env` at that commit, never typed. Two failures shaped this:
+
+- `v0.8.0-rc.1` was tagged by hand against `VERSION="0.8.0"` and refused by the
+  hosted check after it had been signed and pushed (CP `bugs/OW-037`).
+- The previous block tagged whatever `main` was at. While v0.8.4 was being cut,
+  `main` advanced past the chosen candidate with the same `VERSION`. That block
+  would have tagged the later commit under the candidate's name, and no check
+  would have failed (CP `bugs/OW-118`).
+
+`scripts/release_tag.py` runs every check before anything is signed:
+
+- the commit exists and is an ancestor of `origin/main` after a fetch;
+- `version.env`, the README phrase and the newest CHANGELOG heading agree at the
+  commit, and the commit's own `packaging/check-tag-version.sh` accepts the
+  derived tag;
+- the tag does not exist locally, on `origin`, or on any release, drafts
+  included;
+- the key, named by its full fingerprint, is a primary key in `security/KEYS` at
+  the commit, and its secret key is available.
+
+It signs with that key explicitly (`git tag -s -u`), not with the repository's
+`user.signingkey`. It then verifies the tag object, its target and a
+`VALIDSIG` from the release key. It pushes `refs/tags/<tag>` only, and checks
+the tag object and the peeled commit on `origin`.
 
 ```bash
-(
-  set -euo pipefail                     # a failed line stops the cut here
-  git switch main
-  git pull --ff-only origin main
-  test -z "$(git status --porcelain)"   # tag a merged commit, not a working tree
-  . packaging/version.env
-  TAG="v$VERSION"                       # derived from the file, never typed
-  RELEASE_REF="$TAG" bash packaging/check-tag-version.sh
-  git tag -s "$TAG" -m "$TAG"
-  git push origin "$TAG"
-)
+CANDIDATE=<the candidate's full 40-character commit SHA, from the release record>
+KEY=4CB70E1C09426E43CBBAD2804AA0538FE239E50C   # 4AA0538FE239E50C, from security/KEYS
+python3 -S scripts/release_tag.py --commit "$CANDIDATE" --key "$KEY"          # dry run
+python3 -S scripts/release_tag.py --commit "$CANDIDATE" --key "$KEY" --sign   # sign, verify
+python3 -S scripts/release_tag.py --commit "$CANDIDATE" --key "$KEY" --push   # push, verify
 ```
 
-The block is a subshell with `set -e`, so a failed pull, a dirty tree or a
-refused check leaves no tag, and a failed signature leaves nothing to push.
-Pasted into an interactive shell it stops the block, not the shell. The same
-block cuts the GA tag in Stage 4; only `version.env` differs.
+Run the three lines one at a time and read each result before the next:
+
+1. **The dry run** changes nothing. Capture it as evidence with
+   `scripts/evidence_capture.py run --timeout 300 -- python3 -S scripts/release_tag.py ...`.
+2. **`--sign`** needs the key unlocked in your own terminal (see "Signing
+   model"), so run it directly, not through a capture. It never pushes.
+3. **`--push`** re-runs every check and re-verifies the local tag before
+   pushing.
+
+A failure after signing leaves the local tag in place, unpushed. Nothing moves
+or deletes it; decide what to do with it before anything else. The same three
+lines cut the GA tag in Stage 4; only the candidate commit differs.
 
 Pushing the tag triggers `release.yml` (builds + SBOMs + publishes a
 pre-release for a `-rc.N` tag) and `package-smoke.yml` (per-distro install
@@ -88,7 +110,7 @@ matrix). A refused candidate is a failed candidate: leave its tag in place as
 a record, file the cause, and take the next number. That holds for a GA tag
 too; see "When a GA candidate fails" under Stage 4. Recovery names ONE version
 in all four places: `VERSION` in `version.env`, the README phrase, the newest
-CHANGELOG heading, and the tag the block derives from them. After `v0.8.0-rc.1`
+CHANGELOG heading, and the tag `scripts/release_tag.py` derives from them. After `v0.8.0-rc.1`
 was refused, the next candidate was `0.8.0-rc.2` in all four, never
 `0.8.0-rc.1` in the files with `rc.2` on the tag.
 
@@ -362,8 +384,9 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
    date**, not the date of the commit. Nothing else changes in that pull
    request. Merge it.
 
-2. **Cut the tag with the Stage 2 block, unchanged.** It reads `version.env`
-   on the merged commit and derives `vX.Y.Z`. Because the tag carries no
+2. **Cut the tag with the Stage 2 commands, unchanged.** Record the merged
+   final-version commit's full SHA as the candidate; `scripts/release_tag.py`
+   reads `version.env` at that commit and derives `vX.Y.Z`. Because the tag carries no
    hyphen, `release.yml` builds the assets into a **draft** release. It refuses
    to run for a tag that already has assets, so the build cannot be repeated.
 
@@ -423,7 +446,7 @@ level up:
 3. Prepare the next version through review as a new final-version commit
    (step 1 above), with its own intended publication date: a failed `0.8.0`
    advances to `0.8.1`.
-4. Cut it with the Stage 2 block and run Stages 3 and 3b in full against it.
+4. Cut it with the Stage 2 commands, naming its full SHA as the candidate, and run Stages 3 and 3b in full against it.
    Nothing carries over from the failed candidate.
 
 Diagnostic tests may run against a failed candidate's draft (installing its

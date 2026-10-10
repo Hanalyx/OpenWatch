@@ -42,6 +42,7 @@ domains:
             - release-ci-gates
             - release-evidence-capture
             - release-preparation
+            - release-tagging
             - system-auth-identity
             - system-user-management
             - system-credential-store
