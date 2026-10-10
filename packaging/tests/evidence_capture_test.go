@@ -89,7 +89,7 @@ func TestEvidenceCapture_WritesAtomically(t *testing.T) {
 // AC-03: bound to the host, the candidate and the invocation.
 func TestEvidenceCapture_BindsHostCandidateAndInvocation(t *testing.T) {
 	t.Run("release-evidence-capture/AC-03", func(t *testing.T) {
-		requireEvidenceCaptureClass(t, "CaptureBinding", 4)
+		requireEvidenceCaptureClass(t, "CaptureBinding", 5)
 	})
 }
 
@@ -105,7 +105,7 @@ func TestEvidenceCapture_KeepsSecretsOut(t *testing.T) {
 // AC-05: interrupted, timed-out and unstartable commands are kept and named.
 func TestEvidenceCapture_KeepsInterruptedCaptures(t *testing.T) {
 	t.Run("release-evidence-capture/AC-05", func(t *testing.T) {
-		requireEvidenceCaptureClass(t, "CaptureInterruption", 5)
+		requireEvidenceCaptureClass(t, "CaptureInterruption", 6)
 	})
 }
 

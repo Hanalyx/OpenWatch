@@ -1,0 +1,161 @@
+spec:
+  id: release-preparation
+  title: Release preparation, F2 staged-remediation evidence
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: Maintained, tested release-preparation steps
+    description: >
+      Release preparation was done with hand-written commands, and two failures
+      reached the release captain on v0.8.4: host evidence passed through a
+      filter that deleted a real line, and the F2 staged state was never
+      captured because rollback came first. scripts/release_prep.py runs the F2
+      gate's fleet check in three phases on one host. Each phase captures a
+      read-only snapshot through scripts/evidence_capture.py on the host, then
+      fetches and verifies it. Rollback is prompted only after the staged
+      capture verifies. The tool records no verdict; the release captain does.
+    related_specs:
+      - release-evidence-capture
+      - release-ci-gates
+
+  objective:
+    summary: >
+      F2 evidence is complete, in order and verified before anyone is asked to
+      destroy the state it records, and every capture has an explicit time
+      bound.
+    scope:
+      includes:
+        - The f2 preflight, staged, after, status and packet steps
+        - The maintained snapshot release/prep/f2-host-snapshot.sh
+        - The release-prep skill, .claude/skills/release-prep/SKILL.md
+      excludes:
+        - Verdicts, attestations, sign-offs, tagging, merging and publication
+        - The other preparation steps the skill lists as not covered yet
+
+  constraints:
+    - id: C-01
+      description: >-
+        Each phase runs the capture library on the host with an explicit
+        timeout, fetches the capture with an explicit timeout, and accepts it
+        only after verification against the candidate tag and commit and, after
+        preflight, the preflight's machine id. The remote run and the transfer
+        are captured locally as evidence too.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        Whether a phase may run is derived from the verified captures on disk
+        each time. staged requires a verified preflight; after and packet
+        require verified preflight and staged captures. The rollback prompt is
+        printed only by a staged run whose capture verified with exit 0.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Preflight is usable only when the host's auditctl -s reports enabled 2,
+        checked wherever preflight is relied on. The snapshot is read-only and
+        unfiltered, and the same snapshot is taken in every phase.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        A phase without an explicit positive timeout cannot run, and every
+        capture and fetch the tool makes passes its declared timeout.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        The packet is built only from three verified captures, shows each
+        capture's stdout digest, labels its differences as derived from the raw
+        files, leaves every captain field blank and is never overwritten.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        Every snapshot section is required. The snapshot keeps each section's
+        raw output and status and exits non-zero when any section failed,
+        including a failing command whose output was being digested and any
+        failed iteration of a loop, not only the last. A capture is accepted
+        only when the snapshot exited 0 and no section recorded a non-zero
+        status, so a reported failure fails the capture even if the script's
+        own status hid it. Command output is never held in a shell variable:
+        auditctl -l writes to a private temporary file, its exact bytes are
+        emitted followed by a trailer giving their count and a sha256 computed
+        from that file, its own exit status is the section's status, and the
+        file is removed on exit and on interruption. Apart from that file, the
+        snapshot writes nothing.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Preflight, staged and after each leave a verified capture with exit 0,
+        plus verified captures of the remote run and the transfer. The library
+        sent to the host is recorded by digest. Preflight names the remediation
+        as the next step without prompting rollback; staged prompts rollback and
+        names its capture; after names the packet. status reports what is
+        verified and what is next, and a phase is never captured twice.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        No rollback prompt and exit 1 when: staged runs without a verified
+        preflight, in which case the host is not contacted; the staged snapshot
+        fails; the transfer is broken, isolating what arrived; or the staged
+        capture comes from another machine. after is refused without a staged
+        capture, with an altered one, or with one from another candidate. The
+        release-prep skill tells the agent never to prompt rollback before the
+        staged prompt, to give every capture an explicit timeout, and to leave
+        every captain field blank.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: >-
+        A host reporting enabled 1 fails preflight with its capture kept, and
+        staged is then refused. A malformed host, commit or tag is refused
+        before any contact or local directory. The maintained snapshot contains
+        no write, package or service command and has its required sections.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        A full run makes exactly the remote-run capture, the fetch and the
+        transfer capture per phase, each with the declared timeout, and the
+        remote command carries the phase timeout. A phase whose timeout is
+        missing, zero or negative is refused before contact. A hung snapshot is
+        stopped by the phase timeout, reported as a failed remote run, and not
+        fetched.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        packet is refused until all three captures verify. The packet holds each
+        stdout digest, the staged and rollback differences labelled as derived,
+        a statement that it records no verdict, and blank captain fields; a
+        second packet is refused.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        Run against a fake root with auditctl and uptime shims, the maintained
+        snapshot exits 0 on a healthy host and every phase and the packet
+        succeed. It exits 1, keeping the section's raw output, when auditctl -l
+        fails; when an unreadable rules file precedes a readable one, which is
+        still printed; with an empty rules directory; and with a missing boot
+        id. A failed auditctl -l or rules read during staged gives exit 1 and no
+        rollback prompt, and after and packet then refuse. A capture whose
+        snapshot exited 0 but recorded a section with exit 42 is refused the
+        same way. The loaded-rules section reproduces auditctl -l's output byte
+        for byte, with a trailer whose count and sha256 match it, for output
+        with several trailing newlines, with none, empty, and partial output
+        followed by a failure, whose status is kept; this holds in a staged
+        capture too. No temporary file remains after a normal run, a failed run,
+        or a SIGTERM to the snapshot's process group, which exits 143. The
+        snapshot has no pipes and no command substitution of auditctl, and its
+        only writes are to and removal of its temporary file.
+      priority: critical
+      references_constraints: [C-06]

@@ -41,6 +41,7 @@ domains:
             - release-stage-0-signoff
             - release-ci-gates
             - release-evidence-capture
+            - release-preparation
             - system-auth-identity
             - system-user-management
             - system-credential-store

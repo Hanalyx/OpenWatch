@@ -7,12 +7,13 @@ command's stdout and stderr byte for byte, and its exit status. A display view
 is made later from those files, and never replaces them.
 
     python3 -S scripts/evidence_capture.py run --out DIR --name NAME \\
-        --tag v0.8.4 --commit <40-hex> [--purpose TEXT] [--timeout SECONDS] \\
+        --tag v0.8.4 --commit <40-hex> --timeout SECONDS [--purpose TEXT] \\
         [--secret-env VAR ...] -- COMMAND [ARG ...]
     python3 -S scripts/evidence_capture.py verify DIR [--tag T --commit C]
         [--machine-id ID] [--allow-incomplete]
     python3 -S scripts/evidence_capture.py fetch --out DIR --name NAME \\
-        --tag T --commit C [--machine-id ID] -- TRANSFER COMMAND [ARG ...]
+        --tag T --commit C --timeout SECONDS [--machine-id ID] \\
+        -- TRANSFER COMMAND [ARG ...]
 
 One capture is one directory:
 
@@ -34,8 +35,9 @@ outlives the command is captured, and nothing can write into a sealed capture.
 A timeout or an interruption still applies while descendants hold the streams.
 If a writer has left the command's process group and survives the kill, the
 capture stops collecting, records `streams_closed: false` and is incomplete.
-Without --timeout, a descendant that never closes the streams keeps the capture
-waiting; release scripts should always set one.
+The command line requires --timeout for `run` and `fetch`. Through the Python
+API a capture without a timeout waits for as long as a descendant holds the
+streams; release scripts always pass one.
 
 A non-zero exit is evidence, not a capture failure: the capture is complete and
 `exit` records the status. The `run` subcommand therefore exits 0 whenever the
@@ -327,7 +329,7 @@ def _seal(tmp, record, out_dir, final):
 
 
 def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpose="",
-            cwd=None, host=None, _transfer=False):
+            cwd=None, host=None, stdin_file=None, _transfer=False):
     """Run argv and keep its raw stdout, stderr and exit status as evidence.
 
     Returns the record of a complete capture. Raises CaptureIncomplete for an
@@ -337,6 +339,8 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
     argv = list(argv)
     if not argv:
         raise CaptureError("no command to capture")
+    if timeout is not None and not timeout > 0:
+        raise CaptureError("timeout must be a positive number of seconds")
     check_name(name, transfer=_transfer)
     check_candidate(tag, commit)
     secrets = dict(secrets or {})
@@ -364,11 +368,24 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
             "cwd": os.path.abspath(cwd or os.getcwd()),
             "operator": getpass.getuser(),
             "secret_env": sorted(secrets),
+            "stdin": None,
             "timeout_seconds": timeout,
             "capturer": {"python": sys.version.split()[0], "library_sha256": _library_sha256()},
         },
     }
 
+    stdin_fd = None
+    if stdin_file is not None:
+        # What the command read is part of what ran: record its digest.
+        stdin_path = os.path.abspath(stdin_file)
+        try:
+            stdin_fd = os.open(stdin_path, os.O_RDONLY)
+        except OSError as e:
+            os.rmdir(tmp)
+            raise CaptureError("cannot read stdin file %s: %s" % (stdin_path, e))
+        record["invocation"]["stdin"] = {"path": stdin_path,
+                                         "sha256": _sha256_file(stdin_path),
+                                         "bytes": os.path.getsize(stdin_path)}
     env = os.environ.copy()
     env.update(secrets)
     # The stream files are opened here and written only by this process. The
@@ -382,7 +399,8 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
     record["invocation"]["started_at"] = _now()
     try:
         try:
-            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL if stdin_fd is None else stdin_fd,
+                                    stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, env=env, cwd=cwd,
                                     start_new_session=True)
         except OSError as e:
@@ -459,6 +477,8 @@ def capture(argv, out_dir, name, tag, commit, secrets=None, timeout=None, purpos
             exit_info = {"code": rc if rc >= 0 else None, "signal": -rc if rc < 0 else None,
                          "start_error": None}
     finally:
+        if stdin_fd is not None:
+            os.close(stdin_fd)
         for fd in fds.values():
             os.fsync(fd)
             os.close(fd)
@@ -734,7 +754,8 @@ def main(argv=None):
     r.add_argument("--tag", required=True)
     r.add_argument("--commit", required=True)
     r.add_argument("--purpose", default="")
-    r.add_argument("--timeout", type=float)
+    r.add_argument("--timeout", type=float, required=True,
+                   help="seconds; required, so no capture can wait forever")
     r.add_argument("--secret-env", action="append", default=[],
                    help="environment variable holding a secret; repeatable")
     r.add_argument("command", nargs=argparse.REMAINDER)
@@ -753,7 +774,8 @@ def main(argv=None):
     f.add_argument("--commit", required=True)
     f.add_argument("--machine-id")
     f.add_argument("--allow-incomplete", action="store_true")
-    f.add_argument("--timeout", type=float)
+    f.add_argument("--timeout", type=float, required=True,
+                   help="seconds for the transfer; required")
     f.add_argument("command", nargs=argparse.REMAINDER)
 
     a = p.parse_args(argv)
