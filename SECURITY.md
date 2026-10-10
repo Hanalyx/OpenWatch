@@ -44,19 +44,19 @@ release is supported.
 - **Published** means its GitHub release is public and not marked as a
   pre-release. Merging a change, creating a tag or building a draft release does
   not make a version supported.
-- **Today the latest published stable release is 0.8.3,** published on
-  2026-10-07. It stays supported until the next stable release is published.
-- **0.7.1 and every earlier release stopped being supported** when 0.8.3 was
+- **Today the latest published stable release is 0.8.4,** published on
+  2026-10-10. It stays supported until the next stable release is published.
+- **0.8.3 and every earlier release stopped being supported** when 0.8.4 was
   published. Users on an earlier version should upgrade promptly.
 - **When the next stable release is published,** it becomes the only supported
-  release, and 0.8.3 is no longer supported. Each later publication moves
+  release, and 0.8.4 is no longer supported. Each later publication moves
   support the same way.
 - **Security fixes target the latest published stable release.** Backports to
   older releases are not promised.
 
 | Version | Supported |
 |---------|-----------|
-| The latest published stable release (0.8.3 today) | Yes |
+| The latest published stable release (0.8.4 today) | Yes |
 | Any earlier stable release | No. Upgrade to the latest published stable release |
 | A tagged or drafted release that was not published, such as 0.8.0, 0.8.1 and 0.8.2 | No. Not a stable release |
 | Release candidates, such as 0.8.0-rc.6 | No. Pre-releases for evaluation, not stable releases |
@@ -71,8 +71,8 @@ What has been tested, by version:
 
 - **Full service upgrades on a real RHEL 9 host,** against a running service
   with its database. 0.7.1 to 0.8.0-rc.6 on 2026-09-30. 0.7.1 to 0.8.2 on
-  2026-10-04, following the upgrade procedure including the Step 8 restart and
-  rule comparison.
+  2026-10-04, and 0.8.3 to 0.8.4 on 2026-10-09, each following the upgrade
+  procedure including the Step 8 restart and rule comparison.
 - **Rollbacks on the same host.** The full rollback to 0.7.1 was run by hand on
   2026-09-30. The code-only rollback from 0.8.2 to 0.8.1 was run on 2026-10-05.
 - **RPM package upgrades in CI**, on Rocky Linux 9 and AlmaLinux 10. CI upgrades
