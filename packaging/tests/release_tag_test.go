@@ -97,9 +97,18 @@ func TestReleaseTag_SignsOnlyWithTheReleaseKey(t *testing.T) {
 // AC-05: sign the candidate, verify the object and signature, push only that ref.
 func TestReleaseTag_SignsVerifiesAndPushesOnlyTheTag(t *testing.T) {
 	t.Run("release-tagging/AC-05", func(t *testing.T) {
-		requireReleaseTag(t, "TagSignAndPush", 6,
+		requireReleaseTag(t, "TagSignAndPush", 7,
 			"test_push_sends_only_the_tag_ref_and_checks_origin",
 			"test_push_refuses_an_unsigned_or_foreign_or_misplaced_tag",
 			"test_the_repository_signing_key_is_not_used")
+	})
+}
+
+// @ac AC-05
+// AC-05: with push.followTags=true and other annotated tags reachable from the
+// candidate, the push sends the candidate's tag and nothing else.
+func TestReleaseTag_PushNeverFollowsOtherTags(t *testing.T) {
+	t.Run("release-tagging/AC-05", func(t *testing.T) {
+		requireReleaseTag(t, "TagSignAndPush", 7, "test_push_never_follows_other_tags")
 	})
 }

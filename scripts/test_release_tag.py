@@ -16,7 +16,9 @@ import io
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -51,6 +53,13 @@ class Keys(object):
         cls.home = tempfile.mkdtemp(prefix="rtg-", dir="/tmp")
         os.chmod(cls.home, 0o700)
         cls.env = dict(os.environ, GNUPGHOME=cls.home)
+        # The throwaway keys have no passphrase. Loopback pinentry means key
+        # generation and deletion never need a pinentry program, which a
+        # headless runner may not have.
+        with open(os.path.join(cls.home, "gpg-agent.conf"), "w") as f:
+            f.write("allow-loopback-pinentry\n")
+        with open(os.path.join(cls.home, "gpg.conf"), "w") as f:
+            f.write("pinentry-mode loopback\n")
         cls.release = cls.gen("Release Test <release@example.invalid>")
         cls.other = cls.gen("Other Test <other@example.invalid>")
         cls.nosecret = cls.gen("No Secret <nosecret@example.invalid>")
@@ -60,16 +69,30 @@ class Keys(object):
 
     @classmethod
     def gen(cls, uid):
-        run(["gpg", "--batch", "--passphrase", "", "--quick-gen-key", uid, "ed25519", "sign",
-             "1d"], env=cls.env)
+        r = run(["gpg", "--batch", "--passphrase", "", "--quick-gen-key", uid, "ed25519",
+                 "sign", "1d"], env=cls.env, check=False)
+        if r.returncode != 0:
+            version = run(["gpg", "--version"], check=False).stdout.decode().splitlines()[:1]
+            raise RuntimeError(
+                "the tagging suite could not create its throwaway signing key, so it did not "
+                "run. gpg %s exited %d in GNUPGHOME=%s:\n%s" % (
+                    version, r.returncode, cls.home, r.stderr.decode("utf-8", "replace")))
         out = run(["gpg", "--batch", "--with-colons", "--list-keys", uid], env=cls.env)
         return rt._primary_fingerprints(out.stdout.decode())[0]
 
     @classmethod
     def teardown(cls):
         if cls.home:
-            run(["gpgconf", "--kill", "gpg-agent"], env=cls.env, check=False)
-            shutil.rmtree(cls.home, True)
+            # gpg 2.4 also runs keyboxd; stop every daemon for this home, then
+            # remove it, retrying while a daemon that is exiting still writes.
+            run(["gpgconf", "--kill", "all"], env=cls.env, check=False)
+            for _ in range(50):
+                shutil.rmtree(cls.home, True)
+                if not os.path.exists(cls.home):
+                    break
+                time.sleep(0.1)
+            if os.path.exists(cls.home):
+                sys.stderr.write("warning: could not remove %s\n" % cls.home)
             cls.home = None
 
 
@@ -315,6 +338,30 @@ class TagSignAndPush(Case):
         local_obj = self.git("rev-parse", "refs/tags/" + TAG).stdout.decode().strip()
         self.assertEqual(tags["refs/tags/" + TAG], local_obj)
         self.assertEqual(tags["refs/tags/%s^{}" % TAG], self.candidate)
+
+    def test_push_never_follows_other_tags(self):
+        # push.followTags=true sends every annotated tag reachable from what is
+        # pushed. Make one reachable from the candidate (on its parent) and one
+        # on the candidate itself, set followTags everywhere it can be set, and
+        # check that origin receives the candidate's tag and nothing else.
+        parent = self.candidate
+        candidate = self.commit_release(VERSION, "candidate on top of a tagged parent")
+        self.git("push", "--quiet", "origin", "main")
+        self.git("tag", "-a", "-m", "reachable", "v0.0.1-reachable", parent)
+        self.git("tag", "-a", "-m", "same commit", "other-on-candidate", candidate)
+        self.git("config", "push.followTags", "true")
+        gitconfig = os.path.join(self.dir, "gitconfig")
+        with open(gitconfig, "w") as f:
+            f.write("[push]\n\tfollowTags = true\n")
+        os.environ["GIT_CONFIG_GLOBAL"] = gitconfig
+        self.addCleanup(os.environ.__setitem__, "GIT_CONFIG_GLOBAL", os.devnull)
+        self.assertEqual(self.git("config", "--get", "push.followTags").stdout.decode().strip(),
+                         "true")
+        self.assertEqual(self.tagger("--sign", commit=candidate)[0], 0)
+        code, out = self.tagger("--push", commit=candidate)
+        self.assertEqual(code, 0, out)
+        refs = sorted(l.split("\t")[1] for l in self.origin_tags() if l)
+        self.assertEqual(refs, ["refs/tags/" + TAG, "refs/tags/%s^{}" % TAG])
 
     def test_push_refuses_an_unsigned_or_foreign_or_misplaced_tag(self):
         later = self.commit_release(VERSION, "later")

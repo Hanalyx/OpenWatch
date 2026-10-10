@@ -265,7 +265,12 @@ def push(repo, tag, commit, key):
     if repo.git("ls-remote", "--tags", repo.remote, "refs/tags/" + tag).stdout.strip():
         raise TagError("tag %s appeared on %s before the push; nothing was pushed"
                        % (tag, repo.remote))
-    repo.git("push", repo.remote, "refs/tags/%s:refs/tags/%s" % (tag, tag))
+    # An explicit refspec does not stop push.followTags=true from also sending
+    # every annotated tag reachable from what is pushed, and on GitHub another
+    # tag can start another release workflow. Tag following is turned off
+    # twice: in the configuration for this command and on its command line.
+    repo.git("-c", "push.followTags=false", "push", "--no-follow-tags", repo.remote,
+             "refs/tags/%s:refs/tags/%s" % (tag, tag))
     refs = {}
     for line in repo.git("ls-remote", "--tags", repo.remote, "refs/tags/" + tag,
                          "refs/tags/%s^{}" % tag).stdout.decode().splitlines():

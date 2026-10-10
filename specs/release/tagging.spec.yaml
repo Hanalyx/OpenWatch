@@ -71,7 +71,11 @@ spec:
         and verifies it is an annotated tag object naming exactly that commit
         under that name with a VALIDSIG from the key; it pushes nothing. --push
         re-runs every check, re-verifies the local tag, pushes
-        refs/tags/<tag> only, and checks origin's tag object and peeled commit.
+        refs/tags/<tag> only with tag following disabled both in the command's
+        configuration and on its command line (push.followTags would otherwise
+        send every annotated tag reachable from the candidate, and another tag
+        on GitHub can start another release workflow), and checks origin's tag
+        object and peeled commit.
         Nothing moves or deletes a tag.
       type: security
       enforcement: error
@@ -114,7 +118,9 @@ spec:
         --sign leaves a verified annotated tag on the candidate and nothing on
         origin. --push sends that tag only: origin's branches are unchanged,
         an unrelated local tag and a local commit stay unpushed, and origin's
-        tag object and peeled commit match. --push refuses an unsigned tag, a
+        tag object and peeled commit match. With push.followTags=true in the
+        repository and global configuration, and annotated tags on the
+        candidate and on its parent, origin receives only the candidate's tag. --push refuses an unsigned tag, a
         tag signed by another key, a lightweight tag and a tag on another
         commit, each with its reason, and pushes nothing. A signing failure
         leaves no tag and pushes nothing. With user.signingkey naming another
