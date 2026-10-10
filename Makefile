@@ -232,6 +232,7 @@ release-status-test:
 	python3 -S scripts/test_release_status.py
 	python3 -S scripts/test_specter_gate.py
 	python3 -S scripts/test_doc_style_gate.py
+	python3 -S scripts/test_evidence_capture.py
 
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
 # speak, US English, reading level). The ONE shared invocation: CI's "Doc Style"
