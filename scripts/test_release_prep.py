@@ -503,6 +503,59 @@ class F2MaintainedSnapshot(Case):
         self.assertIn("failed sections: loaded rules (exit 42)", err)
 
 
+class F2SshDefaults(unittest.TestCase):
+    """AC-07: the SSH command pins host-key checking and the identity."""
+
+    def host(self, **over):
+        a = rp.argparse.Namespace(host="owas-rhn02", tag=TAG, commit=COMMIT, transport=None,
+                                  ssh_target="owadmin@192.0.2.10", ssh_key="/keys/id_rsa",
+                                  sudo="sudo -n", remote_python="python3",
+                                  remote_dir="/root/x", evidence="/tmp/x", snapshot="/x")
+        for k, v in over.items():
+            setattr(a, k, v)
+        return rp.Host(a)
+
+    def test_the_constructed_command_requires_host_keys_and_the_named_identity(self):
+        t = self.host().transport
+        self.assertEqual(t[0], "ssh")
+        opts = [t[i + 1] for i, x in enumerate(t) if x == "-o"]
+        for want in ("StrictHostKeyChecking=yes", "IdentitiesOnly=yes", "BatchMode=yes"):
+            self.assertIn(want, opts)
+        self.assertNotIn("StrictHostKeyChecking=accept-new", opts)
+        self.assertNotIn("StrictHostKeyChecking=no", opts)
+        self.assertEqual(t[-4:], ["-i", "/keys/id_rsa", "--", "owadmin@192.0.2.10"])
+
+    def test_a_key_is_required(self):
+        with self.assertRaises(rp.PrepError):
+            self.host(ssh_key=None)
+        with self.assertRaises(rp.PrepError):
+            self.host(ssh_target=None)
+
+    def test_ssh_config_cannot_weaken_the_options(self):
+        if not shutil.which("ssh"):
+            self.fail("ssh is required to check the effective configuration")
+        d = tempfile.mkdtemp(prefix="relprep-ssh-")
+        self.addCleanup(shutil.rmtree, d, True)
+        cfg = os.path.join(d, "config")
+        with open(cfg, "w") as f:
+            f.write("Host *\n  StrictHostKeyChecking no\n  IdentitiesOnly no\n"
+                    "  UserKnownHostsFile /dev/null\n")
+        t = self.host().transport
+        # ssh -G prints the effective configuration without connecting.
+        argv = [t[0], "-G", "-F", cfg] + t[1:]
+        r = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        eff = dict(l.split(" ", 1) for l in r.stdout.decode().splitlines() if " " in l)
+        self.assertEqual(eff.get("stricthostkeychecking"), "true")
+        self.assertEqual(eff.get("identitiesonly"), "yes")
+        self.assertEqual(eff.get("batchmode"), "yes")
+        # Control: the same config does weaken a command without the options.
+        r = subprocess.run([t[0], "-G", "-F", cfg, "owadmin@192.0.2.10"],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        weak = dict(l.split(" ", 1) for l in r.stdout.decode().splitlines() if " " in l)
+        self.assertEqual(weak.get("stricthostkeychecking"), "false")
+
+
 class F2Timeouts(Case):
     """AC-04: every capture and transfer has an explicit timeout."""
 

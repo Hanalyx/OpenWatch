@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -180,7 +180,13 @@ spec:
         the procedure never said so. The suffix belongs in version.env, the
         README phrase and the newest CHANGELOG heading BEFORE the tag, and the
         tag is "v$VERSION" read from the file, never a placeholder the operator
-        fills in.
+        fills in. The file is read AT THE CANDIDATE COMMIT, which the procedure
+        names by its full SHA. Deriving the commit from main is the same mistake
+        one level down: while v0.8.4 was cut, main advanced past the candidate
+        with the same VERSION, and the block then in the runbook would have
+        tagged the later commit under the candidate's name with no check
+        failing (CP bugs/OW-118). Since 1.7.0 the procedure tags through
+        scripts/release_tag.py (spec release-tagging).
       type: technical
       enforcement: error
     - id: C-16
@@ -350,17 +356,17 @@ spec:
     - id: AC-25
       description: >-
         The runbook's release-candidate commands cannot produce a tag that
-        disagrees with packaging/version.env. The Stage 2 block in
-        docs/runbooks/RELEASING.md sources packaging/version.env, derives the
-        tag as "v$VERSION", and runs packaging/check-tag-version.sh with that
-        ref before any git tag command. Executed verbatim (with git stubbed and
-        recorded) against two copies of the tree whose version.env carry
-        different versions, the block tags each copy with exactly its own
-        version and pushes the same name. The block carries its own failure
-        handling and is executed with a plain `bash -c`: a failed pull, a
-        dirty working tree or a refused check leaves no tag, and a failed tag
-        leaves nothing to push. A block that types the tag, that tags before
-        the check, or that continues past a failed line, fails this.
+        disagrees with packaging/version.env, or that names any commit but the
+        recorded candidate. The Stage 2 bash block in docs/runbooks/RELEASING.md
+        names the candidate as a full commit SHA and runs
+        scripts/release_tag.py with --commit and --key three times, in order: a
+        dry run, then --sign, then --push. It contains no `git tag` and no
+        `git push` of its own, no typed version, and no branch or HEAD from
+        which a candidate could be derived. The script derives the tag from
+        version.env at the candidate commit and runs that commit's
+        check-tag-version.sh before signing; its behavior is release-tagging's
+        contract. A block that types the tag, tags directly, derives the
+        candidate from main, or signs before the dry run fails this.
       priority: critical
       references_constraints: [C-14, C-15]
     - id: AC-26

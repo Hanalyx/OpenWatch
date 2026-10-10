@@ -47,7 +47,7 @@ case "$tag_version" in
         next="${tag_version%-rc.*}-rc.$((n + 1))"
         advice="  this tag is now a record of a failed candidate and is never moved. Take
   the next unused number: set VERSION=\"$next\", README and CHANGELOG to
-  $next, merge, then run the Stage 2 block on that merged commit; it will
+  $next, merge, then run the Stage 2 commands on that merged commit; they will
   tag v$next."
         ;;
     *)

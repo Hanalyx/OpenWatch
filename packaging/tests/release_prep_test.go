@@ -147,3 +147,13 @@ func TestReleasePrep_LoadedRulesStayByteExact(t *testing.T) {
 			"test_an_interrupted_snapshot_removes_its_temporary_file")
 	})
 }
+
+// @ac AC-07
+// AC-07: the SSH command pins host-key checking and the identity.
+func TestReleasePrep_SSHPinsHostKeysAndIdentity(t *testing.T) {
+	t.Run("release-preparation/AC-07", func(t *testing.T) {
+		requireReleasePrep(t, "F2SshDefaults", 3,
+			"test_ssh_config_cannot_weaken_the_options",
+			"test_the_constructed_command_requires_host_keys_and_the_named_identity")
+	})
+}

@@ -75,6 +75,24 @@ python3 -S scripts/release_prep.py f2 status $H      # what is verified, what is
   aside and say so in the hand-off.
 - The tool sends the capture library to the host over SSH standard input. The host needs
   `python3` (set `--remote-python` otherwise) and passwordless `sudo -n`.
+- `--ssh-key` is required. The SSH command sets `StrictHostKeyChecking=yes` and
+  `IdentitiesOnly=yes` on the command line, which overrides any `ssh_config`, so an unknown
+  or changed host key, or an agent's other key, cannot be used.
+- Verified on a real host: preflight only (owas-rhn02, 2026-10-10). The staged capture and
+  the rollback sequencing are tested in simulation only. Do not describe the whole F2
+  workflow as fleet-verified.
+
+## Tagging (OW-118)
+
+`scripts/release_tag.py` cuts a release tag on an explicit candidate commit. The procedure is
+RELEASING.md Stage 2:
+
+- The candidate is the full SHA from the release record, typed once. Never pass a branch,
+  `HEAD` or a short SHA.
+- The dry run (no `--sign`) changes nothing. Capture it through
+  `evidence_capture.py run --timeout`.
+- `--sign` and `--push` are the release captain's actions, run in their own terminal. Never
+  run either without explicit authorization for that tag, and never move or delete a tag.
 
 ## Not covered yet
 
@@ -82,7 +100,6 @@ These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md
 them, capture every command through `evidence_capture.py run --timeout`:
 
 - the release-prep PR content;
-- the explicit-SHA tag block (CP `bugs/OW-118`);
 - draft-asset verification: hashes, signatures, `go version -m`, `govulncheck`, notices, SBOMs;
 - local compatibility runs on downloaded packages;
 - the fleet upgrade, Steps 1 to 8;
