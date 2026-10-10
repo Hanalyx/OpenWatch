@@ -121,3 +121,17 @@ func TestReleasePrep_PacketRecordsNoVerdict(t *testing.T) {
 			"test_packet_shows_raw_digests_and_derived_changes_with_blank_confirmations")
 	})
 }
+
+// @ac AC-06
+// AC-06: the maintained snapshot fails when any required section fails, and a
+// failed section never reaches the rollback prompt.
+func TestReleasePrep_FailedSnapshotSectionsBlockRollback(t *testing.T) {
+	t.Run("release-preparation/AC-06", func(t *testing.T) {
+		requireReleasePrep(t, "F2MaintainedSnapshot", 7,
+			"test_a_failed_auditctl_list_fails_the_snapshot_and_keeps_its_output",
+			"test_a_failed_read_before_a_good_one_fails_the_snapshot",
+			"test_a_failed_auditctl_list_while_staged_gives_no_rollback_prompt",
+			"test_a_failed_rules_read_while_staged_gives_no_rollback_prompt",
+			"test_a_reported_failure_is_refused_even_when_the_script_exits_0")
+	})
+}

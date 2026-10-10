@@ -73,6 +73,17 @@ spec:
         files, leaves every captain field blank and is never overwritten.
       type: technical
       enforcement: error
+    - id: C-06
+      description: >-
+        Every snapshot section is required. The snapshot keeps each section's
+        raw output and status and exits non-zero when any section failed,
+        including a failing command whose output was being digested and any
+        failed iteration of a loop, not only the last. A capture is accepted
+        only when the snapshot exited 0 and no section recorded a non-zero
+        status, so a reported failure fails the capture even if the script's
+        own status hid it.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -123,3 +134,16 @@ spec:
         second packet is refused.
       priority: critical
       references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        Run against a fake root with auditctl and uptime shims, the maintained
+        snapshot exits 0 on a healthy host and every phase and the packet
+        succeed. It exits 1, keeping the section's raw output, when auditctl -l
+        fails; when an unreadable rules file precedes a readable one, which is
+        still printed; with an empty rules directory; and with a missing boot
+        id. A failed auditctl -l or rules read during staged gives exit 1 and no
+        rollback prompt, and after and packet then refuse. A capture whose
+        snapshot exited 0 but recorded a section with exit 42 is refused the
+        same way. The snapshot's only pipe digests output it already captured.
+      priority: critical
+      references_constraints: [C-06]

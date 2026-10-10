@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -284,6 +285,143 @@ class F2Preconditions(Case):
         for section in ("auditctl -s", "rules.d contents", "rules.d digests", "loaded rules",
                         "audit.rules digest", "boot"):
             self.assertIn('section "%s"' % section, text)
+        # POSIX sh has no pipefail: the only pipe allowed feeds already-captured
+        # output to sha256sum, so no required command's status is ever hidden.
+        for line in body.splitlines():
+            if re.search(r"(?<!\|)\|(?!\|)", line):
+                self.assertRegex(line.strip(), r"^printf '%s\\n' \"\$out\" \| sha256sum$", line)
+
+
+AUDITCTL_SHIM = """\
+#!/bin/sh
+case "$1" in
+  -s) if [ -f "$F2_FAKE_DIR/fail-s" ]; then echo "auditctl: status failed" >&2; exit 1; fi
+      cat "$F2_FAKE_DIR/status" ;;
+  -l) if [ -f "$F2_FAKE_DIR/fail-l" ]; then
+        echo "-w /partial -p wa"; echo "auditctl: list failed" >&2; exit 42
+      fi
+      cat "$F2_FAKE_DIR/rules" ;;
+  *) exit 2 ;;
+esac
+"""
+
+
+class F2MaintainedSnapshot(Case):
+    """AC-06: the maintained snapshot fails when any required section fails.
+
+    The real release/prep/f2-host-snapshot.sh runs against a fake root, with
+    auditctl and uptime replaced by shims on PATH."""
+
+    def setUp(self):
+        Case.setUp(self)
+        self.root = os.path.join(self.dir, "root")
+        rules = os.path.join(self.root, "etc", "audit", "rules.d")
+        os.makedirs(rules)
+        os.makedirs(os.path.join(self.root, "proc", "sys", "kernel", "random"))
+        self.rules_dir = rules
+        self.write(os.path.join(rules, "10-base.rules"), "-D\n-b 8192\n")
+        self.write(os.path.join(rules, "50-sudo.rules"), "-w /var/log/sudo.log -p wa\n")
+        self.write(os.path.join(self.root, "etc", "audit", "audit.rules"), "-D\n")
+        self.write(os.path.join(self.root, "proc", "sys", "kernel", "random", "boot_id"), "b-1\n")
+        shims = os.path.join(self.dir, "shims")
+        os.mkdir(shims)
+        self.write(os.path.join(shims, "auditctl"), AUDITCTL_SHIM, mode=0o755)
+        self.write(os.path.join(shims, "uptime"), "#!/bin/sh\necho 2026-10-01 00:00:00\n",
+                   mode=0o755)
+        old_path, old_root = os.environ.get("PATH", ""), os.environ.get("F2_SNAPSHOT_ROOT")
+        os.environ["PATH"] = shims + os.pathsep + old_path
+        os.environ["F2_SNAPSHOT_ROOT"] = self.root
+        self.addCleanup(os.environ.__setitem__, "PATH", old_path)
+        self.addCleanup(lambda: os.environ.pop("F2_SNAPSHOT_ROOT", None) if old_root is None
+                        else os.environ.__setitem__("F2_SNAPSHOT_ROOT", old_root))
+        i = self.args.index("--snapshot")
+        self.args[i + 1] = str(rp.SNAPSHOT)
+
+    def write(self, path, text, mode=0o644):
+        with open(path, "w") as f:
+            f.write(text)
+        os.chmod(path, mode)
+
+    def run_snapshot(self):
+        r = subprocess.run(["sh", str(rp.SNAPSHOT)], stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+        return r.returncode, r.stdout.decode(), r.stderr.decode()
+
+    def broken_rules_file_before_a_good_one(self):
+        os.symlink(os.path.join(self.dir, "absent"), os.path.join(self.rules_dir, "00-broken.rules"))
+
+    def test_a_healthy_host_passes_every_phase(self):
+        code, out, err = self.run_snapshot()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("== exit 1", out)
+        self.assertIn("--- digest of the output above", out)
+        self.ok("preflight")
+        self.ok("staged")
+        self.ok("after")
+        self.ok("packet")
+
+    def test_a_failed_auditctl_list_fails_the_snapshot_and_keeps_its_output(self):
+        self.flag("fail-l")
+        code, out, err = self.run_snapshot()
+        self.assertEqual(code, 1)
+        self.assertIn("-w /partial -p wa", out)
+        self.assertIn("== exit 42", out)
+        self.assertIn("loaded rules (exit 42)", err)
+        self.assertNotIn("--- digest of the output above", out)
+
+    def test_a_failed_read_before_a_good_one_fails_the_snapshot(self):
+        self.broken_rules_file_before_a_good_one()
+        code, out, err = self.run_snapshot()
+        self.assertEqual(code, 1)
+        self.assertIn("-w /var/log/sudo.log -p wa", out, "later files must still be printed")
+        self.assertIn("rules.d contents (exit", err)
+        self.assertIn("rules.d digests (exit", err)
+
+    def test_an_empty_rules_directory_or_a_missing_boot_id_fails(self):
+        for name in os.listdir(self.rules_dir):
+            os.unlink(os.path.join(self.rules_dir, name))
+        code, _, err = self.run_snapshot()
+        self.assertEqual(code, 1)
+        self.assertIn("rules.d contents (exit", err)
+        self.write(os.path.join(self.rules_dir, "10-base.rules"), "-D\n")
+        os.unlink(os.path.join(self.root, "proc", "sys", "kernel", "random", "boot_id"))
+        code, _, err = self.run_snapshot()
+        self.assertEqual(code, 1)
+        self.assertIn("boot (exit", err)
+
+    def assert_staged_rejected(self):
+        code, out, err = self.step("staged")
+        self.assertEqual(code, 1)
+        self.assertNotIn(ROLLBACK, out)
+        code, _, err2 = self.step("after")
+        self.assertEqual(code, 1)
+        self.assertIn("f2-staged", err2)
+        code, _, err3 = self.step("packet")
+        self.assertEqual(code, 1)
+        return err
+
+    def test_a_failed_auditctl_list_while_staged_gives_no_rollback_prompt(self):
+        self.ok("preflight")
+        self.flag("fail-l")
+        err = self.assert_staged_rejected()
+        self.assertIn("ended with exit=1", err)
+
+    def test_a_failed_rules_read_while_staged_gives_no_rollback_prompt(self):
+        self.ok("preflight")
+        self.broken_rules_file_before_a_good_one()
+        err = self.assert_staged_rejected()
+        self.assertIn("ended with exit=1", err)
+
+    def test_a_reported_failure_is_refused_even_when_the_script_exits_0(self):
+        self.ok("preflight")
+        masked = os.path.join(self.dir, "masked.sh")
+        self.write(masked, FAKE_SNAPSHOT.replace(
+            'echo "== rules.d contents"; cat "$F2_FAKE_DIR/rules"; echo "== exit 0"',
+            'echo "== loaded rules"; echo "== exit 42"'))
+        i = self.args.index("--snapshot")
+        self.args[i + 1] = masked
+        err = self.assert_staged_rejected()
+        self.assertIn("failed sections: loaded rules (exit 42)", err)
 
 
 class F2Timeouts(Case):

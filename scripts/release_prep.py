@@ -141,6 +141,13 @@ def _verified(host, name, machine_id=None):
     if (rec.get("exit") or {}).get("code") != 0:
         raise PrepError("the %s snapshot on %s ended with %s; see %s/stderr" % (
             name, host.name, ec._exit_text(rec["exit"]).strip(), path))
+    # Belt and braces: a section that reported a failure fails the capture even
+    # if the script's own status hid it.
+    with open(os.path.join(path, "stdout"), "rb") as f:
+        failed = _failed_sections(f.read())
+    if failed:
+        raise PrepError("the %s snapshot on %s has failed sections: %s; see %s" % (
+            name, host.name, ", ".join("%s (exit %s)" % x for x in failed), path))
     if name == "f2-preflight":
         # The gate's precondition is part of what makes preflight usable, so it
         # is checked wherever preflight is relied on, not only when it runs.
@@ -151,6 +158,20 @@ def _verified(host, name, machine_id=None):
                 "F2 needs a host whose `auditctl -s` reports `enabled 2`. %s does not; its "
                 "capture is kept at %s. Choose another host." % (host.name, path))
     return rec
+
+
+def _failed_sections(stdout_bytes):
+    """(title, status) for every section whose '== exit N' line is not 0."""
+    out = []
+    title = None
+    for line in stdout_bytes.decode("utf-8", "replace").splitlines():
+        m = re.match(r"^== exit (\S+)$", line)
+        if m:
+            if m.group(1) != "0":
+                out.append((title, m.group(1)))
+        elif line.startswith("== "):
+            title = line[3:]
+    return out
 
 
 def _sections(stdout_bytes):

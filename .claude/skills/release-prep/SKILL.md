@@ -66,6 +66,9 @@ python3 -S scripts/release_prep.py f2 status $H      # what is verified, what is
   rollback first destroys the evidence F2 needs, which is what happened on v0.8.4.
 - `f2 after` and `f2 packet` re-verify every earlier capture from disk and refuse if any is
   missing, altered, from another candidate or from another machine.
+- Every snapshot section is required. A section that fails (for example `auditctl -l`, or one
+  unreadable rules file) fails the capture, and so does any `== exit N` other than 0 in its
+  output. Its raw output is kept, but it never counts as staged evidence.
 - A phase is never captured twice under the same name. To retry, move the failed capture
   aside and say so in the hand-off.
 - The tool sends the capture library to the host over SSH standard input. The host needs
