@@ -141,7 +141,7 @@ class CaptureRawStreams(Case):
                              hashlib.sha256(self.read("cap", s)).hexdigest())
 
     def test_cli_run_exits_zero_and_reports_the_command_status(self):
-        p = self.cli("run", "--out", self.dir, "--name", "c", "--tag", TAG, "--commit", COMMIT,
+        p = self.cli("run", "--timeout", "60", "--out", self.dir, "--name", "c", "--tag", TAG, "--commit", COMMIT,
                      "--", "sh", "-c", "echo hi; exit 3")
         out, err = p.communicate(timeout=30)
         self.assertEqual(p.returncode, 0, err)
@@ -191,7 +191,7 @@ class CaptureAtomicWrite(Case):
         pidfile = os.path.join(self.dir, "child.pid")
         out = os.path.join(self.dir, "out")
         os.mkdir(out)
-        p = self.cli("run", "--out", out, "--name", "k", "--tag", TAG, "--commit", COMMIT,
+        p = self.cli("run", "--timeout", "60", "--out", out, "--name", "k", "--tag", TAG, "--commit", COMMIT,
                      "--", "sh", "-c", "echo $$ > '%s'; echo started; exec sleep 30" % pidfile)
         self.assertTrue(self.wait_for(lambda: os.path.exists(pidfile)
                                       and os.path.getsize(pidfile) > 0))
@@ -242,6 +242,22 @@ class CaptureBinding(Case):
                 self.assertEqual(ident["machine_id"], f.read().strip())
         rec = ec.capture(["true"], self.dir, "real", TAG, COMMIT)
         self.assertEqual(rec["host"], ident)
+
+    def test_stdin_file_is_fed_and_recorded(self):
+        src = os.path.join(self.dir, "program.py")
+        with open(src, "wb") as f:
+            f.write(b"print('from stdin')\n")
+        rec = self.run_capture(["cat"], stdin_file=src)
+        self.assertEqual(self.read("cap", "stdout"), b"print('from stdin')\n")
+        import hashlib
+        with open(src, "rb") as f:
+            want = hashlib.sha256(f.read()).hexdigest()
+        self.assertEqual(rec["invocation"]["stdin"],
+                         {"path": src, "sha256": want, "bytes": 20})
+        self.assertIsNone(self.run_capture(["true"], name="nostdin")["invocation"]["stdin"])
+        with self.assertRaises(ec.CaptureError):
+            self.run_capture(["cat"], name="missing", stdin_file=src + ".absent")
+        self.assertEqual(self.listing(), ["cap", "nostdin", "program.py"])
 
     def test_bad_candidates_are_refused_before_running(self):
         marker = os.path.join(self.dir, "ran")
@@ -326,14 +342,14 @@ class CaptureSecrets(Case):
         self.assert_secret_absent()
 
     def test_cli_reads_secrets_by_variable_name(self):
-        p = self.cli("run", "--out", self.dir, "--name", "c", "--tag", TAG, "--commit", COMMIT,
+        p = self.cli("run", "--timeout", "60", "--out", self.dir, "--name", "c", "--tag", TAG, "--commit", COMMIT,
                      "--secret-env", "OW_TEST_SECRET", "--", "sh", "-c",
                      'echo "$OW_TEST_SECRET"', env={"OW_TEST_SECRET": SECRET})
         out, err = p.communicate(timeout=30)
         self.assertEqual(p.returncode, 3, err)
         self.assertNotIn(SECRET.encode(), out + err)
         self.assert_secret_absent()
-        p = self.cli("run", "--out", self.dir, "--name", "d", "--tag", TAG, "--commit", COMMIT,
+        p = self.cli("run", "--timeout", "60", "--out", self.dir, "--name", "d", "--tag", TAG, "--commit", COMMIT,
                      "--secret-env", "OW_UNSET_VARIABLE", "--", "true")
         p.communicate(timeout=30)
         self.assertEqual(p.returncode, 1)
@@ -352,7 +368,7 @@ class CaptureInterruption(Case):
         pidfile = os.path.join(self.dir, "child.pid")
         out = os.path.join(self.dir, "out")
         os.mkdir(out)
-        p = self.cli("run", "--out", out, "--name", "i", "--tag", TAG, "--commit", COMMIT,
+        p = self.cli("run", "--timeout", "60", "--out", out, "--name", "i", "--tag", TAG, "--commit", COMMIT,
                      "--", "sh", "-c",
                      "echo $$ > '%s'; echo partial-line; exec sleep 30" % pidfile)
         self.assertTrue(self.wait_for(lambda: os.path.exists(pidfile)
@@ -387,6 +403,20 @@ class CaptureInterruption(Case):
         self.assertEqual(cm.exception.record["exit"]["signal"], signal.SIGKILL)
         self.assertEqual(self.listing(), ["cap.interrupted"])
 
+    def test_the_cli_requires_an_explicit_timeout(self):
+        for sub in (["run", "--out", self.dir, "--name", "t", "--tag", TAG, "--commit", COMMIT,
+                     "--", "true"],
+                    ["fetch", "--out", self.dir, "--name", "t", "--tag", TAG, "--commit", COMMIT,
+                     "--", "true"]):
+            p = self.cli(*sub)
+            _o, err = p.communicate(timeout=30)
+            self.assertEqual(p.returncode, 2, err)
+            self.assertIn(b"--timeout", err)
+        for bad in (0, -1):
+            with self.assertRaises(ec.CaptureError):
+                self.run_capture(["true"], timeout=bad)
+        self.assertEqual(self.listing(), [])
+
     def test_signal_handlers_are_restored(self):
         before = signal.getsignal(signal.SIGTERM)
         self.run_capture(["true"])
@@ -406,7 +436,7 @@ class CaptureInterruption(Case):
         self.assertEqual(self.listing(), ["cap.not-started"])
         self.assertEqual(self.read("cap.not-started", "exit"), b"not-started\n")
         self.assertIn("nonexistent", cm.exception.record["exit"]["start_error"])
-        p = self.cli("run", "--out", self.dir, "--name", "n2", "--tag", TAG, "--commit",
+        p = self.cli("run", "--timeout", "60", "--out", self.dir, "--name", "n2", "--tag", TAG, "--commit",
                      COMMIT, "--", "/nonexistent/evidence-command")
         p.communicate(timeout=30)
         self.assertEqual(p.returncode, 4)
@@ -774,7 +804,7 @@ class CaptureTransfer(Case):
         ec.verify_capture(rec["path"], tag=TAG, commit=COMMIT)
 
     def test_cli_fetch(self):
-        p = self.cli("fetch", "--out", self.local, "--name", "f2-staged", "--tag", TAG,
+        p = self.cli("fetch", "--timeout", "60", "--out", self.local, "--name", "f2-staged", "--tag", TAG,
                      "--commit", COMMIT, "--", *self.tar_cmd())
         out, err = p.communicate(timeout=30)
         self.assertEqual(p.returncode, 0, err)

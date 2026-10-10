@@ -1,7 +1,7 @@
 spec:
   id: release-evidence-capture
   title: Release evidence capture
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 2
 
@@ -61,8 +61,9 @@ spec:
       description: >-
         Every capture records the candidate's tag and full commit SHA, the
         identity of the host it ran on as read on that host, and the invocation:
-        a unique id, the argument vector, working directory, operator and UTC
-        start and finish times. A malformed tag or commit is refused before the
+        a unique id, the argument vector, working directory, operator, UTC start
+        and finish times, and the path, sha256 and size of any file fed to its
+        standard input. A malformed tag or commit is refused before the
         command runs.
       type: technical
       enforcement: error
@@ -84,7 +85,9 @@ spec:
         An interrupted capture stops the command's whole process group, killing
         it after a grace period if it ignores the request, and keeps what was
         captured. A timed-out command is handled the same way. A command that
-        cannot start is recorded as not started.
+        cannot start is recorded as not started. The command line requires an
+        explicit positive --timeout for run and fetch, and a timeout that is not
+        positive is refused.
       type: technical
       enforcement: error
     - id: C-06
@@ -147,7 +150,9 @@ spec:
     - id: AC-03
       description: >-
         The record holds the candidate tag and commit, the host identity, the
-        invocation id, argv, purpose and ordered UTC times. The default host
+        invocation id, argv, purpose and ordered UTC times. A file given as
+        standard input reaches the command and is recorded by path, sha256 and
+        size; an unreadable one is refused and leaves nothing behind. The default host
         identity is the running host's hostname and /etc/machine-id. A tag that
         is not a release tag and a commit that is not 40 lowercase hex
         characters are refused before the command runs and before any directory
@@ -179,7 +184,8 @@ spec:
         is killed by SIGKILL after the grace period. Signal handlers are
         restored after a capture. A timeout produces NAME.timed-out with its
         partial output. An unstartable command produces NAME.not-started and the
-        CLI exits 4.
+        CLI exits 4. run and fetch without --timeout are refused by the CLI with
+        exit 2, and a zero or negative timeout is refused.
       priority: critical
       references_constraints: [C-05]
     - id: AC-06

@@ -174,6 +174,20 @@ release, downloaded with `gh release download <tag>` or from the asset ids
 4. **Functional walkthrough** against the release captain's test fleet:
    log in → add host → run a Kensa scan → view posture → drift → exceptions →
    export → role-based access. Record results in the sign-off checklist.
+5. **F2 evidence: capture the staged state before rolling back.** Run
+   `scripts/release_prep.py f2` against one host whose `auditctl -s` reports
+   `enabled 2`, in order:
+   1. `preflight`, before the remediation;
+   2. `staged`, while the remediation shows as staged;
+   3. `after`, after the rollback.
+
+   Each phase captures a read-only host snapshot through
+   `scripts/evidence_capture.py`, then fetches and verifies it. **Roll back only
+   after `staged` prints its rollback prompt.** The prompt appears only once the
+   staged capture has verified; on v0.8.4 the staged state was lost because the
+   rollback came first. `f2 packet` collects the three captures and leaves the
+   observation fields for the captain. The skill
+   `.claude/skills/release-prep/SKILL.md` has the full commands.
 
 **Before asking anyone to sign, run the gate.** `release/gates.toml` declares
 every gate and `scripts/release-status.py` evaluates them against real evidence,
