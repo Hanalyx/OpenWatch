@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -127,6 +128,14 @@ class Case(unittest.TestCase):
 
     def local(self, *parts):
         return os.path.join(self.host_dir, *parts)
+
+    def wait_for(self, pred, seconds=10):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if pred():
+                return True
+            time.sleep(0.05)
+        return False
 
 
 class F2PhasesInOrder(Case):
@@ -278,18 +287,25 @@ class F2Preconditions(Case):
         with open(rp.SNAPSHOT) as f:
             text = f.read()
         body = "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
+        # The only writes allowed: auditctl's output into the private temporary
+        # file, and removing that file.
+        allowed = ('auditctl -l > "$tmp"', 'rm -f -- "$tmp"')
+        checked = body
+        for line in allowed:
+            self.assertIn(line, checked)
+            checked = checked.replace(line, "")
         for pattern in (r"\brm\b", r"\bmv\b", r"\bcp\b", r"\btee\b", r"sed -i", r"augenrules",
                         r"auditctl -[ReDaAwW]", r"systemctl", r"[^2]>[^&]", r"\bdnf\b",
                         r"\byum\b", r"\bapt"):
-            self.assertIsNone(re.search(pattern, body), pattern)
+            self.assertIsNone(re.search(pattern, checked), pattern)
         for section in ("auditctl -s", "rules.d contents", "rules.d digests", "loaded rules",
                         "audit.rules digest", "boot"):
             self.assertIn('section "%s"' % section, text)
-        # POSIX sh has no pipefail: the only pipe allowed feeds already-captured
-        # output to sha256sum, so no required command's status is ever hidden.
+        # POSIX sh has no pipefail, so there are no pipes at all; and output is
+        # never held in a variable, which would strip trailing newlines.
         for line in body.splitlines():
-            if re.search(r"(?<!\|)\|(?!\|)", line):
-                self.assertRegex(line.strip(), r"^printf '%s\\n' \"\$out\" \| sha256sum$", line)
+            self.assertIsNone(re.search(r"(?<!\|)\|(?!\|)", line), line)
+        self.assertNotIn("$(auditctl", body)
 
 
 AUDITCTL_SHIM = """\
@@ -297,10 +313,11 @@ AUDITCTL_SHIM = """\
 case "$1" in
   -s) if [ -f "$F2_FAKE_DIR/fail-s" ]; then echo "auditctl: status failed" >&2; exit 1; fi
       cat "$F2_FAKE_DIR/status" ;;
-  -l) if [ -f "$F2_FAKE_DIR/fail-l" ]; then
-        echo "-w /partial -p wa"; echo "auditctl: list failed" >&2; exit 42
-      fi
-      cat "$F2_FAKE_DIR/rules" ;;
+  -l) if [ -f "$F2_FAKE_DIR/rules_bytes" ]; then cat "$F2_FAKE_DIR/rules_bytes"
+      elif [ -f "$F2_FAKE_DIR/fail-l" ]; then echo "-w /partial -p wa"
+      else cat "$F2_FAKE_DIR/rules"; fi
+      if [ -f "$F2_FAKE_DIR/hang-l" ]; then exec sleep 60; fi
+      if [ -f "$F2_FAKE_DIR/fail-l" ]; then echo "auditctl: list failed" >&2; exit 42; fi ;;
   *) exit 2 ;;
 esac
 """
@@ -328,6 +345,12 @@ class F2MaintainedSnapshot(Case):
         self.write(os.path.join(shims, "auditctl"), AUDITCTL_SHIM, mode=0o755)
         self.write(os.path.join(shims, "uptime"), "#!/bin/sh\necho 2026-10-01 00:00:00\n",
                    mode=0o755)
+        self.tmpdir = os.path.join(self.dir, "tmp")
+        os.mkdir(self.tmpdir)
+        old_tmp = os.environ.get("TMPDIR")
+        os.environ["TMPDIR"] = self.tmpdir
+        self.addCleanup(lambda: os.environ.pop("TMPDIR", None) if old_tmp is None
+                        else os.environ.__setitem__("TMPDIR", old_tmp))
         old_path, old_root = os.environ.get("PATH", ""), os.environ.get("F2_SNAPSHOT_ROOT")
         os.environ["PATH"] = shims + os.pathsep + old_path
         os.environ["F2_SNAPSHOT_ROOT"] = self.root
@@ -342,10 +365,22 @@ class F2MaintainedSnapshot(Case):
             f.write(text)
         os.chmod(path, mode)
 
-    def run_snapshot(self):
+    def run_snapshot(self, raw=False):
         r = subprocess.run(["sh", str(rp.SNAPSHOT)], stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
+        if raw:
+            return r.returncode, r.stdout, r.stderr.decode()
         return r.returncode, r.stdout.decode(), r.stderr.decode()
+
+    def loaded_rules_section(self, stdout):
+        """(raw bytes, trailer byte count, trailer digest, section exit) from stdout bytes."""
+        m = re.search(rb"== loaded rules\n(.*)\n--- auditctl -l output above: (\d+) bytes, "
+                      rb"sha256 ([0-9a-f]{64})\n== exit (\d+)\n", stdout, re.S)
+        self.assertIsNotNone(m, stdout[-400:])
+        return m.group(1), int(m.group(2)), m.group(3).decode(), int(m.group(4))
+
+    def assert_no_temporary_left(self):
+        self.assertEqual(os.listdir(self.tmpdir), [])
 
     def broken_rules_file_before_a_good_one(self):
         os.symlink(os.path.join(self.dir, "absent"), os.path.join(self.rules_dir, "00-broken.rules"))
@@ -354,7 +389,8 @@ class F2MaintainedSnapshot(Case):
         code, out, err = self.run_snapshot()
         self.assertEqual(code, 0, err)
         self.assertNotIn("== exit 1", out)
-        self.assertIn("--- digest of the output above", out)
+        self.assertIn("--- auditctl -l output above: ", out)
+        self.assert_no_temporary_left()
         self.ok("preflight")
         self.ok("staged")
         self.ok("after")
@@ -367,7 +403,50 @@ class F2MaintainedSnapshot(Case):
         self.assertIn("-w /partial -p wa", out)
         self.assertIn("== exit 42", out)
         self.assertIn("loaded rules (exit 42)", err)
-        self.assertNotIn("--- digest of the output above", out)
+        self.assert_no_temporary_left()
+
+    def test_loaded_rules_are_emitted_byte_for_byte_with_their_digest(self):
+        for raw, fails in ((b"rule\n\n\n", False), (b"rule", False), (b"", False),
+                           (b"-w /a -p wa\n-w /b -p x\n", False),
+                           (b"-w /partial -p wa\n\n", True), (b"partial-no-newline", True)):
+            with open(os.path.join(self.fake, "rules_bytes"), "wb") as f:
+                f.write(raw)
+            self.flag("fail-l", fails)
+            code, out, err = self.run_snapshot(raw=True)
+            got, count, digest, status = self.loaded_rules_section(out)
+            self.assertEqual(got, raw, raw)
+            self.assertEqual(count, len(raw), raw)
+            self.assertEqual(digest, hashlib.sha256(raw).hexdigest(), raw)
+            self.assertEqual(status, 42 if fails else 0, raw)
+            self.assertEqual(code, 1 if fails else 0, (raw, err))
+            self.assert_no_temporary_left()
+
+    def test_an_interrupted_snapshot_removes_its_temporary_file(self):
+        self.flag("hang-l")
+        p = subprocess.Popen(["sh", str(rp.SNAPSHOT)], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            self.assertTrue(self.wait_for(lambda: len(os.listdir(self.tmpdir)) == 1),
+                            "the temporary file never appeared")
+            os.killpg(p.pid, signal.SIGTERM)
+            p.communicate(timeout=30)
+        finally:
+            if p.poll() is None:
+                os.killpg(p.pid, signal.SIGKILL)
+                p.communicate()
+        self.assertEqual(p.returncode, 143)
+        self.assert_no_temporary_left()
+
+    def test_staged_evidence_keeps_the_exact_loaded_rule_bytes(self):
+        self.ok("preflight")
+        raw = b"-w /var/log/sudo.log -p wa\n-w /etc/sudoers -p wa\n\n\n"
+        with open(os.path.join(self.fake, "rules_bytes"), "wb") as f:
+            f.write(raw)
+        self.assertIn(ROLLBACK, self.ok("staged"))
+        with open(self.local("f2-staged", "stdout"), "rb") as f:
+            got, count, digest, status = self.loaded_rules_section(f.read())
+        self.assertEqual((got, count, status), (raw, len(raw), 0))
+        self.assertEqual(digest, hashlib.sha256(raw).hexdigest())
 
     def test_a_failed_read_before_a_good_one_fails_the_snapshot(self):
         self.broken_rules_file_before_a_good_one()

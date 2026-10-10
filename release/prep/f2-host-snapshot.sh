@@ -1,5 +1,7 @@
 #!/bin/sh
-# F2 host snapshot (release-preparation C-03). Read-only. It runs as root under
+# F2 host snapshot (release-preparation C-03). Read-only: it changes nothing on
+# the host and writes only one private temporary file, removed on exit and on
+# interruption. It runs as root under
 # scripts/evidence_capture.py on the fleet host, once before the remediation,
 # once while it is staged and once after the rollback, so the three captures
 # compare like with like. Nothing here filters output: every section prints
@@ -9,7 +11,8 @@
 # failed, so a failure cannot be reported and then forgotten. There are no
 # pipelines (POSIX sh has no pipefail, so a pipe would hide its first
 # command's status), and a loop fails if any iteration failed, not only the
-# last one.
+# last one. Output is never held in a shell variable, because command
+# substitution strips trailing newlines and the bytes would no longer be raw.
 #
 # F2_SNAPSHOT_ROOT prefixes the file paths read below. It is empty on a fleet
 # host and is set only by the tests, which supply a fake root.
@@ -17,6 +20,14 @@ set -u
 
 R=${F2_SNAPSHOT_ROOT:-}
 failed=""
+tmp=""
+
+# Remove the temporary file however the script ends. A signal exits with the
+# conventional 128+N status, which runs the EXIT trap.
+trap 'if [ -n "$tmp" ]; then rm -f -- "$tmp"; fi' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 section() {
     title=$1
@@ -58,13 +69,24 @@ rules_digests() {
     return "$rc"
 }
 
-# The loaded rules and their digest, from one auditctl run. auditctl's status
-# is the section's status; the digest is of the output exactly as printed.
+# The loaded rules, from one auditctl run written to a private temporary file:
+# its exact bytes, then a trailer line giving their count and sha256, both
+# computed from the file. The trailer starts on a new line of its own, so the
+# raw output is the BYTES bytes before "\n--- auditctl -l output above".
+# auditctl's status is the section's status; the trailer is printed for a
+# failed run too, describing the partial output.
 loaded_rules() {
-    out=$(auditctl -l) || { rc=$?; printf '%s\n' "$out"; return "$rc"; }
-    printf '%s\n' "$out"
-    echo "--- digest of the output above"
-    printf '%s\n' "$out" | sha256sum
+    tmp=$(mktemp "${TMPDIR:-/tmp}/f2-auditctl.XXXXXXXX") || return 1
+    auditctl -l > "$tmp"
+    rc=$?
+    cat -- "$tmp" || rc=1
+    bytes=$(wc -c < "$tmp") || rc=1
+    digest=$(sha256sum < "$tmp") || rc=1
+    set -- ${bytes:-unknown} ${digest:-unknown}
+    printf '\n--- auditctl -l output above: %s bytes, sha256 %s\n' "$1" "$2"
+    rm -f -- "$tmp"
+    tmp=""
+    return "$rc"
 }
 
 boot() {

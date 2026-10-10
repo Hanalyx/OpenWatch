@@ -81,7 +81,12 @@ spec:
         failed iteration of a loop, not only the last. A capture is accepted
         only when the snapshot exited 0 and no section recorded a non-zero
         status, so a reported failure fails the capture even if the script's
-        own status hid it.
+        own status hid it. Command output is never held in a shell variable:
+        auditctl -l writes to a private temporary file, its exact bytes are
+        emitted followed by a trailer giving their count and a sha256 computed
+        from that file, its own exit status is the section's status, and the
+        file is removed on exit and on interruption. Apart from that file, the
+        snapshot writes nothing.
       type: technical
       enforcement: error
 
@@ -144,6 +149,13 @@ spec:
         id. A failed auditctl -l or rules read during staged gives exit 1 and no
         rollback prompt, and after and packet then refuse. A capture whose
         snapshot exited 0 but recorded a section with exit 42 is refused the
-        same way. The snapshot's only pipe digests output it already captured.
+        same way. The loaded-rules section reproduces auditctl -l's output byte
+        for byte, with a trailer whose count and sha256 match it, for output
+        with several trailing newlines, with none, empty, and partial output
+        followed by a failure, whose status is kept; this holds in a staged
+        capture too. No temporary file remains after a normal run, a failed run,
+        or a SIGTERM to the snapshot's process group, which exits 143. The
+        snapshot has no pipes and no command substitution of auditctl, and its
+        only writes are to and removal of its temporary file.
       priority: critical
       references_constraints: [C-06]

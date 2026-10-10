@@ -69,6 +69,8 @@ python3 -S scripts/release_prep.py f2 status $H      # what is verified, what is
 - Every snapshot section is required. A section that fails (for example `auditctl -l`, or one
   unreadable rules file) fails the capture, and so does any `== exit N` other than 0 in its
   output. Its raw output is kept, but it never counts as staged evidence.
+- Never hold command output in a shell variable when writing a capture script: `$(...)` strips
+  trailing newlines. Write to a private temporary file and emit its exact bytes.
 - A phase is never captured twice under the same name. To retry, move the failed capture
   aside and say so in the hand-off.
 - The tool sends the capture library to the host over SSH standard input. The host needs

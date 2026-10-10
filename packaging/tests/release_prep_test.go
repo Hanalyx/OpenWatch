@@ -127,11 +127,23 @@ func TestReleasePrep_PacketRecordsNoVerdict(t *testing.T) {
 // failed section never reaches the rollback prompt.
 func TestReleasePrep_FailedSnapshotSectionsBlockRollback(t *testing.T) {
 	t.Run("release-preparation/AC-06", func(t *testing.T) {
-		requireReleasePrep(t, "F2MaintainedSnapshot", 7,
+		requireReleasePrep(t, "F2MaintainedSnapshot", 10,
 			"test_a_failed_auditctl_list_fails_the_snapshot_and_keeps_its_output",
 			"test_a_failed_read_before_a_good_one_fails_the_snapshot",
 			"test_a_failed_auditctl_list_while_staged_gives_no_rollback_prompt",
 			"test_a_failed_rules_read_while_staged_gives_no_rollback_prompt",
 			"test_a_reported_failure_is_refused_even_when_the_script_exits_0")
+	})
+}
+
+// @ac AC-06
+// AC-06: auditctl's loaded-rule output is kept byte for byte, with a digest
+// computed from the same bytes, and the temporary file never outlives the run.
+func TestReleasePrep_LoadedRulesStayByteExact(t *testing.T) {
+	t.Run("release-preparation/AC-06", func(t *testing.T) {
+		requireReleasePrep(t, "F2MaintainedSnapshot", 10,
+			"test_loaded_rules_are_emitted_byte_for_byte_with_their_digest",
+			"test_staged_evidence_keeps_the_exact_loaded_rule_bytes",
+			"test_an_interrupted_snapshot_removes_its_temporary_file")
 	})
 }
