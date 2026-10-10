@@ -21,6 +21,7 @@ var (
 	evidenceCaptureOut    []byte
 	evidenceCaptureErr    error
 	evidenceCapturePassed map[string]int
+	evidenceCaptureCases  map[string]bool
 )
 
 func evidenceCaptureSuite(t *testing.T) map[string]int {
@@ -33,10 +34,12 @@ func evidenceCaptureSuite(t *testing.T) map[string]int {
 		cmd.Dir = dir
 		evidenceCaptureOut, evidenceCaptureErr = cmd.CombinedOutput()
 		evidenceCapturePassed = map[string]int{}
-		line := regexp.MustCompile(`\(__main__\.(\w+)\.\w+\) \.\.\. ok$`)
+		evidenceCaptureCases = map[string]bool{}
+		line := regexp.MustCompile(`\(__main__\.(\w+)\.(\w+)\) \.\.\. ok$`)
 		for _, ln := range strings.Split(string(evidenceCaptureOut), "\n") {
 			if m := line.FindStringSubmatch(strings.TrimSpace(ln)); m != nil {
 				evidenceCapturePassed[m[1]]++
+				evidenceCaptureCases[m[1]+"."+m[2]] = true
 			}
 		}
 	})
@@ -45,6 +48,18 @@ func evidenceCaptureSuite(t *testing.T) map[string]int {
 			tailOf(evidenceCaptureOut, 40))
 	}
 	return evidenceCapturePassed
+}
+
+// requireEvidenceCaptureCases names the cases a reviewer relies on, so removing
+// or renaming one fails here by name rather than only as a changed count.
+func requireEvidenceCaptureCases(t *testing.T, cases ...string) {
+	t.Helper()
+	evidenceCaptureSuite(t)
+	for _, c := range cases {
+		if !evidenceCaptureCases[c] {
+			t.Errorf("%s did not pass", c)
+		}
+	}
 }
 
 func requireEvidenceCaptureClass(t *testing.T, class string, want int) {
@@ -107,5 +122,44 @@ func TestEvidenceCapture_VerifiesSealedCaptures(t *testing.T) {
 func TestEvidenceCapture_VerifiesAfterTransfer(t *testing.T) {
 	t.Run("release-evidence-capture/AC-07", func(t *testing.T) {
 		requireEvidenceCaptureClass(t, "CaptureTransfer", 15)
+	})
+}
+
+// @ac AC-04
+// AC-04: a supplied secret makes the capture fail, and no copy of it is left in
+// the streams, the record, a temporary directory or a transferred capture.
+func TestEvidenceCapture_SecretLeakIsAFailedCapture(t *testing.T) {
+	t.Run("release-evidence-capture/AC-04", func(t *testing.T) {
+		requireEvidenceCaptureCases(t,
+			"CaptureSecrets.test_a_leaked_secret_withholds_the_streams",
+			"CaptureSecrets.test_a_secret_split_across_read_chunks_is_found",
+			"CaptureSecrets.test_cli_reads_secrets_by_variable_name",
+			"CaptureTransfer.test_no_supplied_secret_reaches_a_transferred_artifact")
+	})
+}
+
+// @ac AC-05
+// AC-05: interrupted and timed-out captures never pass as complete evidence,
+// whether renamed, relabeled or transferred.
+func TestEvidenceCapture_IncompleteCapturesNeverPassAsComplete(t *testing.T) {
+	t.Run("release-evidence-capture/AC-05", func(t *testing.T) {
+		requireEvidenceCaptureCases(t,
+			"CaptureInterruption.test_sigterm_to_the_capturer_keeps_what_was_captured",
+			"CaptureInterruption.test_timeout_is_kept_as_timed_out",
+			"CaptureVerify.test_a_renamed_incomplete_capture_fails",
+			"CaptureVerify.test_an_incomplete_capture_relabeled_complete_fails",
+			"CaptureTransfer.test_an_interrupted_remote_capture_needs_allow_incomplete")
+	})
+}
+
+// @ac AC-07
+// AC-07: traversal and links are refused, and failed material stays isolated.
+func TestEvidenceCapture_TransferRefusesEscapesAndIsolatesFailures(t *testing.T) {
+	t.Run("release-evidence-capture/AC-07", func(t *testing.T) {
+		requireEvidenceCaptureCases(t,
+			"CaptureTransfer.test_unsafe_members_are_refused",
+			"CaptureTransfer.test_a_symlink_in_place_of_a_stream_is_refused",
+			"CaptureTransfer.test_an_interrupted_transfer_is_isolated",
+			"CaptureTransfer.test_a_failed_transfer_command_keeps_its_stderr")
 	})
 }
