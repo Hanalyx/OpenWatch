@@ -1,0 +1,99 @@
+spec:
+  id: release-compat-runs
+  title: Local engine and corpus compatibility runs against a release's packages
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: Local compatibility runs for release preparation
+    description: >
+      The release-upgrade pairing test runs in package-smoke against packages
+      that workflow builds itself. Before a release, the same test should run
+      against the packages the release actually carries, with an older
+      release's packages as the old pair. For v0.8.4 that was done by hand.
+      scripts/release_compat.py runs the candidate commit's own copy of the
+      test in local, disposable containers, from verified inputs, and refuses
+      to count a skipped or incomplete run as a pass. It changes no release
+      and no host, and records no decision.
+    related_specs:
+      - release-upgrade
+      - release-asset-verification
+      - release-evidence-capture
+
+  objective:
+    summary: >
+      The engine and corpus pairing is shown to hold on the release's own
+      packages, from raw evidence, before anyone signs off.
+    scope:
+      includes:
+        - scripts/release_compat.py
+      excludes:
+        - Upgrades of real hosts, real remediation, and any change to a release
+        - The pairing test itself, which is release-upgrade's
+
+  constraints:
+    - id: C-01
+      description: >-
+        The new pair is the candidate's x86_64 RPM and amd64 DEB with its
+        kensa-rules packages, named by release/assets.toml at the candidate
+        commit (--inventory-from-tree is the recorded fallback for an older
+        candidate). The old pair is the named old release's x86_64 RPM and
+        amd64 DEB with its single kensa-rules RPM and DEB. Both releases'
+        SHA256SUMS.asc must be good signatures by the release key, a primary
+        key in security/KEYS at the candidate commit, and every package used
+        must match its SHA256SUMS entry, before anything runs.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        The test source is the candidate commit's tree from git archive, never
+        a working tree, with its generated prerequisites made. Docker is
+        checked before any mode runs. Every command runs through
+        scripts/evidence_capture.py with an explicit timeout, and the evidence
+        directory must be new.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        Each mode (Rocky 9 RPM, Ubuntu 24.04 DEB, Rocky 9 RPM without
+        scriptlets) passes only with exit 0, the test and its subtest reported
+        PASS, no SKIP, the container's "all checks passed" line for that mode,
+        at least one PASS check line and no FAIL line. Every area that could
+        not run is a failure, and the staged packages must be unchanged
+        afterwards.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Every mode passes when the test passes. go runs in the extracted
+        source, which holds the candidate's files and no .git, also when the
+        repository has moved past the candidate. Each mode receives its image,
+        kind, mode and the staged new and old directories, which hold exactly
+        the expected pair. Every command is a verified capture with a declared
+        timeout. Both releases can be downloaded instead of read from
+        directories.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        Every mode fails for a skipped test, a missing final line, a FAIL
+        check line, no PASS check lines, a failing go test, and a run that
+        exits 0 without the test's PASS result. Without Docker, or when the
+        prerequisites cannot be made, no mode runs and the run fails.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-03
+      description: >-
+        A new or old release signed by another key, a package that differs
+        from its SHA256SUMS entry, and an old release without exactly one
+        kensa-rules pair each stop the run before the source is extracted or
+        any mode runs. A package changed during the runs fails the
+        after-check. A malformed tag, a missing --old-from, an existing
+        evidence directory, and a candidate without the inventory (unless
+        --inventory-from-tree, which the report notes) are refused.
+      priority: critical
+      references_constraints: [C-01, C-03]

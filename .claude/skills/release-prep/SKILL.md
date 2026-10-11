@@ -114,8 +114,28 @@ python3 -S scripts/release_assets.py --tag "$TAG" --commit "$CANDIDATE" --key "$
 - A check that could not run is a FAIL, never a pass. Never report PASS from a run with
   missing input, a failed download or unusable `govulncheck` output.
 - It records no decision and changes nothing. Gates A1 and A2 stay in `release-status.py`.
-- Validated so far against the published v0.8.4 release, read-only; not yet on a draft
-  candidate.
+- Validated so far against the published v0.8.4 release, read-only. Draft verification is still
+  pending. `--inventory-from-tree` is only an explicit, recorded fallback for a candidate older
+  than `release/assets.toml`.
+
+## Local compatibility runs
+
+`scripts/release_compat.py` runs the candidate commit's own pairing test in local, disposable
+containers. The new pair is the release's packages and the old pair an older release's (for
+v0.8.4, v0.7.1):
+
+```bash
+python3 -S scripts/release_compat.py --tag "$TAG" --commit "$CANDIDATE" --key "$KEY" \
+  --old-tag vA.B.C --evidence ~/Documents/openwatch/release-evidence/"$TAG"/compat
+```
+
+- Both releases' signatures and every package's hash are checked before anything runs.
+- A skipped, incomplete or failing mode is a FAIL. Never report the pairing as verified from a
+  run that skipped.
+- These are local containers only. Upgrading a real host is separate and needs explicit
+  authorization; so does any real remediation.
+- Validated so far against the published v0.8.4 with v0.7.1 as the old pair: 39, 35 and 39
+  checks. Not yet run against a draft candidate.
 
 ## Not covered yet
 
@@ -123,6 +143,5 @@ These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md
 them, capture every command through `evidence_capture.py run --timeout`:
 
 - the release-prep PR content;
-- local compatibility runs on downloaded packages;
 - the fleet upgrade, Steps 1 to 8;
 - F1, F3 and D1 packets.
