@@ -101,8 +101,10 @@ spec:
         A full run reaches "STEP 8 DONE: MATCH" with every phase a verified
         capture, and status reports nothing left. The packages are staged and
         checked on the host and installed in one transaction. The backup is a
-        new dump named by the host's UTC time and listed by pg_restore. A dry
-        run of a changing phase shows its commands and contacts nothing.
+        new dump named by the host's UTC time and listed by pg_restore. A
+        second backup in the same second refuses to overwrite the first dump,
+        runs no pg_dump and leaves that dump unchanged. A dry run of a
+        changing phase shows its commands and contacts nothing.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-02

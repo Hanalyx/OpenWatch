@@ -35,6 +35,7 @@ ec = ru.ec
 TAG = "v0.9.0"
 COMMIT = "474d9af26e457fc6a47b5475fab87394433a687b"  # pragma: allowlist secret
 TOKEN = "owk_test_token_value_never_printed_0001"  # pragma: allowlist secret
+CLOCK = "20261011T152158Z"
 RULES = ("audit-sudo-log", "ssh-root-login", "shell-timeout")
 
 FAKEBIN = r'''
@@ -69,6 +70,13 @@ if cmd == "sudo":
     if a[:1] == ["-u"]:
         a = a[2:]
     os.execvp(a[0], a)
+if cmd == "date":
+    # The dump name's clock is frozen (state file "clock"), so every backup in
+    # a test falls in the same second; other formats use the real date.
+    if args == ["-u", "+%Y%m%dT%H%M%SZ"] and st("clock"):
+        print(st("clock")); sys.exit(0)
+    real = "/usr/bin/date" if os.path.exists("/usr/bin/date") else "/bin/date"
+    os.execv(real, [real] + args)
 if cmd == "hostname":
     print(st("hostname", "owas-rhn01.hanalyx.local")); sys.exit(0)
 if cmd == "openwatch":
@@ -201,7 +209,7 @@ def safe_load(f):
     return out
 '''
 
-COMMANDS = ("sudo", "hostname", "openwatch", "systemctl", "dnf", "apt-get", "rpm", "pg_dump",
+COMMANDS = ("sudo", "date", "hostname", "openwatch", "systemctl", "dnf", "apt-get", "rpm", "pg_dump",
             "pg_restore", "psql", "journalctl", "curl", "stat", "python3")
 
 
@@ -240,7 +248,7 @@ class Case(unittest.TestCase):
         self.write("root/owk-token", TOKEN + "\n", mode=0o600)
         for name, value in (("version", "0.8.4"), ("schema", "65"), ("service", "active"),
                             ("new-version", "0.9.0"), ("new-schema", "67"), ("token", TOKEN),
-                            ("served", " ".join(RULES))):
+                            ("served", " ".join(RULES)), ("clock", CLOCK)):
             self.state(name, value)
         self.packages = []
         for name in ("openwatch-0.9.0-1.x86_64.rpm", "kensa-rules-0.10.0-1.noarch.rpm"):
@@ -265,6 +273,25 @@ class Case(unittest.TestCase):
         with open(p, "w") as f:
             f.write(text)
         os.chmod(p, mode)
+
+    def fresh_host(self, **state):
+        """Start a subtest over on the same fake host: no evidence, no dumps, default state.
+
+        The dumps go too. Their names carry the host's UTC second, so a dump
+        left by an earlier subtest in the same second makes the next backup
+        refuse, correctly, to overwrite it.
+        """
+        dumps = os.path.join(self.root, "var/backups/openwatch")
+        for d in (self.evidence, self.remote, dumps):
+            shutil.rmtree(d, True)
+        os.makedirs(dumps)
+        for f in ("check-config-fail", "migrate-pending", "health-body"):
+            if os.path.exists(os.path.join(self.fake, f)):
+                os.unlink(os.path.join(self.fake, f))
+        defaults = {"version": "0.8.4", "schema": "65", "service": "active"}
+        defaults.update((k.replace("_", "-"), v) for k, v in state.items())
+        for name, value in defaults.items():
+            self.state(name, value)
 
     def state(self, name, value=""):
         with open(os.path.join(self.fake, name), "w") as f:
@@ -342,6 +369,24 @@ class UpgradePhasesInOrder(Case):
         self.assertEqual(self.calls(), before, "a dry run contacted the host")
         self.assertFalse(os.path.exists(self.capture("backup")))
 
+    def test_a_second_backup_in_the_same_second_does_not_overwrite_the_first(self):
+        # Go CI run 38149884811: two backups in one second on one host. The
+        # second must refuse, and the first dump must survive untouched.
+        self.through("backup")
+        dump = os.path.join(self.root, "var/backups/openwatch", "openwatch_%s.dump" % CLOCK)
+        with open(dump, "rb") as f:
+            first = f.read()
+        for d in (self.evidence, self.remote):
+            shutil.rmtree(d, True)
+        self.ok("plan")
+        before = len(self.calls())
+        code, out = self.run_phase("backup")
+        self.assertEqual(code, 1, out)
+        self.assertIn("failed: dump does not exist yet (exit 1)", out)
+        self.assertEqual([c for c in self.calls()[before:] if c.startswith("pg_dump")], [])
+        with open(dump, "rb") as f:
+            self.assertEqual(f.read(), first)
+
     def test_the_backup_is_proven_readable(self):
         self.through("backup")
         out = self.stdout("backup")
@@ -349,7 +394,10 @@ class UpgradePhasesInOrder(Case):
         self.assertIn("TABLE public hosts", out)
         dumps = os.listdir(os.path.join(self.root, "var/backups/openwatch"))
         self.assertEqual(len(dumps), 1)
-        self.assertRegex(dumps[0], r"^openwatch_\d{8}T\d{6}Z\.dump$")
+        self.assertEqual(dumps, ["openwatch_%s.dump" % CLOCK])
+        # The name comes from the host's own UTC clock (frozen in this fake).
+        script = ru.script_for(ru.phase("backup"), {})
+        self.assertIn("openwatch_$(date -u +%Y%m%dT%H%M%SZ).dump", script)
 
 
 class UpgradeGates(Case):
@@ -463,13 +511,7 @@ class UpgradeStopsSafely(Case):
     def test_each_failed_verify_step_stops_verify(self):
         for flag, step in (("check-config-fail", "Step 4"), ("migrate-pending", "Step 5")):
             with self.subTest(flag=flag):
-                shutil.rmtree(self.evidence, True)
-                shutil.rmtree(self.remote, True)
-                for f in ("check-config-fail", "migrate-pending"):
-                    if os.path.exists(os.path.join(self.fake, f)):
-                        os.unlink(os.path.join(self.fake, f))
-                for name, value in (("version", "0.8.4"), ("schema", "65"), ("service", "active")):
-                    self.state(name, value)
+                self.fresh_host()
                 self.through("install")
                 self.state(flag)
                 code, out = self.run_phase("verify")
@@ -557,12 +599,7 @@ class UpgradeStep7(Case):
                      {"status": "healthy", "db_connected": 1, "version": "0.9.0"},
                      {"status": "healthy", "version": "0.9.0"}):
             with self.subTest(body=body):
-                shutil.rmtree(self.evidence, True)
-                shutil.rmtree(self.remote, True)
-                for name, value in (("version", "0.8.4"), ("schema", "65"), ("service", "active")):
-                    self.state(name, value)
-                if os.path.exists(os.path.join(self.fake, "health-body")):
-                    os.unlink(os.path.join(self.fake, "health-body"))
+                self.fresh_host()
                 self.verify_fails(HEALTH_STEP, "health: wrong or missing db_connected",
                                   health_body=json.dumps(body))
 
@@ -746,11 +783,7 @@ class UpgradeStep8(Case):
                           (lambda: self.write("root/owk-token", "not-a-token\n", mode=0o600),
                            "token")):
             with self.subTest(at=at):
-                shutil.rmtree(self.evidence, True)
-                shutil.rmtree(self.remote, True)
-                for name, value in (("version", "0.8.4"), ("schema", "65"),
-                                    ("service", "active"), ("token-owner", "root")):
-                    self.state(name, value)
+                self.fresh_host(token_owner="root")
                 self.write("root/owk-token", TOKEN + "\n", mode=0o600)
                 self.through("verify")
                 setup()

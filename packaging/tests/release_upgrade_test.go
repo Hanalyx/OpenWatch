@@ -62,9 +62,21 @@ func requireReleaseUpgrade(t *testing.T, class string, want int, cases ...string
 // AC-01: the five phases run in order, each a verified capture.
 func TestReleaseUpgrade_ReachesMatchInOrder(t *testing.T) {
 	t.Run("release-upgrade-steps/AC-01", func(t *testing.T) {
-		requireReleaseUpgrade(t, "UpgradePhasesInOrder", 4,
+		requireReleaseUpgrade(t, "UpgradePhasesInOrder", 5,
 			"test_a_full_upgrade_reaches_match",
 			"test_a_dry_run_changes_nothing_and_shows_the_commands")
+	})
+}
+
+// @ac AC-01
+// AC-01: a backup is a new dump. A second backup in the same second refuses to
+// overwrite the first (Go CI run 38149884811 found this through a test that
+// reused a fake host).
+func TestReleaseUpgrade_BackupNeverOverwritesADump(t *testing.T) {
+	t.Run("release-upgrade-steps/AC-01", func(t *testing.T) {
+		requireReleaseUpgrade(t, "UpgradePhasesInOrder", 5,
+			"test_a_second_backup_in_the_same_second_does_not_overwrite_the_first",
+			"test_the_backup_is_proven_readable")
 	})
 }
 
