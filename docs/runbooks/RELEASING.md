@@ -193,6 +193,10 @@ release, downloaded with `gh release download <tag>` or from the asset ids
    service comes back and data survives. Then run the upgrade procedure's
    Step 8 (restart, then compare the served rules with the installed rules)
    and record its `MATCH` before any scan in the next step.
+   `scripts/release_upgrade.py` runs the standard upgrade's Steps 1 to 8 in
+   gated phases, with every step's raw output captured (see the release-prep
+   skill). It changes the host only with `--execute`, and using it on a fleet
+   host needs the release captain's authorization for that host.
 4. **Functional walkthrough** against the release captain's test fleet:
    log in → add host → run a Kensa scan → view posture → drift → exceptions →
    export → role-based access. Record results in the sign-off checklist.

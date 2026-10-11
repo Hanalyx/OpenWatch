@@ -45,6 +45,7 @@ domains:
             - release-tagging
             - release-asset-verification
             - release-compat-runs
+            - release-upgrade-steps
             - system-auth-identity
             - system-user-management
             - system-credential-store
