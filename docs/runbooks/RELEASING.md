@@ -422,6 +422,20 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
      --key "$KEY" --evidence ~/Documents/openwatch/release-evidence/"$TAG"/assets-verification
    ```
 
+   **Then run the engine and corpus pairing test on those packages.**
+   `scripts/release_compat.py` runs the candidate commit's own pairing test in
+   local, disposable containers, three modes (Rocky 9 RPM, Ubuntu 24.04 DEB,
+   Rocky 9 RPM without scriptlets). The new pair is the draft's packages; the
+   old pair is the previous GA's. It verifies both releases' signed
+   `SHA256SUMS` first, and a skipped or incomplete mode is a failure. Like the
+   asset check, it is preparation evidence, not a gate.
+
+   ```bash
+   python3 -S scripts/release_compat.py --tag "$TAG" --commit "$CANDIDATE" \
+     --key "$KEY" --old-tag "$PREVIOUS_GA" \
+     --evidence ~/Documents/openwatch/release-evidence/"$TAG"/compat
+   ```
+
 4. **Publish the verified draft, on GO and on separate founder authorization.**
 
    ```bash

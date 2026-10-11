@@ -44,6 +44,7 @@ domains:
             - release-preparation
             - release-tagging
             - release-asset-verification
+            - release-compat-runs
             - system-auth-identity
             - system-user-management
             - system-credential-store
