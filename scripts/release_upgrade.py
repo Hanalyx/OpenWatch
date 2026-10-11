@@ -29,7 +29,10 @@ hostname to be --host.
 
 What it never does: start the service by hand after a failed install, roll
 back, change configuration, or reboot. The one restart is Step 8's, which
-the procedure requires. The API token for Step 8 stays in a root-only file
+the procedure requires. Every phase that changes the host, and the package
+staging, first checks on the host, on the same connection, that its machine-id
+and hostname are the ones the verified preflight read; otherwise nothing runs.
+The API token for Step 8 stays in a root-only file
 on the host; it is never read or sent from here.
 
 Spec: release-upgrade-steps.
@@ -110,10 +113,25 @@ def verified(host, name, machine_id=None):
     return rec
 
 
-def preflight_hostname(host):
+def preflight_identity(host):
+    """(machine-id, hostname) as the verified preflight read them on the host."""
     with open(os.path.join(host.local_dir, "upgrade-plan", "stdout"), "rb") as f:
         sections = rp._sections(f.read())
-    return [l.strip() for l in sections.get("hostname", []) if l.strip()]
+    found = []
+    for title in ("machine-id", "hostname"):
+        lines = [l.strip() for l in sections.get(title, []) if l.strip()]
+        if len(lines) != 1:
+            raise UpgradeError("the preflight for %s reported %d %s lines, not one; refusing "
+                               "to change the host" % (host.name, len(lines), title))
+        found.append(lines[0])
+    return tuple(found)
+
+
+# Run on the host, first, on the connection that will change it: the machine
+# is the one the verified preflight examined, or nothing else runs.
+IDENTITY_CHECK = ('[ "$(cat -- "$1")" = "$2" ] && [ "$(hostname)" = "$3" ] || '
+                  '{ echo "this is not the host the preflight examined; nothing was changed" >&2;'
+                  ' exit 1; }')
 
 
 def script_for(p, env):
@@ -126,7 +144,7 @@ def script_for(p, env):
     return assigns + "\n" + common + "\n" + body
 
 
-def stage_packages(host, packages, execute):
+def stage_packages(host, packages, execute, identity, root=""):
     """Copy each package to the host's stage directory; return (paths, sums lines)."""
     stage = host.remote_dir + "/packages"
     paths, sums = [], []
@@ -139,7 +157,9 @@ def stage_packages(host, packages, execute):
         sums.append("%s  %s" % (ec._sha256_file(pkg), dest))
         if not execute:
             continue
-        argv = host.remote(host.sudo + ["mkdir", "-p", "-m", "0700", stage],
+        argv = host.remote(["sh", "-c", IDENTITY_CHECK, "sh", root + "/etc/machine-id"]
+                           + list(identity),
+                           host.sudo + ["mkdir", "-p", "-m", "0700", stage],
                            host.sudo + ["sh", "-c", 'umask 077; cat > "$1"', "sh", dest])
         try:
             rec = ec.capture(argv, host.local_dir, "stage-" + name, host.tag, host.commit,
@@ -162,16 +182,19 @@ def run_phase(host, a, name):
     for req in p.requires:
         rec = verified(host, req, machine_id)
         machine_id = machine_id or (rec.get("host") or {}).get("machine_id")
-    names = preflight_hostname(host) if p.requires else []
-    if p.mutates and a.execute and not any(h == host.name or h.split(".")[0] == host.name
-                                           for h in names):
-        raise UpgradeError("the preflight on this connection reported hostname %r, not %s; "
-                           "refusing to change the host" % (names, host.name))
     env = {"OW_URL": a.url, "OW_KIND": a.kind, "OW_VERSION": a.tag[1:]}
+    identity = None
+    if p.mutates:
+        identity = preflight_identity(host)
+        hn = identity[1]
+        if a.execute and not (hn == host.name or hn.split(".")[0] == host.name):
+            raise UpgradeError("the preflight on this connection reported hostname %r, not %s; "
+                               "refusing to change the host" % (hn, host.name))
+        env.update(OW_EXPECT_MACHINE_ID=identity[0], OW_EXPECT_HOSTNAME=identity[1])
     if name == "install":
         if not a.package:
             raise UpgradeError("install needs --package for every package to install")
-        paths, sums = stage_packages(host, a.package, a.execute)
+        paths, sums = stage_packages(host, a.package, a.execute, identity, a.root or "")
         env.update(OW_PKGS=" ".join(paths), OW_SUMS="\n".join(sums))
     if name == "rules":
         if not a.token_file:

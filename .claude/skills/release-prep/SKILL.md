@@ -141,7 +141,9 @@ python3 -S scripts/release_compat.py --tag "$TAG" --commit "$CANDIDATE" --key "$
 
 `scripts/release_upgrade.py` runs the standard upgrade on one OpenWatch server in five
 phases: `plan` (read-only), `backup`, `install`, `verify` and `rules` (Step 8). Each phase
-needs the previous ones verified from the same machine.
+needs the previous ones verified from the same machine. Before it changes anything, every
+changing phase, and the package staging, checks on the host, on its own connection, that the
+machine-id and hostname are the ones the verified preflight read. If they differ, nothing runs.
 
 - **Using it on a fleet host needs the release captain's authorization for that host and
   that upgrade.** Implementation, tests and a passing dry run are not that authorization.

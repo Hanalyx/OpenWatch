@@ -12,6 +12,7 @@ check_sums() {
     printf '%s\n' "$OW_SUMS" > "$TMP"
     sha256sum -c -- "$TMP"
 }
+step "identity matches the verified preflight" identity_check
 TMP=$(mktemp) || exit 1
 trap 'rm -f -- "$TMP"' EXIT
 step "staged packages match their digests" check_sums

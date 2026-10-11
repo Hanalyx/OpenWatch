@@ -73,6 +73,27 @@ spec:
         phase without one cannot run.
       type: technical
       enforcement: error
+    - id: C-05
+      description: >-
+        Before staging a package or running any changing command, the host is
+        checked, on the connection doing the work, against the machine-id and
+        hostname the verified preflight read: the staging command checks
+        before it creates a directory or file, and each changing phase script
+        checks as its first step. A preflight without exactly one machine-id
+        line and one hostname line blocks every change. A mismatch stages,
+        dumps, stops, installs, migrates and restarts nothing.
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >-
+        Step 7, and the health wait in Step 8, read each endpoint by its schema
+        in api/openapi.yaml. /api/v1/health passes only with HTTP 200 and a
+        HealthResponse whose status is "healthy", db_connected is the boolean
+        true and version is the release. /api/v1/version passes only with HTTP
+        200 and a VersionResponse whose openwatch field is the release; it has
+        no version field. A body that is not a JSON object fails.
+      type: technical
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -115,6 +136,30 @@ spec:
         appears in no evidence.
       priority: critical
       references_constraints: [C-03]
+    - id: AC-06
+      description: >-
+        The test server's health and version bodies have exactly the fields
+        of the generated HealthResponse and VersionResponse types, and a full
+        run passes on them. Step 7 fails for a version body with only a
+        version field, another openwatch version, a degraded status,
+        db_connected false, 1 or missing, a 503 with an error envelope, a
+        status other than 200 with a healthy body, and a body that is not
+        JSON. Step 8 fails for a degraded health body.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        With the machine-id or the hostname changed after the preflight, the
+        backup, install, verify and rules phases each fail with no pg_dump,
+        pg_restore, service stop, start or restart, dnf or apt-get, or
+        openwatch --config call, no new dump, no staged package, and the
+        service and version unchanged. The staging refuses before creating
+        anything. A host changed between staging and the install run is
+        neither stopped nor installed. The expected values are the
+        preflight's, and a preflight without one line of each blocks every
+        change before contact.
+      priority: critical
+      references_constraints: [C-05]
     - id: AC-05
       description: >-
         Every capture carries a declared timeout, every phase's host capture

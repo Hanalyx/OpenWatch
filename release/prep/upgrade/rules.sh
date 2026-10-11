@@ -5,8 +5,11 @@
 # host holding an owk_ token with scan:read). The token is read here, sent to
 # curl through a private file, and never printed.
 stopped() { echo "Step 8 did not reach MATCH. Do not scan. Run Step 8 again; if it still fails, stop and contact support." >&2; }
+step "identity matches the verified preflight" identity_check
 WORK=$(mktemp -d) || exit 1
 trap 'rm -rf -- "$WORK"' EXIT
+# shellcheck disable=SC2034 # read by fetch_json in common.sh
+JSON=$WORK/endpoint.json
 token_file_is_private() {
     test -f "$OW_TOKEN_FILE" || return 1
     set -- $(stat -c '%U %a' -- "$OW_TOKEN_FILE")
@@ -29,11 +32,13 @@ healthy_within_60s() {
     n=0
     # 30 tries 2 s apart: the procedure's 60 s. OW_HEALTH_TRIES is for tests.
     while [ "$n" -lt "${OW_HEALTH_TRIES:-30}" ]; do
-        if curl -skf --connect-timeout 3 --max-time 5 -o /dev/null "$OW_URL/api/v1/health"; then
+        if health_ok > "$WORK/health.log" 2>&1; then
+            cat -- "$WORK/health.log"
             echo "healthy after $((n * 2))s"; return 0
         fi
         n=$((n + 1)); sleep 2
     done
+    cat -- "$WORK/health.log"
     echo "not healthy within 60s" >&2; return 1
 }
 journal_has_no_rule_load_failure() {

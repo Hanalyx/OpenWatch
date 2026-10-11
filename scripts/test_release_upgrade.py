@@ -128,7 +128,12 @@ if cmd == "psql":
 if cmd == "journalctl":
     print(st("journal", "openwatch: listening on :8443")); sys.exit(0)
 if cmd == "curl":
-    out = conf = None
+    # Bodies as the server writes them (internal/server/handlers.go): GetHealth
+    # answers 200 with a HealthResponse or 503 with an ErrorEnvelope, and
+    # GetVersion a VersionResponse, which has no "version" field. A state file
+    # health-body or version-body replaces the body verbatim.
+    out = conf = wfmt = None
+    fail = False
     i = 0
     while i < len(args):
         if args[i] in ("-o", "-K", "--max-time", "--connect-timeout", "-w"):
@@ -136,28 +141,46 @@ if cmd == "curl":
                 out = args[i + 1]
             if args[i] == "-K":
                 conf = args[i + 1]
+            if args[i] == "-w":
+                wfmt = args[i + 1]
             i += 2
             continue
+        if args[i].startswith("-") and not args[i].startswith("--") and "f" in args[i]:
+            fail = True
         i += 1
     url = args[-1]
     if flag("health-down"):
         sys.exit(7)
+    code = 200
     if url.endswith("/api/v1/health"):
-        body = {"status": "healthy", "db_connected": True, "version": st("version")}
+        if flag("db-down"):
+            code, body = 503, {"error": {"code": "server.unavailable", "fault": "server",
+                                         "retryable": True,
+                                         "human_message": "database is not reachable"}}
+        else:
+            body = {"status": "healthy", "db_connected": True, "version": st("version")}
+        body = st("health-body") or json.dumps(body, separators=(",", ":"))
+        code = int(st("health-code", str(code)))
     elif url.endswith("/api/v1/version"):
-        body = {"openwatch": st("version"), "version": st("version"), "go": "go1.26.9"}
+        body = {"openwatch": st("version"), "kensa": "0.10.0", "go": "go1.26.5",
+                "commit": "474d9af26e45", "build_time": "2026-10-01T00:00:00Z"}  # pragma: allowlist secret
+        body = st("version-body") or json.dumps(body, separators=(",", ":"))
     elif url.endswith("/api/v1/rules"):
         if "Bearer " + st("token") not in (open(conf).read() if conf else ""):
-            sys.exit(22)
-        body = {"rules": [{"id": x} for x in st("served").split()]}
+            code, body = 401, '{"error":{"code":"auth.required"}}'
+        else:
+            body = json.dumps({"rules": [{"id": x} for x in st("served").split()]})
     else:
+        code, body = 404, "{}"
+    if fail and code >= 400:
         sys.exit(22)
-    text = json.dumps(body, separators=(",", ":"))
     if out and out != "/dev/null":
         with open(out, "w") as f:
-            f.write(text)
+            f.write(body)
     elif not out:
-        sys.stdout.write(text)
+        sys.stdout.write(body)
+    if wfmt == "%{http_code}":
+        sys.stdout.write(str(code))
     sys.exit(0)
 if cmd == "stat":
     print("%s %s" % (st("token-owner", "root"), oct(os.stat(args[-1]).st_mode & 0o777)[2:]))
@@ -461,7 +484,9 @@ class UpgradeStopsSafely(Case):
         code, out = self.run_phase("verify")
         self.assertEqual(code, 1)
         with open(os.path.join(self.capture("verify"), "stderr")) as f:
-            self.assertIn("STOPPED at: Step 7: health reports 0.9.0", f.read())
+            err = f.read()
+        self.assertIn("STOPPED at: " + HEALTH_STEP, err)
+        self.assertIn("health: wrong or missing version", err)
 
     def test_a_failed_dump_stops_the_backup(self):
         self.ok("plan")
@@ -469,6 +494,205 @@ class UpgradeStopsSafely(Case):
         code, out = self.run_phase("backup")
         self.assertEqual(code, 1)
         self.assertFalse([c for c in self.calls() if c.startswith("systemctl stop")])
+
+
+HEALTH_STEP = "Step 7: health is healthy, database connected, version 0.9.0"
+VERSION_STEP = "Step 7: version endpoint reports openwatch 0.9.0"
+GEN = _here.parent / "internal" / "server" / "api" / "server.gen.go"
+
+
+def generated_fields(struct):
+    """The JSON names of a response type generated from api/openapi.yaml."""
+    import re
+    text = read_text(GEN)
+    body = re.search(r"^type %s struct \{\n(.*?)^\}" % struct, text, re.S | re.M).group(1)
+    return set(re.findall(r'json:"([^",]+)', body))
+
+
+class UpgradeStep7(Case):
+    """AC-06: Step 7 reads each endpoint by its schema, and refuses anything else."""
+
+    def verify_fails(self, at, why, **state):
+        self.through("install")
+        for k, v in state.items():
+            self.state(k.replace("_", "-"), v)
+        code, out = self.run_phase("verify")
+        self.assertEqual(code, 1, out)
+        with open(os.path.join(self.capture("verify"), "stderr")) as f:
+            err = f.read()
+        self.assertIn("STOPPED at: " + at, err)
+        self.assertIn(why, err)
+        self.assertNotIn("VERIFY DONE", self.stdout("verify"))
+
+    def test_the_fixtures_are_the_servers_schemas(self):
+        # The defect this class exists for: a fake with an invented "version"
+        # field on /api/v1/version hid a check that the real server fails.
+        self.through("verify")
+        out = self.stdout("verify")
+        self.assertEqual(generated_fields("VersionResponse"),
+                         {"openwatch", "kensa", "go", "commit", "build_time"})
+        self.assertEqual(generated_fields("HealthResponse"), {"status", "db_connected", "version"})
+        bodies = [json.loads(l) for l in out.splitlines() if l.startswith("{")]
+        self.assertEqual([set(b) for b in bodies],
+                         [generated_fields("HealthResponse"), generated_fields("VersionResponse")])
+        self.assertIn("openwatch='0.9.0' (want '0.9.0')", out)
+        self.assertIn("http 200", out)
+
+    def test_a_version_body_with_only_a_version_field_fails(self):
+        self.verify_fails(VERSION_STEP, "version: wrong or missing openwatch",
+                          version_body='{"version":"0.9.0"}')
+
+    def test_another_openwatch_version_fails(self):
+        self.verify_fails(VERSION_STEP, "version: wrong or missing openwatch",
+                          version_body=json.dumps({"openwatch": "0.8.4", "kensa": "0.10.0",
+                                                   "go": "go1.26.5", "commit": "x",
+                                                   "build_time": "y"}))
+
+    def test_degraded_health_fails(self):
+        self.verify_fails(HEALTH_STEP, "health: wrong or missing status", health_body=json.dumps(
+            {"status": "degraded", "db_connected": True, "version": "0.9.0"}))
+
+    def test_a_disconnected_database_fails(self):
+        for body in ({"status": "healthy", "db_connected": False, "version": "0.9.0"},
+                     {"status": "healthy", "db_connected": 1, "version": "0.9.0"},
+                     {"status": "healthy", "version": "0.9.0"}):
+            with self.subTest(body=body):
+                shutil.rmtree(self.evidence, True)
+                shutil.rmtree(self.remote, True)
+                for name, value in (("version", "0.8.4"), ("schema", "65"), ("service", "active")):
+                    self.state(name, value)
+                if os.path.exists(os.path.join(self.fake, "health-body")):
+                    os.unlink(os.path.join(self.fake, "health-body"))
+                self.verify_fails(HEALTH_STEP, "health: wrong or missing db_connected",
+                                  health_body=json.dumps(body))
+
+    def test_a_503_with_an_error_envelope_fails(self):
+        self.verify_fails(HEALTH_STEP, "", db_down="")
+        out = self.stdout("verify")
+        self.assertIn("http 503", out)
+        self.assertIn('"code":"server.unavailable"', out)
+
+    def test_a_status_other_than_200_fails_even_with_a_healthy_body(self):
+        self.verify_fails(HEALTH_STEP, "", health_code="500")
+        self.assertIn("http 500", self.stdout("verify"))
+        self.assertIn('"status":"healthy"', self.stdout("verify"))
+
+    def test_a_body_that_is_not_json_fails(self):
+        self.verify_fails(HEALTH_STEP, "health: the body is not JSON",
+                          health_body="<html>502 Bad Gateway</html>")
+
+    def test_step_8_needs_a_healthy_body_too(self):
+        self.through("verify")
+        self.state("health-body", json.dumps(
+            {"status": "degraded", "db_connected": True, "version": "0.9.0"}))
+        code, out = self.run_phase("rules")
+        self.assertEqual(code, 1, out)
+        with open(os.path.join(self.capture("rules"), "stderr")) as f:
+            self.assertIn("STOPPED at: Step 8.1: healthy", f.read())
+        self.assertNotIn("STEP 8 DONE", self.stdout("rules"))
+
+
+# Every command that changes an OpenWatch server, as the fakes log it.
+MUTATING = ("pg_dump", "pg_restore", "systemctl stop", "systemctl start", "systemctl restart",
+            "dnf", "apt-get", "openwatch --config")
+
+
+class UpgradeIdentity(Case):
+    """AC-07: a changed target causes no staging, dump, stop, install, migration or restart."""
+
+    def changed_target_changes_nothing(self, phase, change, staged_by_phase=False):
+        prior = ("plan", "backup", "install", "verify", "rules")
+        self.through(prior[prior.index(phase) - 1])
+        dumps = sorted(os.listdir(os.path.join(self.root, "var/backups/openwatch")))
+        service = read_text(os.path.join(self.fake, "service"))
+        version = read_text(os.path.join(self.fake, "version"))
+        stage = os.path.join(self.remote, TAG, "upgrade", "packages")
+        staged = sorted(os.listdir(stage)) if os.path.isdir(stage) else None
+        change()
+        before = len(self.calls())
+        code, out = self.run_phase(phase)
+        self.assertEqual(code, 1, out)
+        later = self.calls()[before:]
+        self.assertEqual([c for c in later if c.startswith(MUTATING)], [], later)
+        self.assertNotIn(phase.upper() + " DONE", out)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.root, "var/backups/openwatch"))),
+                         dumps)
+        self.assertEqual(read_text(os.path.join(self.fake, "service")), service)
+        self.assertEqual(read_text(os.path.join(self.fake, "version")), version)
+        if not staged_by_phase:
+            self.assertEqual(sorted(os.listdir(stage)) if os.path.isdir(stage) else None,
+                             staged, "a package was staged on a changed host")
+        if phase == "install":
+            self.assertIsNone(staged)
+        return out
+
+    def test_another_machine_id_changes_nothing_in_any_phase(self):
+        for phase in ("backup", "install", "verify", "rules"):
+            with self.subTest(phase=phase):
+                self.setUp()
+                out = self.changed_target_changes_nothing(phase, lambda: self.write(
+                    "etc/machine-id", "0000000000000000000000000000beef\n"))
+                if phase == "install":
+                    self.assertIn("staging", out)
+                else:
+                    with open(os.path.join(self.capture(phase), "stderr")) as f:
+                        err = f.read()
+                    self.assertIn("STOPPED at: identity matches the verified preflight", err)
+                    self.assertIn("not the host the preflight examined", err)
+
+    def test_another_hostname_changes_nothing_in_any_phase(self):
+        for phase in ("backup", "install", "verify", "rules"):
+            with self.subTest(phase=phase):
+                self.setUp()
+                self.changed_target_changes_nothing(
+                    phase, lambda: self.state("hostname", "owas-rhn02.hanalyx.local"))
+
+    def test_the_staging_checks_identity_before_it_creates_anything(self):
+        self.through("backup")
+        self.write("etc/machine-id", "0000000000000000000000000000beef\n")
+        code, out = self.run_phase("install")
+        self.assertEqual(code, 1, out)
+        self.assertIn("staging %s on owas-rhn01 ended with exit=1" %
+                      os.path.basename(self.packages[0]), out)
+        with open(os.path.join(self.host_dir, "stage-" + os.path.basename(self.packages[0]),
+                               "stderr")) as f:
+            self.assertIn("not the host the preflight examined", f.read())
+        self.assertFalse(os.path.exists(self.capture("install")), "the install phase ran")
+
+    def test_a_host_changed_after_staging_is_not_stopped_or_installed(self):
+        # Staging and the install run are separate connections: the install
+        # script checks again, on its own connection, before Step 2.
+        real = ru.stage_packages
+
+        def stage_then_change(*a, **kw):
+            result = real(*a, **kw)
+            self.write("etc/machine-id", "0000000000000000000000000000beef\n")
+            return result
+        ru.stage_packages = stage_then_change
+        self.addCleanup(setattr, ru, "stage_packages", real)
+        out = self.changed_target_changes_nothing("install", lambda: None, staged_by_phase=True)
+        with open(os.path.join(self.capture("install"), "stderr")) as f:
+            self.assertIn("STOPPED at: identity matches the verified preflight", f.read())
+
+    def test_the_expected_identity_is_the_preflights(self):
+        self.ok("plan")
+        code, out = self.run_phase("backup", execute=False)
+        self.assertIn("export OW_EXPECT_MACHINE_ID=35a9c078635e4d12ab707298cd170ae2", out)
+        self.assertIn("export OW_EXPECT_HOSTNAME=owas-rhn01.hanalyx.local", out)
+        self.assertLess(out.index("identity matches the verified preflight"),
+                        out.index("pg_dump"))
+
+    def test_a_preflight_without_one_identity_line_blocks_every_change(self):
+        os.makedirs(self.host_dir)
+        ec.capture(["sh", "-c", 'echo "== hostname"; echo a; echo b; echo "== exit 0"; '
+                    'echo "== machine-id"; echo 35a9c078635e4d12ab707298cd170ae2; '
+                    'echo "== exit 0"'], self.host_dir, "upgrade-plan", TAG, COMMIT,
+                   timeout=30, host=dict(ec.host_identity()))
+        before = self.calls()
+        code, out = self.run_phase("backup")
+        self.assertEqual(code, 1, out)
+        self.assertIn("reported 2 hostname lines, not one", out)
+        self.assertEqual(self.calls(), before)
 
 
 class UpgradeStep8(Case):

@@ -108,3 +108,27 @@ func TestReleaseUpgrade_StaysInsideTheProcedure(t *testing.T) {
 			"test_the_scripts_never_start_roll_back_or_reboot")
 	})
 }
+
+// @ac AC-06
+// AC-06: Step 7 reads each endpoint by its schema, and refuses anything else.
+func TestReleaseUpgrade_Step7ReadsTheSchemas(t *testing.T) {
+	t.Run("release-upgrade-steps/AC-06", func(t *testing.T) {
+		requireReleaseUpgrade(t, "UpgradeStep7", 9,
+			"test_the_fixtures_are_the_servers_schemas",
+			"test_a_version_body_with_only_a_version_field_fails",
+			"test_a_disconnected_database_fails",
+			"test_a_503_with_an_error_envelope_fails")
+	})
+}
+
+// @ac AC-07
+// AC-07: a changed target causes no staging, dump, stop, install, migration or restart.
+func TestReleaseUpgrade_ChecksIdentityBeforeAnyChange(t *testing.T) {
+	t.Run("release-upgrade-steps/AC-07", func(t *testing.T) {
+		requireReleaseUpgrade(t, "UpgradeIdentity", 6,
+			"test_another_machine_id_changes_nothing_in_any_phase",
+			"test_another_hostname_changes_nothing_in_any_phase",
+			"test_the_staging_checks_identity_before_it_creates_anything",
+			"test_a_host_changed_after_staging_is_not_stopped_or_installed")
+	})
+}
