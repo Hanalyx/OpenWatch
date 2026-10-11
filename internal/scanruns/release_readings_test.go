@@ -91,9 +91,15 @@ func rows(t *testing.T, pool *pgxpool.Pool, sql string, scan string) [][]string 
 		if err != nil {
 			t.Fatalf("values: %v", err)
 		}
+		// As text, the way psql prints them on the server. pgx returns a
+		// uuid column as [16]byte, which fmt would print as a byte list.
 		row := make([]string, len(vals))
 		for i, v := range vals {
-			row[i] = fmt.Sprint(v)
+			if b, ok := v.([16]byte); ok {
+				row[i] = uuid.UUID(b).String()
+			} else {
+				row[i] = fmt.Sprint(v)
+			}
 		}
 		out = append(out, row)
 	}
