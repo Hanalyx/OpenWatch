@@ -51,6 +51,9 @@ FAKES = {
           '  skip) echo "    upgrade_test.go:1: set OPENWATCH_KENSA_COMPAT_... to run"\n'
           '        echo "--- SKIP: $T (0.00s)"; echo PASS; exit 0 ;;\n'
           '  touch) echo x >> "$OPENWATCH_KENSA_COMPAT_NEW_DIR"/$(ls "$OPENWATCH_KENSA_COMPAT_NEW_DIR" | head -1) ;;\n'
+          '  touch-one) role=$(cut -d: -f1 "$ASSETS_FAKE/touch-target"); f=$(cut -d: -f2 "$ASSETS_FAKE/touch-target")\n'
+          '     if [ "$role" = old ]; then d=$OPENWATCH_KENSA_COMPAT_OLD_DIR; else d=$OPENWATCH_KENSA_COMPAT_NEW_DIR; fi\n'
+          '     [ -f "$d/$f" ] && echo x >> "$d/$f" ;;\n'
           'esac\n'
           '[ "$outcome" = nopass ] || echo "        PASS: fresh install accepted"\n'
           '[ "$outcome" = failline ] && echo "        FAIL: corpus digest differs"\n'
@@ -85,8 +88,8 @@ class Case(ta.Case):
         os.mkdir(self.old)
         self.build_old()
 
-    def build_old(self, sign_with=None):
-        for name in OLD_PACKAGES:
+    def build_old(self, sign_with=None, packages=OLD_PACKAGES):
+        for name in packages:
             with open(os.path.join(self.old, name), "wb") as f:
                 f.write(("old package %s\n" % name).encode())
         names = sorted(n for n in os.listdir(self.old) if not n.startswith("SHA256SUMS"))
@@ -131,6 +134,8 @@ class CompatRuns(Case):
         code, out, report = self.compat()
         self.assertEqual(code, 0, out)
         self.assertEqual(report["verdict"], "PASS")
+        after = [r for r in report["checks"] if r["area"] == "inputs-after"][0]
+        self.assertEqual(after["detail"], "all 8 staged copies unchanged")
         modes = sorted(r["subject"] for r in report["checks"] if r["area"] == "compat")
         self.assertEqual(modes, sorted(m[0] for m in rc.MODES))
         src = os.path.join(self.evidence, "src")
@@ -320,6 +325,63 @@ class CompatInputs(Case):
         self.assertIn("--inventory-from-tree", out)
         code, out, report = self.compat("--inventory-from-tree", commit=commit)
         self.assertTrue(any("not the candidate" in n for n in report["notes"]))
+
+
+class CompatSameCorpusVersion(Case):
+    """AC-04: identically named packages in both pairs are compared separately."""
+
+    def setUp(self):
+        Case.setUp(self)
+        # The old release ships the same kensa-rules version as the new one, so
+        # both pairs stage files with identical names.
+        for name in list(os.listdir(self.old)):
+            os.unlink(os.path.join(self.old, name))
+        self.build_old(packages=("openwatch-0.8.0-1.x86_64.rpm", "openwatch_0.8.0_amd64.deb",
+                                 "kensa-rules-%s-1.noarch.rpm" % ta.KENSA,
+                                 "kensa-rules_%s_all.deb" % ta.KENSA))
+
+    def test_the_unchanged_case_accounts_for_all_eight_copies(self):
+        code, out, report = self.compat()
+        self.assertEqual(code, 0, out)
+        stage = os.path.join(self.evidence, "stage")
+        names = {}
+        for d in os.listdir(stage):
+            for n in os.listdir(os.path.join(stage, d)):
+                names.setdefault(n, []).append(d)
+        shared = sorted(n for n, ds in names.items() if len(ds) > 1)
+        self.assertEqual(shared, sorted(["kensa-rules-%s-1.noarch.rpm" % ta.KENSA,
+                                         "kensa-rules_%s_all.deb" % ta.KENSA]))
+        self.assertEqual(sum(len(v) for v in names.values()), 8)
+        after = [r for r in report["checks"] if r["area"] == "inputs-after"][0]
+        self.assertEqual(after["detail"], "all 8 staged copies unchanged")
+
+    def test_a_comparison_that_misses_a_copy_fails(self):
+        # A map keyed without the role would lose an entry; the count of
+        # staged copies, read from the file system, must catch that.
+        before = {("new", "rpm", "x.rpm"): "1", ("old", "rpm", "x.rpm"): "1"}
+        self.assertEqual(rc.compare(before, dict(before), 2), [])
+        lossy = {("rpm", "x.rpm"): "1"}
+        self.assertEqual(rc.compare(lossy, dict(lossy), 2),
+                         ["compared 1 and 1 of 2 staged copies"])
+
+    def test_changing_either_copy_of_a_shared_name_fails(self):
+        for role in ("new", "old"):
+            for kind, name in (("rpm", "kensa-rules-%s-1.noarch.rpm" % ta.KENSA),
+                               ("deb", "kensa-rules_%s_all.deb" % ta.KENSA)):
+                with self.subTest(role=role, kind=kind):
+                    shutil.rmtree(self.evidence, True)
+                    self.outcome("touch-one")
+                    with open(os.path.join(self.fake, "touch-target"), "w") as f:
+                        f.write("%s:%s" % (role, name))
+                    code, out, report = self.compat()
+                    self.assertEqual(code, 1, out)
+                    self.assertEqual(self.failed(report), [("inputs-after", "staged packages")])
+                    detail = [r["detail"] for r in report["checks"]
+                              if r["area"] == "inputs-after"][0]
+                    self.assertIn("CHANGED during the runs: %s/%s/%s" % (role, kind, name),
+                                  detail)
+                    other = "old" if role == "new" else "new"
+                    self.assertNotIn("%s/%s/%s" % (other, kind, name), detail)
 
 
 setUpModule = ta.setUpModule

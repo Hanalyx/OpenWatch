@@ -88,3 +88,14 @@ func TestReleaseCompat_UsesOnlyVerifiedUnchangedInputs(t *testing.T) {
 			"test_a_package_changed_during_the_runs_fails")
 	})
 }
+
+// @ac AC-04
+// AC-04: identically named packages in both pairs are compared separately.
+func TestReleaseCompat_ComparesSharedNamesByRole(t *testing.T) {
+	t.Run("release-compat-runs/AC-04", func(t *testing.T) {
+		requireReleaseCompat(t, "CompatSameCorpusVersion", 3,
+			"test_the_unchanged_case_accounts_for_all_eight_copies",
+			"test_changing_either_copy_of_a_shared_name_fails",
+			"test_a_comparison_that_misses_a_copy_fails")
+	})
+}

@@ -62,7 +62,10 @@ spec:
         PASS, no SKIP, the container's "all checks passed" line for that mode,
         at least one PASS check line and no FAIL line. Every area that could
         not run is a failure, and the staged packages must be unchanged
-        afterwards.
+        afterwards. Every staged copy is compared by its role (old or new), its
+        format and its name, so identically named packages in both pairs are
+        compared separately; the comparison must cover as many copies as the
+        file system holds, and the report states how many were compared.
       type: security
       enforcement: error
 
@@ -97,3 +100,13 @@ spec:
         --inventory-from-tree, which the report notes) are refused.
       priority: critical
       references_constraints: [C-01, C-03]
+    - id: AC-04
+      description: >-
+        With both pairs carrying the same kensa-rules version, so four of the
+        eight staged copies share names across roles, the unchanged run
+        compares and reports all eight. Changing any one of the four shared
+        copies (new or old, RPM or DEB) fails the after-check, naming that
+        copy's role, format and name and not the other role's copy. A
+        comparison that covers fewer copies than were staged fails.
+      priority: critical
+      references_constraints: [C-03]

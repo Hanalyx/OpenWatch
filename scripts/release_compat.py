@@ -179,9 +179,35 @@ def stage(run, which, paths):
     return dirs
 
 
-def digests(dirs):
-    return dict((os.path.join(k, n), ra.sha256(os.path.join(d, n)))
-                for k, d in dirs.items() for n in sorted(os.listdir(d)))
+def digests(staged):
+    """sha256 of every staged copy, keyed by (role, format, name).
+
+    The role is part of the key: the old and new pairs can carry identically
+    named packages (the same kensa-rules version), and a key without the role
+    would let one copy's entry overwrite the other's.
+    """
+    out = {}
+    for role, dirs in staged:
+        for kind, d in sorted(dirs.items()):
+            for n in sorted(os.listdir(d)):
+                out[(role, kind, n)] = ra.sha256(os.path.join(d, n))
+    return out
+
+
+def compare(before, after, n):
+    """Problems comparing two digest maps that must each cover all n staged copies."""
+    problems = []
+    if not (len(before) == len(after) == n):
+        problems.append("compared %d and %d of %d staged copies" % (len(before), len(after), n))
+    changed = sorted("/".join(k) for k in set(before) | set(after) if before.get(k) != after.get(k))
+    if changed:
+        problems.append("CHANGED during the runs: " + ", ".join(changed))
+    return problems
+
+
+def copies(staged):
+    """How many files were staged, counted from the file system, not from a map."""
+    return sum(len(os.listdir(d)) for _role, dirs in staged for d in dirs.values())
 
 
 def source(run):
@@ -298,8 +324,8 @@ def compat(a, tools=None):
             new, old = stage(run, "new", newp), stage(run, "old", oldp)
     if not (new and old):
         return report(run)
-    before = digests(new)
-    before.update(digests(old))
+    staged = (("new", new), ("old", old))
+    before = digests(staged)
     src = source(run)
     if not src:
         return report(run)
@@ -311,11 +337,12 @@ def compat(a, tools=None):
         return report(run)
     for name, image, kind, mode in MODES:
         run_mode(run, src, name, image, kind, mode, old, new)
-    after = digests(new)
-    after.update(digests(old))
-    run.check("inputs-after", "staged packages", after == before,
-              "%d staged packages %s" % (len(before), "unchanged" if after == before else
-                                         "CHANGED during the runs"))
+    after = digests(staged)
+    problems = compare(before, after, copies(staged))
+    # The message states how many copies were compared, so a comparison that
+    # covered fewer than were staged cannot read as complete.
+    run.check("inputs-after", "staged packages", not problems,
+              "; ".join(problems) or "all %d staged copies unchanged" % len(before))
     return report(run)
 
 
