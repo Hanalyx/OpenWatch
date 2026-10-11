@@ -404,6 +404,24 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
 
    Until this says `VERDICT: GO`, there is nothing to publish.
 
+   **Before the fleet checks, verify the draft's assets in full.**
+   `scripts/release_assets.py` reads every expectation from the candidate
+   commit and checks what gates A1 and A2 do not:
+   - the Go toolchain, revision, version and modules in each binary;
+   - `govulncheck` on each binary;
+   - the RPM signatures;
+   - the shipped notices;
+   - the SBOMs.
+
+   It changes nothing, captures every command's raw output, and writes a
+   `REPORT.md`. It is preparation evidence, not a gate, and it records no
+   decision.
+
+   ```bash
+   python3 -S scripts/release_assets.py --tag "$TAG" --commit "$CANDIDATE" \
+     --key "$KEY" --evidence ~/Documents/openwatch/release-evidence/"$TAG"/assets-verification
+   ```
+
 4. **Publish the verified draft, on GO and on separate founder authorization.**
 
    ```bash

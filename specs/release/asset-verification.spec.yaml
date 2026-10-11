@@ -1,0 +1,200 @@
+spec:
+  id: release-asset-verification
+  title: Release asset verification against the candidate commit
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: Draft-asset verification for release preparation
+    description: >
+      The release checker's gates A1 and A2 hash the assets against
+      SHA256SUMS and verify its signature. For v0.8.4 everything else about
+      the draft's assets was checked by hand: which Go toolchain built each
+      binary, whether it was the candidate commit, which module versions it
+      carries, whether govulncheck finds called vulnerabilities, the RPM
+      signatures, the shipped notices and the SBOMs. scripts/release_assets.py
+      does those checks in one maintained, tested run, with every expectation
+      read from the candidate commit and every command's raw output captured.
+      It reads the release and changes nothing; it records no release
+      decision.
+    related_specs:
+      - release-ci-gates
+      - release-evidence-capture
+      - release-tagging
+
+  objective:
+    summary: >
+      A release's assets are shown, from raw evidence, to be the candidate
+      commit's build with the expected toolchain, modules, signatures, notices
+      and SBOMs, before anyone is asked to sign off on them.
+    scope:
+      includes:
+        - scripts/release_assets.py, against a draft or published release or a downloaded directory
+      excludes:
+        - Release decisions, publication, and any change to a release or its assets
+        - Gates A1 and A2 themselves, which stay in scripts/release-status.py
+
+  constraints:
+    - id: C-01
+      description: >-
+        Every expectation is read from the candidate commit: VERSION from
+        packaging/version.env (which must match the tag), the Go toolchain and
+        module versions and the kensa version from go.mod, the release key
+        from security/KEYS, and the notices from THIRD-PARTY-NOTICES.md. Every
+        external command runs through scripts/evidence_capture.py with an
+        explicit timeout. The evidence directory must be new, and the assets
+        are not modified.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The tag on origin peels to the commit; with a download, each asset
+        matches the digest GitHub reports for it. SHA256SUMS lists every
+        package and SBOM exactly once and each matches; the KEYS asset equals
+        security/KEYS at the commit.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        SHA256SUMS.asc is a good signature by the named key, which is a
+        primary key in security/KEYS at the commit, verified in a throwaway
+        GnuPG home whose daemons are stopped afterwards; every RPM's
+        signatures and digests verify against that key in a throwaway rpm
+        database.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        Each openwatch package's /usr/bin/openwatch reports go.mod's
+        toolchain, vcs.revision equal to the commit, vcs.modified=false,
+        ldflags Version and Commit, the package's architecture, and every
+        dependency at go.mod's version.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        govulncheck in binary mode finds no vulnerability in called code;
+        findings only in imported packages or required modules are listed, not
+        failed. Each openwatch package ships its license files and the
+        commit's THIRD-PARTY-NOTICES.md. Each package has a CycloneDX SBOM
+        whose subject is that package's file and sha256; openwatch SBOMs list
+        Go modules at go.mod's versions, with the count compared shown; the
+        merged SBOM is present.
+      type: technical
+      enforcement: error
+
+    - id: C-06
+      description: >-
+        Completeness is decided by the inventory declared in
+        release/assets.toml at the candidate commit: every package by
+        architecture, an SBOM for each, and the required files must be
+        present, and nothing undeclared may be, except declared optional
+        files, which are noted and not verified. The manifest's coverage is
+        checked against that inventory, not against the directory listing, so
+        a consistent, signed manifest of an incomplete set fails. kensa-rules
+        is named by go.mod's kensa version. A candidate without the file fails
+        the inventory check unless --inventory-from-tree is given, in which
+        case the report says the inventory came from the tool's tree. The
+        inventory is pinned to the Makefile's packages target and to the
+        files release.yml uploads.
+      type: security
+      enforcement: error
+    - id: C-07
+      description: >-
+        A run never passes without evidence. A --from that is missing or not
+        a directory is refused. A failed download stops the checks. Every
+        declared package that is missing or cannot be unpacked produces a
+        failing "could not run" check in each area that needed it, and every
+        area with no check at all is reported as a failure. A report with no
+        checks is a FAIL.
+      type: security
+      enforcement: error
+    - id: C-08
+      description: >-
+        govulncheck's output and exit status are validated together: exit 0,
+        a stream that parses completely, exactly one govulncheck config in
+        binary mode, an SBOM object, and an osv entry and a trace for every
+        finding. Empty, malformed or inconsistent output fails, whatever the
+        exit status; valid module-only findings still pass.
+      type: security
+      enforcement: error
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        A good release passes every area (release, inventory, manifest,
+        signature, rpm, binary, vulns, notices, sbom), reading the inventory at
+        the candidate commit, without changing an asset, and the report
+        states that it records no release decision. Every command is a
+        verified capture bound to the tag and commit with one of the declared
+        timeouts. A short commit, a short fingerprint, an existing evidence
+        directory and a tag that does not match VERSION are refused before any
+        check. A download whose asset differs from GitHub's digest fails that
+        asset only.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        Exactly the expected checks fail for: a changed asset (its manifest
+        entry and, for a package, its SBOM); an undeclared file (the
+        inventory, and the coverage too once it is signed into SHA256SUMS); a
+        KEYS asset that differs from the commit's; and a tag on origin that
+        names another commit.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        A SHA256SUMS signature by another key fails; a key that is not in
+        security/KEYS fails both the key and the signature checks; an RPM
+        whose signature check reports NOT OK fails that RPM only.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        The binary check alone fails for another Go toolchain, a dependency
+        at another version, vcs.modified=true, another version in ldflags, the
+        wrong architecture, and another commit's revision; a package without
+        the binary fails the binary and notices checks.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        A called vulnerability fails every openwatch binary and names the
+        advisory; required-module and imported-only findings are listed and
+        pass. Notices that differ and a missing license file fail the notices
+        check alone. An SBOM naming another digest, listing another module
+        version, or missing fails that SBOM and the matching inventory and
+        coverage checks; a kensa-rules package of another version than go.mod's
+        kensa is a missing declared asset and an unexpected one.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        With every package and package SBOM removed and SHA256SUMS regenerated
+        and signed, the run fails, naming each missing package and SBOM, the
+        coverage, and each binary, vulns, notices and SBOM check that could not
+        run. A missing architecture fails the same way for that package. The
+        optional cosign signature is allowed and noted as not verified. A
+        candidate without release/assets.toml fails the inventory alone, and
+        passes with --inventory-from-tree, which the report records as not the
+        candidate's inventory. A Go test pins the inventory to the Makefile's
+        packages target and to release.yml's uploaded files.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        A --from that does not exist or is a file is refused and creates no
+        evidence. A failed download fails the run with every area failing. A
+        report with no checks fails, listing every area as not run.
+      priority: critical
+      references_constraints: [C-07]
+    - id: AC-08
+      description: >-
+        An empty govulncheck stream fails with exit 3 and with exit 0; a valid
+        stream with exit 3 fails; malformed output fails; output without a
+        config, with a source-mode config, without an SBOM object, with a
+        finding that has no osv entry, or with a finding that has no trace
+        fails; valid module-only findings pass and are listed.
+      priority: critical
+      references_constraints: [C-08]

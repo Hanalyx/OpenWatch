@@ -94,13 +94,35 @@ RELEASING.md Stage 2:
 - `--sign` and `--push` are the release captain's actions, run in their own terminal. Never
   run either without explicit authorization for that tag, and never move or delete a tag.
 
+## Draft-asset verification
+
+`scripts/release_assets.py` verifies a draft's (or a published release's) assets against the
+candidate commit, read-only. Run it before asking for fleet checks:
+
+```bash
+python3 -S scripts/release_assets.py --tag "$TAG" --commit "$CANDIDATE" --key "$KEY" \
+  --evidence ~/Documents/openwatch/release-evidence/"$TAG"/assets-verification
+```
+
+- Read `REPORT.md` and every FAIL. The raw captures under `captures/` are the evidence; the
+  report is derived from them.
+- A `govulncheck` finding only in required modules or imported packages is listed, not failed.
+  Report it to the release captain; do not decide it away.
+- Completeness comes from `release/assets.toml` at the candidate commit, not from whatever was
+  downloaded. A candidate older than that file needs `--inventory-from-tree`, and the report
+  then says the inventory is not the candidate's. Say so in the hand-off.
+- A check that could not run is a FAIL, never a pass. Never report PASS from a run with
+  missing input, a failed download or unusable `govulncheck` output.
+- It records no decision and changes nothing. Gates A1 and A2 stay in `release-status.py`.
+- Validated so far against the published v0.8.4 release, read-only; not yet on a draft
+  candidate.
+
 ## Not covered yet
 
 These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md`. When doing
 them, capture every command through `evidence_capture.py run --timeout`:
 
 - the release-prep PR content;
-- draft-asset verification: hashes, signatures, `go version -m`, `govulncheck`, notices, SBOMs;
 - local compatibility runs on downloaded packages;
 - the fleet upgrade, Steps 1 to 8;
 - F1, F3 and D1 packets.

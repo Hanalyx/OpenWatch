@@ -43,6 +43,7 @@ domains:
             - release-evidence-capture
             - release-preparation
             - release-tagging
+            - release-asset-verification
             - system-auth-identity
             - system-user-management
             - system-credential-store
