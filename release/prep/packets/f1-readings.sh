@@ -49,6 +49,8 @@ SELECT e.occurred_at, e.action, e.actor_type, COALESCE(e.actor_id, ''),
  ORDER BY e.occurred_at, e.action;
 SQL
 }
+# The run's counts are integer and count(*) is bigint; PostgreSQL will not
+# compare records whose columns differ in type, so the run side is cast.
 # Exits 1 unless the run completed, has result rows, its own counts equal the
 # rows by status, and its trail holds exactly one queued and one completed
 # event and no failed one. The readings above are printed either way.
@@ -73,7 +75,8 @@ SELECT CASE
   WHEN NOT EXISTS (SELECT 1 FROM r) THEN 'no such scan'
   WHEN (SELECT status FROM r) <> 'completed' THEN 'scan is ' || (SELECT status FROM r)
   WHEN (SELECT n FROM c) = 0 THEN 'no result rows'
-  WHEN (SELECT (rules_pass, rules_fail, rules_skipped, rules_error) FROM r)
+  WHEN (SELECT (rules_pass::bigint, rules_fail::bigint, rules_skipped::bigint,
+                rules_error::bigint) FROM r)
        IS DISTINCT FROM (SELECT (p, f, s, e) FROM c)
        THEN 'run counts differ from result rows'
   WHEN (SELECT q FROM a) <> 1 THEN 'scan.queued events: ' || (SELECT q FROM a)
