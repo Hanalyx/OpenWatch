@@ -57,11 +57,27 @@ FAKES = {
     "cpio": '#!/bin/sh\nexec tar -xf -\n',
     "dpkg-deb": '#!/bin/sh\nexec tar -xf "$2" -C "$3"\n',
     "go": '#!/bin/sh\nexec cat "$3"\n',
-    "govulncheck": '#!/bin/sh\nif [ -f "$ASSETS_FAKE/vulns.json" ]; then cat "$ASSETS_FAKE/vulns.json";'
-                   ' else echo \'{"config":{"scanner_name":"govulncheck"}}\'; fi\n',
+    "govulncheck": '#!/bin/sh\ncat "$ASSETS_FAKE/vulns.json"\n'
+                   'if [ -f "$ASSETS_FAKE/vuln-exit" ]; then exit "$(cat "$ASSETS_FAKE/vuln-exit")"; fi\n',
     "gh": '#!/bin/sh\nif [ "$1 $2" = "release download" ]; then cp "$ASSETS_FAKE"/release/* "$7"/; '
           'exit 0; fi\nif [ "$1" = "api" ]; then cat "$ASSETS_FAKE/releases.json"; exit 0; fi\nexit 9\n',
 }
+
+
+CONFIG = {"config": {"protocol_version": "v1.0.0", "scanner_name": "govulncheck",
+                     "scan_level": "symbol", "scan_mode": "binary"}}
+SBOM = {"SBOM": {"go_version": "go1.26.9", "modules": [{"path": "golang.org/x/net",
+                                                       "version": "v0.60.0"}]}}
+
+
+def vuln_stream(*findings, config=CONFIG, sbom=SBOM, osv=True):
+    """A govulncheck -format json stream: config, SBOM, an osv entry per finding, findings."""
+    objs = ([config] if config else []) + ([sbom] if sbom else [])
+    for oid, frame in findings:
+        if osv:
+            objs.append({"osv": {"id": oid}})
+        objs.append({"finding": {"osv": oid, "trace": [frame] if frame else []}})
+    return "".join(json.dumps(o) + "\n" for o in objs)
 
 
 def run(argv, cwd=None, env=None, input_bytes=None):
@@ -105,6 +121,8 @@ class Case(unittest.TestCase):
         os.makedirs(os.path.join(self.fake, "release"))
         os.environ.update(self.env, ASSETS_FAKE=self.fake)
         self.tools = {}
+        with open(os.path.join(self.fake, "vulns.json"), "w") as f:
+            f.write(vuln_stream())
         for name, body in FAKES.items():
             p = os.path.join(self.fake, name)
             with open(p, "w") as f:
@@ -127,8 +145,11 @@ class Case(unittest.TestCase):
     def make_repo(self):
         self.git("init", "--quiet", "--bare", "--initial-branch=main", self.origin, cwd=self.dir)
         self.git("init", "--quiet", "--initial-branch=main", self.repo, cwd=self.dir)
+        with open(_here.parent / "release" / "assets.toml") as f:
+            inventory = f.read()
         files = {"packaging/version.env": 'VERSION="%s"\n' % VERSION, "go.mod": GOMOD,
-                 "security/KEYS": self.keys, "THIRD-PARTY-NOTICES.md": NOTICES}
+                 "security/KEYS": self.keys, "THIRD-PARTY-NOTICES.md": NOTICES,
+                 "release/assets.toml": inventory}
         for rel, data in files.items():
             p = os.path.join(self.repo, rel)
             os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -175,7 +196,9 @@ class Case(unittest.TestCase):
             json.dump(bom, f)
 
     PACKAGES = ("openwatch-%s-1.x86_64.rpm" % VERSION, "openwatch_%s_arm64.deb" % VERSION,
-                "kensa-rules-%s-1.noarch.rpm" % KENSA)
+                "kensa-rules-%s-1.noarch.rpm" % KENSA, "openwatch-%s-1.aarch64.rpm" % VERSION,
+                "openwatch_%s_amd64.deb" % VERSION, "kensa-rules_%s_all.deb" % KENSA)
+    BINARIES = 4
 
     def build_assets(self, sign_with=None, skip=(), **over):
         for name in self.PACKAGES:
@@ -213,6 +236,9 @@ class Case(unittest.TestCase):
                 report = json.load(f)
         return code, out.getvalue(), report
 
+    def binaries(self):
+        return [p for p in self.PACKAGES if p.startswith("openwatch")]
+
     def failures(self, report):
         return sorted((r["area"], r["subject"]) for r in report["checks"] if not r["ok"])
 
@@ -233,8 +259,9 @@ class AssetsRunAndEvidence(Case):
         self.assertEqual(code, 0, out)
         self.assertEqual(report["verdict"], "PASS")
         areas = {r["area"] for r in report["checks"]}
-        self.assertEqual(areas, {"release", "manifest", "signature", "rpm", "binary", "vulns",
-                                 "notices", "sbom"})
+        self.assertEqual(areas, set(ra.AREAS))
+        self.assertIn("release/assets.toml at the candidate commit",
+                      [r["detail"] for r in report["checks"] if r["subject"] == "source"][0])
         self.assertEqual({n: ra.sha256(os.path.join(self.assets, n))
                           for n in os.listdir(self.assets)}, before, "assets were modified")
         with open(os.path.join(self.evidence, "REPORT.md")) as f:
@@ -295,9 +322,15 @@ class AssetsManifestAndRelease(Case):
         self.assert_only_failures([("manifest", self.PACKAGES[2]), ("sbom", self.PACKAGES[2])])
 
     def test_an_unlisted_or_missing_asset_fails_coverage(self):
+        # Present but not in SHA256SUMS: the inventory catches it.
         with open(os.path.join(self.assets, "extra.txt"), "w") as f:
             f.write("x")
-        self.assert_only_failures([("manifest", "coverage")])
+        self.assert_only_failures([("inventory", "unexpected assets")])
+        # Signed into SHA256SUMS too: a consistent manifest is still not the
+        # declared inventory.
+        shutil.rmtree(self.evidence)
+        self.seal()
+        self.assert_only_failures([("inventory", "unexpected assets"), ("manifest", "coverage")])
 
     def test_a_different_keys_asset_fails(self):
         with open(os.path.join(self.assets, "KEYS"), "ab") as f:
@@ -363,7 +396,7 @@ class AssetsBinaries(Case):
             pass
         self.sbom(name)
         self.seal()
-        report = self.assert_only_failures([("binary", name), ("notices", name)])
+        report = self.assert_only_failures([("binary", name), ("notices", name), ("vulns", name)])
         self.assertIn("not in the package", " ".join(r["detail"] for r in report["checks"]))
 
 
@@ -372,14 +405,12 @@ class AssetsVulnsNoticesSboms(Case):
 
     def vulns(self, *frames):
         with open(os.path.join(self.fake, "vulns.json"), "w") as f:
-            for osv, frame in frames:
-                f.write(json.dumps({"finding": {"osv": osv, "trace": [frame]}}) + "\n")
+            f.write(vuln_stream(*frames))
 
     def test_a_called_vulnerability_fails_every_binary(self):
         self.vulns(("GO-2026-0001", {"module": "golang.org/x/net", "package": "x/net/http2",
                                      "function": "Server.ServeConn"}))
-        report = self.assert_only_failures([("vulns", self.PACKAGES[0]),
-                                            ("vulns", self.PACKAGES[1])])
+        report = self.assert_only_failures([("vulns", b) for b in self.binaries()])
         self.assertIn("GO-2026-0001", report["checks"][-1]["detail"] + json.dumps(report))
 
     def test_required_module_findings_are_reported_not_failed(self):
@@ -410,15 +441,196 @@ class AssetsVulnsNoticesSboms(Case):
                 self.assert_only_failures([("sbom", name)])
 
     def test_a_missing_sbom_or_a_kensa_version_mismatch_fails(self):
-        os.unlink(os.path.join(self.assets, self.PACKAGES[2] + ".cdx.json"))
+        kensa = self.PACKAGES[2]
+        os.unlink(os.path.join(self.assets, kensa + ".cdx.json"))
         self.seal()
-        self.assert_only_failures([("sbom", self.PACKAGES[2])])
+        self.assert_only_failures([("inventory", kensa + ".cdx.json"), ("manifest", "coverage"),
+                                   ("sbom", kensa)])
+        # A kensa-rules package of another version than go.mod's kensa.
         shutil.rmtree(self.evidence, True)
         other = "kensa-rules-0.9.9-1.noarch.rpm"
-        os.rename(os.path.join(self.assets, self.PACKAGES[2]), os.path.join(self.assets, other))
+        os.rename(os.path.join(self.assets, kensa), os.path.join(self.assets, other))
         self.sbom(other)
         self.seal()
-        self.assert_only_failures([("sbom", other)])
+        # The inventory names kensa-rules by go.mod's kensa version, so the
+        # declared package is missing and the other one is unexpected.
+        # (its SBOM was already removed above, so that is still missing too)
+        self.assert_only_failures([("inventory", kensa), ("inventory", kensa + ".cdx.json"),
+                                   ("inventory", "unexpected assets"), ("manifest", "coverage"),
+                                   ("rpm", kensa), ("sbom", kensa)])
+
+
+class AssetsInventory(Case):
+    """AC-06: the declared inventory, not a consistent manifest, decides completeness."""
+
+    def test_no_packages_at_all_fails_even_with_a_signed_consistent_manifest(self):
+        # The review's reproduction: every package and package SBOM removed,
+        # SHA256SUMS regenerated and signed, so the manifest is consistent.
+        for name in self.PACKAGES:
+            for f in (name, name + ".cdx.json"):
+                os.unlink(os.path.join(self.assets, f))
+        self.seal()
+        code, out, report = self.verify()
+        self.assertEqual(code, 1, out)
+        self.assertEqual(report["verdict"], "FAIL")
+        failed = self.failures(report)
+        for name in self.PACKAGES:
+            self.assertIn(("inventory", name), failed)
+            self.assertIn(("inventory", name + ".cdx.json"), failed)
+            self.assertIn(("sbom", name), failed)
+        for name in self.binaries():
+            for area in ("binary", "vulns", "notices"):
+                self.assertIn((area, name), failed)
+        self.assertIn(("manifest", "coverage"), failed)
+
+    def test_a_missing_architecture_fails(self):
+        name = "openwatch_%s_arm64.deb" % VERSION
+        os.unlink(os.path.join(self.assets, name))
+        os.unlink(os.path.join(self.assets, name + ".cdx.json"))
+        self.seal()
+        self.assert_only_failures([("inventory", name), ("inventory", name + ".cdx.json"),
+                                   ("manifest", "coverage"), ("binary", name), ("vulns", name),
+                                   ("notices", name), ("sbom", name)])
+
+    def test_the_optional_cosign_signature_is_allowed_and_noted(self):
+        with open(os.path.join(self.assets, "SHA256SUMS.cosign.sig"), "w") as f:
+            f.write("sig")
+        code, out, report = self.verify()
+        self.assertEqual(code, 0, out)
+        self.assertTrue(any("cosign" in n and "does not verify" in n for n in report["notes"]))
+
+    def test_a_candidate_without_the_inventory_fails_unless_told_to_use_the_tree(self):
+        self.git("rm", "--quiet", "release/assets.toml")
+        self.git("commit", "--quiet", "-m", "no inventory")
+        self.git("tag", "-f", "-a", "-m", TAG, TAG)
+        self.git("push", "--quiet", "--force", "origin", "main", "refs/tags/" + TAG)
+        commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
+        for name in self.binaries():
+            self.package(name, binary=gover(commit, arch=ra.package_arch(name)))
+            self.sbom(name)
+        self.seal()
+        code, out, report = self.verify(commit=commit)
+        self.assertEqual(code, 1)
+        self.assertEqual(self.failures(report), [("inventory", "release/assets.toml")])
+        shutil.rmtree(self.evidence)
+        code, out, report = self.verify("--inventory-from-tree", commit=commit)
+        self.assertEqual(code, 0, out)
+        source = [r["detail"] for r in report["checks"] if r["subject"] == "source"][0]
+        self.assertIn("not the candidate", source)
+
+
+class AssetsNoSilentPass(Case):
+    """AC-07: missing input and checks that could not run are failures, never a pass."""
+
+    def test_a_missing_or_non_directory_from_is_refused(self):
+        for bad in (os.path.join(self.dir, "absent"), os.path.join(self.assets, "KEYS")):
+            out = io.StringIO()
+            code = ra.main(["--tag", TAG, "--commit", self.commit, "--key", Keys.release,
+                            "--evidence", self.evidence, "--repo", self.repo, "--from", bad],
+                           out=out, tools=ra.Tools(**self.tools))
+            self.assertEqual(code, 2, bad)
+            self.assertIn("is not a directory", out.getvalue())
+            self.assertFalse(os.path.exists(self.evidence))
+
+    def test_a_failed_download_reports_every_area_as_not_run(self):
+        self.tools["gh"] = os.path.join(self.fake, "gh-broken")
+        with open(self.tools["gh"], "w") as f:
+            f.write("#!/bin/sh\necho 'gh: HTTP 404' >&2\nexit 1\n")
+        os.chmod(self.tools["gh"], 0o755)
+        # gh exits 1, and the assets directory it would fill stays empty.
+        code, out, report = self.verify(src=False)
+        self.assertEqual(code, 1, out)
+        self.assertEqual(report["verdict"], "FAIL")
+        areas_failed = {r["area"] for r in report["checks"] if not r["ok"]}
+        self.assertEqual(areas_failed, set(ra.AREAS))
+        self.assertIn(("release", "download"), self.failures(report))
+        # Nothing was checked against the empty download: every other area
+        # says it did not run, and nothing past the release lookup was run.
+        others = [r for r in report["checks"] if r["area"] != "release"]
+        self.assertTrue(others and all("could not run" in r["detail"] for r in others), others)
+        caps = sorted(os.listdir(os.path.join(self.evidence, "captures")))
+        self.assertTrue(all(c.split("-", 1)[1].startswith("gh-release") for c in caps), caps)
+
+    def test_a_report_with_no_checks_at_all_fails(self):
+        # Independent of the per-area guard: with no areas to guard, an empty
+        # run still cannot pass.
+        old = ra.AREAS
+        ra.AREAS = ()
+        self.addCleanup(setattr, ra, "AREAS", old)
+        run = ra.Run(ra.argparse.Namespace(tag=TAG, commit=self.commit, key=Keys.release,
+                                           repo=self.repo, evidence=self.evidence,
+                                           inventory_from_tree=False), ra.Tools())
+        os.makedirs(self.evidence)
+        data = ra.report(run, self.assets, self.assets)
+        self.assertEqual(data["checks"], [])
+        self.assertEqual(data["verdict"], "FAIL")
+
+    def test_no_report_can_pass_without_checks_in_every_area(self):
+        run = ra.Run(ra.argparse.Namespace(tag=TAG, commit=self.commit, key=Keys.release,
+                                           repo=self.repo, evidence=self.evidence,
+                                           inventory_from_tree=False), ra.Tools())
+        os.makedirs(self.evidence)
+        data = ra.report(run, self.assets, self.assets)
+        self.assertEqual(data["verdict"], "FAIL")
+        self.assertEqual({r["area"] for r in data["checks"]}, set(ra.AREAS))
+        self.assertTrue(all("could not run" in r["detail"] for r in data["checks"]))
+
+
+class AssetsScannerOutput(Case):
+    """AC-08: govulncheck's output and exit status are validated together."""
+
+    def scanner(self, text, exit_code=None):
+        with open(os.path.join(self.fake, "vulns.json"), "w") as f:
+            f.write(text)
+        if exit_code is not None:
+            with open(os.path.join(self.fake, "vuln-exit"), "w") as f:
+                f.write(str(exit_code))
+
+    def assert_every_scan_fails(self, reason):
+        report = self.assert_only_failures([("vulns", b) for b in self.binaries()])
+        details = [r["detail"] for r in report["checks"] if r["area"] == "vulns"]
+        self.assertTrue(all(reason in d for d in details), details)
+
+    def test_an_empty_stream_fails_with_exit_0_or_3(self):
+        # The review's reproduction: an empty stream with exit 3.
+        for code in (3, 0):
+            with self.subTest(exit=code):
+                shutil.rmtree(self.evidence, True)
+                self.scanner("", exit_code=code)
+                self.assert_every_scan_fails("exit 0" if code else "expected one govulncheck config")
+
+    def test_a_valid_stream_with_a_nonzero_exit_fails(self):
+        self.scanner(vuln_stream(), exit_code=3)
+        self.assert_every_scan_fails("did not complete with exit 0")
+
+    def test_malformed_output_fails(self):
+        self.scanner(vuln_stream() + '{"finding": {"osv": "GO-1", ')
+        self.assert_every_scan_fails("not a JSON stream")
+
+    def test_inconsistent_output_fails(self):
+        cases = (
+            (vuln_stream(config=None), "expected one govulncheck config"),
+            (vuln_stream(config={"config": {"scanner_name": "govulncheck",
+                                            "scan_mode": "source"}}),
+             "expected one govulncheck config"),
+            (vuln_stream(sbom=None), "no SBOM object"),
+            (vuln_stream(("GO-2026-0002", {"module": "golang.org/x/net"}), osv=False),
+             "no matching osv entry"),
+            (vuln_stream(("GO-2026-0003", None)), "no trace"),
+        )
+        for text, reason in cases:
+            with self.subTest(reason=reason):
+                shutil.rmtree(self.evidence, True)
+                self.scanner(text)
+                self.assert_every_scan_fails(reason)
+
+    def test_valid_module_only_findings_still_pass(self):
+        self.scanner(vuln_stream(("GO-2026-5932", {"module": "golang.org/x/crypto",
+                                                   "version": "v0.57.0"})))
+        code, out, report = self.verify()
+        self.assertEqual(code, 0, out)
+        details = [r["detail"] for r in report["checks"] if r["area"] == "vulns"]
+        self.assertTrue(all("required modules only: ['GO-2026-5932']" in d for d in details))
 
 
 if __name__ == "__main__":

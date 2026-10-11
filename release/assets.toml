@@ -1,0 +1,46 @@
+# Release asset inventory (release-asset-verification C-06).
+#
+# The assets every release must carry. scripts/release_assets.py reads this
+# file AT THE CANDIDATE COMMIT and fails a release that lacks any of them or
+# carries anything else, so a release with a consistent but incomplete
+# manifest cannot pass.
+#
+# {version} is VERSION from packaging/version.env with its first hyphen as a
+# dot: the build tilde-encodes a pre-release (0.9.0-rc.1 -> 0.9.0~rc.1) and
+# release.yml renames '~' to '.' before upload, so that is the published
+# filename. {kensa} is go.mod's github.com/Hanalyx/kensa version.
+#
+# packaging/tests pins this list to the Makefile's `packages` target and to
+# the files release.yml uploads. Change all three together.
+
+# One openwatch RPM and DEB per architecture; each carries /usr/bin/openwatch.
+[[package]]
+file = "openwatch-{version}-1.x86_64.rpm"
+binary = true
+
+[[package]]
+file = "openwatch-{version}-1.aarch64.rpm"
+binary = true
+
+[[package]]
+file = "openwatch_{version}_amd64.deb"
+binary = true
+
+[[package]]
+file = "openwatch_{version}_arm64.deb"
+binary = true
+
+# The rule corpus, architecture-independent.
+[[package]]
+file = "kensa-rules-{kensa}-1.noarch.rpm"
+binary = false
+
+[[package]]
+file = "kensa-rules_{kensa}_all.deb"
+binary = false
+
+[files]
+# Every package also needs <file>.cdx.json; that rule is implied, not listed.
+required = ["openwatch.cdx.json", "SHA256SUMS", "SHA256SUMS.asc", "KEYS"]
+# Uploaded only when cosign signing is configured. Not verified by the tool.
+optional = ["SHA256SUMS.cosign.sig"]

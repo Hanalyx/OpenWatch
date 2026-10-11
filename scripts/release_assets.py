@@ -33,9 +33,12 @@ passes:
   notices   each openwatch package ships LICENSE, THIRD-PARTY-LICENSES.txt,
             license-manifest.json and a THIRD-PARTY-NOTICES.md identical to
             the commit's
+  inventory every asset declared in release/assets.toml at the commit is present
+            (each package by architecture, its SBOM, and the required files),
+            and nothing undeclared is; kensa-rules is named by go.mod's version
   sbom      each package has a CycloneDX SBOM whose subject is that package's
             file and sha256; openwatch SBOMs list Go modules at go.mod's
-            versions; kensa-rules packages carry go.mod's kensa version
+            versions
 
 Every external command runs through scripts/evidence_capture.py with an
 explicit timeout, so its raw stdout, stderr and exit status are kept under
@@ -54,6 +57,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 _here = Path(__file__).resolve().parent
@@ -69,6 +73,13 @@ _TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
 # Explicit timeouts, in seconds, for every command this tool runs.
 TIMEOUTS = {"download": 1800, "gh": 120, "git": 120, "gpg": 120, "rpm": 120,
             "extract": 300, "go": 120, "govulncheck": 600}
+
+# Every area must report at least one check; an area that could not run is a
+# failure, never a silent pass.
+AREAS = ("release", "inventory", "manifest", "signature", "rpm", "binary", "vulns",
+         "notices", "sbom")
+
+INVENTORY = "release/assets.toml"
 
 # What each openwatch package must ship under /usr/share/licenses/openwatch.
 LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.txt", "THIRD-PARTY-NOTICES.md",
@@ -98,7 +109,9 @@ class Run(object):
         self.out = os.path.abspath(a.evidence)
         self.captures = os.path.join(self.out, "captures")
         self.results = []
+        self.notes = []
         self.n = 0
+        self.inventory_from_tree = getattr(a, "inventory_from_tree", False)
 
     # -- running things --------------------------------------------------
 
@@ -164,10 +177,38 @@ def expectations(run):
             requires[s.split()[1]] = s.split()[2]
     if not go:
         raise AssetError("go.mod at %s declares no go version" % run.commit)
-    return {"version": version, "go": go, "requires": requires,
-            "kensa": (requires.get("github.com/Hanalyx/kensa") or "").lstrip("v"),
-            "keys": run.git_show("security/KEYS"),
-            "notices": run.git_show("THIRD-PARTY-NOTICES.md")}
+    exp = {"version": version, "go": go, "requires": requires,
+           "kensa": (requires.get("github.com/Hanalyx/kensa") or "").lstrip("v"),
+           "keys": run.git_show("security/KEYS"),
+           "notices": run.git_show("THIRD-PARTY-NOTICES.md")}
+    exp["inventory"], exp["inventory_source"] = inventory(run, exp)
+    return exp
+
+
+def inventory(run, exp):
+    """The assets this release must carry, from release/assets.toml.
+
+    Read at the candidate commit. With --inventory-from-tree (for a candidate
+    that predates the file) it is read from this tool's own tree instead, and
+    the report says so. Returns (inventory or None, source description).
+    """
+    if run.inventory_from_tree:
+        path = _here.parent / INVENTORY
+        raw, source = path.read_bytes(), "this tool's tree (%s), not the candidate" % path
+    else:
+        try:
+            raw, source = run.git_show(INVENTORY), "%s at the candidate commit" % INVENTORY
+        except AssetError:
+            return None, "%s does not exist at %s" % (INVENTORY, run.commit)
+    data = tomllib.loads(raw.decode())
+    name_version = exp["version"].replace("-", ".", 1)
+    pkgs = []
+    for p in data.get("package", []):
+        pkgs.append({"file": p["file"].format(version=name_version, kensa=exp["kensa"]),
+                     "binary": bool(p.get("binary"))})
+    files = data.get("files", {})
+    return ({"packages": pkgs, "required": list(files.get("required", [])),
+             "optional": list(files.get("optional", []))}, source)
 
 
 # -- checks -----------------------------------------------------------------
@@ -223,6 +264,27 @@ def check_release(run, assets, digests):
                   "GitHub digest %s, downloaded %s" % (want or "missing", got))
 
 
+def check_inventory(run, assets, exp):
+    """Every declared asset is present, and nothing undeclared is."""
+    inv = exp["inventory"]
+    if inv is None:
+        run.check("inventory", INVENTORY, False, exp["inventory_source"] +
+                  "; completeness cannot be shown. For a candidate that predates the file, "
+                  "pass --inventory-from-tree")
+        return
+    run.check("inventory", "source", True, exp["inventory_source"])
+    present = set(os.listdir(assets))
+    expected = [p["file"] for p in inv["packages"]] + [
+        p["file"] + ".cdx.json" for p in inv["packages"]] + inv["required"]
+    for f in expected:
+        run.check("inventory", f, f in present, "present" if f in present else "missing")
+    extra = sorted(present - set(expected) - set(inv["optional"]))
+    run.check("inventory", "unexpected assets", not extra, ", ".join(extra) or "none")
+    for f in inv["optional"]:
+        if f in present:
+            run.notes.append("%s is present; this tool does not verify it" % f)
+
+
 def check_manifest(run, assets, exp):
     files = sorted(os.listdir(assets))
     sums_path = os.path.join(assets, "SHA256SUMS")
@@ -239,7 +301,14 @@ def check_manifest(run, assets, exp):
         listed[m.group(2)] = m.group(1)
     run.check("manifest", "SHA256SUMS format", not bad and listed,
               "%d entries%s" % (len(listed), "; bad lines: %r" % bad[:3] if bad else ""))
-    expected = set(f for f in files if f not in ("SHA256SUMS", "SHA256SUMS.asc", "KEYS"))
+    inv = exp["inventory"]
+    if inv is None:
+        expected = set(f for f in files if f not in ("SHA256SUMS", "SHA256SUMS.asc", "KEYS")
+                       and not f.endswith(".cosign.sig"))
+    else:
+        expected = set(p["file"] for p in inv["packages"]) | set(
+            p["file"] + ".cdx.json" for p in inv["packages"]) | (
+            set(inv["required"]) - {"SHA256SUMS", "SHA256SUMS.asc", "KEYS"})
     run.check("manifest", "coverage", set(listed) == expected,
               "unlisted: %s; listed but absent: %s" % (
                   sorted(expected - set(listed)) or "none",
@@ -295,8 +364,10 @@ def check_signature(run, assets, exp):
     return keys
 
 
-def check_rpms(run, assets, keys):
-    rpms = sorted(f for f in os.listdir(assets) if f.endswith(".rpm"))
+def check_rpms(run, assets, keys, exp):
+    inv = exp["inventory"]
+    rpms = (sorted(p["file"] for p in inv["packages"] if p["file"].endswith(".rpm")) if inv
+            else sorted(f for f in os.listdir(assets) if f.endswith(".rpm")))
     db = os.path.join(run.out, "rpmdb")
     os.makedirs(db)
     rec = run.capture("rpm-import-keys", [run.tools.cmd["rpm"], "--dbpath", db, "--import", keys],
@@ -304,6 +375,9 @@ def check_rpms(run, assets, keys):
     run.check("rpm", "keyring", run.ok(rec), "imported security/KEYS into a throwaway rpm database",
               rec["path"])
     for name in rpms:
+        if not os.path.isfile(os.path.join(assets, name)):
+            run.check("rpm", name, False, "could not run: the package is missing")
+            continue
         rec = run.capture("rpm-K-" + name, [run.tools.cmd["rpm"], "--dbpath", db, "-K",
                                              os.path.join(assets, name)], "rpm")
         text = run.stdout(rec).decode("utf-8", "replace")
@@ -386,30 +460,61 @@ def check_binary(run, name, root, exp):
 def check_vulns(run, name, binary):
     rec = run.capture("govulncheck-" + name, [run.tools.cmd["govulncheck"], "-mode=binary",
                                                "-format", "json", binary], "govulncheck")
-    if rec.get("status") != ec.COMPLETE or rec["exit"].get("code") not in (0, 3):
-        run.check("vulns", name, False, "govulncheck did not complete", rec["path"])
+    # In -format json mode govulncheck exits 0 whether or not it finds anything;
+    # any other status is a scanner failure, not a result.
+    if rec.get("status") != ec.COMPLETE or rec["exit"].get("code") != 0:
+        run.check("vulns", name, False, "govulncheck did not complete with exit 0 (%s)"
+                  % ec._exit_text(rec.get("exit") or {}).strip(), rec["path"])
+        return
+    try:
+        objs = _json_stream(run.stdout(rec).decode("utf-8", "replace"))
+    except ValueError as e:
+        run.check("vulns", name, False, "govulncheck output is not a JSON stream: %s" % e,
+                  rec["path"])
+        return
+    configs = [o["config"] for o in objs if "config" in o]
+    osvs = set((o["osv"] or {}).get("id") for o in objs if "osv" in o)
+    findings = [o["finding"] for o in objs if "finding" in o]
+    problems = []
+    if len(configs) != 1 or configs[0].get("scanner_name") != "govulncheck" or \
+            configs[0].get("scan_mode") != "binary":
+        problems.append("expected one govulncheck config in binary mode, found %r" % configs)
+    if not any("SBOM" in o for o in objs):
+        problems.append("no SBOM object: the scan did not report what it scanned")
+    for f in findings:
+        if not f.get("osv") or f.get("osv") not in osvs:
+            problems.append("finding %r has no matching osv entry" % f.get("osv"))
+        if not f.get("trace"):
+            problems.append("finding %r has no trace" % f.get("osv"))
+    if problems:
+        run.check("vulns", name, False, "inconsistent govulncheck output: " + "; ".join(
+            problems[:3]), rec["path"])
         return
     called, imported, required = set(), set(), set()
-    # The JSON output is a stream of objects, one or more per line.
-    dec = json.JSONDecoder()
-    text = run.stdout(rec).decode("utf-8", "replace")
-    i = 0
-    while i < len(text):
-        while i < len(text) and text[i].isspace():
-            i += 1
-        if i >= len(text):
-            break
-        obj, i = dec.raw_decode(text, i)
-        f = obj.get("finding")
-        if not f:
-            continue
-        frame = (f.get("trace") or [{}])[0]
+    for f in findings:
+        frame = f["trace"][0]
         (called if frame.get("function") else imported if frame.get("package")
-         else required).add(f.get("osv"))
+         else required).add(f["osv"])
     run.check("vulns", name, not called,
               "called: %s; imported only: %s; required modules only: %s" % (
                   sorted(called) or "none", sorted(imported) or "none",
                   sorted(required) or "none"), rec["path"])
+
+
+def _json_stream(text):
+    """Every JSON object in a govulncheck stream; ValueError if any is malformed."""
+    dec = json.JSONDecoder()
+    out = []
+    i = 0
+    while True:
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i >= len(text):
+            return out
+        obj, i = dec.raw_decode(text, i)
+        if not isinstance(obj, dict):
+            raise ValueError("a stream element is not an object")
+        out.append(obj)
 
 
 def check_notices(run, name, root, exp):
@@ -423,8 +528,13 @@ def check_notices(run, name, root, exp):
 
 
 def check_sboms(run, assets, exp):
-    pkgs = sorted(f for f in os.listdir(assets) if f.endswith((".rpm", ".deb")))
+    inv = exp["inventory"]
+    pkgs = (sorted(p["file"] for p in inv["packages"]) if inv else
+            sorted(f for f in os.listdir(assets) if f.endswith((".rpm", ".deb"))))
     for name in pkgs:
+        if not os.path.isfile(os.path.join(assets, name)):
+            run.check("sbom", name, False, "could not run: the package is missing")
+            continue
         path = os.path.join(assets, name + ".cdx.json")
         if not os.path.isfile(path):
             run.check("sbom", name, False, "no %s.cdx.json" % name)
@@ -455,9 +565,6 @@ def check_sboms(run, assets, exp):
                 problems.append("Go modules not at go.mod's version: %s" % ", ".join(wrong[:5]))
             if not compared:
                 problems.append("lists no Go module that go.mod requires")
-        elif name.startswith("kensa-rules"):
-            if not re.match(r"^kensa-rules[-_]%s[-_]" % re.escape(exp["kensa"]), name):
-                problems.append("kensa-rules version is not go.mod's kensa %s" % exp["kensa"])
         run.check("sbom", name, not problems, "; ".join(problems) or (
             "CycloneDX %s, subject is the package and its sha256%s" % (
                 bom.get("specVersion"),
@@ -468,19 +575,26 @@ def check_sboms(run, assets, exp):
 
 
 def report(run, assets, src):
+    # An area with no check at all did not run; that is a failure, and a run
+    # with no checks can never pass.
+    for area in AREAS:
+        if not any(r["area"] == area for r in run.results):
+            run.check(area, "(area)", False, "could not run: no check in this area produced "
+                      "a result")
     failed = [r for r in run.results if not r["ok"]]
     data = {"tag": run.tag, "commit": run.commit, "key": run.key,
             "assets": assets, "downloaded": not src,
             "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"),
-            "verdict": "PASS" if not failed else "FAIL",
-            "checks": run.results}
+            "verdict": "PASS" if run.results and not failed else "FAIL",
+            "notes": run.notes, "checks": run.results}
     ec._write_new(os.path.join(run.out, "report.json"),
                   (json.dumps(data, indent=2, sort_keys=True) + "\n").encode())
     lines = ["# Asset verification: %s at %s" % (run.tag, run.commit), "",
              "Derived from the raw captures in `captures/`, which are authoritative. "
              "This report records no release decision.", "",
              "**%s**: %d checks, %d failed." % (data["verdict"], len(run.results), len(failed)),
+             ""] + ["- Note: %s" % n for n in run.notes] + [
              "", "| Area | Subject | Result | Detail |", "|---|---|---|---|"]
     for r in run.results:
         lines.append("| %s | %s | %s | %s |" % (r["area"], r["subject"],
@@ -500,27 +614,46 @@ def verify(a, tools=None):
         raise AssetError("--tag must be a release tag such as v0.8.4")
     if os.path.lexists(a.evidence):
         raise AssetError("%s already exists; evidence is never overwritten" % a.evidence)
+    if a.src and not os.path.isdir(a.src):
+        raise AssetError("--from %s is not a directory" % a.src)
     run = Run(a, tools)
     exp = expectations(run)
     os.makedirs(run.captures)
     assets = os.path.abspath(a.src) if a.src else os.path.join(run.out, "assets")
     digests = download(run, assets, a.src)
-    if os.path.isdir(assets):
-        check_release(run, assets, digests)
-        check_manifest(run, assets, exp)
-        keys = check_signature(run, assets, exp)
-        check_rpms(run, assets, keys)
-        for name in sorted(os.listdir(assets)):
-            if package_arch(name):
-                root = extract(run, assets, name)
-                if root is None:
-                    run.check("binary", name, False, "the package could not be unpacked")
-                    continue
-                binary = check_binary(run, name, root, exp)
-                if binary:
-                    check_vulns(run, name, binary)
-                check_notices(run, name, root, exp)
-        check_sboms(run, assets, exp)
+    if not os.path.isdir(assets):
+        run.check("release", "assets", False, "could not run: %s does not exist" % assets)
+        return report(run, assets, a.src)
+    if not a.src and not all(r["ok"] for r in run.results
+                             if r["area"] == "release" and r["subject"] == "download"):
+        # Nothing downloaded can be trusted as the release's assets; every
+        # other area is reported as not run.
+        return report(run, assets, a.src)
+    check_release(run, assets, digests)
+    check_inventory(run, assets, exp)
+    check_manifest(run, assets, exp)
+    keys = check_signature(run, assets, exp)
+    check_rpms(run, assets, keys, exp)
+    inv = exp["inventory"]
+    binaries = ([p["file"] for p in inv["packages"] if p["binary"]] if inv else
+                [f for f in sorted(os.listdir(assets)) if package_arch(f)])
+    for name in binaries:
+        if not os.path.isfile(os.path.join(assets, name)):
+            for area in ("binary", "vulns", "notices"):
+                run.check(area, name, False, "could not run: the package is missing")
+            continue
+        root = extract(run, assets, name)
+        if root is None:
+            for area in ("binary", "vulns", "notices"):
+                run.check(area, name, False, "could not run: the package could not be unpacked")
+            continue
+        binary = check_binary(run, name, root, exp)
+        if binary:
+            check_vulns(run, name, binary)
+        else:
+            run.check("vulns", name, False, "could not run: no binary to scan")
+        check_notices(run, name, root, exp)
+    check_sboms(run, assets, exp)
     return report(run, assets, a.src)
 
 
@@ -531,6 +664,9 @@ def main(argv=None, out=sys.stdout, tools=None):
     p.add_argument("--key", required=True)
     p.add_argument("--evidence", required=True, help="a new directory for this run")
     p.add_argument("--from", dest="src", help="assets already downloaded; read in place")
+    p.add_argument("--inventory-from-tree", action="store_true",
+                   help="read release/assets.toml from this tool's tree, for a candidate that "
+                        "predates it; the report records this")
     p.add_argument("--repo", default=".", help=argparse.SUPPRESS)
     a = p.parse_args(argv)
     try:

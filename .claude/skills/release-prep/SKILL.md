@@ -108,6 +108,11 @@ python3 -S scripts/release_assets.py --tag "$TAG" --commit "$CANDIDATE" --key "$
   report is derived from them.
 - A `govulncheck` finding only in required modules or imported packages is listed, not failed.
   Report it to the release captain; do not decide it away.
+- Completeness comes from `release/assets.toml` at the candidate commit, not from whatever was
+  downloaded. A candidate older than that file needs `--inventory-from-tree`, and the report
+  then says the inventory is not the candidate's. Say so in the hand-off.
+- A check that could not run is a FAIL, never a pass. Never report PASS from a run with
+  missing input, a failed download or unusable `govulncheck` output.
 - It records no decision and changes nothing. Gates A1 and A2 stay in `release-status.py`.
 - Validated so far against the published v0.8.4 release, read-only; not yet on a draft
   candidate.
