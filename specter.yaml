@@ -47,6 +47,7 @@ domains:
             - release-compat-runs
             - release-upgrade-steps
             - release-packets
+            - release-prep-pr
             - system-auth-identity
             - system-user-management
             - system-credential-store

@@ -1,0 +1,153 @@
+spec:
+  id: release-prep-pr
+  title: Release-prep pull request content, drafted from recorded evidence
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: The Stage 1 release-prep pull request
+    description: >
+      The v0.8.4 release-prep pull request (#928) was written by hand: the
+      version bump in three places, sixteen "Applies to" banners, the
+      CHANGELOG section, and a pull request body citing what changed and what
+      was tested. scripts/release_prep_pr.py drafts the mechanical edits in a
+      clean checkout, records what changed since the previous release through
+      the capture library, and, once the prep is committed, writes a pull
+      request body from those captures. It preserves every validation gap and
+      leaves every human field blank. It runs offline and never commits,
+      pushes or tags.
+    related_specs:
+      - release-tagging
+      - release-preparation
+      - release-evidence-capture
+      - release-ci-gates
+
+  objective:
+    summary: >
+      A reviewer receives the release-prep edits and a pull request body that
+      says what the evidence shows, what was and was not validated, and what
+      a person still has to decide, with nothing decided for them.
+    scope:
+      includes:
+        - scripts/release_prep_pr.py
+      excludes:
+        - Writing the release notes, which are human prose
+        - Committing, pushing, tagging, opening the pull request or publishing
+
+  constraints:
+    - id: C-01
+      description: >-
+        draft runs only in a checkout with no tracked changes, on a --version
+        of the form X.Y.Z or X.Y.Z-rc.N, a --date that is a real calendar
+        date, and a --since tag that is an ancestor of HEAD. The three version
+        sources (VERSION in packaging/version.env, the README phrase, the
+        newest CHANGELOG heading) must agree before it edits and must not
+        already name the new version. Every refusal leaves the checkout and
+        HEAD unchanged.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        The edits are derived, never typed: VERSION (CODENAME kept), the one
+        README phrase even where it wraps inside a blockquote, every
+        "Applies to" banner that names the previous version and codename
+        exactly, and the CHANGELOG's [Unreleased] notes moved under
+        "[X] <codename> (<date>)" beneath a fresh, empty [Unreleased]. An
+        empty [Unreleased] or an existing section for the version is refused.
+        Every reading is captured before any file is written, and the draft
+        record, which holds each edited file's digest, is never overwritten.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        body runs only on a committed descendant of the draft's base with no
+        tracked changes, after verifying every reading against the candidate
+        tag and base commit, re-checking that the three version sources agree
+        on the drafted version, and capturing the commit's own
+        packaging/check-tag-version.sh accepting the tag. Its findings come
+        only from those captures, which it cites by digest.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        A local ci-strict result counts only when it names the body's exact
+        HEAD commit; then its verdict, exit, test counts, every not-run and
+        unexpected not-run test, every gate that did not pass and every
+        accepted gap are copied. A result for another commit is shown as not
+        counted, and the absence of one is stated. Every release gate in
+        release/gates.toml is listed as not yet evaluated. Files changed by
+        hand after the draft are named.
+      type: security
+      enforcement: error
+    - id: C-05
+      description: >-
+        Every human field is blank: the notes review, the proposed date, a
+        reviewer, and each Stage 1 refresh the evidence calls for (migration
+        notes, API documentation, the installation guide, a toolchain or
+        Kensa change). The tool never commits, pushes, tags or changes the
+        index, and every capture has an explicit positive timeout.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        draft changes exactly version.env, the wrapped README phrase, the two
+        banners naming v0.8.4 (not one naming v0.8.3) and the CHANGELOG,
+        keeps CODENAME, moves the notes under the new heading beneath one
+        fresh [Unreleased], leaves the sources agreeing, commits nothing, and
+        records each edited file's digest and each reading as a verified
+        capture with the declared timeout. A -rc.N suffix is carried to all
+        three sources.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        draft refuses, leaving HEAD and the tree unchanged and writing no
+        draft record: an empty [Unreleased]; a version with a leading v or
+        missing a part; a date that is not ISO or not a calendar day; a since
+        that is not a release tag, does not exist, or is not an ancestor; the
+        version already set; a dirty checkout (writing no evidence); sources
+        that disagree; an existing section for the version; a doubled README
+        phrase; and a second draft, by the draft's own guard.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-03
+      description: >-
+        body reports, from the captures, the migration added, the contract
+        change, the go.mod lines, the spec count, the installation-guide
+        change and each commit subject, citing digests; captures the commit's
+        own tag check; lists every gate in release/gates.toml as not yet
+        evaluated; leaves every human field blank, including one per finding;
+        and names a drafted file edited by hand and a file the draft never
+        touched.
+      priority: critical
+      references_constraints: [C-03, C-04, C-05]
+    - id: AC-04
+      description: >-
+        A result for this commit is copied with its verdict, exit, digest,
+        counts, not-run and unexpected not-run tests, non-passing gates and
+        accepted gaps, and passing gates are not listed. A result for another
+        commit is marked not counted and its verdict is not shown. No result
+        is stated. A result that is not JSON is refused with no body written.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        body writes nothing without a draft; with uncommitted changes; on the
+        draft's base itself; after a reading was altered; when the version
+        was changed after the draft; or when the commit's own tag check
+        refuses. A second body for the same head is refused and the first is
+        unchanged.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: >-
+        A zero timeout is refused before anything runs, writing no evidence.
+        The tool's git invocations include no commit, push, tag, add, reset,
+        checkout or stash, its readings are only log and diff, and a draft
+        adds no tag, commit or stash.
+      priority: critical
+      references_constraints: [C-05]

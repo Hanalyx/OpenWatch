@@ -47,6 +47,10 @@ distro, a functional pass is done against a real fleet, and a human signs off.
    - API docs if `api/openapi.yaml` changed
 4. Confirm `specter check` and `specter coverage` are clean locally.
 
+`scripts/release_prep_pr.py` drafts steps 1 and 2's mechanical edits from a clean
+clone and, once they are committed, a pull request body from recorded evidence. It
+does not write the release notes, and it leaves every confirmation blank.
+
 ## Stage 2: Cut the release candidate
 
 > **Before you start**
