@@ -28,6 +28,16 @@ finish() {
         exit 1
     fi
 }
+# The running service's own identity (VersionResponse). The tool checks its
+# openwatch and commit fields, and openwatch --version's, against the candidate.
+version_endpoint() {
+    code=$(curl -sk --connect-timeout 3 --max-time 10 -o "$WORK/version.json" \
+        -w '%{http_code}' "$OW_URL/api/v1/version") || return 1
+    cat -- "$WORK/version.json"
+    echo
+    echo "http $code"
+    [ "$code" = 200 ]
+}
 # psql as the service account, in a read-only transaction, stopping at the
 # first error. SQL comes on standard input; -v NAME=VALUE pairs are bound as
 # psql variables and quoted with :'NAME', never pasted into the SQL.

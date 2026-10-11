@@ -101,6 +101,17 @@ spec:
         tool refuses to run before any contact when one is missing.
       type: technical
       enforcement: error
+    - id: C-07
+      description: >-
+        F1 and F3 write a packet only for a server running the candidate. Both
+        the installed binary (openwatch --version) and the running service
+        (GET /api/v1/version, answering 200 with a VersionResponse) must
+        report the candidate's version and a commit of 7 to 40 lower-case hex
+        characters that the candidate commit starts with, and the two must
+        agree. Missing, malformed or mismatched identity is refused with every
+        problem named, the raw capture kept and no packet or skeleton written.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -161,6 +172,20 @@ spec:
         temporary directory.
       priority: critical
       references_constraints: [C-01, C-06]
+    - id: AC-07
+      description: >-
+        For both F1 and F3, with no packet or skeleton written and the raw
+        capture kept and verifying: an older release (0.8.3 at 79f18f78) is
+        refused; the candidate's version from another commit is refused; a
+        candidate binary behind a service still reporting the older release is
+        refused as a disagreement; a commit of "unknown" or of 4 characters, a
+        version body without openwatch and commit strings, a body that is not
+        JSON, and a binary that does not report one version and one commit
+        are each refused; a version endpoint answering 503 fails its section.
+        A full 40-character commit is accepted, and the skeleton's server
+        records state the version and commit.
+      priority: critical
+      references_constraints: [C-07]
     - id: AC-06
       description: >-
         Run unchanged against the migrated schema (scan id bound as a

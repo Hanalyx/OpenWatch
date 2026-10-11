@@ -2,14 +2,6 @@
 # F1 server readings (release-packets): one scan's records, read-only, after
 # the release captain ran it from the UI. Inputs: OW_SCAN_ID (a UUID, checked
 # by the tool), OW_URL.
-version_endpoint() {
-    code=$(curl -sk --connect-timeout 3 --max-time 10 -o "$WORK/version.json" \
-        -w '%{http_code}' "$OW_URL/api/v1/version") || return 1
-    cat -- "$WORK/version.json"
-    echo
-    echo "http $code"
-    [ "$code" = 200 ]
-}
 scan_run() {
     read_sql -v scan="$OW_SCAN_ID" -f - <<'SQL'
 \pset tuples_only off

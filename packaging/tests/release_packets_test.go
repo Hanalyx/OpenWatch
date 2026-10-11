@@ -110,3 +110,15 @@ func TestReleasePackets_StaysReadOnly(t *testing.T) {
 			"test_the_server_scripts_change_nothing")
 	})
 }
+
+// @ac AC-07
+// AC-07: F1 and F3 write a packet only for a server running the candidate.
+func TestReleasePackets_ServerRunsTheCandidate(t *testing.T) {
+	t.Run("release-packets/AC-07", func(t *testing.T) {
+		requireReleasePackets(t, "ServerIdentity", 6,
+			"test_an_older_release_is_refused",
+			"test_the_same_version_from_another_commit_is_refused",
+			"test_a_service_not_restarted_onto_the_candidate_is_refused",
+			"test_missing_or_malformed_identity_is_refused")
+	})
+}

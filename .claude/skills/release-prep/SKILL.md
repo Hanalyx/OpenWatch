@@ -177,6 +177,9 @@ python3 -S scripts/release_packets.py d1 --tag vX.Y.Z --commit SHA --evidence DI
   counts equal its result rows, and its audit trail holds one `scan.queued` and one
   `scan.completed`, bound by scan id and correlation id. If this evidence directory holds a
   `release_upgrade.py` Step 8 capture for the server, the scan must have been queued after it.
+- **F1 and F3 refuse a server that does not run the candidate.** The installed binary and the
+  running service must both report the candidate's version and commit, and agree. A binary
+  upgraded behind a service that was not restarted is refused.
 - **F3** reads `/api/v1/system/scan/variables` with a root-only token file on the server
   (`system:read`). An empty list fails: that is F3's blank panel.
 - **D1** runs `doc-review-skeleton.py` from this checkout, which must have no tracked changes.

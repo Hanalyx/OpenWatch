@@ -32,6 +32,7 @@ import argparse
 import datetime
 import hashlib
 import importlib.util
+import json
 import os
 import re
 import shlex
@@ -145,6 +146,56 @@ def read_server(host, gate, env):
     return rec, path
 
 
+# The build stamps `git rev-parse --short HEAD`, whose length git chooses.
+_SHORT = re.compile(r"^[0-9a-f]{7,40}$")
+
+
+def server_identity(s, host, path):
+    """(version, commit) the server runs, checked against the candidate.
+
+    Two sources, both required, and they must agree: the installed binary
+    (openwatch --version) and the running service (GET /api/v1/version, a
+    VersionResponse). A binary that matches behind a service that was not
+    restarted is a mismatch. Raises PacketError naming every problem; the raw
+    capture stays where it is."""
+    want = host.tag[1:]
+    problems, found = [], {}
+    lines = [l.strip() for l in s.get("openwatch --version", []) if l.strip()]
+    ver = [m.group(1) for m in (re.match(r"^openwatch (\S+)$", l) for l in lines) if m]
+    com = [m.group(1) for m in (re.match(r"^commit:\s+(\S+)$", l) for l in lines) if m]
+    if len(ver) != 1 or len(com) != 1:
+        problems.append("openwatch --version does not report one version and one commit")
+    else:
+        found["binary"] = (ver[0], com[0])
+    body = [l.strip() for l in s.get("version endpoint", []) if l.strip()]
+    try:
+        if not body or body[-1] != "http 200":
+            raise ValueError("the version endpoint did not answer 200")
+        d = json.loads(body[0])
+        if not isinstance(d, dict) or not isinstance(d.get("openwatch"), str) \
+                or not isinstance(d.get("commit"), str):
+            raise ValueError("the version endpoint's body has no openwatch and commit strings")
+        found["service"] = (d["openwatch"], d["commit"])
+    except ValueError as e:
+        problems.append(str(e))
+    for source, (v, c) in sorted(found.items()):
+        if v != want:
+            problems.append("the %s reports version %s, not the candidate's %s" % (source, v, want))
+        if not _SHORT.match(c):
+            problems.append("the %s reports commit %r, not a commit id" % (source, c))
+        elif not host.commit.startswith(c):
+            problems.append("the %s reports commit %s, not the candidate's %s" % (
+                source, c, host.commit[:12]))
+    if len(found) == 2 and found["binary"] != found["service"]:
+        problems.append("the installed binary (%s, %s) and the running service (%s, %s) differ; "
+                        "was the service restarted?" % (found["binary"] + found["service"]))
+    if problems:
+        raise PacketError("%s does not run the candidate %s at %s: %s. The raw capture is in %s. "
+                          "No packet was written." % (host.name, host.tag, host.commit[:12],
+                                                      "; ".join(problems), path))
+    return found["service"]
+
+
 def upgrade_record(host, machine_id):
     """The Step 8 capture from scripts/release_upgrade.py for this server, or None.
 
@@ -201,6 +252,7 @@ def f1(host, a):
         env["OW_ROOT"] = a.root
     rec, path = read_server(host, GATES["f1"], env)
     s = _sections(host, "f1-readings")
+    version, commit = server_identity(s, host, path)
     hostname, machine_id = _one(s, "hostname"), _one(s, "machine-id")
     run = [l for l in s.get("scan run", []) if l.strip()]
     if len(run) != 2:
@@ -220,6 +272,8 @@ def f1(host, a):
     readings = "\n".join(
         ["Server records, derived from %s (stdout sha256 %s), which is authoritative." % (
             path, rec["streams"]["stdout"]["sha256"]),
+         "The server runs openwatch %s, commit %s: the binary and the running service agree, "
+         "and match the candidate." % (version, commit),
          "Scan %s: status %s, trigger %s, requested_by %s." % (
              row["id"], row["status"], row["trigger_source"], row["requested_by"] or "(none)"),
          "Queued %s, started %s, finished %s." % (row["queued_at"], row["started_at"],
@@ -249,12 +303,15 @@ def f3(host, a):
         env["OW_ROOT"] = a.root
     rec, path = read_server(host, GATES["f3"], env)
     s = _sections(host, "f3-readings")
+    version, commit = server_identity(s, host, path)
     hostname, machine_id = _one(s, "hostname"), _one(s, "machine-id")
     summary = [l.strip() for l in s.get("summary", []) if l.strip()]
     counts = dict(l.split(" ", 1) for l in summary if not l.startswith("name "))
     names = [l[5:] for l in summary if l.startswith("name ")]
     lines = ["Server records, derived from %s (stdout sha256 %s), which is authoritative." % (
                  path, rec["streams"]["stdout"]["sha256"]),
+             "The server runs openwatch %s, commit %s: the binary and the running service "
+             "agree, and match the candidate." % (version, commit),
              "GET /api/v1/system/scan/variables answered 200 with %s variables, %s needing "
              "organization settings (configure_me) and %s overridden." % (
                  counts.get("variables"), counts.get("configure_me"), counts.get("overridden"))]

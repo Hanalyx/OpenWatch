@@ -69,6 +69,7 @@ PY
 section "hostname" hostname
 section "machine-id" cat -- "$R/etc/machine-id"
 section "openwatch --version" openwatch --version
+section "version endpoint" version_endpoint
 section "token file is root-only" token_file_is_private
 section "scan variables" variables
 section "summary" summary

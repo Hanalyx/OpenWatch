@@ -70,7 +70,12 @@ if cmd == "sudo":
 if cmd == "hostname":
     print(st("hostname", "owas-rhn01.hanalyx.local")); sys.exit(0)
 if cmd == "openwatch":
-    print("openwatch 0.9.0"); sys.exit(0)
+    # printVersion in cmd/openwatch/main.go.
+    out = st("binary-version-out")
+    if not out:
+        out = "openwatch %s\n  commit:    %s\n  built:     2026-10-01T00:00:00Z\n  fips:      false" % (
+            st("binary-version", "0.9.0"), st("binary-commit", "474d9af2"))
+    print(out); sys.exit(0)
 if cmd == "psql":
     sql = stdin
     if flag := st("psql-fail"):
@@ -114,8 +119,11 @@ if cmd == "curl":
     url = args[-1]
     code = 200
     if url.endswith("/api/v1/version"):
-        body = json.dumps({"openwatch": "0.9.0", "kensa": "0.10.0", "go": "go1.26.9",
-                           "commit": "474d9af2", "build_time": "2026-10-01T00:00:00Z"})
+        # GetVersion's VersionResponse; "version-body" replaces it verbatim.
+        code = int(st("version-code", "200"))
+        body = st("version-body") or json.dumps({
+            "openwatch": st("api-version", "0.9.0"), "kensa": "0.10.0", "go": "go1.26.9",
+            "commit": st("api-commit", "474d9af2"), "build_time": "2026-10-01T00:00:00Z"})
     elif url.endswith("/api/v1/system/scan/variables"):
         if "Bearer " + st("token") not in (open(conf).read() if conf else ""):
             code, body = 401, '{"error":{"code":"auth.required"}}'
@@ -557,6 +565,88 @@ class D1Packet(unittest.TestCase):
         code, out = self.d1()
         self.assertEqual(code, 1, out)
         self.assertIn("never taken twice", out)
+
+
+class ServerIdentity(Case):
+    """AC-07: F1 and F3 write a packet only for a server running the candidate."""
+
+    def refused(self, gate, why, **state):
+        for k, v in state.items():
+            self.state(k.replace("_", "-"), v)
+        code, out = (self.f1 if gate == "f1" else self.f3)()
+        self.assertEqual(code, 1, out)
+        self.assertIn("does not run the candidate %s at %s" % (TAG, COMMIT[:12]), out)
+        self.assertIn(why, out)
+        self.assertIn("No packet was written", out)
+        name = gate.upper()
+        self.assertFalse(os.path.exists(os.path.join(self.host_dir, "%s-PACKET.md" % name)))
+        self.assertFalse([n for n in os.listdir(self.host_dir) if n.endswith(".skeleton.toml")])
+        cap = os.path.join(self.host_dir, gate + "-readings")
+        ec.verify_capture(cap, tag=TAG, commit=COMMIT)  # the raw capture is kept, intact
+        return out
+
+    def each_gate(self, why, **state):
+        for gate in ("f1", "f3"):
+            with self.subTest(gate=gate):
+                shutil.rmtree(self.evidence, True)
+                shutil.rmtree(self.remote, True)
+                for f in os.listdir(self.fake):
+                    if f.startswith(("binary-", "api-", "version-")):
+                        os.unlink(os.path.join(self.fake, f))
+                self.refused(gate, why, **state)
+
+    def test_an_older_release_is_refused(self):
+        # The reviewer's reproduction: 0.8.3 at 79f18f78, packets asked for v0.9.0.
+        self.each_gate("reports version 0.8.3, not the candidate's 0.9.0",
+                       binary_version="0.8.3", binary_commit="79f18f78",
+                       api_version="0.8.3", api_commit="79f18f78")
+
+    def test_the_same_version_from_another_commit_is_refused(self):
+        self.each_gate("reports commit 79f18f78, not the candidate's 474d9af26e45",
+                       binary_commit="79f18f78", api_commit="79f18f78")
+
+    def test_a_service_not_restarted_onto_the_candidate_is_refused(self):
+        self.each_gate("the running service (0.8.3, 79f18f78) differ; was the service restarted",
+                       api_version="0.8.3", api_commit="79f18f78")
+
+    def test_missing_or_malformed_identity_is_refused(self):
+        for why, state in (
+                ("reports commit 'unknown', not a commit id",
+                 {"binary_commit": "unknown", "api_commit": "unknown"}),
+                ("reports commit '474d', not a commit id",
+                 {"binary_commit": "474d", "api_commit": "474d"}),
+                ("has no openwatch and commit strings",
+                 {"version_body": '{"openwatch":"0.9.0","kensa":"0.10.0"}'}),
+                ("has no openwatch and commit strings", {"version_body": '{"version":"0.9.0"}'}),
+                ("Expecting value", {"version_body": "<html>502</html>"}),
+                ("does not report one version and one commit",
+                 {"binary_version_out": "openwatch 0.9.0"})):
+            with self.subTest(why=why):
+                self.each_gate(why, **state)
+
+    def test_a_version_endpoint_that_does_not_answer_200_fails_its_section(self):
+        # Refused one step earlier, as a failed section, with the raw capture kept.
+        self.state("version-code", "503")
+        for gate in ("f1", "f3"):
+            with self.subTest(gate=gate):
+                shutil.rmtree(self.evidence, True)
+                shutil.rmtree(self.remote, True)
+                code, out = (self.f1 if gate == "f1" else self.f3)()
+                self.assertEqual(code, 1, out)
+                self.assertIn("failed: version endpoint (exit 1)", out)
+                self.assertFalse(os.path.exists(
+                    os.path.join(self.host_dir, "%s-PACKET.md" % gate.upper())))
+                self.assertIn("http 503", read_text(os.path.join(
+                    self.host_dir, gate + "-readings", "stdout")))
+
+    def test_a_full_commit_and_the_candidate_are_accepted(self):
+        self.state("binary-commit", COMMIT)
+        self.state("api-commit", COMMIT)
+        for gate in (self.f1, self.f3):
+            code, out = gate()
+            self.assertEqual(code, 0, out)
+        doc = tomllib.loads(read_text(self.skeleton("F3", "fleet-scan-variables")))
+        self.assertIn("The server runs openwatch 0.9.0, commit %s" % COMMIT, doc["server_records"])
 
 
 class PacketBoundaries(Case):
