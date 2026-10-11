@@ -3,9 +3,10 @@ name: release-prep
 description: >
   Prepare evidence for an OpenWatch release candidate with the maintained, tested scripts:
   capture fleet-host evidence raw, bound and verified, and run the F2 staged-remediation
-  check in its three phases. Use when preparing a release's verification gates (Stage 3 of
-  docs/runbooks/RELEASING.md), collecting fleet evidence for the release captain, or
-  building an F2 packet. Not for verdicts, sign-offs, tagging, merging or publishing.
+  check in its three phases, and prepare the F1, F3 and D1 packets. Use when preparing a
+  release's verification gates (Stage 3 of docs/runbooks/RELEASING.md), collecting fleet
+  evidence for the release captain, or building an F1, F2, F3 or D1 packet. Not for
+  verdicts, sign-offs, tagging, merging or publishing.
 ---
 
 # release-prep
@@ -156,10 +157,41 @@ machine-id and hostname are the ones the verified preflight read. If they differ
   the host. Do not scan until `rules` prints `STEP 8 DONE: MATCH`.
 - Validated so far against a simulated server only. Not yet run on a fleet host.
 
+## F1, F3 and D1 packets
+
+`scripts/release_packets.py` prepares the other packets. Each writes `F1-PACKET.md`,
+`F3-PACKET.md` or `D1-PACKET.md` and an attestation skeleton. Every human field stays empty:
+`performed_by`, `performed_at`, `captain_confirmation`, `observed`, and every D1 verdict.
+
+```bash
+A="--sums SHA256SUMS --artifact openwatch-X.Y.Z-1.x86_64.rpm"   # the verified download
+python3 -S scripts/release_packets.py f1 $H $A --scan-id UUID      # after the captain's scan
+python3 -S scripts/release_packets.py f3 $H $A --token-file /root/owk-token \
+    [--prior-names PREVIOUS-NAMES]
+python3 -S scripts/release_packets.py d1 --tag vX.Y.Z --commit SHA --evidence DIR \
+    [--inherit-from PRIOR-REVIEW.toml]
+```
+
+- **F1 never starts a scan.** The captain runs it from the UI; the tool reads that scan's
+  records, read-only, as the service account. It refuses unless the scan completed, its
+  counts equal its result rows, and its audit trail holds one `scan.queued` and one
+  `scan.completed`, bound by scan id and correlation id. If this evidence directory holds a
+  `release_upgrade.py` Step 8 capture for the server, the scan must have been queued after it.
+- **F1 and F3 refuse a server that does not run the candidate.** The installed binary and the
+  running service must both report the candidate's version and commit, and agree. A binary
+  upgraded behind a service that was not restarted is refused.
+- **F3** reads `/api/v1/system/scan/variables` with a root-only token file on the server
+  (`system:read`). An empty list fails: that is F3's blank panel.
+- **D1** runs `doc-review-skeleton.py` from this checkout, which must have no tracked changes.
+  Run it from a clean clone at the checker commit you mean to name. The skeleton written is
+  the capture's exact stdout.
+- A capture is never taken twice under one name, and a packet is never overwritten.
+- The F1 SQL is tested against the migrated schema in `internal/scanruns`. The rest is
+  tested against a simulated server only. Not yet run on a fleet server.
+
 ## Not covered yet
 
 These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md`. When doing
 them, capture every command through `evidence_capture.py run --timeout`:
 
-- the release-prep PR content;
-- F1, F3 and D1 packets.
+- the release-prep PR content.

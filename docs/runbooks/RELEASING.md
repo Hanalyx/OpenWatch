@@ -214,6 +214,14 @@ release, downloaded with `gh release download <tag>` or from the asset ids
    rollback came first. `f2 packet` collects the three captures and leaves the
    observation fields for the captain. The skill
    `.claude/skills/release-prep/SKILL.md` has the full commands.
+6. **F1 and F3 packets: read the server after the captain's check.** After the
+   captain runs the F1 scan from the UI, `scripts/release_packets.py f1 --scan-id`
+   reads that scan's records on the server, read-only: the run, its results, its
+   skip reasons and its audit trail, bound to the scan by id. `f3` reads the
+   scan variables the server resolves. Each writes a packet and an attestation
+   skeleton bound to the artifact's digest from the verified `SHA256SUMS`. The
+   tool never starts a scan or changes a setting, and it leaves every captain
+   field blank.
 
 **Before asking anyone to sign, run the gate.** `release/gates.toml` declares
 every gate and `scripts/release-status.py` evaluates them against real evidence,
@@ -277,6 +285,10 @@ fresh.
 
    It writes one entry per document with `verdict = "pending"`, and leaves the
    human identity blank. It cannot fill either in for you.
+
+   `scripts/release_packets.py d1` runs the same generator from a clean checkout,
+   through the capture library, and adds a packet naming the checker commit. It
+   refuses a checkout with tracked changes and any output that carries a verdict.
 
    To inherit from the last published release, pass its archived review:
 
