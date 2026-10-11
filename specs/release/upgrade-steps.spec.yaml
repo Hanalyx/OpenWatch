@@ -1,0 +1,173 @@
+spec:
+  id: release-upgrade-steps
+  title: Upgrade Steps 1 to 8 on an OpenWatch server, with captured evidence
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: The release-preparation upgrade of a fleet server
+    description: >
+      UPGRADE_PROCEDURE.md's standard upgrade (Steps 1 to 8) was run by hand
+      for v0.8.4, from ad hoc scripts. scripts/release_upgrade.py runs it in
+      five phases on one server (plan, backup, install, verify, rules), each a
+      maintained script from release/prep/upgrade/ run through the capture
+      library on the host and fetched and verified locally. It changes a real
+      server only when told to with --execute, only in the procedure's order,
+      and never starts the service by hand, rolls back or reboots. Using it on
+      a fleet host is separately authorized; this spec covers the tool.
+    related_specs:
+      - release-upgrade
+      - release-preparation
+      - release-evidence-capture
+
+  objective:
+    summary: >
+      An upgrade either reaches Step 8's MATCH with raw evidence for every
+      step, or stops at the first failed step, saying what not to do next.
+    scope:
+      includes:
+        - scripts/release_upgrade.py and release/prep/upgrade/*.sh
+      excludes:
+        - Rollback, which stays a manual procedure
+        - Choosing, authorizing or scheduling an upgrade
+
+  constraints:
+    - id: C-01
+      description: >-
+        The phases run in order. Each requires every earlier phase's capture,
+        from the same machine, to verify against the release and commit, to
+        have exited 0, to report no failed step, and to print its completion
+        line. plan is read-only. backup, install, verify and rules change the
+        host only with --execute; without it they print the exact script and
+        contact nothing. With --execute, the preflight must have reported the
+        host's hostname as --host.
+      type: security
+      enforcement: error
+    - id: C-02
+      description: >-
+        Each phase script stops at its first failed step, keeping every step's
+        raw output and status. Packages are staged on the host and checked
+        against the digests taken locally before the service is stopped. No
+        script starts the service, rolls back, removes or downgrades a package,
+        restores a database or reboots; only Step 8 restarts the service, as
+        the procedure requires. A failed install, or a service the install left
+        stopped, ends with the instruction not to start it by hand.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        Step 8 needs a root-only token file on the host holding an owk_ token;
+        the token is read there, passed to curl through a private file, and
+        never printed or sent from the workstation. It ends in MATCH only when
+        the service restarted and became healthy, the journal shows no
+        rule-load failure, the rules endpoint answered, the kensa-rules files
+        are unchanged, and the served rule IDs equal the installed rule IDs,
+        neither empty.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        Every capture and transfer has an explicit positive timeout, and a
+        phase without one cannot run.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        Before staging a package or running any changing command, the host is
+        checked, on the connection doing the work, against the machine-id and
+        hostname the verified preflight read: the staging command checks
+        before it creates a directory or file, and each changing phase script
+        checks as its first step. A preflight without exactly one machine-id
+        line and one hostname line blocks every change. A mismatch stages,
+        dumps, stops, installs, migrates and restarts nothing.
+      type: security
+      enforcement: error
+    - id: C-06
+      description: >-
+        Step 7, and the health wait in Step 8, read each endpoint by its schema
+        in api/openapi.yaml. /api/v1/health passes only with HTTP 200 and a
+        HealthResponse whose status is "healthy", db_connected is the boolean
+        true and version is the release. /api/v1/version passes only with HTTP
+        200 and a VersionResponse whose openwatch field is the release; it has
+        no version field. A body that is not a JSON object fails.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        A full run reaches "STEP 8 DONE: MATCH" with every phase a verified
+        capture, and status reports nothing left. The packages are staged and
+        checked on the host and installed in one transaction. The backup is a
+        new dump named by the host's UTC time and listed by pg_restore. A
+        second backup in the same second refuses to overwrite the first dump,
+        runs no pg_dump and leaves that dump unchanged. A dry run of a
+        changing phase shows its commands and contacts nothing.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        Without the earlier phases, a phase is refused without contacting the
+        host. A failed preflight, whose script itself exits 1, blocks the
+        backup. An altered backup capture blocks the install. A capture that
+        exited 0 but reports a failed step, or lacks its completion line, is
+        refused. A preflight that reported another hostname blocks --execute.
+      priority: critical
+      references_constraints: [C-01]
+    - id: AC-03
+      description: >-
+        A package whose digest does not match stops the install before the
+        service is stopped or any package installed. A failed install leaves
+        the service stopped, says not to start it by hand, and blocks verify.
+        A service the install left stopped fails verify at Step 6 with the
+        rollback instruction. A failed check-config stops verify at Step 4, a
+        migrate that applies migrations at Step 5, and a server reporting
+        another version at Step 7. A failed dump stops the backup before the
+        service is touched. The service is never started by hand.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-04
+      description: >-
+        Step 8 fails, says not to scan, and does not print its completion line
+        for: a served rule that is not installed (MISMATCH); no rules at all;
+        changed package files; a rule-load failure in the journal; a service
+        that does not become healthy; and, before any restart, a token file
+        that is not root-only or does not hold an owk_ token. The token value
+        appears in no evidence.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-06
+      description: >-
+        The test server's health and version bodies have exactly the fields
+        of the generated HealthResponse and VersionResponse types, and a full
+        run passes on them. Step 7 fails for a version body with only a
+        version field, another openwatch version, a degraded status,
+        db_connected false, 1 or missing, a 503 with an error envelope, a
+        status other than 200 with a healthy body, and a body that is not
+        JSON. Step 8 fails for a degraded health body.
+      priority: critical
+      references_constraints: [C-06]
+    - id: AC-07
+      description: >-
+        With the machine-id or the hostname changed after the preflight, the
+        backup, install, verify and rules phases each fail with no pg_dump,
+        pg_restore, service stop, start or restart, dnf or apt-get, or
+        openwatch --config call, no new dump, no staged package, and the
+        service and version unchanged. The staging refuses before creating
+        anything. A host changed between staging and the install run is
+        neither stopped nor installed. The expected values are the
+        preflight's, and a preflight without one line of each blocks every
+        change before contact.
+      priority: critical
+      references_constraints: [C-05]
+    - id: AC-05
+      description: >-
+        Every capture carries a declared timeout, every phase's host capture
+        its phase timeout, and a phase without a timeout is refused before
+        contact. No phase script starts the service, reboots, shuts down,
+        downgrades or removes a package, restores a database, or uses a pipe;
+        only the Step 8 script restarts the service.
+      priority: critical
+      references_constraints: [C-02, C-04]

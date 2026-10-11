@@ -108,7 +108,7 @@ def _phase(name):
 class Host(object):
     """How to reach one fleet host, and where its evidence lives on both ends."""
 
-    def __init__(self, a):
+    def __init__(self, a, section="f2"):
         if not _HOST.match(a.host or ""):
             raise PrepError("--host must be a host name such as owas-rhn02")
         ec.check_candidate(a.tag, a.commit)
@@ -126,9 +126,9 @@ class Host(object):
             self.transport = ["ssh"] + SSH_OPTIONS + ["-i", a.ssh_key, "--", a.ssh_target]
         self.sudo = shlex.split(a.sudo)
         self.python = a.remote_python
-        self.remote_dir = "%s/%s/f2" % (a.remote_dir.rstrip("/"), a.tag)
-        self.local_dir = os.path.join(os.path.abspath(a.evidence), "f2", a.host)
-        self.snapshot = a.snapshot
+        self.remote_dir = "%s/%s/%s" % (a.remote_dir.rstrip("/"), a.tag, section)
+        self.local_dir = os.path.join(os.path.abspath(a.evidence), section, a.host)
+        self.snapshot = getattr(a, "snapshot", None)
 
     def remote(self, *commands):
         """One remote shell command line joining the given argument vectors with &&."""
@@ -202,21 +202,35 @@ def run_phase(host, name):
     for req in phase.requires:
         rec = _verified(host, "f2-" + req, machine_id)
         machine_id = machine_id or (rec.get("host") or {}).get("machine_id")
-    os.makedirs(host.local_dir, mode=0o700, exist_ok=True)
     with open(host.snapshot) as f:
         snapshot = f.read()
     cap = "f2-" + phase.name
+    remote_capture(host, cap, snapshot, phase.timeout, phase.transfer_timeout, machine_id,
+                   "F2 %s snapshot of %s" % (phase.name, host.name))
+    return _verified(host, cap, machine_id)
+
+
+def remote_capture(host, cap, script, timeout, transfer_timeout, machine_id, purpose,
+                   stdin_file=None):
+    """Run `sh -c script` on the host under the capture library, then fetch and verify it.
+
+    The library runs as root (host.sudo) and reaches the host on SSH standard
+    input, its digest recorded in the local NAME.remote-run capture. The host's
+    capture is fetched with tar and verified against the candidate and, when
+    given, the machine id, before it is named. Raises PrepError on any failure;
+    the capture's own exit status is the caller's to judge.
+    """
+    os.makedirs(host.local_dir, mode=0o700, exist_ok=True)
     run = host.remote(
         host.sudo + ["mkdir", "-p", "-m", "0700", host.remote_dir],
         host.sudo + [host.python, "-", "run", "--out", host.remote_dir, "--name", cap,
                      "--tag", host.tag, "--commit", host.commit,
-                     "--timeout", str(phase.timeout),
-                     "--purpose", "F2 %s snapshot of %s" % (phase.name, host.name),
-                     "--", "sh", "-c", snapshot])
+                     "--timeout", str(timeout), "--purpose", purpose,
+                     "--", "sh", "-c", script])
     try:
         rrec = ec.capture(run, host.local_dir, cap + ".remote-run", host.tag, host.commit,
-                          timeout=phase.timeout + SSH_MARGIN, stdin_file=str(LIBRARY),
-                          purpose="run the F2 %s capture on %s" % (phase.name, host.name))
+                          timeout=timeout + SSH_MARGIN, stdin_file=str(LIBRARY),
+                          purpose="run %s on %s" % (cap, host.name))
     except ec.CaptureError as e:
         raise PrepError("the remote run of %s on %s did not complete: %s" % (cap, host.name, e))
     if rrec["exit"]["code"] != 0:
@@ -226,12 +240,11 @@ def run_phase(host, name):
                 cap, host.name, ec._exit_text(rrec["exit"]).strip(), rrec["path"],
                 host.remote_dir))
     try:
-        ec.fetch(host.remote(host.sudo + ["tar", "-C", host.remote_dir, "-cf", "-", cap]),
-                 host.local_dir, cap, host.tag, host.commit, machine_id=machine_id,
-                 timeout=phase.transfer_timeout)
+        return ec.fetch(host.remote(host.sudo + ["tar", "-C", host.remote_dir, "-cf", "-", cap]),
+                        host.local_dir, cap, host.tag, host.commit, machine_id=machine_id,
+                        timeout=transfer_timeout)
     except ec.CaptureError as e:
         raise PrepError("the %s capture from %s was not accepted: %s" % (cap, host.name, e))
-    return _verified(host, cap, machine_id)
 
 
 def status(host):

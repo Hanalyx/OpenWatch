@@ -137,11 +137,29 @@ python3 -S scripts/release_compat.py --tag "$TAG" --commit "$CANDIDATE" --key "$
 - Validated so far against the published v0.8.4 with v0.7.1 as the old pair: 39, 35 and 39
   checks. Not yet run against a draft candidate.
 
+## Upgrade Steps 1 to 8
+
+`scripts/release_upgrade.py` runs the standard upgrade on one OpenWatch server in five
+phases: `plan` (read-only), `backup`, `install`, `verify` and `rules` (Step 8). Each phase
+needs the previous ones verified from the same machine. Before it changes anything, every
+changing phase, and the package staging, checks on the host, on its own connection, that the
+machine-id and hostname are the ones the verified preflight read. If they differ, nothing runs.
+
+- **Using it on a fleet host needs the release captain's authorization for that host and
+  that upgrade.** Implementation, tests and a passing dry run are not that authorization.
+- Without `--execute`, a changing phase prints exactly what it would run and contacts
+  nothing. Show that to the captain first.
+- The tool never starts the service by hand, rolls back or reboots. If `install` or `verify`
+  stops, read its output and follow the procedure's Rollback section with the captain. Do
+  not improvise.
+- Step 8 needs a root-only token file on the host (`--token-file`). The token never leaves
+  the host. Do not scan until `rules` prints `STEP 8 DONE: MATCH`.
+- Validated so far against a simulated server only. Not yet run on a fleet host.
+
 ## Not covered yet
 
 These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md`. When doing
 them, capture every command through `evidence_capture.py run --timeout`:
 
 - the release-prep PR content;
-- the fleet upgrade, Steps 1 to 8;
 - F1, F3 and D1 packets.
