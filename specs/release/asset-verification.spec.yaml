@@ -1,0 +1,133 @@
+spec:
+  id: release-asset-verification
+  title: Release asset verification against the candidate commit
+  version: "1.0.0"
+  status: approved
+  tier: 1
+
+  context:
+    system: openwatch
+    feature: Draft-asset verification for release preparation
+    description: >
+      The release checker's gates A1 and A2 hash the assets against
+      SHA256SUMS and verify its signature. For v0.8.4 everything else about
+      the draft's assets was checked by hand: which Go toolchain built each
+      binary, whether it was the candidate commit, which module versions it
+      carries, whether govulncheck finds called vulnerabilities, the RPM
+      signatures, the shipped notices and the SBOMs. scripts/release_assets.py
+      does those checks in one maintained, tested run, with every expectation
+      read from the candidate commit and every command's raw output captured.
+      It reads the release and changes nothing; it records no release
+      decision.
+    related_specs:
+      - release-ci-gates
+      - release-evidence-capture
+      - release-tagging
+
+  objective:
+    summary: >
+      A release's assets are shown, from raw evidence, to be the candidate
+      commit's build with the expected toolchain, modules, signatures, notices
+      and SBOMs, before anyone is asked to sign off on them.
+    scope:
+      includes:
+        - scripts/release_assets.py, against a draft or published release or a downloaded directory
+      excludes:
+        - Release decisions, publication, and any change to a release or its assets
+        - Gates A1 and A2 themselves, which stay in scripts/release-status.py
+
+  constraints:
+    - id: C-01
+      description: >-
+        Every expectation is read from the candidate commit: VERSION from
+        packaging/version.env (which must match the tag), the Go toolchain and
+        module versions and the kensa version from go.mod, the release key
+        from security/KEYS, and the notices from THIRD-PARTY-NOTICES.md. Every
+        external command runs through scripts/evidence_capture.py with an
+        explicit timeout. The evidence directory must be new, and the assets
+        are not modified.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The tag on origin peels to the commit; with a download, each asset
+        matches the digest GitHub reports for it. SHA256SUMS lists every
+        package and SBOM exactly once and each matches; the KEYS asset equals
+        security/KEYS at the commit.
+      type: security
+      enforcement: error
+    - id: C-03
+      description: >-
+        SHA256SUMS.asc is a good signature by the named key, which is a
+        primary key in security/KEYS at the commit, verified in a throwaway
+        GnuPG home whose daemons are stopped afterwards; every RPM's
+        signatures and digests verify against that key in a throwaway rpm
+        database.
+      type: security
+      enforcement: error
+    - id: C-04
+      description: >-
+        Each openwatch package's /usr/bin/openwatch reports go.mod's
+        toolchain, vcs.revision equal to the commit, vcs.modified=false,
+        ldflags Version and Commit, the package's architecture, and every
+        dependency at go.mod's version.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        govulncheck in binary mode finds no vulnerability in called code;
+        findings only in imported packages or required modules are listed, not
+        failed. Each openwatch package ships its license files and the
+        commit's THIRD-PARTY-NOTICES.md. Each package has a CycloneDX SBOM
+        whose subject is that package's file and sha256; openwatch SBOMs list
+        Go modules at go.mod's versions; kensa-rules packages carry go.mod's
+        kensa version; the merged SBOM is present.
+      type: technical
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        A good release passes every area (release, manifest, signature, rpm,
+        binary, vulns, notices, sbom) without changing an asset, and the report
+        states that it records no release decision. Every command is a
+        verified capture bound to the tag and commit with one of the declared
+        timeouts. A short commit, a short fingerprint, an existing evidence
+        directory and a tag that does not match VERSION are refused before any
+        check. A download whose asset differs from GitHub's digest fails that
+        asset only.
+      priority: critical
+      references_constraints: [C-01, C-02]
+    - id: AC-02
+      description: >-
+        Exactly the expected checks fail for: a changed asset (its manifest
+        entry and, for a package, its SBOM); an unlisted file (coverage); a
+        KEYS asset that differs from the commit's; and a tag on origin that
+        names another commit.
+      priority: critical
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        A SHA256SUMS signature by another key fails; a key that is not in
+        security/KEYS fails both the key and the signature checks; an RPM
+        whose signature check reports NOT OK fails that RPM only.
+      priority: critical
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        The binary check alone fails for another Go toolchain, a dependency
+        at another version, vcs.modified=true, another version in ldflags, the
+        wrong architecture, and another commit's revision; a package without
+        the binary fails the binary and notices checks.
+      priority: critical
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        A called vulnerability fails every openwatch binary and names the
+        advisory; required-module and imported-only findings are listed and
+        pass. Notices that differ and a missing license file fail the notices
+        check alone. An SBOM naming another digest, listing another module
+        version, missing, or for a kensa-rules package of another version
+        fails that SBOM alone.
+      priority: critical
+      references_constraints: [C-05]
