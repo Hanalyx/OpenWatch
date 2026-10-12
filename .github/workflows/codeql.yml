@@ -14,6 +14,16 @@ on:
     - cron: '30 7 * * *'  # Daily at 07:30 UTC (02:30 EST, 03:30 EDT), on the default branch
   workflow_dispatch:
 
+# One run per pull request: a new push cancels the run for the older head
+# (CI assessment 2026-10-03, recommendation 4). Every other event (a push to
+# main, a tag, a schedule, a manual run) gets a group of its own, so none is
+# ever canceled or replaced. A group shared with cancel-in-progress false
+# would still replace a pending run, which would drop main or tag evidence.
+# release-ci-gates C-23.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze Code
