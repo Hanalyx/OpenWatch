@@ -204,8 +204,8 @@ python3 -S scripts/release_prep_pr.py body --evidence DIR --ci-result RUN/result
   that name the previous version, and the CHANGELOG heading. It records what changed since
   the previous tag through the capture library. **It never writes release notes.** An empty
   `[Unreleased]` is refused; write the notes first.
-- `body` writes `PR-BODY-<commit>.md` from those captures. A `ci-strict` result counts only
-  for that exact commit, and every gap in it is copied. The release gates are listed as not
+- `body` writes `PR-BODY-<commit>.md` from those captures. A `ci-strict` result must be finished
+  and well formed, and counts only for that exact commit and tree; every gap in it is copied. The release gates are listed as not
   yet evaluated. Every human field is blank, and files edited by hand after the draft are
   named.
 - Neither step commits, pushes, tags or opens the pull request. Opening it is yours; tagging

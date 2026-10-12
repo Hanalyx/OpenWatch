@@ -114,12 +114,17 @@ def changelog_latest(text):
     return None
 
 
-def agreement(repo):
-    """The three sources the hygiene test and release_tag.py require to agree."""
-    env = read(repo, "packaging/version.env")
-    return {"version.env": env_value(env, "VERSION"),
-            "README.md": readme_version(read(repo, "README.md")),
-            "CHANGELOG.md": changelog_latest(read(repo, "CHANGELOG.md"))}
+def agreement(repo, texts=None):
+    """The three sources the hygiene test and release_tag.py require to agree.
+
+    texts maps a path to proposed contents; a path not in it is read from disk."""
+    texts = texts or {}
+
+    def get(rel):
+        return texts[rel] if rel in texts else read(repo, rel)
+    return {"version.env": env_value(get("packaging/version.env"), "VERSION"),
+            "README.md": readme_version(get("README.md")),
+            "CHANGELOG.md": changelog_latest(get("CHANGELOG.md"))}
 
 
 def stamp_changelog(text, version, codename, date):
@@ -178,9 +183,12 @@ def draft(a):
     os.makedirs(out, mode=0o700, exist_ok=True)
     # Compute every edit before writing any, so a refusal changes nothing.
     edits = {}
-    env = read(repo, "packaging/version.env")
-    edits["packaging/version.env"] = env.replace('VERSION="%s"' % previous,
-                                                 'VERSION="%s"' % a.version, 1)
+    # The assignment line itself, never a comment or another line that quotes it.
+    env, n = re.subn(r'(?m)^VERSION="%s"$' % re.escape(previous), 'VERSION="%s"' % a.version,
+                     read(repo, "packaging/version.env"))
+    if n != 1:
+        raise PrepPRError("packaging/version.env's VERSION assignment could not be updated")
+    edits["packaging/version.env"] = env
     readme = read(repo, "README.md")
     # The phrase wraps inside a blockquote, at any of its word gaps.
     gap = r"(?:\s|>)+"
@@ -202,6 +210,11 @@ def draft(a):
         if banner_old in text:
             edits[rel] = text.replace(banner_old, banner_new)
             banners.append(rel)
+    # Every proposed content is checked before any file or capture is written.
+    proposed = agreement(repo, edits)
+    if set(proposed.values()) != {a.version}:
+        raise PrepPRError("the proposed edits would leave the sources saying %s; nothing was "
+                          "edited" % proposed)
     # Readings first: they describe the base commit, before any edit.
     caps = []
     for name, args, path in READINGS:
@@ -215,23 +228,38 @@ def draft(a):
                               "was edited." % (name, ec._exit_text(rec["exit"]).strip(),
                                                rec["path"]))
         caps.append(name)
-    for rel, text in sorted(edits.items()):
-        write(repo, rel, text)
-    after = agreement(repo)
-    if set(after.values()) != {a.version}:
-        raise PrepPRError("internal: after the edits the sources say %s" % after)
     record = {"version": a.version, "tag": tag, "codename": codename, "date": a.date,
               "previous": previous, "since": a.since, "since_commit": since, "base": base,
               "readings": caps, "banners": sorted(banners),
               "edited": {rel: hashlib.sha256(text.encode()).hexdigest()
                          for rel, text in sorted(edits.items())}}
-    ec._write_new(os.path.join(out, "draft.json"),
-                  (json.dumps(record, indent=1, sort_keys=True) + "\n").encode())
+    apply_edits(repo, edits, a.version, os.path.join(out, "draft.json"),
+                (json.dumps(record, indent=1, sort_keys=True) + "\n").encode())
     return ("Drafted %s (%s) over %s. Edited %d files: version.env, README, CHANGELOG and %d "
             "banners. Nothing is committed.\nReview `git diff`, commit it, run "
             "scripts/ci-strict.py on that commit, then:\n    python3 -S scripts/"
             "release_prep_pr.py body --evidence %s --ci-result <run>/result.json" % (
                 tag, codename, a.since, len(edits), len(banners), a.evidence))
+
+
+def apply_edits(repo, edits, version, record_path, record):
+    """Write every edit and the draft record, or restore each file's original bytes."""
+    originals = {}
+    for rel in edits:
+        with open(os.path.join(repo, rel), "rb") as f:
+            originals[rel] = f.read()
+    try:
+        for rel, text in sorted(edits.items()):
+            write(repo, rel, text)
+        after = agreement(repo)
+        if set(after.values()) != {version}:
+            raise PrepPRError("after the edits the sources say %s" % after)
+        ec._write_new(record_path, record)
+    except BaseException:
+        for rel, raw in originals.items():
+            with open(os.path.join(repo, rel), "wb") as f:
+                f.write(raw)
+        raise
 
 
 def _stdout(out, name):
@@ -240,8 +268,55 @@ def _stdout(out, name):
         return f.read()
 
 
-def ci_section(path, head):
-    """Lines for the local CI result: counted only for this exact commit."""
+_ci_spec = importlib.util.spec_from_file_location("ci_strict", _here / "ci-strict.py")
+ci_strict = importlib.util.module_from_spec(_ci_spec)
+_ci_spec.loader.exec_module(ci_strict)
+
+
+def _when(v):
+    try:
+        return bool(v) and datetime.datetime.fromisoformat(v) is not None
+    except (TypeError, ValueError):
+        return False
+
+
+def check_ci_result(r):
+    """The problems with a ci-strict result.json's structure, or [] when well formed."""
+    p = []
+    if not isinstance(r, dict):
+        return ["it is not a JSON object"]
+    if not isinstance(r.get("id"), str) or not r["id"]:
+        p.append("no invocation id")
+    if not re.match(r"^[0-9a-f]{40}$", str(r.get("commit"))):
+        p.append("commit is not a 40-character commit id")
+    if not re.match(r"^[0-9a-f]{64}$", str(r.get("tree"))):
+        p.append("tree is not a 64-character digest")
+    if not _when(r.get("started")):
+        p.append("started is not a timestamp")
+    if not _when(r.get("finished")):
+        p.append("finished is empty or not a timestamp: the run did not finish")
+    if type(r.get("exit")) is not int or ci_strict.VERDICTS.get(r["exit"]) != r.get("verdict"):
+        p.append("verdict %r does not match exit %r" % (r.get("verdict"), r.get("exit")))
+    t = r.get("tests")
+    if not isinstance(t, dict) or type(t.get("passed")) is not int or \
+            type(t.get("failed")) is not int:
+        p.append("tests lacks passed and failed counts")
+    else:
+        for k in ("not_run", "unexpected_not_run"):
+            v = t.get(k, {})
+            if not isinstance(v, dict) or not all(type(n) is int for n in v.values()):
+                p.append("tests.%s is not a map of counts" % k)
+    g = r.get("gates")
+    if not isinstance(g, list) or not all(isinstance(x, dict) and isinstance(x.get("gate"), str)
+                                          and isinstance(x.get("outcome"), str) for x in g):
+        p.append("gates is not a list of named outcomes")
+    if not isinstance(r.get("accepted_gaps", []), list):
+        p.append("accepted_gaps is not a list")
+    return p
+
+
+def ci_section(path, repo, head):
+    """Lines for the local CI result: counted only for this exact commit and tree."""
     if not path:
         return ["- **No local CI result was supplied.** Hosted checks on this head are the only "
                 "test evidence."], "not supplied"
@@ -252,13 +327,24 @@ def ci_section(path, head):
         r = json.loads(raw)
     except ValueError as e:
         raise PrepPRError("--ci-result %s is not JSON: %s" % (path, e))
-    if r.get("commit") != head:
+    problems = check_ci_result(r)
+    if problems:
+        raise PrepPRError("--ci-result %s is not a finished, well-formed ci-strict result: %s" % (
+            path, "; ".join(problems)))
+    commit, tree = ci_strict.tree_identity(ci_strict.Probe(repo=repo))
+    if r["commit"] != head:
         return ["- **A local CI result for another commit was supplied and is not counted:** "
                 "`%s` (sha256 `%s`) ran on `%s`, not this head `%s`." % (
-                    path, digest, str(r.get("commit"))[:12], head[:12])], "another commit"
+                    path, digest, r["commit"][:12], head[:12])], "another commit"
+    if (r["commit"], r["tree"]) != (commit.strip(), tree):
+        return ["- **A local CI result for this commit but another tree was supplied and is not "
+                "counted:** `%s` (sha256 `%s`) records tree `%s`; this checkout's is `%s`. "
+                "Uncommitted or untracked files differed when it ran." % (
+                    path, digest, r["tree"][:12], tree[:12])], "another tree"
     t = r.get("tests") or {}
-    lines = ["- Local `scripts/ci-strict.py` on this head: verdict **%s**, exit %s (`%s`, sha256 "
-             "`%s`)." % (r.get("verdict"), r.get("exit"), path, digest),
+    lines = ["- Local `scripts/ci-strict.py` on this head and tree: verdict **%s**, exit %s, "
+             "finished %s (`%s`, sha256 `%s`)." % (r["verdict"], r["exit"], r["finished"], path,
+                                                  digest),
              "  - Tests: %s passed, %s failed." % (t.get("passed"), t.get("failed"))]
     for reason, n in sorted((t.get("not_run") or {}).items()):
         lines.append("  - Not run (%d): %s" % (n, reason))
@@ -293,6 +379,8 @@ def body(a):
     for name in d["readings"]:
         caps[name] = ec.verify_capture(os.path.join(out, "reading-" + name), tag=d["tag"],
                                        commit=d["base"])
+    # The supplied CI result is judged before any capture is written.
+    ci_lines, ci_state = ci_section(a.ci_result, repo, head)
     now = agreement(repo)
     if set(now.values()) != {d["version"]}:
         raise PrepPRError("at HEAD the version sources say %s, not %s" % (now, d["version"]))
@@ -313,7 +401,6 @@ def body(a):
     install = _stdout(out, "install-docs").strip()
     with open(os.path.join(repo, "release", "gates.toml"), "rb") as f:
         gates = [g for g in tomllib.load(f).get("gate", [])]
-    ci_lines, ci_state = ci_section(a.ci_result, head)
     # What the person changed after the draft: drafted files that no longer
     # hold the drafted bytes, and files the draft never touched.
     later = []

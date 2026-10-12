@@ -138,8 +138,15 @@ class Case(unittest.TestCase):
         self.assertEqual(len(names), 1, names)
         return read_text(os.path.join(self.out, names[0]))
 
+    def tree(self):
+        """This checkout's tree identity, computed by ci-strict itself."""
+        return pr.ci_strict.tree_identity(pr.ci_strict.Probe(repo=self.repo))[1]
+
     def ci_result(self, commit, **over):
-        r = {"commit": commit, "verdict": "incomplete", "exit": 3, "accepted_gaps": [],
+        r = {"id": "0" * 32, "commit": commit, "tree": self.tree(),
+             "started": "2026-10-11T15:17:20.375446+00:00",
+             "finished": "2026-10-11T15:40:14.449628+00:00",
+             "verdict": "incomplete", "exit": 3, "accepted_gaps": [],
              "tests": {"passed": 3801, "failed": 0,
                        "not_run": {"set OPENWATCH_LIVE_HOSTS to run live-host SSH tests": 1},
                        "unexpected_not_run": {}},
@@ -201,6 +208,18 @@ class DraftEdits(Case):
         self.assertIn("A\tinternal/db/migrations/0002_more.sql",
                       read_text(os.path.join(self.out, "reading-migrations", "stdout")))
 
+    def test_only_the_version_assignment_changes_not_a_comment_quoting_it(self):
+        # The reproduction: a comment quoting the assignment, before it.
+        self.put("packaging/version.env",
+                 '# Bump with, for example: VERSION="0.8.4"\nVERSION="0.8.4"\nCODENAME="Eyrie"\n')
+        self.git("commit", "-q", "-am", "comment quoting the assignment")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        code, out = self.draft()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(read_text(os.path.join(self.repo, "packaging/version.env")),
+                         '# Bump with, for example: VERSION="0.8.4"\nVERSION="0.8.5"\n'
+                         'CODENAME="Eyrie"\n')
+
     def test_a_release_candidate_suffix_is_carried_everywhere(self):
         code, out = self.draft(version="0.9.0-rc.1")
         self.assertEqual(code, 0, out)
@@ -244,6 +263,52 @@ class DraftRefusals(Case):
         self.git("tag", "v0.8.9")
         self.git("checkout", "-q", "main")
         self.assert_refused("is not an ancestor of HEAD", since="v0.8.9")
+
+    def test_a_proposal_that_would_disagree_is_refused_before_anything_is_written(self):
+        real = pr.stamp_changelog
+        pr.stamp_changelog = lambda text, *a: text  # a defect in one proposed edit
+        self.addCleanup(setattr, pr, "stamp_changelog", real)
+        code, out = self.draft()
+        self.assertEqual(code, 1, out)
+        self.assertIn("the proposed edits would leave the sources saying", out)
+        self.assert_untouched()
+        self.assertFalse([n for n in os.listdir(self.out) if n.startswith("reading-")],
+                         "a reading was captured for a refused proposal")
+
+    def test_a_failure_while_applying_restores_every_original_byte(self):
+        originals = {}
+        for rel in ("packaging/version.env", "README.md", "CHANGELOG.md",
+                    "docs/guides/QUICKSTART.md", "docs/runbooks/BACKUP.md"):
+            with open(os.path.join(self.repo, rel), "rb") as f:
+                originals[rel] = f.read()
+        for where in ("write", "record"):
+            with self.subTest(where=where):
+                shutil.rmtree(self.evidence, True)
+                calls = []
+                real_write, real_new = pr.write, pr.ec._write_new
+
+                def failing_write(repo, rel, text):
+                    calls.append(rel)
+                    if len(calls) == 3:
+                        raise OSError("disk full")
+                    real_write(repo, rel, text)
+
+                def failing_new(path, data):
+                    raise OSError("disk full")
+                if where == "write":
+                    pr.write = failing_write
+                else:
+                    pr.ec._write_new = failing_new
+                try:
+                    with self.assertRaises(OSError):
+                        self.draft()
+                finally:
+                    pr.write, pr.ec._write_new = real_write, real_new
+                for rel, raw in originals.items():
+                    with open(os.path.join(self.repo, rel), "rb") as f:
+                        self.assertEqual(f.read(), raw, rel)
+                self.assert_untouched()
+                self.assertFalse(os.path.exists(os.path.join(self.out, "draft.json")))
 
     def test_a_dirty_checkout_is_refused(self):
         self.put("README.md", README + "\nedited\n")
@@ -372,7 +437,8 @@ class LocalCIResult(Case):
         b = self.the_body()
         with open(p, "rb") as f:
             digest = hashlib.sha256(f.read()).hexdigest()
-        self.assertIn("verdict **incomplete**, exit 3", b)
+        self.assertIn("on this head and tree: verdict **incomplete**, exit 3, finished "
+                      "2026-10-11T15:40:14.449628+00:00", b)
         self.assertIn(digest, b)
         self.assertIn("Tests: 3801 passed, 0 failed.", b)
         self.assertIn("Not run (1): set OPENWATCH_LIVE_HOSTS to run live-host SSH tests", b)
@@ -402,6 +468,53 @@ class LocalCIResult(Case):
         self.prepared()
         self.assertEqual(self.body()[0], 0)
         self.assertIn("**No local CI result was supplied.**", self.the_body())
+
+    def test_the_reviewers_result_another_tree_and_unfinished_is_refused(self):
+        # The reproduction: this commit, a different tree, an empty finished.
+        head = self.prepared()
+        p = self.ci_result(head, tree="f" * 64, finished="", verdict="complete", exit=0)
+        code, out = self.body("--ci-result", p)
+        self.assertEqual(code, 1, out)
+        self.assertIn("is not a finished, well-formed ci-strict result", out)
+        self.assertIn("the run did not finish", out)
+        self.assertFalse([n for n in os.listdir(self.out) if n.startswith("PR-BODY-")])
+
+    def test_a_finished_result_for_another_tree_is_not_counted(self):
+        head = self.prepared()
+        p = self.ci_result(head, tree="f" * 64, verdict="complete", exit=0)
+        code, out = self.body("--ci-result", p)
+        self.assertEqual(code, 0, out)
+        self.assertIn("local CI: another tree", out)
+        b = self.the_body()
+        self.assertIn("for this commit but another tree was supplied and is not counted", b)
+        self.assertNotIn("verdict **complete**", b)
+
+    def test_untracked_files_since_the_run_change_the_tree(self):
+        head = self.prepared()
+        p = self.ci_result(head)
+        self.put("scratch.txt", "appeared after the run\n")
+        self.assertEqual(self.body("--ci-result", p)[0], 0)
+        self.assertIn("another tree", self.the_body())
+
+    def test_a_malformed_result_is_refused(self):
+        head = self.prepared()
+        for over, why in (({"verdict": "complete"}, "does not match exit 3"),
+                          ({"commit": head[:12]}, "40-character commit"),
+                          ({"tree": "abc"}, "64-character digest"),
+                          ({"started": "yesterday"}, "started is not a timestamp"),
+                          ({"id": ""}, "no invocation id"),
+                          ({"tests": {"passed": "3801", "failed": 0}}, "passed and failed"),
+                          ({"tests": {"passed": 1, "failed": 0, "not_run": {"x": "1"}}},
+                           "tests.not_run is not a map of counts"),
+                          ({"gates": [{"outcome": "passed"}]}, "list of named outcomes"),
+                          ({"accepted_gaps": "none"}, "accepted_gaps is not a list")):
+            with self.subTest(over=over):
+                over = dict(over)
+                code, out = self.body("--ci-result",
+                                      self.ci_result(over.pop("commit", head), **over))
+                self.assertEqual(code, 1, out)
+                self.assertIn(why, out)
+        self.assertFalse([n for n in os.listdir(self.out) if n.startswith("PR-BODY-")])
 
     def test_a_result_that_is_not_json_is_refused(self):
         self.prepared()
