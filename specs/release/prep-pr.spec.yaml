@@ -59,9 +59,12 @@ spec:
         empty [Unreleased] or an existing section for the version is refused.
         Every proposed content is checked for version agreement before any
         reading or file is written. The edits and the draft record are then
-        written together: if any write or the post-write check fails, every
-        edited file is restored to its original bytes and no draft record
-        remains. The draft record, which holds each edited file's digest, is
+        written as one transaction: the record goes to a .partial file and is
+        renamed into place, so it only appears complete. If any write, the
+        post-write check, the record write or the rename fails, every edited
+        file is restored to its original bytes and the record paths the
+        transaction created are removed. A record or .partial file present
+        before refuses the transaction and is never touched. The draft record, which holds each edited file's digest, is
         never overwritten.
       type: technical
       enforcement: error
@@ -126,8 +129,11 @@ spec:
         that disagree; an existing section for the version; a doubled README
         phrase; a second draft, by the draft's own guard; and a proposal that
         would leave the sources disagreeing, before any reading is captured.
-        A failure while writing an edit or the draft record restores every
-        edited file's original bytes and leaves no draft record.
+        A failure while writing an edit, while writing the draft record after
+        part of it is on disk, or while renaming it into place restores every
+        edited file's original bytes and leaves neither draft.json nor its
+        .partial, and a retry then succeeds. A record present before is
+        preserved byte for byte, with the checkout unchanged.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-03

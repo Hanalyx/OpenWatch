@@ -72,7 +72,7 @@ func TestReleasePrepPR_DraftEdits(t *testing.T) {
 // AC-02: draft refuses, changing nothing, rather than guess.
 func TestReleasePrepPR_DraftRefuses(t *testing.T) {
 	t.Run("release-prep-pr/AC-02", func(t *testing.T) {
-		requireReleasePrepPR(t, "DraftRefusals", 9,
+		requireReleasePrepPR(t, "DraftRefusals", 12,
 			"test_an_empty_unreleased_section_is_refused",
 			"test_malformed_inputs_are_refused",
 			"test_a_second_draft_is_refused")
@@ -125,9 +125,9 @@ func TestReleasePrepPR_StaysOffline(t *testing.T) {
 // rewritten, then five files were left edited behind a refusal).
 func TestReleasePrepPR_DraftLeavesNothingBehind(t *testing.T) {
 	t.Run("release-prep-pr/AC-02", func(t *testing.T) {
-		requireReleasePrepPR(t, "DraftRefusals", 9,
+		requireReleasePrepPR(t, "DraftRefusals", 12,
 			"test_a_proposal_that_would_disagree_is_refused_before_anything_is_written",
-			"test_a_failure_while_applying_restores_every_original_byte")
+			"test_a_failure_while_writing_an_edit_restores_every_original_byte")
 		requireReleasePrepPR(t, "DraftEdits", 5,
 			"test_only_the_version_assignment_changes_not_a_comment_quoting_it")
 	})
@@ -144,5 +144,18 @@ func TestReleasePrepPR_CIEvidenceBindsToTheTree(t *testing.T) {
 			"test_a_finished_result_for_another_tree_is_not_counted",
 			"test_untracked_files_since_the_run_change_the_tree",
 			"test_a_malformed_result_is_refused")
+	})
+}
+
+// @ac AC-02
+// AC-02: the draft record is part of the transaction (review of 48ec5e9a: a
+// failure after draft.json was partly written left a truncated record that
+// refused every retry).
+func TestReleasePrepPR_DraftRecordIsTransactional(t *testing.T) {
+	t.Run("release-prep-pr/AC-02", func(t *testing.T) {
+		requireReleasePrepPR(t, "DraftRefusals", 12,
+			"test_a_record_failing_after_its_bytes_are_written_leaves_no_record",
+			"test_a_failure_renaming_the_record_into_place_leaves_no_record",
+			"test_a_record_that_existed_before_is_never_removed")
 	})
 }

@@ -243,7 +243,17 @@ def draft(a):
 
 
 def apply_edits(repo, edits, version, record_path, record):
-    """Write every edit and the draft record, or restore each file's original bytes."""
+    """Write every edit and the draft record as one transaction.
+
+    The record is written to a .partial file and renamed into place, so it only
+    ever appears complete. On any failure every edited file gets its original
+    bytes back, and the record paths this transaction created are removed; a
+    file that existed before is never touched, because its presence refuses the
+    transaction before anything is written."""
+    tmp = record_path + ".partial"
+    for p in (record_path, tmp):
+        if os.path.lexists(p):
+            raise PrepPRError("%s already exists; move it aside, then draft again" % p)
     originals = {}
     for rel in edits:
         with open(os.path.join(repo, rel), "rb") as f:
@@ -254,11 +264,15 @@ def apply_edits(repo, edits, version, record_path, record):
         after = agreement(repo)
         if set(after.values()) != {version}:
             raise PrepPRError("after the edits the sources say %s" % after)
-        ec._write_new(record_path, record)
+        ec._write_new(tmp, record)
+        os.rename(tmp, record_path)
     except BaseException:
         for rel, raw in originals.items():
             with open(os.path.join(repo, rel), "wb") as f:
                 f.write(raw)
+        for p in (tmp, record_path):
+            if os.path.lexists(p):
+                os.unlink(p)
         raise
 
 

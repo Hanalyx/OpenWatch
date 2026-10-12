@@ -275,40 +275,100 @@ class DraftRefusals(Case):
         self.assertFalse([n for n in os.listdir(self.out) if n.startswith("reading-")],
                          "a reading was captured for a refused proposal")
 
-    def test_a_failure_while_applying_restores_every_original_byte(self):
-        originals = {}
+    def originals(self):
+        out = {}
         for rel in ("packaging/version.env", "README.md", "CHANGELOG.md",
                     "docs/guides/QUICKSTART.md", "docs/runbooks/BACKUP.md"):
             with open(os.path.join(self.repo, rel), "rb") as f:
-                originals[rel] = f.read()
-        for where in ("write", "record"):
-            with self.subTest(where=where):
-                shutil.rmtree(self.evidence, True)
-                calls = []
-                real_write, real_new = pr.write, pr.ec._write_new
+                out[rel] = f.read()
+        return out
 
-                def failing_write(repo, rel, text):
-                    calls.append(rel)
-                    if len(calls) == 3:
-                        raise OSError("disk full")
-                    real_write(repo, rel, text)
+    def assert_restored(self, originals):
+        for rel, raw in originals.items():
+            with open(os.path.join(self.repo, rel), "rb") as f:
+                self.assertEqual(f.read(), raw, rel)
+        self.assert_untouched()
+        for n in ("draft.json", "draft.json.partial"):
+            self.assertFalse(os.path.lexists(os.path.join(self.out, n)), n)
 
-                def failing_new(path, data):
-                    raise OSError("disk full")
-                if where == "write":
-                    pr.write = failing_write
-                else:
-                    pr.ec._write_new = failing_new
-                try:
-                    with self.assertRaises(OSError):
-                        self.draft()
-                finally:
-                    pr.write, pr.ec._write_new = real_write, real_new
-                for rel, raw in originals.items():
-                    with open(os.path.join(self.repo, rel), "rb") as f:
-                        self.assertEqual(f.read(), raw, rel)
-                self.assert_untouched()
-                self.assertFalse(os.path.exists(os.path.join(self.out, "draft.json")))
+    def test_a_failure_while_writing_an_edit_restores_every_original_byte(self):
+        originals = self.originals()
+        calls = []
+        real = pr.write
+
+        def failing(repo, rel, text):
+            calls.append(rel)
+            if len(calls) == 3:
+                raise OSError("disk full")
+            real(repo, rel, text)
+        pr.write = failing
+        try:
+            with self.assertRaises(OSError):
+                self.draft()
+        finally:
+            pr.write = real
+        self.assertEqual(len(calls), 3)
+        self.assert_restored(originals)
+
+    def test_a_record_failing_after_its_bytes_are_written_leaves_no_record(self):
+        # The review's reproduction: the failure strikes the draft record only,
+        # after part of it is on disk, not the captures written before it.
+        originals = self.originals()
+        real = pr.ec._write_new
+        hit = []
+
+        def half_then_fail(path, data):
+            if os.path.basename(path).startswith("draft.json"):
+                hit.append(path)
+                real(path, data[:len(data) // 2])
+                raise OSError("disk full")
+            real(path, data)
+        pr.ec._write_new = half_then_fail
+        try:
+            with self.assertRaises(OSError):
+                self.draft()
+        finally:
+            pr.ec._write_new = real
+        self.assertEqual(len(hit), 1, "the record write was never reached")
+        self.assertTrue(os.path.isdir(os.path.join(self.out, "reading-commits")),
+                        "the captures before it were written")
+        self.assert_restored(originals)
+        # A retry is not blocked by a leftover record. The readings are moved
+        # aside first: a capture is never taken twice under one name.
+        for n in os.listdir(self.out):
+            os.rename(os.path.join(self.out, n), os.path.join(self.out, n + ".failed"))
+        code, out = self.draft()
+        self.assertEqual(code, 0, out)
+
+    def test_a_failure_renaming_the_record_into_place_leaves_no_record(self):
+        originals = self.originals()
+        real = pr.os.rename
+
+        def failing(src, dst):
+            if os.path.basename(dst) == "draft.json":
+                raise OSError("rename failed")
+            real(src, dst)
+        pr.os.rename = failing
+        try:
+            with self.assertRaises(OSError):
+                self.draft()
+        finally:
+            pr.os.rename = real
+        self.assert_restored(originals)
+
+    def test_a_record_that_existed_before_is_never_removed(self):
+        os.makedirs(self.out)
+        for name in ("draft.json", "draft.json.partial"):
+            with self.subTest(name=name):
+                path = os.path.join(self.out, name)
+                with open(path, "w") as f:
+                    f.write("someone else's\n")
+                with self.assertRaises(pr.PrepPRError):
+                    pr.apply_edits(self.repo, {"README.md": "changed\n"}, "0.8.5",
+                                   os.path.join(self.out, "draft.json"), b"{}")
+                self.assertEqual(read_text(path), "someone else's\n")
+                self.assertEqual(read_text(os.path.join(self.repo, "README.md")), README)
+                os.unlink(path)
 
     def test_a_dirty_checkout_is_refused(self):
         self.put("README.md", README + "\nedited\n")
