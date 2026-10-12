@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.27.0"
+  version: "1.28.0"
   status: approved
   tier: 1
 
@@ -613,6 +613,20 @@ spec:
         candidate's policy version, this amendment and the full checker commit,
         as for C-21.
         Added v1.26.0 at the user's direction on 2026-10-09.
+      type: technical
+      enforcement: error
+    - id: C-23
+      description: >-
+        go-ci.yml, codeql.yml and package-smoke.yml each carry one identical
+        workflow-level concurrency setting. A pull-request run's group is the
+        workflow name and the pull request's number, with cancel-in-progress
+        true, so a newer head cancels the run for the older one. Every other
+        run (a push to main, a tag, a schedule, a manual run) gets a group of
+        its own, made from the workflow name and its run id, with
+        cancel-in-progress false: no such run is ever canceled or replaced,
+        because GitHub replaces a pending run in a shared group even when
+        cancel-in-progress is false. Groups never span two workflows, and a
+        rerun keeps its own run's group.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1757,3 +1771,16 @@ spec:
         that there is no general waiver; the skeleton generator says the same.
       priority: critical
       references_constraints: [C-22]
+    - id: AC-42
+      description: >-
+        The three workflows' concurrency settings are identical, and, evaluated
+        for each event: two heads of one pull request share a group and are
+        cancellable; two pull requests do not share one; two pushes to main,
+        two tags, a schedule and a manual run each get their own group and
+        cancel-in-progress false; a rerun stays in its run's group; and no
+        group is shared between workflows. Making non-pull-request runs share
+        the ref, grouping a pull request by head, dropping the workflow name,
+        cancelling always or never, letting one workflow drift, swapping the
+        operators of the conditional, or removing the block each fails.
+      priority: high
+      references_constraints: [C-23]
