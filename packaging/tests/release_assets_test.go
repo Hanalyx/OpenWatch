@@ -64,7 +64,7 @@ func requireReleaseAssets(t *testing.T, class string, want int, cases ...string)
 // AC-01: inputs, a passing release, and raw evidence for every command.
 func TestReleaseAssets_VerifiesFromRawEvidence(t *testing.T) {
 	t.Run("release-asset-verification/AC-01", func(t *testing.T) {
-		requireReleaseAssets(t, "AssetsRunAndEvidence", 5,
+		requireReleaseAssets(t, "AssetsRunAndEvidence", 8,
 			"test_a_good_release_passes_every_check",
 			"test_every_command_is_captured_with_its_declared_timeout")
 	})
@@ -234,5 +234,18 @@ func TestReleaseAssets_ValidatesScannerOutput(t *testing.T) {
 		requireReleaseAssets(t, "AssetsScannerOutput", 5,
 			"test_an_empty_stream_fails_with_exit_0_or_3",
 			"test_valid_module_only_findings_still_pass")
+	})
+}
+
+// @ac AC-01
+// AC-01: exactly one release record, draft or published, names the tag. The
+// draft fixtures take GitHub's draft shape as recorded for v0.8.4; editing that
+// draft once detached its tag, which must fail rather than match nothing.
+func TestReleaseAssets_OneDraftOrPublishedRecordNamesTheTag(t *testing.T) {
+	t.Run("release-asset-verification/AC-01", func(t *testing.T) {
+		requireReleaseAssets(t, "AssetsRunAndEvidence", 8,
+			"test_a_draft_in_githubs_shape_passes",
+			"test_a_draft_whose_tag_was_detached_has_no_release_record",
+			"test_two_releases_for_one_tag_fail")
 	})
 }

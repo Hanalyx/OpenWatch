@@ -313,6 +313,48 @@ class AssetsRunAndEvidence(Case):
         self.assertTrue(report["downloaded"])
 
 
+    def draft_records(self, *tags):
+        """Release records in the shape GitHub returns for a draft, as recorded for
+        v0.8.4's draft 407981779 before publication: draft true, the page and
+        download URLs under an untagged-<hash> name, each asset uploaded with a
+        sha256: digest. tag_name is the field the tool matches."""
+        release = os.path.join(self.fake, "release")
+        for n in os.listdir(self.assets):
+            shutil.copy(os.path.join(self.assets, n), release)
+        page = "https://github.com/Hanalyx/OpenWatch/releases/%s/untagged-84f072bc5df930196ad3"
+        assets = [{"name": n, "state": "uploaded",
+                   "digest": "sha256:" + ra.sha256(os.path.join(release, n)),
+                   "browser_download_url": page % "download" + "/" + n}
+                  for n in sorted(os.listdir(release))]
+        records = [{"tag_name": t, "draft": True, "prerelease": False,
+                    "html_url": page % "tag", "assets": assets} for t in tags]
+        with open(os.path.join(self.fake, "releases.json"), "w") as f:
+            json.dump(records, f)
+
+    def test_a_draft_in_githubs_shape_passes(self):
+        self.draft_records(TAG)
+        code, out, report = self.verify(src=False)
+        self.assertEqual(code, 0, out)
+        self.assertIn(("release", "release record", True),
+                      [(r["area"], r["subject"], r["ok"]) for r in report["checks"]])
+
+    def test_a_draft_whose_tag_was_detached_has_no_release_record(self):
+        # Editing a draft's body once turned its tag_name into untagged-<hash>
+        # (v0.8.4's draft). The draft then names no tag, and nothing may pass.
+        self.draft_records("untagged-84f072bc5df930196ad3")
+        code, out, report = self.verify(src=False)
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.failures(report), [("release", "release record")])
+        detail = [r["detail"] for r in report["checks"] if r["subject"] == "release record"]
+        self.assertEqual(detail, ["0 release(s) use %s" % TAG])
+
+    def test_two_releases_for_one_tag_fail(self):
+        self.draft_records(TAG, TAG)
+        code, out, report = self.verify(src=False)
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.failures(report), [("release", "release record")])
+
+
 class AssetsManifestAndRelease(Case):
     """AC-02: the manifest, the KEYS asset and the tag bind the assets to the commit."""
 

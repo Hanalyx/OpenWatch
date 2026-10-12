@@ -1,7 +1,7 @@
 spec:
   id: release-asset-verification
   title: Release asset verification against the candidate commit
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -50,8 +50,11 @@ spec:
       enforcement: error
     - id: C-02
       description: >-
-        The tag on origin peels to the commit; with a download, each asset
-        matches the digest GitHub reports for it. SHA256SUMS lists every
+        The tag on origin peels to the commit; with a download, exactly one
+        release, draft or published, names the tag in its tag_name, and each
+        asset matches the digest GitHub reports for it. A draft whose tag was
+        detached (tag_name untagged-<hash>) names no tag and fails. SHA256SUMS
+        lists every
         package and SBOM exactly once and each matches; the KEYS asset equals
         security/KEYS at the commit.
       type: security
@@ -131,7 +134,10 @@ spec:
         timeouts. A short commit, a short fingerprint, an existing evidence
         directory and a tag that does not match VERSION are refused before any
         check. A download whose asset differs from GitHub's digest fails that
-        asset only.
+        asset only. A draft record in GitHub's shape (draft true, untagged
+        page and download URLs, uploaded assets with sha256 digests) passes;
+        a draft whose tag_name became untagged-<hash>, and two releases for
+        one tag, each fail the release record alone.
       priority: critical
       references_constraints: [C-01, C-02]
     - id: AC-02
