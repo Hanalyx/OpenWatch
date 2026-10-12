@@ -143,7 +143,9 @@ reads it. `scripts/trace-test-reads.py` runs every Go test binary, Python check
 and the Vitest suite under `strace -f`, with test caching off. It then reports
 any file `go-ci.yml`'s pattern treats as documentation that a test outside the
 documentation path opened. A change to such a file alone would skip the test
-that reads it. A gap fails this run so it gets triaged; it blocks nothing.
+that reads it. A gap fails this run so it gets triaged; it blocks nothing. So
+does an incomplete trace: `go test` timing out or stopping early, a package
+that started without a result, or a suite that failed or did not run.
 
 The trace sees only reads that happened. It misses reads through git, reads of
 a copy of the tree, and tests that were skipped, so treat it as evidence, not

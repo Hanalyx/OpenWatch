@@ -73,6 +73,17 @@ spec:
         suite that cannot run is recorded as not run, with its reason.
       type: technical
       enforcement: error
+    - id: C-06
+      description: >-
+        The report records go test's own result apart from each package's. The
+        trace is incomplete when go test timed out or did not run, exited
+        nonzero with no failed package to account for it, a package started
+        without a package-level pass, fail or skip, or a package or suite
+        failed or did not run. An incomplete trace is stated in the report and
+        exits 3, unless a gap exits 1 first; a complete trace without gaps
+        exits 0. One failed package marks only that package failed.
+      type: technical
+      enforcement: error
     - id: C-05
       description: >-
         The workflow runs only on a weekly schedule and by manual dispatch,
@@ -111,7 +122,7 @@ spec:
         test packages, failed packages, failed suites and suites not run are
         reported; a Go package is judged by the stream, not the overall exit.
         The report carries every limit and an index of reads per suite; a gap
-        exits 1 and none exits 0; a report without a run is refused.
+        exits 1; a report without a run is refused.
       priority: high
       references_constraints: [C-03]
     - id: AC-04
@@ -134,3 +145,16 @@ spec:
         go-ci.yml names it.
       priority: high
       references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        go test timing out after a package started, with no result for it, is
+        incomplete, names the unfinished package and exits 3. go test exiting 1
+        on an early module error with no package in the stream is incomplete
+        and exits 3. With one package failed and another passed, only the first
+        is failed, nothing is unfinished, the exit is not reported as
+        unexplained, and the trace is incomplete. go test not run and a suite
+        not run are incomplete. A complete trace, with a package-level skip for
+        a package without tests, exits 0 and says complete; a gap still exits
+        1 when the trace is also incomplete.
+      priority: high
+      references_constraints: [C-06]

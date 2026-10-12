@@ -30,6 +30,10 @@ workflow's), lists the tracked files, and writes report.md and report.json:
   - Not exercised: every skipped Go test with its reason, packages with no
     test files, packages and suites that failed, and suites that did not run.
   - Informational: tracked files nothing opened.
+  - Completeness: go test's own result apart from each package's. The trace is
+    incomplete when go test timed out or stopped without a failed package to
+    account for it, a started package has no result, or a package or suite
+    failed or did not run. report exits 1 for gaps, else 3 when incomplete.
 
 Limits it cannot overcome, stated in every report:
   - It sees only reads that happened. Skipped tests, branches that did not
@@ -120,8 +124,11 @@ def code_pattern(workflow_text):
 
 
 def go_events(stream_lines):
-    """(skipped [(pkg, test, reason)], no-test packages, failed packages) from go test -json."""
+    """(skipped [(pkg, test, reason)], no-test packages, failed packages, incomplete
+    packages) from go test -json. A package is incomplete when it has events but no
+    package-level pass, fail or skip: it started and never finished."""
     skipped, notests, failed = [], set(), set()
+    started, finished = set(), set()
     output = {}
     for line in stream_lines:
         try:
@@ -129,6 +136,10 @@ def go_events(stream_lines):
         except ValueError:
             continue
         pkg, test, action = e.get("Package", ""), e.get("Test"), e.get("Action")
+        if pkg:
+            started.add(pkg)
+            if test is None and action in ("pass", "fail", "skip"):
+                finished.add(pkg)
         if action == "output":
             text = e.get("Output", "")
             output.setdefault((pkg, test), []).append(text)
@@ -140,7 +151,7 @@ def go_events(stream_lines):
             skipped.append((pkg, test, lines[-1] if lines else "(no reason printed)"))
         elif action == "fail" and test is None:
             failed.add(pkg)
-    return skipped, sorted(notests), sorted(failed)
+    return skipped, sorted(notests), sorted(failed), sorted(started - finished)
 
 
 # ------------------------------------------------------------------ report
@@ -180,22 +191,46 @@ def build_report(out_dir, repo=None):
         if outside:
             gaps.append({"path": path, "read_by": outside})
     unread = sorted(p for p in tracked if p not in readers)
-    skipped, notests, failed = [], [], []
+    skipped, notests, failed, unfinished = [], [], [], []
     stream = out / "go-test.json"
     if stream.is_file():
         with open(stream, encoding="utf-8", errors="replace") as f:
-            skipped, notests, failed = go_events(f)
+            skipped, notests, failed, unfinished = go_events(f)
     other = [s for s in manifest["suites"] if s.get("kind") != "go"]
     not_run = [s["name"] for s in other if s.get("exit") is None]
     failed_suites = [s["name"] for s in other if s.get("exit") not in (None, 0)]
+    # The overall go test result, apart from each package's. A nonzero exit
+    # that no failed package accounts for (a build or module error before any
+    # package ran) or a timeout means Go coverage is missing, not failed.
+    go_exit = manifest.get("go_exit")
+    incomplete = []
+    if go_exit == "timeout":
+        incomplete.append("go test timed out")
+    elif go_exit is None:
+        incomplete.append("go test did not run")
+    elif go_exit != 0 and not failed:
+        incomplete.append("go test exited %s and no package failed: it stopped before or "
+                          "outside the packages" % go_exit)
+    if unfinished:
+        incomplete.append("%d package(s) started without a result: %s" % (
+            len(unfinished), ", ".join(unfinished)))
+    if failed:
+        incomplete.append("%d package(s) failed, so their reads may be cut short" % len(failed))
+    if failed_suites:
+        incomplete.append("suite(s) failed: %s" % ", ".join(failed_suites))
+    if not_run:
+        incomplete.append("suite(s) did not run: %s" % ", ".join(not_run))
     report = {
         "commit": manifest.get("commit"), "pattern": pattern.pattern,
         "tracked": len(tracked), "documentation_files": len(docs),
         "read": len([p for p in readers if p in tracked_set]),
         "gaps": gaps,
+        "go_test": {"exit": go_exit},
+        "incomplete": incomplete,
         "not_exercised": {"skipped_tests": [{"package": p, "test": t, "reason": r}
                                             for p, t, r in skipped],
                           "no_test_files": notests, "failed_packages": failed,
+                          "unfinished_packages": unfinished,
                           "failed_suites": failed_suites, "suites_not_run": not_run},
         "unread": unread, "limits": LIMITS,
     }
@@ -219,7 +254,12 @@ def render(r):
           "A diagnostic, not a gate. Commit `%s`." % r["commit"], "",
           "%d tracked files; %d are documentation by go-ci.yml's pattern; %d were read." % (
               r["tracked"], r["documentation_files"], r["read"]), "",
-          "## Gaps (%d)" % len(r["gaps"]), "",
+          "## Completeness", "",
+          "go test exit: %s." % r["go_test"]["exit"], ""]
+    md += (["**Incomplete trace.** Coverage is missing, so an absence of gaps proves less:", ""]
+           + ["- %s" % i for i in r["incomplete"]]) if r["incomplete"] else [
+        "Complete: every suite ran and every started package finished."]
+    md += ["", "## Gaps (%d)" % len(r["gaps"]), "",
           "A documentation file read by a suite the documentation path does not run. A change "
           "to it alone would skip that suite.", ""]
     md += ["- `%s`: %s" % (g["path"], ", ".join(g["read_by"])) for g in r["gaps"]] or ["None."]
@@ -228,6 +268,8 @@ def render(r):
     md += ["  - `%s` %s: %s" % (s["package"], s["test"], s["reason"]) for s in ne["skipped_tests"]]
     md += ["- Packages with no test files: %d" % len(ne["no_test_files"]),
            "- Failed packages: %s" % (", ".join(ne["failed_packages"]) or "none"),
+           "- Packages started without a result: %s" % (
+               ", ".join(ne["unfinished_packages"]) or "none"),
            "- Failed suites: %s" % (", ".join(ne["failed_suites"]) or "none"),
            "- Suites that did not run: %s" % (", ".join(ne["suites_not_run"]) or "none"),
            "", "## Informational", "",
@@ -318,9 +360,13 @@ def main(argv=None, out=sys.stdout):
             out.write("traced %d suites into %s\n" % (len(suites), a.out))
             return 0
         rep = build_report(a.out)
-        out.write("%d gaps; report in %s\n" % (len(rep["gaps"]), os.path.join(a.out,
-                                                                             "report.md")))
-        return 1 if rep["gaps"] else 0
+        out.write("%d gaps; %s; report in %s\n" % (
+            len(rep["gaps"]), "INCOMPLETE" if rep["incomplete"] else "complete",
+            os.path.join(a.out, "report.md")))
+        # Both fail the diagnostic run visibly; neither is a required check.
+        if rep["gaps"]:
+            return 1
+        return 3 if rep["incomplete"] else 0
     except (TraceError, OSError, subprocess.CalledProcessError) as e:
         out.write("trace-test-reads: %s\n" % e)
         return 2

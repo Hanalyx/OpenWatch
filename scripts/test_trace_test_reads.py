@@ -88,8 +88,8 @@ class ReadsThePattern(unittest.TestCase):
                     tr.code_pattern(text)
 
 
-class ReportsGaps(unittest.TestCase):
-    """AC-03: gaps, tests not exercised, unread files and the limits are reported."""
+class ReportFixture(unittest.TestCase):
+    """A throwaway repository with the real go-ci.yml, and helpers to write traces."""
 
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix="trrep-")
@@ -125,15 +125,19 @@ class ReportsGaps(unittest.TestCase):
             s["exit"] = exit
         return s
 
-    def report(self, suites, stream=""):
+    def report(self, suites, stream="", go_exit=0):
         with open(os.path.join(self.out, "manifest.json"), "w") as f:
-            json.dump({"commit": "c" * 40, "suites": suites}, f)
+            json.dump({"commit": "c" * 40, "go_exit": go_exit, "suites": suites}, f)
         with open(os.path.join(self.out, "go-test.json"), "w") as f:
             f.write(stream)
         return tr.build_report(self.out, repo=self.repo)
 
     def at(self, rel):
         return os.path.join(self.repo, rel)
+
+
+class ReportsGaps(ReportFixture):
+    """AC-03: gaps, tests not exercised, unread files and the limits are reported."""
 
     def test_a_documentation_file_read_outside_the_documentation_path_is_a_gap(self):
         r = self.report([
@@ -252,6 +256,74 @@ done
 ( cd "$REPO/internal/x" && "$wrapper" /bin/true )
 printf '{"Action":"pass","Package":"example/internal/x"}\n'
 '''
+
+
+class ReportsCompleteness(ReportFixture):
+    """AC-06: go test's own result and unfinished packages make an incomplete trace fail."""
+
+    def exit_code(self):
+        real = tr.REPO
+        tr.REPO = Path(self.repo)
+        try:
+            return tr.main(["report", "--out", self.out], out=io.StringIO())
+        finally:
+            tr.REPO = real
+
+    def test_a_timeout_with_a_started_package_is_incomplete(self):
+        # The reviewer's first reproduction: go_exit "timeout", a start event,
+        # no completion.
+        stream = json.dumps({"Action": "start", "Package": "p/slow"})
+        r = self.report([self.trace("python:test_a.py", [])], stream, go_exit="timeout")
+        self.assertEqual(r["go_test"], {"exit": "timeout"})
+        self.assertIn("go test timed out", r["incomplete"])
+        self.assertEqual(r["not_exercised"]["unfinished_packages"], ["p/slow"])
+        self.assertTrue(any("started without a result: p/slow" in i for i in r["incomplete"]))
+        self.assertEqual(self.exit_code(), 3)
+        md = read_text(os.path.join(self.out, "report.md"))
+        self.assertIn("**Incomplete trace.**", md)
+        self.assertIn("go test exit: timeout.", md)
+
+    def test_an_early_go_failure_with_no_package_is_incomplete(self):
+        # The reviewer's second reproduction: go_exit 1 from a module download
+        # error before any package ran; the stream names no package.
+        stream = json.dumps({"Action": "output", "Output": "go: downloading example.com/m "
+                                                          "v1.0.0: connection refused\n"})
+        r = self.report([self.trace("python:test_a.py", [])], stream, go_exit=1)
+        self.assertEqual(r["not_exercised"]["failed_packages"], [])
+        self.assertTrue(any("exited 1 and no package failed" in i for i in r["incomplete"]))
+        self.assertEqual(self.exit_code(), 3)
+
+    def test_one_failed_package_is_that_package_only(self):
+        stream = "\n".join(json.dumps(e) for e in [
+            {"Action": "start", "Package": "p/a"}, {"Action": "fail", "Package": "p/a"},
+            {"Action": "start", "Package": "p/b"}, {"Action": "pass", "Package": "p/b"}])
+        r = self.report([self.trace("go:./p/a", [], kind="go"),
+                         self.trace("go:./p/b", [], kind="go")], stream, go_exit=1)
+        ne = r["not_exercised"]
+        self.assertEqual(ne["failed_packages"], ["p/a"])
+        self.assertEqual(ne["unfinished_packages"], [])
+        self.assertEqual(ne["failed_suites"], [])
+        self.assertFalse(any("no package failed" in i for i in r["incomplete"]))
+        self.assertIn("1 package(s) failed, so their reads may be cut short", r["incomplete"])
+        self.assertEqual(self.exit_code(), 3)
+
+    def test_go_not_run_and_suites_not_run_are_incomplete(self):
+        r = self.report([{"name": "vitest", "exit": None, "traces": []}], go_exit=None)
+        self.assertIn("go test did not run", r["incomplete"])
+        self.assertIn("suite(s) did not run: vitest", r["incomplete"])
+
+    def test_a_complete_trace_exits_0_and_gaps_still_exit_1(self):
+        stream = "\n".join(json.dumps(e) for e in [
+            {"Action": "start", "Package": "p/a"}, {"Action": "pass", "Package": "p/a"},
+            {"Action": "output", "Package": "p/n", "Output": "?   \tp/n\t[no test files]\n"},
+            {"Action": "skip", "Package": "p/n"}])
+        r = self.report([self.trace("go:./p/a", [], kind="go")], stream)
+        self.assertEqual(r["incomplete"], [])
+        self.assertIn("Complete:", read_text(os.path.join(self.out, "report.md")))
+        self.assertEqual(self.exit_code(), 0)
+        self.report([self.trace("go:./internal/x", [self.at("docs/guide.md")], kind="go")],
+                    json.dumps({"Action": "start", "Package": "p/a"}), go_exit="timeout")
+        self.assertEqual(self.exit_code(), 1, "gaps report first; the report still says incomplete")
 
 
 class RunsUntimedAndTraced(unittest.TestCase):

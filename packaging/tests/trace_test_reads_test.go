@@ -107,3 +107,14 @@ func TestTraceReads_StaysADiagnostic(t *testing.T) {
 			"test_no_gate_or_required_check_reads_it")
 	})
 }
+
+// @ac AC-06
+// AC-06: go test's own result and unfinished packages make an incomplete trace fail.
+func TestTraceReads_ReportsCompleteness(t *testing.T) {
+	t.Run("ci-test-read-trace/AC-06", func(t *testing.T) {
+		requireTraceReads(t, "ReportsCompleteness", 5,
+			"test_a_timeout_with_a_started_package_is_incomplete",
+			"test_an_early_go_failure_with_no_package_is_incomplete",
+			"test_one_failed_package_is_that_package_only")
+	})
+}
