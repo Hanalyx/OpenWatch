@@ -240,6 +240,7 @@ release-status-test:
 	python3 -S scripts/test_release_upgrade.py
 	python3 -S scripts/test_release_packets.py
 	python3 -S scripts/test_release_prep_pr.py
+	python3 -S scripts/test_trace_test_reads.py
 
 # docs-style: the Hanalyx documentation style gate (em dashes, emojis, AI
 # speak, US English, reading level). The ONE shared invocation: CI's "Doc Style"

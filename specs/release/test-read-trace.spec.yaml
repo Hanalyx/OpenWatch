@@ -1,0 +1,160 @@
+spec:
+  id: ci-test-read-trace
+  title: A weekly or manual diagnostic of which tracked files the test suites read
+  version: "1.0.0"
+  status: approved
+  tier: 2
+
+  context:
+    system: openwatch
+    feature: The documentation path's tracing diagnostic
+    description: >
+      Go CI's documentation path (release-ci-gates C-18) runs only
+      packaging/tests and the Python checks when a change touches nothing in
+      go-ci.yml's code, spec, tooling and CI pattern. If a test outside that
+      selection reads a file the pattern treats as documentation, a change to
+      that file alone would skip the test that reads it. The 2026-10-08 review
+      of that path asked for a tracing guard as a weekly and manual diagnostic,
+      not a required job. scripts/trace-test-reads.py runs every suite with
+      test-result caching off under strace -f, and reports those gaps, the
+      tests not exercised, and the files nothing read, with its limits.
+    related_specs:
+      - release-ci-gates
+
+  objective:
+    summary: >
+      Reads by tests outside the documentation path's selection, of files
+      that path treats as documentation, are surfaced for triage weekly, with
+      what the trace could not see stated beside them.
+    scope:
+      includes:
+        - scripts/trace-test-reads.py
+        - .github/workflows/trace-test-reads.yml
+      excludes:
+        - Changing the documentation path's selection or any required check
+        - Any release gate
+
+  constraints:
+    - id: C-01
+      description: >-
+        A read is a successful open, openat or openat2, recorded with the path
+        strace -y resolved, including a call split into an unfinished and a
+        resumed line, or a successful execve of an absolute program path. A
+        failed open is not a read.
+      type: technical
+      enforcement: error
+    - id: C-02
+      description: >-
+        The documentation pattern is read from go-ci.yml's selector step at
+        run time; there is no second copy. go-ci.yml without exactly one such
+        pattern refuses the report.
+      type: technical
+      enforcement: error
+    - id: C-03
+      description: >-
+        A gap is a tracked file the pattern treats as documentation that a
+        suite other than packaging/tests or a Python check opened. A path
+        outside the repository, or one not tracked, is never a tracked read.
+        The report lists gaps, every skipped Go test with its reason,
+        packages with no test files, failed packages read from the go test
+        stream, failed suites, suites that did not run and files nothing
+        opened, and always states its limits: only reads that happened, not
+        reads through git or of copies, drift seen late, evidence not proof.
+        A gap makes the report exit 1.
+      type: technical
+      enforcement: error
+    - id: C-04
+      description: >-
+        run passes go test -count=1 and runs every test binary through a
+        strace -f -y wrapper, and runs every scripts/test_*.py and the
+        frontend's Vitest suite under strace -f -y. Extra go test flags may
+        not set -count or -exec. run refuses an output directory in use, and
+        keeps each raw trace, the go test stream and every exit status. A
+        suite that cannot run is recorded as not run, with its reason.
+      type: technical
+      enforcement: error
+    - id: C-06
+      description: >-
+        The report records go test's own result apart from each package's. The
+        trace is incomplete when go test timed out or did not run, exited
+        nonzero with no failed package to account for it, a package started
+        without a package-level pass, fail or skip, or a package or suite
+        failed or did not run. An incomplete trace is stated in the report and
+        exits 3, unless a gap exits 1 first; a complete trace without gaps
+        exits 0. One failed package marks only that package failed.
+      type: technical
+      enforcement: error
+    - id: C-05
+      description: >-
+        The workflow runs only on a weekly schedule and by manual dispatch,
+        with read-only repository permissions, in the full path's environment
+        (database, packaging builds, the frontend). No release gate and no
+        required check reads it, and it never runs on a pull request, a push
+        or a tag.
+      type: security
+      enforcement: error
+
+  acceptance_criteria:
+    - id: AC-01
+      description: >-
+        Successful opens by open, openat and openat2 are kept with their
+        resolved paths, failed opens are not, a resumed call counts its
+        result, an execve counts only for an absolute program that ran, and
+        escaped bytes and quotes in paths are unescaped.
+      priority: high
+      references_constraints: [C-01]
+    - id: AC-02
+      description: >-
+        go-ci.yml's own pattern classifies code, specs, CI, scripts and the
+        notices file as code, and guides, the README, CHANGELOG, SECURITY and
+        the branch guide as documentation. Zero or two selector patterns are
+        refused.
+      priority: high
+      references_constraints: [C-02]
+    - id: AC-03
+      description: >-
+        A documentation file read by another Go package or by Vitest is a gap
+        naming its readers; one read only by packaging/tests or a Python check
+        is not, nor is a code file, an untracked file, a path outside the
+        repository, or an outside path that would equal a tracked document if
+        sliced at the root's length. A suite named like packaging/tests but
+        not it is outside the documentation path. Skips with their reasons, no-
+        test packages, failed packages, failed suites and suites not run are
+        reported; a Go package is judged by the stream, not the overall exit.
+        The report carries every limit and an index of reads per suite; a gap
+        exits 1; a report without a run is refused.
+      priority: high
+      references_constraints: [C-03]
+    - id: AC-04
+      description: >-
+        A run passes -count=1 and -exec to go test, traces the Go binary and
+        the Python check with -f, -qq, -y and the open and execve syscalls,
+        names each Go suite by its package directory, records Vitest as not
+        run without node_modules, binds the manifest to HEAD, and keeps each
+        trace. The workflow's --go-flags= form is accepted; flags setting
+        -count or -exec are refused by the guard before go runs; an output
+        directory in use is refused.
+      priority: high
+      references_constraints: [C-04]
+    - id: AC-05
+      description: >-
+        The workflow's only triggers are schedule and workflow_dispatch, its
+        permissions are contents read, it runs the tool's run and report steps
+        with the database configured, writes the job summary and keeps the
+        trace even when the report fails, and neither release/gates.toml nor
+        go-ci.yml names it.
+      priority: high
+      references_constraints: [C-05]
+    - id: AC-06
+      description: >-
+        go test timing out after a package started, with no result for it, is
+        incomplete, names the unfinished package and exits 3. go test exiting 1
+        on an early module error with no package in the stream is incomplete
+        and exits 3. With one package failed and another passed, only the first
+        is failed, nothing is unfinished, the exit is not reported as
+        unexplained, and the trace is incomplete. go test not run and a suite
+        not run are incomplete. A complete trace, with a package-level skip for
+        a package without tests, exits 0 and says complete; a gap still exits
+        1 when the trace is also incomplete.
+      priority: high
+      references_constraints: [C-06]

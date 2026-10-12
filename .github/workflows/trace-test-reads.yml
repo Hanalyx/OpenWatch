@@ -1,0 +1,114 @@
+# Test read trace: a weekly and manual DIAGNOSTIC, never a gate.
+#
+# It answers one question about Go CI's documentation path (release-ci-gates
+# C-18): does a test outside that path's selection read a file go-ci.yml's
+# pattern treats as documentation? A change to such a file alone would skip
+# the test that reads it. scripts/trace-test-reads.py runs every suite with
+# caching off under strace -f (subprocesses followed) and reports those gaps,
+# the tests that did not run, and the files nothing read. Spec:
+# ci-test-read-trace.
+#
+# It is not a required check and no release gate reads it: it runs only on a
+# schedule or by hand, never on a pull request, a push or a tag. A gap fails
+# this run so it is triaged; it blocks nothing. Its limits are printed in
+# every report: it sees only reads that happened, not reads through git or of
+# copies, and drift in helpers or dependencies shows up a week late.
+name: Test read trace (diagnostic)
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trace-test-reads
+  cancel-in-progress: false
+
+jobs:
+  trace:
+    name: Trace test reads (diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    # The full path's database (go-ci.yml, checks), so the DB suites run.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openwatch
+          POSTGRES_PASSWORD: openwatch_ci  # pragma: allowlist secret (throwaway CI database, as in go-ci.yml)
+          POSTGRES_DB: openwatch_go_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      OPENWATCH_TEST_DSN: postgres://openwatch:openwatch_ci@127.0.0.1:5432/openwatch_go_test?sslmode=disable  # pragma: allowlist secret
+      GOFLAGS: -mod=readonly
+      OPENWATCH_TEST_DSN_ALLOW_NONTEST: "no"
+      OPENWATCH_PACKAGING_BUILD: "1"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.9'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Install strace
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace && strace -V
+
+      - name: Stage the embedded files
+        run: make internal/server/openapi_embed.yaml internal/server/spa/index.html
+
+      # Caching is off (-count=1, enforced by the script) and every test
+      # binary, Python check and the Vitest suite runs under strace -f.
+      - name: Trace every suite
+        run: |
+          export OPENWATCH_KENSA_RULES_DIR="$(go list -m -f '{{.Dir}}' github.com/Hanalyx/kensa)/rules"
+          python3 -S scripts/trace-test-reads.py run --out "$RUNNER_TEMP/trace" \
+            --go-flags="-p 4 -timeout 1800s"
+
+      - name: Report
+        run: |
+          set +e
+          python3 -S scripts/trace-test-reads.py report --out "$RUNNER_TEMP/trace"
+          rc=$?
+          cat "$RUNNER_TEMP/trace/report.md" >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
+      - name: Keep the trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-read-trace
+          path: ${{ runner.temp }}/trace
+          retention-days: 14
+          if-no-files-found: error

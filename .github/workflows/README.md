@@ -23,6 +23,7 @@ relying on them.
 | `issue-management.yml` | issues, PRs, comments | Auto-assign, auto-label, size-label, stale handling, welcome messages |
 | `automated-triage.yml` | daily, manual | Triage Dependabot/CodeQL alerts |
 | `claude-code-alerts.yml` | PRs, weekly, manual | Assist with security alert triage |
+| `trace-test-reads.yml` | weekly, manual | Diagnostic only: which documentation files tests outside the documentation path read |
 
 Dependency updates are configured in `.github/dependabot.yml` (a config file, not a
 workflow). The branch-prefix policy is documented in `.github/BRANCH_MANAGEMENT.md`.
@@ -134,6 +135,21 @@ throwaway Postgres on port `55432`).
 The smoke matrix is amd64 only (GitHub runners are amd64); arm64 correctness is
 covered by the cross-build in `release.yml`. Service start and functional E2E against
 a real fleet remain a manual RC step (see `docs/runbooks/RELEASING.md`).
+
+## Test read trace (diagnostic): `trace-test-reads.yml`
+
+Runs on Mondays and by hand. It is not a required check, and no release gate
+reads it. `scripts/trace-test-reads.py` runs every Go test binary, Python check
+and the Vitest suite under `strace -f`, with test caching off. It then reports
+any file `go-ci.yml`'s pattern treats as documentation that a test outside the
+documentation path opened. A change to such a file alone would skip the test
+that reads it. A gap fails this run so it gets triaged; it blocks nothing. So
+does an incomplete trace: `go test` timing out or stopping early, a package
+that started without a result, or a suite that failed or did not run.
+
+The trace sees only reads that happened. It misses reads through git, reads of
+a copy of the tree, and tests that were skipped, so treat it as evidence, not
+proof. The report and the raw traces are kept as an artifact for 14 days.
 
 ## Repository automation
 

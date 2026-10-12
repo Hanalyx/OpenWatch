@@ -48,6 +48,7 @@ domains:
             - release-upgrade-steps
             - release-packets
             - release-prep-pr
+            - ci-test-read-trace
             - system-auth-identity
             - system-user-management
             - system-credential-store
