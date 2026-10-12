@@ -189,9 +189,26 @@ python3 -S scripts/release_packets.py d1 --tag vX.Y.Z --commit SHA --evidence DI
 - The F1 SQL is tested against the migrated schema in `internal/scanruns`. The rest is
   tested against a simulated server only. Not yet run on a fleet server.
 
-## Not covered yet
+## Release-prep PR content
 
-These steps are still done by hand from `RELEASING.md` and `UPGRADE_PROCEDURE.md`. When doing
-them, capture every command through `evidence_capture.py run --timeout`:
+`scripts/release_prep_pr.py` drafts the Stage 1 pull request offline, from a clean clone.
 
-- the release-prep PR content.
+```bash
+python3 -S scripts/release_prep_pr.py draft --version X.Y.Z --date YYYY-MM-DD \
+    --since vPREVIOUS --evidence DIR
+#   review `git diff`, commit, run scripts/ci-strict.py on that commit
+python3 -S scripts/release_prep_pr.py body --evidence DIR --ci-result RUN/result.json
+```
+
+- `draft` makes the mechanical edits: `VERSION`, the README phrase, the "Applies to" banners
+  that name the previous version, and the CHANGELOG heading. It records what changed since
+  the previous tag through the capture library. **It never writes release notes.** An empty
+  `[Unreleased]` is refused; write the notes first.
+- `body` writes `PR-BODY-<commit>.md` from those captures. A `ci-strict` result must be finished
+  and well formed, and counts only for that exact commit and tree; every gap in it is copied. The release gates are listed as not
+  yet evaluated. Every human field is blank, and files edited by hand after the draft are
+  named.
+- Neither step commits, pushes, tags or opens the pull request. Opening it is yours; tagging
+  needs the captain's authorization.
+- Validated against throwaway repositories and a dry run on a clone of `main`. Not yet used
+  for a real release.
