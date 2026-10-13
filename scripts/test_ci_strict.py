@@ -107,8 +107,8 @@ class FakeProbe(cs.Probe):
         return 0
 
 
-def make_repo():
-    root = Path(tempfile.mkdtemp(prefix="ci-strict-"))
+def make_repo(case):
+    root = Path(case.enterContext(tempfile.TemporaryDirectory(prefix="ci-strict-")))
     (root / ".git").mkdir()
     (root / "Makefile").write_text("GOLANGCI_VERSION := 1.64.8\n")
     (root / ".specter-version").write_text("0.15.1\n")
@@ -125,7 +125,7 @@ def results(root):
 
 class Verdicts(unittest.TestCase):
     def setUp(self):
-        self.root = make_repo()
+        self.root = make_repo(self)
         self.lines = []
 
     def strict(self, probe, allow=()):
@@ -231,7 +231,7 @@ class Verdicts(unittest.TestCase):
 
 class ConcurrencyAndResults(unittest.TestCase):
     def setUp(self):
-        self.root = make_repo()
+        self.root = make_repo(self)
         self.state = self.root / ".git" / "ci-strict"
 
     def test_a_second_invocation_is_refused_and_touches_nothing(self):

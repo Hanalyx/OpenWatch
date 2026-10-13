@@ -271,7 +271,7 @@ class TheRealCheckerCatchesWhatChangedCannotSee(unittest.TestCase):
                               cwd=cwd, capture_output=True, text=True)
 
     def make_repo(self, committed, staged=None):
-        d = tempfile.mkdtemp(prefix="doc-style-gate-")
+        d = self.enterContext(tempfile.TemporaryDirectory(prefix="doc-style-gate-"))
         env = {**os.environ, "GIT_CONFIG_GLOBAL": os.path.join(d, ".gitconfig"),
                "GIT_CONFIG_SYSTEM": os.devnull}
         def g(*a):
@@ -335,7 +335,7 @@ class LocalCarryForwardsSurviveAnAdoption(unittest.TestCase):
         src = read(CHECKER)
         self.assertIn('"*.sql"', src, "*.sql fell out of GLOBS; see Context Plane bugs/OW-015")
         self.assertIn('".sql": ("--",)', src, '.sql comment marker fell out of COMMENT_STARTS')
-        d = tempfile.mkdtemp(prefix="doc-style-sql-")
+        d = self.enterContext(tempfile.TemporaryDirectory(prefix="doc-style-sql-"))
         env = {**os.environ, "GIT_CONFIG_GLOBAL": os.path.join(d, ".gitconfig"),
                "GIT_CONFIG_SYSTEM": os.devnull}
         def g(*a):
@@ -372,7 +372,7 @@ class ThePinIsTheOnlySourceOfTheCheckerVersion(unittest.TestCase):
     def make_tree(self, pin=None, checker_version=None, extra=None):
         """A copy of the gate, the checker and the pin, so a mutation never touches the real tree.
         The gate resolves its repository from its own path, so copying it is enough."""
-        d = tempfile.mkdtemp(prefix="doc-style-pin-")
+        d = self.enterContext(tempfile.TemporaryDirectory(prefix="doc-style-pin-"))
         os.makedirs(os.path.join(d, "scripts"))
         for src in (GATE, CHECKER):
             body = read(src)
@@ -487,7 +487,7 @@ class TheReadingExemptionIsScopedToOneFileAndOneRule(unittest.TestCase):
     """A cap is a hole in the gate. These tests describe its exact shape."""
 
     def make_tree(self, files):
-        d = tempfile.mkdtemp(prefix="doc-style-exempt-")
+        d = self.enterContext(tempfile.TemporaryDirectory(prefix="doc-style-exempt-"))
         os.makedirs(os.path.join(d, "scripts"))
         with open(os.path.join(d, "scripts", "check-doc-style.py"), "w", encoding="utf-8") as fh:
             fh.write(read(CHECKER))
