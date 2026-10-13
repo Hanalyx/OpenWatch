@@ -329,7 +329,7 @@ class SpecReaderIsStructural(unittest.TestCase):
 
     def _read(self, body):
         import tempfile, pathlib
-        d = pathlib.Path(tempfile.mkdtemp())
+        d = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         f = d / "x.spec.yaml"
         f.write_text(body)
         return f
@@ -392,7 +392,7 @@ class SpecReaderIsStructural(unittest.TestCase):
 
     def test_a_duplicate_spec_id_is_an_error(self):
         import tempfile, pathlib
-        d = pathlib.Path(tempfile.mkdtemp())
+        d = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         for name in ("a", "b"):
             (d / f"{name}.spec.yaml").write_text(
                 "spec:\n  id: same\n  acceptance_criteria:\n    - id: AC-01\n")
@@ -506,7 +506,7 @@ class ManifestIsLoadable(unittest.TestCase):
 
     def test_a_missing_directory_loads_nothing(self):
         saved = rs.ATTEST_DIR
-        rs.ATTEST_DIR = Path(tempfile.mkdtemp()) / "absent"
+        rs.ATTEST_DIR = Path(self.enterContext(tempfile.TemporaryDirectory())) / "absent"
         try:
             self.assertEqual(rs.load_attestations(), [])
         finally:
@@ -1894,7 +1894,8 @@ class ChecksumSignatureIsVerified(unittest.TestCase):
     def test_missing_signature_asset_fails_before_any_download(self):
         release, blobs = draft_fixture()
         release["assets"] = [a for a in release["assets"] if a["name"] != "SHA256SUMS.asc"]
-        status, note = rs.verify_checksums_signature(release | {"exists": True, "draft": True}, tempfile.mkdtemp())
+        status, note = rs.verify_checksums_signature(release | {"exists": True, "draft": True},
+                                                     self.enterContext(tempfile.TemporaryDirectory()))
         self.assertEqual(status, rs.FAIL)
         self.assertIn("unsigned", note)
 
@@ -2064,7 +2065,7 @@ class FullTestEvidenceIsRequired(unittest.TestCase):
         rs.sh = self.fake(runs, attempts, fail)
         try:
             out = list(rs.evaluate({"gate": [self.GATE]}, "v9.9.9", self.COMMIT,
-                                   workdir=Path(tempfile.mkdtemp())))
+                                   workdir=Path(self.enterContext(tempfile.TemporaryDirectory()))))
         finally:
             rs.sh = saved
         self.assertEqual(len(out), 1, out)

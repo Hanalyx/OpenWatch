@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Temporary-directory ownership for release checks and local test fixtures."""
 import contextlib
+import gc
 import importlib.util
 import io
 import os
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
@@ -159,6 +161,69 @@ class TemporaryOwnership(unittest.TestCase):
                     finally:
                         owner.doCleanups()
                     self.assert_empty()
+
+
+
+publish_spec = importlib.util.spec_from_file_location('release_publish_cleanup', HERE / 'release-publish.py')
+rp = importlib.util.module_from_spec(publish_spec)
+publish_spec.loader.exec_module(rp)
+
+
+class RemainingOwnership(unittest.TestCase):
+    """release-publish.py's own workdir, and the release-status and release-publish suites."""
+
+    def setUp(self):
+        self.parent = Path(self.enterContext(tempfile.TemporaryDirectory(prefix='ow-cleanup-test-')))
+        self.enterContext(patch.object(tempfile, 'tempdir', str(self.parent)))
+
+    def assert_empty(self):
+        self.assertEqual(list(self.parent.iterdir()), [])
+
+    def test_publish_main_removes_its_workdir_on_every_exit(self):
+        for ending in ('return', 'failure', 'interrupt'):
+            with self.subTest(ending=ending):
+                seen = []
+
+                def publish(tag, gates, confirm, workdir, out=print):
+                    # The workdir exists and is usable while publish runs.
+                    self.assertTrue(workdir.is_dir())
+                    (workdir / 'downloaded').write_bytes(b'asset')
+                    seen.append(workdir)
+                    if ending == 'failure':
+                        raise RuntimeError('publish failed')
+                    if ending == 'interrupt':
+                        raise KeyboardInterrupt()
+                    return 0
+                with patch.object(rp, 'publish', publish), \
+                        patch.object(sys, 'argv', ['release-publish.py', '--tag', 'v1.0.0']):
+                    if ending == 'return':
+                        self.assertEqual(rp.main(), 0)
+                    else:
+                        with self.assertRaises(RuntimeError if ending == 'failure' else KeyboardInterrupt):
+                            rp.main()
+                self.assertEqual(len(seen), 1)
+                self.assertTrue(seen[0].name.startswith('release-publish-'))
+                self.assert_empty()
+
+    def test_release_status_and_publish_suites_leave_no_directories(self):
+        import test_release_status as status
+        import test_release_publish as publish
+        suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(status),
+                                    unittest.defaultTestLoader.loadTestsFromModule(publish)])
+        output = io.StringIO()
+        # A TemporaryDirectory nobody released is still removed by its
+        # finalizer when garbage-collected, with a ResourceWarning. That hides
+        # a missing cleanup from the directory check, so the warning fails too.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', ResourceWarning)
+            result = unittest.TextTestRunner(stream=output).run(suite)
+            gc.collect()
+        self.assertTrue(result.wasSuccessful(), output.getvalue())
+        self.assertGreater(result.testsRun, 150)
+        implicit = [str(w.message) for w in caught if issubclass(w.category, ResourceWarning)
+                    and 'Implicitly cleaning up' in str(w.message)]
+        self.assertEqual(implicit, [], 'temporary directories left to the garbage collector')
+        self.assert_empty()
 
 
 if __name__ == '__main__':
