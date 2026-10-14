@@ -9,28 +9,24 @@
 package ssh
 
 import (
-	"crypto/dsa" //nolint:staticcheck // we explicitly reject DSA keys; need the type to detect them
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
-	"errors"
-	"fmt"
-
+	"github.com/Hanalyx/openwatch/internal/sshkey"
 	"golang.org/x/crypto/ssh"
 )
 
-// Key-validation errors.
+// Key-validation errors. The parser and strength check live in
+// internal/sshkey, shared with the credential store; these are the same
+// values, so errors.Is works with either name.
 var (
-	ErrWeakKey    = errors.New("ssh: key below NIST SP 800-57 minimum strength")
-	ErrInvalidKey = errors.New("ssh: private key is unparseable or malformed")
+	ErrWeakKey    = sshkey.ErrWeakKey
+	ErrInvalidKey = sshkey.ErrInvalidKey
 )
 
 // RSAMinBits is the lower bound for RSA keys per NIST SP 800-57 (good
 // through 2030). Keys below this size are rejected.
-const RSAMinBits = 2048
+const RSAMinBits = sshkey.RSAMinBits
 
 // ECDSAMinBits is the lower bound for ECDSA curves. P-256 = 256 bits.
-const ECDSAMinBits = 256
+const ECDSAMinBits = sshkey.ECDSAMinBits
 
 // ValidateAuthKey parses an OpenSSH-format private key (PEM) and
 // applies the NIST SP 800-57 strength check. Returns:
@@ -44,51 +40,12 @@ func ValidateAuthKey(pem []byte, passphrase string) error {
 	if err != nil {
 		return err
 	}
-	pub := signer.PublicKey()
-	cryptoPub, ok := pub.(ssh.CryptoPublicKey)
-	if !ok {
-		// Some key types don't expose the underlying crypto key (e.g.,
-		// SSH certificates). Conservatively accept — the underlying
-		// type-check happened at parse.
-		return nil
-	}
-	switch k := cryptoPub.CryptoPublicKey().(type) {
-	case *rsa.PublicKey:
-		if k.N.BitLen() < RSAMinBits {
-			return fmt.Errorf("%w: RSA %d bits, minimum %d", ErrWeakKey, k.N.BitLen(), RSAMinBits)
-		}
-	case ed25519.PublicKey:
-		// Ed25519 is unconditionally accepted (FIPS 186-5; constant 256-bit
-		// security level; no parameter knobs to get wrong).
-	case *ecdsa.PublicKey:
-		if k.Params().BitSize < ECDSAMinBits {
-			return fmt.Errorf("%w: ECDSA %d bits, minimum %d", ErrWeakKey, k.Params().BitSize, ECDSAMinBits)
-		}
-	case *dsa.PublicKey:
-		return fmt.Errorf("%w: DSA keys are not allowed", ErrWeakKey)
-	default:
-		// Unknown key type — refuse rather than guess.
-		return fmt.Errorf("%w: unrecognized public-key type %T", ErrWeakKey, k)
-	}
-	return nil
+	return sshkey.CheckStrength(signer.PublicKey())
 }
 
 // parseSigner returns an ssh.Signer for the given PEM bytes. Used by
 // both ValidateAuthKey and the Dial path so a key that passes
 // validation will also load at dial time.
 func parseSigner(pem []byte, passphrase string) (ssh.Signer, error) {
-	if len(pem) == 0 {
-		return nil, fmt.Errorf("%w: empty key", ErrInvalidKey)
-	}
-	var signer ssh.Signer
-	var err error
-	if passphrase != "" {
-		signer, err = ssh.ParsePrivateKeyWithPassphrase(pem, []byte(passphrase))
-	} else {
-		signer, err = ssh.ParsePrivateKey(pem)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKey, err)
-	}
-	return signer, nil
+	return sshkey.ParseSigner(pem, passphrase)
 }

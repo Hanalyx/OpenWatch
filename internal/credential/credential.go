@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/secretkey"
+	"github.com/Hanalyx/openwatch/internal/sshkey"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,13 +59,12 @@ type NewParams struct {
 	Password             string
 	PrivateKey           string
 	PrivateKeyPassphrase string
-	SSHKeyFingerprint    string
-	SSHKeyType           string
-	SSHKeyBits           int
-	SSHKeyComment        string
 	IsDefault            bool
 	CreatedBy            uuid.UUID
 }
+
+// usesKey reports whether an auth method authenticates with a private key.
+func usesKey(m AuthMethod) bool { return m == AuthSSHKey || m == AuthBoth }
 
 // Credential is the resolved-and-decrypted credential the SSH dial path
 // consumes. Plaintext secret fields are populated after Resolve. The
@@ -110,6 +110,16 @@ func (s *Service) NewCredential(ctx context.Context, p NewParams) (uuid.UUID, er
 	if err := validateNewParams(p); err != nil {
 		return uuid.Nil, err
 	}
+	// Key metadata is derived from the key itself, never taken from the
+	// caller (bugs/OW-123). A key that does not parse with its passphrase,
+	// or is too weak, is refused before anything is stored.
+	var md sshkey.Metadata
+	if usesKey(p.AuthMethod) {
+		var err error
+		if md, err = sshkey.Inspect([]byte(p.PrivateKey), p.PrivateKeyPassphrase); err != nil {
+			return uuid.Nil, err
+		}
+	}
 	dek, err := secretkey.Active()
 	if err != nil {
 		return uuid.Nil, err
@@ -152,8 +162,8 @@ func (s *Service) NewCredential(ctx context.Context, p NewParams) (uuid.UUID, er
 		id, string(p.Scope), p.ScopeID, p.Name, nilIfEmpty(p.Description),
 		p.Username, string(p.AuthMethod),
 		encPw, encKey, encPass,
-		nilIfEmpty(p.SSHKeyFingerprint), nilIfEmpty(p.SSHKeyType),
-		nilIfZero(p.SSHKeyBits), nilIfEmpty(p.SSHKeyComment),
+		nilIfEmpty(md.Fingerprint), nilIfEmpty(md.Type),
+		nilIfZero(md.Bits), nilIfEmpty(md.Comment),
 		p.IsDefault, p.CreatedBy,
 	)
 	if err != nil {
@@ -164,6 +174,24 @@ func (s *Service) NewCredential(ctx context.Context, p NewParams) (uuid.UUID, er
 		return uuid.Nil, fmt.Errorf("credential: insert: %w", err)
 	}
 	return id, nil
+}
+
+// inspectStored decrypts a stored key and passphrase and derives the key's
+// metadata. The plaintext never leaves this function.
+func inspectStored(dek *secretkey.Key, encKey, encPass []byte) (sshkey.Metadata, error) {
+	key, err := dek.Decrypt(encKey)
+	if err != nil {
+		return sshkey.Metadata{}, fmt.Errorf("credential: decrypt key: %w", err)
+	}
+	pass := ""
+	if encPass != nil {
+		raw, err := dek.Decrypt(encPass)
+		if err != nil {
+			return sshkey.Metadata{}, fmt.Errorf("credential: decrypt passphrase: %w", err)
+		}
+		pass = string(raw)
+	}
+	return sshkey.Inspect(key, pass)
 }
 
 // GetByID returns the credential with decrypted secret fields.
@@ -284,6 +312,9 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (UpdateResult, err
 		if err != nil {
 			return UpdateResult{}, fmt.Errorf("credential: encrypt key: %w", err)
 		}
+		// A new key brings its own passphrase, or none: the stored one
+		// belonged to the old key (bugs/OW-123). Set below if supplied.
+		newEncPass = nil
 		secretRotated = true
 	}
 	if p.PrivateKeyPassphrase != nil && *p.PrivateKeyPassphrase != "" {
@@ -294,9 +325,27 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (UpdateResult, err
 		secretRotated = true
 	}
 
+	// Key metadata follows the key the credential will hold (bugs/OW-123).
+	// A supplied key or passphrase must parse together and pass the
+	// strength check, or the update fails and the transaction rolls back
+	// with nothing changed. Otherwise the metadata is refreshed from the
+	// stored key when it can be read, and kept as it is when it cannot, so
+	// a rename never fails on an old key.
+	newKeyFP, newKeyType, newKeyComment, newKeyBits := curKeyFP, curKeyType, curKeyComment, curKeyBits
+	if usesKey(method) && newEncKey != nil {
+		keyChanged := (p.PrivateKey != nil && *p.PrivateKey != "") ||
+			(p.PrivateKeyPassphrase != nil && *p.PrivateKeyPassphrase != "")
+		md, ierr := inspectStored(dek, newEncKey, newEncPass)
+		switch {
+		case ierr == nil:
+			newKeyFP, newKeyType, newKeyComment, newKeyBits = md.Fingerprint, md.Type, md.Comment, md.Bits
+		case keyChanged:
+			return UpdateResult{}, ierr
+		}
+	}
+
 	// Null the secrets (and key metadata) the effective method no longer
 	// uses, so a narrowed credential doesn't keep dead ciphertext around.
-	newKeyFP, newKeyType, newKeyComment, newKeyBits := curKeyFP, curKeyType, curKeyComment, curKeyBits
 	switch method {
 	case AuthSSHKey:
 		newEncPw = nil
@@ -373,9 +422,10 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (UpdateResult, err
 
 // CloneParams describes the target row CloneCredential should create.
 // The source row's secret material (ciphertext columns) is copied
-// verbatim — no decrypt/re-encrypt round-trip. This keeps the DEK off
-// the call path entirely and avoids re-exposing plaintext anywhere
-// outside the original create.
+// verbatim, with no re-encryption. To derive the clone's key metadata,
+// CloneCredential does decrypt the source's private key and passphrase in
+// memory (system-credential-store C-08); the plaintext is used only for
+// that and never stored, logged or returned.
 type CloneParams struct {
 	SourceID  uuid.UUID
 	Scope     Scope
@@ -387,9 +437,13 @@ type CloneParams struct {
 
 // CloneCredential creates a new credential row whose secret material
 // (encrypted_password, encrypted_private_key, encrypted_private_key_passphrase)
-// and identity fields (username, auth_method, ssh_key_*) match the
-// source. The clone gets a fresh id, the caller's scope/scope_id, and
-// the caller's choice of name + is_default.
+// is the source's ciphertext, copied unchanged, and whose username and
+// auth_method match the source. Its key metadata (ssh_key_*) is derived
+// from the copied key, decrypted in memory with its passphrase, so it is
+// correct even when the source's stored metadata is stale; when the key
+// cannot be decrypted or parsed, the source's stored metadata is copied
+// instead (system-credential-store C-08). The clone gets a fresh id, the
+// caller's scope/scope_id, and the caller's choice of name + is_default.
 //
 // Validates scope/scope_id consistency. Returns:
 //   - ErrNotFound when the source id is unknown or inactive
@@ -437,6 +491,17 @@ func (s *Service) CloneCredential(ctx context.Context, p CloneParams) (uuid.UUID
 	newName := p.Name
 	if newName == "" {
 		newName = srcName + " (clone)"
+	}
+
+	// The clone's key metadata is derived from the key it copies
+	// (bugs/OW-123). If that key cannot be read, the source's stored
+	// metadata is copied as before.
+	if usesKey(AuthMethod(srcMethod)) && srcEncKey != nil {
+		if dek, derr := secretkey.Active(); derr == nil {
+			if md, ierr := inspectStored(dek, srcEncKey, srcEncPass); ierr == nil {
+				srcKeyFP, srcKeyType, srcKeyComment, srcKeyBits = md.Fingerprint, md.Type, md.Comment, md.Bits
+			}
+		}
 	}
 
 	newID, err := uuid.NewV7()
