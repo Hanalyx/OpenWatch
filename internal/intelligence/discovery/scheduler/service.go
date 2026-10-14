@@ -9,7 +9,6 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
-	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,17 +37,25 @@ type Enqueuer interface {
 // substitute a stub Enqueuer directly.
 type PoolEnqueuer struct {
 	Pool *pgxpool.Pool
+	// Now is the clock backoff is compared against; nil means time.Now.
+	Now func() time.Time
 }
 
-// Enqueue persists a host.discovery job whose payload carries hostID.
-// Adds a correlation_id to the context if one isn't already on it so
-// queue.Enqueue's correlation guard is satisfied.
+// Enqueue persists a host.discovery job whose payload carries hostID,
+// through discovery.Enqueue, which inserts nothing when the host already
+// has a pending or processing discovery job (bugs/OW-120). Adds a
+// correlation_id to the context if one isn't already on it so the queue's
+// correlation guard is satisfied. Spec C-03, C-09.
 func (p PoolEnqueuer) Enqueue(ctx context.Context, hostID uuid.UUID) (uuid.UUID, error) {
 	if _, ok := correlation.From(ctx); !ok {
 		ctx = correlation.Set(ctx, correlation.Generate(correlation.PrefixCron))
 	}
-	return queue.Enqueue(ctx, p.Pool, discovery.JobKindHostDiscovery,
-		discovery.HostDiscoveryJobPayload{HostID: hostID})
+	now := time.Now
+	if p.Now != nil {
+		now = p.Now
+	}
+	_, err := discovery.Enqueue(ctx, p.Pool, hostID, now())
+	return uuid.Nil, err
 }
 
 // ConfigLoaderFunc reads the current DiscoveryConfig. Production wires
@@ -61,6 +68,7 @@ type Service struct {
 	enqueuer     Enqueuer
 	tickInterval time.Duration
 	cfgLoader    ConfigLoaderFunc
+	now          func() time.Time
 
 	stop       chan struct{}
 	stopO      sync.Once
@@ -71,10 +79,19 @@ type Service struct {
 // exercise only the in-process seam (config bound checks).
 func NewService(pool *pgxpool.Pool) *Service {
 	s := &Service{
-		pool:     pool,
-		stop:     make(chan struct{}),
-		enqueuer: PoolEnqueuer{Pool: pool},
+		pool: pool,
+		stop: make(chan struct{}),
+		now:  time.Now,
 	}
+	// The enqueuer reads the scheduler's clock, so WithClock reaches it.
+	s.enqueuer = PoolEnqueuer{Pool: pool, Now: func() time.Time { return s.now() }}
+	return s
+}
+
+// WithClock overrides the clock the scheduler compares backoff against
+// (tests). Spec C-11.
+func (s *Service) WithClock(now func() time.Time) *Service {
+	s.now = now
 	return s
 }
 
@@ -172,7 +189,16 @@ func (s *Service) tickOnce(ctx context.Context) {
 		return // tests without a pool
 	}
 
-	hosts, err := s.listDiscoveryTargets(ctx, cfg.IntervalSec)
+	// Retire jobs whose claim has outlived StaleDeadline first, so their
+	// hosts back off and stop holding the slot. Spec C-10.
+	if n, err := discovery.RetireStaleJobs(ctx, s.pool, s.now()); err != nil {
+		slog.WarnContext(ctx, "discovery scheduler: retire stale jobs failed",
+			slog.String("err", err.Error()))
+	} else if n > 0 {
+		slog.InfoContext(ctx, "discovery scheduler: retired stale jobs", slog.Int("count", n))
+	}
+
+	hosts, err := s.listDiscoveryTargets(ctx, cfg.IntervalSec, s.now())
 	if err != nil {
 		slog.WarnContext(ctx, "discovery scheduler: listDiscoveryTargets failed",
 			slog.String("err", err.Error()))
@@ -199,7 +225,10 @@ func (s *Service) tickOnce(ctx context.Context) {
 
 // listDiscoveryTargets returns the host ids whose discovery is due. One
 // SQL query (AC-06). Excludes deleted, maintenance, and hosts whose
-// os_discovered_at is more recent than now() - intervalSec.
+// os_discovered_at is more recent than now() - intervalSec. Also excludes
+// hosts that already have a pending or processing discovery job, so they
+// do not use up the per-tick cap, and hosts backing off after a failure
+// until their next_attempt_at, compared against now (spec C-11, C-12).
 //
 // Maintenance (per-host OR per-group) resolves via the
 // host_effective_maintenance view (migration 0049), matching the scan
@@ -207,7 +236,7 @@ func (s *Service) tickOnce(ctx context.Context) {
 //
 // NULL os_discovered_at is treated as due (never-discovered hosts go
 // first via NULLS FIRST ordering). Spec C-02 / AC-05.
-func (s *Service) listDiscoveryTargets(ctx context.Context, intervalSec int) ([]uuid.UUID, error) {
+func (s *Service) listDiscoveryTargets(ctx context.Context, intervalSec int, now time.Time) ([]uuid.UUID, error) {
 	const q = `
 		SELECT h.id
 		  FROM hosts h
@@ -216,8 +245,16 @@ func (s *Service) listDiscoveryTargets(ctx context.Context, intervalSec int) ([]
 		   AND NOT hem.in_maintenance
 		   AND (h.os_discovered_at IS NULL
 		        OR h.os_discovered_at + make_interval(secs => $1) <= now())
+		   AND NOT EXISTS (
+		       SELECT 1 FROM job_queue jq
+		        WHERE jq.job_type = 'host.discovery'
+		          AND jq.status IN ('pending', 'processing')
+		          AND jq.payload->>'host_id' = h.id::text)
+		   AND NOT EXISTS (
+		       SELECT 1 FROM host_discovery_backoff b
+		        WHERE b.host_id = h.id AND b.next_attempt_at > $2)
 		 ORDER BY h.os_discovered_at ASC NULLS FIRST`
-	rows, err := s.pool.Query(ctx, q, intervalSec)
+	rows, err := s.pool.Query(ctx, q, intervalSec, now)
 	if err != nil {
 		return nil, fmt.Errorf("discovery scheduler: query targets: %w", err)
 	}

@@ -25,11 +25,20 @@ import (
 func Dequeue(ctx context.Context, pool *pgxpool.Pool) (*Job, context.Context, error) {
 	// Single statement: claim and return the row. Reduces round-trips
 	// and keeps the transactional boundary inside Postgres.
+	//
+	// Every claim mints a fresh lease token, so a leased job can only be
+	// completed, failed or have results written by the claim that holds the
+	// current token (lease.go). Spec system-job-queue AC-14.
+	token, err := uuid.NewRandom()
+	if err != nil {
+		return nil, nil, fmt.Errorf("queue: lease token: %w", err)
+	}
 	const stmt = `
 		UPDATE job_queue
-		   SET status     = 'processing',
-		       locked_at  = now(),
-		       attempts   = attempts + 1
+		   SET status      = 'processing',
+		       locked_at   = now(),
+		       attempts    = attempts + 1,
+		       lease_token = $1
 		 WHERE id = (
 		     SELECT id FROM job_queue
 		      WHERE status = 'pending' AND available_at <= now()
@@ -38,12 +47,12 @@ func Dequeue(ctx context.Context, pool *pgxpool.Pool) (*Job, context.Context, er
 		      LIMIT 1
 		 )
 		 RETURNING id, job_type, payload, correlation_id, status, attempts,
-		           COALESCE(last_error, ''), created_at, locked_at, completed_at`
+		           COALESCE(last_error, ''), created_at, locked_at, completed_at, lease_token`
 
-	row := pool.QueryRow(ctx, stmt)
+	row := pool.QueryRow(ctx, stmt, token)
 	var j Job
 	if err := row.Scan(&j.ID, &j.JobType, &j.Payload, &j.CorrelationID, &j.Status,
-		&j.Attempts, &j.LastError, &j.CreatedAt, &j.LockedAt, &j.CompletedAt); err != nil {
+		&j.Attempts, &j.LastError, &j.CreatedAt, &j.LockedAt, &j.CompletedAt, &j.LeaseToken); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, ErrNoJob
 		}

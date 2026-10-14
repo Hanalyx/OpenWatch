@@ -9,7 +9,12 @@ spec:
   # system-current-corpus C-09 decided that host_rule_state is never pruned,
   # so that entry moves undecided to never and the pinned undecided list drops
   # from thirty-nine names to thirty-eight.
-  version: "1.1.0"
+  #
+  # 1.2.0 records the decision for a new table. Migration 0066 adds
+  # host_discovery_backoff (bugs/OW-120), entered as never: it is current
+  # state, one row per host, deleted on the host's next successful
+  # discovery and with the host. The undecided list is unchanged.
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -68,7 +73,7 @@ spec:
       includes:
         - A retention registry in internal/retention, one entry per table in the schema
         - "Three swept tables: idempotency_keys, sso_auth_states, auth_mfa_otp_uses"
-        - "Three never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions, host_rule_state"
+        - "Four never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions, host_rule_state, host_discovery_backoff (v1.2.0)"
         - "Two deferred tables recorded as deferred, with reasons: sessions, refresh_tokens"
         - Thirty-eight remaining tables recorded as undecided, each with a reason pointing at bugs/OW-013
         - One sweeper on one cron.Scheduler that walks the registry

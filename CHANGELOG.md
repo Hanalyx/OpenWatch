@@ -10,6 +10,36 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Discovery no longer retries a failing host every minute.** When OS
+  discovery failed on a host, for example because its SSH password had
+  changed, the scheduler queued it again on every 60-second tick, and could
+  queue a second job while the first was still waiting. With a stale
+  password, that meant a failed login roughly every minute until someone
+  updated the credential. Now:
+  - a host has at most one discovery job queued or running;
+  - a failed discovery backs the host off for 5 minutes, doubling with each
+    further failure, up to 24 hours; a success clears it;
+  - a job that has been running for more than 15 minutes is retired, and
+    the run that held it can no longer write its results.
+
+  This slows repeated failed logins. It does not stop them: a host is still
+  retried after its backoff. `POST /api/v1/hosts/{id}/discovery:run` now
+  returns `409 discovery.in_progress` while a discovery for that host is
+  queued or running, and the manual sweep skips hosts that are backing off.
+- **SSH connections now give up when their time limit passes, even in the
+  handshake.** The 10-second SSH dial limit covered only the TCP connect. A
+  host that accepted the connection and never sent an SSH banner could hold
+  a scan, a remediation, a discovery or intelligence run, or the monitoring
+  privilege check indefinitely. The limit now covers the handshake too, for
+  each of them. A discovery run is also limited to 10 minutes in total, including
+  each command it runs on the host.
+- **A discovery run that has lost its job no longer records how it reached
+  the host.** The SSH login method and sudo mode a discovery run learns are
+  now saved with its results, so a run that was retired as stale cannot
+  overwrite what a newer run recorded.
+
 ## [0.8.4] Eyrie (2026-10-10)
 
 A security release. It changes no OpenWatch code. It rebuilds 0.8.3 with

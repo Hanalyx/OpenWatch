@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -108,10 +109,39 @@ func (s *Store) RecordSudoMode(ctx context.Context, hostID uuid.UUID, m SudoMode
 	return s.upsert(ctx, hostID, nil, ptr(string(m)))
 }
 
+// Execer is the write surface Upsert needs: a *pgxpool.Pool or a pgx.Tx.
+type Execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// Upsert records both dimensions through db, which may be a transaction,
+// so a caller can make the record part of a larger atomic write. An
+// unknown value leaves its column untouched; both unknown writes nothing.
+// OS discovery uses it to record what a run learned only in the
+// transaction that writes the run's results under its job lease
+// (bugs/OW-120).
+func Upsert(ctx context.Context, db Execer, hostID uuid.UUID, auth SSHAuthMethod, sudo SudoMode) error {
+	var a, sm *string
+	if auth != AuthUnknown {
+		a = ptr(string(auth))
+	}
+	if sudo != SudoUnknown {
+		sm = ptr(string(sudo))
+	}
+	if a == nil && sm == nil {
+		return nil
+	}
+	return upsert(ctx, db, hostID, a, sm)
+}
+
 // upsert writes the provided columns, preserving any column passed as nil
 // via COALESCE so a single-dimension record never clobbers the other.
 func (s *Store) upsert(ctx context.Context, hostID uuid.UUID, auth, sudo *string) error {
-	_, err := s.pool.Exec(ctx, `
+	return upsert(ctx, s.pool, hostID, auth, sudo)
+}
+
+func upsert(ctx context.Context, db Execer, hostID uuid.UUID, auth, sudo *string) error {
+	_, err := db.Exec(ctx, `
 		INSERT INTO host_connection_profile (host_id, ssh_auth_method, sudo_mode, updated_at)
 		VALUES ($1, $2, $3, now())
 		ON CONFLICT (host_id) DO UPDATE SET

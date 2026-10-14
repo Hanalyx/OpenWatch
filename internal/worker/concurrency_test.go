@@ -26,7 +26,7 @@ type blockingDiscovery struct {
 	release chan struct{}
 }
 
-func (b *blockingDiscovery) RunDiscovery(_ context.Context, _ uuid.UUID) error {
+func (b *blockingDiscovery) RunDiscovery(_ context.Context, _ uuid.UUID, _ queue.Lease) error {
 	b.started <- struct{}{}
 	<-b.release
 	return nil

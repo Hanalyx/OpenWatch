@@ -14,6 +14,7 @@ import (
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/eventbus"
 	"github.com/Hanalyx/openwatch/internal/intelligence/probe"
+	"github.com/Hanalyx/openwatch/internal/queue"
 	owssh "github.com/Hanalyx/openwatch/internal/ssh"
 	"github.com/Hanalyx/openwatch/internal/systemconfig"
 	"github.com/google/uuid"
@@ -66,9 +67,10 @@ var ErrHostNotFound = errors.New("discovery: host not found")
 // RunDiscovery is the error-only adapter the worker uses (matches
 // worker.HostDiscoveryRunner interface signature). Discards the
 // SystemFacts return — the worker only cares about success / failure,
-// since persist + bus + audit are already done inside Discover.
-func (s *Service) RunDiscovery(ctx context.Context, hostID uuid.UUID) error {
-	_, err := s.Discover(ctx, hostID)
+// since persist + bus + audit, and the job's completion or failure under
+// its lease, are already done inside Discover.
+func (s *Service) RunDiscovery(ctx context.Context, hostID uuid.UUID, lease queue.Lease) error {
+	_, err := s.Discover(ctx, hostID, lease)
 	return err
 }
 
@@ -262,6 +264,9 @@ type Service struct {
 	transport SSHTransport
 	policy    PolicyLoader
 	profiles  SudoProfileStore
+	now       func() time.Time
+	// runTimeout bounds one Discover run; RunTimeout unless a test sets it.
+	runTimeout time.Duration
 }
 
 // NewService constructs a Service. emit + bus may be nil — Discover
@@ -274,11 +279,28 @@ type Service struct {
 // store via NewSSHTransport + WithSSHTransport before Run.
 func NewService(pool *pgxpool.Pool, emit AuditEmitFunc, bus Publisher) *Service {
 	return &Service{
-		pool:      pool,
-		emit:      emit,
-		bus:       bus,
-		transport: NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+		pool:       pool,
+		emit:       emit,
+		bus:        bus,
+		transport:  NewSSHTransport(owssh.ModeTOFU, owssh.NewMemoryStore()),
+		now:        time.Now,
+		runTimeout: RunTimeout,
 	}
+}
+
+// WithRunTimeout overrides the bound on one Discover run (tests). It never
+// exceeds RunTimeout, which must stay below StaleDeadline.
+func (s *Service) WithRunTimeout(d time.Duration) *Service {
+	if d > 0 && d <= RunTimeout {
+		s.runTimeout = d
+	}
+	return s
+}
+
+// WithClock overrides the clock used for failure backoff (tests).
+func (s *Service) WithClock(now func() time.Time) *Service {
+	s.now = now
+	return s
 }
 
 // WithSSHTransport overrides the SSH transport (tests).
@@ -327,15 +349,49 @@ type hostFacts struct {
 	Cred   *credential.Credential
 }
 
-// Discover runs one full Discovery for hostID. Resolves credential,
-// opens ONE SSH session, runs the probe batch, parses, persists in a
+// Discover runs one full Discovery for hostID under lease, the claim of
+// the host's discovery job. Resolves credential, opens ONE SSH session,
+// runs the probe batch, parses, persists and completes the job in a
 // single transaction, publishes the bus event, emits the audit event.
 //
 // Returns SystemFacts on success (including the partial-success path
 // where sudo was unavailable for firewall introspection — facts.Firewall*
 // stays empty in that case). Errors come from credential resolution,
 // SSH dial, or persistence — never from a sub-command's non-zero exit.
-func (s *Service) Discover(ctx context.Context, hostID uuid.UUID) (SystemFacts, error) {
+// On any error after the lease check, the job is failed under its lease
+// and the host backs off (bugs/OW-120). A lost lease writes nothing.
+func (s *Service) Discover(ctx context.Context, hostID uuid.UUID, lease queue.Lease) (SystemFacts, error) {
+	if !lease.Valid() {
+		return SystemFacts{}, ErrNoLease
+	}
+	timeout := s.runTimeout
+	if timeout <= 0 || timeout > RunTimeout {
+		timeout = RunTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	facts, err := s.discover(ctx, hostID, lease)
+	if err != nil && !errors.Is(err, queue.ErrLeaseLost) && s.pool != nil {
+		// Record the failure on a context that outlives a canceled run, so
+		// a timeout still backs the host off.
+		fctx, fcancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer fcancel()
+		if ferr := failRun(fctx, s.pool, lease, hostID, s.clock(), err); ferr != nil &&
+			!errors.Is(ferr, queue.ErrLeaseLost) {
+			return SystemFacts{}, fmt.Errorf("%w (and recording the failure: %v)", err, ferr)
+		}
+	}
+	return facts, err
+}
+
+func (s *Service) clock() time.Time {
+	if s.now == nil {
+		return time.Now()
+	}
+	return s.now()
+}
+
+func (s *Service) discover(ctx context.Context, hostID uuid.UUID, lease queue.Lease) (SystemFacts, error) {
 	if s.lookup == nil {
 		return SystemFacts{}, errors.New("discovery: host lookup not wired")
 	}
@@ -359,12 +415,13 @@ func (s *Service) Discover(ctx context.Context, hostID uuid.UUID) (SystemFacts, 
 		Port:   addr.Port,
 		Cred:   cred,
 	}
-	facts, err := s.discoverWithTransport(ctx, hf)
+	obs := &observations{}
+	facts, err := s.discoverWithTransport(withObservations(ctx, obs), hf)
 	if err != nil {
 		return SystemFacts{}, err
 	}
 
-	if err := s.persist(ctx, hostID, facts); err != nil {
+	if err := s.persist(ctx, hostID, lease, facts, obs); err != nil {
 		return SystemFacts{}, fmt.Errorf("discovery: persist: %w", err)
 	}
 	s.publishBusEvent(hostID, facts)
@@ -507,7 +564,13 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 		facts.Attempts[CatFirewall] = fwReason
 	}
 	if s.profiles != nil && learnedSudo != connprofile.SudoUnknown && learnedSudo != knownSudo {
-		_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
+		// Recorded by persist, under the run's lease (bugs/OW-120). A
+		// caller without a run (tests of this seam) records it at once.
+		if o := observationsFrom(ctx); o != nil {
+			o.sudo = learnedSudo
+		} else {
+			_ = s.profiles.RecordSudoMode(ctx, hf.HostID, learnedSudo)
+		}
 	}
 
 	return facts, nil
@@ -517,7 +580,18 @@ func (s *Service) discoverWithTransport(ctx context.Context, hf hostFacts) (Syst
 // hosts.os_* columns in ONE transaction (spec C-02 + AC-07). The
 // host_system_info UPSERT uses ON CONFLICT (host_id) DO UPDATE so a
 // second Discover updates in place (spec C-08 + AC-14).
-func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) error {
+//
+// The connection observations the run collected are written in the same
+// transaction.
+//
+// The transaction first completes the job under lease. That one statement
+// checks the lease is current, row-locks the job, and marks it completed,
+// and it commits or rolls back with the results. A lease that is no longer
+// current returns queue.ErrLeaseLost before anything is written, and a
+// retirement racing this transaction waits on the row lock. Results are
+// therefore written only by the claim that owns the job (bugs/OW-120,
+// spec C-15).
+func (s *Service) persist(ctx context.Context, hostID uuid.UUID, lease queue.Lease, f SystemFacts, obs *observations) error {
 	if s.pool == nil {
 		return errors.New("discovery: db pool not wired")
 	}
@@ -526,6 +600,9 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 		return fmt.Errorf("discovery: begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := queue.CompleteLeased(ctx, tx, lease); err != nil {
+		return err
+	}
 
 	// No-clobber merge (spec C-08, v1.5.0): carry forward the prior stored value
 	// for any category this run did NOT observe, so a failed or denied probe
@@ -633,6 +710,16 @@ func (s *Service) persist(ctx context.Context, hostID uuid.UUID, f SystemFacts) 
 		nilIfEmpty(f.PlatformIdentifier),
 	); err != nil {
 		return fmt.Errorf("discovery: update hosts os_family: %w", err)
+	}
+	if err := clearFailures(ctx, tx, hostID); err != nil {
+		return err
+	}
+	// What the run learned about reaching the host (SSH auth method, sudo
+	// mode) is recorded here, under the lease, not when it was observed.
+	if obs != nil {
+		if err := connprofile.Upsert(ctx, tx, hostID, obs.sshAuth, obs.sudo); err != nil {
+			return fmt.Errorf("discovery: record connection profile: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
