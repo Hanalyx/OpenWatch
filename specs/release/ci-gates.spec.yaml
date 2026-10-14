@@ -644,8 +644,12 @@ spec:
         worktrees unchanged. Ignored, untracked and staged-but-uncommitted
         files cannot supply its coverage. Only a commit result is readiness
         evidence: `--check-result FILE --commit` accepts nothing else, and
-        matches it to HEAD alone. A failed export runs no gate and is
-        INCOMPLETE.
+        requires its commit to be HEAD and its tree to be that commit's git
+        tree. A failed export runs no gate and is INCOMPLETE. A failed `npm
+        ci` in the export is recorded as failed, runs no gate, and is FAILED.
+        The export directory is the run's to remove from the moment it is
+        created, so it is removed on success, on failure, and on an interrupt
+        during the clone, the checkout or `npm ci`.
       type: security
       enforcement: error
   acceptance_criteria:
@@ -1811,7 +1815,10 @@ spec:
         committed, and passes once it is committed. The result records mode
         commit, HEAD and HEAD's tree id. A commit run leaves the checkout's
         status, worktrees, refs and HEAD unchanged and removes its export. A
-        failed export runs no gate and is INCOMPLETE.
+        failed export runs no gate and is INCOMPLETE. An `npm ci` that exits
+        non-zero runs no gate, records the dependencies as failed, and is
+        FAILED. An interrupt during the export's clone, its checkout or its
+        `npm ci` leaves no export directory and releases the lock.
       priority: critical
       references_constraints: [C-26]
     - id: AC-46
@@ -1823,14 +1830,15 @@ spec:
       references_constraints: [C-26]
     - id: AC-47
       description: >-
-        v1.29.0. A development run with an ignored source test on disk
-        passes, records mode development, lists that file, and says it is not
+        v1.29.0. A development run with an ignored source test on disk passes,
+        records mode development, lists that file, and says it is not
         readiness evidence; check-result accepts it for the same tree and
-        refuses it with --commit. A commit result passes check-result
-        --commit after a working-tree change and is refused after a new
-        commit. The development identity changes with untracked contents and
-        with an ignored source file's contents, and not with dependencies or
-        the results file. The Makefile's ci-strict-commit target runs
-        scripts/ci-strict.py --commit.
+        refuses it with --commit. A commit result passes check-result --commit
+        after a working-tree change and is refused after a new commit. A
+        commit result whose recorded tree is another commit's tree, a made-up
+        tree or absent is refused, with and without --commit. The development
+        identity changes with untracked contents and with an ignored source
+        file's contents, and not with dependencies or the results file. The
+        Makefile's ci-strict-commit target runs scripts/ci-strict.py --commit.
       priority: critical
       references_constraints: [C-26]

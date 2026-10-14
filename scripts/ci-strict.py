@@ -25,7 +25,7 @@ and make turns every failure into exit 2):
 
   0  COMPLETE    every required gate ran and passed, and the only tests not
                  run are the opt-ins that hosted CI skips too
-  1  FAILED      a gate or a test failed
+  1  FAILED      a gate or a test failed, or `npm ci` failed in a commit export
   3  INCOMPLETE  nothing failed, but a required gate or test did not run.
                  Accepting a gap with --allow-not-run records the acceptance;
                  the run is still INCOMPLETE and still exits 3
@@ -405,23 +405,25 @@ def working_tree_state(probe):
     }
 
 
-def export_commit(probe, commit):
+def export_commit(probe, commit, owned):
     """A clean checkout of commit, outside the repository: `git clone
     --shared` (the objects are borrowed, the source's refs and worktrees are
-    untouched), checked out detached. Returns (temp dir, checkout) or raises
-    RuntimeError."""
-    tmp = Path(tempfile.mkdtemp(prefix="ci-strict-commit-"))
-    dest = tmp / "checkout"
-    rc, text = probe.capture(["git", "clone", "--quiet", "--shared", "--no-checkout",
-                              str(probe.repo), str(dest)])
+    untouched), checked out detached. Returns the checkout, or raises
+    RuntimeError.
+
+    The temporary directory is appended to owned as soon as mkdtemp returns,
+    before any git command runs. The caller removes everything in owned in
+    its `finally`, so the directory goes on success, on a failed clone or
+    checkout, and on an interrupt at any of those points."""
+    owned.append(Path(tempfile.mkdtemp(prefix="ci-strict-commit-")))
+    dest = owned[-1] / "checkout"
+    rc, text = probe.capture(["git", "clone", "--quiet", "--shared", "--no-checkout", str(probe.repo), str(dest)])
     if rc != 0:
-        shutil.rmtree(tmp, ignore_errors=True)
         raise RuntimeError(f"git clone of the checkout failed: {text}")
     rc, text = probe.capture(["git", "-C", str(dest), "checkout", "--quiet", "--detach", commit])
     if rc != 0:
-        shutil.rmtree(tmp, ignore_errors=True)
         raise RuntimeError(f"git checkout {commit} in the export failed: {text}")
-    return tmp, dest
+    return dest
 
 
 class Lock:
@@ -512,6 +514,10 @@ def check_result(path, expect_id=None, probe=None, readiness=False):
             _, head = probe.capture(["git", "rev-parse", "HEAD"])
             if r["commit"] != head:
                 return False, f"{path}: result is for commit {r['commit'][:12]}, not HEAD {head[:12]}"
+            _, tree = probe.capture(["git", "rev-parse", r["commit"] + "^{tree}"])
+            if r["tree"] != tree:
+                return False, (f"{path}: result records tree {str(r['tree'])[:12]}, but commit "
+                               f"{r['commit'][:12]}'s tree is {tree[:12]}")
         else:
             commit, tree = tree_identity(probe)
             if (r["commit"], r["tree"]) != (commit, tree):
@@ -535,7 +541,7 @@ def strict(probe, allow, out=print, mode="development"):
             f"{(owner or {}).get('pid', '?')}) is running since {(owner or {}).get('started', '?')}. "
             "Wait for it; two runs would share one test database. Nothing ran.")
         return EXIT_REFUSED
-    export_tmp = None
+    owned = []  # temporary directories this run must remove, from the moment they exist
     try:
         started = datetime.datetime.now(datetime.timezone.utc).isoformat()
         rundir = state / "runs" / invocation
@@ -554,7 +560,7 @@ def strict(probe, allow, out=print, mode="development"):
                 out(f"  not tested: {uncommitted} uncommitted, untracked or ignored source file(s) in this "
                     "checkout")
             try:
-                export_tmp, dest = export_commit(probe, commit)
+                dest = export_commit(probe, commit, owned)
             except RuntimeError as e:
                 export = {"method": "git clone --shared", "outcome": "failed", "detail": str(e)}
                 out(f"ci-strict: could not export commit {commit[:12]}: {e}")
@@ -563,7 +569,7 @@ def strict(probe, allow, out=print, mode="development"):
                 out("== export: npm ci in the export's frontend")
                 deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend")
                 export = {"method": "git clone --shared", "outcome": "exported",
-                          "dependencies": "installed" if deps == 0 else f"npm ci exited {deps}"}
+                          "dependencies": "installed" if deps == 0 else f"failed: npm ci exited {deps}"}
         else:
             commit, tree = tree_identity(probe)
             tested = f"commit {commit} plus this checkout's working-tree changes"
@@ -575,54 +581,65 @@ def strict(probe, allow, out=print, mode="development"):
             for p in working["ignored_check_inputs"]:
                 out(f"  ignored source on disk, read by the gates: {p}")
 
-        pre = preflight(gp) if not (export and export["outcome"] == "failed") else {
-            "export": (False, export["detail"])}
-        out("preflight:")
-        for name, (good, detail) in pre.items():
-            out(f"  {'ok     ' if good else 'MISSING'} {name}: {detail}")
-        missing = {n for n, (good, _) in pre.items() if not good}
-        needs_of = dict(GATES)
-        # A gate whose prerequisites are missing is blocked. It is an accepted
-        # gap only if the gate, or every missing prerequisite it needs, was
-        # named in --allow-not-run. Any unaccepted block stops the run here,
-        # before expensive work.
-        blocked = ({g for g, _ in GATES} if "export" in missing
-                   else {g for g, needs in GATES if missing & set(needs)})
-        accepted = {g for g in blocked if g in allow or (missing & set(needs_of[g])) <= allow}
-        if "export" in missing:
-            accepted = set()
-        unaccepted_gates = sorted(blocked - accepted)
-        unaccepted = sorted({n for g in unaccepted_gates for n in missing & (set(needs_of[g]) | {"export"})})
-        gates = []
-        if unaccepted_gates:
-            for g, _ in GATES:
-                gates.append({"gate": g, "outcome": "not run",
-                              "reason": "preflight failed" if g in blocked else "run stopped at preflight"})
+        # A commit run whose export or dependency install failed runs no gate.
+        # A failed export says nothing about the commit, so the run is
+        # INCOMPLETE; a failed `npm ci` came from the commit's own lockfile
+        # and scripts, so it is FAILED. Neither can be COMPLETE.
+        stop = None
+        if export is not None and export["outcome"] == "failed":
+            stop = (EXIT_INCOMPLETE, f"the export failed: {export['detail']}", ["export"])
+        elif export is not None and export["dependencies"] != "installed":
+            stop = (EXIT_FAILED, f"dependency installation in the export failed: {export['dependencies']}", [])
+        if stop is not None:
+            verdict, reason, unaccepted = stop
+            gates = [{"gate": g, "outcome": "not run", "reason": reason} for g, _ in GATES]
             tests = summarize_streams(rundir)
-            verdict = EXIT_INCOMPLETE
-            out(f"ci-strict: missing prerequisites block {', '.join(unaccepted_gates)}. Fix them, or accept "
-                "each gap by name with --allow-not-run (the run stays INCOMPLETE). Nothing else ran.")
+            out(f"ci-strict: {reason}. No gate ran.")
         else:
-            ran = {}
-            for g, needs in GATES:
-                if missing & set(needs):
-                    gates.append({"gate": g, "outcome": "not run", "accepted": True,
-                                  "reason": "missing " + ", ".join(sorted(missing & set(needs)))})
-                    continue
-                if g == "test-streams" and not (ran.get("go-tests") == 0 and ran.get("vitest") is not None):
-                    gates.append({"gate": g, "outcome": "not run", "reason": "the test runs did not complete"})
-                    continue
-                if g == "specter-coverage" and not all(ran.get(x) == 0 for x in ("go-tests", "vitest", "test-streams")):
+            pre = preflight(gp)
+            out("preflight:")
+            for name, (good, detail) in pre.items():
+                out(f"  {'ok     ' if good else 'MISSING'} {name}: {detail}")
+            missing = {n for n, (good, _) in pre.items() if not good}
+            needs_of = dict(GATES)
+            # A gate whose prerequisites are missing is blocked. It is an accepted
+            # gap only if the gate, or every missing prerequisite it needs, was
+            # named in --allow-not-run. Any unaccepted block stops the run here,
+            # before expensive work.
+            blocked = {g for g, needs in GATES if missing & set(needs)}
+            accepted = {g for g in blocked if g in allow or (missing & set(needs_of[g])) <= allow}
+            unaccepted_gates = sorted(blocked - accepted)
+            unaccepted = sorted({n for g in unaccepted_gates for n in missing & set(needs_of[g])})
+            gates = []
+            if unaccepted_gates:
+                for g, _ in GATES:
                     gates.append({"gate": g, "outcome": "not run",
-                                  "reason": "coverage is evaluated only over complete test results"})
-                    continue
-                out(f"== {g}")
-                rc = run_gate(g, gp, rundir)
-                ran[g] = rc
-                gates.append({"gate": g, "outcome": "passed" if rc == 0 else "failed", "exit": rc})
-            tests = summarize_streams(rundir)
-            coverage_ran = any(x["gate"] == "specter-coverage" and x["outcome"] == "passed" for x in gates)
-            verdict = decide(gates, tests, coverage_ran)
+                                  "reason": "preflight failed" if g in blocked else "run stopped at preflight"})
+                tests = summarize_streams(rundir)
+                verdict = EXIT_INCOMPLETE
+                out(f"ci-strict: missing prerequisites block {', '.join(unaccepted_gates)}. Fix them, or accept "
+                    "each gap by name with --allow-not-run (the run stays INCOMPLETE). Nothing else ran.")
+            else:
+                ran = {}
+                for g, needs in GATES:
+                    if missing & set(needs):
+                        gates.append({"gate": g, "outcome": "not run", "accepted": True,
+                                      "reason": "missing " + ", ".join(sorted(missing & set(needs)))})
+                        continue
+                    if g == "test-streams" and not (ran.get("go-tests") == 0 and ran.get("vitest") is not None):
+                        gates.append({"gate": g, "outcome": "not run", "reason": "the test runs did not complete"})
+                        continue
+                    if g == "specter-coverage" and not all(ran.get(x) == 0 for x in ("go-tests", "vitest", "test-streams")):
+                        gates.append({"gate": g, "outcome": "not run",
+                                      "reason": "coverage is evaluated only over complete test results"})
+                        continue
+                    out(f"== {g}")
+                    rc = run_gate(g, gp, rundir)
+                    ran[g] = rc
+                    gates.append({"gate": g, "outcome": "passed" if rc == 0 else "failed", "exit": rc})
+                tests = summarize_streams(rundir)
+                coverage_ran = any(x["gate"] == "specter-coverage" and x["outcome"] == "passed" for x in gates)
+                verdict = decide(gates, tests, coverage_ran)
 
         result = {
             "id": invocation, "mode": mode, "tested": tested, "working_tree": working,
@@ -655,8 +672,8 @@ def strict(probe, allow, out=print, mode="development"):
         out(f"{word} (exit {verdict})")
         return verdict
     finally:
-        if export_tmp is not None:
-            shutil.rmtree(export_tmp, ignore_errors=True)
+        for d in owned:
+            shutil.rmtree(d, ignore_errors=True)
         lock.release()
 
 

@@ -115,7 +115,7 @@ func TestCIGates_StrictLocalCIIsWiredAndDocumented(t *testing.T) {
 // AC-45 (bugs/OW-124): a commit-mode result tests the commit's files alone. A
 // test that is ignored, untracked, or staged but not committed cannot make it
 // pass; a committed one does; the checkout is left as it was; a failed export
-// runs no gate.
+// or a failed npm ci runs no gate; an interrupt leaves no export behind.
 func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
 		for _, name := range []string{
@@ -123,6 +123,8 @@ func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 			"test_a_committed_test_does_pass_in_commit_mode",
 			"test_commit_mode_leaves_the_checkout_as_it_was",
 			"test_a_failed_export_runs_no_gate_and_is_incomplete",
+			"test_a_failed_npm_ci_runs_no_gate_and_fails",
+			"test_an_interrupt_while_exporting_leaves_no_export",
 		} {
 			if !strictCase(t, "ReadinessFromCommit", name) {
 				t.Errorf("ReadinessFromCommit.%s did not pass", name)
@@ -144,7 +146,8 @@ func TestCIGates_StaleResultsCannotPassACommit(t *testing.T) {
 
 // @ac AC-47
 // AC-47: a development run says what it tested and is never readiness
-// evidence; a commit-mode result is readiness evidence for its commit only;
+// evidence; a commit-mode result is readiness evidence for its commit, and
+// its commit's tree, only;
 // the development identity covers untracked and ignored contents; and make
 // has a target for each mode.
 func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
@@ -152,6 +155,7 @@ func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
 		for _, name := range []string{
 			"test_a_development_run_says_what_it_tested_and_is_not_readiness",
 			"test_a_commit_result_is_readiness_evidence_for_head_only",
+			"test_a_commit_result_must_record_its_commits_tree",
 			"test_the_development_identity_covers_untracked_and_ignored_contents",
 		} {
 			if !strictCase(t, "ReadinessFromCommit", name) {

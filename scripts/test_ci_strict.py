@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -558,7 +559,7 @@ class ReadinessFromCommit(unittest.TestCase):
 
     def test_a_failed_export_runs_no_gate_and_is_incomplete(self):
         probe = RealGitProbe(self.root)
-        def broken(_probe, _commit):
+        def broken(_probe, _commit, _owned):
             raise RuntimeError("simulated clone failure")
         saved = cs.export_commit
         cs.export_commit = broken
@@ -571,6 +572,114 @@ class ReadinessFromCommit(unittest.TestCase):
         res = json.loads(sorted((self.root / ".git" / "ci-strict" / "runs").glob("*/result.json"))[0].read_text())
         self.assertEqual(res["export"]["outcome"], "failed")
         self.assertIn("export", res["unaccepted_missing"])
+
+    def commit_coverage(self):
+        self.plant("committed_ac_test.go", staged=True)
+        git(self.root, "commit", "-q", "-m", "committed coverage")
+
+    def test_a_failed_npm_ci_runs_no_gate_and_fails(self):
+        # AC-45. The commit's own lockfile or install scripts failing is a
+        # failure of the commit, never COMPLETE.
+        self.commit_coverage()
+
+        class NpmFails(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None):
+                if cmd[:2] == ["npm", "ci"]:
+                    self.calls.append((cmd, env))
+                    return 23
+                return RealGitProbe.run(self, cmd, cwd, env, stdout)
+
+        probe = NpmFails(self.root)
+        rc = cs.strict(probe, set(), out=self.lines.append, mode="commit")
+        self.assertEqual(rc, cs.EXIT_FAILED, self.lines[-3:])
+        res = json.loads(results(self.root)[0].read_text())
+        self.assertEqual(res["verdict"], "failed")
+        self.assertEqual(res["export"]["dependencies"], "failed: npm ci exited 23")
+        self.assertEqual({g["outcome"] for g in res["gates"]}, {"not run"})
+        self.assertFalse([c for c, _ in probe.calls if "spec-check" in " ".join(map(str, c))])
+        self.assertIn("LOCAL CI FAILED", self.lines[-1])
+        ok, _ = cs.check_result(results(self.root)[0], probe=probe, readiness=True)
+        self.assertFalse(ok)
+
+    @unittest.skipUnless(shutil.which("npm") and shutil.which("node"), "needs npm and node")
+    def test_a_real_failing_npm_ci_fails_the_run(self):
+        # AC-45, with npm itself: a postinstall script that exits 23. The
+        # lockfile has one local file: dependency, so nothing is fetched.
+        self.commit_coverage()
+        fe = self.root / "frontend"
+        (fe / "fixture").mkdir()
+        (fe / "fixture" / "package.json").write_text(json.dumps({"name": "fixture", "version": "1.0.0"}))
+        (fe / "package.json").write_text(json.dumps({
+            "name": "ci-strict-fixture", "version": "1.0.0",
+            "dependencies": {"fixture": "file:fixture"},
+            "scripts": {"postinstall": "node -e \"process.exit(23)\""}}))
+        (fe / "package-lock.json").unlink()
+        cache = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        subprocess.run(["npm", "install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund",
+                        "--cache", str(cache)], cwd=fe, check=True, capture_output=True)
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "a failing install script")
+
+        class RealNpm(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None):
+                if cmd[:2] == ["npm", "ci"]:
+                    return subprocess.run(cmd + ["--cache", str(cache)], cwd=cwd, capture_output=True).returncode
+                return RealGitProbe.run(self, cmd, cwd, env, stdout)
+
+        rc = cs.strict(RealNpm(self.root), set(), out=self.lines.append, mode="commit")
+        self.assertEqual(rc, cs.EXIT_FAILED, self.lines[-3:])
+        res = json.loads(results(self.root)[0].read_text())
+        self.assertTrue(res["export"]["dependencies"].startswith("failed: npm ci exited "), res["export"])
+
+    def test_a_commit_result_must_record_its_commits_tree(self):
+        # AC-47. The recorded tree is checked against the commit's own git
+        # tree, not taken on trust; working-tree edits stay irrelevant.
+        self.commit_coverage()
+        rc, res, probe = self.strict("commit")
+        self.assertEqual(rc, cs.EXIT_COMPLETE)
+        path = results(self.root)[0]
+        (self.root / "internal" / "x" / "scratch.go").write_text("package x\n")
+        self.assertTrue(cs.check_result(path, probe=probe, readiness=True)[0])
+        parent_tree = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD~1^{tree}"],
+                                     capture_output=True, text=True, check=True).stdout.strip()
+        for label, tree in {"another commit's tree": parent_tree, "a made-up tree": "f" * 40,
+                            "no tree": None}.items():
+            with self.subTest(label):
+                path.write_text(json.dumps(dict(res, tree=tree)))
+                for readiness in (True, False):
+                    ok, msg = cs.check_result(path, probe=probe, readiness=readiness)
+                    self.assertFalse(ok, f"readiness={readiness}: {msg}")
+
+    def test_an_interrupt_while_exporting_leaves_no_export(self):
+        # AC-45. The export directory is owned from the moment it exists, so
+        # an interrupt during the clone, the checkout or npm ci removes it,
+        # and releases the lock.
+        self.commit_coverage()
+        own_tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
+        tempfile.tempdir = str(own_tmp)
+        for step in ("clone", "checkout", "npm ci"):
+            seen = []  # the export as it stood when npm ci was interrupted
+            with self.subTest(step):
+                class Interrupted(RealGitProbe):
+                    def capture(self, cmd, cwd=None):
+                        if cmd[0] == "git" and step in cmd:
+                            raise KeyboardInterrupt(f"interrupted during git {step}")
+                        return RealGitProbe.capture(self, cmd, cwd)
+
+                    def run(self, cmd, cwd=None, env=None, stdout=None):
+                        if " ".join(cmd[:2]) == step:
+                            seen.extend(own_tmp.iterdir())
+                            raise KeyboardInterrupt("interrupted during npm ci")
+                        return RealGitProbe.run(self, cmd, cwd, env, stdout)
+
+                probe = Interrupted(self.root)
+                with self.assertRaises(KeyboardInterrupt):
+                    cs.strict(probe, set(), out=self.lines.append, mode="commit")
+                if step == "npm ci":
+                    self.assertTrue(seen, "the npm ci case must interrupt after the export exists")
+                self.assertEqual(list(own_tmp.iterdir()), [], f"interrupted during {step}: export left behind")
+                self.assertFalse((self.root / ".git" / "ci-strict" / "lock").exists(), "the lock was kept")
 
     def test_the_development_identity_covers_untracked_and_ignored_contents(self):
         probe = RealGitProbe(self.root)
