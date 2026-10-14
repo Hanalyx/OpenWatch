@@ -46,15 +46,60 @@ const (
 // that holds no job must not write results.
 var ErrNoLease = errors.New("discovery: no job lease")
 
+// TxBeginner starts a transaction. *pgxpool.Pool satisfies it.
+type TxBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// lockHost takes the host's discovery lock until tx ends. Enqueue and every
+// path that records a failure take it first, before any job row lock, so
+// "is this host backing off" and "record a failure" cannot interleave: an
+// enqueue that starts after a failure is recorded sees it, and a failure
+// recorded after an enqueue finds that job active. One lock order
+// everywhere (host lock, then job row) rules out deadlock between them.
+func lockHost(ctx context.Context, tx pgx.Tx, hostID uuid.UUID) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		"host.discovery:"+hostID.String()); err != nil {
+		return fmt.Errorf("discovery: lock host: %w", err)
+	}
+	return nil
+}
+
 // Enqueue queues a discovery job for hostID unless one is already pending or
-// processing. enqueued=false with a nil error means a job was already active.
-// The scheduler, host creation and the sweep all start discovery this way.
+// processing, or the host is backing off at now. It decides under the host's
+// discovery lock, in the transaction that inserts the job, so a failure
+// recorded after a caller chose this host is still seen (bugs/OW-120).
+// enqueued=false with a nil error means nothing was queued. The scheduler,
+// host creation and the sweep all start discovery this way.
 //
-// Spec system-discovery-scheduler C-09.
-func Enqueue(ctx context.Context, db queue.Execer, hostID uuid.UUID) (bool, error) {
-	_, enqueued, err := queue.EnqueueIfAbsent(ctx, db, JobKindHostDiscovery,
+// Spec system-discovery-scheduler C-09, C-11.
+func Enqueue(ctx context.Context, db TxBeginner, hostID uuid.UUID, now time.Time) (bool, error) {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("discovery: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockHost(ctx, tx, hostID); err != nil {
+		return false, err
+	}
+	var backingOff bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM host_discovery_backoff
+		                WHERE host_id = $1 AND next_attempt_at > $2)`, hostID, now).Scan(&backingOff); err != nil {
+		return false, fmt.Errorf("discovery: read backoff: %w", err)
+	}
+	if backingOff {
+		return false, nil
+	}
+	_, enqueued, err := queue.EnqueueIfAbsent(ctx, tx, JobKindHostDiscovery,
 		HostDiscoveryJobPayload{HostID: hostID})
-	return enqueued, err
+	if err != nil || !enqueued {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("discovery: commit: %w", err)
+	}
+	return true, nil
 }
 
 // ClaimRun creates an already-claimed discovery job for a synchronous run,
@@ -132,6 +177,9 @@ func failRun(ctx context.Context, pool *pgxpool.Pool, l queue.Lease, hostID uuid
 		return fmt.Errorf("discovery: begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockHost(ctx, tx, hostID); err != nil {
+		return err
+	}
 	if err := queue.FailLeased(ctx, tx, l, msg); err != nil {
 		return err
 	}
@@ -152,6 +200,38 @@ func RetireStaleJobs(ctx context.Context, pool *pgxpool.Pool, now time.Time) (in
 		return 0, fmt.Errorf("discovery: begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Lock every host that may be retired, in a fixed order, before any
+	// job row (see lockHost). RetireStale re-checks staleness itself.
+	rows, err := tx.Query(ctx, `
+		SELECT DISTINCT payload->>'host_id' AS h
+		  FROM job_queue
+		 WHERE job_type = $1 AND status = 'processing'
+		   AND locked_at < now() - make_interval(secs => $2)
+		   AND payload ? 'host_id'
+		 ORDER BY h`, JobKindHostDiscovery, StaleDeadline.Seconds())
+	if err != nil {
+		return 0, fmt.Errorf("discovery: list stale hosts: %w", err)
+	}
+	var candidates []uuid.UUID
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("discovery: list stale hosts: %w", err)
+		}
+		if id, perr := uuid.Parse(h); perr == nil {
+			candidates = append(candidates, id)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("discovery: list stale hosts: %w", err)
+	}
+	for _, h := range candidates {
+		if err := lockHost(ctx, tx, h); err != nil {
+			return 0, err
+		}
+	}
 	const msg = "host.discovery: stale: processing deadline exceeded"
 	stale, err := queue.RetireStale(ctx, tx, JobKindHostDiscovery, StaleDeadline, msg)
 	if err != nil {

@@ -188,7 +188,7 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if enqueueDiscovery {
-		if _, err := discovery.Enqueue(r.Context(), h.pool, created.ID); err != nil {
+		if _, err := discovery.Enqueue(r.Context(), h.pool, created.ID, time.Now()); err != nil {
 			slog.WarnContext(r.Context(), "discovery: enqueue failed after host create",
 				slog.String("host_id", created.ID.String()),
 				slog.String("err", err.Error()),

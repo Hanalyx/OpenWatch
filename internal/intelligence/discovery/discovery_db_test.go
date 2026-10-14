@@ -29,12 +29,17 @@ import (
 // does, so a test can call Discover or persist under a current lease.
 func claimLease(t *testing.T, pool *pgxpool.Pool, hostID uuid.UUID) queue.Lease {
 	t.Helper()
-	ctx := correlation.Set(context.Background(), correlation.Generate(correlation.PrefixRequest))
+	ctx := claimCtx()
 	l, ok, err := ClaimRun(ctx, pool, hostID)
 	if err != nil || !ok {
 		t.Fatalf("claim discovery job: claimed=%v err=%v", ok, err)
 	}
 	return l
+}
+
+// claimCtx is a context carrying the correlation id the queue requires.
+func claimCtx() context.Context {
+	return correlation.Set(context.Background(), correlation.Generate(correlation.PrefixRequest))
 }
 
 // freshDBHost spins up a clean DB, seeds a user + host + a host-scope
@@ -172,7 +177,7 @@ func TestDiscover_NoClobberOnPartialCollection(t *testing.T) {
 			FirewallService: "firewalld", FirewallStatus: "active",
 			CollectedAt: time.Now().UTC(), Observed: allObserved,
 		}
-		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), full); err != nil {
+		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), full, nil); err != nil {
 			t.Fatalf("first persist: %v", err)
 		}
 
@@ -184,7 +189,7 @@ func TestDiscover_NoClobberOnPartialCollection(t *testing.T) {
 			CollectedAt: time.Now().UTC(),
 			Observed:    map[FactCategory]bool{CatOSRelease: true, CatUname: true},
 		}
-		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), partial); err != nil {
+		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), partial, nil); err != nil {
 			t.Fatalf("second persist: %v", err)
 		}
 
@@ -242,7 +247,7 @@ func TestDiscover_CategoryFreshness(t *testing.T) {
 		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), SystemFacts{
 			OSVersion: "9.4", KernelRelease: "5.14.0-570", FirewallService: "firewalld",
 			CollectedAt: run1, Observed: allObserved,
-		}); err != nil {
+		}, nil); err != nil {
 			t.Fatalf("run1 persist: %v", err)
 		}
 
@@ -250,7 +255,7 @@ func TestDiscover_CategoryFreshness(t *testing.T) {
 		if err := svc.persist(ctx, hostID, claimLease(t, pool, hostID), SystemFacts{
 			OSVersion: "9.5", KernelRelease: "5.14.0-580",
 			CollectedAt: run2, Observed: map[FactCategory]bool{CatOSRelease: true, CatUname: true},
-		}); err != nil {
+		}, nil); err != nil {
 			t.Fatalf("run2 persist: %v", err)
 		}
 
@@ -298,7 +303,7 @@ func TestDiscover_FreshnessReason(t *testing.T) {
 			OSVersion: "9.4", KernelRelease: "5.14.0-570", FirewallService: "firewalld",
 			DiskTotalGB: 100, DiskFreeGB: 40, SELinuxStatus: "Enforcing",
 			CollectedAt: time.Now().Add(-time.Hour).UTC(), Observed: allObserved,
-		}); err != nil {
+		}, nil); err != nil {
 			t.Fatalf("run1 persist: %v", err)
 		}
 
@@ -312,7 +317,7 @@ func TestDiscover_FreshnessReason(t *testing.T) {
 				CatFirewall: probe.OutcomeDenied,
 				CatDisk:     probe.OutcomeFailed,
 			},
-		}); err != nil {
+		}, nil); err != nil {
 			t.Fatalf("run2 persist: %v", err)
 		}
 

@@ -9,6 +9,7 @@
 //	AC-13  TestDiscoveryJobs_CompetingSchedulers
 //	AC-15  TestDiscoveryJobs_StaleClaimRetired
 //	AC-16  TestDiscoveryJobs_BackoffWithControlledClock
+//	AC-18  TestDiscoveryJobs_FailureAfterSelection
 
 package scheduler
 
@@ -82,7 +83,7 @@ func TestDiscoveryJobs_OneActiveJobPerHost(t *testing.T) {
 
 		svc.tickOnce(ctx)
 		svc.tickOnce(ctx)
-		if ok, err := discovery.Enqueue(ctx, pool, host); err != nil || ok {
+		if ok, err := discovery.Enqueue(ctx, pool, host, time.Now()); err != nil || ok {
 			t.Fatalf("Enqueue with a pending job: ok=%v err=%v, want false, nil", ok, err)
 		}
 		if _, ok, err := discovery.ClaimRun(ctx, pool, host); err != nil || ok {
@@ -98,7 +99,7 @@ func TestDiscoveryJobs_OneActiveJobPerHost(t *testing.T) {
 			t.Fatalf("dequeue: %v", err)
 		}
 		svc.tickOnce(ctx)
-		if ok, _ := discovery.Enqueue(ctx, pool, host); ok {
+		if ok, _ := discovery.Enqueue(ctx, pool, host, time.Now()); ok {
 			t.Fatalf("Enqueue added a job while one was processing")
 		}
 		if c := discoveryJobs(t, pool, host); c.processing != 1 || c.total != 1 {
@@ -368,6 +369,75 @@ func TestDiscoveryJobs_BackoffWithControlledClock(t *testing.T) {
 		}
 		if ok.dials != 1 || failing.dials != 2 {
 			t.Fatalf("dials = %d ok, %d failing; want 1 and 2", ok.dials, failing.dials)
+		}
+	})
+}
+
+// interleavedEnqueuer runs between a tick's target selection and its
+// enqueue, so the test can put another scheduler's failed run there.
+type interleavedEnqueuer struct {
+	between func(context.Context, uuid.UUID)
+	next    Enqueuer
+}
+
+func (e interleavedEnqueuer) Enqueue(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	e.between(ctx, id)
+	return e.next.Enqueue(ctx, id)
+}
+
+// @ac AC-18
+// AC-18 (scheduler half): a host chosen by a tick, whose discovery then
+// fails elsewhere and backs off, is not queued by that tick.
+func TestDiscoveryJobs_FailureAfterSelection(t *testing.T) {
+	t.Run("system-discovery-scheduler/AC-18", func(t *testing.T) {
+		pool := ow120Pool(t)
+		ctx := reqCtx()
+		if err := secretkey.SetEphemeral(); err != nil {
+			t.Fatalf("SetEphemeral: %v", err)
+		}
+		user := seedUser(t, pool)
+		host := seedHost(t, pool, user, hostSeed{name: "ac18"})
+		credSvc := credential.NewService(pool)
+		if _, err := credSvc.NewCredential(ctx, credential.NewParams{
+			Scope: credential.ScopeHost, ScopeID: &host, Name: "ac18", Username: "ops",
+			AuthMethod: credential.AuthPassword, Password: "ac18-password", CreatedBy: user, // pragma: allowlist secret
+		}); err != nil {
+			t.Fatalf("seed credential: %v", err)
+		}
+		disc := discovery.NewService(pool, nil, nil).
+			WithHostLookup(discovery.PoolHostLookup{Pool: pool}).
+			WithCredentialService(credSvc).
+			WithSSHTransport(&failingTransport{})
+
+		sched := NewService(pool)
+		ran := false
+		sched.enqueuer = interleavedEnqueuer{
+			next: sched.enqueuer,
+			between: func(c context.Context, id uuid.UUID) {
+				ran = true
+				// Another scheduler queues the host, a worker runs it, and
+				// the run fails: the host is now backing off.
+				if _, err := (PoolEnqueuer{Pool: pool}).Enqueue(c, id); err != nil {
+					t.Fatalf("other scheduler enqueue: %v", err)
+				}
+				j, _, err := queue.Dequeue(c, pool)
+				if err != nil {
+					t.Fatalf("dequeue: %v", err)
+				}
+				if _, err := disc.Discover(c, id, j.Lease()); err == nil {
+					t.Fatalf("discovery against a refusing transport succeeded")
+				}
+				if n, _, ok := backoffRow(t, pool, id); !ok || n != 1 {
+					t.Fatalf("backoff not recorded: n=%d ok=%v", n, ok)
+				}
+			},
+		}
+		sched.tickOnce(ctx)
+		if !ran {
+			t.Fatalf("the interleaving did not run")
+		}
+		if c := discoveryJobs(t, pool, host); c.pending != 0 {
+			t.Fatalf("the tick queued %d jobs for a host that had just backed off", c.pending)
 		}
 	})
 }

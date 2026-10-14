@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
 	"github.com/Hanalyx/openwatch/internal/correlation"
@@ -118,7 +119,7 @@ func (h *handlers) PostSystemDiscoverySweep(w http.ResponseWriter, r *http.Reque
 		// discovery.Enqueue inserts nothing for a host that already has a
 		// pending or processing job, so enqueued counts new jobs only
 		// (bugs/OW-120).
-		if ok, err := discovery.Enqueue(ctx, h.pool, hostID); err == nil && ok {
+		if ok, err := discovery.Enqueue(ctx, h.pool, hostID, time.Now()); err == nil && ok {
 			enqueued++
 		}
 		// best-effort — one bad enqueue does not abort the sweep
@@ -129,8 +130,9 @@ func (h *handlers) PostSystemDiscoverySweep(w http.ResponseWriter, r *http.Reque
 
 // listUndiscoveredHosts returns the host ids the sweep should enqueue:
 // non-deleted, non-maintenance (per-host OR per-group, via the
-// host_effective_maintenance view), hosts.os_discovered_at IS NULL, and
-// not backing off after a failed discovery (bugs/OW-120), so a sweep
+// host_effective_maintenance view), hosts.os_discovered_at IS NULL.
+// discovery.Enqueue then skips any of them that is backing off after a
+// failed discovery, checked at insert time (bugs/OW-120), so a sweep
 // cannot bypass the backoff. One host can still be retried at once
 // through POST /hosts/{id}/discovery:run.
 func (h *handlers) listUndiscoveredHosts(ctx context.Context) ([]uuid.UUID, error) {
@@ -139,10 +141,7 @@ func (h *handlers) listUndiscoveredHosts(ctx context.Context) ([]uuid.UUID, erro
 		  JOIN host_effective_maintenance hem ON hem.host_id = hst.id
 		 WHERE hst.deleted_at IS NULL
 		   AND NOT hem.in_maintenance
-		   AND hst.os_discovered_at IS NULL
-		   AND NOT EXISTS (
-		       SELECT 1 FROM host_discovery_backoff b
-		        WHERE b.host_id = hst.id AND b.next_attempt_at > now())`
+		   AND hst.os_discovered_at IS NULL`
 	rows, err := h.pool.Query(ctx, q)
 	if err != nil {
 		return nil, err

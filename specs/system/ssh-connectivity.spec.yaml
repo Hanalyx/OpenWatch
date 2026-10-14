@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.3.0"
+  version: "1.4.0"
   status: approved
   tier: 2
 
@@ -39,7 +39,15 @@ spec:
 
   constraints:
     - id: C-01
-      description: Dial MUST enforce a connect+handshake timeout no greater than DefaultDialTimeout (10 seconds); callers may supply a shorter ctx deadline
+      description: >-
+        Dial MUST enforce a connect+handshake timeout no greater than
+        DefaultDialTimeout (10 seconds); callers may supply a shorter ctx
+        deadline. v1.4.0 (bugs/OW-120): the bound covers the SSH handshake
+        itself, not only the TCP connect. crypto/ssh's ClientConfig.Timeout
+        does not reach ssh.NewClientConn, so a server that never sends a
+        banner used to hold the handshake past every deadline. Dial and
+        DialConn close the connection when the bound passes or ctx is
+        canceled, and stop watching once the handshake returns.
       type: performance
       enforcement: error
     - id: C-02
@@ -177,3 +185,13 @@ spec:
       description: The PostgreSQL known-hosts store (internal/knownhosts) round-trips Put/Get for a hostname and returns (nil,false) for an absent host; a key stored by one Store instance is visible to a fresh Store instance on the same database (the durable-TOFU-across-restart guarantee), and re-Putting the same key is idempotent.
       priority: critical
       references_constraints: [C-13]
+    - id: AC-23
+      description: >-
+        v1.4.0. Against a peer that never sends an SSH banner, whether or not
+        it reads, Dial returns ErrDialTimeout within its bound for a ctx
+        deadline, for opts.Timeout, and for a ctx canceled with no deadline;
+        DialConn does the same on a caller's connection. A client dialed with
+        a short opts.Timeout still runs a command after that timeout has
+        passed.
+      priority: critical
+      references_constraints: [C-01]

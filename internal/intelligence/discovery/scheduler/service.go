@@ -37,6 +37,8 @@ type Enqueuer interface {
 // substitute a stub Enqueuer directly.
 type PoolEnqueuer struct {
 	Pool *pgxpool.Pool
+	// Now is the clock backoff is compared against; nil means time.Now.
+	Now func() time.Time
 }
 
 // Enqueue persists a host.discovery job whose payload carries hostID,
@@ -48,7 +50,11 @@ func (p PoolEnqueuer) Enqueue(ctx context.Context, hostID uuid.UUID) (uuid.UUID,
 	if _, ok := correlation.From(ctx); !ok {
 		ctx = correlation.Set(ctx, correlation.Generate(correlation.PrefixCron))
 	}
-	_, err := discovery.Enqueue(ctx, p.Pool, hostID)
+	now := time.Now
+	if p.Now != nil {
+		now = p.Now
+	}
+	_, err := discovery.Enqueue(ctx, p.Pool, hostID, now())
 	return uuid.Nil, err
 }
 
@@ -73,11 +79,12 @@ type Service struct {
 // exercise only the in-process seam (config bound checks).
 func NewService(pool *pgxpool.Pool) *Service {
 	s := &Service{
-		pool:     pool,
-		stop:     make(chan struct{}),
-		enqueuer: PoolEnqueuer{Pool: pool},
-		now:      time.Now,
+		pool: pool,
+		stop: make(chan struct{}),
+		now:  time.Now,
 	}
+	// The enqueuer reads the scheduler's clock, so WithClock reaches it.
+	s.enqueuer = PoolEnqueuer{Pool: pool, Now: func() time.Time { return s.now() }}
 	return s
 }
 

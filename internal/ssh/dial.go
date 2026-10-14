@@ -66,47 +66,20 @@ var netDial = func(ctx context.Context, network, address string) (net.Conn, erro
 // a sentinel error from the package's error set (never raw network or
 // crypto errors that might leak credential material).
 //
-// Spec AC-01, AC-02, AC-03, AC-04, AC-06, AC-07, AC-08, AC-09, C-01, C-03.
+// The TCP connect AND the SSH handshake are both bounded by
+// min(ctx deadline, opts.Timeout), and canceling ctx aborts either.
+// crypto/ssh's ClientConfig.Timeout covers only the TCP dial inside
+// ssh.Dial, not ssh.NewClientConn, so the handshake is bounded here by
+// closing the connection when that bound passes.
+//
+// Spec AC-01, AC-02, AC-03, AC-04, AC-06, AC-07, AC-08, AC-09, AC-19, C-01, C-03.
 func Dial(ctx context.Context, host string, port int, cred *credential.Credential, opts DialOptions) (*ssh.Client, error) {
-	if opts.Timeout <= 0 || opts.Timeout > DefaultDialTimeout {
-		opts.Timeout = DefaultDialTimeout
-	}
-	if opts.Store == nil {
-		opts.Store = NewMemoryStore()
-	}
-
-	if cred == nil {
-		return nil, ErrNoAuthMethod
-	}
-	obs := &authObserver{}
-	authMethods, err := orderedAuthMethods(cred, opts.PreferAuth, obs)
+	cfg, obs, opts, err := clientConfig(host, cred, opts)
 	if err != nil {
 		return nil, err
 	}
-	if len(authMethods) == 0 {
-		return nil, ErrNoAuthMethod
-	}
-
-	cfg := &ssh.ClientConfig{
-		User:            cred.Username,
-		Auth:            authMethods,
-		HostKeyCallback: hostKeyCallback(opts.Mode, opts.Store, host),
-		Timeout:         opts.Timeout,
-	}
-
-	// Pre-validate the key (if any) so a weak/malformed key fails
-	// before we even hit the network.
-	if cred.PrivateKey != "" {
-		if err := ValidateAuthKey([]byte(cred.PrivateKey), cred.PrivateKeyPassphrase); err != nil {
-			return nil, err
-		}
-	}
-
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 
-	// Enforce the timeout via a derived context. The underlying SSH
-	// client also has cfg.Timeout, but the dialContext path lets us
-	// distinguish "ctx deadline elapsed" from "server hung mid-handshake".
 	dialCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 
@@ -117,13 +90,79 @@ func Dial(ctx context.Context, host string, port int, cred *credential.Credentia
 		}
 		return nil, fmt.Errorf("%w: %v", ErrConnect, sanitizeNetErr(err))
 	}
+	return handshake(dialCtx, conn, addr, cfg, obs, opts)
+}
 
-	// ssh.NewClientConn does the handshake. It honors cfg.Timeout for
-	// the handshake phase.
-	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+// DialConn runs the SSH handshake for cred over an already-connected conn,
+// with the same bounds, host-key policy and auth ordering as Dial. It takes
+// ownership of conn: on failure conn is closed. host names the server for
+// host-key verification. Spec AC-19.
+func DialConn(ctx context.Context, conn net.Conn, host string, cred *credential.Credential, opts DialOptions) (*ssh.Client, error) {
+	cfg, obs, opts, err := clientConfig(host, cred, opts)
 	if err != nil {
 		_ = conn.Close()
+		return nil, err
+	}
+	hsCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
+	return handshake(hsCtx, conn, host, cfg, obs, opts)
+}
+
+// clientConfig validates the credential and builds the client config.
+func clientConfig(host string, cred *credential.Credential, opts DialOptions) (*ssh.ClientConfig, *authObserver, DialOptions, error) {
+	if opts.Timeout <= 0 || opts.Timeout > DefaultDialTimeout {
+		opts.Timeout = DefaultDialTimeout
+	}
+	if opts.Store == nil {
+		opts.Store = NewMemoryStore()
+	}
+	if cred == nil {
+		return nil, nil, opts, ErrNoAuthMethod
+	}
+	obs := &authObserver{}
+	authMethods, err := orderedAuthMethods(cred, opts.PreferAuth, obs)
+	if err != nil {
+		return nil, nil, opts, err
+	}
+	if len(authMethods) == 0 {
+		return nil, nil, opts, ErrNoAuthMethod
+	}
+	// Pre-validate the key (if any) so a weak/malformed key fails
+	// before we even hit the network.
+	if cred.PrivateKey != "" {
+		if err := ValidateAuthKey([]byte(cred.PrivateKey), cred.PrivateKeyPassphrase); err != nil {
+			return nil, nil, opts, err
+		}
+	}
+	cfg := &ssh.ClientConfig{
+		User:            cred.Username,
+		Auth:            authMethods,
+		HostKeyCallback: hostKeyCallback(opts.Mode, opts.Store, host),
+		Timeout:         opts.Timeout,
+	}
+	return cfg, obs, opts, nil
+}
+
+// handshake runs ssh.NewClientConn on conn, bounded by ctx: when ctx
+// reaches its deadline or is canceled, the watcher closes conn, which ends
+// any read or write the handshake is blocked in. The watcher is removed
+// once the handshake returns, so it never affects the live client.
+func handshake(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig, obs *authObserver, opts DialOptions) (*ssh.Client, error) {
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+	stopped := stop()
+	if err != nil {
+		_ = conn.Close()
+		if !stopped || ctx.Err() != nil {
+			// The handshake ended because ctx expired or was canceled.
+			return nil, ErrDialTimeout
+		}
 		return nil, classifyHandshakeErr(err)
+	}
+	if !stopped {
+		// ctx fired as the handshake finished: the watcher has closed conn.
+		_ = sshConn.Close()
+		return nil, ErrDialTimeout
 	}
 	// Handshake succeeded: the last method the observer saw is the one
 	// that authenticated (for single-factor auth — see authObserver). Report

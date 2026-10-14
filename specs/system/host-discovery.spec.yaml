@@ -153,10 +153,25 @@ spec:
         pending or processing job. Discover without a lease returns
         ErrNoLease and dials nothing. persist first completes the job under
         the lease, which checks the lease and row-locks the job, then in the
-        same transaction writes the results and clears the host's backoff;
+        same transaction writes the results, the connection observations the
+        run collected (SSH auth method, sudo mode; system-connection-profile
+        C-06, C-07), and clears the host's backoff;
         a lease that is no longer current writes nothing and returns
         queue.ErrLeaseLost. A failed run fails the job under its lease and
         backs the host off in one transaction; a lost lease records nothing.
+      type: technical
+      enforcement: error
+    - id: C-16
+      description: >-
+        v1.8.0 (bugs/OW-120). A Discover run is bounded by its run timeout
+        (RunTimeout, 10 minutes, never raised above it, so below
+        system-discovery-scheduler's StaleDeadline) through the dial, the SSH
+        handshake (system-ssh-connectivity C-01) and every command. A
+        command ends when its context does: opening the session, running and
+        reading output all stop; the session is signaled and closed without
+        blocking the run, and if the command has not returned within a short
+        grace the connection is closed. A run that hits its bound fails its
+        job under its lease and backs the host off like any failure.
       type: technical
       enforcement: error
 
@@ -269,3 +284,14 @@ spec:
         successful run leaves its job completed and clears the backoff.
       priority: critical
       references_constraints: [C-15]
+    - id: AC-31
+      description: >-
+        v1.8.0. With a short run timeout, Discover returns an error within a
+        few seconds when the host sends no SSH banner (the run ends in the
+        handshake), when the handshake completes but a command never answers,
+        and when the peer goes silent and stops accepting writes
+        mid-command (both end past the handshake). Each leaves its job
+        failed and the host backed off once more. The run timeout cannot be
+        raised above RunTimeout, and RunTimeout is below StaleDeadline.
+      priority: critical
+      references_constraints: [C-16]

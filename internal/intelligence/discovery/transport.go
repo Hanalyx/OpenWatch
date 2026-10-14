@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -120,9 +122,35 @@ func (t *SSHTransportProd) Dial(ctx context.Context, host string, port int, cred
 		return nil, err
 	}
 	if learn && observed != "" {
-		_ = t.profiles.RecordSSHAuth(ctx, hostID, connprofile.SSHAuthMethod(observed))
+		// A discovery run collects the observation and records it in the
+		// transaction that writes its results under its job lease, so a
+		// run that has lost its job cannot overwrite a newer profile
+		// (bugs/OW-120). Other callers record it at once.
+		if o := observationsFrom(ctx); o != nil {
+			o.sshAuth = connprofile.SSHAuthMethod(observed)
+		} else {
+			_ = t.profiles.RecordSSHAuth(ctx, hostID, connprofile.SSHAuthMethod(observed))
+		}
 	}
 	return sess, nil
+}
+
+// observations holds what one discovery run learned about reaching its
+// host. The run records it with its results, under its lease.
+type observations struct {
+	sshAuth connprofile.SSHAuthMethod
+	sudo    connprofile.SudoMode
+}
+
+type observationsKey struct{}
+
+func withObservations(ctx context.Context, o *observations) context.Context {
+	return context.WithValue(ctx, observationsKey{}, o)
+}
+
+func observationsFrom(ctx context.Context) *observations {
+	o, _ := ctx.Value(observationsKey{}).(*observations)
+	return o
 }
 
 // SSHClientSession is the per-host live SSH client. Each Run opens a
@@ -133,38 +161,9 @@ type SSHClientSession struct {
 	client *ssh.Client
 }
 
+// Run executes cmd on a fresh session, bounded by ctx (see run).
 func (s *SSHClientSession) Run(ctx context.Context, cmd string) ([]byte, int, error) {
-	sess, err := s.client.NewSession()
-	if err != nil {
-		return nil, -1, err
-	}
-	defer sess.Close()
-
-	// Honor caller deadline via a derived timeout so a hung command
-	// can't wedge the probe batch indefinitely.
-	deadline, ok := ctx.Deadline()
-	var timer *time.Timer
-	if ok {
-		dur := time.Until(deadline)
-		if dur > 0 {
-			timer = time.AfterFunc(dur, func() { _ = sess.Signal(ssh.SIGKILL); _ = sess.Close() })
-			defer timer.Stop()
-		}
-	}
-
-	out, runErr := sess.CombinedOutput(cmd)
-	exitCode := 0
-	if runErr != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(runErr, &exitErr) {
-			exitCode = exitErr.ExitStatus()
-			// Non-zero exit is NOT a Go-level error for our purposes;
-			// the probe inspects exitCode itself (sudo failure path).
-			return out, exitCode, nil
-		}
-		return out, -1, runErr
-	}
-	return out, exitCode, nil
+	return s.run(ctx, cmd, nil, false)
 }
 
 // RunWithStdin runs cmd with the given bytes piped to the remote
@@ -173,42 +172,89 @@ func (s *SSHClientSession) Run(ctx context.Context, cmd string) ([]byte, int, er
 //
 // Spec system-ssh-connectivity v1.1.0 C-10.
 func (s *SSHClientSession) RunWithStdin(ctx context.Context, cmd string, stdin []byte) ([]byte, int, error) {
-	sess, err := s.client.NewSession()
-	if err != nil {
+	return s.run(ctx, cmd, stdin, true)
+}
+
+// sessionGrace is how long a canceled command has to stop after its
+// session is signaled and closed. A server that has stopped answering may
+// never acknowledge the close, so after the grace the whole connection is
+// closed, which always unblocks the read.
+var sessionGrace = 2 * time.Second
+
+// run executes cmd on a new session, bounded by ctx: opening the session,
+// the command and its output all end when ctx does, whether it is canceled
+// or reaches its deadline (bugs/OW-120, spec system-host-discovery C-16).
+// A non-zero exit is not a Go-level error; the probe inspects the code.
+func (s *SSHClientSession) run(ctx context.Context, cmd string, stdin []byte, withStdin bool) ([]byte, int, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, -1, err
 	}
-	defer sess.Close()
-
-	deadline, ok := ctx.Deadline()
-	var timer *time.Timer
-	if ok {
-		dur := time.Until(deadline)
-		if dur > 0 {
-			timer = time.AfterFunc(dur, func() { _ = sess.Signal(ssh.SIGKILL); _ = sess.Close() })
-			defer timer.Stop()
-		}
+	type result struct {
+		out  []byte
+		code int
+		err  error
 	}
-
-	pipe, err := sess.StdinPipe()
-	if err != nil {
-		return nil, -1, err
-	}
+	done := make(chan result, 1)
+	var mu sync.Mutex
+	var sess *ssh.Session
 	go func() {
-		_, _ = pipe.Write(stdin)
-		_ = pipe.Close()
+		ss, err := s.client.NewSession()
+		if err != nil {
+			done <- result{nil, -1, err}
+			return
+		}
+		mu.Lock()
+		sess = ss
+		mu.Unlock()
+		defer ss.Close()
+		if withStdin {
+			pipe, err := ss.StdinPipe()
+			if err != nil {
+				done <- result{nil, -1, err}
+				return
+			}
+			go func() {
+				_, _ = pipe.Write(stdin)
+				_ = pipe.Close()
+			}()
+		}
+		out, runErr := ss.CombinedOutput(cmd)
+		if runErr != nil {
+			var exitErr *ssh.ExitError
+			if errors.As(runErr, &exitErr) {
+				done <- result{out, exitErr.ExitStatus(), nil}
+				return
+			}
+			done <- result{out, -1, runErr}
+			return
+		}
+		done <- result{out, 0, nil}
 	}()
 
-	out, runErr := sess.CombinedOutput(cmd)
-	exitCode := 0
-	if runErr != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(runErr, &exitErr) {
-			exitCode = exitErr.ExitStatus()
-			return out, exitCode, nil
-		}
-		return out, -1, runErr
+	select {
+	case r := <-done:
+		return r.out, r.code, r.err
+	case <-ctx.Done():
 	}
-	return out, exitCode, nil
+	// Signal and close in the background: against a server that has
+	// stopped reading, these writes can block, and the grace below must
+	// still run.
+	mu.Lock()
+	if sess != nil {
+		go func(ss *ssh.Session) {
+			_ = ss.Signal(ssh.SIGKILL)
+			_ = ss.Close()
+		}(sess)
+	}
+	mu.Unlock()
+	var r result
+	select {
+	case r = <-done:
+	case <-time.After(sessionGrace):
+		_ = s.client.Close()
+		r = <-done
+	}
+	return r.out, -1, fmt.Errorf("discovery: command ended by its context: %w", ctx.Err())
 }
 
 func (s *SSHClientSession) Close() error {

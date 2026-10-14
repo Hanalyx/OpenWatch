@@ -142,7 +142,11 @@ spec:
         5 minutes doubled for each further consecutive failure, capped at
         24 hours. Failure time comes from the service clock. A successful run
         clears the row. listDiscoveryTargets and the sweep exclude a host
-        until its next_attempt_at. An authentication rejection backs off like
+        until its next_attempt_at, and discovery.Enqueue checks the backoff
+        again in the transaction that inserts the job, under a per-host
+        lock that every failure-recording path (a failed run, a stale
+        retirement) also takes before touching a job row. So a host chosen
+        before a failure is recorded is not queued after it. An authentication rejection backs off like
         any other failure; stopping on it is features/OW-122.
       type: technical
       enforcement: error
@@ -253,3 +257,12 @@ spec:
         in internal/intelligence/discovery/lease.go.
       priority: high
       references_constraints: [C-09]
+    - id: AC-18
+      description: >-
+        v1.2.0. A scheduler tick that chose a host, whose discovery then
+        fails elsewhere and backs off before the tick enqueues, queues
+        nothing for it. An Enqueue started while a failed run or a stale
+        retirement is part-way through recording its failure waits for it
+        and then queues nothing; after the backoff it queues again.
+      priority: critical
+      references_constraints: [C-11]
