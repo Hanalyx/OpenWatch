@@ -1868,6 +1868,7 @@ spec:
         group before it propagates, and a second SIGINT during that wait does
         not cut it short. A group recorded as surviving SIGKILL keeps the lock
         and the export, and a stale record from an earlier run does not.
-        main() installs the SIGTERM and SIGHUP handlers before it runs.
+        main() installs the SIGTERM and SIGHUP handlers before it runs. The real
+        Probe has every method the tests' stand-in provides.
       priority: critical
       references_constraints: [C-26]

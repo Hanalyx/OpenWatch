@@ -207,6 +207,7 @@ func TestCIGates_CommitResultsMustRecordTheirTree(t *testing.T) {
 func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
 	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
 		for _, name := range []string{
+			"test_the_real_probe_has_every_method_the_fake_stands_in_for",
 			"test_a_descendant_left_behind_is_stopped_before_run_returns",
 			"test_capture_stops_its_descendants_too",
 			"test_a_descendant_that_ignores_sigterm_is_killed",

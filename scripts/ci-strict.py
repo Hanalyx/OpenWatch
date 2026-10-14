@@ -138,6 +138,23 @@ class Probe:
             return rc, out.read().decode(errors="replace").strip()
 
 
+    def tcp_open(self, host, port):
+        try:
+            with socket.create_connection((host, port), timeout=3):
+                return True
+        except OSError:
+            return False
+
+    def pid_alive(self, pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+
 # ------------------------------------------------------- process groups
 
 # How long a command's process group gets to exit after SIGTERM, and again
@@ -214,22 +231,6 @@ def shielded():
     finally:
         for s, h in saved.items():
             signal.signal(s, h)
-
-    def tcp_open(self, host, port):
-        try:
-            with socket.create_connection((host, port), timeout=3):
-                return True
-        except OSError:
-            return False
-
-    def pid_alive(self, pid):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        return True
 
 
 # -------------------------------------------------------------- preflight

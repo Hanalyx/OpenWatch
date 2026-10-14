@@ -833,6 +833,17 @@ class ProcessGroups(unittest.TestCase):
             except (ProcessLookupError, ValueError):
                 pass
 
+    def test_the_real_probe_has_every_method_the_fake_stands_in_for(self):
+        # The tests drive strict() through FakeProbe, so a method missing from
+        # the real Probe fails only in a real run. 748249d7 shipped exactly
+        # that: tcp_open and pid_alive had fallen out of the class.
+        fake = {n for n, v in vars(FakeProbe).items() if callable(v) and not n.startswith("_")}
+        real = {n for n, v in vars(cs.Probe).items() if callable(v) and not n.startswith("_")}
+        self.assertEqual(fake - real, set())
+        self.assertTrue(self.probe.pid_alive(os.getpid()))
+        self.assertFalse(self.probe.tcp_open("127.0.0.1", 9))
+        self.assertTrue(self.probe.which("sh"))
+
     def test_a_descendant_left_behind_is_stopped_before_run_returns(self):
         started = time.monotonic()
         rc = self.probe.run(["sh", "-c", SLOW_DESCENDANT.format(pid=self.pidfile, tail="exit 3")],
