@@ -649,11 +649,19 @@ spec:
         ci` in the export runs no gate and is FAILED; the run records its exit
         code and its combined output in the run directory and shows the last
         lines, without inferring a cause from them. The export directory is
-        the run's to remove from the moment it is created, so it is removed on
-        success, on failure, and on an interrupt during the clone, the
-        checkout or `npm ci`. That covers SIGINT, and SIGTERM, which the
-        command line turns into an exit; SIGKILL cannot be handled and leaves
-        the export and the lock, which the next run reclaims as stale.
+        the run's to remove from the moment it is created. Every command the
+        run starts runs in a process group of its own, and the run stops that
+        whole group and waits for it to empty, with SIGTERM and then SIGKILL
+        after a grace period, before the command's call returns, whether it
+        exited, raised or was interrupted; a second SIGINT or SIGTERM during
+        that cleanup is ignored. Only then are the export removed and the lock
+        released. If a group survives SIGKILL, the run keeps the export and
+        the lock and names the group. The command line turns SIGTERM and
+        SIGHUP into an exit; SIGINT already is one. SIGKILL cannot be handled
+        and leaves the export, the lock (which the next run reclaims as stale)
+        and the running command's group. A descendant that deliberately leaves
+        its group (setsid, setpgid, a daemonizing double fork) is outside the
+        run's reach.
       type: security
       enforcement: error
   acceptance_criteria:
@@ -1848,5 +1856,18 @@ spec:
         identity changes with untracked contents and with an ignored source
         file's contents, and not with dependencies or the results file. The
         Makefile's ci-strict-commit target runs scripts/ci-strict.py --commit.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-48
+      description: >-
+        v1.29.0. With real processes: a descendant that outlives its command
+        and takes a second to exit after SIGTERM is gone before run() or
+        capture() returns, and capture() returns when the command exits, not
+        when the descendant would. A descendant that ignores SIGTERM is killed
+        after the grace period. A KeyboardInterrupt during run() stops the
+        group before it propagates, and a second SIGINT during that wait does
+        not cut it short. A group recorded as surviving SIGKILL keeps the lock
+        and the export, and a stale record from an earlier run does not.
+        main() installs the SIGTERM and SIGHUP handlers before it runs.
       priority: critical
       references_constraints: [C-26]

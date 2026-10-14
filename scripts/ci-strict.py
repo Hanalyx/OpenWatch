@@ -46,6 +46,11 @@ Order of work:
   4. Summarize passed, failed and not-run tests from the result streams.
   5. Write the result atomically into this invocation's own directory, then
      point `latest.json` at it, also atomically.
+  6. Remove the export and release the lock. Every command runs in a
+     process group of its own, which is stopped and waited for before the
+     command's call returns, so by this step nothing the run started is
+     still running. SIGINT, SIGTERM and SIGHUP all reach this step; SIGKILL
+     cannot. A descendant that deliberately leaves its group is out of reach.
 
 Results live under `$(git rev-parse --git-dir)/ci-strict/`, outside the
 working tree, so no test that walks the repository can see them. Each
@@ -55,6 +60,7 @@ Standard library only.
 """
 
 import argparse
+import contextlib
 import copy
 import datetime
 import hashlib
@@ -67,6 +73,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -118,14 +125,95 @@ class Probe:
         e.update(env or {})
         if stdout:
             with open(stdout, "wb") as out:
-                return subprocess.run(cmd, cwd=cwd or self.repo, env=e, stdout=out,
-                                      stderr=subprocess.STDOUT if merge_stderr else None).returncode
-        return subprocess.run(cmd, cwd=cwd or self.repo, env=e).returncode
+                return run_group(cmd, cwd=cwd or self.repo, env=e, stdout=out,
+                                 stderr=subprocess.STDOUT if merge_stderr else None)
+        return run_group(cmd, cwd=cwd or self.repo, env=e)
 
     def capture(self, cmd, cwd=None):
-        p = subprocess.run(cmd, cwd=cwd or self.repo, env=self.env,
-                           capture_output=True, text=True)
-        return p.returncode, (p.stdout + p.stderr).strip()
+        # A file, not a pipe: a descendant holding a pipe open would keep a
+        # reader waiting for EOF after the command itself had exited.
+        with tempfile.TemporaryFile() as out:
+            rc = run_group(cmd, cwd=cwd or self.repo, env=self.env, stdout=out, stderr=subprocess.STDOUT)
+            out.seek(0)
+            return rc, out.read().decode(errors="replace").strip()
+
+
+# ------------------------------------------------------- process groups
+
+# How long a command's process group gets to exit after SIGTERM, and again
+# after SIGKILL, before the run gives up on it.
+GROUP_GRACE = 10.0
+
+# Process groups that survived SIGKILL. While any is listed, the run keeps
+# its export and its lock: a second run must not start beside them.
+UNSTOPPED = []
+
+
+def run_group(cmd, **popen):
+    """Run cmd in a session, and so a process group, of its own and return
+    its exit code. Whatever way this returns, by exit, exception or signal,
+    the whole group has been stopped and waited for first, so no descendant
+    of the command outlives it: npm's lifecycle scripts, go test's test
+    binaries, vitest's workers. Output must go to the terminal or a file,
+    never a pipe: only the command itself is waited for, not EOF.
+
+    A descendant that deliberately leaves the group (setsid, setpgid, a
+    daemonizing double fork) is out of reach. Nothing the gates run does
+    that today."""
+    p = subprocess.Popen(cmd, start_new_session=True, **popen)
+    try:
+        p.wait()
+    except BaseException:
+        with shielded():
+            stop_group(p)
+        raise
+    with shielded():
+        stop_group(p)
+    return p.returncode
+
+
+def stop_group(p):
+    """SIGTERM p's process group, wait for it to empty, then SIGKILL and
+    wait again. A group still present after that is recorded in UNSTOPPED."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        if group_empty(p):
+            return
+        try:
+            os.killpg(p.pid, sig)
+        except ProcessLookupError:
+            return
+        deadline = time.monotonic() + GROUP_GRACE
+        while time.monotonic() < deadline:
+            if group_empty(p):
+                return
+            time.sleep(0.05)
+    UNSTOPPED.append(p.pid)
+
+
+def group_empty(p):
+    p.poll()  # reap the leader, which would otherwise stay in the group as a zombie
+    try:
+        os.killpg(p.pid, 0)
+    except ProcessLookupError:
+        return True
+    return False
+
+
+@contextlib.contextmanager
+def shielded():
+    """Ignore SIGINT and SIGTERM while cleanup runs, so a second signal
+    cannot cut it short. Only the main thread may change handlers; anywhere
+    else this does nothing."""
+    try:
+        saved = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
+    except ValueError:
+        yield
+        return
+    try:
+        yield
+    finally:
+        for s, h in saved.items():
+            signal.signal(s, h)
 
     def tcp_open(self, host, port):
         try:
@@ -544,6 +632,7 @@ def strict(probe, allow, out=print, mode="development"):
             "Wait for it; two runs would share one test database. Nothing ran.")
         return EXIT_REFUSED
     owned = []  # temporary directories this run must remove, from the moment they exist
+    UNSTOPPED.clear()
     try:
         started = datetime.datetime.now(datetime.timezone.utc).isoformat()
         rundir = state / "runs" / invocation
@@ -684,18 +773,30 @@ def strict(probe, allow, out=print, mode="development"):
         out(f"{word} (exit {verdict})")
         return verdict
     finally:
-        for d in owned:
-            shutil.rmtree(d, ignore_errors=True)
-        lock.release()
+        with shielded():
+            if UNSTOPPED:
+                # A command's process group survived SIGKILL. Its processes may
+                # still use the export and the test database, so both the export
+                # and the lock stay until someone looks.
+                out(f"ci-strict: process group(s) {UNSTOPPED} did not exit after SIGKILL. The lock "
+                    f"({lock.dir}) and the export(s) {[str(d) for d in owned]} are left in place. Stop "
+                    "those processes, then remove both.")
+            else:
+                for d in owned:
+                    shutil.rmtree(d, ignore_errors=True)
+                lock.release()
 
 
 def cleanup_on_sigterm():
-    """Turn SIGTERM into SystemExit, so strict()'s `finally` removes the
-    export and releases the lock, as it already does for SIGINT's
-    KeyboardInterrupt. SIGKILL cannot be caught: it leaves the export in the
-    temporary directory and the lock, which the next run reclaims because
-    its owner's pid is dead."""
-    signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
+    """Turn SIGTERM and SIGHUP into SystemExit, so the running command's
+    process group is stopped and strict()'s `finally` removes the export and
+    releases the lock, as already happens for SIGINT's KeyboardInterrupt.
+    SIGHUP is included because commands run in sessions of their own and no
+    longer receive the terminal's hangup themselves. SIGKILL cannot be
+    caught: it leaves the export, the lock (which the next run reclaims
+    because its owner's pid is dead) and the running command's group."""
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda signum, _frame: sys.exit(128 + signum))
 
 
 def main(argv=None):

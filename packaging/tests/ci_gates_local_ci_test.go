@@ -37,7 +37,9 @@ func strictCases(t *testing.T) map[string]int {
 }
 
 // strictCase reports whether the named case of scripts/test_ci_strict.py
-// passed. Runs the suite once per call; the readiness cases need git.
+// ran and passed. A skipped case does not count: unittest reports it as
+// "OK (skipped=1)", which is not a pass. Runs only that case; the readiness
+// cases need git.
 func strictCase(t *testing.T, class, name string) bool {
 	t.Helper()
 	haveTool(t, "python3")
@@ -49,7 +51,7 @@ func strictCase(t *testing.T, class, name string) bool {
 		t.Errorf("%s.%s: %v\n%s", class, name, err, out)
 		return false
 	}
-	return strings.Contains(string(out), "OK")
+	return regexp.MustCompile(`(?m)^OK$`).Match(out)
 }
 
 // @ac AC-37
@@ -193,6 +195,32 @@ func TestCIGates_CommitResultsMustRecordTheirTree(t *testing.T) {
 	t.Run("release-ci-gates/AC-47", func(t *testing.T) {
 		if !strictCase(t, "ReadinessFromCommit", "test_a_commit_result_must_record_its_commits_tree") {
 			t.Error("the recorded-tree case did not pass")
+		}
+	})
+}
+
+// @ac AC-48
+// AC-48 (bugs/OW-124): no command's descendant outlives it. Each command
+// runs in its own process group, which is stopped and waited for before
+// the call returns, on exit, exception or signal, so the export is removed
+// and the lock released only once nothing the run started is still running.
+func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
+	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_descendant_left_behind_is_stopped_before_run_returns",
+			"test_capture_stops_its_descendants_too",
+			"test_a_descendant_that_ignores_sigterm_is_killed",
+			"test_an_interrupt_stops_the_group_before_it_propagates",
+			"test_a_second_signal_cannot_cut_the_cleanup_short",
+			"test_an_unstoppable_group_keeps_the_lock_and_the_export",
+			"test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+		if !strictCase(t, "ReadinessFromCommit", "test_main_installs_the_sigterm_cleanup_before_running") {
+			t.Error("main() does not install the SIGTERM and SIGHUP handlers before it runs")
 		}
 	})
 }

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -748,16 +749,21 @@ class ReadinessFromCommit(unittest.TestCase):
                 self.assertFalse((self.root / ".git" / "ci-strict" / "lock").exists(), f"{sig.name} kept the lock")
 
     def test_main_installs_the_sigterm_cleanup_before_running(self):
+        # SIGHUP too: commands run in sessions of their own, so a terminal
+        # hangup reaches only ci-strict, which must then stop them.
         seen = []
-        saved = cs.strict, cs.Probe, signal.getsignal(signal.SIGTERM)
-        cs.strict = lambda *a, **k: seen.append(signal.getsignal(signal.SIGTERM)) or 0
+        sigs = (signal.SIGTERM, signal.SIGHUP)
+        saved = cs.strict, cs.Probe, {s: signal.getsignal(s) for s in sigs}
+        cs.strict = lambda *a, **k: seen.append([signal.getsignal(s) for s in sigs]) or 0
         cs.Probe = lambda: RealGitProbe(self.root)
         try:
             cs.main(["--commit"])
         finally:
             cs.strict, cs.Probe = saved[:2]
-            signal.signal(signal.SIGTERM, saved[2])
-        self.assertTrue(seen and callable(seen[0]), "main() ran strict() without a SIGTERM handler")
+            for s, h in saved[2].items():
+                signal.signal(s, h)
+        self.assertTrue(seen and all(callable(h) for h in seen[0]),
+                        "main() ran strict() without SIGTERM and SIGHUP handlers")
 
     def test_the_development_identity_covers_untracked_and_ignored_contents(self):
         probe = RealGitProbe(self.root)
@@ -779,6 +785,201 @@ class ReadinessFromCommit(unittest.TestCase):
         (self.root / ".specter-results.json").write_text("{}")
         (self.root / "frontend" / "node_modules" / "x.js").write_text("1")
         self.assertEqual(base, cs.tree_identity(probe))
+
+
+def alive(pid):
+    """True while pid exists and is not a zombie."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    stat = Path(f"/proc/{pid}/stat")
+    try:
+        return stat.read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except (FileNotFoundError, IndexError):
+        return True
+
+
+def wait_for(path, timeout=15):
+    deadline = time.monotonic() + timeout
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    return path.exists()
+
+
+# A descendant that outlives its parent shell and takes a second to exit
+# after SIGTERM, so a cleanup that signals without waiting is visible. It
+# writes its pid only once its handler is in place, and the shell waits for
+# that, so it can never be signaled before it can show the difference.
+SLOW_DESCENDANT = ("python3 -c 'import os, signal, sys, time; "
+                   "signal.signal(signal.SIGTERM, lambda *a: (time.sleep(1), sys.exit(0))); "
+                   "open(\"{pid}.tmp\", \"w\").write(str(os.getpid())); os.rename(\"{pid}.tmp\", \"{pid}\"); "
+                   "time.sleep(300)' & while [ ! -s {pid} ]; do sleep 0.02; done; {tail}")
+
+
+class ProcessGroups(unittest.TestCase):
+    """release-ci-gates C-26, AC-48: no command's descendant outlives it."""
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.probe = cs.Probe(self.tmp)
+        self.pidfile = self.tmp / "pid"
+        self.addCleanup(self.kill_leftover)
+
+    def kill_leftover(self):
+        if self.pidfile.exists():
+            try:
+                os.kill(int(self.pidfile.read_text()), signal.SIGKILL)
+            except (ProcessLookupError, ValueError):
+                pass
+
+    def test_a_descendant_left_behind_is_stopped_before_run_returns(self):
+        started = time.monotonic()
+        rc = self.probe.run(["sh", "-c", SLOW_DESCENDANT.format(pid=self.pidfile, tail="exit 3")],
+                            stdout=self.tmp / "out")
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual(rc, 3)
+        self.assertFalse(alive(int(self.pidfile.read_text())), "the descendant outlived run()")
+
+    def test_capture_stops_its_descendants_too(self):
+        # The descendant inherits capture's output. capture must return when
+        # the command exits, not when the descendant would have (300s).
+        started = time.monotonic()
+        rc, text = self.probe.capture(["sh", "-c", SLOW_DESCENDANT.format(pid=self.pidfile, tail="echo ok")])
+        self.assertLess(time.monotonic() - started, 30, "capture waited for the descendant's output")
+        self.assertEqual((rc, text), (0, "ok"))
+        self.assertFalse(alive(int(self.pidfile.read_text())), "the descendant outlived capture()")
+
+    def test_a_descendant_that_ignores_sigterm_is_killed(self):
+        saved = cs.GROUP_GRACE
+        cs.GROUP_GRACE = 0.5
+        self.addCleanup(setattr, cs, "GROUP_GRACE", saved)
+        cmd = f"trap '' TERM; sleep 300 & echo $! > {self.pidfile}; exit 0"
+        started = time.monotonic()
+        self.probe.run(["sh", "-c", cmd])
+        self.assertGreaterEqual(time.monotonic() - started, 0.5, "SIGKILL came before the grace period")
+        self.assertFalse(alive(int(self.pidfile.read_text())))
+        self.assertEqual(cs.UNSTOPPED, [])
+
+    def test_an_interrupt_stops_the_group_before_it_propagates(self):
+        self.addCleanup(signal.signal, signal.SIGINT, signal.getsignal(signal.SIGINT))
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        cmd = SLOW_DESCENDANT.format(pid=self.pidfile, tail="wait")
+        fire = threading.Thread(target=lambda: wait_for(self.pidfile) and os.kill(os.getpid(), signal.SIGINT))
+        fire.start()
+        self.addCleanup(fire.join)
+        with self.assertRaises(KeyboardInterrupt):
+            self.probe.run(["sh", "-c", cmd])
+        self.assertFalse(alive(int(self.pidfile.read_text())), "the descendant outlived the interrupt")
+
+    def test_a_second_signal_cannot_cut_the_cleanup_short(self):
+        # The descendant takes a second to exit after SIGTERM. A second
+        # SIGINT lands while run() is waiting for it; the wait must finish.
+        self.addCleanup(signal.signal, signal.SIGINT, signal.getsignal(signal.SIGINT))
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        cmd = SLOW_DESCENDANT.format(pid=self.pidfile, tail="wait")
+
+        def fire():
+            if wait_for(self.pidfile):
+                os.kill(os.getpid(), signal.SIGINT)
+                time.sleep(0.3)
+                os.kill(os.getpid(), signal.SIGINT)
+
+        t = threading.Thread(target=fire)
+        t.start()
+        self.addCleanup(t.join)
+
+        def body():
+            with self.assertRaises(KeyboardInterrupt):
+                self.probe.run(["sh", "-c", cmd])
+            t.join()
+
+        try:
+            body()
+        except KeyboardInterrupt:
+            self.fail("the second interrupt arrived after run() had returned: the wait was cut short")
+        self.assertFalse(alive(int(self.pidfile.read_text())), "the second signal cut the wait short")
+
+    def test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock(self):
+        root = make_git_repo(self)
+        cs.UNSTOPPED.append(424242)
+        self.addCleanup(cs.UNSTOPPED.clear)
+        cs.strict(RealGitProbe(root), set(), out=lambda _: None, mode="development")
+        self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
+
+    def test_an_unstoppable_group_keeps_the_lock_and_the_export(self):
+        root = make_git_repo(self)
+        lines = []
+
+        class Stuck(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                if cmd[:2] == ["npm", "ci"]:
+                    cs.UNSTOPPED.append(424242)
+                return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+        self.addCleanup(cs.UNSTOPPED.clear)
+        own_tmp = self.tmp / "t"
+        own_tmp.mkdir()
+        self.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
+        tempfile.tempdir = str(own_tmp)
+        cs.strict(Stuck(root), set(), out=lines.append, mode="commit")
+        self.assertTrue((root / ".git" / "ci-strict" / "lock").exists(), "the lock was released")
+        self.assertTrue(list(own_tmp.glob("ci-strict-commit-*")), "the export was removed")
+        self.assertTrue(any("424242" in line and "did not exit after SIGKILL" in line for line in lines), lines)
+
+    @unittest.skipUnless(shutil.which("npm") and shutil.which("node"), "needs npm and node")
+    def test_sigterm_waits_for_a_real_npm_lifecycle_descendant(self):
+        # The review's reproduction: real npm ci, whose postinstall leaves a
+        # node process running. On SIGTERM to ci-strict, that process must be
+        # gone before the export is removed and the lock released. It takes
+        # a second to exit after SIGTERM, so a cleanup that does not wait
+        # would release the lock while it still runs.
+        root = make_git_repo(self)
+        ready, stopped = self.tmp / "ready.json", self.tmp / "stopped"
+        fe = root / "frontend"
+        (fe / "package.json").write_text(json.dumps({
+            "name": "ci-strict-signal", "version": "1.0.0", "scripts": {"postinstall": "node hold.cjs"}}))
+        (fe / "hold.cjs").write_text(
+            "const fs = require('fs');\n"
+            f"fs.writeFileSync({json.dumps(str(ready))}, JSON.stringify({{pid: process.pid}}));\n"
+            "process.on('SIGTERM', () => setTimeout(() => {"
+            f" fs.writeFileSync({json.dumps(str(stopped))}, 'x'); process.exit(0); }}, 1000));\n"
+            "setInterval(() => {}, 1000);\n")
+        (fe / "package-lock.json").write_text(json.dumps({
+            "name": "ci-strict-signal", "version": "1.0.0", "lockfileVersion": 3, "requires": True,
+            "packages": {"": {"name": "ci-strict-signal", "version": "1.0.0", "hasInstallScript": True}}}))
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "a postinstall that keeps running")
+        child_src = textwrap.dedent("""
+            import importlib.util, os, sys
+            from pathlib import Path
+            spec = importlib.util.spec_from_file_location("t", Path(sys.argv[1]) / "test_ci_strict.py")
+            t = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(t)
+
+            class RealNpm(t.RealGitProbe):
+                def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                    if cmd[:2] == ["npm", "ci"]:
+                        return t.cs.Probe(self.repo).run(cmd, cwd, env, stdout, merge_stderr)
+                    return t.RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+            t.cs.cleanup_on_sigterm()
+            t.cs.strict(RealNpm(Path(sys.argv[2])), set(), out=lambda _: None, mode="commit")
+        """)
+        (self.tmp / "t").mkdir()
+        env = dict(os.environ, TMPDIR=str(self.tmp / "t"), npm_config_cache=str(self.tmp / "cache"))
+        child = subprocess.Popen([sys.executable, "-S", "-c", child_src, str(HERE), str(root)], env=env,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        self.addCleanup(lambda: child.poll() is None and os.killpg(child.pid, signal.SIGKILL))
+        self.assertTrue(wait_for(ready), "the postinstall never started")
+        pid = json.loads(ready.read_text())["pid"]
+        self.pidfile.write_text(str(pid))
+        child.send_signal(signal.SIGTERM)
+        self.assertEqual(child.wait(timeout=60), 128 + signal.SIGTERM)
+        self.assertTrue(stopped.exists(), "the postinstall never saw SIGTERM")
+        self.assertFalse(alive(pid), "the postinstall outlived ci-strict")
+        self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
+        self.assertEqual(list((self.tmp / "t").glob("ci-strict-commit-*")), [])
 
 
 if __name__ == "__main__":
