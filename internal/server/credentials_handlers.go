@@ -96,6 +96,9 @@ func (h *handlers) PostCredentials(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, credential.ErrUnknownAuthMethod):
 			writeError(w, http.StatusBadRequest, "validation.field_invalid", "client",
 				"unknown auth_method", false)
+		case errors.Is(err, ssh.ErrInvalidKey), errors.Is(err, ssh.ErrWeakKey):
+			writeError(w, http.StatusBadRequest, "credentials.invalid_key", "client",
+				err.Error(), false)
 		case errors.Is(err, credential.ErrMultipleSystemDefaults):
 			writeError(w, http.StatusConflict, "credentials.multiple_system_defaults", "client",
 				"another system default already exists", false)
@@ -197,6 +200,9 @@ func (h *handlers) PatchCredentialByID(w http.ResponseWriter, r *http.Request, i
 		case errors.Is(err, credential.ErrUnknownAuthMethod):
 			writeError(w, http.StatusBadRequest, "validation.field_invalid", "client",
 				"unknown auth_method", false)
+		case errors.Is(err, ssh.ErrInvalidKey), errors.Is(err, ssh.ErrWeakKey):
+			writeError(w, http.StatusBadRequest, "credentials.invalid_key", "client",
+				err.Error(), false)
 		case errors.Is(err, credential.ErrMultipleSystemDefaults):
 			writeError(w, http.StatusConflict, "credentials.multiple_system_defaults", "client",
 				"another system default already exists", false)

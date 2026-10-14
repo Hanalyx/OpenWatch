@@ -238,7 +238,15 @@ when `scope` is `host`; it must be absent when `scope` is `system`. Either
 mismatch returns `400` `credentials.invalid_scope`, and a `scope_id` that
 names no active host returns `400` `credentials.host_not_found`. Provide
 `private_key` (and optional `private_key_passphrase`) and/or `password` to
-match the chosen method.
+match the chosen method. The response's `ssh_key_fingerprint`,
+`ssh_key_type` and `ssh_key_bits` are worked out from the key you send;
+`ssh_key_comment` is always empty.
+
+When a `PATCH` sends a new `private_key`, it replaces the stored passphrase
+too: send the new key's `private_key_passphrase` with it, or none for an
+unencrypted key. A `private_key_passphrase` sent on its own must unlock the
+stored key. A key or passphrase that fails returns `400`
+`credentials.invalid_key` and changes nothing.
 
 ---
 

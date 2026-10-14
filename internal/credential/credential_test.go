@@ -218,7 +218,7 @@ func TestNewCredential_BothMethodPopulatesBoth(t *testing.T) {
 			Username:   "x",
 			AuthMethod: AuthBoth,
 			Password:   "pw",
-			PrivateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----",
+			PrivateKey: testKeyPEM(t, ""),
 			CreatedBy:  createdBy,
 		})
 		if err != nil {

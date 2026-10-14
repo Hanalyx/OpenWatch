@@ -2340,10 +2340,10 @@ type CredentialUpdateRequest struct {
 	// Password Re-encrypts and replaces the stored password when non-empty; omit to keep the current secret
 	Password *string `json:"password,omitempty"`
 
-	// PrivateKey Re-encrypts and replaces the stored key when non-empty; omit to keep the current secret
+	// PrivateKey Re-encrypts and replaces the stored key when non-empty; omit to keep the current secret. A new key also replaces the stored passphrase with private_key_passphrase from the same request, or clears it when none is sent. The response's key metadata is derived from the key (system-credential-store C-08)
 	PrivateKey *string `json:"private_key,omitempty"`
 
-	// PrivateKeyPassphrase Re-encrypts and replaces the stored passphrase when non-empty; omit to keep the current secret
+	// PrivateKeyPassphrase Re-encrypts and replaces the stored passphrase when non-empty; omit to keep the current secret, unless a new private_key is sent. Sent without a new key, it must unlock the stored key, or the request returns 400 credentials.invalid_key and nothing changes
 	PrivateKeyPassphrase *string `json:"private_key_passphrase,omitempty"`
 	Username             *string `json:"username,omitempty"`
 }

@@ -12,6 +12,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **SSH key credentials now show the key's real fingerprint, type and
+  size.** A credential created through the API stored no fingerprint, type
+  or size, so the SSH keys list in Settings stayed empty, and replacing a
+  key kept the old key's values. They are now worked out from the key
+  itself on create, on key replacement and on clone. An existing credential
+  gets them the next time it is edited. Two related changes:
+  - a new private key now replaces the stored passphrase: send the new
+    key's passphrase with it, or none for an unencrypted key;
+  - a passphrase sent on its own is checked against the stored key, and a
+    wrong one is refused with `400 credentials.invalid_key`, changing
+    nothing.
 - **Discovery no longer retries a failing host every minute.** When OS
   discovery failed on a host, for example because its SSH password had
   changed, the scheduler queued it again on every 60-second tick, and could
