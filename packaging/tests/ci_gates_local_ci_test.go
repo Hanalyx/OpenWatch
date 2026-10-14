@@ -115,8 +115,7 @@ func TestCIGates_StrictLocalCIIsWiredAndDocumented(t *testing.T) {
 // AC-45 (bugs/OW-124): a commit-mode result tests the commit's files alone. A
 // test that is ignored, untracked, or staged but not committed cannot make it
 // pass; a committed one does; the checkout is left as it was; a failed export
-// or a failed npm ci runs no gate; an interrupt, SIGINT or SIGTERM leaves no
-// export behind.
+// runs no gate.
 func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
 		for _, name := range []string{
@@ -124,6 +123,22 @@ func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 			"test_a_committed_test_does_pass_in_commit_mode",
 			"test_commit_mode_leaves_the_checkout_as_it_was",
 			"test_a_failed_export_runs_no_gate_and_is_incomplete",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-45
+// AC-45, failure and interruption: a failed npm ci in the export runs no
+// gate, is FAILED, and keeps npm's output; an interrupt during the clone, the
+// checkout or npm ci, and a real SIGINT or SIGTERM, leave no export and
+// release the lock.
+func TestCIGates_CommitRunsFailClosedAndCleanUp(t *testing.T) {
+	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
+		for _, name := range []string{
 			"test_a_failed_npm_ci_runs_no_gate_and_fails",
 			"test_an_interrupt_while_exporting_leaves_no_export",
 			"test_a_real_signal_during_npm_ci_leaves_no_export",
@@ -149,8 +164,7 @@ func TestCIGates_StaleResultsCannotPassACommit(t *testing.T) {
 
 // @ac AC-47
 // AC-47: a development run says what it tested and is never readiness
-// evidence; a commit-mode result is readiness evidence for its commit, and
-// its commit's tree, only;
+// evidence; a commit-mode result is readiness evidence for its commit only;
 // the development identity covers untracked and ignored contents; and make
 // has a target for each mode.
 func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
@@ -158,7 +172,6 @@ func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
 		for _, name := range []string{
 			"test_a_development_run_says_what_it_tested_and_is_not_readiness",
 			"test_a_commit_result_is_readiness_evidence_for_head_only",
-			"test_a_commit_result_must_record_its_commits_tree",
 			"test_the_development_identity_covers_untracked_and_ignored_contents",
 		} {
 			if !strictCase(t, "ReadinessFromCommit", name) {
@@ -168,6 +181,18 @@ func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
 		mk := readAppFile(t, "Makefile")
 		if !regexp.MustCompile(`(?m)^ci-strict-commit:\n\tpython3 -S scripts/ci-strict\.py --commit`).MatchString(mk) {
 			t.Error("Makefile has no ci-strict-commit target running scripts/ci-strict.py --commit")
+		}
+	})
+}
+
+// @ac AC-47
+// AC-47, the recorded tree: a commit result is accepted only when its tree is
+// its commit's git tree. Another commit's tree, a made-up tree or none is
+// refused, with and without --commit.
+func TestCIGates_CommitResultsMustRecordTheirTree(t *testing.T) {
+	t.Run("release-ci-gates/AC-47", func(t *testing.T) {
+		if !strictCase(t, "ReadinessFromCommit", "test_a_commit_result_must_record_its_commits_tree") {
+			t.Error("the recorded-tree case did not pass")
 		}
 	})
 }
