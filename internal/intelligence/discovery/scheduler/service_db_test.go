@@ -87,7 +87,7 @@ func TestListDiscoveryTargets_FiltersHosts(t *testing.T) {
 
 		svc := NewService(pool)
 		// IntervalSec = 24h → fresh (1h old) excluded, old (48h) included.
-		got, err := svc.listDiscoveryTargets(context.Background(), 86400)
+		got, err := svc.listDiscoveryTargets(context.Background(), 86400, time.Now())
 		if err != nil {
 			t.Fatalf("listDiscoveryTargets: %v", err)
 		}

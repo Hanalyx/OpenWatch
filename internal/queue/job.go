@@ -40,7 +40,23 @@ type Job struct {
 	CreatedAt     time.Time
 	LockedAt      *time.Time
 	CompletedAt   *time.Time
+	// LeaseToken is minted by the claim that moved the job to processing.
+	// Leased completion, failure and result writes must present it.
+	LeaseToken uuid.UUID
 }
+
+// Lease identifies one claim of a job: the job and the token its claim
+// minted. The zero Lease holds nothing.
+type Lease struct {
+	JobID uuid.UUID
+	Token uuid.UUID
+}
+
+// Lease returns the job's current lease.
+func (j *Job) Lease() Lease { return Lease{JobID: j.ID, Token: j.LeaseToken} }
+
+// Valid reports whether the lease names a job and a token.
+func (l Lease) Valid() bool { return l.JobID != uuid.Nil && l.Token != uuid.Nil }
 
 // ErrMissingCorrelation is returned by Enqueue when the caller's context
 // has no correlation_id set. The queue rejects such jobs because every

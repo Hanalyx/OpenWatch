@@ -1,7 +1,7 @@
 spec:
   id: system-job-queue
   title: PostgreSQL job queue with correlation propagation
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -77,6 +77,25 @@ spec:
       type: technical
       enforcement: error
 
+    - id: C-08
+      description: >-
+        v1.2.0. Every claim mints a fresh lease token: Dequeue sets one on the
+        row it moves to processing, and Claim inserts a job already
+        processing with one. A job type whose results must not be written by a
+        claim that has lost the job finishes it only through CompleteLeased or
+        FailLeased, called in the same transaction that writes its results.
+        Each succeeds only while the token is current and the job is
+        processing, and otherwise returns ErrLeaseLost and changes nothing;
+        its update row-locks the job until that transaction ends. Finishing
+        clears the token. RetireStale fails the processing jobs of
+        one type claimed longer ago than a deadline, by the database clock,
+        clears their tokens and returns them. EnqueueIfAbsent and Claim insert
+        nothing when a unique index refuses the row and report that instead of
+        an error, so a job type can declare at most one active job per subject
+        with a partial unique index. bugs/OW-120.
+      type: technical
+      enforcement: error
+
   acceptance_criteria:
     - id: AC-01
       description: Enqueue(ctx, jobType, payload) persists a job_queue row with status=pending, correlation_id from ctx, attempts=0, payload as JSONB.
@@ -131,3 +150,36 @@ spec:
     - id: AC-13
       description: 'EnqueueAfter(delay) sets a future available_at; Dequeue does not claim a job before its available_at and claims it once available_at <= now() (ORDER BY available_at, created_at). Enqueue (delay 0) is immediately available, so existing producers are unchanged. This backs a requeue-with-backoff without busy-looping the drain.'
       priority: high
+    - id: AC-14
+      description: >-
+        v1.2.0. Dequeue returns the claimed job with a non-nil lease token, and
+        a job requeued and claimed again gets a different token. Claim inserts
+        a job with status processing, attempts 1 and its own token.
+      priority: high
+      references_constraints: [C-08]
+    - id: AC-15
+      description: >-
+        v1.2.0. With a partial unique index on a job type, EnqueueIfAbsent and
+        Claim for a subject that already has an active job return false with
+        no error and insert no row; for a subject without one they insert
+        exactly one. Both keep Enqueue's correlation guard.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-16
+      description: >-
+        v1.2.0. CompleteLeased and FailLeased succeed with the current token.
+        With a wrong token, a zero lease, after the job was finished, or
+        after RetireStale, each returns ErrLeaseLost and the row is
+        unchanged. A RetireStale started while another transaction has
+        completed the job under its lease but not committed waits for that
+        transaction, and the job ends completed.
+      priority: critical
+      references_constraints: [C-08]
+    - id: AC-17
+      description: >-
+        v1.2.0. RetireStale fails only processing jobs of the given type whose
+        claim is older than the deadline, sets the error message, clears their
+        tokens, returns their ids and payloads, and leaves pending jobs,
+        recent claims and other job types untouched.
+      priority: high
+      references_constraints: [C-08]

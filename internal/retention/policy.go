@@ -142,6 +142,11 @@ var registry = []Policy{
 		State:  StateNever,
 		Reason: reasonHostRuleState,
 	},
+	{
+		Table:  "host_discovery_backoff",
+		State:  StateNever,
+		Reason: reasonHostDiscoveryBackoff,
+	},
 
 	// ---- deferred: decided, blocked on named work ------------------
 	//
@@ -263,6 +268,14 @@ var registry = []Policy{
 	{Table: "host_intelligence_state", State: StateUndecided, Reason: reasonUndecided},
 	{Table: "host_system_info", State: StateUndecided, Reason: reasonUndecided},
 }
+
+// reasonHostDiscoveryBackoff explains why the discovery backoff table is
+// not swept.
+const reasonHostDiscoveryBackoff = "Never swept: it is current state, not history. " +
+	"It holds at most one row per host (host_id is the primary key), the row is " +
+	"deleted when that host's discovery next succeeds, and it is deleted with the " +
+	"host (ON DELETE CASCADE). A sweep by age would remove a failing host's " +
+	"backoff and let the scheduler retry it at once. bugs/OW-120."
 
 // reasonUndecided is shared by every table nobody has ruled on. The
 // entry's value is that a new table cannot be added without picking a

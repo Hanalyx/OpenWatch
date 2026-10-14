@@ -1017,9 +1017,11 @@ export interface paths {
          *     Settings page. Enqueues host.discovery jobs for non-deleted,
          *     non-maintenance hosts whose hosts.os_discovered_at IS NULL.
          *     Hosts already discovered are NOT re-enqueued — this is a
-         *     catch-up, not a forced re-fingerprint. Returns the count of
-         *     jobs enqueued so the UI can confirm the action.
-         *     Spec api-system-discovery-config.
+         *     catch-up, not a forced re-fingerprint. Hosts that already have a
+         *     queued or running discovery job, or are backing off after a
+         *     failed one, are skipped. Returns the count of jobs this sweep
+         *     newly enqueued so the UI can confirm the action.
+         *     Spec api-system-discovery-config; system-discovery-scheduler C-09, C-11.
          */
         post: operations["postSystemDiscoverySweep"];
         delete?: never;
@@ -3827,7 +3829,7 @@ export interface components {
             defaults: components["schemas"]["DiscoveryConfig"];
         };
         DiscoverySweepResponse: {
-            /** @description Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty) */
+            /** @description Count of host.discovery jobs newly persisted by this sweep. Hosts with a queued or running job, or in backoff, are not counted. Zero is a valid steady state (every host already discovered, or fleet empty) */
             enqueued: number;
         };
         /** @description Org-wide compliance-display config. default_framework is the default lens the score surfaces (dashboard/hosts avg compliance, host detail) project to: a framework family id (e.g. "stig", "cis") or empty for All rules (the full Kensa corpus). Resolved per-host to the OS key at query time. enabled_frameworks is the allowlist of families offered as lenses; empty means all corpus families are available. A non-empty default_framework must be in a non-empty enabled_frameworks. */
@@ -10626,6 +10628,15 @@ export interface operations {
             };
             /** @description Host not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description discovery.in_progress: a discovery job for this host is already queued or running, so this run would overlap it. Nothing was dialed. Retry after it finishes. Spec system-host-discovery C-15. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

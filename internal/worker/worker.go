@@ -36,8 +36,12 @@ const PollInterval = 200 * time.Millisecond
 // (the error-only adapter over Discover). Interface lives here so the
 // worker doesn't import intelligence (which would otherwise create a
 // cycle via internal/credential's transitive imports).
+//
+// The runner receives the claim's lease and records the job's outcome under
+// it (bugs/OW-120): results, completion, failure and the host's backoff are
+// written only while the lease is current.
 type HostDiscoveryRunner interface {
-	RunDiscovery(ctx context.Context, hostID uuid.UUID) error
+	RunDiscovery(ctx context.Context, hostID uuid.UUID, lease queue.Lease) error
 }
 
 // Worker drains pending jobs from job_queue. One Worker per process is
@@ -246,12 +250,15 @@ func (w *Worker) process(ctx context.Context, j *queue.Job) {
 }
 
 // processHostDiscovery dispatches a host.discovery job to the
-// registered Discovery runner. The runner emits its own audit /
-// eventbus events on success; the worker just marks the queue row.
-// Spec system-host-discovery C-05.
+// registered Discovery runner under the claim's lease. The runner emits
+// its own audit / eventbus events and records the job's outcome; the
+// worker finishes the job under the same lease only as a backstop, so a
+// lease the runner already settled, or one retired as stale, changes
+// nothing. Spec system-host-discovery C-05, C-15.
 func (w *Worker) processHostDiscovery(ctx context.Context, j *queue.Job) {
+	lease := j.Lease()
 	if w.discovery == nil {
-		_ = queue.Fail(ctx, w.pool, j.ID,
+		_ = queue.FailLeased(ctx, w.pool, lease,
 			"host.discovery runner not registered on this worker")
 		return
 	}
@@ -260,20 +267,24 @@ func (w *Worker) processHostDiscovery(ctx context.Context, j *queue.Job) {
 		HostID uuid.UUID `json:"host_id"`
 	}
 	if err := json.Unmarshal(j.Payload, &payload); err != nil {
-		_ = queue.Fail(ctx, w.pool, j.ID,
+		_ = queue.FailLeased(ctx, w.pool, lease,
 			fmt.Sprintf("host.discovery: payload decode: %v", err))
 		return
 	}
 	if payload.HostID == uuid.Nil {
-		_ = queue.Fail(ctx, w.pool, j.ID, "host.discovery: payload host_id missing")
+		_ = queue.FailLeased(ctx, w.pool, lease, "host.discovery: payload host_id missing")
 		return
 	}
-	if err := w.discovery.RunDiscovery(ctx, payload.HostID); err != nil {
-		_ = queue.Fail(ctx, w.pool, j.ID,
-			fmt.Sprintf("host.discovery: %v", err))
+	if err := w.discovery.RunDiscovery(ctx, payload.HostID, lease); err != nil {
+		if ferr := queue.FailLeased(ctx, w.pool, lease,
+			fmt.Sprintf("host.discovery: %v", err)); ferr != nil && !errors.Is(ferr, queue.ErrLeaseLost) {
+			slog.WarnContext(ctx, "worker fail failed",
+				slog.String("job_id", j.ID.String()),
+				slog.String("err", ferr.Error()))
+		}
 		return
 	}
-	if err := queue.Complete(ctx, w.pool, j.ID); err != nil {
+	if err := queue.CompleteLeased(ctx, w.pool, lease); err != nil && !errors.Is(err, queue.ErrLeaseLost) {
 		slog.WarnContext(ctx, "worker complete failed",
 			slog.String("job_id", j.ID.String()),
 			slog.String("err", err.Error()))

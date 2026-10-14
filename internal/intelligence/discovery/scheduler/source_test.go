@@ -33,24 +33,24 @@ func TestListDiscoveryTargets_SingleSQLQuery(t *testing.T) {
 }
 
 // @ac AC-07
-// AC-07: enqueueing goes through internal/queue.Enqueue with the
-// JobKindHostDiscovery constant + HostDiscoveryJobPayload type. The
-// scheduler does NOT call discovery.Service.Discover or any SSH path
-// inline. Source inspection of service.go's enqueuer adapter.
+// AC-07: enqueueing goes through discovery.Enqueue (v1.2.0), which uses
+// internal/queue with the JobKindHostDiscovery constant +
+// HostDiscoveryJobPayload type. The scheduler does NOT call
+// discovery.Service.Discover or any SSH path inline. Source inspection of
+// service.go's enqueuer adapter and of discovery.Enqueue.
 func TestEnqueueDispatch_UsesQueueEnqueue(t *testing.T) {
 	t.Run("system-discovery-scheduler/AC-07", func(t *testing.T) {
 		src := readSchedulerSrc(t, "service.go")
-		// PoolEnqueuer.Enqueue MUST call queue.Enqueue with the
-		// discovery job-kind constant + payload type.
 		body := extractFuncBody(t, src, "Enqueue")
-		if !strings.Contains(body, "queue.Enqueue(") {
-			t.Errorf("PoolEnqueuer.Enqueue does not call queue.Enqueue")
+		if !strings.Contains(body, "discovery.Enqueue(") {
+			t.Errorf("PoolEnqueuer.Enqueue does not call discovery.Enqueue")
 		}
-		if !strings.Contains(body, "discovery.JobKindHostDiscovery") {
-			t.Errorf("PoolEnqueuer.Enqueue does not reference discovery.JobKindHostDiscovery")
-		}
-		if !strings.Contains(body, "discovery.HostDiscoveryJobPayload") {
-			t.Errorf("PoolEnqueuer.Enqueue does not reference discovery.HostDiscoveryJobPayload")
+		lease := readSchedulerSrc(t, filepath.Join("..", "lease.go"))
+		enq := extractFuncBody(t, lease, "Enqueue")
+		for _, want := range []string{"queue.EnqueueIfAbsent(", "JobKindHostDiscovery", "HostDiscoveryJobPayload{"} {
+			if !strings.Contains(enq, want) {
+				t.Errorf("discovery.Enqueue does not contain %q", want)
+			}
 		}
 		// Negative: no inline SSH or Discover calls.
 		if strings.Contains(src, ".Discover(") {

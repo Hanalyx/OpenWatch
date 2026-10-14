@@ -18,6 +18,7 @@ import (
 	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hanalyx/openwatch/internal/auth"
+	"github.com/Hanalyx/openwatch/internal/correlation"
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
 	"github.com/Hanalyx/openwatch/internal/server/api"
@@ -25,7 +26,8 @@ import (
 )
 
 // PostHostDiscoveryRun implements api.ServerInterface.PostHostDiscoveryRun.
-// Spec AC-08 (200 happy path), AC-09 (403 RBAC), AC-10 (404 unknown host).
+// Spec AC-08 (200 happy path), AC-09 (403 RBAC), AC-10 (404 unknown host),
+// AC-29 (409 while another discovery for the host is queued or running).
 func (h *handlers) PostHostDiscoveryRun(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -55,7 +57,38 @@ func (h *handlers) PostHostDiscoveryRun(
 	}
 
 	hostID := uuid.UUID(id)
-	facts, err := h.discoSvc.Discover(r.Context(), hostID)
+	ctx := r.Context()
+	// AC-10 before claiming, so an unknown id leaves no job row behind.
+	var exists bool
+	if err := h.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM hosts WHERE id = $1 AND deleted_at IS NULL)`,
+		hostID).Scan(&exists); err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"host lookup failed", true)
+		return
+	}
+	if !exists {
+		writeError(w, http.StatusNotFound, "hosts.not_found", "client",
+			"host not found", false)
+		return
+	}
+	// The run holds the host's discovery slot like a queued job, so it
+	// cannot overlap a scheduled or queued run (bugs/OW-120, spec C-15).
+	if _, ok := correlation.From(ctx); !ok {
+		ctx = correlation.Set(ctx, correlation.Generate(correlation.PrefixRequest))
+	}
+	lease, claimed, err := discovery.ClaimRun(ctx, h.pool, hostID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "server.error", "server",
+			"could not claim the discovery job", true)
+		return
+	}
+	if !claimed {
+		writeError(w, http.StatusConflict, "discovery.in_progress", "client",
+			"a discovery for this host is already queued or running", true)
+		return
+	}
+	facts, err := h.discoSvc.Discover(ctx, hostID, lease)
 	if err != nil {
 		// AC-10: unknown host id → 404 hosts.not_found.
 		if errors.Is(err, discovery.ErrHostNotFound) {

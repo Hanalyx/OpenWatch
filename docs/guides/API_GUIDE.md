@@ -192,7 +192,7 @@ role registry is the source of truth at
 | `PUT` | `/api/v1/hosts/{host_id}/maintenance` | `host:write` | Pause or resume liveness probes for the host (maintenance mode). |
 | `POST` | `/api/v1/hosts/{id}/connectivity:check` | `host:connectivity_check` | Run a connectivity check (idempotent). |
 | `GET` | `/api/v1/hosts/{id}/system-info` | `host:read` | Latest collected system intelligence. |
-| `POST` | `/api/v1/hosts/{id}/discovery:run` | `host:write` | Run host discovery (idempotent). |
+| `POST` | `/api/v1/hosts/{id}/discovery:run` | `host:write` | Run host discovery now (idempotent). Returns `409 discovery.in_progress` while a discovery for that host is queued or running. |
 | `POST` | `/api/v1/hosts/{host_id}/credentials:resolve` | `credential:read` | Resolve the effective credential for a host. |
 
 ### Create a host
@@ -318,7 +318,7 @@ through the API. These are admin-level controls.
 | `GET` | `/api/v1/system/connectivity/status` | Connectivity worker status. |
 | `GET` / `PUT` | `/api/v1/system/intelligence/config` | Intelligence-collection config. |
 | `GET` / `PUT` | `/api/v1/system/discovery/config` | Discovery config. |
-| `POST` | `/api/v1/system/discovery/sweep` | Trigger a discovery sweep (idempotent). |
+| `POST` | `/api/v1/system/discovery/sweep` | Trigger a discovery sweep (idempotent). Skips hosts with a queued or running discovery, and hosts backing off after a failed one. |
 
 ---
 

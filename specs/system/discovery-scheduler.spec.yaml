@@ -1,7 +1,7 @@
 spec:
   id: system-discovery-scheduler
   title: OS discovery recurring sweep scheduler
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 2
 
@@ -40,10 +40,15 @@ spec:
       to), resolved via the host_effective_maintenance view, is excluded
       from listDiscoveryTargets. MaintenanceGlobal pauses the whole loop.
 
-      No per-host backoff state. Discovery failures (SSH dial timeout,
-      sudo prompt, etc.) are non-fatal: hosts.os_discovered_at stays NULL
-      and the next tick re-enqueues. The worker's retry logic for the
-      job kind absorbs transient failures.
+      v1.2.0 (bugs/OW-120): failures back off per host. Before v1.2.0 this
+      section said there was no per-host backoff and that the worker's retry
+      logic absorbed transient failures. The worker has no retry logic, so a
+      failing host was re-queued on every tick, and a second job was queued
+      while the first was pending. Now at most one discovery job per host is
+      pending or processing, a run holds a lease that fences a retired
+      worker out, stale claims are retired, and each failure backs the host
+      off. This slows repeated authentication failures but does not stop
+      them; stopping on an authentication rejection is features/OW-122.
 
     related_specs:
       - system-host-discovery
@@ -83,7 +88,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-03
-      description: 'The scheduler MUST enqueue host.discovery jobs via internal/queue.Enqueue with discovery.JobKindHostDiscovery + discovery.HostDiscoveryJobPayload. No SSH or DB-mutation work runs inline — the package is enqueue-only'
+      description: 'The scheduler MUST enqueue host.discovery jobs via discovery.Enqueue (v1.2.0; it uses internal/queue with discovery.JobKindHostDiscovery + discovery.HostDiscoveryJobPayload). No SSH runs inline. Its only DB mutations are enqueueing and retiring stale jobs through discovery.RetireStaleJobs (C-10)'
       type: technical
       enforcement: error
     - id: C-04
@@ -104,6 +109,49 @@ spec:
       enforcement: error
     - id: C-08
       description: 'Stop() MUST block until any in-flight enqueueDueHosts call returns OR the parent context cancels — whichever fires first. The stop closes the stop channel and Wait()s on the in-flight WaitGroup'
+      type: technical
+      enforcement: error
+
+    - id: C-09
+      description: >-
+        v1.2.0. At most one host.discovery job per host is pending or
+        processing. The database enforces it with a unique partial index
+        (migration 0066), and every path that starts a discovery goes through
+        discovery.Enqueue or discovery.ClaimRun, which insert nothing when the
+        host already has an active job: the scheduler, host creation, the
+        sweep and the synchronous run. No other code enqueues the job kind.
+        Migration 0066 retires existing duplicates as failed, keeping the most
+        recently claimed processing job, or else the oldest pending one.
+      type: technical
+      enforcement: error
+    - id: C-10
+      description: >-
+        v1.2.0. Each tick first retires discovery jobs that have been
+        processing longer than discovery.StaleDeadline (15 minutes, by the
+        database clock), clearing their leases, and records each as a failure
+        of its host (C-11). A Discover run is bounded by discovery.RunTimeout
+        (10 minutes), so a live run ends before its job can be retired. A
+        retired claim cannot complete its job or write results.
+      type: technical
+      enforcement: error
+    - id: C-11
+      description: >-
+        v1.2.0. Each failed run, including a retired stale job, increments the
+        host's consecutive failures in host_discovery_backoff and sets
+        next_attempt_at to the failure time plus discovery.BackoffFor(n):
+        5 minutes doubled for each further consecutive failure, capped at
+        24 hours. Failure time comes from the service clock. A successful run
+        clears the row. listDiscoveryTargets and the sweep exclude a host
+        until its next_attempt_at. An authentication rejection backs off like
+        any other failure; stopping on it is features/OW-122.
+      type: technical
+      enforcement: error
+    - id: C-12
+      description: >-
+        v1.2.0. listDiscoveryTargets excludes hosts that already have a
+        pending or processing discovery job, so they do not use up the
+        per-tick rate limit, and compares backoff against the scheduler's
+        clock, which tests can control.
       type: technical
       enforcement: error
 
@@ -133,7 +181,7 @@ spec:
       priority: high
       references_constraints: [C-01, C-02]
     - id: AC-07
-      description: 'enqueueDueHosts dispatches via internal/queue.Enqueue using discovery.JobKindHostDiscovery and discovery.HostDiscoveryJobPayload{HostID}. Source inspection of the dispatch path confirms no direct SSH calls or discovery.Discover invocations'
+      description: 'enqueueDueHosts dispatches via discovery.Enqueue (v1.2.0), which uses internal/queue with discovery.JobKindHostDiscovery and discovery.HostDiscoveryJobPayload{HostID}. Source inspection of the dispatch path confirms no direct SSH calls or discovery.Discover invocations'
       priority: critical
       references_constraints: [C-03]
     - id: AC-08
@@ -152,3 +200,56 @@ spec:
       description: 'scheduler package source MUST NOT import internal/server or any http-shaped package. Source inspection walks the import set of every .go file under internal/intelligence/discovery/scheduler/'
       priority: high
       references_constraints: [C-07]
+    - id: AC-12
+      description: >-
+        v1.2.0. One host, no worker running: two scheduler ticks, a host
+        creation enqueue, a sweep and discovery.Enqueue called directly leave
+        exactly one pending job; the sweep reports zero enqueued for it; a
+        synchronous claim is refused. With the job processing, the same
+        calls add nothing. After it finishes, the next tick enqueues one.
+      priority: critical
+      references_constraints: [C-09, C-12]
+    - id: AC-13
+      description: >-
+        v1.2.0. Several scheduler Services tick concurrently over the same
+        hosts; each host ends with exactly one active discovery job.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-14
+      description: >-
+        v1.2.0. Migration 0066 applied to a database holding, for one host,
+        two processing and two pending discovery jobs, and for another host
+        two pending ones, leaves one active job per host (the most recently
+        claimed processing job, and the oldest pending job) and the rest
+        failed with the migration's message; no row is deleted; other job
+        types are untouched; the unique index then exists.
+      priority: critical
+      references_constraints: [C-09]
+    - id: AC-15
+      description: >-
+        v1.2.0. A claimed job whose claim is older than StaleDeadline is
+        retired by the next tick and its host backs off exactly once. The
+        retired claim's leased completion and failure return
+        queue.ErrLeaseLost and change nothing, and the backoff is not counted
+        twice. A claim younger than the deadline is left alone. That a
+        retired claim's results are not written is system-host-discovery
+        AC-30.
+      priority: critical
+      references_constraints: [C-10]
+    - id: AC-16
+      description: >-
+        v1.2.0. With a controlled clock: after a failed run the host is not a
+        target until 5 minutes later; at that time it is; a second
+        consecutive failure moves it to 10 minutes; a successful run clears
+        the backoff; BackoffFor caps at 24 hours. The sweep also skips a host
+        in backoff.
+      priority: critical
+      references_constraints: [C-11, C-12]
+    - id: AC-17
+      description: >-
+        v1.2.0. Source inspection of every non-test Go file: a call to
+        internal/queue's Enqueue, EnqueueAfter, EnqueueIfAbsent or Claim
+        whose arguments reference discovery.JobKindHostDiscovery appears only
+        in internal/intelligence/discovery/lease.go.
+      priority: high
+      references_constraints: [C-09]

@@ -1,7 +1,7 @@
 spec:
   id: system-host-discovery
   title: Host OS fingerprint discovery via SSH
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 1
 
@@ -99,11 +99,11 @@ spec:
       type: technical
       enforcement: error
     - id: C-04
-      description: 'POST /api/v1/hosts/{id}/discovery:run MUST require host:write permission. The endpoint is synchronous — returns the resulting SystemInfo response with the same shape stored in host_system_info. 404 for unknown / soft-deleted host, 502 (host.unreachable) for SSH dial failure, 200 with the partial SystemInfo when probe succeeds even if some sub-commands failed'
+      description: 'POST /api/v1/hosts/{id}/discovery:run MUST require host:write permission. The endpoint is synchronous — returns the resulting SystemInfo response with the same shape stored in host_system_info. 404 for unknown / soft-deleted host, 502 (host.unreachable) for SSH dial failure, 200 with the partial SystemInfo when probe succeeds even if some sub-commands failed. v1.8.0: 409 discovery.in_progress when the host already has a pending or processing discovery job (C-15)'
       type: security
       enforcement: error
     - id: C-05
-      description: 'Host creation MUST auto-enqueue a host.discovery job via internal/queue. The job runs the discovery flow asynchronously so POST /api/v1/hosts returns immediately. Job failures retry with exponential backoff up to N attempts (default 3); permanent failure stops retrying but leaves hosts.os_discovered_at NULL — the host stays in the inventory and the on-demand endpoint can re-attempt'
+      description: 'Host creation MUST auto-enqueue a host.discovery job via discovery.Enqueue (v1.8.0), which inserts nothing if the host already has an active job. The job runs the discovery flow asynchronously so POST /api/v1/hosts returns immediately. v1.8.0 correction (bugs/OW-120): a failed job is not retried by the queue; earlier text promised retries with exponential backoff up to 3 attempts, which never existed. A failure leaves hosts.os_discovered_at unchanged and backs the host off (system-discovery-scheduler C-11), after which the scheduler picks it again; the on-demand endpoint can re-attempt at once'
       type: technical
       enforcement: error
     - id: C-06
@@ -140,6 +140,23 @@ spec:
       enforcement: error
     - id: C-14
       description: 'v1.7.0 — a "stale" freshness entry MUST also carry a reason ∈ {denied, failed, timeout} recording WHY the category was not re-observed this run, so an operator can tell a fixable sudo denial from a transient connectivity failure. Classification is positive-evidence only for "denied": a category is labeled denied ONLY when the probe''s combined stdout+stderr carries a recognizable sudo-refusal signature (e.g. "a password is required", "is not in the sudoers file", "not allowed to execute"); a context-deadline error is "timeout"; any other Go-level error or a non-zero exit without a sudo signature is "failed". World-readable probes (os_release, uname, memory, disk, hostname, fqdn, selinux, apparmor) require no sudo, so their non-observations classify as failed/timeout and never denied. An "ok" entry carries no reason. When a stale category''s cause was not recorded, reason defaults to "failed" (never a false "denied").'
+      type: technical
+      enforcement: error
+
+    - id: C-15
+      description: >-
+        v1.8.0 (bugs/OW-120). Every Discover run holds the lease of the host's
+        discovery job: the worker passes the lease of the job it claimed, and
+        POST /hosts/{id}/discovery:run first checks the host exists, then
+        claims a job with discovery.ClaimRun and answers 409
+        discovery.in_progress, without dialing, if the host already has a
+        pending or processing job. Discover without a lease returns
+        ErrNoLease and dials nothing. persist first completes the job under
+        the lease, which checks the lease and row-locks the job, then in the
+        same transaction writes the results and clears the host's backoff;
+        a lease that is no longer current writes nothing and returns
+        queue.ErrLeaseLost. A failed run fails the job under its lease and
+        backs the host off in one transaction; a lost lease records nothing.
       type: technical
       enforcement: error
 
@@ -232,3 +249,23 @@ spec:
       description: 'v1.7.0 probeFirewall reason: when every firewall attempt is refused with a sudo-denial signature (systemctl absent, sudo -n / sudo -S all show "a password is required" / "not in the sudoers file"), probeFirewall returns ok=false with reason="denied"; when the attempts fail WITHOUT any sudo signature (no firewall tool present, plain non-zero exits), it returns ok=false with reason="failed". A successful probe returns ok=true with an empty reason.'
       priority: high
       references_constraints: [C-14]
+    - id: AC-29
+      description: >-
+        v1.8.0. With a discovery job pending for a host, POST
+        /hosts/{id}/discovery:run returns 409 discovery.in_progress and the
+        SSH transport is not dialed. With no active job it claims one, runs,
+        returns 200, and leaves that job completed. For an unknown host id it
+        returns 404 and creates no job.
+      priority: critical
+      references_constraints: [C-04, C-15]
+    - id: AC-30
+      description: >-
+        v1.8.0. Discover with a zero lease returns ErrNoLease and does not
+        dial. A run whose transport fails leaves its job failed under the
+        lease and the host backed off once. A run whose lease was retired
+        between its dial and persist returns queue.ErrLeaseLost, leaves
+        host_system_info and hosts.os_discovered_at unchanged, emits no
+        audit event, and adds no backoff beyond the retirement's own. A
+        successful run leaves its job completed and clears the backoff.
+      priority: critical
+      references_constraints: [C-15]

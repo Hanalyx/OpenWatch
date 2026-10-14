@@ -2389,7 +2389,7 @@ type DiscoveryConfigResponse struct {
 
 // DiscoverySweepResponse defines model for DiscoverySweepResponse.
 type DiscoverySweepResponse struct {
-	// Enqueued Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty)
+	// Enqueued Count of host.discovery jobs newly persisted by this sweep. Hosts with a queued or running job, or in backoff, are not counted. Zero is a valid steady state (every host already discovered, or fleet empty)
 	Enqueued int `json:"enqueued"`
 }
 

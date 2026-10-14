@@ -16,7 +16,6 @@ import (
 	"github.com/Hanalyx/openwatch/internal/framework"
 	"github.com/Hanalyx/openwatch/internal/host"
 	"github.com/Hanalyx/openwatch/internal/intelligence/discovery"
-	"github.com/Hanalyx/openwatch/internal/queue"
 	"github.com/Hanalyx/openwatch/internal/scanruns"
 	"github.com/Hanalyx/openwatch/internal/server/api"
 	"github.com/google/uuid"
@@ -189,8 +188,7 @@ func (h *handlers) PostHosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if enqueueDiscovery {
-		if _, err := queue.Enqueue(r.Context(), h.pool, discovery.JobKindHostDiscovery,
-			discovery.HostDiscoveryJobPayload{HostID: created.ID}); err != nil {
+		if _, err := discovery.Enqueue(r.Context(), h.pool, created.ID); err != nil {
 			slog.WarnContext(r.Context(), "discovery: enqueue failed after host create",
 				slog.String("host_id", created.ID.String()),
 				slog.String("err", err.Error()),

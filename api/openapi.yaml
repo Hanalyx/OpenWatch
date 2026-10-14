@@ -1860,9 +1860,11 @@ paths:
         Settings page. Enqueues host.discovery jobs for non-deleted,
         non-maintenance hosts whose hosts.os_discovered_at IS NULL.
         Hosts already discovered are NOT re-enqueued — this is a
-        catch-up, not a forced re-fingerprint. Returns the count of
-        jobs enqueued so the UI can confirm the action.
-        Spec api-system-discovery-config.
+        catch-up, not a forced re-fingerprint. Hosts that already have a
+        queued or running discovery job, or are backing off after a
+        failed one, are skipped. Returns the count of jobs this sweep
+        newly enqueued so the UI can confirm the action.
+        Spec api-system-discovery-config; system-discovery-scheduler C-09, C-11.
       responses:
         '200':
           description: Sweep dispatched
@@ -4432,6 +4434,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: >-
+            discovery.in_progress: a discovery job for this host is already
+            queued or running, so this run would overlap it. Nothing was
+            dialed. Retry after it finishes. Spec system-host-discovery C-15.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '502':
           description: Host unreachable — SSH dial or credential resolve failed
           content:
@@ -6305,7 +6315,7 @@ components:
         enqueued:
           type: integer
           minimum: 0
-          description: Count of host.discovery jobs persisted by this sweep. Zero is a valid steady state (every host already discovered, or fleet empty)
+          description: Count of host.discovery jobs newly persisted by this sweep. Hosts with a queued or running job, or in backoff, are not counted. Zero is a valid steady state (every host already discovered, or fleet empty)
 
     ComplianceConfig:
       type: object
