@@ -171,8 +171,10 @@ def main():
         rs.die(f"{rs.GATES} not found")
     with rs.GATES.open("rb") as fh:
         gates = tomllib.load(fh)
-    workdir = Path(tempfile.mkdtemp(prefix="release-publish-"))
-    return publish(args.tag, gates, args.yes, workdir)
+    # The downloads are only inputs to the checker's verification; the
+    # directory is removed however publish ends (release-ci-gates C-25).
+    with tempfile.TemporaryDirectory(prefix="release-publish-") as workdir:
+        return publish(args.tag, gates, args.yes, Path(workdir))
 
 
 if __name__ == "__main__":

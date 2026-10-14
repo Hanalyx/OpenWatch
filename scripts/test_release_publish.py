@@ -65,9 +65,15 @@ class Scenario:
 
     def __exit__(self, *exc):
         rs.sh, rs.sh_bytes, rs.evaluate, rs.tag_commit, rs.release_info = self._saved
+        # Every run's workdir is the scenario's, and goes with it.
+        for d in getattr(self, "_workdirs", []):
+            d.cleanup()
 
     def run(self, confirm):
-        return rp.publish("v0.8.0", GATES, confirm, Path(tempfile.mkdtemp()),
+        # A fresh workdir per run, as main() gives each invocation.
+        d = tempfile.TemporaryDirectory(prefix="release-publish-test-")
+        self.__dict__.setdefault("_workdirs", []).append(d)
+        return rp.publish("v0.8.0", GATES, confirm, Path(d.name),
                           out=lambda line="": self.out.write(str(line) + "\n"))
 
     @property
