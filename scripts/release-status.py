@@ -1244,28 +1244,38 @@ def load_tagged_checker(commit):
     rc, src = sh_bytes("git", "show", f"{commit}:scripts/release-status.py")
     if rc != 0 or not src:
         return None
-    path = Path(tempfile.mkdtemp(prefix="release-status-")) / "release_status_tagged.py"
-    path.write_bytes(src)
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(f"release_status_{commit[:12]}", path)
-    mod = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(mod)
-    except Exception:
-        return None
-    if not hasattr(mod, "eval_doc_review") or not hasattr(mod, "candidate_docs"):
-        return None
-    return mod
+    with tempfile.TemporaryDirectory(prefix="release-status-") as directory:
+        path = Path(directory) / "release_status_tagged.py"
+        path.write_bytes(src)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(f"release_status_{commit[:12]}", path)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            return None
+        if not hasattr(mod, "eval_doc_review") or not hasattr(mod, "candidate_docs"):
+            return None
+        return mod
 
 
 def evaluate(gates, tag, commit, workdir=None):
     """Yield (gate_id, label, status, note) rows.
 
     workdir receives downloaded assets for digest and signature checks; a
-    fresh temporary directory when None.
+    fresh temporary directory when None. Tool-owned directories are removed
+    when iteration finishes, raises, or is closed. Caller-supplied directories
+    and their downloaded outputs are preserved.
     """
     if workdir is None:
-        workdir = Path(tempfile.mkdtemp(prefix="release-status-"))
+        with tempfile.TemporaryDirectory(prefix="release-status-") as directory:
+            yield from _evaluate(gates, tag, commit, Path(directory))
+    else:
+        yield from _evaluate(gates, tag, commit, Path(workdir))
+
+
+def _evaluate(gates, tag, commit, workdir):
+    """Evaluate gates inside a workspace owned by the caller of this helper."""
     runs = check_runs(commit)
     job_cache = {}
     info = release_info(tag)

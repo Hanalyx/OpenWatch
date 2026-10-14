@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.28.0"
+  version: "1.29.0"
   status: approved
   tier: 1
 
@@ -627,6 +627,17 @@ spec:
         because GitHub replaces a pending run in a shared group even when
         cancel-in-progress is false. Groups never span two workflows, and a
         rerun keeps its own run's group.
+      type: technical
+      enforcement: error
+    - id: C-24
+      description: >-
+        release-status.py removes its own temporary checker-import and
+        evaluation directories on normal completion, exceptions and Python
+        interruption. A partially consumed evaluation must be closed by its
+        caller to release its workspace. Caller-supplied workspaces and their
+        downloaded outputs are retained. The CI-strict and doc-style tests
+        register cleanup as soon as they allocate a fixture, including when
+        setup fails. Forced process termination is outside this guarantee.
       type: technical
       enforcement: error
   acceptance_criteria:
@@ -1784,3 +1795,14 @@ spec:
         operators of the conditional, or removing the block each fails.
       priority: high
       references_constraints: [C-23]
+    - id: AC-43
+      description: >-
+        A loaded tagged checker remains callable after its import directory
+        is removed. Import failures and KeyboardInterrupt leave no directory.
+        Evaluation releases its own workspace after exhaustion, exception,
+        KeyboardInterrupt or explicit generator close, while preserving
+        caller-owned workspaces and outputs for the same exits. The affected
+        fixture suites leave no directories after success; cleanup also runs
+        when setup fails or is interrupted after allocation.
+      priority: high
+      references_constraints: [C-24]
