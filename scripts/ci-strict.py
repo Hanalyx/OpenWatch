@@ -49,8 +49,11 @@ Order of work:
   6. Remove the export and release the lock. Every command runs in a
      process group of its own, which is stopped and waited for before the
      command's call returns, so by this step nothing the run started is
-     still running. SIGINT, SIGTERM and SIGHUP all reach this step; SIGKILL
-     cannot. A descendant that deliberately leaves its group is out of reach.
+     still running. SIGINT, SIGTERM and SIGHUP all reach this step, and are
+     deferred while it runs; SIGKILL cannot. A descendant that deliberately
+     leaves its group is out of reach. A group that survives SIGKILL is
+     recorded in the lock, which then stays: the run is FAILED, and no run
+     can take the lock while that group has members.
 
 Results live under `$(git rev-parse --git-dir)/ci-strict/`, outside the
 working tree, so no test that walks the repository can see them. Each
@@ -145,6 +148,16 @@ class Probe:
         except OSError:
             return False
 
+    def group_alive(self, pgid):
+        """True while process group pgid has any member."""
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
     def pid_alive(self, pid):
         try:
             os.kill(pid, 0)
@@ -161,9 +174,19 @@ class Probe:
 # after SIGKILL, before the run gives up on it.
 GROUP_GRACE = 10.0
 
-# Process groups that survived SIGKILL. While any is listed, the run keeps
-# its export and its lock: a second run must not start beside them.
+# Process groups that survived SIGKILL. Once any is listed, the run starts
+# no further work, cannot be COMPLETE, and keeps its export and its lock.
 UNSTOPPED = []
+
+# Where to persist UNSTOPPED the moment it changes: the held lock's
+# directory, set by strict(). The record outlives this process, and
+# Lock.acquire refuses to reclaim the lock while a recorded group has
+# members, whether or not the run that wrote it is still alive.
+BLOCK_RECORD = None
+
+# The signals cleanup must not be cut short by: every one that main() turns
+# into an exception.
+TERMINATING = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
 
 def run_group(cmd, **popen):
@@ -178,20 +201,20 @@ def run_group(cmd, **popen):
     daemonizing double fork) is out of reach. Nothing the gates run does
     that today."""
     p = subprocess.Popen(cmd, start_new_session=True, **popen)
+    finished = False
     try:
         p.wait()
-    except BaseException:
-        with shielded():
+        finished = True
+    finally:
+        with shielded(propagating=not finished):
             stop_group(p)
-        raise
-    with shielded():
-        stop_group(p)
     return p.returncode
 
 
 def stop_group(p):
     """SIGTERM p's process group, wait for it to empty, then SIGKILL and
-    wait again. A group still present after that is recorded in UNSTOPPED."""
+    wait again. A group still present after that is recorded in UNSTOPPED
+    and, at once, in BLOCK_RECORD."""
     for sig in (signal.SIGTERM, signal.SIGKILL):
         if group_empty(p):
             return
@@ -204,7 +227,16 @@ def stop_group(p):
             if group_empty(p):
                 return
             time.sleep(0.05)
-    UNSTOPPED.append(p.pid)
+    record_unstopped(p.pid)
+
+
+def record_unstopped(pgid):
+    """Note that process group pgid survived SIGKILL, in UNSTOPPED and at
+    once in BLOCK_RECORD, which outlives this process."""
+    UNSTOPPED.append(pgid)
+    if BLOCK_RECORD is not None:
+        write_atomic(BLOCK_RECORD, {"unstopped_groups": UNSTOPPED,
+                                    "recorded": datetime.datetime.now(datetime.timezone.utc).isoformat()})
 
 
 def group_empty(p):
@@ -216,24 +248,37 @@ def group_empty(p):
     return False
 
 
-@contextlib.contextmanager
-def shielded():
-    """Ignore SIGINT and SIGTERM while cleanup runs, so a second signal
-    cannot cut it short. Only the main thread may change handlers; anywhere
+class shielded:
+    """Defer SIGINT, SIGTERM and SIGHUP while cleanup runs, so no signal can
+    cut it short. A deferred signal is not lost: on the way out, if no
+    exception is already propagating, the first one is delivered again to
+    the restored handler, so a signal that arrived while a finished
+    command's group was being stopped still stops the run. If an exception
+    is propagating, the run is already on its way out, and that exception
+    keeps its exit code. Only the main thread may change handlers; anywhere
     else this does nothing."""
-    try:
-        saved = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGTERM)}
-    except ValueError:
-        yield
-        return
-    try:
-        yield
-    finally:
-        for s, h in saved.items():
+
+    def __init__(self, propagating=False):
+        # A `finally` cannot see the exception passing through it, so the
+        # caller says whether one is.
+        self.propagating = propagating
+
+    def __enter__(self):
+        self.pending, self.saved = [], {}
+        try:
+            for s in TERMINATING:
+                self.saved[s] = signal.signal(s, lambda signum, _frame: self.pending.append(signum))
+        except ValueError:
+            pass  # not the main thread
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        for s, h in self.saved.items():
             signal.signal(s, h)
+        if self.pending and exc_type is None and not self.propagating:
+            signal.raise_signal(self.pending[0])
+        return False
 
-
-# -------------------------------------------------------------- preflight
 
 def makefile_pin(repo, name):
     m = re.search(rf"(?m)^{name}\s*:=\s*(\S+)", (Path(repo) / "Makefile").read_text())
@@ -534,6 +579,11 @@ class Lock:
                 self.dir.mkdir()
             except FileExistsError:
                 owner = self.owner()
+                alive = [g for g in self.unstopped() if self.probe.group_alive(g)]
+                if alive:
+                    # A process group outlived SIGKILL in the run that holds
+                    # this lock. Whether that run is alive does not matter.
+                    return False, dict(owner or {}, unstopped=alive)
                 if owner and self.probe.pid_alive(owner.get("pid", -1)):
                     return False, owner
                 # Stale: its process is gone. Move it aside rather than delete,
@@ -543,8 +593,11 @@ class Lock:
                     self.dir.rename(stale)
                 except FileNotFoundError:
                     pass
+                recorded = self.unstopped()
                 print(f"ci-strict: reclaimed a stale lock from invocation "
-                      f"{(owner or {}).get('id', '?')} (moved to {stale.name})", file=sys.stderr)
+                      f"{(owner or {}).get('id', '?')} (moved to {stale.name})"
+                      + (f"; its recorded process group(s) {recorded} have no members left" if recorded else ""),
+                      file=sys.stderr)
                 continue
             (self.dir / "owner.json").write_text(json.dumps(
                 {"pid": os.getpid(), "id": self.invocation,
@@ -553,6 +606,12 @@ class Lock:
             return True, None
         return False, self.owner()
 
+    def unstopped(self):
+        try:
+            return [int(g) for g in json.loads((self.dir / "unstopped.json").read_text())["unstopped_groups"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            return []
+
     def owner(self):
         try:
             return json.loads((self.dir / "owner.json").read_text())
@@ -560,9 +619,11 @@ class Lock:
             return None
 
     def release(self):
-        if self.held:
+        """Remove the lock, unless it records a process group that survived
+        SIGKILL: then it stays, so the next run checks that group first."""
+        if self.held and not (self.dir / "unstopped.json").exists():
             shutil.rmtree(self.dir, ignore_errors=True)
-            self.held = False
+        self.held = False
 
 
 def write_atomic(path, data):
@@ -627,13 +688,21 @@ def strict(probe, allow, out=print, mode="development"):
     state = state_dir(probe)
     lock = Lock(state, probe, invocation)
     ok, owner = lock.acquire()
+    if not ok and (owner or {}).get("unstopped"):
+        out(f"ci-strict: REFUSED. Process group(s) {owner['unstopped']} from invocation {owner.get('id', '?')} "
+            f"survived SIGKILL and still have members; the lock ({lock.dir}) and its unstopped.json stay "
+            "until they are gone. Stop those processes. Nothing ran.")
+        return EXIT_REFUSED
     if not ok:
         out(f"ci-strict: REFUSED. Invocation {(owner or {}).get('id', '?')} (pid "
             f"{(owner or {}).get('pid', '?')}) is running since {(owner or {}).get('started', '?')}. "
             "Wait for it; two runs would share one test database. Nothing ran.")
         return EXIT_REFUSED
+    global BLOCK_RECORD
     owned = []  # temporary directories this run must remove, from the moment they exist
     UNSTOPPED.clear()
+    BLOCK_RECORD = lock.dir / "unstopped.json"
+    finished = False
     try:
         started = datetime.datetime.now(datetime.timezone.utc).isoformat()
         rundir = state / "runs" / invocation
@@ -688,7 +757,9 @@ def strict(probe, allow, out=print, mode="development"):
         # registry, the network, the disk), so the code and npm's output are
         # recorded and nothing is inferred from them.
         stop = None
-        if export is not None and export["outcome"] == "failed":
+        if UNSTOPPED:
+            stop = (EXIT_FAILED, f"process group(s) {UNSTOPPED} survived SIGKILL", [])
+        elif export is not None and export["outcome"] == "failed":
             stop = (EXIT_INCOMPLETE, f"the export failed: {export['detail']}", ["export"])
         elif export is not None and export["dependencies"] != "installed":
             stop = (EXIT_FAILED, f"dependency installation in the export failed: {export['dependencies']}", [])
@@ -724,6 +795,12 @@ def strict(probe, allow, out=print, mode="development"):
             else:
                 ran = {}
                 for g, needs in GATES:
+                    if UNSTOPPED:
+                        # Nothing more may start beside a process that could
+                        # not be stopped.
+                        gates.append({"gate": g, "outcome": "not run",
+                                      "reason": f"process group(s) {UNSTOPPED} survived SIGKILL"})
+                        continue
                     if missing & set(needs):
                         gates.append({"gate": g, "outcome": "not run", "accepted": True,
                                       "reason": "missing " + ", ".join(sorted(missing & set(needs)))})
@@ -743,6 +820,8 @@ def strict(probe, allow, out=print, mode="development"):
                 coverage_ran = any(x["gate"] == "specter-coverage" and x["outcome"] == "passed" for x in gates)
                 verdict = decide(gates, tests, coverage_ran)
 
+        if UNSTOPPED:
+            verdict = EXIT_FAILED
         result = {
             "id": invocation, "mode": mode, "tested": tested, "working_tree": working,
             "commit": commit, "tree": tree, "started": started,
@@ -752,6 +831,8 @@ def strict(probe, allow, out=print, mode="development"):
         }
         if export is not None:
             result["export"] = export
+        if UNSTOPPED:
+            result["cleanup"] = {"unstopped_groups": list(UNSTOPPED), "record": str(BLOCK_RECORD)}
         write_atomic(rundir / "result.json", result)
         write_atomic(state / "latest.json", {"id": invocation, "result": str(rundir / "result.json")})
 
@@ -772,16 +853,25 @@ def strict(probe, allow, out=print, mode="development"):
                 EXIT_INCOMPLETE: "LOCAL CI INCOMPLETE: nothing failed, but required gates or tests did not run. "
                                  "This run is not equivalent to hosted CI."}[verdict]
         out(f"{word} (exit {verdict})")
+        finished = True
         return verdict
     finally:
-        with shielded():
+        BLOCK_RECORD = None
+        with shielded(propagating=not finished):
             if UNSTOPPED:
+                # Normally written as each group was recorded; written again
+                # here from UNSTOPPED itself, so the lock blocks the next run
+                # however the list was filled.
+                write_atomic(lock.dir / "unstopped.json", {
+                    "unstopped_groups": list(UNSTOPPED),
+                    "recorded": datetime.datetime.now(datetime.timezone.utc).isoformat()})
                 # A command's process group survived SIGKILL. Its processes may
-                # still use the export and the test database, so both the export
-                # and the lock stay until someone looks.
+                # still use the export and the test database, so the export
+                # stays, and the lock stays until those groups are empty.
                 out(f"ci-strict: process group(s) {UNSTOPPED} did not exit after SIGKILL. The lock "
-                    f"({lock.dir}) and the export(s) {[str(d) for d in owned]} are left in place. Stop "
-                    "those processes, then remove both.")
+                    f"({lock.dir}, with unstopped.json) and the export(s) {[str(d) for d in owned]} are left "
+                    "in place. No run can take the lock while those groups have members; stop those "
+                    "processes, and remove the export(s).")
             else:
                 for d in owned:
                     shutil.rmtree(d, ignore_errors=True)

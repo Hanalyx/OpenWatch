@@ -918,25 +918,223 @@ class ProcessGroups(unittest.TestCase):
         cs.strict(RealGitProbe(root), set(), out=lambda _: None, mode="development")
         self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
 
-    def test_an_unstoppable_group_keeps_the_lock_and_the_export(self):
+    def survivor(self):
+        """A real, live process group, standing in for one that outlived
+        SIGKILL: none can be made on purpose."""
+        p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"], start_new_session=True)
+        self.addCleanup(lambda: (p.poll() is None and os.killpg(p.pid, signal.SIGKILL), p.wait()))
+        return p
+
+    def test_a_group_that_will_not_empty_is_recorded_at_once(self):
+        # stop_group on a group that never empties, which no real process can
+        # be made to do: group_empty always says no, and killpg is a no-op.
+        # The group is recorded in UNSTOPPED and in the block record before
+        # stop_group returns, after both grace periods.
+        class Leader:
+            pid = 424242
+
+            def poll(self):
+                return None
+
+        saved = cs.GROUP_GRACE, cs.group_empty, cs.BLOCK_RECORD, os.killpg
+        self.addCleanup(lambda: (setattr(cs, "GROUP_GRACE", saved[0]), setattr(cs, "group_empty", saved[1]),
+                                 setattr(cs, "BLOCK_RECORD", saved[2]), setattr(os, "killpg", saved[3]),
+                                 cs.UNSTOPPED.clear()))
+        sent = []
+        cs.GROUP_GRACE, cs.group_empty, cs.BLOCK_RECORD = 0.05, (lambda p: False), self.tmp / "unstopped.json"
+        os.killpg = lambda pgid, sig: sent.append((pgid, sig))
+        cs.stop_group(Leader())
+        self.assertEqual(sent, [(424242, signal.SIGTERM), (424242, signal.SIGKILL)])
+        self.assertEqual(cs.UNSTOPPED, [424242])
+        self.assertEqual(json.loads(cs.BLOCK_RECORD.read_text())["unstopped_groups"], [424242])
+
+    def test_an_unstoppable_group_stops_the_run_and_blocks_the_next(self):
+        # A group outlives SIGKILL during npm ci. The run starts no gate, is
+        # FAILED, keeps the lock and the export, and records the group. A
+        # later run is refused while the group has members, even though the
+        # run that recorded it has finished, and may proceed once it is gone.
+        for label, record in (("recorded at once", cs.record_unstopped),
+                              ("only in UNSTOPPED", cs.UNSTOPPED.append)):
+            with self.subTest(label):
+                self.check_unstoppable_group(record)
+
+    def check_unstoppable_group(self, record):
         root = make_git_repo(self)
+        survivor = self.survivor()
         lines = []
 
         class Stuck(RealGitProbe):
             def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
                 if cmd[:2] == ["npm", "ci"]:
-                    cs.UNSTOPPED.append(424242)
+                    record(survivor.pid)
+                return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+            group_alive = cs.Probe.group_alive
+
+        self.addCleanup(cs.UNSTOPPED.clear)
+        own_tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
+        tempfile.tempdir = str(own_tmp)
+        probe = Stuck(root)
+        rc = cs.strict(probe, set(), out=lines.append, mode="commit")
+        self.assertEqual(rc, cs.EXIT_FAILED, lines[-3:])
+        res = json.loads(results(root)[0].read_text())
+        self.assertEqual(res["verdict"], "failed")
+        self.assertEqual(res["cleanup"]["unstopped_groups"], [survivor.pid])
+        self.assertEqual({g["outcome"] for g in res["gates"]}, {"not run"})
+        self.assertFalse([c for c, _ in probe.calls if "spec-check" in " ".join(map(str, c))])
+        self.assertNotIn("preflight:", lines, "preflight ran beside a process that could not be stopped")
+        lock = root / ".git" / "ci-strict" / "lock"
+        self.assertTrue((lock / "unstopped.json").exists(), "no block record")
+        self.assertTrue(list(own_tmp.glob("ci-strict-commit-*")), "the export was removed")
+        self.assertTrue(any(str(survivor.pid) in line and "did not exit after SIGKILL" in line for line in lines))
+        # The run that wrote the record is over; its owner pid means nothing.
+        owner = json.loads((lock / "owner.json").read_text())
+        (lock / "owner.json").write_text(json.dumps(dict(owner, pid=2 ** 22 + 1)))
+        cs.UNSTOPPED.clear()
+        later = []
+        self.assertEqual(cs.strict(probe, set(), out=later.append, mode="commit"), cs.EXIT_REFUSED)
+        self.assertIn(str(survivor.pid), later[-1])
+        self.assertIn("survived SIGKILL", later[-1])
+        os.killpg(survivor.pid, signal.SIGKILL)
+        survivor.wait()
+        nxt = cs.Lock(root / ".git" / "ci-strict", cs.Probe(root), "next")
+        ok, _ = nxt.acquire()
+        self.assertTrue(ok, "the lock stayed blocked after its recorded group was gone")
+        nxt.release()
+
+    def test_a_group_surviving_during_a_gate_stops_the_remaining_gates(self):
+        root = make_git_repo(self)
+        survivor = self.survivor()
+        ran = []
+
+        class StuckGate(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                ran.append(" ".join(map(str, cmd)))
+                if len(ran) == 1:
+                    cs.record_unstopped(survivor.pid)
                 return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
 
         self.addCleanup(cs.UNSTOPPED.clear)
-        own_tmp = self.tmp / "t"
-        own_tmp.mkdir()
-        self.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
-        tempfile.tempdir = str(own_tmp)
-        cs.strict(Stuck(root), set(), out=lines.append, mode="commit")
-        self.assertTrue((root / ".git" / "ci-strict" / "lock").exists(), "the lock was released")
-        self.assertTrue(list(own_tmp.glob("ci-strict-commit-*")), "the export was removed")
-        self.assertTrue(any("424242" in line and "did not exit after SIGKILL" in line for line in lines), lines)
+        rc = cs.strict(StuckGate(root), set(), out=lambda _: None, mode="development")
+        self.assertEqual(rc, cs.EXIT_FAILED)
+        self.assertEqual(len(ran), 1, f"gates kept running after a group survived SIGKILL: {ran}")
+        res = json.loads(results(root)[0].read_text())
+        self.assertEqual(res["cleanup"]["unstopped_groups"], [survivor.pid])
+        self.assertEqual(sum(g["outcome"] != "not run" for g in res["gates"]), 1)
+
+    def test_a_signal_deferred_in_final_cleanup_keeps_the_first_exception(self):
+        # An interrupt is on its way out of strict(); a SIGHUP lands while the
+        # lock is being released. The interrupt, not the SIGHUP, ends the run.
+        root = make_git_repo(self)
+        saved = {s: signal.getsignal(s) for s in cs.TERMINATING}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in saved.items()])
+        cs.cleanup_on_sigterm()
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        release = cs.Lock.release
+        self.addCleanup(setattr, cs.Lock, "release", release)
+
+        def release_under_sighup(lock):
+            os.kill(os.getpid(), signal.SIGHUP)
+            release(lock)
+
+        cs.Lock.release = release_under_sighup
+
+        class Interrupted(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                raise KeyboardInterrupt("interrupted in a gate")
+
+        with self.assertRaises(KeyboardInterrupt):
+            cs.strict(Interrupted(root), set(), out=lambda _: None, mode="development")
+        self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
+
+    def test_a_blocked_lock_is_not_released(self):
+        state = self.tmp / "state"
+        lock = cs.Lock(state, self.probe, "one")
+        self.assertTrue(lock.acquire()[0])
+        (lock.dir / "unstopped.json").write_text(json.dumps({"unstopped_groups": [1]}))
+        lock.release()
+        self.assertTrue(lock.dir.exists(), "release removed a lock that records an unstopped group")
+
+    def test_a_signal_during_a_finished_commands_cleanup_still_stops_the_run(self):
+        # The command exits normally, leaving a descendant that takes a second
+        # to stop. A SIGTERM that lands while run() waits for it is deferred,
+        # not dropped: run() raises once the group is gone.
+        saved = {s: signal.getsignal(s) for s in cs.TERMINATING}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in saved.items()])
+        cs.cleanup_on_sigterm()
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        stopping = self.tmp / "stopping"
+        cmd = ("python3 -c 'import os, signal, sys, time, pathlib; "
+               f"signal.signal(signal.SIGTERM, lambda *a: (pathlib.Path(\"{stopping}\").write_text(\"x\"), "
+               "time.sleep(1), sys.exit(0))); "
+               f"open(\"{self.pidfile}.tmp\", \"w\").write(str(os.getpid())); "
+               f"os.rename(\"{self.pidfile}.tmp\", \"{self.pidfile}\"); time.sleep(300)' & "
+               f"while [ ! -s {self.pidfile} ]; do sleep 0.02; done; exit 0")
+        fire = threading.Thread(target=lambda: wait_for(stopping) and os.kill(os.getpid(), signal.SIGTERM))
+        fire.start()
+        self.addCleanup(fire.join)
+        with self.assertRaises(SystemExit) as raised:
+            self.probe.run(["sh", "-c", cmd])
+        self.assertEqual(raised.exception.code, 128 + signal.SIGTERM)
+        self.assertFalse(alive(int(self.pidfile.read_text())), "run() raised before the group was gone")
+
+    SIGHUP_CHILD = textwrap.dedent("""
+        import importlib.util, os, signal, sys, time
+        from pathlib import Path
+        here, root, helper = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+        spec = importlib.util.spec_from_file_location("t", here / "test_ci_strict.py")
+        t = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(t)
+        t.cs.GROUP_GRACE = 2.0
+
+        class Slow(t.RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                if cmd[:2] == ["npm", "ci"]:
+                    return t.cs.Probe(self.repo).run([sys.executable, helper], cwd=cwd)
+                return t.RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+        t.cs.cleanup_on_sigterm()
+        t.cs.strict(Slow(root), set(), out=lambda _: None, mode="commit")
+    """)
+
+    def test_sighup_during_sigterm_cleanup_does_not_cut_it_short(self):
+        # The review's sequence: SIGTERM to ci-strict, wait until npm ci's
+        # process is inside its own SIGTERM handler (which would take 60s),
+        # then SIGHUP. Cleanup must still wait for that process, SIGKILL it
+        # after the grace period, and only then remove the export and release
+        # the lock. The first signal keeps the exit code.
+        root = make_git_repo(self)
+        ready, stopping = self.tmp / "ready", self.tmp / "stopping"
+        helper = self.tmp / "helper.py"
+        helper.write_text(textwrap.dedent(f"""
+            import os, signal, time
+            from pathlib import Path
+            def stop(*_):
+                Path({str(stopping)!r}).write_text("x")
+                time.sleep(60)
+            signal.signal(signal.SIGTERM, stop)
+            Path({str(ready)!r}).write_text(str(os.getpid()))
+            time.sleep(300)
+        """))
+        (self.tmp / "t").mkdir()
+        child = subprocess.Popen([sys.executable, "-S", "-c", self.SIGHUP_CHILD, str(HERE), str(root), str(helper)],
+                                 env=dict(os.environ, TMPDIR=str(self.tmp / "t")), stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, start_new_session=True)
+        self.addCleanup(lambda: child.poll() is None and os.killpg(child.pid, signal.SIGKILL))
+        self.assertTrue(wait_for(ready), "npm ci's process never started")
+        pid = int(ready.read_text())
+        self.pidfile.write_text(str(pid))
+        child.send_signal(signal.SIGTERM)
+        self.assertTrue(wait_for(stopping), "cleanup never signaled npm ci's process")
+        child.send_signal(signal.SIGHUP)
+        self.assertEqual(child.wait(timeout=60), 128 + signal.SIGTERM)
+        self.assertFalse(alive(pid), "SIGHUP cut the cleanup short: npm ci's process outlived ci-strict")
+        self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
+        self.assertEqual(list((self.tmp / "t").glob("ci-strict-commit-*")), [])
+
+    def test_main_handles_and_cleanup_defers_the_same_signals(self):
+        self.assertEqual(set(cs.TERMINATING), {signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
 
     @unittest.skipUnless(shutil.which("npm") and shutil.which("node"), "needs npm and node")
     def test_sigterm_waits_for_a_real_npm_lifecycle_descendant(self):

@@ -653,15 +653,21 @@ spec:
         run starts runs in a process group of its own, and the run stops that
         whole group and waits for it to empty, with SIGTERM and then SIGKILL
         after a grace period, before the command's call returns, whether it
-        exited, raised or was interrupted; a second SIGINT or SIGTERM during
-        that cleanup is ignored. Only then are the export removed and the lock
-        released. If a group survives SIGKILL, the run keeps the export and
-        the lock and names the group. The command line turns SIGTERM and
-        SIGHUP into an exit; SIGINT already is one. SIGKILL cannot be handled
-        and leaves the export, the lock (which the next run reclaims as stale)
-        and the running command's group. A descendant that deliberately leaves
-        its group (setsid, setpgid, a daemonizing double fork) is outside the
-        run's reach.
+        exited, raised or was interrupted. SIGINT, SIGTERM and SIGHUP arriving
+        during that cleanup, or during the final cleanup, are deferred, not
+        acted on and not lost: once cleanup is done, the first is delivered
+        again unless an exception is already ending the run, which then keeps
+        its exit code. Only then are the export removed and the lock released.
+        A group that survives SIGKILL is recorded at once in the lock
+        directory (`unstopped.json`); the run then starts no further work,
+        cannot be COMPLETE, and keeps the export and the lock. A later run is
+        refused while any recorded group has members, whether or not the run
+        that recorded it is alive, and may reclaim the lock once they have
+        none. The command line turns SIGTERM and SIGHUP into an exit; SIGINT
+        already is one. SIGKILL cannot be handled and leaves the export, the
+        lock (which the next run reclaims as stale) and the running command's
+        group. A descendant that deliberately leaves its group (setsid,
+        setpgid, a daemonizing double fork) is outside the run's reach.
       type: security
       enforcement: error
   acceptance_criteria:
@@ -1866,9 +1872,27 @@ spec:
         when the descendant would. A descendant that ignores SIGTERM is killed
         after the grace period. A KeyboardInterrupt during run() stops the
         group before it propagates, and a second SIGINT during that wait does
-        not cut it short. A group recorded as surviving SIGKILL keeps the lock
-        and the export, and a stale record from an earlier run does not.
-        main() installs the SIGTERM and SIGHUP handlers before it runs. The real
-        Probe has every method the tests' stand-in provides.
+        not cut it short. A SIGTERM that lands while a finished command's
+        group is being stopped still stops the run, once the group is gone. A
+        SIGHUP sent while a SIGTERM's cleanup waits for a process does not cut
+        it short: that process is gone before the lock is released, and the
+        exit code is SIGTERM's. A SIGHUP during the final cleanup does not
+        replace an interrupt already ending the run. main() handles, and
+        cleanup defers, the same three signals. The real Probe has every
+        method the tests' stand-in provides.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-49
+      description: >-
+        v1.29.0. When a process group survives SIGKILL, it is recorded in the
+        lock directory before stop_group returns, and again at cleanup from
+        the run's list however that was filled. A survivor during npm ci stops
+        the run before preflight; a survivor during a gate stops the remaining
+        gates. Either way the run is FAILED, records the group in its result,
+        and keeps the lock and the export. A later run is refused while the
+        group has members, even after the recording run's process is gone, and
+        may take the lock once the group is empty. Lock.release does not
+        remove a lock that carries the record. A list left from an earlier run
+        in the same process does not stop a new one.
       priority: critical
       references_constraints: [C-26]

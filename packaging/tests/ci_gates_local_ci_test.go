@@ -212,8 +212,10 @@ func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
 			"test_a_descendant_that_ignores_sigterm_is_killed",
 			"test_an_interrupt_stops_the_group_before_it_propagates",
 			"test_a_second_signal_cannot_cut_the_cleanup_short",
-			"test_an_unstoppable_group_keeps_the_lock_and_the_export",
-			"test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock",
+			"test_a_signal_during_a_finished_commands_cleanup_still_stops_the_run",
+			"test_sighup_during_sigterm_cleanup_does_not_cut_it_short",
+			"test_a_signal_deferred_in_final_cleanup_keeps_the_first_exception",
+			"test_main_handles_and_cleanup_defers_the_same_signals",
 		} {
 			if !strictCase(t, "ProcessGroups", name) {
 				t.Errorf("ProcessGroups.%s did not pass", name)
@@ -233,6 +235,27 @@ func TestCIGates_RealProbeMatchesTheStandIn(t *testing.T) {
 	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
 		if !strictCase(t, "ProcessGroups", "test_the_real_probe_has_every_method_the_fake_stands_in_for") {
 			t.Error("the real Probe lacks a method the stand-in provides")
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49 (bugs/OW-124): a process group that survives SIGKILL stops the run,
+// makes it FAILED, and leaves a record in the lock directory that refuses
+// every later run while the group has members, whether or not the run that
+// recorded it is still alive.
+func TestCIGates_AnUnstoppableGroupBlocksTheNextRun(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_group_that_will_not_empty_is_recorded_at_once",
+			"test_an_unstoppable_group_stops_the_run_and_blocks_the_next",
+			"test_a_group_surviving_during_a_gate_stops_the_remaining_gates",
+			"test_a_blocked_lock_is_not_released",
+			"test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
 		}
 	})
 }
