@@ -52,8 +52,10 @@ Order of work:
      still running. SIGINT, SIGTERM and SIGHUP all reach this step, and are
      deferred while it runs; SIGKILL cannot. A descendant that deliberately
      leaves its group is out of reach. A group that survives SIGKILL is
-     recorded in the lock, which then stays: the run is FAILED, and no run
-     can take the lock while that group has members.
+     recorded in the lock, which then stays: no further command starts, the
+     run is FAILED, and no run can take the lock while that group has
+     members. A record that cannot be validated is never reclaimed
+     automatically; remove that lock by hand.
 
 Results live under `$(git rev-parse --git-dir)/ci-strict/`, outside the
 working tree, so no test that walks the repository can see them. Each
@@ -237,6 +239,39 @@ def record_unstopped(pgid):
     if BLOCK_RECORD is not None:
         write_atomic(BLOCK_RECORD, {"unstopped_groups": UNSTOPPED,
                                     "recorded": datetime.datetime.now(datetime.timezone.utc).isoformat()})
+
+
+class StopRun(Exception):
+    """A command was about to start after a process group survived SIGKILL."""
+
+
+class Guarded:
+    """The probe strict() runs every command through, gates and export
+    preparation alike, whatever probe it was given. Once a process group has
+    survived SIGKILL (UNSTOPPED is not empty), run and capture start nothing
+    and raise StopRun. Everything else passes through."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def _refuse_after_survivor(self, cmd):
+        if UNSTOPPED:
+            raise StopRun(f"process group(s) {UNSTOPPED} survived SIGKILL; "
+                          f"not starting {' '.join(map(str, cmd[:3]))}")
+
+    def run(self, cmd, *args, **kwargs):
+        self._refuse_after_survivor(cmd)
+        return self._inner.run(cmd, *args, **kwargs)
+
+    def capture(self, cmd, *args, **kwargs):
+        self._refuse_after_survivor(cmd)
+        return self._inner.capture(cmd, *args, **kwargs)
+
+    def at(self, repo):
+        return Guarded(self._inner.at(repo))
 
 
 def group_empty(p):
@@ -579,7 +614,12 @@ class Lock:
                 self.dir.mkdir()
             except FileExistsError:
                 owner = self.owner()
-                alive = [g for g in self.unstopped() if self.probe.group_alive(g)]
+                groups, problem = self.blocking_record()
+                if problem:
+                    # A record exists but its groups cannot be determined.
+                    # Unknown is not "none": refuse, and say why.
+                    return False, dict(owner or {}, invalid_record=problem)
+                alive = [g for g in groups if self.probe.group_alive(g)]
                 if alive:
                     # A process group outlived SIGKILL in the run that holds
                     # this lock. Whether that run is alive does not matter.
@@ -593,10 +633,9 @@ class Lock:
                     self.dir.rename(stale)
                 except FileNotFoundError:
                     pass
-                recorded = self.unstopped()
                 print(f"ci-strict: reclaimed a stale lock from invocation "
                       f"{(owner or {}).get('id', '?')} (moved to {stale.name})"
-                      + (f"; its recorded process group(s) {recorded} have no members left" if recorded else ""),
+                      + (f"; its recorded process group(s) {groups} have no members left" if groups else ""),
                       file=sys.stderr)
                 continue
             (self.dir / "owner.json").write_text(json.dumps(
@@ -606,11 +645,30 @@ class Lock:
             return True, None
         return False, self.owner()
 
-    def unstopped(self):
+    def blocking_record(self):
+        """(groups, problem). No record: ([], None). A valid record: its
+        groups and None. A record whose groups cannot be determined
+        (unreadable, not JSON, no non-empty list, an id that is not an
+        integer above 1): (None, why). An id of 0, 1 or below would make
+        killpg address this process's own group or every process."""
+        path = self.dir / "unstopped.json"
         try:
-            return [int(g) for g in json.loads((self.dir / "unstopped.json").read_text())["unstopped_groups"]]
-        except (OSError, ValueError, KeyError, TypeError):
-            return []
+            text = path.read_text()
+        except FileNotFoundError:
+            return [], None
+        except OSError as e:
+            return None, f"{path} cannot be read: {e}"
+        try:
+            data = json.loads(text)
+        except ValueError as e:
+            return None, f"{path} is not valid JSON: {e}"
+        groups = data.get("unstopped_groups") if isinstance(data, dict) else None
+        if not isinstance(groups, list) or not groups:
+            return None, f"{path} has no non-empty unstopped_groups list"
+        bad = [g for g in groups if type(g) is not int or g <= 1]
+        if bad:
+            return None, f"{path} names invalid process group id(s) {bad}"
+        return groups, None
 
     def owner(self):
         try:
@@ -688,6 +746,11 @@ def strict(probe, allow, out=print, mode="development"):
     state = state_dir(probe)
     lock = Lock(state, probe, invocation)
     ok, owner = lock.acquire()
+    if not ok and (owner or {}).get("invalid_record"):
+        out(f"ci-strict: REFUSED. The lock ({lock.dir}) carries a blocking record whose process groups cannot "
+            f"be determined: {owner['invalid_record']}. The lock is not reclaimed automatically. Check that no "
+            "process from that run is still running, then remove the lock by hand. Nothing ran.")
+        return EXIT_REFUSED
     if not ok and (owner or {}).get("unstopped"):
         out(f"ci-strict: REFUSED. Process group(s) {owner['unstopped']} from invocation {owner.get('id', '?')} "
             f"survived SIGKILL and still have members; the lock ({lock.dir}) and its unstopped.json stay "
@@ -703,124 +766,130 @@ def strict(probe, allow, out=print, mode="development"):
     UNSTOPPED.clear()
     BLOCK_RECORD = lock.dir / "unstopped.json"
     finished = False
+    probe = Guarded(probe)
     try:
         started = datetime.datetime.now(datetime.timezone.utc).isoformat()
         rundir = state / "runs" / invocation
         rundir.mkdir(parents=True)
-        working = working_tree_state(probe)
-        uncommitted = sum(len(v) for v in working.values())
-        gp = probe  # the checkout the gates run in
-        export = None
-        if mode == "commit":
-            _, commit = probe.capture(["git", "rev-parse", "HEAD"])
-            _, tree = probe.capture(["git", "rev-parse", "HEAD^{tree}"])
-            tested = f"commit {commit}: committed files only, in a clean export"
-            out(f"ci-strict: invocation {invocation}, COMMIT MODE: testing commit {commit[:12]}'s "
-                f"committed files only, in a clean export; results in {rundir}")
-            if uncommitted:
-                out(f"  not tested: {uncommitted} uncommitted, untracked or ignored source file(s) in this "
-                    "checkout")
-            try:
-                dest = export_commit(probe, commit, owned)
-            except RuntimeError as e:
-                export = {"method": "git clone --shared", "outcome": "failed", "detail": str(e)}
-                out(f"ci-strict: could not export commit {commit[:12]}: {e}")
+        # Defaults for a run that stops before it gets this far.
+        working, tested, commit, tree, export = {}, "nothing: the run stopped first", "", "", None
+        gates, tests, unaccepted, verdict = [], None, [], None
+        try:
+            working = working_tree_state(probe)
+            uncommitted = sum(len(v) for v in working.values())
+            gp = probe  # the checkout the gates run in
+            export = None
+            if mode == "commit":
+                _, commit = probe.capture(["git", "rev-parse", "HEAD"])
+                _, tree = probe.capture(["git", "rev-parse", "HEAD^{tree}"])
+                tested = f"commit {commit}: committed files only, in a clean export"
+                out(f"ci-strict: invocation {invocation}, COMMIT MODE: testing commit {commit[:12]}'s "
+                    f"committed files only, in a clean export; results in {rundir}")
+                if uncommitted:
+                    out(f"  not tested: {uncommitted} uncommitted, untracked or ignored source file(s) in this "
+                        "checkout")
+                try:
+                    dest = export_commit(probe, commit, owned)
+                except RuntimeError as e:
+                    export = {"method": "git clone --shared", "outcome": "failed", "detail": str(e)}
+                    out(f"ci-strict: could not export commit {commit[:12]}: {e}")
+                else:
+                    gp = probe.at(dest)
+                    out("== export: npm ci in the export's frontend")
+                    npm_log = rundir / "npm-ci.log"
+                    deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend",
+                                  stdout=npm_log, merge_stderr=True)
+                    export = {"method": "git clone --shared", "outcome": "exported",
+                              "dependencies": "installed" if deps == 0 else f"failed: npm ci exited {deps}",
+                              "dependencies_log": str(npm_log)}
+                    if deps != 0:
+                        out(f"ci-strict: npm ci exited {deps}; its output is in {npm_log}. The last lines:")
+                        tail = npm_log.read_text(errors="replace").splitlines()[-20:] if npm_log.is_file() else []
+                        for line in tail:
+                            out(f"  | {line}")
             else:
-                gp = probe.at(dest)
-                out("== export: npm ci in the export's frontend")
-                npm_log = rundir / "npm-ci.log"
-                deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend",
-                              stdout=npm_log, merge_stderr=True)
-                export = {"method": "git clone --shared", "outcome": "exported",
-                          "dependencies": "installed" if deps == 0 else f"failed: npm ci exited {deps}",
-                          "dependencies_log": str(npm_log)}
-                if deps != 0:
-                    out(f"ci-strict: npm ci exited {deps}; its output is in {npm_log}. The last lines:")
-                    tail = npm_log.read_text(errors="replace").splitlines()[-20:] if npm_log.is_file() else []
-                    for line in tail:
-                        out(f"  | {line}")
-        else:
-            commit, tree = tree_identity(probe)
-            tested = f"commit {commit} plus this checkout's working-tree changes"
-            out(f"ci-strict: invocation {invocation}, DEVELOPMENT MODE: testing commit {commit[:12]} plus this "
-                f"checkout's working-tree changes; results in {rundir}")
-            out(f"  includes {len(working['changed_tracked'])} changed tracked, {len(working['untracked'])} "
-                f"untracked and {len(working['ignored_check_inputs'])} ignored source file(s). Not readiness "
-                "evidence for any commit; for that run with --commit.")
-            for p in working["ignored_check_inputs"]:
-                out(f"  ignored source on disk, read by the gates: {p}")
+                commit, tree = tree_identity(probe)
+                tested = f"commit {commit} plus this checkout's working-tree changes"
+                out(f"ci-strict: invocation {invocation}, DEVELOPMENT MODE: testing commit {commit[:12]} plus this "
+                    f"checkout's working-tree changes; results in {rundir}")
+                out(f"  includes {len(working['changed_tracked'])} changed tracked, {len(working['untracked'])} "
+                    f"untracked and {len(working['ignored_check_inputs'])} ignored source file(s). Not readiness "
+                    "evidence for any commit; for that run with --commit.")
+                for p in working["ignored_check_inputs"]:
+                    out(f"  ignored source on disk, read by the gates: {p}")
 
-        # A commit run whose export or dependency install failed runs no gate,
-        # and neither can be COMPLETE. A failed export is INCOMPLETE. A failed
-        # `npm ci` is FAILED: the run tried to install and could not. Its exit
-        # code alone does not say why (the lockfile, an install script, the
-        # registry, the network, the disk), so the code and npm's output are
-        # recorded and nothing is inferred from them.
-        stop = None
-        if UNSTOPPED:
-            stop = (EXIT_FAILED, f"process group(s) {UNSTOPPED} survived SIGKILL", [])
-        elif export is not None and export["outcome"] == "failed":
-            stop = (EXIT_INCOMPLETE, f"the export failed: {export['detail']}", ["export"])
-        elif export is not None and export["dependencies"] != "installed":
-            stop = (EXIT_FAILED, f"dependency installation in the export failed: {export['dependencies']}", [])
-        if stop is not None:
-            verdict, reason, unaccepted = stop
-            gates = [{"gate": g, "outcome": "not run", "reason": reason} for g, _ in GATES]
+            # A commit run whose export or dependency install failed runs no gate,
+            # and neither can be COMPLETE. A failed export is INCOMPLETE. A failed
+            # `npm ci` is FAILED: the run tried to install and could not. Its exit
+            # code alone does not say why (the lockfile, an install script, the
+            # registry, the network, the disk), so the code and npm's output are
+            # recorded and nothing is inferred from them.
+            stop = None
+            if export is not None and export["outcome"] == "failed":
+                stop = (EXIT_INCOMPLETE, f"the export failed: {export['detail']}", ["export"])
+            elif export is not None and export["dependencies"] != "installed":
+                stop = (EXIT_FAILED, f"dependency installation in the export failed: {export['dependencies']}", [])
+            if stop is not None:
+                verdict, reason, unaccepted = stop
+                gates = [{"gate": g, "outcome": "not run", "reason": reason} for g, _ in GATES]
+                tests = summarize_streams(rundir)
+                out(f"ci-strict: {reason}. No gate ran.")
+            else:
+                pre = preflight(gp)
+                out("preflight:")
+                for name, (good, detail) in pre.items():
+                    out(f"  {'ok     ' if good else 'MISSING'} {name}: {detail}")
+                missing = {n for n, (good, _) in pre.items() if not good}
+                needs_of = dict(GATES)
+                # A gate whose prerequisites are missing is blocked. It is an accepted
+                # gap only if the gate, or every missing prerequisite it needs, was
+                # named in --allow-not-run. Any unaccepted block stops the run here,
+                # before expensive work.
+                blocked = {g for g, needs in GATES if missing & set(needs)}
+                accepted = {g for g in blocked if g in allow or (missing & set(needs_of[g])) <= allow}
+                unaccepted_gates = sorted(blocked - accepted)
+                unaccepted = sorted({n for g in unaccepted_gates for n in missing & set(needs_of[g])})
+                gates = []
+                if unaccepted_gates:
+                    for g, _ in GATES:
+                        gates.append({"gate": g, "outcome": "not run",
+                                      "reason": "preflight failed" if g in blocked else "run stopped at preflight"})
+                    tests = summarize_streams(rundir)
+                    verdict = EXIT_INCOMPLETE
+                    out(f"ci-strict: missing prerequisites block {', '.join(unaccepted_gates)}. Fix them, or accept "
+                        "each gap by name with --allow-not-run (the run stays INCOMPLETE). Nothing else ran.")
+                else:
+                    ran = {}
+                    for g, needs in GATES:
+                        if missing & set(needs):
+                            gates.append({"gate": g, "outcome": "not run", "accepted": True,
+                                          "reason": "missing " + ", ".join(sorted(missing & set(needs)))})
+                            continue
+                        if g == "test-streams" and not (ran.get("go-tests") == 0 and ran.get("vitest") is not None):
+                            gates.append({"gate": g, "outcome": "not run", "reason": "the test runs did not complete"})
+                            continue
+                        if g == "specter-coverage" and not all(ran.get(x) == 0 for x in ("go-tests", "vitest", "test-streams")):
+                            gates.append({"gate": g, "outcome": "not run",
+                                          "reason": "coverage is evaluated only over complete test results"})
+                            continue
+                        out(f"== {g}")
+                        rc = run_gate(g, gp, rundir)
+                        ran[g] = rc
+                        gates.append({"gate": g, "outcome": "passed" if rc == 0 else "failed", "exit": rc})
+                    tests = summarize_streams(rundir)
+                    coverage_ran = any(x["gate"] == "specter-coverage" and x["outcome"] == "passed" for x in gates)
+                    verdict = decide(gates, tests, coverage_ran)
+        except StopRun as e:
+            # A process group survived SIGKILL. The guard refused to start
+            # the next command; nothing else starts either.
+            out(f"ci-strict: {e}. No further command was started.")
+            done = {g["gate"] for g in gates}
+            gates += [{"gate": g, "outcome": "not run", "reason": str(e)} for g, _ in GATES if g not in done]
             tests = summarize_streams(rundir)
-            out(f"ci-strict: {reason}. No gate ran.")
-        else:
-            pre = preflight(gp)
-            out("preflight:")
-            for name, (good, detail) in pre.items():
-                out(f"  {'ok     ' if good else 'MISSING'} {name}: {detail}")
-            missing = {n for n, (good, _) in pre.items() if not good}
-            needs_of = dict(GATES)
-            # A gate whose prerequisites are missing is blocked. It is an accepted
-            # gap only if the gate, or every missing prerequisite it needs, was
-            # named in --allow-not-run. Any unaccepted block stops the run here,
-            # before expensive work.
-            blocked = {g for g, needs in GATES if missing & set(needs)}
-            accepted = {g for g in blocked if g in allow or (missing & set(needs_of[g])) <= allow}
-            unaccepted_gates = sorted(blocked - accepted)
-            unaccepted = sorted({n for g in unaccepted_gates for n in missing & set(needs_of[g])})
-            gates = []
-            if unaccepted_gates:
-                for g, _ in GATES:
-                    gates.append({"gate": g, "outcome": "not run",
-                                  "reason": "preflight failed" if g in blocked else "run stopped at preflight"})
-                tests = summarize_streams(rundir)
-                verdict = EXIT_INCOMPLETE
-                out(f"ci-strict: missing prerequisites block {', '.join(unaccepted_gates)}. Fix them, or accept "
-                    "each gap by name with --allow-not-run (the run stays INCOMPLETE). Nothing else ran.")
-            else:
-                ran = {}
-                for g, needs in GATES:
-                    if UNSTOPPED:
-                        # Nothing more may start beside a process that could
-                        # not be stopped.
-                        gates.append({"gate": g, "outcome": "not run",
-                                      "reason": f"process group(s) {UNSTOPPED} survived SIGKILL"})
-                        continue
-                    if missing & set(needs):
-                        gates.append({"gate": g, "outcome": "not run", "accepted": True,
-                                      "reason": "missing " + ", ".join(sorted(missing & set(needs)))})
-                        continue
-                    if g == "test-streams" and not (ran.get("go-tests") == 0 and ran.get("vitest") is not None):
-                        gates.append({"gate": g, "outcome": "not run", "reason": "the test runs did not complete"})
-                        continue
-                    if g == "specter-coverage" and not all(ran.get(x) == 0 for x in ("go-tests", "vitest", "test-streams")):
-                        gates.append({"gate": g, "outcome": "not run",
-                                      "reason": "coverage is evaluated only over complete test results"})
-                        continue
-                    out(f"== {g}")
-                    rc = run_gate(g, gp, rundir)
-                    ran[g] = rc
-                    gates.append({"gate": g, "outcome": "passed" if rc == 0 else "failed", "exit": rc})
-                tests = summarize_streams(rundir)
-                coverage_ran = any(x["gate"] == "specter-coverage" and x["outcome"] == "passed" for x in gates)
-                verdict = decide(gates, tests, coverage_ran)
 
         if UNSTOPPED:
+            # The one place this rule lives: a run beside which a process
+            # group survived SIGKILL is FAILED, however far it got.
             verdict = EXIT_FAILED
         result = {
             "id": invocation, "mode": mode, "tested": tested, "working_tree": working,

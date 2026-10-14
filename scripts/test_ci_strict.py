@@ -1048,6 +1048,118 @@ class ProcessGroups(unittest.TestCase):
             cs.strict(Interrupted(root), set(), out=lambda _: None, mode="development")
         self.assertFalse((root / ".git" / "ci-strict" / "lock").exists())
 
+    def test_a_survivor_inside_a_gate_stops_its_next_command(self):
+        # go-tests runs two `go test` commands. A group that survives the
+        # first stops the second, and nothing at all starts after it.
+        root = make_git_repo(self)
+        survivor = self.survivor()
+        calls = []
+
+        class Survivor(RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                calls.append(" ".join(map(str, cmd)))
+                if cmd[:2] == ["go", "test"] and not any(c.startswith("go test") for c in calls[:-1]):
+                    cs.record_unstopped(survivor.pid)
+                return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+            def capture(self, cmd, cwd=None):
+                calls.append(" ".join(map(str, cmd)))
+                return RealGitProbe.capture(self, cmd, cwd)
+
+        self.addCleanup(cs.UNSTOPPED.clear)
+        lines = []
+        rc = cs.strict(Survivor(root), set(), out=lines.append, mode="development")
+        self.assertEqual(rc, cs.EXIT_FAILED)
+        self.assertTrue(calls[-1].startswith("go test"), f"commands started after the survivor: {calls[-3:]}")
+        self.assertEqual(sum(c.startswith("go test") for c in calls), 1)
+        res = json.loads(results(root)[0].read_text())
+        self.assertEqual(res["verdict"], "failed")
+        self.assertTrue(any("No further command was started" in line for line in lines))
+
+    def test_a_survivor_during_export_preparation_stops_the_checkout(self):
+        root = make_git_repo(self)
+        survivor = self.survivor()
+        calls = []
+
+        class Survivor(RealGitProbe):
+            def capture(self, cmd, cwd=None):
+                calls.append(cmd[:2] if cmd[1] != "-C" else [cmd[0], cmd[3]])
+                result = RealGitProbe.capture(self, cmd, cwd)
+                if cmd[:2] == ["git", "clone"]:
+                    cs.record_unstopped(survivor.pid)
+                return result
+
+        self.addCleanup(cs.UNSTOPPED.clear)
+        own_tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.addCleanup(setattr, tempfile, "tempdir", tempfile.tempdir)
+        tempfile.tempdir = str(own_tmp)
+        rc = cs.strict(Survivor(root), set(), out=lambda _: None, mode="commit")
+        self.assertEqual(rc, cs.EXIT_FAILED)
+        self.assertEqual(calls[-1], ["git", "clone"], f"commands started after the survivor: {calls[-2:]}")
+
+    def lock_with_record(self, body):
+        """A lock left by a finished run (its owner pid is dead), carrying
+        body as its unstopped.json; body None means no record."""
+        dead = subprocess.Popen([sys.executable, "-c", "pass"])
+        dead.wait()
+        state = Path(tempfile.mkdtemp(dir=self.tmp))
+        lock = cs.Lock(state, cs.Probe(self.tmp), "next")
+        lock.dir.mkdir(parents=True)
+        (lock.dir / "owner.json").write_text(json.dumps({"pid": dead.pid, "id": "previous"}))
+        if body is not None:
+            (lock.dir / "unstopped.json").write_text(body)
+        return lock
+
+    def test_a_blocking_record_whose_groups_cannot_be_determined_is_not_reclaimed(self):
+        cases = {
+            "malformed": "{", "not an object": "[123]", "missing field": "{}",
+            "null list": '{"unstopped_groups": null}', "empty list": '{"unstopped_groups": []}',
+            "a string id": '{"unstopped_groups": ["4242"]}', "a boolean id": '{"unstopped_groups": [true]}',
+            "a float id": '{"unstopped_groups": [4242.0]}', "id 0": '{"unstopped_groups": [0]}',
+            "id 1": '{"unstopped_groups": [1]}', "a negative id": '{"unstopped_groups": [-1]}',
+        }
+        for label, body in cases.items():
+            with self.subTest(label):
+                lock = self.lock_with_record(body)
+                ok, owner = lock.acquire()
+                self.assertFalse(ok, f"{label}: a record of unknown groups was reclaimed")
+                self.assertIn("invalid_record", owner)
+        with self.subTest("unreadable"):
+            lock = self.lock_with_record(None)
+            (lock.dir / "unstopped.json").mkdir()
+            ok, owner = lock.acquire()
+            self.assertFalse(ok)
+            self.assertIn("cannot be read", owner["invalid_record"])
+
+    def test_a_valid_record_of_empty_groups_is_reclaimed_and_says_which(self):
+        gone = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        gone.wait()
+        lock = self.lock_with_record(json.dumps({"unstopped_groups": [gone.pid]}))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            ok, _ = lock.acquire()
+        self.assertTrue(ok)
+        lock.release()
+        self.assertIn(f"recorded process group(s) [{gone.pid}] have no members left", err.getvalue())
+        with self.subTest("no record at all"):
+            lock = self.lock_with_record(None)
+            ok, _ = lock.acquire()
+            self.assertTrue(ok)
+            lock.release()
+
+    def test_strict_refuses_with_the_reason_when_the_record_is_invalid(self):
+        root = make_git_repo(self)
+        state = root / ".git" / "ci-strict"
+        (state / "lock").mkdir(parents=True)
+        (state / "lock" / "owner.json").write_text(json.dumps({"pid": 2 ** 22 + 1, "id": "previous"}))
+        (state / "lock" / "unstopped.json").write_text("{")
+        lines = []
+        rc = cs.strict(RealGitProbe(root), set(), out=lines.append, mode="development")
+        self.assertEqual(rc, cs.EXIT_REFUSED)
+        self.assertIn("cannot be determined", lines[-1])
+        self.assertIn("remove the lock by hand", lines[-1])
+        self.assertFalse(list((state / "runs").glob("*")) if (state / "runs").exists() else [])
+
     def test_a_blocked_lock_is_not_released(self):
         state = self.tmp / "state"
         lock = cs.Lock(state, self.probe, "one")

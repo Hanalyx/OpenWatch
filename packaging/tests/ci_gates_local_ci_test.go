@@ -252,6 +252,39 @@ func TestCIGates_AnUnstoppableGroupBlocksTheNextRun(t *testing.T) {
 			"test_a_group_surviving_during_a_gate_stops_the_remaining_gates",
 			"test_a_blocked_lock_is_not_released",
 			"test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock",
+			"test_a_valid_record_of_empty_groups_is_reclaimed_and_says_which",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49, the guard: once a process group has survived SIGKILL, no further
+// command starts, inside a gate or while preparing the export.
+func TestCIGates_NoCommandStartsAfterASurvivor(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_survivor_inside_a_gate_stops_its_next_command",
+			"test_a_survivor_during_export_preparation_stops_the_checkout",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49, the record: a blocking record whose process groups cannot be
+// determined is never reclaimed automatically, and the refusal says why.
+func TestCIGates_AnInvalidBlockingRecordIsNotReclaimed(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_blocking_record_whose_groups_cannot_be_determined_is_not_reclaimed",
+			"test_strict_refuses_with_the_reason_when_the_record_is_invalid",
 		} {
 			if !strictCase(t, "ProcessGroups", name) {
 				t.Errorf("ProcessGroups.%s did not pass", name)
