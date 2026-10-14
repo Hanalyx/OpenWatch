@@ -422,9 +422,10 @@ func (s *Service) Update(ctx context.Context, p UpdateParams) (UpdateResult, err
 
 // CloneParams describes the target row CloneCredential should create.
 // The source row's secret material (ciphertext columns) is copied
-// verbatim — no decrypt/re-encrypt round-trip. This keeps the DEK off
-// the call path entirely and avoids re-exposing plaintext anywhere
-// outside the original create.
+// verbatim, with no re-encryption. To derive the clone's key metadata,
+// CloneCredential does decrypt the source's private key and passphrase in
+// memory (system-credential-store C-08); the plaintext is used only for
+// that and never stored, logged or returned.
 type CloneParams struct {
 	SourceID  uuid.UUID
 	Scope     Scope
@@ -436,9 +437,13 @@ type CloneParams struct {
 
 // CloneCredential creates a new credential row whose secret material
 // (encrypted_password, encrypted_private_key, encrypted_private_key_passphrase)
-// and identity fields (username, auth_method, ssh_key_*) match the
-// source. The clone gets a fresh id, the caller's scope/scope_id, and
-// the caller's choice of name + is_default.
+// is the source's ciphertext, copied unchanged, and whose username and
+// auth_method match the source. Its key metadata (ssh_key_*) is derived
+// from the copied key, decrypted in memory with its passphrase, so it is
+// correct even when the source's stored metadata is stale; when the key
+// cannot be decrypted or parsed, the source's stored metadata is copied
+// instead (system-credential-store C-08). The clone gets a fresh id, the
+// caller's scope/scope_id, and the caller's choice of name + is_default.
 //
 // Validates scope/scope_id consistency. Returns:
 //   - ErrNotFound when the source id is unknown or inactive

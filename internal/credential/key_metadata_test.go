@@ -339,3 +339,44 @@ func TestKeyMetadata_DerivedOnClone(t *testing.T) {
 		}
 	})
 }
+
+// @ac AC-15
+// AC-15 (ciphertext): deriving the clone's metadata decrypts the source's
+// key and passphrase in memory only. The clone's encrypted columns are the
+// source's ciphertext byte for byte, not a re-encryption.
+func TestKeyMetadata_CloneCopiesCiphertext(t *testing.T) {
+	t.Run("system-credential-store/AC-15", func(t *testing.T) {
+		svc, pool, createdBy := freshService(t)
+		ctx := context.Background()
+		host := seedHost(t, pool, createdBy)
+		k := genKey(t, "ecdsa256", "ac15-ct-passphrase") // pragma: allowlist secret
+		src, err := svc.NewCredential(ctx, NewParams{
+			Scope: ScopeSystem, Name: "ac15-ct", Username: "u", AuthMethod: AuthBoth,
+			Password: "pw", PrivateKey: k.pem, PrivateKeyPassphrase: k.pass, CreatedBy: createdBy,
+		})
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		clone, err := svc.CloneCredential(ctx, CloneParams{SourceID: src, Scope: ScopeHost, ScopeID: &host, CreatedBy: createdBy})
+		if err != nil {
+			t.Fatalf("clone: %v", err)
+		}
+		cipher := func(id uuid.UUID) (pw, key, pass []byte) {
+			t.Helper()
+			if err := pool.QueryRow(ctx, `SELECT encrypted_password, encrypted_private_key,
+				encrypted_private_key_passphrase FROM credentials WHERE id = $1`, id).Scan(&pw, &key, &pass); err != nil {
+				t.Fatalf("read ciphertext: %v", err)
+			}
+			return pw, key, pass
+		}
+		sPw, sKey, sPass := cipher(src)
+		cPw, cKey, cPass := cipher(clone)
+		if !bytes.Equal(sPw, cPw) || !bytes.Equal(sKey, cKey) || !bytes.Equal(sPass, cPass) {
+			t.Fatalf("clone ciphertext differs from the source's (password %v, key %v, passphrase %v)",
+				!bytes.Equal(sPw, cPw), !bytes.Equal(sKey, cKey), !bytes.Equal(sPass, cPass))
+		}
+		if r := readKeyRow(t, pool, clone); !r.matches(k) {
+			t.Fatalf("clone metadata = %v, want derived %s", deref(r.fp), k.fp)
+		}
+	})
+}
