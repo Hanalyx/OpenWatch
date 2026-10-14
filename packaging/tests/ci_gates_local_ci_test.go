@@ -115,7 +115,8 @@ func TestCIGates_StrictLocalCIIsWiredAndDocumented(t *testing.T) {
 // AC-45 (bugs/OW-124): a commit-mode result tests the commit's files alone. A
 // test that is ignored, untracked, or staged but not committed cannot make it
 // pass; a committed one does; the checkout is left as it was; a failed export
-// or a failed npm ci runs no gate; an interrupt leaves no export behind.
+// or a failed npm ci runs no gate; an interrupt, SIGINT or SIGTERM leaves no
+// export behind.
 func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
 		for _, name := range []string{
@@ -125,6 +126,8 @@ func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
 			"test_a_failed_export_runs_no_gate_and_is_incomplete",
 			"test_a_failed_npm_ci_runs_no_gate_and_fails",
 			"test_an_interrupt_while_exporting_leaves_no_export",
+			"test_a_real_signal_during_npm_ci_leaves_no_export",
+			"test_main_installs_the_sigterm_cleanup_before_running",
 		} {
 			if !strictCase(t, "ReadinessFromCommit", name) {
 				t.Errorf("ReadinessFromCommit.%s did not pass", name)

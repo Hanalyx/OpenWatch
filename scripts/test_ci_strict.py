@@ -11,9 +11,12 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -90,7 +93,7 @@ class FakeProbe(cs.Probe):
             return 0, "/mod/kensa"
         return 1, ""
 
-    def run(self, cmd, cwd=None, env=None, stdout=None):
+    def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
         self.calls.append((cmd, env))
         if self.on_run:
             self.on_run(cmd)
@@ -415,18 +418,20 @@ class RealGitProbe(FakeProbe):
             return p.returncode, (p.stdout + p.stderr).strip()
         return FakeProbe.capture(self, cmd, cwd)
 
-    def run(self, cmd, cwd=None, env=None, stdout=None):
+    def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
         joined = " ".join(map(str, cmd))
         if cmd[:2] == ["npm", "ci"]:
             fe = Path(cwd)
             (fe / "node_modules").mkdir(exist_ok=True)
             (fe / "node_modules" / ".package-lock.json").write_text((fe / "package-lock.json").read_text())
+            if stdout:
+                Path(stdout).write_text("added 1 package\n")
             self.calls.append((cmd, env))
             return 0
         if "spec-check" in joined:
             self.calls.append((cmd, env))
             return 0 if gate_sees_annotation(self.repo) else 1
-        return FakeProbe.run(self, cmd, cwd, env, stdout)
+        return FakeProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
 
 
 class ReadinessFromCommit(unittest.TestCase):
@@ -578,16 +583,19 @@ class ReadinessFromCommit(unittest.TestCase):
         git(self.root, "commit", "-q", "-m", "committed coverage")
 
     def test_a_failed_npm_ci_runs_no_gate_and_fails(self):
-        # AC-45. The commit's own lockfile or install scripts failing is a
-        # failure of the commit, never COMPLETE.
+        # AC-45. A failed install is FAILED, never COMPLETE, and its exit code
+        # and output are recorded rather than diagnosed.
         self.commit_coverage()
+        merged = []  # how npm ci was asked to handle stderr; the export's probe is a copy
 
         class NpmFails(RealGitProbe):
-            def run(self, cmd, cwd=None, env=None, stdout=None):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
                 if cmd[:2] == ["npm", "ci"]:
                     self.calls.append((cmd, env))
+                    merged.append(merge_stderr)
+                    Path(stdout).write_text("npm error code E_SIMULATED\nnpm error simulated install failure\n")
                     return 23
-                return RealGitProbe.run(self, cmd, cwd, env, stdout)
+                return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
 
         probe = NpmFails(self.root)
         rc = cs.strict(probe, set(), out=self.lines.append, mode="commit")
@@ -595,6 +603,11 @@ class ReadinessFromCommit(unittest.TestCase):
         res = json.loads(results(self.root)[0].read_text())
         self.assertEqual(res["verdict"], "failed")
         self.assertEqual(res["export"]["dependencies"], "failed: npm ci exited 23")
+        log = Path(res["export"]["dependencies_log"])
+        self.assertEqual(log.parent, results(self.root)[0].parent, "the npm log is not in the run's directory")
+        self.assertIn("E_SIMULATED", log.read_text())
+        self.assertEqual(merged, [True], "npm's stderr is not recorded")
+        self.assertIn("  | npm error simulated install failure", self.lines)
         self.assertEqual({g["outcome"] for g in res["gates"]}, {"not run"})
         self.assertFalse([c for c, _ in probe.calls if "spec-check" in " ".join(map(str, c))])
         self.assertIn("LOCAL CI FAILED", self.lines[-1])
@@ -621,15 +634,19 @@ class ReadinessFromCommit(unittest.TestCase):
         git(self.root, "commit", "-q", "-m", "a failing install script")
 
         class RealNpm(RealGitProbe):
-            def run(self, cmd, cwd=None, env=None, stdout=None):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
                 if cmd[:2] == ["npm", "ci"]:
-                    return subprocess.run(cmd + ["--cache", str(cache)], cwd=cwd, capture_output=True).returncode
-                return RealGitProbe.run(self, cmd, cwd, env, stdout)
+                    self.calls.append((cmd, env))
+                    with open(stdout, "wb") as log:
+                        return subprocess.run(cmd + ["--cache", str(cache)], cwd=cwd, stdout=log,
+                                              stderr=subprocess.STDOUT if merge_stderr else None).returncode
+                return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
 
         rc = cs.strict(RealNpm(self.root), set(), out=self.lines.append, mode="commit")
         self.assertEqual(rc, cs.EXIT_FAILED, self.lines[-3:])
         res = json.loads(results(self.root)[0].read_text())
         self.assertTrue(res["export"]["dependencies"].startswith("failed: npm ci exited "), res["export"])
+        self.assertIn("postinstall", Path(res["export"]["dependencies_log"]).read_text())
 
     def test_a_commit_result_must_record_its_commits_tree(self):
         # AC-47. The recorded tree is checked against the commit's own git
@@ -667,11 +684,11 @@ class ReadinessFromCommit(unittest.TestCase):
                             raise KeyboardInterrupt(f"interrupted during git {step}")
                         return RealGitProbe.capture(self, cmd, cwd)
 
-                    def run(self, cmd, cwd=None, env=None, stdout=None):
+                    def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
                         if " ".join(cmd[:2]) == step:
                             seen.extend(own_tmp.iterdir())
                             raise KeyboardInterrupt("interrupted during npm ci")
-                        return RealGitProbe.run(self, cmd, cwd, env, stdout)
+                        return RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
 
                 probe = Interrupted(self.root)
                 with self.assertRaises(KeyboardInterrupt):
@@ -680,6 +697,67 @@ class ReadinessFromCommit(unittest.TestCase):
                     self.assertTrue(seen, "the npm ci case must interrupt after the export exists")
                 self.assertEqual(list(own_tmp.iterdir()), [], f"interrupted during {step}: export left behind")
                 self.assertFalse((self.root / ".git" / "ci-strict" / "lock").exists(), "the lock was kept")
+
+    SIGNAL_CHILD = textwrap.dedent("""
+        import importlib.util, signal, sys, time
+        from pathlib import Path
+        # A runner may start this process with SIGINT ignored; restore
+        # Python's default, which is what an interactive run has.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        here, root, ready = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+        spec = importlib.util.spec_from_file_location("t", here / "test_ci_strict.py")
+        t = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(t)
+
+        class Slow(t.RealGitProbe):
+            def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
+                if cmd[:2] == ["npm", "ci"]:
+                    ready.write_text("in npm ci")
+                    time.sleep(60)
+                return t.RealGitProbe.run(self, cmd, cwd, env, stdout, merge_stderr)
+
+        if sys.argv[4] == "handled":
+            t.cs.cleanup_on_sigterm()
+        t.cs.strict(Slow(root), set(), out=lambda _: None, mode="commit")
+    """)
+
+    def test_a_real_signal_during_npm_ci_leaves_no_export(self):
+        # AC-45, with real signals to a separate process paused inside npm
+        # ci, after the export exists. SIGINT is cleaned up by default and
+        # SIGTERM once cleanup_on_sigterm is installed, as main() does.
+        # SIGKILL cannot be handled and is not tested.
+        self.commit_coverage()
+        for sig, mode in ((signal.SIGINT, "default"), (signal.SIGTERM, "handled")):
+            with self.subTest(sig.name):
+                tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+                ready = tmp / "ready"
+                (tmp / "t").mkdir()
+                child = subprocess.Popen(
+                    [sys.executable, "-S", "-c", self.SIGNAL_CHILD, str(HERE), str(self.root), str(ready), mode],
+                    env=dict(os.environ, TMPDIR=str(tmp / "t")), stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL)
+                self.addCleanup(child.kill)
+                deadline = time.monotonic() + 30
+                while not ready.exists() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue(ready.exists(), "the child never reached npm ci")
+                self.assertTrue(list((tmp / "t").glob("ci-strict-commit-*")), "no export existed to clean up")
+                child.send_signal(sig)
+                child.wait(timeout=30)
+                self.assertEqual(list((tmp / "t").glob("ci-strict-commit-*")), [], f"{sig.name} left the export")
+                self.assertFalse((self.root / ".git" / "ci-strict" / "lock").exists(), f"{sig.name} kept the lock")
+
+    def test_main_installs_the_sigterm_cleanup_before_running(self):
+        seen = []
+        saved = cs.strict, cs.Probe, signal.getsignal(signal.SIGTERM)
+        cs.strict = lambda *a, **k: seen.append(signal.getsignal(signal.SIGTERM)) or 0
+        cs.Probe = lambda: RealGitProbe(self.root)
+        try:
+            cs.main(["--commit"])
+        finally:
+            cs.strict, cs.Probe = saved[:2]
+            signal.signal(signal.SIGTERM, saved[2])
+        self.assertTrue(seen and callable(seen[0]), "main() ran strict() without a SIGTERM handler")
 
     def test_the_development_identity_covers_untracked_and_ignored_contents(self):
         probe = RealGitProbe(self.root)

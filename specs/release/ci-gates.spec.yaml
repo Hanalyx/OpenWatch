@@ -646,10 +646,14 @@ spec:
         evidence: `--check-result FILE --commit` accepts nothing else, and
         requires its commit to be HEAD and its tree to be that commit's git
         tree. A failed export runs no gate and is INCOMPLETE. A failed `npm
-        ci` in the export is recorded as failed, runs no gate, and is FAILED.
-        The export directory is the run's to remove from the moment it is
-        created, so it is removed on success, on failure, and on an interrupt
-        during the clone, the checkout or `npm ci`.
+        ci` in the export runs no gate and is FAILED; the run records its exit
+        code and its combined output in the run directory and shows the last
+        lines, without inferring a cause from them. The export directory is
+        the run's to remove from the moment it is created, so it is removed on
+        success, on failure, and on an interrupt during the clone, the
+        checkout or `npm ci`. That covers SIGINT, and SIGTERM, which the
+        command line turns into an exit; SIGKILL cannot be handled and leaves
+        the export and the lock, which the next run reclaims as stale.
       type: security
       enforcement: error
   acceptance_criteria:
@@ -1816,9 +1820,13 @@ spec:
         commit, HEAD and HEAD's tree id. A commit run leaves the checkout's
         status, worktrees, refs and HEAD unchanged and removes its export. A
         failed export runs no gate and is INCOMPLETE. An `npm ci` that exits
-        non-zero runs no gate, records the dependencies as failed, and is
-        FAILED. An interrupt during the export's clone, its checkout or its
-        `npm ci` leaves no export directory and releases the lock.
+        non-zero runs no gate, records the dependencies as failed with its
+        exit code, keeps its stdout and stderr in the run directory, shows the
+        last lines, and is FAILED. A KeyboardInterrupt raised during the
+        export's clone, its checkout or its `npm ci` leaves no export
+        directory and releases the lock, and so do a real SIGINT and a real
+        SIGTERM sent to a separate process paused inside `npm ci`. The command
+        line installs the SIGTERM handler before it runs.
       priority: critical
       references_constraints: [C-26]
     - id: AC-46

@@ -62,6 +62,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -110,14 +111,15 @@ class Probe:
     def which(self, name):
         return shutil.which(name, path=self.env.get("PATH"))
 
-    def run(self, cmd, cwd=None, env=None, stdout=None):
+    def run(self, cmd, cwd=None, env=None, stdout=None, merge_stderr=False):
         """Run cmd; return its exit code. Output goes to the terminal unless
-        stdout names a file."""
+        stdout names a file; merge_stderr sends stderr to that file too."""
         e = dict(self.env)
         e.update(env or {})
         if stdout:
             with open(stdout, "wb") as out:
-                return subprocess.run(cmd, cwd=cwd or self.repo, env=e, stdout=out).returncode
+                return subprocess.run(cmd, cwd=cwd or self.repo, env=e, stdout=out,
+                                      stderr=subprocess.STDOUT if merge_stderr else None).returncode
         return subprocess.run(cmd, cwd=cwd or self.repo, env=e).returncode
 
     def capture(self, cmd, cwd=None):
@@ -567,9 +569,17 @@ def strict(probe, allow, out=print, mode="development"):
             else:
                 gp = probe.at(dest)
                 out("== export: npm ci in the export's frontend")
-                deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend")
+                npm_log = rundir / "npm-ci.log"
+                deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend",
+                              stdout=npm_log, merge_stderr=True)
                 export = {"method": "git clone --shared", "outcome": "exported",
-                          "dependencies": "installed" if deps == 0 else f"failed: npm ci exited {deps}"}
+                          "dependencies": "installed" if deps == 0 else f"failed: npm ci exited {deps}",
+                          "dependencies_log": str(npm_log)}
+                if deps != 0:
+                    out(f"ci-strict: npm ci exited {deps}; its output is in {npm_log}. The last lines:")
+                    tail = npm_log.read_text(errors="replace").splitlines()[-20:] if npm_log.is_file() else []
+                    for line in tail:
+                        out(f"  | {line}")
         else:
             commit, tree = tree_identity(probe)
             tested = f"commit {commit} plus this checkout's working-tree changes"
@@ -581,10 +591,12 @@ def strict(probe, allow, out=print, mode="development"):
             for p in working["ignored_check_inputs"]:
                 out(f"  ignored source on disk, read by the gates: {p}")
 
-        # A commit run whose export or dependency install failed runs no gate.
-        # A failed export says nothing about the commit, so the run is
-        # INCOMPLETE; a failed `npm ci` came from the commit's own lockfile
-        # and scripts, so it is FAILED. Neither can be COMPLETE.
+        # A commit run whose export or dependency install failed runs no gate,
+        # and neither can be COMPLETE. A failed export is INCOMPLETE. A failed
+        # `npm ci` is FAILED: the run tried to install and could not. Its exit
+        # code alone does not say why (the lockfile, an install script, the
+        # registry, the network, the disk), so the code and npm's output are
+        # recorded and nothing is inferred from them.
         stop = None
         if export is not None and export["outcome"] == "failed":
             stop = (EXIT_INCOMPLETE, f"the export failed: {export['detail']}", ["export"])
@@ -677,6 +689,15 @@ def strict(probe, allow, out=print, mode="development"):
         lock.release()
 
 
+def cleanup_on_sigterm():
+    """Turn SIGTERM into SystemExit, so strict()'s `finally` removes the
+    export and releases the lock, as it already does for SIGINT's
+    KeyboardInterrupt. SIGKILL cannot be caught: it leaves the export in the
+    temporary directory and the lock, which the next run reclaims because
+    its owner's pid is dead."""
+    signal.signal(signal.SIGTERM, lambda signum, _frame: sys.exit(128 + signum))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Strict local CI. Exit 0 complete, 1 failed, "
                                              "3 incomplete, 4 refused.")
@@ -699,6 +720,7 @@ def main(argv=None):
     if bad:
         print(f"ci-strict: unknown gate or prerequisite {bad}; known: {sorted(known)}", file=sys.stderr)
         return EXIT_REFUSED
+    cleanup_on_sigterm()
     return strict(probe, set(args.allow_not_run), mode="commit" if args.commit else "development")
 
 
