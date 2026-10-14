@@ -207,7 +207,6 @@ func TestCIGates_CommitResultsMustRecordTheirTree(t *testing.T) {
 func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
 	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
 		for _, name := range []string{
-			"test_the_real_probe_has_every_method_the_fake_stands_in_for",
 			"test_a_descendant_left_behind_is_stopped_before_run_returns",
 			"test_capture_stops_its_descendants_too",
 			"test_a_descendant_that_ignores_sigterm_is_killed",
@@ -222,6 +221,18 @@ func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
 		}
 		if !strictCase(t, "ReadinessFromCommit", "test_main_installs_the_sigterm_cleanup_before_running") {
 			t.Error("main() does not install the SIGTERM and SIGHUP handlers before it runs")
+		}
+	})
+}
+
+// @ac AC-48
+// AC-48, the real runner: the tests drive strict() through a stand-in probe,
+// so the real Probe must have every method the stand-in provides. Without
+// this, a method missing from Probe fails only in a real run.
+func TestCIGates_RealProbeMatchesTheStandIn(t *testing.T) {
+	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
+		if !strictCase(t, "ProcessGroups", "test_the_real_probe_has_every_method_the_fake_stands_in_for") {
+			t.Error("the real Probe lacks a method the stand-in provides")
 		}
 	})
 }
