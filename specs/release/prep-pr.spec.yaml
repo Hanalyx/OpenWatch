@@ -1,7 +1,7 @@
 spec:
   id: release-prep-pr
   title: Release-prep pull request content, drafted from recorded evidence
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -82,11 +82,15 @@ spec:
       description: >-
         A supplied ci-strict result is judged before any capture is written.
         It must be finished and well formed: an invocation id, a 40-character
-        commit, a 64-character tree, started and finished timestamps, a
+        commit, a tree (a 40-character git tree id for a commit-mode result, a
+        64-character digest otherwise), started and finished timestamps, a
         verdict matching its exit code, integer test counts, maps of not-run
         counts, gates as named outcomes and accepted gaps as a list; otherwise
-        it is refused. It counts only when its commit is the body's HEAD and
-        its tree equals ci-strict's own tree identity of this checkout; then
+        it is refused. v1.1.0 (bugs/OW-124): it counts only when it is a
+        commit-mode result (release-ci-gates C-26) whose commit is the body's
+        HEAD and whose tree is that commit's git tree id; a development-mode
+        result, or one with no mode, tested working-tree changes and is shown
+        as not counted. When it counts,
         its verdict, exit, test counts, every not-run and
         unexpected not-run test, every gate that did not pass and every
         accepted gap are copied. A result for another commit, or for this
@@ -149,13 +153,13 @@ spec:
       references_constraints: [C-03, C-04, C-05]
     - id: AC-04
       description: >-
-        A result for this commit and tree is copied with its verdict, exit,
-        finish time, digest,
+        A commit-mode result for this commit and its tree is copied with its
+        verdict, exit, finish time, digest,
         counts, not-run and unexpected not-run tests, non-passing gates and
-        accepted gaps, and passing gates are not listed. A result for another
-        commit, for this commit with another tree, or taken before an
-        untracked file appeared, is marked not counted and its verdict is not
-        shown. The reviewer's reproduction (this commit, another tree, an
+        accepted gaps, and passing gates are not listed; a file that appears
+        in the checkout afterwards changes nothing. A result for another
+        commit, for this commit with another tree, or in development mode or
+        with no mode, is marked not counted and its verdict is not shown. The reviewer's reproduction (this commit, another tree, an
         empty finished) and each malformed field are refused with no body
         written. No result is stated. A result that is not JSON is refused.
       priority: critical

@@ -36,6 +36,22 @@ func strictCases(t *testing.T) map[string]int {
 	return passed
 }
 
+// strictCase reports whether the named case of scripts/test_ci_strict.py
+// passed. Runs the suite once per call; the readiness cases need git.
+func strictCase(t *testing.T, class, name string) bool {
+	t.Helper()
+	haveTool(t, "python3")
+	haveTool(t, "git")
+	cmd := exec.Command("python3", "-S", filepath.Join("scripts", "test_ci_strict.py"), class+"."+name)
+	cmd.Dir = appDir(t)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Errorf("%s.%s: %v\n%s", class, name, err, out)
+		return false
+	}
+	return strings.Contains(string(out), "OK")
+}
+
 // @ac AC-37
 // AC-37: the verdicts, the preflight, the local test split and the absence of
 // any "safe to push" claim.
@@ -91,6 +107,60 @@ func TestCIGates_StrictLocalCIIsWiredAndDocumented(t *testing.T) {
 			if loc := safe.FindString(readAppFile(t, f)); loc != "" {
 				t.Errorf("%s says %q; the local gate makes no claim about whether to push", f, loc)
 			}
+		}
+	})
+}
+
+// @ac AC-45
+// AC-45 (bugs/OW-124): a commit-mode result tests the commit's files alone. A
+// test that is ignored, untracked, or staged but not committed cannot make it
+// pass; a committed one does; the checkout is left as it was; a failed export
+// runs no gate.
+func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
+	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
+		for _, name := range []string{
+			"test_an_uncommitted_test_cannot_make_a_commit_result_pass",
+			"test_a_committed_test_does_pass_in_commit_mode",
+			"test_commit_mode_leaves_the_checkout_as_it_was",
+			"test_a_failed_export_runs_no_gate_and_is_incomplete",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-46
+// AC-46: a stale results file naming an AC as passed, for a test the commit
+// does not contain, cannot make a commit-mode result pass.
+func TestCIGates_StaleResultsCannotPassACommit(t *testing.T) {
+	t.Run("release-ci-gates/AC-46", func(t *testing.T) {
+		if !strictCase(t, "ReadinessFromCommit", "test_a_stale_results_file_cannot_make_a_commit_result_pass") {
+			t.Error("the stale-results case did not pass")
+		}
+	})
+}
+
+// @ac AC-47
+// AC-47: a development run says what it tested and is never readiness
+// evidence; a commit-mode result is readiness evidence for its commit only;
+// the development identity covers untracked and ignored contents; and make
+// has a target for each mode.
+func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
+	t.Run("release-ci-gates/AC-47", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_development_run_says_what_it_tested_and_is_not_readiness",
+			"test_a_commit_result_is_readiness_evidence_for_head_only",
+			"test_the_development_identity_covers_untracked_and_ignored_contents",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+		mk := readAppFile(t, "Makefile")
+		if !regexp.MustCompile(`(?m)^ci-strict-commit:\n\tpython3 -S scripts/ci-strict\.py --commit`).MatchString(mk) {
+			t.Error("Makefile has no ci-strict-commit target running scripts/ci-strict.py --commit")
 		}
 	})
 }

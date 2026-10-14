@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
 """Strict local CI: the final local gate for one revision.
 
-    python3 -S scripts/ci-strict.py [--allow-not-run GATE ...]
-    python3 -S scripts/ci-strict.py --check-result FILE [--expect-id ID]
+    python3 -S scripts/ci-strict.py [--commit] [--allow-not-run GATE ...]
+    python3 -S scripts/ci-strict.py --check-result FILE [--expect-id ID] [--commit]
 
 It reports what actually ran and makes no claim about whether to push.
+
+Two modes, and every result says which one produced it (bugs/OW-124):
+
+  development  (default) tests this checkout as it is: HEAD plus every
+               uncommitted change, and any ignored source file on disk. The
+               result names that state. It is not evidence about any commit.
+  --commit     tests HEAD's committed files only. The gates run in a clean
+               `git clone --shared` of HEAD outside the checkout, with the
+               frontend dependencies installed there by `npm ci`, as hosted CI
+               does. Uncommitted, untracked, staged-only and ignored files in
+               the checkout cannot reach it. This is the readiness evidence for
+               a pinned commit. The checkout's own state is not changed.
+
+`--check-result FILE --commit` accepts only a commit-mode result for HEAD.
 
 Exit codes, from this script (authoritative; `make ci-strict` is a wrapper,
 and make turns every failure into exit 2):
@@ -41,6 +55,7 @@ Standard library only.
 """
 
 import argparse
+import copy
 import datetime
 import hashlib
 import json
@@ -50,6 +65,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -84,6 +100,12 @@ class Probe:
     def __init__(self, repo=REPO, env=None):
         self.repo = Path(repo)
         self.env = dict(os.environ if env is None else env)
+
+    def at(self, repo):
+        """The same machine, working in another checkout."""
+        other = copy.copy(self)
+        other.repo = Path(repo)
+        return other
 
     def which(self, name):
         return shutil.which(name, path=self.env.get("PATH"))
@@ -329,17 +351,77 @@ def state_dir(probe):
     return Path(gitdir) / "ci-strict"
 
 
+# Ignored files that feed the checks: source a gate compiles, lints, tests or
+# scans. Dependencies, build outputs and local evidence are ignored on purpose
+# and are not inputs (bugs/OW-124).
+CHECK_INPUT_ROOTS = ("internal/", "cmd/", "specs/", "api/", "auth/", "scripts/", "packaging/",
+                     "release/", "frontend/src/", "frontend/tests/", ".github/")
+CHECK_INPUT_SUFFIXES = (".go", ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".yaml", ".yml", ".sql", ".md")
+NOT_CHECK_INPUTS = ("internal/server/openapi_embed.yaml", "internal/server/spa/")
+
+
+def git_list(probe, args):
+    rc, text = probe.capture(["git", "ls-files", "-z"] + args)
+    return [p for p in text.split("\0") if p] if rc == 0 else []
+
+
+def ignored_check_inputs(probe):
+    """Ignored files on disk that a gate would read as source. The roots and
+    suffixes decide; excluding node_modules only keeps the listing small."""
+    paths = git_list(probe, ["--others", "--ignored", "--exclude-standard", "--",
+                             ":(exclude)frontend/node_modules", ":(exclude,glob)**/node_modules/**"])
+    return sorted(p for p in paths
+                  if p.startswith(CHECK_INPUT_ROOTS) and p.endswith(CHECK_INPUT_SUFFIXES)
+                  and not p.startswith(NOT_CHECK_INPUTS))
+
+
 def tree_identity(probe):
-    """The commit and a digest of every uncommitted change, so a result can
-    be matched to the tree it describes."""
+    """The commit and a digest of everything a development run can read
+    beyond it: tracked changes, staged or not, the names AND contents of
+    untracked files, and ignored source files on disk. A result can be
+    matched to the state it describes."""
     _, head = probe.capture(["git", "rev-parse", "HEAD"])
     h = hashlib.sha256()
-    for cmd in (["git", "diff", "HEAD", "--binary", "--no-ext-diff"],
-                ["git", "ls-files", "--others", "--exclude-standard"]):
-        _, text = probe.capture(cmd)
-        h.update(text.encode())
+    _, diff = probe.capture(["git", "diff", "HEAD", "--binary", "--no-ext-diff"])
+    h.update(diff.encode())
+    h.update(b"\0")
+    for p in git_list(probe, ["--others", "--exclude-standard"]) + ignored_check_inputs(probe):
+        h.update(p.encode() + b"\0")
+        try:
+            h.update((probe.repo / p).read_bytes())
+        except OSError:
+            h.update(b"<unreadable>")
         h.update(b"\0")
     return head, h.hexdigest()
+
+
+def working_tree_state(probe):
+    """What a development run includes beyond HEAD, for the result."""
+    _, changed = probe.capture(["git", "diff", "HEAD", "--name-only", "--no-ext-diff"])
+    return {
+        "changed_tracked": sorted(p for p in changed.splitlines() if p),
+        "untracked": git_list(probe, ["--others", "--exclude-standard"]),
+        "ignored_check_inputs": ignored_check_inputs(probe),
+    }
+
+
+def export_commit(probe, commit):
+    """A clean checkout of commit, outside the repository: `git clone
+    --shared` (the objects are borrowed, the source's refs and worktrees are
+    untouched), checked out detached. Returns (temp dir, checkout) or raises
+    RuntimeError."""
+    tmp = Path(tempfile.mkdtemp(prefix="ci-strict-commit-"))
+    dest = tmp / "checkout"
+    rc, text = probe.capture(["git", "clone", "--quiet", "--shared", "--no-checkout",
+                              str(probe.repo), str(dest)])
+    if rc != 0:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError(f"git clone of the checkout failed: {text}")
+    rc, text = probe.capture(["git", "-C", str(dest), "checkout", "--quiet", "--detach", commit])
+    if rc != 0:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError(f"git checkout {commit} in the export failed: {text}")
+    return tmp, dest
 
 
 class Lock:
@@ -401,10 +483,15 @@ def write_atomic(path, data):
     os.replace(tmp, path)
 
 
-def check_result(path, expect_id=None, probe=None):
+def check_result(path, expect_id=None, probe=None, readiness=False):
     """Return (ok, message). ok only for a finished, well-formed, COMPLETE
-    result, for the expected invocation and the current tree. Anything
-    missing, partial, mismatched or stale is not success."""
+    result, for the expected invocation and the current state. Anything
+    missing, partial, mismatched or stale is not success.
+
+    A commit-mode result is matched to HEAD alone: it tested committed files
+    only, so the working tree cannot change what it proves. A development
+    result is matched to the full working-tree identity. With readiness,
+    only a commit-mode result is accepted (bugs/OW-124)."""
     try:
         r = json.loads(Path(path).read_text())
     except FileNotFoundError:
@@ -416,18 +503,29 @@ def check_result(path, expect_id=None, probe=None):
             return False, f"{path}: result lacks {k!r}"
     if expect_id and r["id"] != expect_id:
         return False, f"{path}: result is from invocation {r['id']}, not {expect_id}"
+    mode = r.get("mode", "development")
+    if readiness and mode != "commit":
+        return False, (f"{path}: a {mode} result tested working-tree changes; it is not readiness "
+                       "evidence for a commit. Run scripts/ci-strict.py --commit")
     if probe is not None:
-        commit, tree = tree_identity(probe)
-        if (r["commit"], r["tree"]) != (commit, tree):
-            return False, f"{path}: result describes a different tree than the one checked out"
+        if mode == "commit":
+            _, head = probe.capture(["git", "rev-parse", "HEAD"])
+            if r["commit"] != head:
+                return False, f"{path}: result is for commit {r['commit'][:12]}, not HEAD {head[:12]}"
+        else:
+            commit, tree = tree_identity(probe)
+            if (r["commit"], r["tree"]) != (commit, tree):
+                return False, f"{path}: result describes a different tree than the one checked out"
     if r["verdict"] != "complete" or r["exit"] != EXIT_COMPLETE:
         return False, f"{path}: verdict {r['verdict'].upper()} (exit {r['exit']})"
-    return True, f"{path}: COMPLETE, invocation {r['id']}, finished {r['finished']}"
+    scope = (f"commit {r['commit'][:12]} only" if mode == "commit"
+             else f"commit {r['commit'][:12]} plus working-tree changes")
+    return True, f"{path}: COMPLETE ({mode}: {scope}), invocation {r['id']}, finished {r['finished']}"
 
 
 # ------------------------------------------------------------------- main
 
-def strict(probe, allow, out=print):
+def strict(probe, allow, out=print, mode="development"):
     invocation = uuid.uuid4().hex
     state = state_dir(probe)
     lock = Lock(state, probe, invocation)
@@ -437,14 +535,48 @@ def strict(probe, allow, out=print):
             f"{(owner or {}).get('pid', '?')}) is running since {(owner or {}).get('started', '?')}. "
             "Wait for it; two runs would share one test database. Nothing ran.")
         return EXIT_REFUSED
+    export_tmp = None
     try:
         started = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        commit, tree = tree_identity(probe)
         rundir = state / "runs" / invocation
         rundir.mkdir(parents=True)
-        out(f"ci-strict: invocation {invocation} on {commit[:12]}; results in {rundir}")
+        working = working_tree_state(probe)
+        uncommitted = sum(len(v) for v in working.values())
+        gp = probe  # the checkout the gates run in
+        export = None
+        if mode == "commit":
+            _, commit = probe.capture(["git", "rev-parse", "HEAD"])
+            _, tree = probe.capture(["git", "rev-parse", "HEAD^{tree}"])
+            tested = f"commit {commit}: committed files only, in a clean export"
+            out(f"ci-strict: invocation {invocation}, COMMIT MODE: testing commit {commit[:12]}'s "
+                f"committed files only, in a clean export; results in {rundir}")
+            if uncommitted:
+                out(f"  not tested: {uncommitted} uncommitted, untracked or ignored source file(s) in this "
+                    "checkout")
+            try:
+                export_tmp, dest = export_commit(probe, commit)
+            except RuntimeError as e:
+                export = {"method": "git clone --shared", "outcome": "failed", "detail": str(e)}
+                out(f"ci-strict: could not export commit {commit[:12]}: {e}")
+            else:
+                gp = probe.at(dest)
+                out("== export: npm ci in the export's frontend")
+                deps = gp.run(["npm", "ci", "--prefer-offline", "--no-audit", "--no-fund"], cwd=dest / "frontend")
+                export = {"method": "git clone --shared", "outcome": "exported",
+                          "dependencies": "installed" if deps == 0 else f"npm ci exited {deps}"}
+        else:
+            commit, tree = tree_identity(probe)
+            tested = f"commit {commit} plus this checkout's working-tree changes"
+            out(f"ci-strict: invocation {invocation}, DEVELOPMENT MODE: testing commit {commit[:12]} plus this "
+                f"checkout's working-tree changes; results in {rundir}")
+            out(f"  includes {len(working['changed_tracked'])} changed tracked, {len(working['untracked'])} "
+                f"untracked and {len(working['ignored_check_inputs'])} ignored source file(s). Not readiness "
+                "evidence for any commit; for that run with --commit.")
+            for p in working["ignored_check_inputs"]:
+                out(f"  ignored source on disk, read by the gates: {p}")
 
-        pre = preflight(probe)
+        pre = preflight(gp) if not (export and export["outcome"] == "failed") else {
+            "export": (False, export["detail"])}
         out("preflight:")
         for name, (good, detail) in pre.items():
             out(f"  {'ok     ' if good else 'MISSING'} {name}: {detail}")
@@ -454,10 +586,13 @@ def strict(probe, allow, out=print):
         # gap only if the gate, or every missing prerequisite it needs, was
         # named in --allow-not-run. Any unaccepted block stops the run here,
         # before expensive work.
-        blocked = {g for g, needs in GATES if missing & set(needs)}
+        blocked = ({g for g, _ in GATES} if "export" in missing
+                   else {g for g, needs in GATES if missing & set(needs)})
         accepted = {g for g in blocked if g in allow or (missing & set(needs_of[g])) <= allow}
+        if "export" in missing:
+            accepted = set()
         unaccepted_gates = sorted(blocked - accepted)
-        unaccepted = sorted({n for g in unaccepted_gates for n in missing & set(needs_of[g])})
+        unaccepted = sorted({n for g in unaccepted_gates for n in missing & (set(needs_of[g]) | {"export"})})
         gates = []
         if unaccepted_gates:
             for g, _ in GATES:
@@ -482,7 +617,7 @@ def strict(probe, allow, out=print):
                                   "reason": "coverage is evaluated only over complete test results"})
                     continue
                 out(f"== {g}")
-                rc = run_gate(g, probe, rundir)
+                rc = run_gate(g, gp, rundir)
                 ran[g] = rc
                 gates.append({"gate": g, "outcome": "passed" if rc == 0 else "failed", "exit": rc})
             tests = summarize_streams(rundir)
@@ -490,11 +625,14 @@ def strict(probe, allow, out=print):
             verdict = decide(gates, tests, coverage_ran)
 
         result = {
-            "id": invocation, "commit": commit, "tree": tree, "started": started,
+            "id": invocation, "mode": mode, "tested": tested, "working_tree": working,
+            "commit": commit, "tree": tree, "started": started,
             "finished": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "verdict": VERDICTS[verdict], "exit": verdict, "gates": gates, "tests": tests,
             "accepted_gaps": sorted(allow), "unaccepted_missing": unaccepted,
         }
+        if export is not None:
+            result["export"] = export
         write_atomic(rundir / "result.json", result)
         write_atomic(state / "latest.json", {"id": invocation, "result": str(rundir / "result.json")})
 
@@ -508,13 +646,17 @@ def strict(probe, allow, out=print):
                 out(f"  gate {g['outcome']}: {g['gate']}" + (f" ({g['reason']})" if g.get("reason") else "")
                     + (" [accepted gap]" if g.get("accepted") else ""))
         out(f"result: {rundir / 'result.json'}")
-        word = {EXIT_COMPLETE: "LOCAL CI COMPLETE: every required gate ran and passed.",
+        scope = (f"commit {commit[:12]}'s committed files only" if mode == "commit"
+                 else f"commit {commit[:12]} plus working-tree changes; not readiness evidence")
+        word = {EXIT_COMPLETE: f"LOCAL CI COMPLETE ({mode}: {scope}): every required gate ran and passed.",
                 EXIT_FAILED: "LOCAL CI FAILED.",
                 EXIT_INCOMPLETE: "LOCAL CI INCOMPLETE: nothing failed, but required gates or tests did not run. "
                                  "This run is not equivalent to hosted CI."}[verdict]
         out(f"{word} (exit {verdict})")
         return verdict
     finally:
+        if export_tmp is not None:
+            shutil.rmtree(export_tmp, ignore_errors=True)
         lock.release()
 
 
@@ -523,13 +665,16 @@ def main(argv=None):
                                              "3 incomplete, 4 refused.")
     ap.add_argument("--allow-not-run", action="append", default=[], metavar="GATE",
                     help="accept a named gate (or prerequisite) not running; the run stays INCOMPLETE")
+    ap.add_argument("--commit", action="store_true",
+                    help="test HEAD's committed files only, in a clean export (readiness evidence); with "
+                         "--check-result, accept only such a result for HEAD")
     ap.add_argument("--check-result", metavar="FILE",
                     help="check a result file: exit 0 only for a finished COMPLETE result for this tree")
     ap.add_argument("--expect-id", help="with --check-result: the invocation the result must belong to")
     args = ap.parse_args(argv)
     probe = Probe()
     if args.check_result:
-        ok, msg = check_result(args.check_result, args.expect_id, probe)
+        ok, msg = check_result(args.check_result, args.expect_id, probe, readiness=args.commit)
         print(msg)
         return 0 if ok else 1
     known = {g for g, _ in GATES} | {n for _, needs in GATES for n in needs}
@@ -537,7 +682,7 @@ def main(argv=None):
     if bad:
         print(f"ci-strict: unknown gate or prerequisite {bad}; known: {sorted(known)}", file=sys.stderr)
         return EXIT_REFUSED
-    return strict(probe, set(args.allow_not_run))
+    return strict(probe, set(args.allow_not_run), mode="commit" if args.commit else "development")
 
 
 if __name__ == "__main__":

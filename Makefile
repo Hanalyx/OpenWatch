@@ -295,6 +295,12 @@ license-bundle: internal/server/openapi_embed.yaml $(SPA_DIR)/index.html
 ci-strict:
 	python3 -S scripts/ci-strict.py $(CI_STRICT_ARGS)
 
+# ci-strict-commit: the same gates on HEAD's committed files only, in a clean
+# export. The readiness evidence for a pinned commit (bugs/OW-124).
+.PHONY: ci-strict-commit
+ci-strict-commit:
+	python3 -S scripts/ci-strict.py --commit $(CI_STRICT_ARGS)
+
 # ci-local: the old name, kept as an alias of the strict gate.
 ci-local: ci-strict
 

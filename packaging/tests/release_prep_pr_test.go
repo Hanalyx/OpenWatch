@@ -94,9 +94,11 @@ func TestReleasePrepPR_BodyFromEvidence(t *testing.T) {
 // AC-04: a local CI result counts only for this commit, and its gaps are copied.
 func TestReleasePrepPR_LocalCIResult(t *testing.T) {
 	t.Run("release-prep-pr/AC-04", func(t *testing.T) {
-		requireReleasePrepPR(t, "LocalCIResult", 9,
+		requireReleasePrepPR(t, "LocalCIResult", 11,
 			"test_a_result_for_this_commit_is_copied_with_every_gap",
-			"test_a_result_for_another_commit_is_not_counted")
+			"test_a_result_for_another_commit_is_not_counted",
+			"test_a_development_result_is_not_counted",
+			"test_a_result_without_a_mode_is_a_development_result")
 	})
 }
 
@@ -136,13 +138,14 @@ func TestReleasePrepPR_DraftLeavesNothingBehind(t *testing.T) {
 // @ac AC-04
 // AC-04: CI evidence counts only when finished, well formed and from this
 // tree (review of 7e0738aa: another tree with an empty finished field was
-// reported as "verdict complete").
+// reported as "verdict complete"). v1.1.0 (bugs/OW-124): only a commit-mode
+// result counts, and the working tree cannot change what it proves.
 func TestReleasePrepPR_CIEvidenceBindsToTheTree(t *testing.T) {
 	t.Run("release-prep-pr/AC-04", func(t *testing.T) {
-		requireReleasePrepPR(t, "LocalCIResult", 9,
+		requireReleasePrepPR(t, "LocalCIResult", 11,
 			"test_the_reviewers_result_another_tree_and_unfinished_is_refused",
 			"test_a_finished_result_for_another_tree_is_not_counted",
-			"test_untracked_files_since_the_run_change_the_tree",
+			"test_working_tree_changes_do_not_affect_a_commit_result",
 			"test_a_malformed_result_is_refused")
 	})
 }

@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.28.0"
+  version: "1.29.0"
   status: approved
   tier: 1
 
@@ -628,6 +628,25 @@ spec:
         cancel-in-progress is false. Groups never span two workflows, and a
         rerun keeps its own run's group.
       type: technical
+      enforcement: error
+    - id: C-26
+      description: >-
+        v1.29.0 (bugs/OW-124). scripts/ci-strict.py has two modes and every
+        result names its mode and what it tested. A development run (the
+        default) tests the checkout as it is; its identity covers tracked
+        changes, the names and contents of untracked files, and ignored
+        source files that the gates read, which it lists; it says it is not
+        readiness evidence for any commit. A commit run (`--commit`, `make
+        ci-strict-commit`) tests HEAD's committed files only: it runs every
+        gate in a clean `git clone --shared` of HEAD outside the checkout,
+        installs the frontend dependencies there with `npm ci`, records the
+        commit and its git tree id, and leaves the checkout's files, refs and
+        worktrees unchanged. Ignored, untracked and staged-but-uncommitted
+        files cannot supply its coverage. Only a commit result is readiness
+        evidence: `--check-result FILE --commit` accepts nothing else, and
+        matches it to HEAD alone. A failed export runs no gate and is
+        INCOMPLETE.
+      type: security
       enforcement: error
   acceptance_criteria:
     - id: AC-01
@@ -1784,3 +1803,34 @@ spec:
         operators of the conditional, or removing the block each fails.
       priority: high
       references_constraints: [C-23]
+    - id: AC-45
+      description: >-
+        v1.29.0. In a real git repository, with a stand-in gate that passes
+        only when it finds an annotated test on disk, a commit run fails when
+        the test is ignored by a pattern, untracked, or staged but not
+        committed, and passes once it is committed. The result records mode
+        commit, HEAD and HEAD's tree id. A commit run leaves the checkout's
+        status, worktrees, refs and HEAD unchanged and removes its export. A
+        failed export runs no gate and is INCOMPLETE.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-46
+      description: >-
+        v1.29.0, a preservation test. A .specter-results.json in the checkout
+        naming the AC as passed, with the test absent from the commit, does
+        not make a commit run pass, although the stand-in gate would trust it.
+      priority: high
+      references_constraints: [C-26]
+    - id: AC-47
+      description: >-
+        v1.29.0. A development run with an ignored source test on disk
+        passes, records mode development, lists that file, and says it is not
+        readiness evidence; check-result accepts it for the same tree and
+        refuses it with --commit. A commit result passes check-result
+        --commit after a working-tree change and is refused after a new
+        commit. The development identity changes with untracked contents and
+        with an ignored source file's contents, and not with dependencies or
+        the results file. The Makefile's ci-strict-commit target runs
+        scripts/ci-strict.py --commit.
+      priority: critical
+      references_constraints: [C-26]

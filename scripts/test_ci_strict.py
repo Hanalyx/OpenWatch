@@ -357,5 +357,242 @@ class Wiring(unittest.TestCase):
         self.assertIn("unknown gate or prerequisite", err.getvalue())
 
 
+# --------------------------------------------- readiness from the commit
+#
+# bugs/OW-124: a local gate passed on a commit whose test file had been left
+# out of it by an ignore rule, because the file was still on disk. These
+# tests use a real git repository and a stand-in for the Specter gate that,
+# like Specter, walks the files on disk for an annotated test.
+
+AC_MARKER = "// @ac AC-1"
+
+
+def git(root, *args):
+    subprocess.run(["git", "-C", str(root)] + list(args), check=True, capture_output=True)
+
+
+def make_git_repo(test):
+    root = Path(tempfile.mkdtemp(prefix="ci-strict-git-"))
+    test.addCleanup(lambda: subprocess.run(["rm", "-rf", str(root)]))
+    git(root, "init", "-q", "-b", "main")
+    git(root, "config", "user.email", "t@example.invalid")
+    git(root, "config", "user.name", "t")
+    (root / "Makefile").write_text("GOLANGCI_VERSION := 1.64.8\n")
+    (root / ".specter-version").write_text("0.15.1\n")
+    (root / ".gitignore").write_text("*credential*\nfrontend/node_modules/\n.specter-results.json\n")
+    lock = {"packages": {"": {}, "node_modules/a": {"version": "1.0.0"}}}
+    (root / "frontend").mkdir()
+    (root / "frontend" / "package-lock.json").write_text(json.dumps(lock))
+    (root / "internal" / "x").mkdir(parents=True)
+    (root / "internal" / "x" / "x.go").write_text("package x\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "base")
+    # The source checkout has its dependencies installed (ignored).
+    (root / "frontend" / "node_modules").mkdir()
+    (root / "frontend" / "node_modules" / ".package-lock.json").write_text(json.dumps(lock))
+    return root
+
+
+def gate_sees_annotation(repo):
+    """The stand-in Specter gate: passes when any file under internal/
+    carries the AC annotation, or when a results file says AC-1 passed."""
+    for f in (repo / "internal").rglob("*_test.go"):
+        if AC_MARKER in f.read_text():
+            return True
+    results = repo / ".specter-results.json"
+    return results.is_file() and "AC-1" in results.read_text()
+
+
+class RealGitProbe(FakeProbe):
+    """FakeProbe, except git runs for real, `npm ci` installs a matching
+    lockfile record, and spec-check is the stand-in gate."""
+
+    def capture(self, cmd, cwd=None):
+        if cmd and cmd[0] == "git":
+            # Real git, with the real PATH; tool discovery stays scripted.
+            p = subprocess.run(cmd, cwd=cwd or self.repo, capture_output=True, text=True)
+            return p.returncode, (p.stdout + p.stderr).strip()
+        return FakeProbe.capture(self, cmd, cwd)
+
+    def run(self, cmd, cwd=None, env=None, stdout=None):
+        joined = " ".join(map(str, cmd))
+        if cmd[:2] == ["npm", "ci"]:
+            fe = Path(cwd)
+            (fe / "node_modules").mkdir(exist_ok=True)
+            (fe / "node_modules" / ".package-lock.json").write_text((fe / "package-lock.json").read_text())
+            self.calls.append((cmd, env))
+            return 0
+        if "spec-check" in joined:
+            self.calls.append((cmd, env))
+            return 0 if gate_sees_annotation(self.repo) else 1
+        return FakeProbe.run(self, cmd, cwd, env, stdout)
+
+
+class ReadinessFromCommit(unittest.TestCase):
+    """release-ci-gates C-26, AC-45 to AC-47."""
+
+    def setUp(self):
+        self.root = make_git_repo(self)
+        self.lines = []
+
+    def strict(self, mode):
+        probe = RealGitProbe(self.root)
+        rc = cs.strict(probe, set(), out=self.lines.append, mode=mode)
+        res = json.loads(sorted((self.root / ".git" / "ci-strict" / "runs").glob("*/result.json"),
+                                key=lambda p: p.stat().st_mtime)[-1].read_text())
+        return rc, res, probe
+
+    def head(self):
+        return subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+
+    def plant(self, name, staged=False):
+        f = self.root / "internal" / "x" / name
+        f.write_text("package x\n\n" + AC_MARKER + "\n")
+        if staged:
+            git(self.root, "add", "-f", str(f.relative_to(self.root)))
+        return f
+
+    def test_an_uncommitted_test_cannot_make_a_commit_result_pass(self):
+        # AC-45. Each way a test can be on disk but not in the commit.
+        cases = {
+            "ignored by a pattern": dict(name="credential_ac_test.go"),
+            "untracked": dict(name="untracked_ac_test.go"),
+            "staged, not committed": dict(name="staged_ac_test.go", staged=True),
+        }
+        for label, kw in cases.items():
+            with self.subTest(label):
+                f = self.plant(**kw)
+                self.assertTrue(gate_sees_annotation(self.root), "the stand-in must see the planted file")
+                rc, res, _ = self.strict("commit")
+                self.assertEqual(rc, cs.EXIT_FAILED, f"{label}: {self.lines[-3:]}")
+                self.assertEqual(res["mode"], "commit")
+                self.assertEqual(res["commit"], self.head())
+                spec = [g for g in res["gates"] if g["gate"] == "spec-check"][0]
+                self.assertEqual(spec["outcome"], "failed")
+                if kw.get("staged"):
+                    git(self.root, "rm", "-q", "--cached", str(f.relative_to(self.root)))
+                f.unlink()
+
+    def test_a_stale_results_file_cannot_make_a_commit_result_pass(self):
+        # AC-46, a preservation test: the stand-in would trust it.
+        (self.root / ".specter-results.json").write_text('{"results": [{"ac_id": "AC-1", "passed": true}]}')
+        self.assertTrue(gate_sees_annotation(self.root))
+        rc, res, _ = self.strict("commit")
+        self.assertEqual(rc, cs.EXIT_FAILED)
+        self.assertEqual(res["mode"], "commit")
+
+    def test_a_committed_test_does_pass_in_commit_mode(self):
+        # The control: the export does carry what the commit carries.
+        self.plant("committed_ac_test.go", staged=True)
+        git(self.root, "commit", "-q", "-m", "add the test")
+        rc, res, _ = self.strict("commit")
+        self.assertEqual(rc, cs.EXIT_COMPLETE, self.lines[-5:])
+        self.assertEqual(res["export"]["outcome"], "exported")
+        self.assertEqual(res["export"]["dependencies"], "installed")
+        tree = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD^{tree}"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(res["tree"], tree)
+        self.assertIn("committed files only", res["tested"])
+
+    def test_a_development_run_says_what_it_tested_and_is_not_readiness(self):
+        # AC-47. Development mode may test the working tree, and says so.
+        f = self.plant("credential_ac_test.go")
+        rc, res, probe = self.strict("development")
+        self.assertEqual(rc, cs.EXIT_COMPLETE)
+        self.assertEqual(res["mode"], "development")
+        rel = str(f.relative_to(self.root))
+        self.assertIn(rel, res["working_tree"]["ignored_check_inputs"])
+        self.assertIn("working-tree changes", res["tested"])
+        out = "\n".join(self.lines)
+        self.assertIn("DEVELOPMENT MODE", self.lines[0])
+        self.assertIn("Not readiness evidence for any commit", self.lines[1])
+        self.assertIn(rel, out)
+        self.assertIn("not readiness evidence", self.lines[-1])
+        path = sorted((self.root / ".git" / "ci-strict" / "runs").glob("*/result.json"))[0]
+        ok, msg = cs.check_result(path, probe=probe)
+        self.assertTrue(ok, msg)
+        ok, msg = cs.check_result(path, probe=probe, readiness=True)
+        self.assertFalse(ok)
+        self.assertIn("not readiness evidence", msg)
+
+    def test_a_commit_result_is_readiness_evidence_for_head_only(self):
+        self.plant("committed_ac_test.go", staged=True)
+        git(self.root, "commit", "-q", "-m", "add the test")
+        rc, res, probe = self.strict("commit")
+        self.assertEqual(rc, cs.EXIT_COMPLETE)
+        path = sorted((self.root / ".git" / "ci-strict" / "runs").glob("*/result.json"))[0]
+        # Working-tree changes do not affect it: it never tested them.
+        (self.root / "internal" / "x" / "scratch.go").write_text("package x\n")
+        ok, msg = cs.check_result(path, probe=probe, readiness=True)
+        self.assertTrue(ok, msg)
+        self.assertIn("only", msg)
+        # A new commit does.
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "more")
+        ok, msg = cs.check_result(path, probe=probe, readiness=True)
+        self.assertFalse(ok)
+        self.assertIn("not HEAD", msg)
+
+    def test_commit_mode_leaves_the_checkout_as_it_was(self):
+        f = self.plant("staged_ac_test.go", staged=True)
+        (self.root / "notes.txt").write_text("untracked\n")
+        def snapshot():
+            st = subprocess.run(["git", "-C", str(self.root), "status", "--porcelain", "--ignored"],
+                                capture_output=True, text=True, check=True).stdout
+            wt = subprocess.run(["git", "-C", str(self.root), "worktree", "list", "--porcelain"],
+                                capture_output=True, text=True, check=True).stdout
+            refs = subprocess.run(["git", "-C", str(self.root), "for-each-ref"],
+                                  capture_output=True, text=True, check=True).stdout
+            return st, wt, refs, self.head()
+        before = snapshot()
+        tmp_before = set(Path(tempfile.gettempdir()).glob("ci-strict-commit-*"))
+        self.strict("commit")
+        after = snapshot()
+        # The run adds only its own result under .git/ci-strict, which is not
+        # in the working tree.
+        self.assertEqual(before, after)
+        self.assertEqual(set(Path(tempfile.gettempdir()).glob("ci-strict-commit-*")), tmp_before,
+                         "the export was not removed")
+        self.assertTrue(f.exists())
+
+    def test_a_failed_export_runs_no_gate_and_is_incomplete(self):
+        probe = RealGitProbe(self.root)
+        def broken(_probe, _commit):
+            raise RuntimeError("simulated clone failure")
+        saved = cs.export_commit
+        cs.export_commit = broken
+        try:
+            rc = cs.strict(probe, set(), out=self.lines.append, mode="commit")
+        finally:
+            cs.export_commit = saved
+        self.assertEqual(rc, cs.EXIT_INCOMPLETE)
+        self.assertFalse([c for c, _ in probe.calls if "spec-check" in " ".join(map(str, c))])
+        res = json.loads(sorted((self.root / ".git" / "ci-strict" / "runs").glob("*/result.json"))[0].read_text())
+        self.assertEqual(res["export"]["outcome"], "failed")
+        self.assertIn("export", res["unaccepted_missing"])
+
+    def test_the_development_identity_covers_untracked_and_ignored_contents(self):
+        probe = RealGitProbe(self.root)
+        base = cs.tree_identity(probe)
+        u = self.root / "internal" / "x" / "untracked.go"
+        u.write_text("package x\n")
+        with_untracked = cs.tree_identity(probe)
+        self.assertNotEqual(base, with_untracked)
+        u.write_text("package x\n// changed\n")
+        self.assertNotEqual(with_untracked, cs.tree_identity(probe), "untracked contents are not covered")
+        u.unlink()
+        i = self.plant("credential_ac_test.go")
+        with_ignored = cs.tree_identity(probe)
+        self.assertNotEqual(base, with_ignored, "an ignored source file is not covered")
+        i.write_text("package x\n")
+        self.assertNotEqual(with_ignored, cs.tree_identity(probe), "ignored source contents are not covered")
+        # Dependencies and the results file are not check inputs.
+        i.unlink()
+        (self.root / ".specter-results.json").write_text("{}")
+        (self.root / "frontend" / "node_modules" / "x.js").write_text("1")
+        self.assertEqual(base, cs.tree_identity(probe))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
