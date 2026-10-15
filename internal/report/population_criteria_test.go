@@ -554,8 +554,36 @@ func (p *snapshotProbe) ScopeGroupIn(ctx context.Context, q db.Queryer,
 	return "Probed", []uuid.UUID{}, nil
 }
 
-// pdfStreamRe finds the compressed content streams in a rendered PDF.
-var pdfStreamRe = regexp.MustCompile(`(?s)stream\r?\n(.*?)\r?\nendstream`)
+// pdfStreamStartRe finds where each stream's data begins: the end of its
+// dictionary and the "stream" keyword. pdfLengthRe reads the dictionary's
+// /Length, the number of data bytes that follow (bugs/OW-125).
+var (
+	pdfStreamStartRe = regexp.MustCompile(`<<([^<>]*)>>\s*stream\r?\n`)
+	pdfLengthRe      = regexp.MustCompile(`/Length (\d+)`)
+)
+
+// pdfStreams returns each stream's data, cut by the /Length its dictionary
+// declares. Searching for "endstream" instead cuts a stream short when its
+// last data byte is a carriage return: fpdf writes "\nendstream" after the
+// data, and a search that allows "\r\n" before endstream takes that data
+// byte for part of the separator.
+func pdfStreams(t *testing.T, pdf []byte) [][]byte {
+	t.Helper()
+	var out [][]byte
+	for _, m := range pdfStreamStartRe.FindAllSubmatchIndex(pdf, -1) {
+		dict := pdf[m[2]:m[3]]
+		lm := pdfLengthRe.FindSubmatch(dict)
+		if lm == nil {
+			t.Fatalf("a PDF stream has no /Length: %q", dict)
+		}
+		n, err := strconv.Atoi(string(lm[1]))
+		if err != nil || m[1]+n > len(pdf) {
+			t.Fatalf("a PDF stream's /Length %q does not fit the file", lm[1])
+		}
+		out = append(out, pdf[m[1]:m[1]+n])
+	}
+	return out
+}
 
 // renderedText returns the text a PDF actually draws.
 //
@@ -566,8 +594,8 @@ var pdfStreamRe = regexp.MustCompile(`(?s)stream\r?\n(.*?)\r?\nendstream`)
 func renderedText(t *testing.T, pdf []byte) string {
 	t.Helper()
 	var out bytes.Buffer
-	for _, m := range pdfStreamRe.FindAllSubmatch(pdf, -1) {
-		zr, err := zlib.NewReader(bytes.NewReader(m[1]))
+	for _, data := range pdfStreams(t, pdf) {
+		zr, err := zlib.NewReader(bytes.NewReader(data))
 		if err != nil {
 			continue // not a Flate stream; fonts and metadata are not text
 		}
@@ -755,3 +783,19 @@ func TestLegacyRender_UnaffectedByLaterHostDeletion(t *testing.T) {
 
 // formatPct renders a score the way the PDF face does.
 func formatPct(v float64) string { return strconv.FormatFloat(v, 'f', 1, 64) + "%" }
+
+// pdfStreams cuts each stream by its /Length, so data whose last byte is a
+// carriage return keeps it (bugs/OW-125). Not a criterion test: it checks the
+// reader the AC-40 test relies on.
+func TestPDFStreamsKeepATrailingCarriageReturn(t *testing.T) {
+	data := []byte("BT (x) Tj ET\r")
+	pdf := []byte("4 0 obj\n<</Filter /FlateDecode /Length " + strconv.Itoa(len(data)) + ">>\nstream\n")
+	pdf = append(pdf, data...)
+	// fpdf ends the data with "\nendstream": the data's own "\r" comes right
+	// before it, which is what the old search mistook for a separator.
+	pdf = append(pdf, []byte("\nendstream\nendobj\n")...)
+	got := pdfStreams(t, pdf)
+	if len(got) != 1 || !bytes.Equal(got[0], data) {
+		t.Fatalf("streams = %q, want [%q]", got, data)
+	}
+}
