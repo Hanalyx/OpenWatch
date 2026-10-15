@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // hostBlock records a block on (h, ops)'s host record: h is confirmed
@@ -559,5 +560,133 @@ func TestAccountHistory(t *testing.T) {
 			f.wantMode(lc, h1, pw(1), ModeBlocked)
 			f.wantMode(lc, h2, pw(1), ModeVerifying)
 		})
+	})
+}
+
+// @ac AC-13
+// AC-13: competing resolutions of one candidate, queued on the username's
+// lock, make exactly one transition; the other is refused and changes
+// nothing (review round 3, finding 1).
+func TestCompetingResolutionsMakeOneTransition(t *testing.T) {
+	t.Run("system-credential-protection/AC-13", func(t *testing.T) {
+		type resolution func(f *fixture, cand, d uuid.UUID) error
+		distinct := func(f *fixture, cand, d uuid.UUID) error {
+			return f.store.AssertDistinct(context.Background(), cand, []uuid.UUID{d}, f.user, "separate forest")
+		}
+		same := func(f *fixture, cand, d uuid.UUID) error {
+			return f.store.ResolveSame(context.Background(), cand, d, f.user, "same forest")
+		}
+		for name, c := range map[string]struct {
+			first, second resolution
+			admission     Admission
+			moved         bool
+		}{
+			"distinct, then same":     {distinct, same, AdmissionUsable, false},
+			"same, then distinct":     {same, distinct, AdmissionRetired, true},
+			"distinct, then distinct": {distinct, distinct, AdmissionUsable, false},
+		} {
+			t.Run(name, func(t *testing.T) {
+				f := newFixture(t)
+				d := f.directory("corp", "ops", AdmissionUsable)
+				cand := f.directory("corp-2", "ops", AdmissionCandidate)
+				cc := f.dirCred("ops", cand)
+				release := f.holdLock("ops")
+				first, second := make(chan error, 1), make(chan error, 1)
+				go func() { first <- c.first(f, cand, d) }()
+				f.waitForLockWaiters(1)
+				go func() { second <- c.second(f, cand, d) }()
+				f.waitForLockWaiters(2)
+				release()
+				if err := <-first; err != nil {
+					t.Fatalf("the first resolution: %v", err)
+				}
+				f.wantRefused(<-second, ErrInvalid)
+				if n := f.count(`SELECT count(*) FROM credprotect_identities WHERE id = $1 AND admission = $2`,
+					cand, string(c.admission)); n != 1 {
+					t.Fatalf("the candidate is not %s", c.admission)
+				}
+				movedTo := f.count(`SELECT count(*) FROM credprotect_credential_classes WHERE credential_id = $1
+				                     AND directory_identity_id = $2`, cc, d) == 1
+				if movedTo != c.moved {
+					t.Fatalf("credentials moved = %v, want %v", movedTo, c.moved)
+				}
+				if n := f.count(`SELECT count(*) FROM credprotect_directory_resolutions WHERE directory_id = $1`, cand); n != 1 {
+					t.Fatalf("%d resolutions recorded, want 1", n)
+				}
+			})
+		}
+		t.Run("each update itself requires a candidate", func(t *testing.T) {
+			// Run the production statements directly against a directory that
+			// is no longer a candidate: each must change nothing and refuse.
+			f := newFixture(t)
+			ctx := context.Background()
+			d := f.directory("corp", "ops", AdmissionUsable)
+			other := f.directory("corp-2", "ops", AdmissionCandidate)
+			if err := f.store.AssertDistinct(ctx, other, []uuid.UUID{d}, f.user, "separate forest"); err != nil {
+				t.Fatal(err)
+			}
+			for name, run := range map[string]func(tx pgx.Tx) error{
+				"admit":  func(tx pgx.Tx) error { return resolveCandidate(ctx, tx, admitCandidateSQL, other) },
+				"retire": func(tx pgx.Tx) error { return resolveCandidate(ctx, tx, retireCandidateSQL, other, d) },
+			} {
+				tx, err := f.pool.Begin(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = run(tx)
+				_ = tx.Rollback(ctx)
+				if !errors.Is(err, ErrInvalid) {
+					t.Fatalf("%s on a usable identity: %v, want ErrInvalid", name, err)
+				}
+			}
+		})
+	})
+}
+
+// waitForLockWaiters waits until at least n sessions in this test database
+// are waiting for an advisory lock.
+func (f *fixture) waitForLockWaiters(n int) {
+	f.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if f.count(`SELECT count(*) FROM pg_locks
+		             WHERE locktype = 'advisory' AND NOT granted
+		               AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`) >= n {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	f.t.Fatalf("fewer than %d calls waited for the username's lock", n)
+}
+
+// @ac AC-06
+// AC-06: a block that appears while a requested verification is in flight
+// refuses its fence, although the pending request keeps the mode VERIFYING
+// (review round 3, finding 2). The block comes from an unconfirmed attempt
+// on another host, which does not conflict with the confirmed-local
+// verification, and lands on the root, in the verification's lineage.
+func TestFenceRefusesANewBlockDuringARequestedVerification(t *testing.T) {
+	t.Run("system-credential-protection/AC-06", func(t *testing.T) {
+		f := newFixture(t)
+		ctx := context.Background()
+		h, other := f.host(), f.host()
+		f.confirm(h, "ops")
+		lc, uc := f.localCred("ops"), f.cred("ops")
+		f.block(lc, h, pw(1))
+		if err := f.request(lc, h, pw(1)); err != nil {
+			t.Fatal(err)
+		}
+		f.activate(uc, other, pw(1))
+		run := f.reserve(uc, other, pw(1), KindOrdinary)
+		v := f.reserve(lc, h, pw(1), KindVerification)
+		if err := f.store.Fence(ctx, v.ID, Current{Active: true, Secret: pw(1)}); err != nil {
+			t.Fatalf("fence before the new block: %v", err)
+		}
+		f.settle(run.ID, OutcomeRejected)
+		f.wantMode(lc, h, pw(1), ModeVerifying) // the pending request keeps it VERIFYING
+		f.wantRefused(f.store.Fence(ctx, v.ID, Current{Active: true, Secret: pw(1)}), ErrFenceRefused)
+		if res := f.settle(v.ID, OutcomeVerified); res.Recovery != uuid.Nil {
+			t.Fatal("recovered past the new block")
+		}
 	})
 }

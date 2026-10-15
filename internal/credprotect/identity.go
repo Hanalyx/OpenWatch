@@ -110,7 +110,10 @@ func readIdentity(ctx context.Context, tx pgx.Tx, id uuid.UUID) (identityRow, er
 }
 
 // lockIdentity takes the lock for an identity's username and returns the
-// identity.
+// identity read again under the lock. The first read only finds which lock
+// to take (an identity's username never changes); its admission and
+// confirmation may have changed while this call waited, so callers must use
+// the second.
 func lockIdentity(ctx context.Context, tx pgx.Tx, id uuid.UUID) (identityRow, error) {
 	r, err := readIdentity(ctx, tx, id)
 	if err != nil {
@@ -119,7 +122,7 @@ func lockIdentity(ctx context.Context, tx pgx.Tx, id uuid.UUID) (identityRow, er
 	if err := lockUsername(ctx, tx, r.username); err != nil {
 		return identityRow{}, err
 	}
-	return r, nil
+	return readIdentity(ctx, tx, id)
 }
 
 // refuseUnusable refuses an operation that would put protection history on
@@ -390,9 +393,8 @@ func (s *Store) AssertDistinct(ctx context.Context, candidate uuid.UUID, covers 
 				ErrStaleAssertion)
 		}
 		now := s.clock.Now()
-		if _, err := tx.Exec(ctx, `UPDATE credprotect_identities SET admission = 'usable' WHERE id = $1`,
-			candidate); err != nil {
-			return fmt.Errorf("credprotect: admit directory identity: %w", err)
+		if err := resolveCandidate(ctx, tx, admitCandidateSQL, candidate); err != nil {
+			return err
 		}
 		return recordResolution(ctx, tx, candidate, "distinct", usable, actor, basis, now)
 	})
@@ -429,10 +431,8 @@ func (s *Store) ResolveSame(ctx context.Context, candidate, into, actor uuid.UUI
 			return fmt.Errorf("%w: the candidate has protection history", ErrCandidate)
 		}
 		now := s.clock.Now()
-		if _, err := tx.Exec(ctx, `
-			UPDATE credprotect_identities SET admission = 'retired', retired_into = $2 WHERE id = $1`,
-			candidate, into); err != nil {
-			return fmt.Errorf("credprotect: retire directory identity: %w", err)
+		if err := resolveCandidate(ctx, tx, retireCandidateSQL, candidate, into); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE credprotect_credential_classes SET directory_identity_id = $2, classified_at = $3
@@ -441,6 +441,29 @@ func (s *Store) ResolveSame(ctx context.Context, candidate, into, actor uuid.UUI
 		}
 		return recordResolution(ctx, tx, candidate, "same", []uuid.UUID{into}, actor, basis, now)
 	})
+}
+
+// The two resolution updates. Each changes only an identity that is still a
+// candidate, so a resolution that lost a race changes nothing.
+const (
+	admitCandidateSQL = `UPDATE credprotect_identities SET admission = 'usable'
+		WHERE id = $1 AND admission = 'candidate'`
+	retireCandidateSQL = `UPDATE credprotect_identities SET admission = 'retired', retired_into = $2
+		WHERE id = $1 AND admission = 'candidate'`
+)
+
+// resolveCandidate runs a resolution's update and refuses unless it changed
+// exactly one row: of two competing resolutions, only one transition
+// happens.
+func resolveCandidate(ctx context.Context, tx pgx.Tx, stmt string, args ...any) error {
+	tag, err := tx.Exec(ctx, stmt, args...)
+	if err != nil {
+		return fmt.Errorf("credprotect: resolve directory identity: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("%w: the directory identity is no longer a candidate", ErrInvalid)
+	}
+	return nil
 }
 
 func recordResolution(ctx context.Context, tx pgx.Tx, directory uuid.UUID, kind string, covers []uuid.UUID,

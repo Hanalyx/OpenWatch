@@ -319,6 +319,19 @@ func (s *Store) Fence(ctx context.Context, id uuid.UUID, cur Current) error {
 		if err := refusal(st, r.kind); err != nil {
 			return fmt.Errorf("%w: %w", ErrFenceRefused, err)
 		}
+		// A restriction that applies now and was not in the snapshot refuses
+		// the transmission, whatever the mode: a verification pending on an
+		// earlier request stays VERIFYING after a new block, but its secret
+		// must not be sent past that block (spec C-07).
+		snap := make(map[uuid.UUID]bool, len(r.snapshot))
+		for _, id := range r.snapshot {
+			snap[id] = true
+		}
+		for _, x := range st.applies {
+			if !snap[x.id] {
+				return fmt.Errorf("%w: a %s applies that was not in force at reserve", ErrFenceRefused, x.kind)
+			}
+		}
 		return nil
 	})
 }
