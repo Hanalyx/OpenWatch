@@ -25,8 +25,14 @@ func (LocalProcesses) Machine() string {
 	return "host:" + h
 }
 
-// Alive reports whether a process with this PID and start time exists.
+// Alive reports whether a process with this PID and start time exists. An
+// identity it cannot determine (no PID or no start time, or a stat it
+// cannot read) is an error, never "not alive": only a definite answer may
+// release a slot.
 func (LocalProcesses) Alive(pid int, start string) (bool, error) {
+	if pid <= 0 || start == "" {
+		return false, errors.New("credprotect: process identity is incomplete")
+	}
 	got, err := processStart(pid)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil

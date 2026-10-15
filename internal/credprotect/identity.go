@@ -147,6 +147,33 @@ func readClass(ctx context.Context, tx pgx.Tx, credentialID uuid.UUID) (class, e
 	return c, nil
 }
 
+// currentClass is a credential's classification, or unconfirmed when the
+// classification is stale: its directory identity, or the parent its local
+// identities hang from, belongs to another username, because the
+// credential's username was edited after it was classified. A stale
+// classification would resolve to the old account and miss every
+// restriction on the new one, so it is treated as unconfirmed, the default
+// for every credential, until the credential is classified again (spec
+// C-01).
+func currentClass(ctx context.Context, tx pgx.Tx, credentialID uuid.UUID, username string) (class, error) {
+	c, err := readClass(ctx, tx, credentialID)
+	if err != nil || c.scope == ScopeUnconfirmed {
+		return c, err
+	}
+	anchor := c.parent
+	if c.scope == ScopeDirectory {
+		anchor = c.directory
+	}
+	owner, err := identityUsername(ctx, tx, anchor)
+	if err != nil {
+		return class{}, err
+	}
+	if owner != username {
+		return class{scope: ScopeUnconfirmed}, nil
+	}
+	return c, nil
+}
+
 // resolve returns the identity a credential resolves to on a host, creating
 // identities as needed. The caller holds the username's lock (spec C-01).
 func (s *Store) resolve(ctx context.Context, tx pgx.Tx, credentialID, hostID uuid.UUID,
@@ -156,7 +183,7 @@ func (s *Store) resolve(ctx context.Context, tx pgx.Tx, credentialID, hostID uui
 	if err != nil {
 		return uuid.Nil, err
 	}
-	c, err := readClass(ctx, tx, credentialID)
+	c, err := currentClass(ctx, tx, credentialID, username)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -250,7 +277,7 @@ func (s *Store) Classify(ctx context.Context, credentialID uuid.UUID, to Target)
 		if err != nil {
 			return err
 		}
-		from, err := readClass(ctx, tx, credentialID)
+		from, err := currentClass(ctx, tx, credentialID, username)
 		if err != nil {
 			return err
 		}

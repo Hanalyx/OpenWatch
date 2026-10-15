@@ -117,7 +117,10 @@ func (s *Store) applyEffects(ctx context.Context, tx pgx.Tx, r submissionRow, ou
 		}
 		return nil
 	}
-	if outcome != OutcomeVerified || r.kind != KindVerification || late {
+	// An overridden submission's success is evidence only, even before its
+	// deadline: its slot was freed without knowing how the attempt ended,
+	// so another attempt may have run beside it (spec C-10).
+	if outcome != OutcomeVerified || r.kind != KindVerification || late || r.overridden {
 		return nil // evidence only
 	}
 	st, err := readState(ctx, tx, r.identity, r.secret, now)

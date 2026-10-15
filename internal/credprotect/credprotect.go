@@ -172,6 +172,11 @@ type Owner struct {
 	Start   string
 }
 
+// complete reports whether the owner can later be checked for termination:
+// without all three parts, a process's identity is indeterminate, and an
+// indeterminate owner is never taken as proof that an attempt ended.
+func (o Owner) complete() bool { return o.Machine != "" && o.PID > 0 && o.Start != "" }
+
 // Clock is the time source. Tests control it.
 type Clock interface {
 	Now() time.Time

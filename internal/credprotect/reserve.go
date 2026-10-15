@@ -65,8 +65,8 @@ func (s *Store) Reserve(ctx context.Context, r Request) (Submission, error) {
 	if r.Kind != KindOrdinary && r.Kind != KindVerification {
 		return Submission{}, fmt.Errorf("%w: kind %q", ErrInvalid, r.Kind)
 	}
-	if r.TTL <= 0 || r.Stage == "" || r.Owner.Machine == "" || r.Owner.PID <= 0 {
-		return Submission{}, fmt.Errorf("%w: a reservation needs a TTL, a stage and an owner", ErrInvalid)
+	if r.TTL <= 0 || r.Stage == "" || !r.Owner.complete() {
+		return Submission{}, fmt.Errorf("%w: a reservation needs a TTL, a stage and a complete owner", ErrInvalid)
 	}
 	var sub Submission
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
@@ -92,13 +92,15 @@ func (s *Store) Reserve(ctx context.Context, r Request) (Submission, error) {
 			host = &r.HostID
 		}
 		p := r.Secret.primary()
+		keys, ids := aliasArrays(r.Secret)
 		_, err = tx.Exec(ctx, `
 			INSERT INTO credprotect_submissions
 			       (id, identity_id, credential_id, host_id, kind, stage, secret_kind, secret_key_id, secret_id,
-			        owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot, slot_held)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true)`,
+			        alias_key_ids, alias_ids, owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot,
+			        slot_held)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true)`,
 			sub.ID, identity, r.CredentialID, host, string(r.Kind), r.Stage, string(r.Secret.Kind), p.KeyID, p.ID[:],
-			r.Owner.Machine, r.Owner.PID, r.Owner.Start, now, sub.Deadline, sub.Snapshot)
+			keys, ids, r.Owner.Machine, r.Owner.PID, r.Owner.Start, now, sub.Deadline, sub.Snapshot)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			// K = 1 is the unique index uq_credprotect_submissions_slot:
@@ -127,6 +129,7 @@ type submissionRow struct {
 	id           uuid.UUID
 	identity     uuid.UUID
 	credentialID *uuid.UUID
+	hostID       *uuid.UUID
 	kind         Kind
 	secret       Secret
 	ownerMachine string
@@ -157,26 +160,33 @@ func lockSubmission(ctx context.Context, tx pgx.Tx, id uuid.UUID) (submissionRow
 		return submissionRow{}, err
 	}
 	var r submissionRow
-	var secretKind, keyID string
-	var secretID []byte
+	var secretKind string
+	var keyIDs []string
+	var ids [][]byte
 	err = tx.QueryRow(ctx, `
-		SELECT id, identity_id, credential_id, kind, secret_kind, secret_key_id, secret_id,
+		SELECT id, identity_id, credential_id, host_id, kind, secret_kind, alias_key_ids, alias_ids,
 		       owner_machine, owner_pid, owner_start, deadline, snapshot, slot_held,
 		       ended_at IS NOT NULL, overridden_at IS NOT NULL, outcome, outcome_by, late_outcome
 		  FROM credprotect_submissions WHERE id = $1 FOR UPDATE`, id).Scan(
-		&r.id, &r.identity, &r.credentialID, &r.kind, &secretKind, &keyID, &secretID,
+		&r.id, &r.identity, &r.credentialID, &r.hostID, &r.kind, &secretKind, &keyIDs, &ids,
 		&r.ownerMachine, &r.ownerPID, &r.ownerStart, &r.deadline, &r.snapshot, &r.slotHeld,
 		&r.ended, &r.overridden, &r.outcome, &r.outcomeBy, &r.lateOutcome)
 	if err != nil {
 		return submissionRow{}, fmt.Errorf("credprotect: read submission: %w", err)
 	}
-	var a Alias
-	if len(secretID) != IDLen {
-		return submissionRow{}, errors.New("credprotect: stored identifier has the wrong length")
+	if len(keyIDs) != len(ids) || len(ids) == 0 {
+		return submissionRow{}, errors.New("credprotect: stored aliases are incomplete")
 	}
-	copy(a.ID[:], secretID)
-	a.KeyID = keyID
-	r.secret = Secret{Kind: SecretKind(secretKind), Aliases: []Alias{a}}
+	r.secret = Secret{Kind: SecretKind(secretKind)}
+	for i := range ids {
+		if len(ids[i]) != IDLen {
+			return submissionRow{}, errors.New("credprotect: stored identifier has the wrong length")
+		}
+		var a Alias
+		a.KeyID = keyIDs[i]
+		copy(a.ID[:], ids[i])
+		r.secret.Aliases = append(r.secret.Aliases, a)
+	}
 	return r, nil
 }
 
@@ -198,6 +208,23 @@ func (s *Store) Fence(ctx context.Context, id uuid.UUID, cur Current) error {
 			return fmt.Errorf("%w: the credential is not active", ErrFenceRefused)
 		case cur.Secret.valid() != nil || !cur.Secret.Same(r.secret):
 			return fmt.Errorf("%w: the credential's secret changed", ErrFenceRefused)
+		case r.credentialID == nil:
+			return fmt.Errorf("%w: the credential was deleted", ErrFenceRefused)
+		}
+		// The credential must still be for the account it was checked for. A
+		// username edit since reserve would send the secret for another
+		// account. Classification cannot move it meanwhile: it is refused
+		// while this submission holds its slot or counts in o.
+		username, err := credentialUsername(ctx, tx, *r.credentialID)
+		if err != nil {
+			return err
+		}
+		owner, err := identityUsername(ctx, tx, r.identity)
+		if err != nil {
+			return err
+		}
+		if username != owner {
+			return fmt.Errorf("%w: the credential's username changed", ErrFenceRefused)
 		}
 		st, err := readState(ctx, tx, r.identity, r.secret, now)
 		if err != nil {

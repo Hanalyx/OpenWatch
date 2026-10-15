@@ -1235,3 +1235,207 @@ func TestFenceMatchesAnyAlias(t *testing.T) {
 		f.wantRefused(f.store.Fence(context.Background(), sub.ID, Current{Active: true, Secret: other}), ErrFenceRefused)
 	})
 }
+
+// rotated is P1 identified under a new key first and its old key second,
+// as during a fingerprint-key rotation.
+func rotated() Secret {
+	s := pw(1)
+	var k2 Alias
+	k2.KeyID = "k2"
+	k2.ID[0] = 0xA2
+	return Secret{Kind: SecretPassword, Aliases: []Alias{k2, s.Aliases[0]}}
+}
+
+// @ac AC-03
+// AC-03: a submission keeps every alias it was reserved with, so the fence,
+// expiry and settlement see restrictions and verification recorded under
+// any of them (review of #950, finding 1).
+func TestSubmissionsKeepEveryAlias(t *testing.T) {
+	t.Run("system-credential-protection/AC-03", func(t *testing.T) {
+		t.Run("verified under the old alias", func(t *testing.T) {
+			f := newFixture(t)
+			h := f.host()
+			c := f.cred("ops")
+			f.activate(c, h, pw(1))
+			sub := f.reserve(c, h, rotated(), KindOrdinary)
+			if n := f.count(`SELECT cardinality(alias_ids) FROM credprotect_submissions WHERE id = $1`, sub.ID); n != 2 {
+				t.Fatalf("%d aliases stored, want 2", n)
+			}
+			if err := f.store.Fence(context.Background(), sub.ID, Current{Active: true, Secret: rotated()}); err != nil {
+				t.Fatalf("the fence refused a verified secret reserved under a new alias: %v", err)
+			}
+		})
+		t.Run("a block under the old alias reaches a rotated verification", func(t *testing.T) {
+			f := newFixture(t)
+			ctx := context.Background()
+			h := f.host()
+			c := f.cred("ops")
+			if err := f.store.Classify(ctx, c, Target{Scope: ScopeLocal}); err != nil {
+				t.Fatal(err)
+			}
+			v := f.reserve(c, h, rotated(), KindVerification)
+			f.block(f.cred("ops"), f.host(), pw(1)) // on the root, under the old alias
+			err := f.store.Fence(ctx, v.ID, Current{Active: true, Secret: rotated()})
+			f.wantRefused(err, ErrBlocked)
+			if res := f.settle(v.ID, OutcomeVerified); res.Recovery != uuid.Nil {
+				t.Fatal("recovered despite a block under the old alias")
+			}
+			f.wantMode(c, h, rotated(), ModeBlocked)
+		})
+	})
+}
+
+// @ac AC-01
+// AC-01: a username edited after classification resolves under the new
+// username's root until the credential is classified again, and a
+// submission reserved before the edit fails the fence (finding 2).
+func TestUsernameEditAfterClassification(t *testing.T) {
+	t.Run("system-credential-protection/AC-01", func(t *testing.T) {
+		for _, scope := range []Scope{ScopeLocal, ScopeDirectory} {
+			t.Run(string(scope), func(t *testing.T) {
+				f := newFixture(t)
+				ctx := context.Background()
+				h := f.host()
+				c := f.cred("old-user")
+				to := Target{Scope: scope}
+				if scope == ScopeDirectory {
+					d, err := f.store.CreateDirectory(ctx, "corp", "old-user")
+					if err != nil {
+						t.Fatal(err)
+					}
+					to.Directory = d
+				}
+				if err := f.store.Classify(ctx, c, to); err != nil {
+					t.Fatal(err)
+				}
+				f.block(f.cred("new-user"), f.host(), pw(1))
+				if _, err := f.pool.Exec(ctx, `UPDATE credentials SET username = 'new-user' WHERE id = $1`, c); err != nil {
+					t.Fatal(err)
+				}
+				newRoot := f.identity(f.cred("new-user"), h)
+				if got := f.identity(c, h); got != newRoot {
+					t.Fatalf("a stale classification resolved to %v, not the new root %v", got, newRoot)
+				}
+				f.wantMode(c, h, pw(1), ModeBlocked)
+				// It can be classified again, below the new root, and keeps the block.
+				if err := f.store.Classify(ctx, c, Target{Scope: ScopeLocal}); err != nil {
+					t.Fatalf("reclassifying a stale classification: %v", err)
+				}
+				if !f.hasAncestor(f.identity(c, h), newRoot) {
+					t.Fatal("the new local identity is not below the new root")
+				}
+				f.wantMode(c, h, pw(1), ModeBlocked)
+			})
+		}
+		t.Run("a submission reserved before the edit", func(t *testing.T) {
+			f := newFixture(t)
+			ctx := context.Background()
+			h := f.host()
+			c := f.cred("ops")
+			f.activate(c, h, pw(1))
+			sub := f.reserve(c, h, pw(1), KindOrdinary)
+			if _, err := f.pool.Exec(ctx, `UPDATE credentials SET username = 'dev' WHERE id = $1`, c); err != nil {
+				t.Fatal(err)
+			}
+			f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: pw(1)}), ErrFenceRefused)
+		})
+	})
+}
+
+// @ac AC-10
+// AC-10: an overridden verification's success is evidence only, even before
+// its deadline; the request stands, and a later verification can still
+// recover (finding 3).
+func TestOverriddenVerificationIsEvidenceOnly(t *testing.T) {
+	t.Run("system-credential-protection/AC-10", func(t *testing.T) {
+		f := newFixture(t)
+		ctx := context.Background()
+		h := f.host()
+		c := f.cred("ops")
+		f.block(c, h, pw(1))
+		if _, err := f.store.RequestVerification(ctx, f.identity(c, h), pw(1), f.user); err != nil {
+			t.Fatal(err)
+		}
+		v := f.reserve(c, h, pw(1), KindVerification)
+		if err := f.store.Override(ctx, v.ID, f.user, "owner stalled", true); err != nil {
+			t.Fatal(err)
+		}
+		res := f.settle(v.ID, OutcomeVerified)
+		if res.Late || res.Recovery != uuid.Nil {
+			t.Fatalf("an overridden verification recovered before its deadline: %+v", res)
+		}
+		f.wantMode(c, h, pw(1), ModeVerifying)
+		again := f.reserve(c, h, pw(1), KindVerification)
+		if res := f.settle(again.ID, OutcomeVerified); res.Recovery == uuid.Nil {
+			t.Fatal("a later, unoverridden verification did not recover")
+		}
+		f.wantMode(c, h, pw(1), ModeActive)
+	})
+}
+
+// failingProcs cannot determine whether a process exists.
+type failingProcs struct{}
+
+func (failingProcs) Machine() string { return "m1" }
+func (failingProcs) Alive(int, string) (bool, error) {
+	return false, errors.New("cannot read the process table")
+}
+
+// @ac AC-08
+// AC-08: an incomplete or indeterminate owner identity never releases a slot
+// (finding 4).
+func TestIndeterminateOwnerNeverReleasesASlot(t *testing.T) {
+	t.Run("system-credential-protection/AC-08", func(t *testing.T) {
+		f := newFixture(t)
+		ctx := context.Background()
+		h := f.host()
+		c := f.cred("ops")
+		r := f.req(c, h, pw(1), KindVerification)
+		r.Owner.Start = ""
+		_, err := f.store.Reserve(ctx, r)
+		f.wantRefused(err, ErrInvalid)
+		if _, err := f.pool.Exec(ctx, `
+			INSERT INTO credprotect_submissions (id, identity_id, kind, stage, secret_kind, secret_key_id, secret_id,
+			       alias_key_ids, alias_ids, owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot, slot_held)
+			VALUES ($1, $2, 'ordinary', 'ssh', 'password', 'k1', '\x00'::bytea, '{k1}', '{"\\x00"}', 'm1', 1, '', now(), now(), '{}', false)`,
+			uuid.Must(uuid.NewV7()), f.identity(c, h)); err == nil ||
+			!strings.Contains(err.Error(), "credprotect_submissions_owner_whole") {
+			t.Fatalf("an owner with no start time: %v, want the owner constraint", err)
+		}
+		for _, bad := range []struct {
+			pid   int
+			start string
+		}{{0, "1"}, {-1, "1"}, {1, ""}} {
+			if _, err := (LocalProcesses{}).Alive(bad.pid, bad.start); err == nil {
+				t.Fatalf("Alive(%d, %q) gave an answer for an incomplete identity", bad.pid, bad.start)
+			}
+		}
+		sub := f.reserve(c, h, pw(1), KindVerification)
+		s := New(f.pool, WithClock(f.clock), WithProcesses(failingProcs{}))
+		_, err = s.ReleaseIfTerminated(ctx, sub.ID)
+		f.wantRefused(err, ErrNotTerminated)
+		if !f.slotHeld(sub.ID) {
+			t.Fatal("an indeterminate process check released the slot")
+		}
+	})
+}
+
+// @ac AC-06
+// AC-06: the fence refuses once the submission's credential is deleted.
+func TestFenceRefusesADeletedCredential(t *testing.T) {
+	t.Run("system-credential-protection/AC-06", func(t *testing.T) {
+		f := newFixture(t)
+		ctx := context.Background()
+		h := f.host()
+		c := f.cred("ops")
+		f.activate(c, h, pw(1))
+		sub := f.reserve(c, h, pw(1), KindOrdinary)
+		if _, err := f.pool.Exec(ctx, `DELETE FROM credentials WHERE id = $1`, c); err != nil {
+			t.Fatal(err)
+		}
+		f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: pw(1)}), ErrFenceRefused)
+		if !f.slotHeld(sub.ID) {
+			t.Fatal("deleting the credential released the slot")
+		}
+	})
+}

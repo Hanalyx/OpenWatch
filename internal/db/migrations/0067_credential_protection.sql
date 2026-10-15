@@ -104,9 +104,15 @@ CREATE TABLE credprotect_submissions (
     host_id          UUID         REFERENCES hosts(id) ON DELETE SET NULL,
     kind             TEXT         NOT NULL,
     stage            TEXT         NOT NULL,
+    -- The secret's first alias, the one recorded on restrictions this
+    -- submission creates, and every alias it was reserved with. Fence,
+    -- settlement and expiry match any of them, so a secret identified under
+    -- several keys during a rotation keeps all its identifiers.
     secret_kind      TEXT         NOT NULL,
     secret_key_id    TEXT         NOT NULL,
     secret_id        BYTEA        NOT NULL,
+    alias_key_ids    TEXT[]       NOT NULL,
+    alias_ids        BYTEA[]      NOT NULL,
     owner_machine    TEXT         NOT NULL,
     owner_pid        INTEGER      NOT NULL,
     owner_start      TEXT         NOT NULL,
@@ -139,6 +145,10 @@ CREATE TABLE credprotect_submissions (
         CHECK ((overridden_at IS NULL) = (override_reason IS NULL)),
     CONSTRAINT credprotect_submissions_overridden_slot_free
         CHECK (overridden_at IS NULL OR NOT slot_held),
+    CONSTRAINT credprotect_submissions_aliases_paired
+        CHECK (cardinality(alias_key_ids) = cardinality(alias_ids) AND cardinality(alias_ids) >= 1),
+    CONSTRAINT credprotect_submissions_owner_whole
+        CHECK (owner_machine <> '' AND owner_pid > 0 AND owner_start <> ''),
     CONSTRAINT credprotect_submissions_late_follows_unknown
         CHECK (late_outcome IS NULL OR (outcome = 'unknown' AND outcome_by = 'expiry'))
 );
