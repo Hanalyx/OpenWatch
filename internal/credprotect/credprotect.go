@@ -82,10 +82,10 @@ func (s Secret) GoString() string { return s.String() }
 
 func (s Secret) valid() error {
 	if s.Kind != SecretPassword && s.Kind != SecretKey {
-		return fmt.Errorf("credprotect: unknown secret kind %q", s.Kind)
+		return fmt.Errorf("%w: unknown secret kind %q", ErrInvalid, s.Kind)
 	}
 	if len(s.Aliases) == 0 {
-		return errors.New("credprotect: secret has no identifier")
+		return fmt.Errorf("%w: secret has no identifier", ErrInvalid)
 	}
 	return nil
 }
@@ -249,6 +249,18 @@ var (
 	ErrNotTerminated   = errors.New("credprotect: owner not verified ended")
 	ErrOverride        = errors.New("credprotect: an override needs a reason and a confirmation")
 	ErrInvalid         = errors.New("credprotect: invalid request")
+	// ErrLateralBlock: a block applies that this attempt's own verification
+	// cannot lift: one living on a directory identity it is not bound to.
+	ErrLateralBlock = errors.New("credprotect: blocked by a directory identity's restriction; verify through it")
+	// ErrCandidate: the directory identity is a candidate or retired, and
+	// admits nothing.
+	ErrCandidate = errors.New("credprotect: directory identity is not usable")
+	// ErrStaleAssertion: the usable directory identities changed since the
+	// operator's assertion named them.
+	ErrStaleAssertion = errors.New("credprotect: assertion no longer covers the usable directory identities")
+	// ErrBinding: the attempt or confirmation contradicts a host account's
+	// binding.
+	ErrBinding = errors.New("credprotect: contradicts the host account's binding")
 )
 
 // normalizeUsername is the identity key's username: trimmed, lower-case.

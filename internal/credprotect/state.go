@@ -10,27 +10,31 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// restriction is one restriction that applies to a secret on an identity.
+// restriction is one restriction that applies to a secret for a target.
 type restriction struct {
-	id   uuid.UUID
-	kind string
+	id       uuid.UUID
+	kind     string
+	identity uuid.UUID
 }
 
-// state is everything that decides a secret's mode on an identity.
+// state is everything that decides a secret's mode for a target.
 type state struct {
 	applies   []restriction // every applicable restriction: unlifted blocks, pauses, cooldowns, allowances
 	paused    bool
-	blocked   bool // an unlifted block applies
+	blocked   bool // an unlifted block applies that this target's verification can lift
+	stuck     bool // an unlifted block applies that it cannot: one living on a directory it is not bound to
 	cooldown  bool
 	allowance bool
-	requested bool // a verification request is pending on this identity
-	verified  bool // the secret has been verified on this identity
+	requested bool // a verification request is pending on the target's scope
+	verified  bool // the secret has been verified on the target's scope
 }
 
 func (st state) mode() Mode {
 	switch {
 	case st.paused:
 		return ModePaused
+	case st.stuck:
+		return ModeBlocked
 	case st.blocked && !st.requested:
 		return ModeBlocked
 	case st.blocked, !st.verified:
@@ -45,15 +49,15 @@ func (st state) ids() []uuid.UUID {
 	for _, r := range st.applies {
 		out = append(out, r.id)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
-	return out
+	return sortedIDs(out)
 }
 
-// blockIDs returns the applicable block ids: what a recovery would lift.
-func (st state) blockIDs() []uuid.UUID {
-	var out []uuid.UUID
+// blocksOn returns the applicable block ids living on the identities for
+// which on reports true.
+func (st state) blocksOn(on func(uuid.UUID) bool) []uuid.UUID {
+	out := []uuid.UUID{}
 	for _, r := range st.applies {
-		if r.kind == "block" {
+		if r.kind == "block" && on(r.identity) {
 			out = append(out, r.id)
 		}
 	}
@@ -82,34 +86,62 @@ func matchSecret(p string) string {
 		  JOIN unnest($3::text[], $4::bytea[]) AS a(key_id, id) ON a.key_id = r.key_id AND a.id = r.id))`, p)
 }
 
-// readState reads a secret's state on an identity at now. The caller holds
+// laterals returns the identities whose restrictions a target must respect
+// although they are not in its lineage (spec C-04): its host's record, and
+// for an unconfirmed attempt every usable directory for its username.
+func laterals(ctx context.Context, tx pgx.Tx, t target) ([]uuid.UUID, error) {
+	var out []uuid.UUID
+	if t.hostRecord != uuid.Nil && t.hostRecord != t.scope {
+		out = append(out, t.hostRecord)
+	}
+	if t.class == ClassUnconfirmed {
+		dirs, err := usableDirectories(ctx, tx, t.username)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dirs...)
+	}
+	return out, nil
+}
+
+// readState reads a secret's state for a target at now. The caller holds
 // the username's lock (spec C-04, C-05).
-func readState(ctx context.Context, tx pgx.Tx, identity uuid.UUID, secret Secret, now time.Time) (state, error) {
+//
+// The target consults its lineage (its scope and the root) and its lateral
+// identities. A block in its lineage is lifted by a recovery on its scope
+// that names it. A lateral block is lifted only by a recovery on the
+// identity it lives on. Of the lateral blocks, the host record's can be
+// lifted by this target's own verification (a host-plus-scope recovery); a
+// directory's cannot.
+func readState(ctx context.Context, tx pgx.Tx, t target, secret Secret, now time.Time) (state, error) {
 	keys, ids := aliasArrays(secret)
+	lat, err := laterals(ctx, tx, t)
+	if err != nil {
+		return state{}, err
+	}
+	consulted := append([]uuid.UUID{t.scope, t.root}, lat...)
+	if lat == nil {
+		lat = []uuid.UUID{}
+	}
 	var st state
 	rows, err := tx.Query(ctx, `
-		WITH RECURSIVE above(id) AS (
-			SELECT $1::uuid
-			UNION
-			SELECT e.parent_id FROM credprotect_identity_edges e JOIN above a ON e.child_id = a.id
-		),
-		lifted AS (
-			SELECT unnest(lifted) AS id FROM credprotect_recoveries WHERE identity_id = $1
-		)
-		SELECT r.id, r.kind
+		SELECT r.id, r.kind, r.identity_id
 		  FROM credprotect_restrictions r
-		 WHERE r.identity_id IN (SELECT id FROM above)
+		 WHERE r.identity_id = ANY($6)
 		   AND (r.secret_kind IS NULL OR `+matchSecret("r.")+`)
 		   AND NOT (r.kind = 'pause' AND r.ended_at IS NOT NULL)
 		   AND NOT (r.kind = 'cooldown' AND r.expires_at <= $5)
-		   AND NOT (r.kind = 'block' AND r.id IN (SELECT id FROM lifted))`,
-		identity, string(secret.Kind), keys, ids, now)
+		   AND NOT (r.kind = 'block' AND EXISTS (
+		         SELECT 1 FROM credprotect_recoveries c
+		          WHERE c.identity_id = CASE WHEN r.identity_id = ANY($7) THEN r.identity_id ELSE $1 END
+		            AND r.id = ANY(c.lifted)))`,
+		t.scope, string(secret.Kind), keys, ids, now, consulted, lat)
 	if err != nil {
 		return state{}, fmt.Errorf("credprotect: read restrictions: %w", err)
 	}
 	for rows.Next() {
 		var r restriction
-		if err := rows.Scan(&r.id, &r.kind); err != nil {
+		if err := rows.Scan(&r.id, &r.kind, &r.identity); err != nil {
 			rows.Close()
 			return state{}, fmt.Errorf("credprotect: read restrictions: %w", err)
 		}
@@ -118,7 +150,11 @@ func readState(ctx context.Context, tx pgx.Tx, identity uuid.UUID, secret Secret
 		case "pause":
 			st.paused = true
 		case "block":
-			st.blocked = true
+			if r.identity == t.scope || r.identity == t.root || r.identity == t.hostRecord {
+				st.blocked = true
+			} else {
+				st.stuck = true // a directory's block, lateral to an unconfirmed attempt
+			}
 		case "cooldown":
 			st.cooldown = true
 		case "allowance_used":
@@ -134,40 +170,47 @@ func readState(ctx context.Context, tx pgx.Tx, identity uuid.UUID, secret Secret
 		                WHERE v.identity_id = $1 AND v.ended_at IS NULL AND `+matchSecret("v.")+`),
 		       EXISTS (SELECT 1 FROM credprotect_verified_secrets v
 		                WHERE v.identity_id = $1 AND `+matchSecret("v.")+`)`,
-		identity, string(secret.Kind), keys, ids).Scan(&st.requested, &st.verified); err != nil {
+		t.scope, string(secret.Kind), keys, ids).Scan(&st.requested, &st.verified); err != nil {
 		return state{}, fmt.Errorf("credprotect: read verification state: %w", err)
 	}
 	return st, nil
 }
 
-// Status is a secret's mode on an identity, and the bound on its
+// Status is a secret's mode for an attempt, and the bound on its scope's
 // transmissions: K, plus o overridden submissions not yet known to have
 // ended.
 type Status struct {
-	Mode Mode
-	K    int
-	O    int
+	Mode  Mode
+	Class Class
+	Scope uuid.UUID
+	K     int
+	O     int
 }
 
-// Status reads a secret's mode on an identity now.
-func (s *Store) Status(ctx context.Context, identity uuid.UUID, secret Secret) (Status, error) {
+// Status reads the mode an attempt by credentialID on host would have now.
+func (s *Store) Status(ctx context.Context, credentialID, hostID uuid.UUID, secret Secret) (Status, error) {
 	if err := secret.valid(); err != nil {
 		return Status{}, err
 	}
 	var out Status
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := lockIdentity(ctx, tx, identity); err != nil {
-			return err
-		}
-		st, err := readState(ctx, tx, identity, secret, s.clock.Now())
+		username, err := lockCredential(ctx, tx, credentialID)
 		if err != nil {
 			return err
 		}
-		o, err := overridesOutstanding(ctx, tx, identity)
+		t, err := s.resolveTarget(ctx, tx, credentialID, hostID, username)
 		if err != nil {
 			return err
 		}
-		out = Status{Mode: st.mode(), K: K, O: o}
+		st, err := readState(ctx, tx, t, secret, s.clock.Now())
+		if err != nil {
+			return err
+		}
+		o, err := overridesOutstanding(ctx, tx, t.scope)
+		if err != nil {
+			return err
+		}
+		out = Status{Mode: st.mode(), Class: t.class, Scope: t.scope, K: K, O: o}
 		return nil
 	})
 	return out, err

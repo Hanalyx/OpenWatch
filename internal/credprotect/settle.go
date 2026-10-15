@@ -21,8 +21,11 @@ type Result struct {
 	Released bool
 	// Blocks are the blocks this outcome created.
 	Blocks []uuid.UUID
-	// Recovery is the recovery record written on an exact match.
-	Recovery uuid.UUID
+	// Recovery is the recovery record written on the scope on an exact
+	// match. HostRecovery is the one written on the host record by a
+	// host-plus-scope recovery, in the same transaction.
+	Recovery     uuid.UUID
+	HostRecovery uuid.UUID
 }
 
 // Settle records the owner's outcome for a submission and applies its
@@ -86,32 +89,66 @@ func (s *Store) Settle(ctx context.Context, id uuid.UUID, outcome Outcome) (Resu
 	return res, nil
 }
 
-// applyEffects changes protection for an outcome (spec C-09, C-10).
-// Restrictive effects always apply. Permissive effects apply only on an
-// exact match.
+// recoveryBetweenWrites runs between a host-plus-scope recovery's two
+// writes. Tests set it to inject a failure there and show that neither
+// write survives.
+var recoveryBetweenWrites = func() error { return nil }
+
+// applyEffects changes protection for an outcome on the submission's
+// recorded target (spec C-09, C-10). Restrictive effects always apply.
+// Permissive effects apply only on an exact match against the restrictions
+// that apply now.
 func (s *Store) applyEffects(ctx context.Context, tx pgx.Tx, r submissionRow, outcome Outcome, late bool,
 	now time.Time, res *Result) error {
+	t, err := s.targetOf(ctx, tx, r)
+	if err != nil {
+		return err
+	}
+	// The host record a verification of this target can recover, besides its
+	// scope: its host's record, unless that is its scope already.
+	hostRec := uuid.Nil
+	if t.hostRecord != uuid.Nil && t.hostRecord != t.scope {
+		hostRec = t.hostRecord
+	}
 	if outcome.restrictive() {
 		var secret *Secret
 		if outcome != OutcomeAmbiguous {
 			secret = &r.secret
 		}
-		b, err := addRestriction(ctx, tx, r.identity, "block", secret, string(outcome), r.id, now, nil)
+		b, err := addRestriction(ctx, tx, t.scope, "block", secret, string(outcome), r.id, now, nil)
 		if err != nil {
 			return err
 		}
 		res.Blocks = append(res.Blocks, b)
 		if r.kind == KindVerification {
+			// A failed verification starts the cooldown and uses the
+			// allowance on every identity it would have lifted: its scope,
+			// and its host's record when its snapshot held a block there.
+			affected := []uuid.UUID{t.scope}
+			if hostRec != uuid.Nil {
+				var held bool
+				if err := tx.QueryRow(ctx, `
+					SELECT EXISTS (SELECT 1 FROM credprotect_restrictions
+					                WHERE identity_id = $1 AND kind = 'block' AND id = ANY($2))`,
+					hostRec, r.snapshot).Scan(&held); err != nil {
+					return fmt.Errorf("credprotect: read snapshot: %w", err)
+				}
+				if held {
+					affected = append(affected, hostRec)
+				}
+			}
 			until := now.Add(Cooldown)
-			if _, err := addRestriction(ctx, tx, r.identity, "cooldown", &r.secret, string(outcome), r.id, now,
-				&until); err != nil {
-				return err
+			for _, id := range affected {
+				if _, err := addRestriction(ctx, tx, id, "cooldown", &r.secret, string(outcome), r.id, now,
+					&until); err != nil {
+					return err
+				}
+				if _, err := addRestriction(ctx, tx, id, "allowance_used", &r.secret, string(outcome), r.id,
+					now, nil); err != nil {
+					return err
+				}
 			}
-			if _, err := addRestriction(ctx, tx, r.identity, "allowance_used", &r.secret, string(outcome), r.id,
-				now, nil); err != nil {
-				return err
-			}
-			if err := endRequest(ctx, tx, r.identity, r.secret, r.id, now); err != nil {
+			if err := endRequest(ctx, tx, t.scope, r.secret, r.id, now); err != nil {
 				return err
 			}
 		}
@@ -123,35 +160,55 @@ func (s *Store) applyEffects(ctx context.Context, tx pgx.Tx, r submissionRow, ou
 	if outcome != OutcomeVerified || r.kind != KindVerification || late || r.overridden {
 		return nil // evidence only
 	}
-	st, err := readState(ctx, tx, r.identity, r.secret, now)
+	st, err := readState(ctx, tx, t, r.secret, now)
 	if err != nil {
 		return err
 	}
 	// A pause needs no separate check: Reserve refuses while paused, so no
 	// snapshot holds one, and a pause that began since makes the sets differ.
+	// The same holds for every lateral restriction, a new one included.
 	if !sameIDs(st.ids(), r.snapshot) {
 		return nil // not an exact match: evidence only, the request stays
 	}
+	// One recovery on the scope for the blocks in its lineage, and, for a
+	// host-plus-scope recovery, one on the host record for the blocks living
+	// there. Both are written in this transaction or neither is.
 	rec := newID()
-	lifted := st.blockIDs()
-	if lifted == nil {
-		lifted = []uuid.UUID{}
+	scopeBlocks := st.blocksOn(func(id uuid.UUID) bool { return id != hostRec })
+	if err := insertRecovery(ctx, tx, rec, t.scope, r.id, scopeBlocks, now); err != nil {
+		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO credprotect_recoveries (id, identity_id, submission_id, lifted, created_at)
-		VALUES ($1, $2, $3, $4, $5)`, rec, r.identity, r.id, lifted, now); err != nil {
-		return fmt.Errorf("credprotect: record recovery: %w", err)
+	if err := recoveryBetweenWrites(); err != nil {
+		return err
+	}
+	if hostRec != uuid.Nil {
+		if hostBlocks := st.blocksOn(func(id uuid.UUID) bool { return id == hostRec }); len(hostBlocks) > 0 {
+			res.HostRecovery = newID()
+			if err := insertRecovery(ctx, tx, res.HostRecovery, hostRec, r.id, hostBlocks, now); err != nil {
+				return err
+			}
+		}
 	}
 	keys, ids := aliasArrays(r.secret)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO credprotect_verified_secrets (recovery_id, identity_id, secret_kind, alias_key_ids, alias_ids, verified_at)
-		VALUES ($1, $2, $3, $4, $5, $6)`, rec, r.identity, string(r.secret.Kind), keys, ids, now); err != nil {
+		VALUES ($1, $2, $3, $4, $5, $6)`, rec, t.scope, string(r.secret.Kind), keys, ids, now); err != nil {
 		return fmt.Errorf("credprotect: record verified secret: %w", err)
 	}
-	if err := endRequest(ctx, tx, r.identity, r.secret, r.id, now); err != nil {
+	if err := endRequest(ctx, tx, t.scope, r.secret, r.id, now); err != nil {
 		return err
 	}
 	res.Recovery = rec
+	return nil
+}
+
+func insertRecovery(ctx context.Context, tx pgx.Tx, id, identity, submission uuid.UUID, lifted []uuid.UUID,
+	now time.Time) error {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO credprotect_recoveries (id, identity_id, submission_id, lifted, created_at)
+		VALUES ($1, $2, $3, $4, $5)`, id, identity, submission, lifted, now); err != nil {
+		return fmt.Errorf("credprotect: record recovery: %w", err)
+	}
 	return nil
 }
 

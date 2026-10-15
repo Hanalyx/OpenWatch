@@ -1,42 +1,58 @@
 -- +goose Up
 -- Credential protection state and reservations (features/OW-122, slice 3).
--- Spec system-credential-protection. internal/credprotect is the only code
--- that reads or writes these tables.
+-- Spec system-credential-protection; contract r3, which adopts the account
+-- scope proposal r4. internal/credprotect is the only code that reads or
+-- writes these tables.
 --
 -- A secret is identified by its kind and its aliases: (key id, 32-byte keyed
 -- identifier) pairs, stored as the parallel arrays alias_key_ids and
 -- alias_ids. Every row that records a secret stores every alias the writer
 -- presented, and two secrets are the same when their kinds match and their
--- alias sets overlap. So a row written under [new, old] during a key
--- rotation is seen by a reservation that knows only old, and the reverse.
--- An identifier is a sensitive equality value: it is never returned by the
--- API, logged or audited.
+-- alias sets overlap. An identifier is a sensitive equality value: it is
+-- never returned by the API, logged or audited.
+--
+-- Identities. Each username has one root (scope unconfirmed). Every other
+-- identity has the root as its only parent: a host record (scope local, one
+-- per host and username) or a directory identity. Lineage is the identity
+-- and its root.
 --
 -- Nothing here is swept. Protection history must outlive the credentials and
 -- hosts it was recorded for, so the foreign keys to them set NULL rather
--- than cascade, except a credential's classification, which describes the
--- credential itself.
+-- than cascade, except a credential's classification and a host's binding
+-- intent, which describe that credential or host.
 
 CREATE TABLE credprotect_identities (
-    id              UUID         PRIMARY KEY,
-    scope           TEXT         NOT NULL,
-    username        TEXT         NOT NULL,
-    host_id         UUID         REFERENCES hosts(id) ON DELETE SET NULL,
-    directory_name  TEXT,
-    depth           INTEGER      NOT NULL,
-    created_at      TIMESTAMPTZ  NOT NULL,
+    id               UUID         PRIMARY KEY,
+    scope            TEXT         NOT NULL,
+    username         TEXT         NOT NULL,
+    host_id          UUID         REFERENCES hosts(id) ON DELETE SET NULL,
+    directory_name   TEXT,
+    -- A directory identity is usable, a candidate awaiting resolution, or
+    -- retired into the usable identity it was resolved to be.
+    admission        TEXT,
+    retired_into     UUID         REFERENCES credprotect_identities(id),
+    -- A host record confirmed as a local account by an operator.
+    confirmed_local  BOOLEAN      NOT NULL DEFAULT false,
+    confirmed_by     UUID,
+    confirmed_at     TIMESTAMPTZ,
+    confirmed_basis  TEXT,
+    created_at       TIMESTAMPTZ  NOT NULL,
     CONSTRAINT credprotect_identities_scope_known
         CHECK (scope IN ('unconfirmed', 'local', 'directory')),
-    CONSTRAINT credprotect_identities_depth_bounded
-        CHECK (depth BETWEEN 1 AND 3),
-    CONSTRAINT credprotect_identities_root_depth
-        CHECK ((scope = 'unconfirmed') = (depth = 1)),
     CONSTRAINT credprotect_identities_directory_named
-        CHECK ((scope = 'directory') = (directory_name IS NOT NULL))
+        CHECK ((scope = 'directory') = (directory_name IS NOT NULL)),
+    CONSTRAINT credprotect_identities_admission
+        CHECK ((scope = 'directory') = (admission IS NOT NULL)
+           AND (admission IS NULL OR admission IN ('usable', 'candidate', 'retired'))
+           AND ((admission = 'retired') IS TRUE) = (retired_into IS NOT NULL)),
+    CONSTRAINT credprotect_identities_confirmation_whole
+        CHECK (confirmed_local = (confirmed_by IS NOT NULL)
+           AND confirmed_local = (confirmed_at IS NOT NULL)
+           AND confirmed_local = (confirmed_basis IS NOT NULL)),
+    CONSTRAINT credprotect_identities_only_local_confirmed
+        CHECK (scope = 'local' OR confirmed_local = false)
 );
 
--- One root per username, one local identity per account on a host, one
--- directory identity per name.
 CREATE UNIQUE INDEX uq_credprotect_identities_root
     ON credprotect_identities (username) WHERE scope = 'unconfirmed';
 CREATE UNIQUE INDEX uq_credprotect_identities_local
@@ -44,27 +60,42 @@ CREATE UNIQUE INDEX uq_credprotect_identities_local
 CREATE UNIQUE INDEX uq_credprotect_identities_directory
     ON credprotect_identities (directory_name) WHERE scope = 'directory';
 
-CREATE TABLE credprotect_identity_edges (
-    child_id   UUID  NOT NULL REFERENCES credprotect_identities(id),
-    parent_id  UUID  NOT NULL REFERENCES credprotect_identities(id),
-    PRIMARY KEY (child_id, parent_id),
-    CONSTRAINT credprotect_identity_edges_not_self CHECK (child_id <> parent_id)
+-- Every resolution of a candidate directory: "distinct" names the usable
+-- identities it was asserted distinct from, "same" names the usable
+-- identity it was retired into.
+CREATE TABLE credprotect_directory_resolutions (
+    id            UUID         PRIMARY KEY,
+    directory_id  UUID         NOT NULL REFERENCES credprotect_identities(id),
+    resolution    TEXT         NOT NULL,
+    covers        UUID[]       NOT NULL,
+    actor         UUID         NOT NULL,
+    basis         TEXT         NOT NULL,
+    resolved_at   TIMESTAMPTZ  NOT NULL,
+    CONSTRAINT credprotect_directory_resolutions_known CHECK (resolution IN ('distinct', 'same')),
+    CONSTRAINT credprotect_directory_resolutions_basis CHECK (basis <> '')
 );
-CREATE INDEX idx_credprotect_identity_edges_parent ON credprotect_identity_edges (parent_id);
 
--- A credential with no row here is unconfirmed. parent_identity_id is the
--- identity the credential resolved to before it was classified; new
--- identities it resolves to get a lineage edge to it.
+-- A credential with no row here is unconfirmed.
 CREATE TABLE credprotect_credential_classes (
     credential_id          UUID         PRIMARY KEY REFERENCES credentials(id) ON DELETE CASCADE,
     scope                  TEXT         NOT NULL,
     directory_identity_id  UUID         REFERENCES credprotect_identities(id),
-    parent_identity_id     UUID         NOT NULL REFERENCES credprotect_identities(id),
     classified_at          TIMESTAMPTZ  NOT NULL,
     CONSTRAINT credprotect_credential_classes_scope_known
         CHECK (scope IN ('local', 'directory')),
     CONSTRAINT credprotect_credential_classes_directory_named
         CHECK ((scope = 'directory') = (directory_identity_id IS NOT NULL))
+);
+
+-- Binding intent: a directory-bound attempt reserved on this host for this
+-- username. It records intent, not proof that the attempt reached the host.
+-- One directory per host account.
+CREATE TABLE credprotect_directory_bindings (
+    host_id       UUID         NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    username      TEXT         NOT NULL,
+    directory_id  UUID         NOT NULL REFERENCES credprotect_identities(id),
+    created_at    TIMESTAMPTZ  NOT NULL,
+    PRIMARY KEY (host_id, username)
 );
 
 CREATE TABLE credprotect_restrictions (
@@ -105,7 +136,12 @@ CREATE INDEX idx_credprotect_restrictions_identity ON credprotect_restrictions (
 
 CREATE TABLE credprotect_submissions (
     id               UUID         PRIMARY KEY,
+    -- The attempt's target, kept from reserve through settlement: its class,
+    -- its scope (the identity whose slot it holds and where its failures
+    -- and recovery are recorded), its username and its host.
     identity_id      UUID         NOT NULL REFERENCES credprotect_identities(id),
+    class            TEXT         NOT NULL,
+    username         TEXT         NOT NULL,
     credential_id    UUID         REFERENCES credentials(id) ON DELETE SET NULL,
     host_id          UUID         REFERENCES hosts(id) ON DELETE SET NULL,
     kind             TEXT         NOT NULL,
@@ -120,7 +156,8 @@ CREATE TABLE credprotect_submissions (
     owner_start      TEXT         NOT NULL,
     reserved_at      TIMESTAMPTZ  NOT NULL,
     deadline         TIMESTAMPTZ  NOT NULL,
-    -- The ids of every restriction that applied when this was reserved.
+    -- The ids of every restriction that applied when this was reserved:
+    -- kept as evidence; the fence and settlement recompute what applies.
     snapshot         UUID[]       NOT NULL,
     slot_held        BOOLEAN      NOT NULL,
     -- Known to have ended: the owner reported, or its process was verified
@@ -135,10 +172,16 @@ CREATE TABLE credprotect_submissions (
     late             BOOLEAN      NOT NULL DEFAULT false,
     late_outcome     TEXT,
     late_outcome_at  TIMESTAMPTZ,
+    CONSTRAINT credprotect_submissions_class_known
+        CHECK (class IN ('directory', 'confirmed_local', 'unconfirmed')),
     CONSTRAINT credprotect_submissions_kind_known
         CHECK (kind IN ('ordinary', 'verification')),
     CONSTRAINT credprotect_submissions_secret_kind_known
         CHECK (secret_kind IN ('password', 'key')),
+    CONSTRAINT credprotect_submissions_aliases_paired
+        CHECK (cardinality(alias_key_ids) = cardinality(alias_ids) AND cardinality(alias_ids) >= 1),
+    CONSTRAINT credprotect_submissions_owner_whole
+        CHECK (owner_machine <> '' AND owner_pid > 0 AND owner_start <> ''),
     CONSTRAINT credprotect_submissions_outcome_by_known
         CHECK (outcome_by IS NULL OR outcome_by IN ('owner', 'expiry', 'termination')),
     CONSTRAINT credprotect_submissions_outcome_whole
@@ -147,28 +190,29 @@ CREATE TABLE credprotect_submissions (
         CHECK ((overridden_at IS NULL) = (override_reason IS NULL)),
     CONSTRAINT credprotect_submissions_overridden_slot_free
         CHECK (overridden_at IS NULL OR NOT slot_held),
-    CONSTRAINT credprotect_submissions_aliases_paired
-        CHECK (cardinality(alias_key_ids) = cardinality(alias_ids) AND cardinality(alias_ids) >= 1),
-    CONSTRAINT credprotect_submissions_owner_whole
-        CHECK (owner_machine <> '' AND owner_pid > 0 AND owner_start <> ''),
     CONSTRAINT credprotect_submissions_late_follows_unknown
         CHECK (late_outcome IS NULL OR (outcome = 'unknown' AND outcome_by = 'expiry'))
 );
--- K = 1: at most one submission per identity holds a slot. The reservation
--- also checks this under the username's lock; the index makes it a
--- database invariant too.
+-- At most one submission per scope holds a slot. Conflicts between scopes
+-- that may reach the same account are checked under the username's lock.
 CREATE UNIQUE INDEX uq_credprotect_submissions_slot
     ON credprotect_submissions (identity_id) WHERE slot_held;
+CREATE INDEX idx_credprotect_submissions_username_slot
+    ON credprotect_submissions (username) WHERE slot_held;
 CREATE INDEX idx_credprotect_submissions_open
     ON credprotect_submissions (deadline) WHERE outcome IS NULL;
 
+-- A verification that matches exactly writes one recovery on its scope and,
+-- for a host-plus-scope recovery, one on the host record, in one
+-- transaction. Each names only blocks living on, or inherited by, its
+-- identity.
 CREATE TABLE credprotect_recoveries (
     id             UUID         PRIMARY KEY,
     identity_id    UUID         NOT NULL REFERENCES credprotect_identities(id),
-    submission_id  UUID         NOT NULL UNIQUE REFERENCES credprotect_submissions(id),
-    -- The block ids this recovery lifts, for this identity only.
+    submission_id  UUID         NOT NULL REFERENCES credprotect_submissions(id),
     lifted         UUID[]       NOT NULL,
-    created_at     TIMESTAMPTZ  NOT NULL
+    created_at     TIMESTAMPTZ  NOT NULL,
+    UNIQUE (submission_id, identity_id)
 );
 CREATE INDEX idx_credprotect_recoveries_identity ON credprotect_recoveries (identity_id);
 
@@ -204,6 +248,7 @@ DROP TABLE IF EXISTS credprotect_verification_requests;
 DROP TABLE IF EXISTS credprotect_recoveries;
 DROP TABLE IF EXISTS credprotect_submissions;
 DROP TABLE IF EXISTS credprotect_restrictions;
+DROP TABLE IF EXISTS credprotect_directory_bindings;
 DROP TABLE IF EXISTS credprotect_credential_classes;
-DROP TABLE IF EXISTS credprotect_identity_edges;
+DROP TABLE IF EXISTS credprotect_directory_resolutions;
 DROP TABLE IF EXISTS credprotect_identities;

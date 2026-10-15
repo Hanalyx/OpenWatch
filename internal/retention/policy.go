@@ -153,7 +153,12 @@ var registry = []Policy{
 		Reason: reasonCredentialProtection,
 	},
 	{
-		Table:  "credprotect_identity_edges",
+		Table:  "credprotect_directory_resolutions",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_directory_bindings",
 		State:  StateNever,
 		Reason: reasonCredentialProtection,
 	},
@@ -317,14 +322,14 @@ const reasonHostDiscoveryBackoff = "Never swept: it is current state, not histor
 	"host (ON DELETE CASCADE). A sweep by age would remove a failing host's " +
 	"backoff and let the scheduler retry it at once. bugs/OW-120."
 
-// reasonCredentialProtection covers the eight credprotect_ tables.
+// reasonCredentialProtection covers the nine credprotect_ tables.
 const reasonCredentialProtection = "Never swept: this is protection state, and its history is part of it. " +
-	"A block stays until a recovery record on an identity names it, and a recovery names " +
-	"blocks by id; a used verification allowance is never removed; submissions still " +
-	"holding a slot or counted in an override bound decide what may be sent next; and " +
-	"lineage edges are how an old block reaches a new identity. Deleting any of them by " +
-	"age could let a rejected secret be sent again. Spec system-credential-protection, " +
-	"features/OW-122."
+	"A block stays until a recovery record names it by id; a used verification allowance " +
+	"is never removed; submissions holding a slot or counted in an override bound decide " +
+	"what may be sent next; a host record's history is consulted by every attempt on that " +
+	"host; binding intent and directory resolutions decide which attempts are admitted. " +
+	"Deleting any of them by age could let a rejected secret be sent again. Spec " +
+	"system-credential-protection, features/OW-122."
 
 // reasonUndecided is shared by every table nobody has ruled on. The
 // entry's value is that a new table cannot be added without picking a

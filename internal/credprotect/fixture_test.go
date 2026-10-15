@@ -68,7 +68,7 @@ func newFixture(t *testing.T) *fixture {
 	for _, table := range []string{
 		"credprotect_verified_secrets", "credprotect_verification_requests", "credprotect_recoveries",
 		"credprotect_submissions", "credprotect_restrictions", "credprotect_credential_classes",
-		"credprotect_identity_edges", "credprotect_identities",
+		"credprotect_directory_bindings", "credprotect_directory_resolutions", "credprotect_identities",
 	} {
 		if _, err := pool.Exec(ctx, "TRUNCATE "+table+" CASCADE"); err != nil {
 			t.Fatalf("truncate %s: %v", table, err)
@@ -171,13 +171,69 @@ func (f *fixture) identity(cred, host uuid.UUID) uuid.UUID {
 	return id
 }
 
-func (f *fixture) mode(cred, host uuid.UUID, s Secret) Mode {
+func (f *fixture) status(cred, host uuid.UUID, s Secret) Status {
 	f.t.Helper()
-	st, err := f.store.Status(context.Background(), f.identity(cred, host), s)
+	st, err := f.store.Status(context.Background(), cred, host, s)
 	if err != nil {
 		f.t.Fatalf("status: %v", err)
 	}
-	return st.Mode
+	return st
+}
+
+func (f *fixture) mode(cred, host uuid.UUID, s Secret) Mode {
+	f.t.Helper()
+	return f.status(cred, host, s).Mode
+}
+
+// request asks for verification of s for cred's attempts on host.
+func (f *fixture) request(cred, host uuid.UUID, s Secret) error {
+	_, err := f.store.RequestVerification(context.Background(), cred, host, s, f.user)
+	return err
+}
+
+// classify classifies cred, failing the test on refusal.
+func (f *fixture) classify(cred uuid.UUID, to Target) {
+	f.t.Helper()
+	if err := f.store.Classify(context.Background(), cred, to); err != nil {
+		f.t.Fatalf("classify %s: %v", to.Scope, err)
+	}
+}
+
+// localCred is a credential for username classified local.
+func (f *fixture) localCred(username string) uuid.UUID {
+	f.t.Helper()
+	c := f.cred(username)
+	f.classify(c, Target{Scope: ScopeLocal})
+	return c
+}
+
+// confirm confirms (host, username) as a local account.
+func (f *fixture) confirm(host uuid.UUID, username string) {
+	f.t.Helper()
+	if err := f.store.ConfirmLocal(context.Background(), host, username, f.user, "inventory: local account"); err != nil {
+		f.t.Fatalf("confirm local: %v", err)
+	}
+}
+
+// directory creates a directory identity and checks its admission.
+func (f *fixture) directory(name, username string, want Admission) uuid.UUID {
+	f.t.Helper()
+	id, adm, err := f.store.CreateDirectory(context.Background(), name, username)
+	if err != nil {
+		f.t.Fatalf("create directory: %v", err)
+	}
+	if adm != want {
+		f.t.Fatalf("directory %s is %s, want %s", name, adm, want)
+	}
+	return id
+}
+
+// dirCred is a credential for username classified to directory d.
+func (f *fixture) dirCred(username string, d uuid.UUID) uuid.UUID {
+	f.t.Helper()
+	c := f.cred(username)
+	f.classify(c, Target{Scope: ScopeDirectory, Directory: d})
+	return c
 }
 
 func (f *fixture) wantMode(cred, host uuid.UUID, s Secret, want Mode) {
