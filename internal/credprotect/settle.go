@@ -142,11 +142,10 @@ func (s *Store) applyEffects(ctx context.Context, tx pgx.Tx, r submissionRow, ou
 		VALUES ($1, $2, $3, $4, $5)`, rec, r.identity, r.id, lifted, now); err != nil {
 		return fmt.Errorf("credprotect: record recovery: %w", err)
 	}
-	p := r.secret.primary()
+	keys, ids := aliasArrays(r.secret)
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO credprotect_verified_secrets (identity_id, secret_kind, secret_key_id, secret_id, recovery_id, verified_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT DO NOTHING`, r.identity, string(r.secret.Kind), p.KeyID, p.ID[:], rec, now); err != nil {
+		INSERT INTO credprotect_verified_secrets (recovery_id, identity_id, secret_kind, alias_key_ids, alias_ids, verified_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`, rec, r.identity, string(r.secret.Kind), keys, ids, now); err != nil {
 		return fmt.Errorf("credprotect: record verified secret: %w", err)
 	}
 	if err := endRequest(ctx, tx, r.identity, r.secret, r.id, now); err != nil {
@@ -178,12 +177,13 @@ func sameIDs(a, b []uuid.UUID) bool {
 func addRestriction(ctx context.Context, tx pgx.Tx, identity uuid.UUID, kind string, secret *Secret,
 	reason string, submission uuid.UUID, now time.Time, expires *time.Time) (uuid.UUID, error) {
 	id := newID()
-	var sk, kid *string
-	var sid []byte
+	var sk *string
+	var keys []string
+	var ids [][]byte
 	if secret != nil { // pragma: allowlist secret
-		p := secret.primary()
 		k := string(secret.Kind)
-		sk, kid, sid = &k, &p.KeyID, p.ID[:]
+		sk = &k
+		keys, ids = aliasArrays(*secret)
 	}
 	var sub *uuid.UUID
 	if submission != uuid.Nil {
@@ -191,9 +191,9 @@ func addRestriction(ctx context.Context, tx pgx.Tx, identity uuid.UUID, kind str
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO credprotect_restrictions
-		       (id, identity_id, kind, secret_kind, secret_key_id, secret_id, reason, submission_id, created_at, expires_at)
+		       (id, identity_id, kind, secret_kind, alias_key_ids, alias_ids, reason, submission_id, created_at, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		id, identity, kind, sk, kid, sid, reason, sub, now, expires); err != nil {
+		id, identity, kind, sk, keys, ids, reason, sub, now, expires); err != nil {
 		return uuid.Nil, fmt.Errorf("credprotect: record %s: %w", kind, err)
 	}
 	return id, nil

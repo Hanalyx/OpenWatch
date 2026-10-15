@@ -1395,9 +1395,9 @@ func TestIndeterminateOwnerNeverReleasesASlot(t *testing.T) {
 		_, err := f.store.Reserve(ctx, r)
 		f.wantRefused(err, ErrInvalid)
 		if _, err := f.pool.Exec(ctx, `
-			INSERT INTO credprotect_submissions (id, identity_id, kind, stage, secret_kind, secret_key_id, secret_id,
+			INSERT INTO credprotect_submissions (id, identity_id, kind, stage, secret_kind,
 			       alias_key_ids, alias_ids, owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot, slot_held)
-			VALUES ($1, $2, 'ordinary', 'ssh', 'password', 'k1', '\x00'::bytea, '{k1}', '{"\\x00"}', 'm1', 1, '', now(), now(), '{}', false)`,
+			VALUES ($1, $2, 'ordinary', 'ssh', 'password', '{k1}', '{"\\x00"}', 'm1', 1, '', now(), now(), '{}', false)`,
 			uuid.Must(uuid.NewV7()), f.identity(c, h)); err == nil ||
 			!strings.Contains(err.Error(), "credprotect_submissions_owner_whole") {
 			t.Fatalf("an owner with no start time: %v, want the owner constraint", err)
@@ -1437,5 +1437,52 @@ func TestFenceRefusesADeletedCredential(t *testing.T) {
 		if !f.slotHeld(sub.ID) {
 			t.Fatal("deleting the credential released the slot")
 		}
+	})
+}
+
+// @ac AC-03
+// AC-03: a restriction records every alias its writer presented, so it
+// reaches an unresolved submission that shares any one of them, in either
+// direction of a rotation (review round 2, finding 1).
+func TestRestrictionsReachSubmissionsSharingAnyAlias(t *testing.T) {
+	t.Run("system-credential-protection/AC-03", func(t *testing.T) {
+		for name, c := range map[string]struct{ reserved, blockedBy Secret }{
+			"reserved under old, blocked under new and old": {pw(1), rotated()},
+			"reserved under new and old, blocked under old": {rotated(), pw(1)},
+		} {
+			t.Run(name, func(t *testing.T) {
+				f := newFixture(t)
+				ctx := context.Background()
+				h := f.host()
+				local := f.cred("ops")
+				if err := f.store.Classify(ctx, local, Target{Scope: ScopeLocal}); err != nil {
+					t.Fatal(err)
+				}
+				v := f.reserve(local, h, c.reserved, KindVerification)
+				f.block(f.cred("ops"), f.host(), c.blockedBy) // on the root
+				for _, cur := range []Secret{c.reserved, rotated()} {
+					f.wantRefused(f.store.Fence(ctx, v.ID, Current{Active: true, Secret: cur}), ErrBlocked)
+				}
+				if res := f.settle(v.ID, OutcomeVerified); res.Recovery != uuid.Nil {
+					t.Fatal("recovered past a block recorded under a shared alias")
+				}
+			})
+		}
+	})
+}
+
+// @ac AC-03
+// AC-03: a secret verified under [new, old] stays ACTIVE for a caller that
+// presents old alone, and for one that presents new alone.
+func TestVerifiedSecretsRecordEveryAlias(t *testing.T) {
+	t.Run("system-credential-protection/AC-03", func(t *testing.T) {
+		f := newFixture(t)
+		h := f.host()
+		c := f.cred("ops")
+		f.activate(c, h, rotated())
+		f.wantMode(c, h, pw(1), ModeActive)
+		newOnly := Secret{Kind: SecretPassword, Aliases: rotated().Aliases[:1]}
+		f.wantMode(c, h, newOnly, ModeActive)
+		f.reserve(c, h, pw(1), KindOrdinary)
 	})
 }

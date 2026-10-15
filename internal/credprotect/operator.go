@@ -95,12 +95,11 @@ func (s *Store) RequestVerification(ctx context.Context, identity uuid.UUID, sec
 			return ErrNotVerifying
 		}
 		id = newID()
-		p := secret.primary()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO credprotect_verification_requests
-			       (id, identity_id, secret_kind, secret_key_id, secret_id, requested_by, requested_at)
+			       (id, identity_id, secret_kind, alias_key_ids, alias_ids, requested_by, requested_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			id, identity, string(secret.Kind), p.KeyID, p.ID[:], actor, now); err != nil {
+			id, identity, string(secret.Kind), keys, ids, actor, now); err != nil {
 			return fmt.Errorf("credprotect: record verification request: %w", err)
 		}
 		return nil

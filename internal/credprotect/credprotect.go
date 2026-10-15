@@ -64,8 +64,10 @@ type Alias struct {
 }
 
 // Secret identifies a secret by kind and aliases. Two secrets are the same
-// when their kinds match and any alias matches. The first alias is the one
-// recorded on new rows.
+// when their kinds match and any alias matches. Every row that records a
+// secret records all the aliases its writer presented, so callers must
+// present the secret's identifier under every key still retained: a row is
+// then visible to any caller that shares one key with it (spec C-03).
 type Secret struct {
 	Kind    SecretKind
 	Aliases []Alias
@@ -87,8 +89,6 @@ func (s Secret) valid() error {
 	}
 	return nil
 }
-
-func (s Secret) primary() Alias { return s.Aliases[0] }
 
 // matches reports whether a stored (kind, key id, id) is this secret.
 func (s Secret) matches(kind string, keyID string, id []byte) bool {

@@ -91,15 +91,13 @@ func (s *Store) Reserve(ctx context.Context, r Request) (Submission, error) {
 		if r.HostID != uuid.Nil {
 			host = &r.HostID
 		}
-		p := r.Secret.primary()
 		keys, ids := aliasArrays(r.Secret)
 		_, err = tx.Exec(ctx, `
 			INSERT INTO credprotect_submissions
-			       (id, identity_id, credential_id, host_id, kind, stage, secret_kind, secret_key_id, secret_id,
-			        alias_key_ids, alias_ids, owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot,
-			        slot_held)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true)`,
-			sub.ID, identity, r.CredentialID, host, string(r.Kind), r.Stage, string(r.Secret.Kind), p.KeyID, p.ID[:],
+			       (id, identity_id, credential_id, host_id, kind, stage, secret_kind, alias_key_ids, alias_ids,
+			        owner_machine, owner_pid, owner_start, reserved_at, deadline, snapshot, slot_held)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, true)`,
+			sub.ID, identity, r.CredentialID, host, string(r.Kind), r.Stage, string(r.Secret.Kind),
 			keys, ids, r.Owner.Machine, r.Owner.PID, r.Owner.Start, now, sub.Deadline, sub.Snapshot)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

@@ -73,12 +73,13 @@ func aliasArrays(s Secret) ([]string, [][]byte) {
 	return keys, ids
 }
 
-// matchSecret is the SQL condition that a row's secret columns, prefixed by
-// p, are this secret: kind $2, aliases $3 and $4.
+// matchSecret is the SQL condition that a row's secret, prefixed by p, is
+// this secret: kind $2, and the row's aliases overlap the aliases in $3 and
+// $4 (spec C-03).
 func matchSecret(p string) string {
 	return fmt.Sprintf(`(%[1]ssecret_kind = $2 AND EXISTS (
-		SELECT 1 FROM unnest($3::text[], $4::bytea[]) AS a(key_id, id)
-		 WHERE a.key_id = %[1]ssecret_key_id AND a.id = %[1]ssecret_id))`, p)
+		SELECT 1 FROM unnest(%[1]salias_key_ids, %[1]salias_ids) AS r(key_id, id)
+		  JOIN unnest($3::text[], $4::bytea[]) AS a(key_id, id) ON a.key_id = r.key_id AND a.id = r.id))`, p)
 }
 
 // readState reads a secret's state on an identity at now. The caller holds

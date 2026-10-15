@@ -3,10 +3,14 @@
 -- Spec system-credential-protection. internal/credprotect is the only code
 -- that reads or writes these tables.
 --
--- A secret is identified by (secret_kind, secret_key_id, secret_id): its
--- kind, the id of the key that derived the identifier, and a 32-byte keyed
--- identifier. secret_id is a sensitive equality identifier: it is never
--- returned by the API, logged or audited.
+-- A secret is identified by its kind and its aliases: (key id, 32-byte keyed
+-- identifier) pairs, stored as the parallel arrays alias_key_ids and
+-- alias_ids. Every row that records a secret stores every alias the writer
+-- presented, and two secrets are the same when their kinds match and their
+-- alias sets overlap. So a row written under [new, old] during a key
+-- rotation is seen by a reservation that knows only old, and the reverse.
+-- An identifier is a sensitive equality value: it is never returned by the
+-- API, logged or audited.
 --
 -- Nothing here is swept. Protection history must outlive the credentials and
 -- hosts it was recorded for, so the foreign keys to them set NULL rather
@@ -70,8 +74,8 @@ CREATE TABLE credprotect_restrictions (
     -- NULL secret: every secret of the identity (a pause, or a block from an
     -- ambiguous outcome).
     secret_kind    TEXT,
-    secret_key_id  TEXT,
-    secret_id      BYTEA,
+    alias_key_ids  TEXT[],
+    alias_ids      BYTEA[],
     reason         TEXT         NOT NULL,
     submission_id  UUID,
     created_at     TIMESTAMPTZ  NOT NULL,
@@ -82,8 +86,10 @@ CREATE TABLE credprotect_restrictions (
     CONSTRAINT credprotect_restrictions_kind_known
         CHECK (kind IN ('block', 'pause', 'cooldown', 'allowance_used')),
     CONSTRAINT credprotect_restrictions_secret_whole
-        CHECK ((secret_kind IS NULL) = (secret_key_id IS NULL)
-           AND (secret_kind IS NULL) = (secret_id IS NULL)),
+        CHECK ((secret_kind IS NULL) = (alias_ids IS NULL)
+           AND (secret_kind IS NULL) = (alias_key_ids IS NULL)
+           AND (secret_kind IS NULL OR (cardinality(alias_ids) = cardinality(alias_key_ids)
+                                        AND cardinality(alias_ids) >= 1))),
     CONSTRAINT credprotect_restrictions_secret_kind_known
         CHECK (secret_kind IS NULL OR secret_kind IN ('password', 'key')),
     CONSTRAINT credprotect_restrictions_pause_every_secret
@@ -104,13 +110,9 @@ CREATE TABLE credprotect_submissions (
     host_id          UUID         REFERENCES hosts(id) ON DELETE SET NULL,
     kind             TEXT         NOT NULL,
     stage            TEXT         NOT NULL,
-    -- The secret's first alias, the one recorded on restrictions this
-    -- submission creates, and every alias it was reserved with. Fence,
-    -- settlement and expiry match any of them, so a secret identified under
-    -- several keys during a rotation keeps all its identifiers.
+    -- Every alias the submission was reserved with. The restrictions it
+    -- creates record all of them.
     secret_kind      TEXT         NOT NULL,
-    secret_key_id    TEXT         NOT NULL,
-    secret_id        BYTEA        NOT NULL,
     alias_key_ids    TEXT[]       NOT NULL,
     alias_ids        BYTEA[]      NOT NULL,
     owner_machine    TEXT         NOT NULL,
@@ -174,26 +176,27 @@ CREATE TABLE credprotect_verification_requests (
     id              UUID         PRIMARY KEY,
     identity_id     UUID         NOT NULL REFERENCES credprotect_identities(id),
     secret_kind     TEXT         NOT NULL,
-    secret_key_id   TEXT         NOT NULL,
-    secret_id       BYTEA        NOT NULL,
+    alias_key_ids   TEXT[]       NOT NULL,
+    alias_ids       BYTEA[]      NOT NULL,
     requested_by    UUID         NOT NULL,
     requested_at    TIMESTAMPTZ  NOT NULL,
     ended_at        TIMESTAMPTZ,
     ended_by_submission UUID     REFERENCES credprotect_submissions(id)
 );
-CREATE UNIQUE INDEX uq_credprotect_verification_requests_pending
-    ON credprotect_verification_requests (identity_id, secret_kind, secret_key_id, secret_id)
-    WHERE ended_at IS NULL;
+-- At most one pending request per identity and secret is enforced under the
+-- username's lock: alias sets match by overlap, which an index cannot test.
+CREATE INDEX idx_credprotect_verification_requests_pending
+    ON credprotect_verification_requests (identity_id) WHERE ended_at IS NULL;
 
 CREATE TABLE credprotect_verified_secrets (
+    recovery_id    UUID         PRIMARY KEY REFERENCES credprotect_recoveries(id),
     identity_id    UUID         NOT NULL REFERENCES credprotect_identities(id),
     secret_kind    TEXT         NOT NULL,
-    secret_key_id  TEXT         NOT NULL,
-    secret_id      BYTEA        NOT NULL,
-    recovery_id    UUID         NOT NULL REFERENCES credprotect_recoveries(id),
-    verified_at    TIMESTAMPTZ  NOT NULL,
-    PRIMARY KEY (identity_id, secret_kind, secret_key_id, secret_id)
+    alias_key_ids  TEXT[]       NOT NULL,
+    alias_ids      BYTEA[]      NOT NULL,
+    verified_at    TIMESTAMPTZ  NOT NULL
 );
+CREATE INDEX idx_credprotect_verified_secrets_identity ON credprotect_verified_secrets (identity_id);
 
 -- +goose Down
 DROP TABLE IF EXISTS credprotect_verified_secrets;
