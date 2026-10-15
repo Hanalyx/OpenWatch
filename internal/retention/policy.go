@@ -147,6 +147,46 @@ var registry = []Policy{
 		State:  StateNever,
 		Reason: reasonHostDiscoveryBackoff,
 	},
+	{
+		Table:  "credprotect_identities",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_identity_edges",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_credential_classes",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_restrictions",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_submissions",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_recoveries",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_verification_requests",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_verified_secrets",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
 
 	// ---- deferred: decided, blocked on named work ------------------
 	//
@@ -276,6 +316,15 @@ const reasonHostDiscoveryBackoff = "Never swept: it is current state, not histor
 	"deleted when that host's discovery next succeeds, and it is deleted with the " +
 	"host (ON DELETE CASCADE). A sweep by age would remove a failing host's " +
 	"backoff and let the scheduler retry it at once. bugs/OW-120."
+
+// reasonCredentialProtection covers the eight credprotect_ tables.
+const reasonCredentialProtection = "Never swept: this is protection state, and its history is part of it. " +
+	"A block stays until a recovery record on an identity names it, and a recovery names " +
+	"blocks by id; a used verification allowance is never removed; submissions still " +
+	"holding a slot or counted in an override bound decide what may be sent next; and " +
+	"lineage edges are how an old block reaches a new identity. Deleting any of them by " +
+	"age could let a rejected secret be sent again. Spec system-credential-protection, " +
+	"features/OW-122."
 
 // reasonUndecided is shared by every table nobody has ruled on. The
 // entry's value is that a new table cannot be added without picking a
