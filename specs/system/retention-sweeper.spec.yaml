@@ -14,7 +14,15 @@ spec:
   # host_discovery_backoff (bugs/OW-120), entered as never: it is current
   # state, one row per host, deleted on the host's next successful
   # discovery and with the host. The undecided list is unchanged.
-  version: "1.2.0"
+  #
+  # 1.3.0 records the decision for nine new tables. Migration 0067 adds the
+  # credprotect_ tables (features/OW-122, spec system-credential-protection),
+  # all entered as never: a block stays until a recovery names it by id, a
+  # used allowance is never removed, a host record's history is consulted by
+  # every attempt on that host, and binding intent and directory resolutions
+  # decide admission, so deleting by age could let a rejected secret be sent
+  # again. The undecided list is unchanged.
+  version: "1.3.0"
   status: approved
   tier: 1
 
@@ -74,6 +82,7 @@ spec:
         - A retention registry in internal/retention, one entry per table in the schema
         - "Three swept tables: idempotency_keys, sso_auth_states, auth_mfa_otp_uses"
         - "Four never-swept tables recorded as never, with reasons: api_tokens, compliance_exceptions, host_rule_state, host_discovery_backoff (v1.2.0)"
+        - "The nine credprotect_ tables recorded as never, with one shared reason (v1.3.0)"
         - "Two deferred tables recorded as deferred, with reasons: sessions, refresh_tokens"
         - Thirty-eight remaining tables recorded as undecided, each with a reason pointing at bugs/OW-013
         - One sweeper on one cron.Scheduler that walks the registry
