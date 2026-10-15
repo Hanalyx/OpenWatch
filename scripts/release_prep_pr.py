@@ -3,7 +3,7 @@
 
     python3 -S scripts/release_prep_pr.py draft --version X.Y.Z[-rc.N] --date YYYY-MM-DD \\
         --since vPREVIOUS --evidence DIR
-    #   review the diff, commit it, run scripts/ci-strict.py on that commit
+    #   review the diff, commit it, run scripts/ci-strict.py --commit on that commit
     python3 -S scripts/release_prep_pr.py body --evidence DIR [--ci-result RESULT.json]
 
 draft runs in a checkout with no tracked changes. It records, through
@@ -23,7 +23,8 @@ The release notes themselves are human prose: draft refuses an empty
 body runs on the committed prep commit. It re-checks that the three version
 sources agree and runs the commit's own packaging/check-tag-version.sh, then
 writes PR-BODY.md from the recorded captures. A ci-strict result counts only
-when it names this exact commit; its outcome and every gate or test that did
+when `ci-strict.py --commit` produced it for this exact commit, testing the
+commit's files alone; its outcome and every gate or test that did
 not run are copied, never summarized away. The release gates are listed as not
 yet evaluated, because no tag exists at prep time. Every human field (the
 date, the notes review, each Stage 1 refresh the evidence calls for) is blank.
@@ -237,7 +238,7 @@ def draft(a):
                 (json.dumps(record, indent=1, sort_keys=True) + "\n").encode())
     return ("Drafted %s (%s) over %s. Edited %d files: version.env, README, CHANGELOG and %d "
             "banners. Nothing is committed.\nReview `git diff`, commit it, run "
-            "scripts/ci-strict.py on that commit, then:\n    python3 -S scripts/"
+            "scripts/ci-strict.py --commit on that commit, then:\n    python3 -S scripts/"
             "release_prep_pr.py body --evidence %s --ci-result <run>/result.json" % (
                 tag, codename, a.since, len(edits), len(banners), a.evidence))
 
@@ -303,7 +304,10 @@ def check_ci_result(r):
         p.append("no invocation id")
     if not re.match(r"^[0-9a-f]{40}$", str(r.get("commit"))):
         p.append("commit is not a 40-character commit id")
-    if not re.match(r"^[0-9a-f]{64}$", str(r.get("tree"))):
+    if r.get("mode", "development") == "commit":
+        if not re.match(r"^[0-9a-f]{40}$", str(r.get("tree"))):
+            p.append("tree is not a 40-character git tree id")
+    elif not re.match(r"^[0-9a-f]{64}$", str(r.get("tree"))):
         p.append("tree is not a 64-character digest")
     if not _when(r.get("started")):
         p.append("started is not a timestamp")
@@ -330,7 +334,10 @@ def check_ci_result(r):
 
 
 def ci_section(path, repo, head):
-    """Lines for the local CI result: counted only for this exact commit and tree."""
+    """Lines for the local CI result: counted only for a commit-mode result for
+    this exact commit, which tested its committed files alone (bugs/OW-124).
+    A development-mode result tested working-tree changes as well, so it is
+    not evidence about the commit and is not counted."""
     if not path:
         return ["- **No local CI result was supplied.** Hosted checks on this head are the only "
                 "test evidence."], "not supplied"
@@ -345,20 +352,26 @@ def ci_section(path, repo, head):
     if problems:
         raise PrepPRError("--ci-result %s is not a finished, well-formed ci-strict result: %s" % (
             path, "; ".join(problems)))
-    commit, tree = ci_strict.tree_identity(ci_strict.Probe(repo=repo))
     if r["commit"] != head:
         return ["- **A local CI result for another commit was supplied and is not counted:** "
                 "`%s` (sha256 `%s`) ran on `%s`, not this head `%s`." % (
                     path, digest, r["commit"][:12], head[:12])], "another commit"
-    if (r["commit"], r["tree"]) != (commit.strip(), tree):
+    if r.get("mode", "development") != "commit":
+        return ["- **A development-mode local CI result was supplied and is not counted:** "
+                "`%s` (sha256 `%s`) tested this head plus working-tree changes, not the commit "
+                "alone. Run `scripts/ci-strict.py --commit` on this head." % (path, digest)
+                ], "development result"
+    rc = subprocess.run(["git", "-C", repo, "rev-parse", head + "^{tree}"],
+                        capture_output=True, text=True)
+    tree = rc.stdout.strip()
+    if rc.returncode != 0 or r["tree"] != tree:
         return ["- **A local CI result for this commit but another tree was supplied and is not "
-                "counted:** `%s` (sha256 `%s`) records tree `%s`; this checkout's is `%s`. "
-                "Uncommitted or untracked files differed when it ran." % (
+                "counted:** `%s` (sha256 `%s`) records tree `%s`; this commit's is `%s`." % (
                     path, digest, r["tree"][:12], tree[:12])], "another tree"
     t = r.get("tests") or {}
-    lines = ["- Local `scripts/ci-strict.py` on this head and tree: verdict **%s**, exit %s, "
-             "finished %s (`%s`, sha256 `%s`)." % (r["verdict"], r["exit"], r["finished"], path,
-                                                  digest),
+    lines = ["- Local `scripts/ci-strict.py --commit` on this head (its committed files only): "
+             "verdict **%s**, exit %s, finished %s (`%s`, sha256 `%s`)." % (
+                 r["verdict"], r["exit"], r["finished"], path, digest),
              "  - Tests: %s passed, %s failed." % (t.get("passed"), t.get("failed"))]
     for reason, n in sorted((t.get("not_run") or {}).items()):
         lines.append("  - Not run (%d): %s" % (n, reason))

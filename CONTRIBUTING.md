@@ -154,6 +154,7 @@ docs(api): update scanning endpoint documentation
 ```bash
 # Backend tests (Go) — from the repo root
 python3 -S scripts/ci-strict.py      # strict local gate: exit 0 complete, 1 failed, 3 incomplete, 4 refused
+python3 -S scripts/ci-strict.py --commit  # the same on HEAD's committed files only: the result a PR relies on
 make test                            # Go tests alone
 make spec-check                      # Specter structural coverage alone (CI requires 100%)
 

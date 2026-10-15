@@ -196,7 +196,7 @@ python3 -S scripts/release_packets.py d1 --tag vX.Y.Z --commit SHA --evidence DI
 ```bash
 python3 -S scripts/release_prep_pr.py draft --version X.Y.Z --date YYYY-MM-DD \
     --since vPREVIOUS --evidence DIR
-#   review `git diff`, commit, run scripts/ci-strict.py on that commit
+#   review `git diff`, commit, run scripts/ci-strict.py --commit on that commit
 python3 -S scripts/release_prep_pr.py body --evidence DIR --ci-result RUN/result.json
 ```
 
@@ -205,7 +205,9 @@ python3 -S scripts/release_prep_pr.py body --evidence DIR --ci-result RUN/result
   the previous tag through the capture library. **It never writes release notes.** An empty
   `[Unreleased]` is refused; write the notes first.
 - `body` writes `PR-BODY-<commit>.md` from those captures. A `ci-strict` result must be finished
-  and well formed, and counts only for that exact commit and tree; every gap in it is copied. The release gates are listed as not
+  and well formed, and counts only when `ci-strict.py --commit` produced it for that exact
+  commit, testing the commit's files alone; a development-mode result is not counted. Every
+  gap in it is copied. The release gates are listed as not
   yet evaluated. Every human field is blank, and files edited by hand after the draft are
   named.
 - Neither step commits, pushes, tags or opens the pull request. Opening it is yours; tagging

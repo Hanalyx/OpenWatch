@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.28.0"
+  version: "1.29.0"
   status: approved
   tier: 1
 
@@ -628,6 +628,53 @@ spec:
         cancel-in-progress is false. Groups never span two workflows, and a
         rerun keeps its own run's group.
       type: technical
+      enforcement: error
+    - id: C-26
+      description: >-
+        v1.29.0 (bugs/OW-124). scripts/ci-strict.py has two modes and every
+        result names its mode and what it tested. A development run (the
+        default) tests the checkout as it is; its identity covers tracked
+        changes, the names and contents of untracked files, and ignored source
+        files that the gates read, which it lists; it says it is not readiness
+        evidence for any commit. A commit run (`--commit`, `make
+        ci-strict-commit`) tests HEAD's committed files only: it runs every
+        gate in a clean `git clone --shared` of HEAD outside the checkout,
+        installs the frontend dependencies there with `npm ci`, records the
+        commit and its git tree id, and leaves the checkout's files, refs and
+        worktrees unchanged. Ignored, untracked and staged-but-uncommitted
+        files cannot supply its coverage. Only a commit result is readiness
+        evidence: `--check-result FILE --commit` accepts nothing else, and
+        requires its commit to be HEAD and its tree to be that commit's git
+        tree. A failed export runs no gate and is INCOMPLETE. A failed `npm
+        ci` in the export runs no gate and is FAILED; the run records its exit
+        code and its combined output in the run directory and shows the last
+        lines, without inferring a cause from them. The export directory is
+        the run's to remove from the moment it is created. Every command the
+        run starts runs in a process group of its own, and the run stops that
+        whole group and waits for it to empty, with SIGTERM and then SIGKILL
+        after a grace period, before the command's call returns, whether it
+        exited, raised or was interrupted. SIGINT, SIGTERM and SIGHUP arriving
+        during that cleanup, or during the final cleanup, are deferred, not
+        acted on and not lost: once cleanup is done, the first is delivered
+        again unless an exception is already ending the run, which then keeps
+        its exit code. Only then are the export removed and the lock released.
+        A group that survives SIGKILL is recorded at once in the lock
+        directory (`unstopped.json`). From then on no command starts: every
+        command the run issues, in a gate, between gates or while preparing
+        the export, passes one guard that refuses it. The run cannot be
+        COMPLETE, and keeps the export and the lock. A later run is refused
+        while any recorded group has members, whether or not the run that
+        recorded it is alive, and may reclaim the lock once every recorded
+        group is confirmed empty. A record whose groups cannot be determined
+        (unreadable, not JSON, no non-empty list of integer ids above 1) is
+        never reclaimed automatically: the run is refused, says why, and the
+        lock must be removed by hand. The command line turns SIGTERM and
+        SIGHUP into an exit; SIGINT already is one. SIGKILL cannot be handled
+        and leaves the export, the lock (which the next run reclaims as stale)
+        and the running command's group. A descendant that deliberately leaves
+        its group (setsid, setpgid, a daemonizing double fork) is outside the
+        run's reach.
+      type: security
       enforcement: error
   acceptance_criteria:
     - id: AC-01
@@ -1784,3 +1831,80 @@ spec:
         operators of the conditional, or removing the block each fails.
       priority: high
       references_constraints: [C-23]
+    - id: AC-45
+      description: >-
+        v1.29.0. In a real git repository, with a stand-in gate that passes
+        only when it finds an annotated test on disk, a commit run fails when
+        the test is ignored by a pattern, untracked, or staged but not
+        committed, and passes once it is committed. The result records mode
+        commit, HEAD and HEAD's tree id. A commit run leaves the checkout's
+        status, worktrees, refs and HEAD unchanged and removes its export. A
+        failed export runs no gate and is INCOMPLETE. An `npm ci` that exits
+        non-zero runs no gate, records the dependencies as failed with its
+        exit code, keeps its stdout and stderr in the run directory, shows the
+        last lines, and is FAILED. A KeyboardInterrupt raised during the
+        export's clone, its checkout or its `npm ci` leaves no export
+        directory and releases the lock, and so do a real SIGINT and a real
+        SIGTERM sent to a separate process paused inside `npm ci`. The command
+        line installs the SIGTERM handler before it runs.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-46
+      description: >-
+        v1.29.0, a preservation test. A .specter-results.json in the checkout
+        naming the AC as passed, with the test absent from the commit, does
+        not make a commit run pass, although the stand-in gate would trust it.
+      priority: high
+      references_constraints: [C-26]
+    - id: AC-47
+      description: >-
+        v1.29.0. A development run with an ignored source test on disk passes,
+        records mode development, lists that file, and says it is not
+        readiness evidence; check-result accepts it for the same tree and
+        refuses it with --commit. A commit result passes check-result --commit
+        after a working-tree change and is refused after a new commit. A
+        commit result whose recorded tree is another commit's tree, a made-up
+        tree or absent is refused, with and without --commit. The development
+        identity changes with untracked contents and with an ignored source
+        file's contents, and not with dependencies or the results file. The
+        Makefile's ci-strict-commit target runs scripts/ci-strict.py --commit.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-48
+      description: >-
+        v1.29.0. With real processes: a descendant that outlives its command
+        and takes a second to exit after SIGTERM is gone before run() or
+        capture() returns, and capture() returns when the command exits, not
+        when the descendant would. A descendant that ignores SIGTERM is killed
+        after the grace period. A KeyboardInterrupt during run() stops the
+        group before it propagates, and a second SIGINT during that wait does
+        not cut it short. A SIGTERM that lands while a finished command's
+        group is being stopped still stops the run, once the group is gone. A
+        SIGHUP sent while a SIGTERM's cleanup waits for a process does not cut
+        it short: that process is gone before the lock is released, and the
+        exit code is SIGTERM's. A SIGHUP during the final cleanup does not
+        replace an interrupt already ending the run. main() handles, and
+        cleanup defers, the same three signals. The real Probe has every
+        method the tests' stand-in provides.
+      priority: critical
+      references_constraints: [C-26]
+    - id: AC-49
+      description: >-
+        v1.29.0. When a process group survives SIGKILL, it is recorded in the
+        lock directory before stop_group returns, and again at cleanup from
+        the run's list however that was filled. No command starts after that:
+        a survivor during the first `go test` stops the second, a survivor
+        during the export's clone stops its checkout, a survivor during npm ci
+        stops preflight, and a survivor during a gate stops the remaining
+        gates. The run is FAILED, records the group in its result, and keeps
+        the lock and the export. A later run is refused while the group has
+        members, even after the recording run's process is gone, and may take
+        the lock once the group is empty; the reclaim message names the
+        recorded groups. A record that is unreadable, not JSON, not an object,
+        missing its list, null, empty, or holds an id that is a string, a
+        boolean, a float, 0, 1 or negative is not reclaimed, and strict()
+        refuses with the reason. Lock.release does not remove a lock that
+        carries a record. A list left from an earlier run in the same process
+        does not stop a new one.
+      priority: critical
+      references_constraints: [C-26]

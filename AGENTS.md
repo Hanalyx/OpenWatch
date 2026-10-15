@@ -60,6 +60,18 @@ accepted the gap with `--allow-not-run`), and 4 REFUSED (another run holds the
 lock). `make` turns every failure into exit 2, so run the script directly when you
 need the code. For quick feedback while editing, `make ci-quick`, which is not CI.
 
+The default run tests the checkout as it is: HEAD plus every uncommitted change, and
+any ignored source file on disk. It says so, and it is not evidence about a commit.
+For a pull request or release, run it on the commit:
+
+```bash
+python3 -S scripts/ci-strict.py --commit   # or: make ci-strict-commit
+```
+
+That runs every gate in a clean export of HEAD outside your checkout, so a file you
+forgot to commit, or one an ignore rule dropped, cannot make it pass. Only this
+result is readiness evidence for the commit.
+
 Narrower targets: `make check` (vet/lint/vuln/test-race), `make check-generated`
 (OpenAPI drift), `make spec-check` (Specter gates), `make test` /
 `make test-integration` (needs a `_test` DB via `OPENWATCH_TEST_DSN`; never point

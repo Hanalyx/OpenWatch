@@ -142,8 +142,11 @@ class Case(unittest.TestCase):
         """This checkout's tree identity, computed by ci-strict itself."""
         return pr.ci_strict.tree_identity(pr.ci_strict.Probe(repo=self.repo))[1]
 
+    def commit_tree(self, commit):
+        return self.git("rev-parse", commit + "^{tree}").strip()
+
     def ci_result(self, commit, **over):
-        r = {"id": "0" * 32, "commit": commit, "tree": self.tree(),
+        r = {"id": "0" * 32, "mode": "commit", "commit": commit, "tree": self.commit_tree(commit),
              "started": "2026-10-11T15:17:20.375446+00:00",
              "finished": "2026-10-11T15:40:14.449628+00:00",
              "verdict": "incomplete", "exit": 3, "accepted_gaps": [],
@@ -497,7 +500,8 @@ class LocalCIResult(Case):
         b = self.the_body()
         with open(p, "rb") as f:
             digest = hashlib.sha256(f.read()).hexdigest()
-        self.assertIn("on this head and tree: verdict **incomplete**, exit 3, finished "
+        self.assertIn("`scripts/ci-strict.py --commit` on this head (its committed files only): "
+                      "verdict **incomplete**, exit 3, finished "
                       "2026-10-11T15:40:14.449628+00:00", b)
         self.assertIn(digest, b)
         self.assertIn("Tests: 3801 passed, 0 failed.", b)
@@ -532,7 +536,7 @@ class LocalCIResult(Case):
     def test_the_reviewers_result_another_tree_and_unfinished_is_refused(self):
         # The reproduction: this commit, a different tree, an empty finished.
         head = self.prepared()
-        p = self.ci_result(head, tree="f" * 64, finished="", verdict="complete", exit=0)
+        p = self.ci_result(head, tree="f" * 40, finished="", verdict="complete", exit=0)
         code, out = self.body("--ci-result", p)
         self.assertEqual(code, 1, out)
         self.assertIn("is not a finished, well-formed ci-strict result", out)
@@ -541,7 +545,7 @@ class LocalCIResult(Case):
 
     def test_a_finished_result_for_another_tree_is_not_counted(self):
         head = self.prepared()
-        p = self.ci_result(head, tree="f" * 64, verdict="complete", exit=0)
+        p = self.ci_result(head, tree="f" * 40, verdict="complete", exit=0)
         code, out = self.body("--ci-result", p)
         self.assertEqual(code, 0, out)
         self.assertIn("local CI: another tree", out)
@@ -549,18 +553,48 @@ class LocalCIResult(Case):
         self.assertIn("for this commit but another tree was supplied and is not counted", b)
         self.assertNotIn("verdict **complete**", b)
 
-    def test_untracked_files_since_the_run_change_the_tree(self):
+    def test_working_tree_changes_do_not_affect_a_commit_result(self):
+        # A commit-mode result tested the commit's files alone, so a file
+        # that appears in the checkout later changes nothing it proves.
         head = self.prepared()
         p = self.ci_result(head)
         self.put("scratch.txt", "appeared after the run\n")
         self.assertEqual(self.body("--ci-result", p)[0], 0)
-        self.assertIn("another tree", self.the_body())
+        self.assertIn("on this head (its committed files only)", self.the_body())
+
+    def assert_development_not_counted(self, p):
+        code, out = self.body("--ci-result", p)
+        self.assertEqual(code, 0, out)
+        self.assertIn("local CI: development result", out)
+        b = self.the_body()
+        self.assertIn("A development-mode local CI result was supplied and is not counted", b)
+        self.assertIn("scripts/ci-strict.py --commit", b)
+        self.assertNotIn("verdict **complete**", b)
+
+    def test_a_development_result_is_not_counted(self):
+        # bugs/OW-124: a development run tested working-tree changes too, so
+        # it is not evidence about the commit, whatever it says.
+        head = self.prepared()
+        self.assert_development_not_counted(
+            self.ci_result(head, mode="development", tree=self.tree(), verdict="complete", exit=0))
+
+    def test_a_result_without_a_mode_is_a_development_result(self):
+        # Results written before modes existed tested the working tree.
+        head = self.prepared()
+        p = self.ci_result(head, tree=self.tree(), verdict="complete", exit=0)
+        with open(p) as f:
+            legacy = json.load(f)
+        legacy.pop("mode")
+        with open(p, "w") as f:
+            json.dump(legacy, f)
+        self.assert_development_not_counted(p)
 
     def test_a_malformed_result_is_refused(self):
         head = self.prepared()
         for over, why in (({"verdict": "complete"}, "does not match exit 3"),
                           ({"commit": head[:12]}, "40-character commit"),
-                          ({"tree": "abc"}, "64-character digest"),
+                          ({"tree": "abc"}, "40-character git tree id"),
+                          ({"mode": "development", "tree": "abc"}, "64-character digest"),
                           ({"started": "yesterday"}, "started is not a timestamp"),
                           ({"id": ""}, "no invocation id"),
                           ({"tests": {"passed": "3801", "failed": 0}}, "passed and failed"),

@@ -36,6 +36,24 @@ func strictCases(t *testing.T) map[string]int {
 	return passed
 }
 
+// strictCase reports whether the named case of scripts/test_ci_strict.py
+// ran and passed. A skipped case does not count: unittest reports it as
+// "OK (skipped=1)", which is not a pass. Runs only that case; the readiness
+// cases need git.
+func strictCase(t *testing.T, class, name string) bool {
+	t.Helper()
+	haveTool(t, "python3")
+	haveTool(t, "git")
+	cmd := exec.Command("python3", "-S", filepath.Join("scripts", "test_ci_strict.py"), class+"."+name)
+	cmd.Dir = appDir(t)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Errorf("%s.%s: %v\n%s", class, name, err, out)
+		return false
+	}
+	return regexp.MustCompile(`(?m)^OK$`).Match(out)
+}
+
 // @ac AC-37
 // AC-37: the verdicts, the preflight, the local test split and the absence of
 // any "safe to push" claim.
@@ -90,6 +108,186 @@ func TestCIGates_StrictLocalCIIsWiredAndDocumented(t *testing.T) {
 		for _, f := range []string{"Makefile", "scripts/ci-strict.py", "AGENTS.md", "CONTRIBUTING.md", "README.md"} {
 			if loc := safe.FindString(readAppFile(t, f)); loc != "" {
 				t.Errorf("%s says %q; the local gate makes no claim about whether to push", f, loc)
+			}
+		}
+	})
+}
+
+// @ac AC-45
+// AC-45 (bugs/OW-124): a commit-mode result tests the commit's files alone. A
+// test that is ignored, untracked, or staged but not committed cannot make it
+// pass; a committed one does; the checkout is left as it was; a failed export
+// runs no gate.
+func TestCIGates_CommitResultsComeFromTheCommit(t *testing.T) {
+	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
+		for _, name := range []string{
+			"test_an_uncommitted_test_cannot_make_a_commit_result_pass",
+			"test_a_committed_test_does_pass_in_commit_mode",
+			"test_commit_mode_leaves_the_checkout_as_it_was",
+			"test_a_failed_export_runs_no_gate_and_is_incomplete",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-45
+// AC-45, failure and interruption: a failed npm ci in the export runs no
+// gate, is FAILED, and keeps npm's output; an interrupt during the clone, the
+// checkout or npm ci, and a real SIGINT or SIGTERM, leave no export and
+// release the lock.
+func TestCIGates_CommitRunsFailClosedAndCleanUp(t *testing.T) {
+	t.Run("release-ci-gates/AC-45", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_failed_npm_ci_runs_no_gate_and_fails",
+			"test_an_interrupt_while_exporting_leaves_no_export",
+			"test_a_real_signal_during_npm_ci_leaves_no_export",
+			"test_main_installs_the_sigterm_cleanup_before_running",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-46
+// AC-46: a stale results file naming an AC as passed, for a test the commit
+// does not contain, cannot make a commit-mode result pass.
+func TestCIGates_StaleResultsCannotPassACommit(t *testing.T) {
+	t.Run("release-ci-gates/AC-46", func(t *testing.T) {
+		if !strictCase(t, "ReadinessFromCommit", "test_a_stale_results_file_cannot_make_a_commit_result_pass") {
+			t.Error("the stale-results case did not pass")
+		}
+	})
+}
+
+// @ac AC-47
+// AC-47: a development run says what it tested and is never readiness
+// evidence; a commit-mode result is readiness evidence for its commit only;
+// the development identity covers untracked and ignored contents; and make
+// has a target for each mode.
+func TestCIGates_ResultsNameWhatTheyTested(t *testing.T) {
+	t.Run("release-ci-gates/AC-47", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_development_run_says_what_it_tested_and_is_not_readiness",
+			"test_a_commit_result_is_readiness_evidence_for_head_only",
+			"test_the_development_identity_covers_untracked_and_ignored_contents",
+		} {
+			if !strictCase(t, "ReadinessFromCommit", name) {
+				t.Errorf("ReadinessFromCommit.%s did not pass", name)
+			}
+		}
+		mk := readAppFile(t, "Makefile")
+		if !regexp.MustCompile(`(?m)^ci-strict-commit:\n\tpython3 -S scripts/ci-strict\.py --commit`).MatchString(mk) {
+			t.Error("Makefile has no ci-strict-commit target running scripts/ci-strict.py --commit")
+		}
+	})
+}
+
+// @ac AC-47
+// AC-47, the recorded tree: a commit result is accepted only when its tree is
+// its commit's git tree. Another commit's tree, a made-up tree or none is
+// refused, with and without --commit.
+func TestCIGates_CommitResultsMustRecordTheirTree(t *testing.T) {
+	t.Run("release-ci-gates/AC-47", func(t *testing.T) {
+		if !strictCase(t, "ReadinessFromCommit", "test_a_commit_result_must_record_its_commits_tree") {
+			t.Error("the recorded-tree case did not pass")
+		}
+	})
+}
+
+// @ac AC-48
+// AC-48 (bugs/OW-124): no command's descendant outlives it. Each command
+// runs in its own process group, which is stopped and waited for before
+// the call returns, on exit, exception or signal, so the export is removed
+// and the lock released only once nothing the run started is still running.
+func TestCIGates_CommandsDoNotOutliveTheRun(t *testing.T) {
+	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_descendant_left_behind_is_stopped_before_run_returns",
+			"test_capture_stops_its_descendants_too",
+			"test_a_descendant_that_ignores_sigterm_is_killed",
+			"test_an_interrupt_stops_the_group_before_it_propagates",
+			"test_a_second_signal_cannot_cut_the_cleanup_short",
+			"test_a_signal_during_a_finished_commands_cleanup_still_stops_the_run",
+			"test_sighup_during_sigterm_cleanup_does_not_cut_it_short",
+			"test_a_signal_deferred_in_final_cleanup_keeps_the_first_exception",
+			"test_main_handles_and_cleanup_defers_the_same_signals",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+		if !strictCase(t, "ReadinessFromCommit", "test_main_installs_the_sigterm_cleanup_before_running") {
+			t.Error("main() does not install the SIGTERM and SIGHUP handlers before it runs")
+		}
+	})
+}
+
+// @ac AC-48
+// AC-48, the real runner: the tests drive strict() through a stand-in probe,
+// so the real Probe must have every method the stand-in provides. Without
+// this, a method missing from Probe fails only in a real run.
+func TestCIGates_RealProbeMatchesTheStandIn(t *testing.T) {
+	t.Run("release-ci-gates/AC-48", func(t *testing.T) {
+		if !strictCase(t, "ProcessGroups", "test_the_real_probe_has_every_method_the_fake_stands_in_for") {
+			t.Error("the real Probe lacks a method the stand-in provides")
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49 (bugs/OW-124): a process group that survives SIGKILL stops the run,
+// makes it FAILED, and leaves a record in the lock directory that refuses
+// every later run while the group has members, whether or not the run that
+// recorded it is still alive.
+func TestCIGates_AnUnstoppableGroupBlocksTheNextRun(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_group_that_will_not_empty_is_recorded_at_once",
+			"test_an_unstoppable_group_stops_the_run_and_blocks_the_next",
+			"test_a_group_surviving_during_a_gate_stops_the_remaining_gates",
+			"test_a_blocked_lock_is_not_released",
+			"test_a_stale_unstopped_entry_does_not_keep_a_new_runs_lock",
+			"test_a_valid_record_of_empty_groups_is_reclaimed_and_says_which",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49, the guard: once a process group has survived SIGKILL, no further
+// command starts, inside a gate or while preparing the export.
+func TestCIGates_NoCommandStartsAfterASurvivor(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_survivor_inside_a_gate_stops_its_next_command",
+			"test_a_survivor_during_export_preparation_stops_the_checkout",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
+			}
+		}
+	})
+}
+
+// @ac AC-49
+// AC-49, the record: a blocking record whose process groups cannot be
+// determined is never reclaimed automatically, and the refusal says why.
+func TestCIGates_AnInvalidBlockingRecordIsNotReclaimed(t *testing.T) {
+	t.Run("release-ci-gates/AC-49", func(t *testing.T) {
+		for _, name := range []string{
+			"test_a_blocking_record_whose_groups_cannot_be_determined_is_not_reclaimed",
+			"test_strict_refuses_with_the_reason_when_the_record_is_invalid",
+		} {
+			if !strictCase(t, "ProcessGroups", name) {
+				t.Errorf("ProcessGroups.%s did not pass", name)
 			}
 		}
 	})
