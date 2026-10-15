@@ -1,13 +1,10 @@
 name: Claude Code Alert Triage
 
 on:
-  # Triggered when Dependabot creates/updates a PR
+  # Triggered when Dependabot creates/updates a PR. Other pull requests
+  # trigger it too and skip every job.
   pull_request:
     types: [opened, synchronize]
-
-  # Triggered on schedule for periodic security scanning
-  schedule:
-    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
 
   # Manual trigger
   workflow_dispatch:
@@ -20,16 +17,28 @@ on:
         required: true
         default: 'codeql'
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  security-events: read
+# No job inherits write access. Each job names what it needs (bugs/OW-126).
+permissions: {}
 
+# Untrusted text (pull request titles, dispatch inputs, alert descriptions)
+# reaches a run script only through env and is used quoted. A ${{ }}
+# expression inside run: is substituted before bash parses the script, so it
+# can change the script itself (bugs/OW-126).
 jobs:
   risk-assessment:
     name: Assess Risk Level
+    # Only a Dependabot pull request or a manual dispatch has an alert to
+    # assess. Every other event skips the job, and with it every job that
+    # needs it, before any shell step runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.actor == 'dependabot[bot]' &&
+       github.event.pull_request.user.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: read
     outputs:
       risk_level: ${{ steps.assess.outputs.risk_level }}
       alert_id: ${{ steps.assess.outputs.alert_id }}
@@ -49,34 +58,38 @@ jobs:
         run: |
           mkdir -p /tmp/alerts
 
-          if [ "${{ github.event_name }}" == "code_scanning_alert" ]; then
-            # Code scanning alert
-            ALERT_ID="${{ github.event.alert.number }}"
-            echo "Fetching code scanning alert #$ALERT_ID"
-            gh api "/repos/${{ github.repository }}/code-scanning/alerts/$ALERT_ID" \
-              > /tmp/alerts/alert.json
-
-          elif [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.actor }}" == "dependabot[bot]" ]; then
+          if [ "$EVENT_NAME" == "pull_request" ]; then
             # Dependabot PR
-            echo "Fetching Dependabot alert for PR #${{ github.event.pull_request.number }}"
-            # Extract package name from PR title
-            PACKAGE=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=Bump ).*(?= from)')
-            gh api "/repos/${{ github.repository }}/dependabot/alerts" \
-              --jq ".[] | select(.dependency.package.name == \"$PACKAGE\")" \
-              > /tmp/alerts/alert.json || echo '{"number": 0, "severity": "moderate"}' > /tmp/alerts/alert.json
+            echo "Fetching Dependabot alert for PR #$PR_NUMBER"
+            # Extract package name from PR title. jq receives it with --arg,
+            # so the name stays data in the filter too.
+            PACKAGE=$(printf '%s\n' "$PR_TITLE" | grep -oP '(?<=Bump ).*(?= from)' || true)
+            gh api "/repos/$REPOSITORY/dependabot/alerts" > /tmp/alerts/all.json \
+              && jq --arg pkg "$PACKAGE" '.[] | select(.dependency.package.name == $pkg)' \
+                /tmp/alerts/all.json > /tmp/alerts/alert.json \
+              || echo '{"number": 0, "severity": "moderate"}' > /tmp/alerts/alert.json
 
-          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          elif [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             # Manual trigger
-            ALERT_ID="${{ github.event.inputs.alert_id }}"
-            ALERT_TYPE="${{ github.event.inputs.alert_type }}"
-
-            if [ "$ALERT_TYPE" == "codeql" ]; then
-              gh api "/repos/${{ github.repository }}/code-scanning/alerts/$ALERT_ID" \
-                > /tmp/alerts/alert.json
-            else
-              gh api "/repos/${{ github.repository }}/dependabot/alerts/$ALERT_ID" \
-                > /tmp/alerts/alert.json
+            if ! [[ "$INPUT_ALERT_ID" =~ ^[0-9]+$ ]]; then
+              echo "Error: alert_id must be a number"
+              exit 1
             fi
+
+            case "$INPUT_ALERT_TYPE" in
+              codeql)
+                gh api "/repos/$REPOSITORY/code-scanning/alerts/$INPUT_ALERT_ID" \
+                  > /tmp/alerts/alert.json
+                ;;
+              dependabot)
+                gh api "/repos/$REPOSITORY/dependabot/alerts/$INPUT_ALERT_ID" \
+                  > /tmp/alerts/alert.json
+                ;;
+              *)
+                echo "Error: alert_type must be codeql or dependabot"
+                exit 1
+                ;;
+            esac
           fi
 
           # Verify we got data
@@ -86,6 +99,12 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          INPUT_ALERT_ID: ${{ github.event.inputs.alert_id }}
+          INPUT_ALERT_TYPE: ${{ github.event.inputs.alert_type }}
 
       - name: Assess Risk
         id: assess
@@ -115,13 +134,20 @@ jobs:
           fi
 
           ALERT_ID=$(jq -r '.number // "unknown"' /tmp/alerts/alert.json)
-          DESCRIPTION=$(jq -r '.rule.description // .security_vulnerability.summary // "Unknown issue"' /tmp/alerts/alert.json)
+          if ! [[ "$ALERT_ID" =~ ^[0-9]+$ ]]; then
+            ALERT_ID="unknown"
+          fi
+          # The description is alert text. Folding it to one line keeps a
+          # newline in it from writing another output, such as risk_level.
+          DESCRIPTION=$(jq -r '.rule.description // .security_vulnerability.summary // "Unknown issue"' /tmp/alerts/alert.json | tr '\r\n' '  ')
           CAN_AUTO_FIX=$([ "$RISK_LEVEL" != "HIGH" ] && echo "true" || echo "false")
 
-          echo "risk_level=$RISK_LEVEL" >> $GITHUB_OUTPUT
-          echo "alert_id=$ALERT_ID" >> $GITHUB_OUTPUT
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "can_auto_fix=$CAN_AUTO_FIX" >> $GITHUB_OUTPUT
+          {
+            printf 'risk_level=%s\n' "$RISK_LEVEL"
+            printf 'alert_id=%s\n' "$ALERT_ID"
+            printf 'description=%s\n' "$DESCRIPTION"
+            printf 'can_auto_fix=%s\n' "$CAN_AUTO_FIX"
+          } >> "$GITHUB_OUTPUT"
 
           echo "Risk Assessment Complete:"
           echo "  Alert ID: $ALERT_ID"
@@ -139,17 +165,20 @@ jobs:
     needs: risk-assessment
     if: needs.risk-assessment.outputs.risk_level == 'LOW'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Auto-Approve Dependabot PR
         if: github.actor == 'dependabot[bot]'
         run: |
           echo "Auto-approving LOW risk Dependabot PR"
-          gh pr review ${{ github.event.pull_request.number }} \
+          gh pr review "$PR_NUMBER" \
             --approve \
             --body "**Auto-approved by Risk Assessment**
 
           **Risk Level:** LOW
-          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
+          **Alert ID:** #$ALERT_ID
 
           This is a low-risk dependency update that passed all risk assessment checks:
           - Patch/minor version update
@@ -160,15 +189,21 @@ jobs:
           Enabling auto-merge."
 
           # Enable auto-merge
-          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+          gh pr merge "$PR_NUMBER" --auto --squash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ALERT_ID: ${{ needs.risk-assessment.outputs.alert_id }}
 
   claude-code-fix:
     name: Claude Code Fix (Medium Risk)
     needs: risk-assessment
     if: needs.risk-assessment.outputs.risk_level == 'MEDIUM'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -180,8 +215,8 @@ jobs:
           cat > /tmp/claude_task.md <<EOF
           # Fix Security/Quality Alert
 
-          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
-          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Alert ID:** #$ALERT_ID
+          **Description:** $DESCRIPTION
           **Risk Level:** MEDIUM (requires review)
 
           ## Your Task
@@ -202,14 +237,14 @@ jobs:
              - Verify no regressions
 
           4. **Create Pull Request**
-             - Commit with message: "fix: Resolve alert #${{ needs.risk-assessment.outputs.alert_id }} - <description>"
+             - Commit with message: "fix: Resolve alert #$ALERT_ID - <description>"
              - Create PR with detailed description
              - Include test results
              - Request review from repository owner
 
           ## Important Notes
           - This is MEDIUM risk - human review is REQUIRED
-          - Include "Fixes #${{ needs.risk-assessment.outputs.alert_id }}" in PR description
+          - Include "Fixes #$ALERT_ID" in PR description
           - Run quality checks before committing
           - If tests fail, document why in the PR
 
@@ -222,6 +257,9 @@ jobs:
 
           echo "Claude task created"
           cat /tmp/claude_task.md
+        env:
+          ALERT_ID: ${{ needs.risk-assessment.outputs.alert_id }}
+          DESCRIPTION: ${{ needs.risk-assessment.outputs.description }}
 
       - name: Run Claude Code (Headless)
         run: |
@@ -246,15 +284,15 @@ jobs:
       - name: Fallback - Create Manual Review Issue
         run: |
           gh issue create \
-            --title "MEDIUM RISK: Fix Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --title "MEDIUM RISK: Fix Alert #$ALERT_ID" \
             --label "security" \
             --label "medium-risk" \
             --label "claude-review" \
-            --assignee "${{ github.repository_owner }}" \
+            --assignee "$REPOSITORY_OWNER" \
             --body "## Medium Risk Alert - Claude Code Assistance Available
 
-          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
-          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Alert ID:** #$ALERT_ID
+          **Description:** $DESCRIPTION
           **Risk Level:** MEDIUM
 
           This alert requires human review but can be assisted by Claude Code.
@@ -268,7 +306,7 @@ jobs:
 
           **Option 2: Local Claude Code**
           \`\`\`bash
-          claude -p \"Fix alert #${{ needs.risk-assessment.outputs.alert_id }}: ${{ needs.risk-assessment.outputs.description }}\"
+          claude -p \"Fix alert #$ALERT_ID: $DESCRIPTION\"
           \`\`\`
 
           ## Task Details
@@ -279,25 +317,31 @@ jobs:
           *To enable automatic Claude Code fixes, install the Claude Code CLI in the workflow*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          ALERT_ID: ${{ needs.risk-assessment.outputs.alert_id }}
+          DESCRIPTION: ${{ needs.risk-assessment.outputs.description }}
 
   human-review-required:
     name: Human Review (High Risk)
     needs: risk-assessment
     if: needs.risk-assessment.outputs.risk_level == 'HIGH'
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Create High-Priority Issue
         run: |
           gh issue create \
-            --title "HIGH RISK: Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --title "HIGH RISK: Alert #$ALERT_ID" \
             --label "security" \
             --label "high-risk" \
             --label "urgent" \
-            --assignee "${{ github.repository_owner }}" \
+            --assignee "$REPOSITORY_OWNER" \
             --body "## High Risk Security Alert
 
-          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
-          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Alert ID:** #$ALERT_ID
+          **Description:** $DESCRIPTION
           **Risk Level:** HIGH
 
           This alert has been classified as HIGH risk due to:
@@ -342,3 +386,7 @@ jobs:
           *Human review and approval is REQUIRED*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          ALERT_ID: ${{ needs.risk-assessment.outputs.alert_id }}
+          DESCRIPTION: ${{ needs.risk-assessment.outputs.description }}
