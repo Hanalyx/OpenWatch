@@ -57,6 +57,7 @@ import {
   networkCount,
   type InventorySnapshot,
 } from '@/pages/host-detail/InventoryTabs';
+import { reconnectFailureMessage } from '@/pages/host-detail/reconnect';
 
 // HostDetailPage — prototype-faithful Host Detail surface (v1.0.0).
 //
@@ -2181,14 +2182,15 @@ function HeroConnectivity({
   // dial failed — exactly the signal an operator wants after editing it.
   const reconnect = useMutation({
     mutationFn: async () => {
-      const { response } = await api.POST('/api/v1/hosts/{id}/discovery:run', {
+      const { response, error } = await api.POST('/api/v1/hosts/{id}/discovery:run', {
         params: {
           path: { id: host.id },
           header: { 'Idempotency-Key': crypto.randomUUID() },
         },
       });
-      if (response.status === 502) throw new Error('Host unreachable (SSH or credential failed)');
-      if (!response.ok) throw new Error(`Reconnect failed (${response.status})`);
+      // A 502 is a credential or SSH failure; anything else shows the
+      // server's own reason, such as a discovery already in progress (409).
+      if (!response.ok) throw new Error(reconnectFailureMessage(response.status, error));
     },
     onSuccess: () => {
       setNote('Reconnected. OS facts refreshed.');

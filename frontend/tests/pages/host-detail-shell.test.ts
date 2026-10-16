@@ -465,7 +465,8 @@ describe('frontend-host-detail v1.6.0 — per-host credential management + recon
     const body = heroConnectivityBody();
     expect(body).toContain('/api/v1/hosts/{id}/discovery:run');
     expect(body).toContain("'Idempotency-Key'");
-    expect(body).toContain('502');
+    // The 502 mapping lives in reconnectFailureMessage (AC-48).
+    expect(body).toContain('reconnectFailureMessage(response.status, error)');
     expect(body).toContain("queryKey: ['host', host.id]");
     // Gated on host:write; no longer a disabled placeholder.
     expect(body).toContain('canWriteHost');

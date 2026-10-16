@@ -1,7 +1,7 @@
 spec:
   id: frontend-host-detail
   title: Host Detail page layout, behavior, and empty-state contracts
-  version: "1.12.0"
+  version: "1.13.0"
   status: approved
   tier: 2
 
@@ -98,7 +98,7 @@ spec:
       type: technical
       enforcement: error
     - id: C-11
-      description: 'v1.6.0 - Per-host credential management is LIVE. The Connectivity hero Auth row MUST reflect the resolved credential from POST /api/v1/hosts/{host_id}/credentials:resolve (queryKey ["host-credential-resolve", hostId]) — showing the credential name with a host/default source tag — NOT a hardcoded "system_default" string. The Connectivity card "Edit credentials" action and the page-head Edit modal "Manage SSH credential" link MUST open a shared HostCredentialModal. The Connectivity card "Reconnect" action MUST call POST /api/v1/hosts/{id}/discovery:run (Idempotency-Key header), surface a 502 as a credential/SSH failure, and invalidate ["host", hostId] on success. None of these three controls may remain disabled "(deferred)" placeholders.'
+      description: 'v1.6.0 - Per-host credential management is LIVE. The Connectivity hero Auth row MUST reflect the resolved credential from POST /api/v1/hosts/{host_id}/credentials:resolve (queryKey ["host-credential-resolve", hostId]) — showing the credential name with a host/default source tag — NOT a hardcoded "system_default" string. The Connectivity card "Edit credentials" action and the page-head Edit modal "Manage SSH credential" link MUST open a shared HostCredentialModal. The Connectivity card "Reconnect" action MUST call POST /api/v1/hosts/{id}/discovery:run (Idempotency-Key header), surface a 502 as a credential/SSH failure and, from v1.13.0, any other failure with the server''s own human_message (falling back to the status only when there is none), and invalidate ["host", hostId] on success. None of these three controls may remain disabled "(deferred)" placeholders.'
       type: technical
       enforcement: error
     - id: C-12
@@ -251,7 +251,7 @@ spec:
       priority: high
       references_constraints: [C-11]
     - id: AC-41
-      description: 'v1.6.0 - the Connectivity card "Reconnect" button is wired (no longer disabled "(deferred)"): it calls api.POST "/api/v1/hosts/{id}/discovery:run" with an Idempotency-Key header, maps a 502 response to a credential/SSH failure note, and on success invalidates ["host", hostId]; it is gated on host:write. Source-inspection of HostDetailPage.tsx.'
+      description: 'v1.6.0 - the Connectivity card "Reconnect" button is wired (no longer disabled "(deferred)"): it calls api.POST "/api/v1/hosts/{id}/discovery:run" with an Idempotency-Key header, maps a 502 response to a credential/SSH failure note (through reconnectFailureMessage, from v1.13.0), and on success invalidates ["host", hostId]; it is gated on host:write. Source-inspection of HostDetailPage.tsx.'
       priority: high
       references_constraints: [C-11]
     - id: AC-42
@@ -334,3 +334,15 @@ spec:
         every_case_matches_its_expected_caption: true
         every_case_matches_its_expected_color: true
         forbidden_wording_occurrences: 0
+    - id: AC-48
+      description: >-
+        v1.13.0. The Connectivity card's Reconnect note on failure comes from
+        reconnectFailureMessage: a 502 is "Host unreachable (SSH or credential
+        failed)" whatever the body says; any other failure shows the server's
+        error.human_message, so a 409 discovery.in_progress reads "a discovery
+        for this host is already queued or running" instead of "Reconnect
+        failed (409)"; with no message it falls back to "Reconnect failed
+        (HTTP <status>)". Asserted by calling the function, and by source
+        inspection that the button uses it for every failure.
+      priority: medium
+      references_constraints: [C-11]

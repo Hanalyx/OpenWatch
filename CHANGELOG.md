@@ -12,6 +12,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The Reconnect button now says why it failed.** On a host's page, the
+  Connectivity card showed "Reconnect failed (409)" when a discovery for that
+  host was already running. It now shows the server's reason, "a discovery for
+  this host is already queued or running", as the System card already did.
+  Other failures show their reason too. A 502 still reads as an SSH or
+  credential failure.
 - **SSH key credentials now show the key's real fingerprint, type and
   size.** A credential created through the API stored no fingerprint, type
   or size, so the SSH keys list in Settings stayed empty, and replacing a
