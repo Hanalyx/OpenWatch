@@ -58,44 +58,90 @@ jobs:
         run: |
           mkdir -p /tmp/alerts
 
+          # The step ends in exactly one of three ways: one validated
+          # alert in alert.json with its type in type; a reason in none,
+          # when there is nothing to assess; or a non-zero exit, when the
+          # alert could not be read. Nothing is made up in between. An
+          # alert that could not be read must never be assessed as if it
+          # were a mild one (bugs/OW-126).
+          no_alert() {
+            printf '%s\n' "$1" > /tmp/alerts/none
+            echo "No alert to assess: $1"
+          }
+
           if [ "$EVENT_NAME" == "pull_request" ]; then
             # Dependabot PR
             echo "Fetching Dependabot alert for PR #$PR_NUMBER"
-            # Extract package name from PR title. jq receives it with --arg,
-            # so the name stays data in the filter too.
-            PACKAGE=$(printf '%s\n' "$PR_TITLE" | grep -oP '(?<=Bump ).*(?= from)' || true)
-            gh api "/repos/$REPOSITORY/dependabot/alerts" > /tmp/alerts/all.json \
-              && jq --arg pkg "$PACKAGE" '.[] | select(.dependency.package.name == $pkg)' \
-                /tmp/alerts/all.json > /tmp/alerts/alert.json \
-              || echo '{"number": 0, "severity": "moderate"}' > /tmp/alerts/alert.json
+            # Dependabot titles read "... bump <package> from <old> to
+            # <new> ...". A grouped update names no single package. jq
+            # receives the name with --arg, so it stays data in the
+            # filter too.
+            PACKAGE=$(printf '%s\n' "$PR_TITLE" | grep -m 1 -oiP '(?<=\bbump )\S+(?= from )' || true)
+            PACKAGE=${PACKAGE%%$'\n'*}
+            if [ -z "$PACKAGE" ]; then
+              no_alert "the pull request title names no single package"
+              exit 0
+            fi
+
+            if ! gh api --paginate "/repos/$REPOSITORY/dependabot/alerts?state=open&per_page=100" \
+              > /tmp/alerts/pages.json; then
+              echo "Error: could not list Dependabot alerts"
+              exit 1
+            fi
+            if ! jq -s --arg pkg "$PACKAGE" '
+                if length > 0 and all(.[]; type == "array")
+                then [.[][] | select(.state == "open" and .dependency.package.name == $pkg)]
+                else error("the alert listing is not a list of alerts") end' \
+              /tmp/alerts/pages.json > /tmp/alerts/matches.json; then
+              echo "Error: could not read the Dependabot alert listing"
+              exit 1
+            fi
+
+            COUNT=$(jq 'length' /tmp/alerts/matches.json)
+            if [ "$COUNT" -eq 0 ]; then
+              no_alert "no open Dependabot alert for this package"
+              exit 0
+            fi
+            if [ "$COUNT" -ne 1 ]; then
+              echo "Error: $COUNT open alerts match this package; assess them by hand"
+              exit 1
+            fi
+            jq '.[0]' /tmp/alerts/matches.json > /tmp/alerts/alert.json
+            echo dependabot > /tmp/alerts/type
 
           elif [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             # Manual trigger
-            if ! [[ "$INPUT_ALERT_ID" =~ ^[0-9]+$ ]]; then
+            if ! [[ "$INPUT_ALERT_ID" =~ ^[1-9][0-9]*$ ]]; then
               echo "Error: alert_id must be a number"
               exit 1
             fi
 
             case "$INPUT_ALERT_TYPE" in
               codeql)
-                gh api "/repos/$REPOSITORY/code-scanning/alerts/$INPUT_ALERT_ID" \
-                  > /tmp/alerts/alert.json
+                ENDPOINT="code-scanning/alerts/$INPUT_ALERT_ID"
                 ;;
               dependabot)
-                gh api "/repos/$REPOSITORY/dependabot/alerts/$INPUT_ALERT_ID" \
-                  > /tmp/alerts/alert.json
+                ENDPOINT="dependabot/alerts/$INPUT_ALERT_ID"
                 ;;
               *)
                 echo "Error: alert_type must be codeql or dependabot"
                 exit 1
                 ;;
             esac
-          fi
+            if ! gh api "/repos/$REPOSITORY/$ENDPOINT" > /tmp/alerts/alert.json; then
+              echo "Error: could not fetch alert $INPUT_ALERT_ID"
+              exit 1
+            fi
+            if ! jq -e --argjson id "$INPUT_ALERT_ID" 'type == "object" and .number == $id' \
+              /tmp/alerts/alert.json > /dev/null; then
+              echo "Error: the response is not alert $INPUT_ALERT_ID"
+              exit 1
+            fi
+            echo "$INPUT_ALERT_TYPE" > /tmp/alerts/type
 
-          # Verify we got data
-          if [ ! -s /tmp/alerts/alert.json ]; then
-            echo "Error: No alert data fetched"
-            echo '{"number": 0}' > /tmp/alerts/alert.json
+          else
+            echo "Error: unsupported event $EVENT_NAME"
+            exit 1
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,38 +155,73 @@ jobs:
       - name: Assess Risk
         id: assess
         run: |
-          # Determine alert type
-          if jq -e '.rule' /tmp/alerts/alert.json > /dev/null; then
-            ALERT_TYPE="codeql"
-          else
-            ALERT_TYPE="dependabot"
-          fi
-
-          echo "Alert type: $ALERT_TYPE"
-
-          # Run risk assessment
-          python scripts/risk_assessment.py \
-            --type="$ALERT_TYPE" \
-            --output=/tmp/alerts \
-            /tmp/alerts/alert.json
-
-          # Extract results
-          if [ -f /tmp/alerts/low_risk_alerts.json ] && [ "$(jq 'length' /tmp/alerts/low_risk_alerts.json)" -gt 0 ]; then
-            RISK_LEVEL="LOW"
-          elif [ -f /tmp/alerts/medium_risk_alerts.json ] && [ "$(jq 'length' /tmp/alerts/medium_risk_alerts.json)" -gt 0 ]; then
-            RISK_LEVEL="MEDIUM"
-          else
-            RISK_LEVEL="HIGH"
-          fi
-
-          ALERT_ID=$(jq -r '.number // "unknown"' /tmp/alerts/alert.json)
-          if ! [[ "$ALERT_ID" =~ ^[0-9]+$ ]]; then
+          if [ -e /tmp/alerts/none ]; then
+            # Nothing to assess. NONE matches no job, so nothing acts.
+            RISK_LEVEL="NONE"
             ALERT_ID="unknown"
+            DESCRIPTION="No alert to assess: $(cat /tmp/alerts/none)"
+          else
+            ALERT_TYPE=$(cat /tmp/alerts/type)
+            echo "Alert type: $ALERT_TYPE"
+
+            # The assessor fills a missing field with its mildest value
+            # (severity "low", rule severity "note"), so an incomplete
+            # alert would be scored LOW. Only a complete, open alert is
+            # assessed (bugs/OW-126).
+            case "$ALERT_TYPE" in
+              dependabot)
+                VALID='(.dependency.package.name | type == "string" and length > 0)
+                  and (.security_vulnerability.severity | IN("low", "moderate", "high", "critical"))'
+                ;;
+              codeql)
+                VALID='(.rule.id | type == "string" and length > 0)
+                  and (.rule.severity | IN("note", "warning", "error"))'
+                ;;
+              *)
+                echo "Error: unknown alert type"
+                exit 1
+                ;;
+            esac
+            if ! jq -e 'type == "object"
+                and (.number | type == "number" and . >= 1 and . == floor)
+                and .state == "open"
+                and '"$VALID" /tmp/alerts/alert.json > /dev/null; then
+              echo "Error: the alert is incomplete or not open; it is not assessed"
+              exit 1
+            fi
+
+            # Run risk assessment
+            python scripts/risk_assessment.py \
+              --type="$ALERT_TYPE" \
+              --output=/tmp/alerts \
+              /tmp/alerts/alert.json
+
+            # One alert went in, so exactly one comes out, in one file.
+            LOW=$(jq 'length' /tmp/alerts/low_risk_alerts.json)
+            MEDIUM=$(jq 'length' /tmp/alerts/medium_risk_alerts.json)
+            HIGH=$(jq 'length' /tmp/alerts/high_risk_alerts.json)
+            if [ $((LOW + MEDIUM + HIGH)) -ne 1 ]; then
+              echo "Error: the assessment did not classify exactly one alert"
+              exit 1
+            fi
+            if [ "$LOW" -eq 1 ]; then
+              RISK_LEVEL="LOW"
+            elif [ "$MEDIUM" -eq 1 ]; then
+              RISK_LEVEL="MEDIUM"
+            else
+              RISK_LEVEL="HIGH"
+            fi
+
+            ALERT_ID=$(jq -r '.number' /tmp/alerts/alert.json)
+            DESCRIPTION=$(jq -r '.rule.description // .security_advisory.summary // "Unknown issue"' /tmp/alerts/alert.json)
           fi
           # The description is alert text. Folding it to one line keeps a
           # newline in it from writing another output, such as risk_level.
-          DESCRIPTION=$(jq -r '.rule.description // .security_vulnerability.summary // "Unknown issue"' /tmp/alerts/alert.json | tr '\r\n' '  ')
-          CAN_AUTO_FIX=$([ "$RISK_LEVEL" != "HIGH" ] && echo "true" || echo "false")
+          DESCRIPTION=$(printf '%s' "$DESCRIPTION" | tr '\r\n' '  ')
+          CAN_AUTO_FIX="false"
+          if [ "$RISK_LEVEL" == "LOW" ]; then
+            CAN_AUTO_FIX="true"
+          fi
 
           {
             printf 'risk_level=%s\n' "$RISK_LEVEL"
@@ -163,7 +244,9 @@ jobs:
   auto-fix-low-risk:
     name: Auto-Fix (Low Risk)
     needs: risk-assessment
-    if: needs.risk-assessment.outputs.risk_level == 'LOW'
+    if: >-
+      needs.risk-assessment.outputs.risk_level == 'LOW' &&
+      needs.risk-assessment.outputs.can_auto_fix == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -172,6 +255,12 @@ jobs:
       - name: Auto-Approve Dependabot PR
         if: github.actor == 'dependabot[bot]'
         run: |
+          # Approve only an assessed alert. Every path without one sets
+          # alert_id to "unknown" (bugs/OW-126).
+          if ! [[ "$ALERT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Error: no assessed alert; not approving"
+            exit 1
+          fi
           echo "Auto-approving LOW risk Dependabot PR"
           gh pr review "$PR_NUMBER" \
             --approve \
