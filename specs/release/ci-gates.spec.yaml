@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.29.0"
+  version: "1.30.0"
   status: approved
   tier: 1
 
@@ -676,6 +676,36 @@ spec:
         run's reach.
       type: security
       enforcement: error
+    - id: C-27
+      type: security
+      enforcement: error
+      description: >-
+        v1.30.0 (bugs/OW-126). A workflow's run script never contains an
+        expression whose value someone outside the repository's maintainers
+        can choose. GitHub substitutes a `${{ }}` expression into a run
+        script before the shell parses it, so text such as a pull request
+        title, a dispatch input or an alert description could change the
+        script itself. Such a value reaches the script only through the
+        step's `env` and is used quoted, so the shell sees it as data. A
+        value written to GITHUB_OUTPUT from alert text is folded to one line
+        first, because a newline in it would write a second output. The
+        alert triage workflow grants no permissions at the workflow level;
+        each job names the ones it needs, and the assessment job, the one
+        that reads pull request text, can read and not write. That job runs
+        only for a manual dispatch or a pull request that Dependabot both
+        opened and triggered; every other event skips it, and with it every
+        job that needs it, before any shell step runs. The workflow has no
+        schedule trigger, because a scheduled run has no alert to assess.
+        No automatic action follows from an alert the workflow could not
+        read. A failed or malformed alert lookup fails the assessment job.
+        No matching open alert, or a title that names no single package,
+        records the risk level NONE, which no job acts on. An alert that is
+        not open, lacks a positive integer number, or lacks a severity the
+        assessor knows is refused before it is assessed, because the
+        assessor reads a missing severity as its mildest. Only a LOW
+        assessment with can_auto_fix true starts the auto-fix job, and its
+        approval step refuses an alert id that is not a positive integer.
+
   acceptance_criteria:
     - id: AC-01
       description: make vet target exists and runs `go vet ./...` against the full module.
@@ -1908,3 +1938,69 @@ spec:
         does not stop a new one.
       priority: critical
       references_constraints: [C-26]
+    - id: AC-50
+      description: >-
+        v1.30.0. Every workflow under .github/workflows, parsed as YAML, uses
+        in its run scripts only expressions from a fixed allowlist of values
+        the repository itself sets (matrix values, the repository name and
+        owner, the commit and run ids). A pull request title, an event field,
+        an input, a step output or a job output in a run script fails, with
+        the workflow, job, step and expression named. The checker itself is
+        shown to find each of those forms in a run script.
+      priority: critical
+      references_constraints: [C-27]
+    - id: AC-51
+      description: >-
+        v1.30.0. The alert triage workflow's own step scripts, read from the
+        YAML and run by bash with the real scripts/risk_assessment.py and a
+        recording `gh` stand-in, treat hostile text as data. Pull request
+        titles holding a command substitution (also in the package name),
+        backticks, a closing quote or a closing `fi` start no command and
+        change nothing in the repository. An alert summary holding newlines
+        and `risk_level=LOW` writes each of the four outputs once, with the
+        values the assessment decided; the only other outputs are the
+        assessor's own. In the steps that approve, merge and open issues, an alert
+        description holding a command substitution, backticks and quotes
+        starts no command and reaches `gh` as literal text. A dispatch alert
+        id that is not a positive integer, and an unknown alert type, stop
+        the fetch step before it calls `gh`.
+      priority: critical
+      references_constraints: [C-27]
+    - id: AC-52
+      description: >-
+        v1.30.0. The alert triage workflow, parsed as YAML, triggers on
+        pull_request and workflow_dispatch and nothing else, sets no
+        workflow-level permissions, and its assessment job has exactly
+        `contents: read` and `security-events: read`. Only the auto-fix job
+        may write contents or pull requests, and only the two issue jobs may
+        write issues. The assessment job's `if`, evaluated as a GitHub
+        expression, runs for a manual dispatch and for a pull request
+        Dependabot opened and triggered, and skips a pull request from
+        anyone else, one Dependabot opened that someone else updated, one
+        someone else opened that Dependabot updated, and the schedule. Every
+        other job needs the assessment job and has no status function in its
+        condition, so it is skipped with it.
+      priority: critical
+      references_constraints: [C-27]
+    - id: AC-53
+      description: >-
+        v1.30.0. The alert triage workflow, run end to end by bash with the
+        real assessor and a recording `gh`: the assessment step, then each
+        downstream job whose condition holds for the outputs written. With a
+        failed listing, a listing that is an error object, not JSON, empty or
+        an object of alerts, two matching open alerts, a matching alert with
+        no severity, an unknown severity, number 0 or a string number, a
+        failed dispatch fetch of either type, or a dispatch response that is
+        another alert, dismissed, or a code scanning alert without a
+        severity, the assessment job fails. With no matching open alert, a
+        listing that is empty, a matching alert that is fixed, or a grouped
+        update, it records NONE. In none of these does `gh` review, merge or
+        open an issue. As controls, a LOW alert found on the second page of
+        the listing is approved and set to merge, a critical one opens an
+        issue, and a code scanning error opens an issue. An assessor that
+        classifies no alert fails the job. The auto-fix job's condition
+        needs LOW and can_auto_fix true, and its approval step exits before
+        calling `gh` for an alert id of unknown, 0, empty or with trailing
+        text.
+      priority: critical
+      references_constraints: [C-27]
