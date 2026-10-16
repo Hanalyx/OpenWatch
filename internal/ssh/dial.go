@@ -51,6 +51,11 @@ type DialOptions struct {
 	// persist it so the next connection leads with it. Untouched on dial
 	// failure.
 	ObservedAuth *string
+
+	// Report, when non-nil, receives the evidence of the dial and the
+	// outcome it supports for each of the credential's secrets, however
+	// the dial ends (spec C-14). The returned error is unchanged by it.
+	Report *AuthReport
 }
 
 // netDial is the network-level dial function. Production uses
@@ -85,12 +90,13 @@ func Dial(ctx context.Context, host string, port int, cred *credential.Credentia
 
 	conn, err := netDial(dialCtx, "tcp", addr)
 	if err != nil {
+		reportOf(opts, obs.rec, cred) // nothing was sent
 		if errors.Is(err, context.DeadlineExceeded) || isNetTimeout(err) {
 			return nil, ErrDialTimeout
 		}
 		return nil, fmt.Errorf("%w: %v", ErrConnect, sanitizeNetErr(err))
 	}
-	return handshake(dialCtx, conn, addr, cfg, obs, opts)
+	return handshake(dialCtx, conn, addr, cfg, obs, opts, cred)
 }
 
 // DialConn runs the SSH handshake for cred over an already-connected conn,
@@ -105,7 +111,7 @@ func DialConn(ctx context.Context, conn net.Conn, host string, cred *credential.
 	}
 	hsCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	return handshake(hsCtx, conn, host, cfg, obs, opts)
+	return handshake(hsCtx, conn, host, cfg, obs, opts, cred)
 }
 
 // clientConfig validates the credential and builds the client config.
@@ -116,21 +122,26 @@ func clientConfig(host string, cred *credential.Credential, opts DialOptions) (*
 	if opts.Store == nil {
 		opts.Store = NewMemoryStore()
 	}
+	rec := newAuthRecorder()
 	if cred == nil {
+		reportOf(opts, rec, nil)
 		return nil, nil, opts, ErrNoAuthMethod
 	}
-	obs := &authObserver{}
+	obs := &authObserver{rec: rec}
 	authMethods, err := orderedAuthMethods(cred, opts.PreferAuth, obs)
 	if err != nil {
+		reportKeyFailure(opts, rec, cred, err)
 		return nil, nil, opts, err
 	}
 	if len(authMethods) == 0 {
+		reportOf(opts, rec, cred)
 		return nil, nil, opts, ErrNoAuthMethod
 	}
 	// Pre-validate the key (if any) so a weak/malformed key fails
 	// before we even hit the network.
 	if cred.PrivateKey != "" {
 		if err := ValidateAuthKey([]byte(cred.PrivateKey), cred.PrivateKeyPassphrase); err != nil {
+			reportKeyFailure(opts, rec, cred, err)
 			return nil, nil, opts, err
 		}
 	}
@@ -139,18 +150,52 @@ func clientConfig(host string, cred *credential.Credential, opts DialOptions) (*
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback(opts.Mode, opts.Store, host),
 		Timeout:         opts.Timeout,
+		// Observes each method's result; never chooses a method.
+		AuthCallback: rec.afterMethod,
 	}
 	return cfg, obs, opts, nil
+}
+
+// reportOf fills opts.Report from rec, for a credential cred (nil for
+// none). It does nothing when no report was asked for.
+func reportOf(opts DialOptions, rec *authRecorder, cred *credential.Credential) {
+	if opts.Report == nil {
+		return
+	}
+	var secrets []string
+	if cred != nil {
+		secrets = secretsOf(cred.Password, cred.PrivateKey)
+	}
+	*opts.Report = rec.report(secrets)
+}
+
+// reportKeyFailure fills opts.Report for a dial that stopped because the
+// private key could not be loaded. Nothing was sent. A wrong or missing
+// passphrase is the key's local_decrypt_failed outcome.
+func reportKeyFailure(opts DialOptions, rec *authRecorder, cred *credential.Credential, err error) {
+	reportOf(opts, rec, cred)
+	if opts.Report != nil && isLocalDecryptFailure(err) {
+		opts.Report.Outcomes[SecretKindKey] = OutcomeLocalDecryptFailed // pragma: allowlist secret
+	}
 }
 
 // handshake runs ssh.NewClientConn on conn, bounded by ctx: when ctx
 // reaches its deadline or is canceled, the watcher closes conn, which ends
 // any read or write the handshake is blocked in. The watcher is removed
 // once the handshake returns, so it never affects the live client.
-func handshake(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig, obs *authObserver, opts DialOptions) (*ssh.Client, error) {
+func handshake(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig, obs *authObserver, opts DialOptions, cred *credential.Credential) (*ssh.Client, error) {
+	// The wrapper lets the recorder tell a server's answer from a broken
+	// connection (spec C-14).
+	ec := &evidenceConn{Conn: conn}
+	obs.rec.conn = ec
+	conn = ec
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
 	stopped := stop()
+	// A handshake that completed accepted the last method, even if the
+	// dial then reports a timeout because ctx fired as it finished.
+	obs.rec.finish(err == nil)
+	reportOf(opts, obs.rec, cred)
 	if err != nil {
 		_ = conn.Close()
 		if !stopped || ctx.Err() != nil {

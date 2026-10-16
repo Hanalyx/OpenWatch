@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.4.0"
+  version: "1.5.0"
   status: approved
   tier: 2
 
@@ -97,6 +97,31 @@ spec:
         dial site, not an in-memory store. A changed key is still rejected
         (ErrHostKeyMismatch) by the dial layer.
       type: security
+      enforcement: error
+
+    - id: C-14
+      description: >-
+        v1.5.0 (features/OW-122 slice 1). A dial classifies what it
+        established about each secret it holds from evidence on the wire,
+        not from error text, and reports it through DialOptions.Report however
+        the dial ends. It records each authentication method, whether the
+        method sent a secret and how many times, and its result: accepted,
+        partly accepted, answered with USERAUTH_FAILURE over an intact
+        connection, or ended with no answer the client could see. A method
+        that ended in a transport error, a server disconnect or the dial's
+        timeout saw no answer. A keyboard-interactive exchange is inside the
+        supported profile when each round has at most one hidden prompt and
+        no visible one; a hidden prompt after the password was given is a
+        re-prompt. Per secret, in order: a secret a method sent and the server
+        accepted, fully or in part, is verified; an exchange outside the
+        profile is unsupported_profile; a secret answered with failure, or
+        re-prompted, is rejected; a secret sent with no answer seen is
+        ambiguous; a key whose passphrase is wrong or missing is
+        local_decrypt_failed; otherwise the secret was not_submitted. The
+        observer chooses nothing: authentication order, the methods offered,
+        what keyboard-interactive answers, and the error Dial returns are
+        unchanged. Consumers adopt the outcome in later slices.
+      type: technical
       enforcement: error
 
   acceptance_criteria:
@@ -195,3 +220,44 @@ spec:
         passed.
       priority: critical
       references_constraints: [C-01]
+    - id: AC-24
+      description: >-
+        v1.5.0. Against an in-process server, with a password credential: an
+        accepted password, an accepted keyboard-interactive password, and a
+        password accepted as a partial success are verified; a wrong password
+        by either method, and a keyboard-interactive re-prompt, are rejected;
+        a round with only a visible prompt, or with two hidden prompts, is
+        unsupported_profile; a server offering no password method, and one
+        that admits the client without asking for the password, leave it
+        not_submitted. Dial returns the same error as before in each case, and
+        the report holds no outcome for a secret the credential lacks.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-25
+      description: >-
+        v1.5.0. A password the server never answered is ambiguous, not
+        rejected: when the server drops the connection on receiving it, and
+        when the dial times out while the server holds it (Dial still returns
+        ErrDialTimeout). A re-prompt followed by a dropped connection is
+        rejected. When the server disconnects as the next method starts,
+        that method is not recorded as answered.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-26
+      description: >-
+        v1.5.0. An accepted key is verified and a refused key rejected. With a
+        key and a password, a refused key and an accepted password are
+        reported separately, the server sees publickey before password as
+        before, and a keyboard-interactive exchange outside the profile
+        affects the password's outcome only. A key with a wrong or missing
+        passphrase is local_decrypt_failed, and nothing is dialed.
+      priority: critical
+      references_constraints: [C-14]
+    - id: AC-27
+      description: >-
+        v1.5.0. A refused connection and a refused host key leave every
+        secret not_submitted with no method recorded, and the server sees no
+        authentication before its host key is accepted. A dial without a
+        report behaves as before.
+      priority: high
+      references_constraints: [C-14]
