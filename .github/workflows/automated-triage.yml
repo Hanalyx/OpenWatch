@@ -211,10 +211,13 @@ jobs:
 
       - name: Summary Report
         if: steps.fetch-alerts.outputs.alert_count > 0
+        env:
+          ALERT_COUNT: ${{ steps.fetch-alerts.outputs.alert_count }}
+          RISK_ASSESSMENT_OUTCOME: ${{ steps.risk-assessment.outcome }}
         run: |
           echo "# Code Scanning Triage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Alerts:** ${{ steps.fetch-alerts.outputs.alert_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Alerts:** $ALERT_COUNT" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Check if risk assessment files exist, create empty arrays if not
@@ -233,7 +236,7 @@ jobs:
           echo "| HIGH | ${HIGH_COUNT} | Human review |" >> $GITHUB_STEP_SUMMARY
 
           # Add risk assessment status
-          if [ "${{ steps.risk-assessment.outcome }}" != "success" ]; then
+          if [ "$RISK_ASSESSMENT_OUTCOME" != "success" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Note:** Risk assessment encountered an error. Manual review of all alerts recommended." >> $GITHUB_STEP_SUMMARY
           fi

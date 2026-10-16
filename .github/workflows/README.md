@@ -22,7 +22,7 @@ relying on them.
 | `branch-naming.yml` | PR to `main` | Enforce the branch-prefix policy |
 | `issue-management.yml` | issues, PRs, comments | Auto-assign, auto-label, size-label, stale handling, welcome messages |
 | `automated-triage.yml` | daily, manual | Triage Dependabot/CodeQL alerts |
-| `claude-code-alerts.yml` | PRs, weekly, manual | Assist with security alert triage |
+| `claude-code-alerts.yml` | Dependabot PRs, manual | Assist with security alert triage |
 | `trace-test-reads.yml` | weekly, manual | Diagnostic only: which documentation files tests outside the documentation path read |
 
 Dependency updates are configured in `.github/dependabot.yml` (a config file, not a
@@ -162,8 +162,9 @@ proof. The report and the raw traces are kept as an artifact for 14 days.
   first-time contributors.
 - **`automated-triage.yml`**: daily (and on-demand) triage of Dependabot and CodeQL
   alerts.
-- **`claude-code-alerts.yml`**: assists with security alert triage on PRs and on a
-  weekly schedule.
+- **`claude-code-alerts.yml`**: assists with security alert triage on Dependabot
+  pull requests and on manual dispatch. Other pull requests trigger it and skip
+  every job.
 
 ## Required secrets
 
