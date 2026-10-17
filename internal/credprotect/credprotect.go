@@ -31,6 +31,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Hanalyx/openwatch/internal/credprotect/fingerprint"
 )
 
 // Scope is how a credential's account is identified.
@@ -56,8 +58,8 @@ const IDLen = 32
 // Alias is one identifier of a secret: the id of the key that derived it,
 // and the identifier itself. For an SSH key the identifier is the SHA-256 of
 // the public key and KeyID is empty. For a password it is a keyed
-// fingerprint; deriving it is slice 2, which may give one password several
-// aliases during a key rotation.
+// fingerprint from internal/credprotect/fingerprint, one per key the
+// keyring holds (spec C-15).
 type Alias struct {
 	KeyID string
 	ID    [IDLen]byte
@@ -71,6 +73,22 @@ type Alias struct {
 type Secret struct {
 	Kind    SecretKind
 	Aliases []Alias
+	// Keyring is the fingerprint keyring snapshot the password's aliases
+	// were computed from. A password is refused unless it is the keyring as
+	// it stands now, so aliases from a stale or damaged keyring are never
+	// recorded or matched (spec C-16). Build it with PasswordSecret. Unused
+	// for keys.
+	Keyring fingerprint.Snapshot
+}
+
+// PasswordSecret identifies a password through a loaded fingerprint
+// keyring: an alias under every key it holds, and its snapshot.
+func PasswordSecret(kr fingerprint.Keyring, username, password string) Secret {
+	s := Secret{Kind: SecretPassword, Keyring: kr.Snapshot()}
+	for _, a := range kr.Password(username, password) {
+		s.Aliases = append(s.Aliases, Alias{KeyID: a.KeyID, ID: a.ID})
+	}
+	return s
 }
 
 // String never reveals an identifier: an identifier is a sensitive equality
@@ -86,6 +104,9 @@ func (s Secret) valid() error {
 	}
 	if len(s.Aliases) == 0 {
 		return fmt.Errorf("%w: secret has no identifier", ErrInvalid)
+	}
+	if s.Kind == SecretPassword && s.Keyring == (fingerprint.Snapshot{}) {
+		return fmt.Errorf("%w: password identified without a keyring snapshot", ErrInvalid)
 	}
 	return nil
 }
@@ -249,6 +270,14 @@ var (
 	ErrNotTerminated   = errors.New("credprotect: owner not verified ended")
 	ErrOverride        = errors.New("credprotect: an override needs a reason and a confirmation")
 	ErrInvalid         = errors.New("credprotect: invalid request")
+	// ErrKeyringChanged: the password's aliases were computed from an
+	// earlier keyring generation. Reload the keyring and compute them
+	// again (spec C-16).
+	ErrKeyringChanged = errors.New("credprotect: the fingerprint keyring changed; reload it")
+	// ErrKeyringUnavailable: the fingerprint keyring is missing or not
+	// initialized, so no password can be checked. Nothing is attempted
+	// (spec C-16).
+	ErrKeyringUnavailable = errors.New("credprotect: the fingerprint keyring is unavailable")
 	// ErrLateralBlock: a block applies that this attempt's own verification
 	// cannot lift: one living on a directory identity it is not bound to.
 	ErrLateralBlock = errors.New("credprotect: blocked by a directory identity's restriction; verify through it")
