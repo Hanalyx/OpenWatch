@@ -26,21 +26,30 @@ type OutcomeKind string
 
 const (
 	// OutcomeVerified: the server accepted a method that carried the
-	// secret. A partial success counts: the secret was accepted, though
-	// the server asked for another factor.
+	// secret: USERAUTH_SUCCESS, or USERAUTH_FAILURE with partial success.
+	// A partial success accepts the secret, not the login (RFC 4252
+	// section 5.1): the dial still fails, and its report keeps
+	// ResultPartial. It is not a usable connection, and later slices must
+	// not take it alone as grounds for recovery.
 	OutcomeVerified OutcomeKind = "verified"
-	// OutcomeRejected: the server answered USERAUTH_FAILURE to a method
-	// that carried the secret, over a connection still intact, or a
-	// keyboard-interactive exchange asked for the password again after it
-	// was given.
-	OutcomeRejected OutcomeKind = "rejected"
+	// OutcomeUnsuccessful: a method sent the secret and ended without
+	// success over a connection still intact, but what the server
+	// answered is not established. crypto/ssh's client treats
+	// USERAUTH_FAILURE and an unexpected reply (for example
+	// SSH_MSG_USERAUTH_PASSWD_CHANGEREQ, RFC 4252 section 8) alike and
+	// does not say which it saw, so this classifier never reports a
+	// rejection for SSH.
+	OutcomeUnsuccessful OutcomeKind = "unsuccessful"
 	// OutcomeAmbiguous: the secret was sent and no answer to it was
 	// observed. The connection failed, the server disconnected, or the
 	// dial timed out during user authentication.
 	OutcomeAmbiguous OutcomeKind = "ambiguous"
 	// OutcomeUnsupportedProfile: a keyboard-interactive exchange left the
-	// supported profile, one hidden prompt per round with optional
-	// prompt-free rounds.
+	// supported profile: across the whole exchange, at most one hidden
+	// prompt, which the password answers, and no visible prompt.
+	// Prompt-free rounds are information. A further hidden prompt is
+	// outside the profile, whatever it asks: its count or wording cannot
+	// show that the password was refused.
 	OutcomeUnsupportedProfile OutcomeKind = "unsupported_profile"
 	// OutcomeNotSubmitted: the secret was never sent. The server did not
 	// offer a method for it, or the dial ended before user authentication.
@@ -54,9 +63,12 @@ const (
 type MethodResult string
 
 const (
-	ResultAccepted MethodResult = "accepted"  // USERAUTH_SUCCESS
-	ResultPartial  MethodResult = "partial"   // USERAUTH_FAILURE with partial success
-	ResultFailure  MethodResult = "failure"   // USERAUTH_FAILURE over an intact connection
+	ResultAccepted MethodResult = "accepted" // USERAUTH_SUCCESS
+	ResultPartial  MethodResult = "partial"  // USERAUTH_FAILURE with partial success
+	// ResultEnded: the method ended without success over an intact
+	// connection. The server answered USERAUTH_FAILURE or something else
+	// crypto/ssh does not accept; the client cannot tell which.
+	ResultEnded    MethodResult = "ended"
 	ResultNoAnswer MethodResult = "no_answer" // the method ended without an answer the client could see
 )
 
@@ -66,13 +78,10 @@ type MethodAttempt struct {
 	// Secret is the kind of secret the method sent, or "" if it sent none.
 	Secret string
 	// Submissions counts how many times the secret was sent in this
-	// method: one for publickey and password, one per answered round for
+	// method: one for publickey and password, one per hidden prompt for
 	// keyboard-interactive.
 	Submissions int
 	Result      MethodResult
-	// Reprompted: keyboard-interactive asked for a hidden answer again
-	// after one was given.
-	Reprompted bool
 	// Unsupported: keyboard-interactive asked for something outside the
 	// supported profile.
 	Unsupported bool
@@ -98,6 +107,7 @@ type authRecorder struct {
 	open     int // index of the attempt in progress, or -1
 	tried    int // len(TriedMethods) at the last callback
 	partial  int // len(PartialSuccessMethods) at the last callback
+	hidden   int // hidden keyboard-interactive prompts in the whole exchange
 	conn     *evidenceConn
 }
 
@@ -115,9 +125,8 @@ func (r *authRecorder) sent(method, secret string) {
 // kbdRound records one keyboard-interactive round, in which the client
 // gives the password to each of the hidden prompts. It only records: what
 // the client answers is decided elsewhere and is unchanged. The supported
-// profile is one hidden prompt per round, with prompt-free rounds allowed
-// as information. A hidden prompt after the password was given is a
-// re-prompt.
+// profile spans the whole exchange: at most one hidden prompt, and no
+// visible one. Prompt-free rounds are information.
 func (r *authRecorder) kbdRound(echos []bool) {
 	hidden, visible := 0, 0
 	for _, e := range echos {
@@ -130,13 +139,11 @@ func (r *authRecorder) kbdRound(echos []bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a := r.current("keyboard-interactive")
-	if hidden > 1 || visible > 0 {
+	r.hidden += hidden
+	if r.hidden > 1 || visible > 0 {
 		a.Unsupported = true
 	}
 	if hidden > 0 {
-		if a.Submissions > 0 {
-			a.Reprompted = true
-		}
 		a.Secret = SecretKindPassword // pragma: allowlist secret
 		a.Submissions += hidden
 	}
@@ -162,7 +169,7 @@ func (r *authRecorder) afterMethod(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var method string
-	result := ResultFailure
+	result := ResultEnded
 	switch {
 	case len(ctx.TriedMethods) > r.tried:
 		method = ctx.TriedMethods[len(ctx.TriedMethods)-1]
@@ -213,12 +220,13 @@ func (r *authRecorder) report(secrets []string) AuthReport {
 	return rep
 }
 
-// classifySecret applies the rules in order: an accepted secret is
-// verified; an exchange outside the profile is unsupported; a failure
-// answer or a re-prompt after the secret was sent is a rejection; a secret
-// sent with no answer seen is ambiguous; otherwise it was not sent.
+// classifySecret applies the rules in order: a secret the server accepted
+// is verified; an exchange outside the profile is unsupported; a secret
+// sent with no answer seen is ambiguous; a secret sent whose method ended
+// without success is unsuccessful; otherwise it was not sent. Ambiguous
+// comes before unsuccessful because its effect is the broader one.
 func classifySecret(attempts []MethodAttempt, secret string) OutcomeKind {
-	var unsupported, rejected, unanswered bool
+	var unsupported, ended, unanswered bool
 	for _, a := range attempts {
 		if a.Secret != secret && !(a.Method == "keyboard-interactive" && secret == SecretKindPassword) { // pragma: allowlist secret
 			continue
@@ -229,8 +237,8 @@ func classifySecret(attempts []MethodAttempt, secret string) OutcomeKind {
 		if a.Unsupported {
 			unsupported = true
 		}
-		if a.Submissions > 0 && (a.Result == ResultFailure || a.Reprompted) {
-			rejected = true
+		if a.Submissions > 0 && a.Result == ResultEnded {
+			ended = true
 		}
 		if a.Submissions > 0 && a.Result == ResultNoAnswer {
 			unanswered = true
@@ -239,10 +247,10 @@ func classifySecret(attempts []MethodAttempt, secret string) OutcomeKind {
 	switch {
 	case unsupported:
 		return OutcomeUnsupportedProfile
-	case rejected:
-		return OutcomeRejected
 	case unanswered:
 		return OutcomeAmbiguous
+	case ended:
+		return OutcomeUnsuccessful
 	}
 	return OutcomeNotSubmitted
 }

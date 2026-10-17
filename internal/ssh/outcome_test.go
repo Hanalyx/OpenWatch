@@ -211,7 +211,7 @@ var hiddenPrompt = kbdRound{prompts: []string{"Password: "}, echos: []bool{false
 func attemptsString(r AuthReport) string {
 	s := ""
 	for _, a := range r.Attempts {
-		s += fmt.Sprintf("[%s secret=%q n=%d %s reprompt=%v unsupported=%v] ", a.Method, a.Secret, a.Submissions, a.Result, a.Reprompted, a.Unsupported)
+		s += fmt.Sprintf("[%s secret=%q n=%d %s unsupported=%v] ", a.Method, a.Secret, a.Submissions, a.Result, a.Unsupported)
 	}
 	return s
 }
@@ -229,10 +229,15 @@ func TestOutcome_PasswordAndKeyboardInteractive(t *testing.T) {
 			wantErr error
 		}{
 			{"password accepted", outcomeServer{password: "right"}, "right", OutcomeVerified, nil},
-			{"password rejected", outcomeServer{password: "right"}, "wrong", OutcomeRejected, ErrAuthFailed},
+			// Wrong passwords end the method; crypto/ssh does not say
+			// whether the server answered USERAUTH_FAILURE, so the
+			// outcome is unsuccessful, never rejected.
+			{"password refused", outcomeServer{password: "right"}, "wrong", OutcomeUnsuccessful, ErrAuthFailed},
 			{"keyboard-interactive accepted", outcomeServer{kbdRounds: []kbdRound{hiddenPrompt}, kbdPassword: "right"}, "right", OutcomeVerified, nil},
-			{"keyboard-interactive rejected", outcomeServer{kbdRounds: []kbdRound{hiddenPrompt}, kbdPassword: "right"}, "wrong", OutcomeRejected, ErrAuthFailed},
-			{"keyboard-interactive re-prompt", outcomeServer{kbdRounds: []kbdRound{hiddenPrompt, hiddenPrompt}, kbdPassword: "right"}, "wrong", OutcomeRejected, ErrAuthFailed},
+			{"keyboard-interactive refused", outcomeServer{kbdRounds: []kbdRound{hiddenPrompt}, kbdPassword: "right"}, "wrong", OutcomeUnsuccessful, ErrAuthFailed},
+			// A second hidden prompt is outside the profile, whatever it
+			// asks: it does not show that the first answer was refused.
+			{"a second hidden prompt", outcomeServer{kbdRounds: []kbdRound{hiddenPrompt, hiddenPrompt}, kbdPassword: "right"}, "wrong", OutcomeUnsupportedProfile, ErrAuthFailed},
 			{"information round, then the prompt", outcomeServer{kbdRounds: []kbdRound{{}, hiddenPrompt}, kbdPassword: "right"}, "right", OutcomeVerified, nil},
 			{"visible prompt only", outcomeServer{kbdRounds: []kbdRound{{prompts: []string{"Code: "}, echos: []bool{true}}}, kbdPassword: "right"}, "right", OutcomeUnsupportedProfile, ErrAuthFailed},
 			{"two hidden prompts in a round", outcomeServer{kbdRounds: []kbdRound{{prompts: []string{"Password: ", "Token: "}, echos: []bool{false, false}}}, kbdPassword: "right"}, "wrong", OutcomeUnsupportedProfile, ErrAuthFailed},
@@ -283,14 +288,18 @@ func TestOutcome_NoAnswerIsAmbiguousNotRejected(t *testing.T) {
 				t.Errorf("Dial error %v, want ErrDialTimeout as before", err)
 			}
 		})
-		t.Run("connection dropped after a re-prompt", func(t *testing.T) {
-			// The host asked for the password a second time, which it
-			// does only after a wrong one, then dropped the connection.
-			// The re-prompt is the answer to the first submission.
-			host, port, _ := startOutcomeServer(t, outcomeServer{kbdRounds: []kbdRound{hiddenPrompt, hiddenPrompt}, kbdPassword: "right", dropAfterKbdRounds: 2})
-			rep, _ := dialReport(t, host, port, passwordCred("wrong"), 5*time.Second)
-			if got := rep.Outcomes[SecretKindPassword]; got != OutcomeRejected {
-				t.Errorf("outcome %q, want rejected: %s", got, attemptsString(rep))
+		t.Run("a second hidden prompt, then a dropped connection", func(t *testing.T) {
+			// The review's case: the correct password, then a hidden
+			// one-time-code prompt, then a disconnect. The second prompt
+			// says nothing about the password; the exchange left the
+			// profile.
+			host, port, _ := startOutcomeServer(t, outcomeServer{kbdRounds: []kbdRound{hiddenPrompt, {prompts: []string{"One-time code: "}, echos: []bool{false}}}, kbdPassword: "right", dropAfterKbdRounds: 2})
+			rep, err := dialReport(t, host, port, passwordCred("right"), 5*time.Second)
+			if err == nil {
+				t.Fatal("Dial succeeded")
+			}
+			if got := rep.Outcomes[SecretKindPassword]; got != OutcomeUnsupportedProfile {
+				t.Errorf("outcome %q, want unsupported_profile: %s", got, attemptsString(rep))
 			}
 		})
 		t.Run("server disconnects when the next attempt arrives", func(t *testing.T) {
@@ -300,11 +309,11 @@ func TestOutcome_NoAnswerIsAmbiguousNotRejected(t *testing.T) {
 			// nothing was sent through keyboard-interactive.
 			host, port, _ := startOutcomeServer(t, outcomeServer{password: "right", kbdRounds: []kbdRound{hiddenPrompt}, kbdPassword: "right", maxAuthTries: 1})
 			rep, _ := dialReport(t, host, port, passwordCred("wrong"), 5*time.Second)
-			if got := rep.Outcomes[SecretKindPassword]; got != OutcomeRejected && got != OutcomeAmbiguous {
-				t.Errorf("outcome %q, want rejected or ambiguous: %s", got, attemptsString(rep))
+			if got := rep.Outcomes[SecretKindPassword]; got != OutcomeUnsuccessful && got != OutcomeAmbiguous {
+				t.Errorf("outcome %q, want unsuccessful or ambiguous: %s", got, attemptsString(rep))
 			}
 			for _, a := range rep.Attempts {
-				if a.Result == ResultFailure && a.Submissions > 0 && a.Method == "keyboard-interactive" {
+				if a.Result == ResultEnded && a.Submissions > 0 && a.Method == "keyboard-interactive" {
 					t.Errorf("keyboard-interactive recorded as answered after a disconnect: %s", attemptsString(rep))
 				}
 			}
@@ -323,20 +332,20 @@ func TestOutcome_KeysAndBothSecrets(t *testing.T) {
 				t.Errorf("err %v, outcome %q: %s", err, rep.Outcomes[SecretKindKey], attemptsString(rep))
 			}
 		})
-		t.Run("key rejected", func(t *testing.T) {
+		t.Run("key refused", func(t *testing.T) {
 			cred, _ := keyCred(t, "")
 			host, port, _ := startOutcomeServer(t, outcomeServer{offerPublicKey: true})
 			rep, err := dialReport(t, host, port, cred, 5*time.Second)
-			if !errors.Is(err, ErrAuthFailed) || rep.Outcomes[SecretKindKey] != OutcomeRejected {
+			if !errors.Is(err, ErrAuthFailed) || rep.Outcomes[SecretKindKey] != OutcomeUnsuccessful {
 				t.Errorf("err %v, outcome %q: %s", err, rep.Outcomes[SecretKindKey], attemptsString(rep))
 			}
 		})
-		t.Run("key rejected, then the password accepted", func(t *testing.T) {
+		t.Run("key refused, then the password accepted", func(t *testing.T) {
 			cred, _ := keyCred(t, "")
 			cred.Password = "right" // pragma: allowlist secret
 			host, port, seen := startOutcomeServer(t, outcomeServer{offerPublicKey: true, password: "right"})
 			rep, err := dialReport(t, host, port, cred, 5*time.Second)
-			if err != nil || rep.Outcomes[SecretKindKey] != OutcomeRejected || rep.Outcomes[SecretKindPassword] != OutcomeVerified { // pragma: allowlist secret
+			if err != nil || rep.Outcomes[SecretKindKey] != OutcomeUnsuccessful || rep.Outcomes[SecretKindPassword] != OutcomeVerified { // pragma: allowlist secret
 				t.Errorf("err %v, outcomes %v: %s", err, rep.Outcomes, attemptsString(rep))
 			}
 			// The observer chooses nothing: the order is the historical
@@ -350,8 +359,8 @@ func TestOutcome_KeysAndBothSecrets(t *testing.T) {
 			cred.Password = "pw" // pragma: allowlist secret
 			host, port, _ := startOutcomeServer(t, outcomeServer{offerPublicKey: true, kbdRounds: []kbdRound{{prompts: []string{"Code: "}, echos: []bool{true}}}, kbdPassword: "pw"})
 			rep, _ := dialReport(t, host, port, cred, 5*time.Second)
-			if rep.Outcomes[SecretKindKey] != OutcomeRejected || rep.Outcomes[SecretKindPassword] != OutcomeUnsupportedProfile { // pragma: allowlist secret
-				t.Errorf("outcomes %v, want key rejected and password unsupported_profile: %s", rep.Outcomes, attemptsString(rep))
+			if rep.Outcomes[SecretKindKey] != OutcomeUnsuccessful || rep.Outcomes[SecretKindPassword] != OutcomeUnsupportedProfile { // pragma: allowlist secret
+				t.Errorf("outcomes %v, want key unsuccessful and password unsupported_profile: %s", rep.Outcomes, attemptsString(rep))
 			}
 		})
 		t.Run("wrong and missing passphrase", func(t *testing.T) {
@@ -422,16 +431,17 @@ func TestClassifySecret(t *testing.T) {
 		attempts []MethodAttempt
 		want     OutcomeKind
 	}{
-		{"none only", []MethodAttempt{{Method: "none", Result: ResultFailure}}, OutcomeNotSubmitted},
-		{"accepted after a rejection", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultFailure}, {Method: "keyboard-interactive", Secret: pw, Submissions: 1, Result: ResultAccepted}}, OutcomeVerified},
-		{"rejected beats unanswered", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultFailure}, {Method: "keyboard-interactive", Secret: pw, Submissions: 1, Result: ResultNoAnswer}}, OutcomeRejected},
+		{"none only", []MethodAttempt{{Method: "none", Result: ResultEnded}}, OutcomeNotSubmitted},
+		{"accepted after an unsuccessful method", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultEnded}, {Method: "keyboard-interactive", Secret: pw, Submissions: 1, Result: ResultAccepted}}, OutcomeVerified},
+		{"partial success", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultPartial}}, OutcomeVerified},
+		{"unanswered beats ended", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultEnded}, {Method: "keyboard-interactive", Secret: pw, Submissions: 1, Result: ResultNoAnswer}}, OutcomeAmbiguous},
 		{"unanswered", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultNoAnswer}}, OutcomeAmbiguous},
-		{"failure with nothing sent", []MethodAttempt{{Method: "keyboard-interactive", Result: ResultFailure}}, OutcomeNotSubmitted},
-		{"unsupported beats rejected", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultFailure}, {Method: "keyboard-interactive", Unsupported: true, Result: ResultFailure}}, OutcomeUnsupportedProfile},
-		{"re-prompt then success", []MethodAttempt{{Method: "keyboard-interactive", Secret: pw, Submissions: 2, Reprompted: true, Result: ResultAccepted}}, OutcomeVerified},
-		{"re-prompt then no answer", []MethodAttempt{{Method: "keyboard-interactive", Secret: pw, Submissions: 2, Reprompted: true, Result: ResultNoAnswer}}, OutcomeRejected},
+		{"ended", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultEnded}}, OutcomeUnsuccessful},
+		{"ended with nothing sent", []MethodAttempt{{Method: "keyboard-interactive", Result: ResultEnded}}, OutcomeNotSubmitted},
+		{"unsupported beats ended", []MethodAttempt{{Method: "password", Secret: pw, Submissions: 1, Result: ResultEnded}, {Method: "keyboard-interactive", Unsupported: true, Result: ResultEnded}}, OutcomeUnsupportedProfile},
+		{"unsupported beats unanswered", []MethodAttempt{{Method: "keyboard-interactive", Secret: pw, Submissions: 2, Unsupported: true, Result: ResultNoAnswer}}, OutcomeUnsupportedProfile},
 		{"accepted with nothing sent", []MethodAttempt{{Method: "keyboard-interactive", Result: ResultAccepted}}, OutcomeNotSubmitted},
-		{"key evidence does not count for the password", []MethodAttempt{{Method: "publickey", Secret: SecretKindKey, Submissions: 1, Result: ResultFailure}}, OutcomeNotSubmitted},
+		{"key evidence does not count for the password", []MethodAttempt{{Method: "publickey", Secret: SecretKindKey, Submissions: 1, Result: ResultEnded}}, OutcomeNotSubmitted},
 	} {
 		if got := classifySecret(c.attempts, pw); got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)
