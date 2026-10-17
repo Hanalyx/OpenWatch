@@ -31,6 +31,23 @@ const (
 type authObserver struct {
 	mu   sync.Mutex
 	last string
+	// rec, when set, records the evidence the outcome is classified from
+	// (spec C-14). Nil records nothing.
+	rec *authRecorder
+}
+
+// sent records that method sent its secret.
+func (o *authObserver) sent(method, secret string) {
+	if o.rec != nil {
+		o.rec.sent(method, secret)
+	}
+}
+
+// kbdRound records one keyboard-interactive round.
+func (o *authObserver) kbdRound(echos []bool) {
+	if o.rec != nil {
+		o.rec.kbdRound(echos)
+	}
 }
 
 func (o *authObserver) note(m string) {
@@ -76,6 +93,7 @@ func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObs
 		}
 		keyM = ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
 			obs.note(PreferKey)
+			obs.sent("publickey", SecretKindKey)
 			return []ssh.Signer{signer}, nil
 		})
 	}
@@ -84,9 +102,10 @@ func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObs
 		pwMethods = append(pwMethods,
 			ssh.PasswordCallback(func() (string, error) {
 				obs.note(PreferPassword)
+				obs.sent("password", SecretKindPassword)
 				return pw, nil
 			}),
-			ssh.KeyboardInteractive(passwordKbdChallenge(pw, func() { obs.note(PreferPassword) })),
+			ssh.KeyboardInteractive(recordedKbd(obs, passwordKbdChallenge(pw, func() { obs.note(PreferPassword) }))),
 		)
 	}
 
@@ -106,6 +125,15 @@ func orderedAuthMethods(cred *credential.Credential, prefer string, obs *authObs
 	}
 	out = append(out, pwMethods...)
 	return out, nil
+}
+
+// recordedKbd records each keyboard-interactive round on obs, then answers
+// it with challenge, unchanged.
+func recordedKbd(obs *authObserver, challenge ssh.KeyboardInteractiveChallenge) ssh.KeyboardInteractiveChallenge {
+	return func(name, instruction string, questions []string, echos []bool) ([]string, error) {
+		obs.kbdRound(echos)
+		return challenge(name, instruction, questions, echos)
+	}
 }
 
 // passwordKbdChallenge builds a keyboard-interactive challenge that replays pw
