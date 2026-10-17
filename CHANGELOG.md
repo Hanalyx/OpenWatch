@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`openwatch credential-key` keeps credential protection readable across a
+  credential key rotation.** Credential protection, which is being built to
+  stop OpenWatch reusing a password the hosts have rejected, identifies
+  passwords with fingerprint keys wrapped by the credential encryption key.
+  `credential-key rewrap --previous-key-file PATH` re-wraps those keys with
+  the configured key, and `credential-key verify` checks that every key reads
+  with it. Exit 0 means a sound keyring, 3 that none exists yet. The secret
+  rotation runbook now backs up the new key, re-wraps before the restart, and
+  verifies before the old key is deleted. Nothing uses credential protection
+  yet, so this changes no scan, discovery or monitoring behavior.
+
 ### Fixed
 
 - **The Reconnect button now says why it failed.** On a host's page, the

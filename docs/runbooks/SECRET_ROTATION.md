@@ -201,6 +201,12 @@ the change stays readable only under the old key. Until you re-enter them:
 > re-wraps stored secrets, and the ciphertext format is not a documented
 > interface. Rotating the DEK therefore means re-entering every secret it
 > protects by hand. Treat it as a planned operation sized by that list.
+>
+> **The one exception is credential protection.** Its fingerprint keys,
+> which identify passwords the hosts have rejected, are wrapped by the DEK.
+> `openwatch credential-key rewrap` re-wraps them in step 4, so the record of
+> rejected passwords survives the rotation. Without it, credential protection
+> refuses every operation after the restart rather than forget that record.
 
 **Never overwrite `/etc/openwatch/keys/credential.key` in place.** The
 previous version of this procedure did, and told you afterwards to "keep the
@@ -271,6 +277,17 @@ config change, so the old key is never touched.
    sudo chmod 0600 "$NEW_DEK"
    ```
 
+   Back up the new key the same way, before step 4 uses it. After the
+   re-wrap in step 4, credential protection's fingerprint keys can be read
+   only with the new key; if it is lost, this copy is the only way back:
+
+   ```bash
+   sudo install -m 0600 -o root -g root "$NEW_DEK" /root/credential.key.post-rotation
+   sudo sh -c "sha256sum '$NEW_DEK' /root/credential.key.post-rotation"
+   ```
+
+   Both digests must match. Store this copy in your secrets manager too.
+
 4. Point the service at the new key and restart. Add a line to
    `/etc/openwatch/secrets.env` (or set `[identity].credential_key_file` in
    the TOML):
@@ -279,9 +296,28 @@ config change, so the old key is never touched.
    echo "OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE=$NEW_DEK" | sudo tee -a /etc/openwatch/secrets.env >/dev/null
    ```
 
+   **Before the restart**, re-wrap credential protection's fingerprint keys
+   with the new key. The old key file is still in place and still owned by
+   the service user, so name it as the previous key:
+
+   ```bash
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch credential-key rewrap --previous-key-file /etc/openwatch/keys/credential.key'
+   ```
+
+   Exit 0 means the keys were re-wrapped, or already had been. Running it
+   again is safe. Exit 3 means credential protection has no keyring yet, so
+   there is nothing to re-wrap; continue. Any other exit means stop: do not
+   restart. Read the message, fix the cause, or roll back (step 6).
+
    Then restart and verify with the first block in
    [Prove the restored service works](BACKUP_RECOVERY.md#prove-the-restored-service-works). It restarts the
    service itself. A health check alone does not prove the service works.
+   Then check that credential protection reads with the new key; exit 0, or
+   3 when there is no keyring yet:
+
+   ```bash
+   sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a; openwatch credential-key verify'
+   ```
 
 5. Re-enter every secret through the UI or API; secrets created before the
    swap fail to decrypt under the new key and must be replaced.
@@ -311,14 +347,24 @@ config change, so the old key is never touched.
 
 6. Rollback is clean only **before you re-enter the first secret**. Remove
    the `OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE` line (or restore the TOML
-   value) and restart. The old key was never modified, so every original
+   value). If step 4's re-wrap ran, reverse it before the restart, naming
+   the new key as the previous one:
+
+   ```bash
+   sudo -u openwatch sh -c "set -a; . /etc/openwatch/secrets.env; set +a; openwatch credential-key rewrap --previous-key-file '$NEW_DEK'"
+   ```
+
+   Then restart. The old key was never modified, so every original
    secret decrypts again. Every secret you re-entered in step 5 was encrypted
    under the new key, so after a rollback it becomes unreadable and must be
    entered again. Once you start step 5, finish it rather than roll back.
 
 7. Only after every secret is re-entered and an SSH-backed action succeeds
-   (post-rotation checklist): delete the old key file and the root-only copy,
-   and record the rotation in your secrets manager.
+   (post-rotation checklist), run `openwatch credential-key verify` once
+   more, as in step 4. Delete the old key only after it exits 0, or 3 when
+   there is no keyring. Then delete the old key file and the root-only copy,
+   and record the rotation in your secrets manager. Keep the new key's copy
+   from step 3 with your other key backups.
 
 **What was tested.** On 2026-10-05 this procedure ran against a disposable
 OpenWatch instance, built from the 0.8.2 code, with a webhook channel, an SSO

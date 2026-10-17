@@ -3,9 +3,9 @@
 // (MFA secrets in internal/identity, SSH credentials in
 // internal/credential) so operators rotate one file, not several.
 //
-// Production path: /etc/openwatch/secrets/credential-key — 32 random
-// bytes, mode 0600, owner openwatch. Configurable via the
-// OPENWATCH_CREDENTIAL_KEY_FILE env var.
+// Production path: /etc/openwatch/keys/credential.key (the default of
+// [identity] credential_key_file), 32 random bytes, mode 0600, owner
+// openwatch. Overridden by OPENWATCH_IDENTITY_CREDENTIAL_KEY_FILE.
 //
 // Spec: specs/system/credential-store.spec.yaml C-01;
 //
@@ -120,18 +120,7 @@ func Active() (*Key, error) {
 // it as the active key. Refuses files that aren't mode 0600 — a
 // world-readable key file is a configuration error.
 func LoadFromFile(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("secretkey: stat %q: %w", path, err)
-	}
-	if mode := info.Mode().Perm(); mode&0o077 != 0 {
-		return fmt.Errorf("secretkey: %q has permissions %o, must be 0600", path, mode)
-	}
-	raw, err := os.ReadFile(path) //nolint:gosec // operator-supplied path; perms pre-checked
-	if err != nil {
-		return fmt.Errorf("secretkey: read %q: %w", path, err)
-	}
-	k, err := keyFromBytes(raw)
+	k, err := ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -139,6 +128,24 @@ func LoadFromFile(path string) error {
 	active = k
 	mu.Unlock()
 	return nil
+}
+
+// ReadFile reads a key file with the same checks as LoadFromFile and
+// returns the key without installing it. The credential-key re-wrap uses
+// it for the key being replaced.
+func ReadFile(path string) (*Key, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("secretkey: stat %q: %w", path, err)
+	}
+	if mode := info.Mode().Perm(); mode&0o077 != 0 {
+		return nil, fmt.Errorf("secretkey: %q has permissions %o, must be 0600", path, mode)
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // operator-supplied path; perms pre-checked
+	if err != nil {
+		return nil, fmt.Errorf("secretkey: read %q: %w", path, err)
+	}
+	return keyFromBytes(raw)
 }
 
 // SetEphemeral installs a random 32-byte key. Tests and dev mode only.

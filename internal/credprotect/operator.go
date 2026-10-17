@@ -76,6 +76,9 @@ func (s *Store) RequestVerification(ctx context.Context, credentialID, hostID uu
 		if err != nil {
 			return err
 		}
+		if err := checkKeyring(ctx, tx, secret); err != nil {
+			return err
+		}
 		t, err := s.resolveTarget(ctx, tx, credentialID, hostID, username)
 		if err != nil {
 			return err
