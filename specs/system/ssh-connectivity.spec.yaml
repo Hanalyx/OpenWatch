@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -130,6 +130,47 @@ spec:
         recovery. The observer chooses nothing: authentication order, the
         methods offered, what keyboard-interactive answers, and the error Dial
         returns are unchanged. Consumers adopt the outcome in later slices.
+      type: technical
+      enforcement: error
+
+    - id: C-15
+      description: >-
+        v1.6.0 (features/OW-122 slice 4). ProtectedDial submits one of a
+        credential's secrets, a password or a key, under credential
+        protection (system-credential-protection). It reserves the submission
+        before any network I/O, identifying the secret from the material it
+        will send: a password through the loaded fingerprint keyring, a key by
+        the SHA-256 of its public key. A refused reservation, or a protection
+        store that cannot be reached, opens no connection. A key that cannot
+        be decrypted reserves nothing. The dial offers exactly one
+        secret-bearing method, through ClientConfig.AuthCallback: after the
+        none method it hands crypto/ssh that method if the server offers it,
+        and after that method it ends the exchange, whatever the result. A key
+        is sent by publickey and never falls through to the password. A
+        password goes by the host's learned method when offered, otherwise by
+        the other password method when offered, and on first contact password
+        before keyboard-interactive. A method the server does not offer is not
+        sent. The fence runs once, inside the method's callback, immediately
+        before the secret is handed to crypto/ssh. The store's fence reads
+        the credential again through Current under its own lock on the
+        credential row (system-credential-protection C-07): it must be
+        active, have the same username, and still hold the secret being
+        sent, so an edit committed before the fence is seen. A refused fence returns an error
+        from the callback, so crypto/ssh writes nothing. Keyboard-interactive
+        is answered only inside the C-14 profile: a round with a visible
+        prompt, with several prompts, or with a second hidden prompt is
+        refused before any response is written, and is unsupported_profile.
+        A partial success is unsupported_profile, never verified: the login
+        needs a step the dial does not take. Every reserved submission is
+        settled exactly once with the C-14 outcome of its secret, however the
+        dial ends, on a context the dial's cancellation does not reach; an
+        outcome the dial cannot name settles as unknown. If the outcome cannot
+        be recorded, the connection is closed and the error wraps
+        ErrNotRecorded; the reservation then expires as unknown. Against
+        OpenSSH with pam_faillock, a password rotated on the host and still
+        held adds one failure to the account's tally across concurrent
+        workers and repeated dials. Hosted Go CI and the strict local gate
+        run that container test with OPENWATCH_SSH_CONTAINER_TESTS=1.
       type: technical
       enforcement: error
 
@@ -272,3 +313,78 @@ spec:
         report behaves as before.
       priority: high
       references_constraints: [C-14]
+    - id: AC-28
+      description: >-
+        v1.6.0. Against an in-process server that counts what it receives, a
+        protected dial sends one secret-bearing request: a wrong password goes
+        once and is never replayed through keyboard-interactive; the learned
+        keyboard-interactive method leads when offered; a keyboard-interactive
+        only host is reached on first contact; a refused key never falls
+        through to the password; and a password the server has no method for
+        is not sent and is not fenced.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-29
+      description: >-
+        v1.6.0. A refused reservation opens no connection and fences and
+        settles nothing. A refused fence sends nothing over password,
+        keyboard-interactive or publickey, and settles not_submitted. The
+        fence receives the credential as stored now, so a changed password, a
+        changed username and a deactivation reach it, and a credential that
+        cannot be read sends nothing. The reserved identifier is the one
+        computed from the material sent.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-30
+      description: >-
+        v1.6.0. A keyboard-interactive round with a visible prompt, two hidden
+        prompts, or a hidden and a visible prompt gets no response; after the
+        password, a second hidden prompt or a visible one gets none either.
+        Each is unsupported_profile. Prompt-free rounds are answered, and the
+        fence runs once. A partial success is unsupported_profile and no
+        further method is tried.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-31
+      description: >-
+        v1.6.0. A refused connection and a refused host key settle
+        not_submitted, and an unanswered password ambiguous. A dial canceled
+        during authentication still settles, on a context that is not
+        canceled. An outcome that cannot be recorded returns no client and
+        wraps ErrNotRecorded. A key with a wrong passphrase reserves nothing
+        and reports local_decrypt_failed. Each named outcome settles as itself
+        and any other as unknown.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-32
+      description: >-
+        v1.6.0. With the real protection store and a loaded keyring: after a
+        password is verified and then rotated on the host, eight workers
+        dialing at once with the old password make the host receive one
+        secret-bearing request in total; one dial fails authentication, the
+        others are refused by protection, the secret is BLOCKED, and later
+        dials are refused before they connect. A fence refused because the
+        credential was deactivated or edited sends nothing, leaves the mode
+        unchanged and holds no slot.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-33
+      description: >-
+        v1.6.0. With the real credential service and protection store, a
+        password rotation or a soft deletion committed through the service
+        after the dial asks for the fence, and before the store's fence
+        takes its locks, sends nothing, and the dial returns ErrFenceRefused.
+      priority: critical
+      references_constraints: [C-15]
+    - id: AC-34
+      description: >-
+        v1.6.0. Against OpenSSH with pam_faillock at deny = 3, in a local
+        container, with password and keyboard-interactive offered and with
+        keyboard-interactive only: after the host rotates a verified
+        password, eight concurrent workers and five later dials with the old
+        password leave exactly one failure in the account's pam_faillock
+        tally, and the new password then verifies. Hosted Go CI runs it with
+        OPENWATCH_SSH_CONTAINER_TESTS=1, so a skip leaves the criterion
+        uncovered.
+      priority: critical
+      references_constraints: [C-15]

@@ -403,3 +403,8 @@ func (f *fixture) block(cred, host uuid.UUID, s Secret) uuid.UUID {
 	}
 	return res.Blocks[0]
 }
+
+// fresh is a fence read that finds c.
+func fresh(c Current) func(context.Context, Reader) (Current, error) {
+	return func(context.Context, Reader) (Current, error) { return c, nil }
+}

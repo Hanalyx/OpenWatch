@@ -387,6 +387,14 @@ def preflight(probe):
     out["packaging-tools"] = ((True, "rpmbuild, rpm, dpkg-deb, dpkg") if not missing
                               else (False, "missing " + ", ".join(missing)))
 
+    # The sshd container tests run in hosted CI, so they run here too.
+    if not probe.which("docker"):
+        out["container-runtime"] = (False, "docker is not on PATH; the sshd container tests need it")
+    else:
+        rc, _ = probe.capture(["docker", "info", "--format", "{{.ServerVersion}}"])
+        out["container-runtime"] = ((True, "docker daemon answers") if rc == 0
+                                    else (False, "docker is on PATH but its daemon does not answer"))
+
     missing = [t for t in ("go", "git", "node", "npx", "make") if not probe.which(t)]
     out["toolchain"] = ((True, "go, git, node, npx, make") if not missing
                         else (False, "missing " + ", ".join(missing)))
@@ -405,7 +413,7 @@ GATES = [
     ("spec-check", ("toolchain", "specter")),
     ("docs-style", ()),
     ("license-bundle", ("toolchain",)),
-    ("go-tests", ("toolchain", "test-database", "packaging-tools")),
+    ("go-tests", ("toolchain", "test-database", "packaging-tools", "container-runtime")),
     ("vitest", ("toolchain", "frontend-dependencies")),
     ("test-streams", ()),
     ("specter-coverage", ("specter",)),
@@ -431,7 +439,8 @@ def run_go_tests(probe, rundir):
     (rundir / "go-packages.txt").write_text(pkgs + "\n")
     others = [p for p in pkgs.splitlines() if p and p != SERVER_PKG]
     rc, kensa = probe.capture(["go", "list", "-m", "-f", "{{.Dir}}", "github.com/Hanalyx/kensa"])
-    env = {"OPENWATCH_PACKAGING_BUILD": "1", "OPENWATCH_KENSA_RULES_DIR": kensa + "/rules"}
+    env = {"OPENWATCH_PACKAGING_BUILD": "1", "OPENWATCH_KENSA_RULES_DIR": kensa + "/rules",
+           "OPENWATCH_SSH_CONTAINER_TESTS": "1"}
     a = probe.run(["go", "test", "-race", "-json", "-timeout", "1800s", "./internal/server/"],
                   env=env, stdout=rundir / "go-test-server.json")
     b = probe.run(["go", "test", "-race", "-json", "-timeout", "900s", "-p", "1"] + others,

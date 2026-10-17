@@ -27,7 +27,7 @@ cs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cs)
 
 ALL_TOOLS = {"specter", "golangci-lint", "govulncheck", "rpmbuild", "rpm", "dpkg-deb", "dpkg",
-             "go", "git", "node", "npx", "make"}
+             "go", "git", "node", "npx", "make", "docker"}
 PKGS = ["github.com/Hanalyx/openwatch/internal/a", cs.SERVER_PKG]
 
 
@@ -56,7 +56,7 @@ class FakeProbe(cs.Probe):
     command prefixes to exit codes; streams sets what go test writes."""
 
     def __init__(self, root, tools=ALL_TOOLS, env=None, versions=None, gate_rc=None,
-                 others=None, server=None, alive=True, on_run=None):
+                 others=None, server=None, alive=True, on_run=None, docker_up=True):
         super().__init__(repo=root, env=env if env is not None else
                          {"OPENWATCH_TEST_DSN": "postgres://u:p@127.0.0.1:5455/openwatch_go_test", "PATH": ""})
         self.tools = set(tools)
@@ -66,6 +66,7 @@ class FakeProbe(cs.Probe):
         self.server = server if server is not None else stream(cs.SERVER_PKG, [("TestS", "pass", None)])
         self.alive = alive
         self.on_run = on_run
+        self.docker_up = docker_up
         self.calls = []
 
     def which(self, name):
@@ -88,6 +89,8 @@ class FakeProbe(cs.Probe):
             return 0, self.versions["specter"]
         if cmd == ["golangci-lint", "version"]:
             return 0, self.versions["golangci-lint"]
+        if cmd[:2] == ["docker", "info"]:
+            return (0, "27.0.0") if self.docker_up else (1, "")
         if cmd == ["go", "list", "./..."]:
             return 0, "\n".join(PKGS)
         if cmd[:3] == ["go", "list", "-m"]:
@@ -177,6 +180,15 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(r["verdict"], "incomplete")
         self.assertEqual(r["unaccepted_missing"], ["golangci-lint", "specter", "test-database"])
 
+    def test_a_container_runtime_is_a_prerequisite(self):
+        for name, probe in (("absent", FakeProbe(self.root, tools=ALL_TOOLS - {"docker"})),
+                            ("daemon down", FakeProbe(self.root, docker_up=False))):
+            with self.subTest(name):
+                self.lines = []
+                self.assertEqual(self.strict(probe), cs.EXIT_INCOMPLETE)
+                self.assertEqual(probe.calls, [], "a gate ran without a container runtime")
+                self.assertIn("MISSING container-runtime", "\n".join(self.lines))
+
     def test_an_accepted_gap_still_exits_3_and_is_recorded(self):
         probe = FakeProbe(self.root, versions={"specter": "specter version 0.15.1",
                                                "golangci-lint": "golangci-lint has version 2.12.2"})
@@ -206,6 +218,8 @@ class Verdicts(unittest.TestCase):
         self.assertNotIn(cs.SERVER_PKG, go[1])
         envs = [e for c, e in probe.calls if c[:2] == ["go", "test"]]
         self.assertTrue(all(e.get("OPENWATCH_PACKAGING_BUILD") == "1" for e in envs))
+        self.assertTrue(all(e.get("OPENWATCH_SSH_CONTAINER_TESTS") == "1" for e in envs),
+                        "the sshd container tests run in hosted CI, so they run here")
 
     def test_node_modules_drift_ignores_only_absent_optional_packages(self):
         fe = self.root / "frontend"

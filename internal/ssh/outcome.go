@@ -149,6 +149,15 @@ func (r *authRecorder) kbdRound(echos []bool) {
 	}
 }
 
+// kbdRefused records a keyboard-interactive round the protected dial
+// refused to answer because it left the supported profile. Nothing was
+// sent in it, so it adds no submission.
+func (r *authRecorder) kbdRefused() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.current("keyboard-interactive").Unsupported = true
+}
+
 // current returns the attempt in progress for method, opening it if the
 // previous one has ended. The caller holds mu.
 func (r *authRecorder) current(method string) *MethodAttempt {

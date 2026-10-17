@@ -8,7 +8,7 @@
 // the secret to the transport, and settle afterwards:
 //
 //	sub, err := store.Reserve(ctx, req)      // refused: send nothing
-//	err = store.Fence(ctx, sub.ID, current)  // refused: send nothing
+//	err = store.Fence(ctx, sub.ID, read)     // refused: send nothing
 //	... one submission ...
 //	_, err = store.Settle(ctx, sub.ID, outcome)
 //
@@ -23,6 +23,7 @@ package credprotect
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -81,14 +82,29 @@ type Secret struct {
 	Keyring fingerprint.Snapshot
 }
 
+// PasswordKeyring identifies passwords. A loaded fingerprint.Keyring is
+// the production one; admission refuses any other, because its snapshot
+// is not the stored keyring's (spec C-16).
+type PasswordKeyring interface {
+	Snapshot() fingerprint.Snapshot
+	Password(username, password string) []fingerprint.Alias
+}
+
 // PasswordSecret identifies a password through a loaded fingerprint
 // keyring: an alias under every key it holds, and its snapshot.
-func PasswordSecret(kr fingerprint.Keyring, username, password string) Secret {
+func PasswordSecret(kr PasswordKeyring, username, password string) Secret {
 	s := Secret{Kind: SecretPassword, Keyring: kr.Snapshot()}
 	for _, a := range kr.Password(username, password) {
 		s.Aliases = append(s.Aliases, Alias{KeyID: a.KeyID, ID: a.ID})
 	}
 	return s
+}
+
+// KeySecret identifies an SSH key by the SHA-256 of its public key in SSH
+// wire format, the input of OpenSSH's SHA256 fingerprint (spec C-03). A
+// passphrase change leaves it unchanged.
+func KeySecret(publicKey []byte) Secret {
+	return Secret{Kind: SecretKey, Aliases: []Alias{{ID: sha256.Sum256(publicKey)}}}
 }
 
 // String never reveals an identifier: an identifier is a sensitive equality

@@ -53,7 +53,8 @@ python3 -S scripts/ci-strict.py   # or: make ci-strict (make ci-local is an alia
 ```
 
 It checks every prerequisite first: a `_test` database, the pinned Specter and
-golangci-lint versions, lockfile-matching `node_modules`, and the packaging tools.
+golangci-lint versions, lockfile-matching `node_modules`, the packaging tools, and
+a running Docker daemon for the sshd container tests.
 Then it runs the gates and reports passed, failed and not-run tests. Exit 0 is
 COMPLETE, 1 FAILED, 3 INCOMPLETE (something required did not run, even if you
 accepted the gap with `--allow-not-run`), and 4 REFUSED (another run holds the

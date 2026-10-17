@@ -194,13 +194,13 @@ func (f *fixture) hostRecordID(h uuid.UUID) uuid.UUID {
 func TestFenceSeesALateralRestrictionAddedSinceReserve(t *testing.T) {
 	t.Run("system-credential-protection/AC-06", func(t *testing.T) {
 		f, h, _, _, v, _, _ := jointSetup(t)
-		if err := f.store.Fence(context.Background(), v.ID, Current{Active: true, Secret: pw(1)}); err != nil {
+		if err := f.store.Fence(context.Background(), v.ID, fresh(Current{Active: true, Secret: pw(1)})); err != nil {
 			t.Fatalf("fence before the pause: %v", err)
 		}
 		if _, err := f.store.Pause(context.Background(), f.hostRecordID(h), "host maintenance"); err != nil {
 			t.Fatal(err)
 		}
-		f.wantRefused(f.store.Fence(context.Background(), v.ID, Current{Active: true, Secret: pw(1)}), ErrPaused)
+		f.wantRefused(f.store.Fence(context.Background(), v.ID, fresh(Current{Active: true, Secret: pw(1)})), ErrPaused)
 	})
 }
 
@@ -679,12 +679,12 @@ func TestFenceRefusesANewBlockDuringARequestedVerification(t *testing.T) {
 		f.activate(uc, other, pw(1))
 		run := f.reserve(uc, other, pw(1), KindOrdinary)
 		v := f.reserve(lc, h, pw(1), KindVerification)
-		if err := f.store.Fence(ctx, v.ID, Current{Active: true, Secret: pw(1)}); err != nil {
+		if err := f.store.Fence(ctx, v.ID, fresh(Current{Active: true, Secret: pw(1)})); err != nil {
 			t.Fatalf("fence before the new block: %v", err)
 		}
 		f.settle(run.ID, OutcomeRejected)
 		f.wantMode(lc, h, pw(1), ModeVerifying) // the pending request keeps it VERIFYING
-		f.wantRefused(f.store.Fence(ctx, v.ID, Current{Active: true, Secret: pw(1)}), ErrFenceRefused)
+		f.wantRefused(f.store.Fence(ctx, v.ID, fresh(Current{Active: true, Secret: pw(1)})), ErrFenceRefused)
 		if res := f.settle(v.ID, OutcomeVerified); res.Recovery != uuid.Nil {
 			t.Fatal("recovered past the new block")
 		}

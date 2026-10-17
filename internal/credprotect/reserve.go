@@ -187,7 +187,15 @@ func checkBinding(ctx context.Context, tx pgx.Tx, t target) error {
 	return nil
 }
 
-// Current is the credential as the caller read it just before the fence.
+// Reader runs one query on the fence's transaction. It is all of the
+// transaction a read callback gets: a callback reads, and cannot commit,
+// roll back or start another transaction.
+type Reader interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// Current is the credential as Fence's read callback found it, under the
+// fence's lock on the credential row.
 type Current struct {
 	Active bool
 	Secret Secret
@@ -281,12 +289,40 @@ func (s *Store) targetOf(ctx context.Context, tx pgx.Tx, r submissionRow) (targe
 }
 
 // Fence runs immediately before the secret is handed to a transport (spec
-// C-07). Any error means: send nothing.
-func (s *Store) Fence(ctx context.Context, id uuid.UUID, cur Current) error {
+// C-07). read reads the credential again from its store and identifies the
+// secret it holds now. Fence calls it while holding the credential's row
+// FOR SHARE, after the username's lock, so an edit committed before the
+// read is seen, and one not yet committed waits until the fence has
+// passed. An edit after that is the window the contract accepts between
+// the fence and the transmission. Any error means: send nothing.
+//
+// Lock order: the username, then the credential row, then the keyring. A
+// credential edit that consults protection must take the username's lock
+// before it writes the row. read gets the fence's own transaction as a
+// Reader, so the fence never asks the pool for a second connection: fences
+// that each held one and waited for another would exhaust any pool.
+func (s *Store) Fence(ctx context.Context, id uuid.UUID, read func(context.Context, Reader) (Current, error)) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		r, err := lockSubmission(ctx, tx, id)
 		if err != nil {
 			return err
+		}
+		if r.credentialID == nil {
+			return fmt.Errorf("%w: the credential was deleted", ErrFenceRefused)
+		}
+		var username string
+		var active bool
+		err = tx.QueryRow(ctx, `SELECT username, is_active FROM credentials WHERE id = $1 FOR SHARE`,
+			*r.credentialID).Scan(&username, &active)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: the credential was deleted", ErrFenceRefused)
+		}
+		if err != nil {
+			return fmt.Errorf("credprotect: read credential: %w", err)
+		}
+		cur, err := read(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("%w: read the credential: %w", ErrFenceRefused, err)
 		}
 		if cur.Active {
 			if err := checkKeyring(ctx, tx, cur.Secret); err != nil {
@@ -299,21 +335,13 @@ func (s *Store) Fence(ctx context.Context, id uuid.UUID, cur Current) error {
 			return fmt.Errorf("%w: the submission no longer holds its slot", ErrFenceRefused)
 		case !now.Before(r.deadline):
 			return fmt.Errorf("%w: the reservation's deadline has passed", ErrFenceRefused)
-		case !cur.Active:
+		case !active || !cur.Active:
 			return fmt.Errorf("%w: the credential is not active", ErrFenceRefused)
 		case cur.Secret.valid() != nil || !cur.Secret.Same(r.secret):
 			return fmt.Errorf("%w: the credential's secret changed", ErrFenceRefused)
-		case r.credentialID == nil:
-			return fmt.Errorf("%w: the credential was deleted", ErrFenceRefused)
-		}
-		// The credential must still be for the account it was reserved for.
-		// Binding changes cannot happen meanwhile: they wait while this
-		// submission holds its slot.
-		username, err := credentialUsername(ctx, tx, *r.credentialID)
-		if err != nil {
-			return err
-		}
-		if username != r.username {
+		case normalizeUsername(username) != r.username:
+			// Binding changes cannot happen meanwhile: they wait while this
+			// submission holds its slot.
 			return fmt.Errorf("%w: the credential's username changed", ErrFenceRefused)
 		}
 		t, err := s.targetOf(ctx, tx, r)

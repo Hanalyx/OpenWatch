@@ -360,8 +360,12 @@ jobs:
         # tests into this run so their AC coverage is enforced in CI; a plain
         # local `go test ./...` skips them (they take minutes and write into
         # dist/). See packaging/tests/package_test.go:requirePackagingBuild.
+        # OPENWATCH_SSH_CONTAINER_TESTS=1 does the same for the OpenSSH and
+        # pam_faillock container tests in internal/ssh, which need Docker
+        # (system-ssh-connectivity AC-34).
         env:
           OPENWATCH_PACKAGING_BUILD: "1"
+          OPENWATCH_SSH_CONTAINER_TESTS: "1"
         run: |
           set +e
           # Point the Kensa variable-catalog tests at the real rule corpus that
