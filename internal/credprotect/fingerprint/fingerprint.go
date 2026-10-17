@@ -273,20 +273,20 @@ func checkStructure(ctx context.Context, tx pgx.Tx, keys []storedKey) error {
 	return nil
 }
 
-// unwrapAll unwraps every key with w. It returns the keys, or how many
-// failed.
+// unwrapAll unwraps every key with w. It returns the keys it could read and
+// how many it could not.
 func unwrapAll(keys []storedKey, w Wrapper) ([]key, int) {
 	out := make([]key, 0, len(keys))
-	failed := 0
+	unreadable := 0
 	for _, k := range keys {
 		m, err := w.Decrypt(k.wrapped)
 		if err != nil {
-			failed++
+			unreadable++
 			continue
 		}
 		out = append(out, key{id: k.id, material: m, current: k.current})
 	}
-	return out, failed
+	return out, unreadable
 }
 
 func checkLengths(keys []key) error {
@@ -307,10 +307,10 @@ func validate(ctx context.Context, tx pgx.Tx, s singleton, w Wrapper) (Keyring, 
 	if err := checkStructure(ctx, tx, keys); err != nil {
 		return Keyring{}, err
 	}
-	unwrapped, failed := unwrapAll(keys, w)
-	if failed > 0 {
+	unwrapped, unreadable := unwrapAll(keys, w)
+	if unreadable > 0 {
 		return Keyring{}, unavailable(CauseUnwrap, "%d of %d key(s) cannot be unwrapped with the credential encryption key",
-			failed, len(keys))
+			unreadable, len(keys))
 	}
 	if err := checkLengths(unwrapped); err != nil {
 		return Keyring{}, err
@@ -476,18 +476,18 @@ func Rewrap(ctx context.Context, db TxBeginner, previous, current Wrapper) (Repo
 		if err := checkStructure(ctx, tx, keys); err != nil {
 			return err
 		}
-		if done, failed := unwrapAll(keys, current); failed == 0 {
+		if done, unreadable := unwrapAll(keys, current); unreadable == 0 {
 			if err := checkLengths(done); err != nil {
 				return err
 			}
 			rep = Report{Keys: len(keys), Generation: s.generation, WrapEpoch: s.wrapEpoch, AlreadyRewrapped: true}
 			return nil
 		}
-		old, failed := unwrapAll(keys, previous)
-		if failed > 0 {
-			_, failedNew := unwrapAll(keys, current)
+		old, unreadable := unwrapAll(keys, previous)
+		if unreadable > 0 {
+			_, unreadableNew := unwrapAll(keys, current)
 			return unavailable(CauseUnwrap, "of %d key(s), %d unwrap with the new key and %d with the previous key; "+
-				"a keyring must unwrap entirely under one of them", len(keys), len(keys)-failedNew, len(keys)-failed)
+				"a keyring must unwrap entirely under one of them", len(keys), len(keys)-unreadableNew, len(keys)-unreadable)
 		}
 		if err := checkLengths(old); err != nil {
 			return err

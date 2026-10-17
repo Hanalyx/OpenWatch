@@ -284,7 +284,7 @@ func TestFingerprint_LoadInitializesOnlyANewKeyring(t *testing.T) {
 					t.Error("a refused load changed the key rows")
 				}
 				_, verr := Verify(ctx, pool, w)
-				wantCause(t, verr, c.cause)
+				_ = wantCause(t, verr, c.cause)
 				// A key that is gone cannot be re-wrapped back; only an
 				// unwrap failure points to the re-wrap.
 				if mentions := strings.Contains(u.Remedy(), "rewrap"); mentions != (c.cause == CauseUnwrap) {
@@ -454,7 +454,7 @@ func TestFingerprint_Rewrap(t *testing.T) {
 				t.Errorf("detail %q does not give the counts", u.Detail)
 			}
 			_, err = Rewrap(ctx, pool, newGCM(t), newGCM(t))
-			wantCause(t, err, CauseUnwrap)
+			_ = wantCause(t, err, CauseUnwrap)
 			if fmt.Sprint(rows) != fmt.Sprint(wrappedRows(t, pool)) {
 				t.Error("a refused re-wrap changed the key rows")
 			}
@@ -505,12 +505,12 @@ func TestFingerprint_Rewrap(t *testing.T) {
 					// Already wrapped with w: the "already re-wrapped"
 					// path, which must not succeed vacuously.
 					_, err := Rewrap(ctx, pool, newGCM(t), w)
-					wantCause(t, err, c.cause)
+					_ = wantCause(t, err, c.cause)
 					if strings.Contains(err.Error(), "committed") {
 						t.Errorf("a refused re-wrap reports a commit: %v", err)
 					}
 					_, err = Verify(ctx, pool, w)
-					wantCause(t, err, c.cause)
+					_ = wantCause(t, err, c.cause)
 				})
 			}
 		})
