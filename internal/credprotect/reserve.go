@@ -94,6 +94,9 @@ func (s *Store) Reserve(ctx context.Context, r Request) (Submission, error) {
 		if err != nil {
 			return err
 		}
+		if err := checkKeyring(ctx, tx, r.Secret); err != nil {
+			return err
+		}
 		t, err := s.resolveTarget(ctx, tx, r.CredentialID, r.HostID, username)
 		if err != nil {
 			return err
@@ -284,6 +287,11 @@ func (s *Store) Fence(ctx context.Context, id uuid.UUID, cur Current) error {
 		r, err := lockSubmission(ctx, tx, id)
 		if err != nil {
 			return err
+		}
+		if cur.Active {
+			if err := checkKeyring(ctx, tx, cur.Secret); err != nil {
+				return err
+			}
 		}
 		now := s.clock.Now()
 		switch {

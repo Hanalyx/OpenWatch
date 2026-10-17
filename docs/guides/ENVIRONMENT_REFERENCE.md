@@ -171,6 +171,7 @@ same configuration layering.
 | `migrate` | Apply pending database migrations and print the resulting version. |
 | `create-admin` | Create the first admin user. Requires `--username` and `--email`; reads the password from `--password` or stdin. |
 | `check-config` | Print the resolved, secret-redacted config and validate it. |
+| `credential-key` | Keep credential protection readable across a credential key rotation. `rewrap --previous-key-file <path>` re-wraps the fingerprint keys with the configured key; `verify` checks that every fingerprint key reads with it. Exit 0 means a sound keyring, 3 that none exists yet, 1 a failure, 2 a usage error. See [Rotate the credential DEK](../runbooks/SECRET_ROTATION.md#rotate-the-credential-dek). |
 
 Global flags: `--config <path>`, `--listen <host:port>`, `--log-level <level>`,
 `--version`, `-h`/`--help`.
@@ -181,7 +182,7 @@ The service gets its secrets from `EnvironmentFile=/etc/openwatch/secrets.env`
 in the systemd unit. A subcommand you run by hand does not: `migrate`,
 `create-admin` and `check-config` read the TOML file and the environment of
 the shell that starts them, and nothing loads `secrets.env` into that shell
-for you. Two things follow.
+for you. The same holds for `credential-key`. Two things follow.
 
 The file is `root:openwatch 0640`, so only root and the `openwatch` user can
 read it. An administrator account in `wheel` cannot, even though it can

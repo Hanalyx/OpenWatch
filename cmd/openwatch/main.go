@@ -148,6 +148,8 @@ func run(args []string, stdout, stderr *os.File) int {
 		return cmdCreateAdmin(cfg, rest, stdout, stderr)
 	case "setup":
 		return cmdSetup(rest, stdout, stderr)
+	case "credential-key":
+		return cmdCredentialKey(cfg, rest, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "openwatch: unknown subcommand %q\n\n", subcommand)
 		printUsage(stderr)
@@ -1115,6 +1117,9 @@ subcommands:
                   --backup-dir <dir>  pg_dump a restore point before applying
   create-admin  create the first admin user (requires --username --email --password)
   check-config  validate and print resolved config
+  credential-key keep credential protection readable across a credential key rotation
+                  rewrap --previous-key-file <path>  re-wrap the fingerprint keys with the active key
+                  verify                             check every fingerprint key reads with the active key
   setup         provision the database, configure, and start the service
                   --dry-run          show the plan, change nothing
                   --yes              accept defaults without prompting

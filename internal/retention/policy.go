@@ -192,6 +192,16 @@ var registry = []Policy{
 		State:  StateNever,
 		Reason: reasonCredentialProtection,
 	},
+	{
+		Table:  "credprotect_keyring",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
+	{
+		Table:  "credprotect_fingerprint_keys",
+		State:  StateNever,
+		Reason: reasonCredentialProtection,
+	},
 
 	// ---- deferred: decided, blocked on named work ------------------
 	//
@@ -322,12 +332,14 @@ const reasonHostDiscoveryBackoff = "Never swept: it is current state, not histor
 	"host (ON DELETE CASCADE). A sweep by age would remove a failing host's " +
 	"backoff and let the scheduler retry it at once. bugs/OW-120."
 
-// reasonCredentialProtection covers the nine credprotect_ tables.
+// reasonCredentialProtection covers the eleven credprotect_ tables.
 const reasonCredentialProtection = "Never swept: this is protection state, and its history is part of it. " +
 	"A block stays until a recovery record names it by id; a used verification allowance " +
 	"is never removed; submissions holding a slot or counted in an override bound decide " +
 	"what may be sent next; a host record's history is consulted by every attempt on that " +
 	"host; binding intent and directory resolutions decide which attempts are admitted. " +
+	"The fingerprint keys identify every password in that history, so deleting one would " +
+	"make its records unmatchable. " +
 	"Deleting any of them by age could let a rejected secret be sent again. Spec " +
 	"system-credential-protection, features/OW-122."
 
