@@ -46,7 +46,10 @@ func ParseSigner(pem []byte, passphrase string) (ssh.Signer, error) {
 		signer, err = ssh.ParsePrivateKey(pem)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKey, err)
+		// %w twice, so a caller can tell a wrong or missing passphrase
+		// (x509.IncorrectPasswordError, *ssh.PassphraseMissingError)
+		// from a malformed key. The text is unchanged.
+		return nil, fmt.Errorf("%w: %w", ErrInvalidKey, err)
 	}
 	return signer, nil
 }
