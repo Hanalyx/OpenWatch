@@ -2,10 +2,16 @@ package credprotect
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Hanalyx/openwatch/internal/credprotect/fingerprint"
+	"github.com/Hanalyx/openwatch/internal/secretkey"
 
 	"github.com/Hanalyx/openwatch/internal/db/dbtest"
 	"github.com/google/uuid"
@@ -74,16 +80,7 @@ func newFixture(t *testing.T) *fixture {
 			t.Fatalf("truncate %s: %v", table, err)
 		}
 	}
-	// The fingerprint keyring as it stands once initialized: credprotect
-	// checks only that it is initialized and at the secret's generation.
-	if _, err := pool.Exec(ctx, `TRUNCATE credprotect_fingerprint_keys`); err != nil {
-		t.Fatalf("truncate keys: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `INSERT INTO credprotect_keyring (singleton, initialized_at, generation)
-		VALUES (true, now(), $1) ON CONFLICT (singleton) DO UPDATE
-		SET initialized_at = now(), generation = $1, wrap_epoch = 0`, testGeneration); err != nil {
-		t.Fatalf("initialize keyring: %v", err)
-	}
+	fixtureKeyring = newTestKeyring(t, pool)
 	f := &fixture{
 		t:     t,
 		pool:  pool,
@@ -126,16 +123,136 @@ func (f *fixture) cred(username string) uuid.UUID {
 }
 
 // pw is a password secret whose identifier is n repeated, under key k1.
-// testGeneration is the keyring generation every fixture starts at.
-const testGeneration = 1
+// fixtureKeyring is the real fingerprint keyring the current fixture
+// built: two keys, the first current, as after a fingerprint-key rotation.
+// The tests in this package do not run in parallel.
+var fixtureKeyring testKeyring
 
+type testKeyring struct {
+	keyring  fingerprint.Keyring
+	wrapper  *secretkey.Key
+	current  string // the current key's id
+	previous string // the other key's id
+}
+
+// builtKeyring is the keyring the first fixture built, and its rows, so
+// every later fixture can restore the identical keyring. Its snapshot then
+// stays the same, and a secret a test built before its fixture still names
+// the keyring that fixture holds.
+var builtKeyring *struct {
+	ring       testKeyring
+	rows       [][]any
+	generation int64
+}
+
+// newTestKeyring returns the fixture keyring: built through fingerprint.Load
+// on first use (one key, then a second added as a rotation would add it,
+// then loaded again so the snapshot covers both), and restored row for row
+// afterwards. Identifiers in the tests are arbitrary bytes under these real
+// key ids.
+func newTestKeyring(t *testing.T, pool *pgxpool.Pool) testKeyring {
+	t.Helper()
+	ctx := context.Background()
+	if builtKeyring != nil {
+		for _, q := range []string{`TRUNCATE credprotect_fingerprint_keys`, `DELETE FROM credprotect_keyring`} {
+			if _, err := pool.Exec(ctx, q); err != nil {
+				t.Fatalf("%s: %v", q, err)
+			}
+		}
+		for _, r := range builtKeyring.rows {
+			if _, err := pool.Exec(ctx, `INSERT INTO credprotect_fingerprint_keys (id, wrapped, is_current, created_at)
+				VALUES ($1, $2, $3, $4)`, r...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO credprotect_keyring (singleton, initialized_at, generation)
+			VALUES (true, now(), $1)`, builtKeyring.generation); err != nil {
+			t.Fatal(err)
+		}
+		return builtKeyring.ring
+	}
+	for _, q := range []string{
+		`TRUNCATE credprotect_fingerprint_keys`,
+		`DELETE FROM credprotect_keyring`,
+		`INSERT INTO credprotect_keyring (singleton) VALUES (true)`,
+	} {
+		if _, err := pool.Exec(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	raw := make([]byte, secretkey.KeySize)
+	if _, err := rand.Read(raw); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "credential.key")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	w, err := secretkey.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := fingerprint.Load(ctx, pool, w, time.Now())
+	if err != nil {
+		t.Fatalf("load keyring: %v", err)
+	}
+	material := make([]byte, fingerprint.KeySize)
+	if _, err := rand.Read(material); err != nil {
+		t.Fatal(err)
+	}
+	wrapped, err := w.Encrypt(material)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `INSERT INTO credprotect_fingerprint_keys (id, wrapped, is_current, created_at)
+		VALUES ($1, $2, false, now())`, second, wrapped); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE credprotect_keyring SET generation = generation + 1`); err != nil {
+		t.Fatal(err)
+	}
+	kr, err := fingerprint.Load(ctx, pool, w, time.Now())
+	if err != nil {
+		t.Fatalf("reload keyring: %v", err)
+	}
+	ring := testKeyring{keyring: kr, wrapper: w, current: first.KeyIDs()[0], previous: second.String()}
+	rows, err := pool.Query(ctx, `SELECT id, wrapped, is_current, created_at FROM credprotect_fingerprint_keys`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	built := &struct {
+		ring       testKeyring
+		rows       [][]any
+		generation int64
+	}{ring: ring, generation: kr.Generation}
+	for rows.Next() {
+		var id uuid.UUID
+		var wrappedKey []byte
+		var current bool
+		var created time.Time
+		if err := rows.Scan(&id, &wrappedKey, &current, &created); err != nil {
+			t.Fatal(err)
+		}
+		built.rows = append(built.rows, []any{id, wrappedKey, current, created})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	builtKeyring = built
+	return ring
+}
+
+// pw is a password identified under the fixture keyring's current key,
+// with an arbitrary identifier n.
 func pw(n byte) Secret {
 	var a Alias
-	a.KeyID = "k1"
+	a.KeyID = fixtureKeyring.current
 	for i := range a.ID {
 		a.ID[i] = n
 	}
-	return Secret{Kind: SecretPassword, KeyringGeneration: testGeneration, Aliases: []Alias{a}}
+	return Secret{Kind: SecretPassword, Keyring: fixtureKeyring.keyring.Snapshot(), Aliases: []Alias{a}}
 }
 
 var owner = Owner{Machine: "m1", PID: 4242, Start: "100"}

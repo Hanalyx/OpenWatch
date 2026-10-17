@@ -324,6 +324,34 @@ func TestFingerprint_Concurrency(t *testing.T) {
 				t.Errorf("%d key rows, err %v", n, err)
 			}
 		})
+		t.Run("initialization waits for an operation holding the keyring", func(t *testing.T) {
+			pool := fresh(t)
+			w := newGCM(t)
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = tx.Rollback(ctx) })
+			if _, err := tx.Exec(ctx, `SELECT 1 FROM credprotect_keyring WHERE singleton FOR SHARE`); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, err := initialize(ctx, pool, w, now)
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				t.Fatalf("initialization finished while another operation held the keyring: %v", err)
+			case <-time.After(300 * time.Millisecond):
+			}
+			if err := tx.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-done; err != nil {
+				t.Fatalf("initialize: %v", err)
+			}
+		})
 		t.Run("two initializations race; one key results", func(t *testing.T) {
 			for round := 0; round < 5; round++ {
 				pool := fresh(t)

@@ -31,6 +31,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"github.com/Hanalyx/openwatch/internal/credprotect/fingerprint"
 )
 
 // Scope is how a credential's account is identified.
@@ -71,11 +73,22 @@ type Alias struct {
 type Secret struct {
 	Kind    SecretKind
 	Aliases []Alias
-	// KeyringGeneration is the generation of the fingerprint keyring the
-	// password's aliases were computed from. A password is refused when it
-	// is not the keyring's current generation, so aliases from a stale
-	// snapshot are never recorded or matched (spec C-16). Unused for keys.
-	KeyringGeneration int64
+	// Keyring is the fingerprint keyring snapshot the password's aliases
+	// were computed from. A password is refused unless it is the keyring as
+	// it stands now, so aliases from a stale or damaged keyring are never
+	// recorded or matched (spec C-16). Build it with PasswordSecret. Unused
+	// for keys.
+	Keyring fingerprint.Snapshot
+}
+
+// PasswordSecret identifies a password through a loaded fingerprint
+// keyring: an alias under every key it holds, and its snapshot.
+func PasswordSecret(kr fingerprint.Keyring, username, password string) Secret {
+	s := Secret{Kind: SecretPassword, Keyring: kr.Snapshot()}
+	for _, a := range kr.Password(username, password) {
+		s.Aliases = append(s.Aliases, Alias{KeyID: a.KeyID, ID: a.ID})
+	}
+	return s
 }
 
 // String never reveals an identifier: an identifier is a sensitive equality
@@ -92,8 +105,8 @@ func (s Secret) valid() error {
 	if len(s.Aliases) == 0 {
 		return fmt.Errorf("%w: secret has no identifier", ErrInvalid)
 	}
-	if s.Kind == SecretPassword && s.KeyringGeneration <= 0 {
-		return fmt.Errorf("%w: password identified without a keyring generation", ErrInvalid)
+	if s.Kind == SecretPassword && s.Keyring == (fingerprint.Snapshot{}) {
+		return fmt.Errorf("%w: password identified without a keyring snapshot", ErrInvalid)
 	}
 	return nil
 }

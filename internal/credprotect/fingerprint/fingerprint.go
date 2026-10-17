@@ -20,8 +20,10 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,11 +66,88 @@ type key struct {
 }
 
 // Keyring is a validated snapshot of the fingerprint keys, taken at
-// Generation. Callers pass the generation with the aliases they compute, so
-// credential protection can refuse aliases from a stale snapshot.
+// Generation. Callers pass its Snapshot with the aliases they compute, so
+// credential protection can refuse aliases from a stale or damaged keyring.
 type Keyring struct {
 	Generation int64
 	keys       []key
+	digest     [sha256.Size]byte
+}
+
+// Snapshot identifies the exact keyring a set of aliases was computed
+// from: its generation and a digest of every key row as stored (id,
+// current flag, wrapped bytes). Credential protection recomputes it from
+// the rows inside its own transaction, without the encryption key, so any
+// change to the keyring after it was validated (a key deleted, the current
+// flag moved, a wrapped key altered, a key added) refuses the aliases
+// (spec C-16).
+type Snapshot struct {
+	Generation int64
+	Digest     [sha256.Size]byte
+}
+
+// Snapshot returns the snapshot this keyring was validated at.
+func (k Keyring) Snapshot() Snapshot { return Snapshot{Generation: k.Generation, Digest: k.digest} }
+
+// digestOf hashes the stored key rows. Rows are taken in id order, and the
+// wrapped bytes are length-prefixed, so no two keyrings share a digest by
+// concatenation. The generation is not part of it: a Snapshot compares the
+// generation itself.
+func digestOf(keys []storedKey) [sha256.Size]byte {
+	rows := slices.Clone(keys)
+	slices.SortFunc(rows, func(a, b storedKey) int { return strings.Compare(a.id.String(), b.id.String()) })
+	h := sha256.New()
+	var n [8]byte
+	h.Write([]byte("openwatch/fingerprint-keyring/v1"))
+	for _, k := range rows {
+		h.Write(k.id[:])
+		if k.current {
+			h.Write([]byte{1})
+		} else {
+			h.Write([]byte{0})
+		}
+		binary.BigEndian.PutUint64(n[:], uint64(len(k.wrapped)))
+		h.Write(n[:])
+		h.Write(k.wrapped)
+	}
+	var d [sha256.Size]byte
+	copy(d[:], h.Sum(nil))
+	return d
+}
+
+// State is the keyring as credential protection sees it inside its own
+// transaction. Reading it needs no encryption key: it checks structure and
+// the snapshot, not that the keys unwrap; a snapshot proves that, because
+// only a keyring that unwrapped (Load) produces one.
+type State struct {
+	Initialized bool
+	Keys        int
+	Current     int
+	KeyIDs      map[string]bool
+	Snapshot    Snapshot
+}
+
+// ReadState reads the keyring row and its key rows FOR SHARE in tx, so a
+// keyring change (which locks the row FOR UPDATE) cannot overlap the
+// caller's operation. A missing keyring row is an *UnavailableError.
+func ReadState(ctx context.Context, tx pgx.Tx) (State, error) {
+	s, err := readSingleton(ctx, tx, "FOR SHARE")
+	if err != nil {
+		return State{}, err
+	}
+	keys, err := readKeys(ctx, tx)
+	if err != nil {
+		return State{}, err
+	}
+	st := State{Initialized: s.initialized, Keys: len(keys), KeyIDs: map[string]bool{},
+		Snapshot: Snapshot{Generation: s.generation, Digest: digestOf(keys)}}
+	for _, k := range keys {
+		st.KeyIDs[k.id.String()] = true
+		if k.current {
+			st.Current++
+		}
+	}
+	return st, nil
 }
 
 // KeyIDs lists the keys' ids, the current key first.
@@ -315,7 +394,7 @@ func validate(ctx context.Context, tx pgx.Tx, s singleton, w Wrapper) (Keyring, 
 	if err := checkLengths(unwrapped); err != nil {
 		return Keyring{}, err
 	}
-	return Keyring{Generation: s.generation, keys: unwrapped}, nil
+	return Keyring{Generation: s.generation, keys: unwrapped, digest: digestOf(keys)}, nil
 }
 
 // checkNew reports whether an uninitialized keyring is genuinely new: no key
@@ -400,7 +479,8 @@ func initialize(ctx context.Context, db TxBeginner, w Wrapper, now time.Time) (K
 			WHERE singleton`, now, gen); err != nil {
 			return fmt.Errorf("fingerprint: initialize keyring: %w", err)
 		}
-		kr = Keyring{Generation: gen, keys: []key{{id: id, material: material, current: true}}}
+		kr = Keyring{Generation: gen, keys: []key{{id: id, material: material, current: true}},
+			digest: digestOf([]storedKey{{id: id, wrapped: wrapped, current: true}})}
 		return nil
 	})
 	return kr, err

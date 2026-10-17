@@ -29,9 +29,9 @@ import (
 func rotated() Secret {
 	s := pw(1)
 	var k2 Alias
-	k2.KeyID = "k2"
+	k2.KeyID = fixtureKeyring.previous
 	k2.ID[0] = 0xA2
-	return Secret{Kind: SecretPassword, KeyringGeneration: testGeneration, Aliases: []Alias{k2, s.Aliases[0]}}
+	return Secret{Kind: SecretPassword, Keyring: s.Keyring, Aliases: []Alias{k2, s.Aliases[0]}}
 }
 
 // @ac AC-01
@@ -223,7 +223,7 @@ func TestAliasesSurviveEveryRow(t *testing.T) {
 			c := f.cred("ops")
 			f.activate(c, h, rotated())
 			f.wantMode(c, h, pw(1), ModeActive)
-			f.wantMode(c, h, Secret{Kind: SecretPassword, KeyringGeneration: testGeneration, Aliases: rotated().Aliases[:1]}, ModeActive)
+			f.wantMode(c, h, Secret{Kind: SecretPassword, Keyring: fixtureKeyring.keyring.Snapshot(), Aliases: rotated().Aliases[:1]}, ModeActive)
 			f.reserve(c, h, pw(1), KindOrdinary)
 		})
 	})
@@ -562,9 +562,9 @@ func TestFence(t *testing.T) {
 			t.Fatalf("the fence refused a valid submission: %v", err)
 		}
 		var k2 Alias
-		k2.KeyID = "k2"
+		k2.KeyID = fixtureKeyring.previous
 		k2.ID[0] = 9
-		if err := f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: Secret{Kind: SecretPassword, KeyringGeneration: testGeneration,
+		if err := f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: Secret{Kind: SecretPassword, Keyring: fixtureKeyring.keyring.Snapshot(),
 			Aliases: []Alias{k2, p1.Aliases[0]}}}); err != nil {
 			t.Fatalf("the fence refused the secret under a second alias: %v", err)
 		}

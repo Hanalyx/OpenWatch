@@ -41,6 +41,10 @@ func (s *Store) Settle(ctx context.Context, id uuid.UUID, outcome Outcome) (Resu
 		if err != nil {
 			return err
 		}
+		// After the username lock, as every operation takes them (spec C-16).
+		if err := lockKeyringShared(ctx, tx); err != nil {
+			return err
+		}
 		now := s.clock.Now()
 		switch {
 		case r.outcome == nil:
@@ -313,6 +317,10 @@ func (s *Store) expireOne(ctx context.Context, id uuid.UUID) (bool, error) {
 		if err != nil {
 			return err
 		}
+		// After the username lock, as every operation takes them (spec C-16).
+		if err := lockKeyringShared(ctx, tx); err != nil {
+			return err
+		}
 		now := s.clock.Now()
 		tag, err := tx.Exec(ctx, `
 			UPDATE credprotect_submissions SET outcome = 'unknown', outcome_by = 'expiry', outcome_at = $2
@@ -341,6 +349,10 @@ func (s *Store) ReleaseIfTerminated(ctx context.Context, id uuid.UUID) (Result, 
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		r, err := lockSubmission(ctx, tx, id)
 		if err != nil {
+			return err
+		}
+		// After the username lock, as every operation takes them (spec C-16).
+		if err := lockKeyringShared(ctx, tx); err != nil {
 			return err
 		}
 		if r.ended {
@@ -392,6 +404,10 @@ func (s *Store) Override(ctx context.Context, id, actor uuid.UUID, reason string
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		r, err := lockSubmission(ctx, tx, id)
 		if err != nil {
+			return err
+		}
+		// After the username lock, as every operation takes them (spec C-16).
+		if err := lockKeyringShared(ctx, tx); err != nil {
 			return err
 		}
 		if !r.slotHeld {
