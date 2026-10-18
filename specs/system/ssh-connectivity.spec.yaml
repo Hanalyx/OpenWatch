@@ -423,7 +423,7 @@ spec:
       references_constraints: [C-15]
     - id: AC-35
       description: >-
-        v1.7.0. Unknown, expired, mismatched or unsupported profiles refuse before execution. A refused reservation and a multiline password start no command.
+        v1.7.0. Initially unknown, expired, mismatched or unsupported profiles refuse before execution. A refused reservation and a multiline password start no command. Expiry during a reservation wait prevents execution; expiry during a fence wait prevents the password write and records unknown for the launched invocation.
       priority: critical
       references_constraints: [C-16]
     - id: AC-36

@@ -162,11 +162,13 @@ func ProtectedSudo(ctx context.Context, client *cryptossh.Client, cred *credenti
 	} else {
 		attempt, runErr = sudoExec(ctx, client, command, true, opts.Mode == SudoVerifyPassword, opts.CaptureLimit,
 			func() (string, error) {
-				if !opts.Profile.admits(auth.HostID, g.cred.Username, command) {
-					return "", ErrSudoProfile
-				}
 				if err := g.fence(); err != nil {
 					return "", err
+				}
+				// The fence can wait on a database lock. Recheck after that
+				// wait, immediately before handing the password to the writer.
+				if !opts.Profile.admits(auth.HostID, g.cred.Username, command) {
+					return "", ErrSudoProfile
 				}
 				return g.cred.Password, nil
 			})

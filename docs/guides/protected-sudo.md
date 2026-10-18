@@ -37,7 +37,8 @@ failures cannot lock on its next attempt.
 
 Every password invocation reserves the shared password state before opening
 its SSH session. Its stage is sudo. The fence runs immediately before the
-write and uses its own transaction to read the credential. The reservation
+write and uses its own transaction to read the credential. Profile expiry is
+checked after any fence lock wait, before writing the password. The reservation
 lasts for the command, with a timeout margin. The caller must not share this
 SSH connection during the invocation: cancellation closes the connection.
 

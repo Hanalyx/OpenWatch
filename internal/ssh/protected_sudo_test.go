@@ -16,6 +16,7 @@ import (
 	"time"
 
 	gossh "github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
 	cryptossh "golang.org/x/crypto/ssh"
 
 	"github.com/Hanalyx/openwatch/internal/credprotect"
@@ -363,13 +364,46 @@ func TestSudoArgvIsData(t *testing.T) {
 
 type expireSudoProfile struct {
 	*fakeProtection
-	profile *ValidatedSudoProfile
+	profile     *ValidatedSudoProfile
+	duringFence bool
 }
 
 func (p *expireSudoProfile) Reserve(ctx context.Context, r credprotect.Request) (credprotect.Submission, error) {
 	s, err := p.fakeProtection.Reserve(ctx, r)
-	p.profile.ExpiresAt = time.Now().Add(-time.Second)
+	if !p.duringFence {
+		p.profile.ExpiresAt = time.Now().Add(-time.Second)
+	}
 	return s, err
+}
+
+func (p *expireSudoProfile) Fence(ctx context.Context, id uuid.UUID, read func(context.Context, credprotect.Reader) (credprotect.Current, error)) error {
+	err := p.fakeProtection.Fence(ctx, id, read)
+	if p.duringFence {
+		p.profile.ExpiresAt = time.Now().Add(-time.Second)
+	}
+	return err
+}
+
+// @ac AC-35
+func TestProtectedSudo_ProfileExpiryDuringFence(t *testing.T) {
+	t.Run("system-ssh-connectivity/AC-35", func(t *testing.T) {
+		received := make(chan string, 1)
+		client := sudoTestClient(t, func(s gossh.Session) {
+			_, _ = io.WriteString(s.Stderr(), sudoTestPrompt(s))
+			b, _ := io.ReadAll(s)
+			received <- string(b)
+			_ = s.Exit(0)
+		})
+		p := &fakeProtection{}
+		o := sudoTestOptions(p, "", SudoVerifyPassword)
+		o.Auth.Protection = &expireSudoProfile{fakeProtection: p, profile: o.Profile, duringFence: true}
+		res, err := ProtectedSudo(context.Background(), client, activePassword("ops", "P1"), "", o)
+		got := <-received
+		if got != "" || !errors.Is(err, ErrSudoProfile) || res.Attempt.Outcome != credprotect.OutcomeUnknown {
+			t.Fatalf("received=%q err=%v outcome=%s", got, err, res.Attempt.Outcome)
+		}
+		wantSettled(t, p, credprotect.OutcomeUnknown)
+	})
 }
 
 // @ac AC-35
