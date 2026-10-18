@@ -60,8 +60,8 @@ const (
 //     - cred.Password is non-empty —
 //     re-execute as `sudo -S -k -p ” <cmd>` with the password fed via
 //     the session's stdin pipe. `-k` invalidates the remote sudo
-//     credential cache before each attempt so a wrong password fails
-//     fast (no PAM retry counter increment, no host-side lockout).
+//     credential cache before each attempt. This does not bound PAM
+//     failures; consumers move to ProtectedSudo in OW-122 slice 6.
 //
 // prefer (a Sudo* token, or "" for unknown) is the host's learned sudo
 // mode: when it is SudoPassword AND the credential can supply a password,
@@ -138,9 +138,8 @@ func RunSudo(
 	// Phase 3: `sudo -S -k -p '' <cmd>`. The password is appended with
 	// a newline so sudo's getpass() loop sees a complete line. `-p ''`
 	// suppresses the prompt from polluting stdout. `-k` blanks the
-	// remote sudo timestamp cache so a stale wrong-password attempt
-	// fails on the FIRST sudo call this cycle, not after pam_tally2
-	// retries that would lock the host user.
+	// remote sudo timestamp cache. The host may count more than one PAM
+	// failure after this single write; this legacy path has no protection.
 	pwIn := append([]byte(cred.Password), '\n')
 	fOut, fCode, fErr := sess.RunWithStdin(ctx, "sudo -S -k -p '' "+cmd, pwIn)
 	obs := ""

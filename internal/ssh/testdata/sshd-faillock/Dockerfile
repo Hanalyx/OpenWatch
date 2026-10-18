@@ -2,7 +2,7 @@
 # pam_faillock, for the protected-dial container tests (spec C-15). The
 # account and its passwords are synthetic; the tests set them.
 FROM rockylinux/rockylinux:9
-RUN dnf -y -q install openssh-server authselect passwd && dnf clean all \
+RUN dnf -y -q install openssh-server authselect passwd sudo && dnf clean all \
  && authselect select minimal with-faillock --force \
  && printf 'deny = 3\nunlock_time = 0\n' > /etc/security/faillock.conf \
  && ssh-keygen -A \
