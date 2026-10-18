@@ -1,7 +1,7 @@
 spec:
   id: system-ssh-connectivity
   title: SSH connectivity check against resolved credentials
-  version: "1.6.0"
+  version: "1.7.0"
   status: approved
   tier: 2
 
@@ -171,6 +171,39 @@ spec:
         held adds one failure to the account's tally across concurrent
         workers and repeated dials. Hosted Go CI and the strict local gate
         run that container test with OPENWATCH_SSH_CONTAINER_TESTS=1.
+      type: technical
+      enforcement: error
+
+    - id: C-16
+      description: >-
+        v1.7.0 (OW-122 slice 5). ProtectedSudo runs on an established SSH
+        connection with a mode chosen before execution. Password mode needs a
+        validated, unexpired profile for the host, username and exact command,
+        or the empty command for verification. The profile covers one password
+        try, at most one PAM failure, and the invoking user. Unknown profiles
+        refuse before reservation or a password session. This precondition is trusted
+        configuration, not a property inferred from a login or sudo output.
+        Every password invocation reserves the shared password state before
+        opening its session, fences through the transaction reader, writes one
+        line after the full fresh nonce prompt, then closes stdin. It never
+        answers a second prompt. An unsuccessful launched invocation can count
+        at PAM without a password write and is unknown, unless complete
+        evidence supports a more precise outcome. A complete prompt and exit
+        zero verify a dedicated fresh check; an execution marker after a
+        submission verifies an ordinary command's authentication, even when
+        that command fails. No-prompt success is not_submitted and cannot
+        recover. A complete failed submission without a marker is unsuccessful;
+        lost or incomplete evidence is unknown. Settlement is bounded and
+        independent of cancellation; failed settlement closes the connection.
+        Cached-only and password-only commands never fall back. Read-only
+        fallback needs a normal nonzero exit, complete output and no fresh
+        marker. Signal exits refuse fallback. Stream errors are collected apart
+        from exit status, and a keepalive response confirms that channel EOF
+        was not transport loss. The marker script receives separately quoted args.
+        A started command, capture limit, lost channel or cancellation forbids
+        fallback. Passwords with line breaks or NUL are refused. Cancellation
+        closes the caller's exclusively owned connection. Output is bounded.
+        The profile and consumer contracts are in docs/guides/protected-sudo.md.
       type: technical
       enforcement: error
 
@@ -388,3 +421,33 @@ spec:
         uncovered.
       priority: critical
       references_constraints: [C-15]
+    - id: AC-35
+      description: >-
+        v1.7.0. Unknown, expired, mismatched or unsupported profiles refuse before execution. A refused reservation and a multiline password start no command.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-36
+      description: >-
+        v1.7.0. Only the complete nonce prompt triggers a fence and one password line. Split prompts work; lecture punctuation does not trigger a write. A refusal sends nothing; no-prompt success cannot verify; a second prompt gets no second response.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-37
+      description: >-
+        v1.7.0. A command that emits a password error and fails is not replayed when its marker is present. Only a complete nonzero result without a marker permits read-only fallback. Truncation and transport failure forbid fallback. Mutating modes never retry.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-38
+      description: >-
+        v1.7.0. Wrong-password results are unsuccessful, not text-classified as rejected. A canceled or uncertain launched invocation settles unknown. Settlement has an uncanceled context; failed settlement returns ErrNotRecorded and closes the connection.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-39
+      description: >-
+        v1.7.0. In the validated single-try sudo/PAM container, eight workers and five later invocations with a rotated-out password submit once and leave one PAM failure. The secret blocks in the real store, and a new password verifies. The test runs in hosted and strict local CI.
+      priority: critical
+      references_constraints: [C-16]
+    - id: AC-40
+      description: >-
+        v1.7.0. Mandatory container tests show that NOPASSWD sends no password and cannot verify. Cached access does not validate a wrong stored password; a fresh check prompts and fails. Commands are quoted, a failing command executes once, and an unknown profile is refused before PAM.
+      priority: critical
+      references_constraints: [C-16]
