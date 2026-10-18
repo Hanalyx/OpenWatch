@@ -113,13 +113,15 @@ func (x *sudoExchange) outcome() credprotect.Outcome {
 	if !x.invoked {
 		return credprotect.OutcomeNotSubmitted
 	}
+	// A repeated nonce prompt proves a profile violation even when aborting
+	// the exchange leaves its transport or output incomplete.
+	if x.prompt.count > 1 {
+		return credprotect.OutcomeUnsupportedProfile
+	}
 	// Starting PAM can count an attempt even if a fence refusal or cancellation
 	// prevents the password write. An uncertain launched invocation must block.
 	if !x.complete {
 		return credprotect.OutcomeUnknown
-	}
-	if x.prompt.count > 1 {
-		return credprotect.OutcomeUnsupportedProfile
 	}
 	if !x.prompt.submitted {
 		if x.exit == 0 || x.started() {
@@ -214,11 +216,11 @@ func sudoExec(ctx context.Context, client *cryptossh.Client, command string, pas
 			return x, fmt.Errorf("ssh: confirm sudo transport: %w", probeErr)
 		}
 	}
-	if readErr != nil {
-		return x, fmt.Errorf("ssh: read sudo output: %w", readErr)
-	}
 	if x.prompt.err != nil {
 		return x, x.prompt.err
+	}
+	if readErr != nil {
+		return x, fmt.Errorf("ssh: read sudo output: %w", readErr)
 	}
 	if ctx.Err() != nil {
 		return x, ctx.Err()

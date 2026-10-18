@@ -1,7 +1,7 @@
-# Protected sudo contract amendment
+# Protected sudo execution
 
-This change implements OW-122 slice 5 on main `b646a9f3`. It is a proposal
-for review. Consumer wiring and operator controls belong to slices 6 and 7.
+This adapter implements protected sudo execution for OW-122.
+Consumer wiring and operator controls belong to slices 6 and 7.
 No production consumer calls this adapter yet.
 
 ## Two separate bounds
@@ -36,9 +36,12 @@ failures cannot lock on its next attempt.
 ## Invocation and recovery
 
 Every password invocation reserves the shared password state before opening
-its SSH session. Its stage is sudo. The fence runs immediately before the
-write and uses its own transaction to read the credential. Profile expiry is
-checked after any fence lock wait, before writing the password. The reservation
+its SSH session. Its stage is sudo. The same fence runs before launching
+sudo and again at the prompt, immediately before the password write. Each
+fence uses its own transaction to read the credential. A refusal before
+launch sends nothing to PAM and adds no restriction to the password. An edit
+between the two checks can still cause a refusal after launch and a PAM
+failure. Profile expiry is checked after each fence lock wait. The reservation
 lasts for the command, with a timeout margin. The caller must not share this
 SSH connection during the invocation: cancellation closes the connection.
 
@@ -63,7 +66,8 @@ The outcomes are:
 | Fresh verification: prompt, submission, complete exit 0 | verified |
 | Ordinary command: prompt, submission, complete marker | verified, as evidence only |
 | Complete nonzero result after submission, without a marker | unsuccessful |
-| Lost channel, canceled invocation, failed fence after sudo started, or incomplete output | unknown |
+| Second nonce prompt, even if aborting leaves output incomplete | unsupported_profile |
+| Lost channel, canceled invocation, failed fence after sudo started, or incomplete output without a profile violation | unknown |
 
 A launched invocation may start PAM even when no password is ultimately
 written. For this reason, a refusal or cancellation after launch is unknown,

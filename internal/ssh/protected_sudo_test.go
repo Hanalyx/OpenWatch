@@ -142,7 +142,7 @@ func TestProtectedSudo_PromptAndFence(t *testing.T) {
 			{name: "split nonce", want: credprotect.OutcomeVerified},
 			{name: "no prompt", noprompt: true, want: credprotect.OutcomeNotSubmitted},
 			{name: "fence refused", deny: true, want: credprotect.OutcomeUnknown},
-			{name: "second prompt", repeat: true, want: credprotect.OutcomeUnknown},
+			{name: "second prompt", repeat: true, want: credprotect.OutcomeUnsupportedProfile},
 		} {
 			t.Run(test.name, func(t *testing.T) {
 				received := make(chan string, 1)
@@ -169,7 +169,13 @@ func TestProtectedSudo_PromptAndFence(t *testing.T) {
 				})
 				p := &fakeProtection{}
 				if test.deny {
-					p.fenceErr = credprotect.ErrFenceRefused
+					var fences int
+					p.onFence = func() {
+						fences++
+						if fences == 2 {
+							p.fenceErr = credprotect.ErrFenceRefused
+						}
+					}
 				}
 				o := sudoTestOptions(p, "", SudoVerifyPassword)
 				res, err := ProtectedSudo(context.Background(), client, activePassword("ops", "P1"), "", o)
@@ -185,7 +191,10 @@ func TestProtectedSudo_PromptAndFence(t *testing.T) {
 					t.Fatalf("outcome=%s err=%v", res.Attempt.Outcome, err)
 				}
 				wantSettled(t, p, test.want)
-				if test.deny && !errors.Is(err, ErrProtected) {
+				if test.repeat && (!errors.Is(err, ErrUnsupportedExchange) || res.Complete) {
+					t.Fatalf("profile violation: err=%v complete=%v", err, res.Complete)
+				}
+				if test.deny && (!errors.Is(err, ErrProtected) || strings.Contains(err.Error(), "read sudo output")) {
 					t.Fatalf("err=%v", err)
 				}
 			})
@@ -364,13 +373,14 @@ func TestSudoArgvIsData(t *testing.T) {
 
 type expireSudoProfile struct {
 	*fakeProtection
-	profile     *ValidatedSudoProfile
-	duringFence bool
+	profile *ValidatedSudoProfile
+	fenceAt int
+	fences  int
 }
 
 func (p *expireSudoProfile) Reserve(ctx context.Context, r credprotect.Request) (credprotect.Submission, error) {
 	s, err := p.fakeProtection.Reserve(ctx, r)
-	if !p.duringFence {
+	if p.fenceAt == 0 {
 		p.profile.ExpiresAt = time.Now().Add(-time.Second)
 	}
 	return s, err
@@ -378,7 +388,8 @@ func (p *expireSudoProfile) Reserve(ctx context.Context, r credprotect.Request) 
 
 func (p *expireSudoProfile) Fence(ctx context.Context, id uuid.UUID, read func(context.Context, credprotect.Reader) (credprotect.Current, error)) error {
 	err := p.fakeProtection.Fence(ctx, id, read)
-	if p.duringFence {
+	p.fences++
+	if p.fences == p.fenceAt {
 		p.profile.ExpiresAt = time.Now().Add(-time.Second)
 	}
 	return err
@@ -396,7 +407,7 @@ func TestProtectedSudo_ProfileExpiryDuringFence(t *testing.T) {
 		})
 		p := &fakeProtection{}
 		o := sudoTestOptions(p, "", SudoVerifyPassword)
-		o.Auth.Protection = &expireSudoProfile{fakeProtection: p, profile: o.Profile, duringFence: true}
+		o.Auth.Protection = &expireSudoProfile{fakeProtection: p, profile: o.Profile, fenceAt: 2}
 		res, err := ProtectedSudo(context.Background(), client, activePassword("ops", "P1"), "", o)
 		got := <-received
 		if got != "" || !errors.Is(err, ErrSudoProfile) || res.Attempt.Outcome != credprotect.OutcomeUnknown {
@@ -419,5 +430,31 @@ func TestProtectedSudo_ProfileExpiryDuringReservation(t *testing.T) {
 			t.Fatalf("err=%v executions=%d outcome=%s", err, calls.Load(), res.Attempt.Outcome)
 		}
 		wantSettled(t, p, credprotect.OutcomeNotSubmitted)
+	})
+}
+
+// @ac AC-35
+func TestProtectedSudo_PrelaunchAdmission(t *testing.T) {
+	t.Run("system-ssh-connectivity/AC-35", func(t *testing.T) {
+		for _, which := range []string{"fence refusal", "expiry during fence"} {
+			t.Run(which, func(t *testing.T) {
+				var commands atomic.Int32
+				client := sudoTestClient(t, func(s gossh.Session) { commands.Add(1); _ = s.Exit(0) })
+				p := &fakeProtection{}
+				o := sudoTestOptions(p, "true", SudoPasswordOnly)
+				wantErr := ErrProtected
+				if which == "fence refusal" {
+					p.fenceErr = credprotect.ErrFenceRefused
+				} else {
+					o.Auth.Protection = &expireSudoProfile{fakeProtection: p, profile: o.Profile, fenceAt: 1}
+					wantErr = ErrSudoProfile
+				}
+				res, err := ProtectedSudo(context.Background(), client, activePassword("ops", "P1"), "true", o)
+				if !errors.Is(err, wantErr) || commands.Load() != 0 || res.PromptSeen || res.Submitted || res.Attempt.Outcome != credprotect.OutcomeNotSubmitted {
+					t.Fatalf("err=%v commands=%d prompt=%v submitted=%v outcome=%s", err, commands.Load(), res.PromptSeen, res.Submitted, res.Attempt.Outcome)
+				}
+				wantSettled(t, p, credprotect.OutcomeNotSubmitted)
+			})
+		}
 	})
 }

@@ -156,23 +156,29 @@ func ProtectedSudo(ctx context.Context, client *cryptossh.Client, cred *credenti
 	}
 	g.sub = sub.ID
 	attempt := &sudoExchange{exit: -1}
-	var runErr error
-	if !opts.Profile.admits(auth.HostID, g.cred.Username, command) {
-		runErr = ErrSudoProfile
-	} else {
+	// Both checks use the same transaction-bound credential fence. The first
+	// avoids starting PAM for a refusal already known locally; the second
+	// catches edits committed after launch. Each wait can also expire the profile.
+	fence := func() error {
+		if err := g.fence(); err != nil {
+			return err
+		}
+		if !opts.Profile.admits(auth.HostID, g.cred.Username, command) {
+			return ErrSudoProfile
+		}
+		return nil
+	}
+	runErr := fence()
+	if runErr == nil {
 		attempt, runErr = sudoExec(ctx, client, command, true, opts.Mode == SudoVerifyPassword, opts.CaptureLimit,
 			func() (string, error) {
-				if err := g.fence(); err != nil {
+				if err := fence(); err != nil {
 					return "", err
-				}
-				// The fence can wait on a database lock. Recheck after that
-				// wait, immediately before handing the password to the writer.
-				if !opts.Profile.admits(auth.HostID, g.cred.Username, command) {
-					return "", ErrSudoProfile
 				}
 				return g.cred.Password, nil
 			})
 	}
+
 	res = attempt.result()
 	res.Attempt = ProtectedResult{Reserved: true, Submission: sub.ID, Outcome: attempt.outcome()}
 	if res.Submitted {

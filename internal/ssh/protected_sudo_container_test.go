@@ -15,6 +15,7 @@ import (
 
 	"github.com/Hanalyx/openwatch/internal/credential"
 	"github.com/Hanalyx/openwatch/internal/credprotect"
+	"github.com/Hanalyx/openwatch/internal/secretkey"
 )
 
 func sudoContainerPolicy(c *sshdContainer, nopasswd bool) {
@@ -195,5 +196,76 @@ func TestProtectedSudo_ContainerCacheAndExecution(t *testing.T) {
 				t.Fatalf("unknown profile: err=%v tally=%d", err, c.failures())
 			}
 		})
+	})
+}
+
+// @ac AC-35
+func TestProtectedSudo_PrelaunchFenceSeesStoredEdits(t *testing.T) {
+	t.Run("system-ssh-connectivity/AC-35", func(t *testing.T) {
+		for _, which := range []string{"password rotation", "deactivation"} {
+			t.Run(which, func(t *testing.T) {
+				ctx := context.Background()
+				c := startSSHD(t)
+				c.setPassword("P1")
+				sudoContainerPolicy(c, false)
+				f := newProtectedFixture(t, "ops")
+				if err := secretkey.SetEphemeral(); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(secretkey.Reset)
+				key, err := secretkey.Active()
+				if err != nil {
+					t.Fatal(err)
+				}
+				enc, err := key.Encrypt([]byte("P1"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := f.pool.Exec(ctx, `UPDATE credentials SET encrypted_password = $2 WHERE id = $1`, f.credID, enc); err != nil {
+					t.Fatal(err)
+				}
+				svc := credential.NewService(f.pool)
+				p1, err := svc.GetByID(ctx, f.credID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				current := func(ctx context.Context, db credprotect.Reader) (*credential.Credential, error) {
+					return credential.GetByIDWith(ctx, db, f.credID)
+				}
+				opts := sudoRealOptions(f, p1, "", SudoVerifyPassword)
+				opts.Auth.Current = current
+				res, err := ProtectedSudo(ctx, sudoContainerClient(t, c), p1, "", opts)
+				if err != nil || res.Attempt.Outcome != credprotect.OutcomeVerified {
+					t.Fatalf("verification: %+v %v", res, err)
+				}
+				// The host still accepts P1. Only OpenWatch's stored credential changes.
+				client := sudoContainerClient(t, c)
+				c.exec("faillock", "--user", "ops", "--reset")
+				if which == "password rotation" {
+					pw := "P2"
+					_, err = svc.Update(ctx, credential.UpdateParams{ID: f.credID, Password: &pw})
+				} else {
+					err = svc.SoftDelete(ctx, f.credID)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				opts = sudoRealOptions(f, p1, "true", SudoPasswordOnly)
+				opts.Auth.Current = current
+				res, err = ProtectedSudo(ctx, client, p1, "true", opts)
+				failures, mode := c.failures(), f.mode(t, "P1")
+				if !errors.Is(err, ErrProtected) || !res.Attempt.Reserved || res.PromptSeen || res.Submitted ||
+					res.Attempt.Outcome != credprotect.OutcomeNotSubmitted || failures != 0 || mode != credprotect.ModeActive {
+					t.Fatalf("err=%v outcome=%s reserved=%v prompt=%v submitted=%v PAM failures=%d mode=%s", err, res.Attempt.Outcome, res.Attempt.Reserved, res.PromptSeen, res.Submitted, failures, mode)
+				}
+				var outstanding int
+				if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM credprotect_submissions WHERE slot_held`).Scan(&outstanding); err != nil {
+					t.Fatal(err)
+				}
+				if outstanding != 0 {
+					t.Fatalf("%d reservations not settled", outstanding)
+				}
+			})
+		}
 	})
 }

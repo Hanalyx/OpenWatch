@@ -184,8 +184,11 @@ spec:
         refuse before reservation or a password session. This precondition is trusted
         configuration, not a property inferred from a login or sudo output.
         Every password invocation reserves the shared password state before
-        opening its session, fences through the transaction reader, writes one
-        line after the full fresh nonce prompt, then closes stdin. It never
+        opening its session, fences through the transaction reader before launch
+        and again at the full fresh nonce prompt, writes one line, then closes
+        stdin. Profile expiry is checked after each fence wait. A pre-launch
+        fence refusal settles not_submitted without starting PAM or blocking
+        the secret. An edit between the two checks can still cost a PAM failure. It never
         answers a second prompt. An unsuccessful launched invocation can count
         at PAM without a password write and is unknown, unless complete
         evidence supports a more precise outcome. A complete prompt and exit
@@ -193,7 +196,8 @@ spec:
         submission verifies an ordinary command's authentication, even when
         that command fails. No-prompt success is not_submitted and cannot
         recover. A complete failed submission without a marker is unsuccessful;
-        lost or incomplete evidence is unknown. Settlement is bounded and
+        a second nonce prompt is unsupported_profile even with incomplete output;
+        other lost or incomplete evidence is unknown. Settlement is bounded and
         independent of cancellation; failed settlement closes the connection.
         Cached-only and password-only commands never fall back. Read-only
         fallback needs a normal nonzero exit, complete output and no fresh
@@ -423,12 +427,12 @@ spec:
       references_constraints: [C-15]
     - id: AC-35
       description: >-
-        v1.7.0. Initially unknown, expired, mismatched or unsupported profiles refuse before execution. A refused reservation and a multiline password start no command. Expiry during a reservation wait prevents execution; expiry during a fence wait prevents the password write and records unknown for the launched invocation.
+        v1.7.0. Initially unknown, expired, mismatched or unsupported profiles refuse before execution. A refused reservation and a multiline password start no command. Expiry during reservation or the pre-launch fence prevents execution. A changed or inactive stored credential is refused before launch with zero PAM failures and no block. Expiry during the prompt-time fence prevents the password write and records unknown for the launched invocation.
       priority: critical
       references_constraints: [C-16]
     - id: AC-36
       description: >-
-        v1.7.0. Only the complete nonce prompt triggers a fence and one password line. Split prompts work; lecture punctuation does not trigger a write. A refusal sends nothing; no-prompt success cannot verify; a second prompt gets no second response.
+        v1.7.0. After the pre-launch fence, only the complete nonce prompt triggers the second fence and one password line. Split prompts work; lecture punctuation does not trigger a write. A prompt-time refusal sends nothing and returns the fence error without a misleading output-read error. No-prompt success cannot verify. A second prompt gets no second response and records unsupported_profile, even with incomplete output.
       priority: critical
       references_constraints: [C-16]
     - id: AC-37
