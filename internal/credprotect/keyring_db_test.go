@@ -65,7 +65,7 @@ func TestKeyring_AdmitsOnlyTheKeyringTheAliasesCameFrom(t *testing.T) {
 			}
 			f.activate(c, h, s)
 			sub := f.reserve(c, h, s, KindOrdinary)
-			if err := f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: s}); err != nil {
+			if err := f.store.Fence(ctx, sub.ID, fresh(Current{Active: true, Secret: s})); err != nil {
 				t.Fatalf("fence: %v", err)
 			}
 		})
@@ -104,7 +104,7 @@ func TestKeyring_AdmitsOnlyTheKeyringTheAliasesCameFrom(t *testing.T) {
 				if _, err := f.pool.Exec(ctx, d.q); err != nil {
 					t.Fatal(err)
 				}
-				f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: s}), d.want)
+				f.wantRefused(f.store.Fence(ctx, sub.ID, fresh(Current{Active: true, Secret: s})), d.want)
 				_, err := f.store.Reserve(ctx, f.req(c, h, s, KindOrdinary))
 				f.wantRefused(err, d.want)
 				_, err = f.store.Status(ctx, c, h, s)

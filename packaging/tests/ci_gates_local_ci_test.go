@@ -59,8 +59,8 @@ func strictCase(t *testing.T, class, name string) bool {
 // any "safe to push" claim.
 func TestCIGates_StrictLocalCIReportsWhatRan(t *testing.T) {
 	t.Run("release-ci-gates/AC-37", func(t *testing.T) {
-		if got := strictCases(t); got["Verdicts"] != 10 || got["Wiring"] != 3 {
-			t.Errorf("Verdicts %d of 10 and Wiring %d of 3 cases passed", got["Verdicts"], got["Wiring"])
+		if got := strictCases(t); got["Verdicts"] != 11 || got["Wiring"] != 3 {
+			t.Errorf("Verdicts %d of 11 and Wiring %d of 3 cases passed", got["Verdicts"], got["Wiring"])
 		}
 	})
 }

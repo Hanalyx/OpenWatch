@@ -198,7 +198,21 @@ func inspectStored(dek *secretkey.Key, encKey, encPass []byte) (sshkey.Metadata,
 //
 // Spec AC-09.
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*Credential, error) {
-	return s.queryOne(ctx, `WHERE id = $1 AND is_active = true`, id)
+	return queryOne(ctx, s.pool, `WHERE id = $1 AND is_active = true`, id)
+}
+
+// Querier runs one query. A pool and a transaction are both one; a caller
+// that already holds a transaction passes it, so the read takes no second
+// connection.
+type Querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// GetByIDWith is GetByID read through q, for a caller that must read the
+// credential inside its own transaction: credential protection's fence
+// reads it under its lock on the row.
+func GetByIDWith(ctx context.Context, q Querier, id uuid.UUID) (*Credential, error) {
+	return queryOne(ctx, q, `WHERE id = $1 AND is_active = true`, id)
 }
 
 // UpdateParams is the input to Update. Every field is a pointer: nil
@@ -562,7 +576,7 @@ func validateCloneScope(p CloneParams) error {
 // Spec AC-10, AC-11, AC-12, C-06, C-07.
 func (s *Service) Resolve(ctx context.Context, hostID uuid.UUID) (*Credential, error) {
 	// 1) host-scope first.
-	c, err := s.queryOne(ctx,
+	c, err := queryOne(ctx, s.pool,
 		`WHERE scope = 'host' AND scope_id = $1 AND is_active = true
 		 ORDER BY created_at DESC LIMIT 1`, hostID)
 	if err == nil {
@@ -572,7 +586,7 @@ func (s *Service) Resolve(ctx context.Context, hostID uuid.UUID) (*Credential, e
 		return nil, err
 	}
 	// 2) system default.
-	c, err = s.queryOne(ctx,
+	c, err = queryOne(ctx, s.pool,
 		`WHERE scope = 'system' AND is_default = true AND is_active = true
 		 ORDER BY created_at DESC LIMIT 1`)
 	if err == nil {
@@ -586,7 +600,7 @@ func (s *Service) Resolve(ctx context.Context, hostID uuid.UUID) (*Credential, e
 
 // queryOne runs the shared SELECT against a caller-supplied WHERE
 // clause and decrypts secret fields.
-func (s *Service) queryOne(ctx context.Context, whereClause string, args ...any) (*Credential, error) {
+func queryOne(ctx context.Context, q Querier, whereClause string, args ...any) (*Credential, error) {
 	dek, err := secretkey.Active()
 	if err != nil {
 		return nil, err
@@ -603,7 +617,7 @@ func (s *Service) queryOne(ctx context.Context, whereClause string, args ...any)
 	var scopeStr, methodStr string
 	var scopeID *uuid.UUID
 	var encPw, encKey, encPass []byte
-	err = s.pool.QueryRow(ctx, baseSelect+whereClause, args...).Scan(
+	err = q.QueryRow(ctx, baseSelect+whereClause, args...).Scan(
 		&c.ID, &scopeStr, &scopeID, &c.Name, &c.Description,
 		&c.Username, &methodStr,
 		&encPw, &encKey, &encPass,

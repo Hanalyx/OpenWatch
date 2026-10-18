@@ -156,7 +156,7 @@ func TestOneStatePerSecretAcrossStages(t *testing.T) {
 		} else {
 			msgs = append(msgs, err.Error())
 		}
-		err = f.store.Fence(ctx, sub3.ID, Current{Active: true, Secret: p1})
+		err = f.store.Fence(ctx, sub3.ID, fresh(Current{Active: true, Secret: p1}))
 		msgs = append(msgs, err.Error(), fmt.Sprintf("%v %+v %#v", p1, p1, p1), logs.String())
 		if !strings.Contains(logs.String(), "conflicting outcome") {
 			t.Fatalf("the conflict was not logged: %q", logs.String())
@@ -188,7 +188,7 @@ func TestAliasesSurviveEveryRow(t *testing.T) {
 			if n := f.count(`SELECT cardinality(alias_ids) FROM credprotect_submissions WHERE id = $1`, sub.ID); n != 2 {
 				t.Fatalf("%d aliases stored, want 2", n)
 			}
-			if err := f.store.Fence(context.Background(), sub.ID, Current{Active: true, Secret: rotated()}); err != nil {
+			if err := f.store.Fence(context.Background(), sub.ID, fresh(Current{Active: true, Secret: rotated()})); err != nil {
 				t.Fatalf("the fence refused a verified secret reserved under a new alias: %v", err)
 			}
 		})
@@ -210,7 +210,7 @@ func TestAliasesSurviveEveryRow(t *testing.T) {
 				v := f.reserve(lc, h, c.reserved, KindVerification)
 				f.block(uc, f.host(), c.blockedBy)
 				for _, cur := range []Secret{c.reserved, rotated()} {
-					f.wantRefused(f.store.Fence(ctx, v.ID, Current{Active: true, Secret: cur}), ErrBlocked)
+					f.wantRefused(f.store.Fence(ctx, v.ID, fresh(Current{Active: true, Secret: cur})), ErrBlocked)
 				}
 				if res := f.settle(v.ID, OutcomeVerified); res.Recovery != uuid.Nil {
 					t.Fatal("recovered past a block recorded under a shared alias")
@@ -291,7 +291,7 @@ func TestRequestNeedsABlockAndPauseStopsEverything(t *testing.T) {
 		if _, err := f.store.Pause(ctx, f.identity(c, h), "change freeze"); err != nil {
 			t.Fatal(err)
 		}
-		f.wantRefused(f.store.Fence(ctx, held.ID, Current{Active: true, Secret: p1}), ErrPaused)
+		f.wantRefused(f.store.Fence(ctx, held.ID, fresh(Current{Active: true, Secret: p1})), ErrPaused)
 		f.settle(held.ID, OutcomeNotSubmitted)
 		for _, s := range []Secret{p1, pw(2)} {
 			for _, k := range []Kind{KindOrdinary, KindVerification} {
@@ -457,7 +457,7 @@ func TestEveryWriteTakesTheUsernameLock(t *testing.T) {
 		cand := uuid.Nil
 		ops := map[string]func() error{
 			"Reserve":             func() error { _, err := f.store.Reserve(ctx, f.req(c, h, pw(2), KindVerification)); return err },
-			"Fence":               func() error { return f.store.Fence(ctx, held.ID, Current{Active: true, Secret: p1}) },
+			"Fence":               func() error { return f.store.Fence(ctx, held.ID, fresh(Current{Active: true, Secret: p1})) },
 			"Resolve":             func() error { _, err := f.store.Resolve(ctx, c, h); return err },
 			"Status":              func() error { _, err := f.store.Status(ctx, c, h, p1); return err },
 			"Pause":               func() error { _, err := f.store.Pause(ctx, root, "r"); return err },
@@ -558,28 +558,28 @@ func TestFence(t *testing.T) {
 		cur := Current{Active: true, Secret: p1}
 
 		sub := f.reserve(c, h, p1, KindOrdinary)
-		if err := f.store.Fence(ctx, sub.ID, cur); err != nil {
+		if err := f.store.Fence(ctx, sub.ID, fresh(cur)); err != nil {
 			t.Fatalf("the fence refused a valid submission: %v", err)
 		}
 		var k2 Alias
 		k2.KeyID = fixtureKeyring.previous
 		k2.ID[0] = 9
-		if err := f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: Secret{Kind: SecretPassword, Keyring: fixtureKeyring.keyring.Snapshot(),
-			Aliases: []Alias{k2, p1.Aliases[0]}}}); err != nil {
+		if err := f.store.Fence(ctx, sub.ID, fresh(Current{Active: true, Secret: Secret{Kind: SecretPassword, Keyring: fixtureKeyring.keyring.Snapshot(),
+			Aliases: []Alias{k2, p1.Aliases[0]}}})); err != nil {
 			t.Fatalf("the fence refused the secret under a second alias: %v", err)
 		}
-		f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: Secret{Kind: SecretKey,
-			Aliases: p1.Aliases}}), ErrFenceRefused)
-		f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: false, Secret: p1}), ErrFenceRefused)
-		f.wantRefused(f.store.Fence(ctx, sub.ID, Current{Active: true, Secret: pw(2)}), ErrFenceRefused)
+		f.wantRefused(f.store.Fence(ctx, sub.ID, fresh(Current{Active: true, Secret: Secret{Kind: SecretKey,
+			Aliases: p1.Aliases}})), ErrFenceRefused)
+		f.wantRefused(f.store.Fence(ctx, sub.ID, fresh(Current{Active: false, Secret: p1})), ErrFenceRefused)
+		f.wantRefused(f.store.Fence(ctx, sub.ID, fresh(Current{Active: true, Secret: pw(2)})), ErrFenceRefused)
 		f.clock.Advance(5 * time.Minute)
-		f.wantRefused(f.store.Fence(ctx, sub.ID, cur), ErrFenceRefused)
+		f.wantRefused(f.store.Fence(ctx, sub.ID, fresh(cur)), ErrFenceRefused)
 		f.settle(sub.ID, OutcomeVerified)
 
 		t.Run("a released slot, before its deadline", func(t *testing.T) {
 			s := f.reserve(c, h, p1, KindOrdinary)
 			f.settle(s.ID, OutcomeVerified)
-			f.wantRefused(f.store.Fence(ctx, s.ID, cur), ErrFenceRefused)
+			f.wantRefused(f.store.Fence(ctx, s.ID, fresh(cur)), ErrFenceRefused)
 		})
 		t.Run("a username edit and a deletion", func(t *testing.T) {
 			g := newFixture(t)
@@ -594,7 +594,7 @@ func TestFence(t *testing.T) {
 				if _, err := g.pool.Exec(ctx, edit, gc); err != nil {
 					t.Fatal(err)
 				}
-				g.wantRefused(g.store.Fence(ctx, s.ID, cur), ErrFenceRefused)
+				g.wantRefused(g.store.Fence(ctx, s.ID, fresh(cur)), ErrFenceRefused)
 				if !g.slotHeld(s.ID) {
 					t.Fatal("the edit released the slot")
 				}
@@ -612,11 +612,11 @@ func TestFence(t *testing.T) {
 			uc := g.cred("ops")
 			g.activate(uc, g.host(), p1)
 			held := g.reserve(lc, gh, p1, KindOrdinary)
-			if err := g.store.Fence(ctx, held.ID, cur); err != nil {
+			if err := g.store.Fence(ctx, held.ID, fresh(cur)); err != nil {
 				t.Fatalf("fence before the block: %v", err)
 			}
 			g.block(uc, g.host(), p1)
-			g.wantRefused(g.store.Fence(ctx, held.ID, cur), ErrBlocked)
+			g.wantRefused(g.store.Fence(ctx, held.ID, fresh(cur)), ErrBlocked)
 		})
 	})
 }
@@ -736,7 +736,7 @@ func TestSlots(t *testing.T) {
 		f.activate(c, h, p1)
 
 		w1 := f.reserve(c, h, p1, KindOrdinary)
-		if err := f.store.Fence(ctx, w1.ID, Current{Active: true, Secret: p1}); err != nil {
+		if err := f.store.Fence(ctx, w1.ID, fresh(Current{Active: true, Secret: p1})); err != nil {
 			t.Fatal(err)
 		}
 		f.clock.Advance(6 * time.Minute)

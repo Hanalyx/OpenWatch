@@ -1,0 +1,10 @@
+# Both password methods are offered, so a client that replays a password
+# through keyboard-interactive is visible in the tally.
+UsePAM yes
+PasswordAuthentication yes
+KbdInteractiveAuthentication yes
+PubkeyAuthentication yes
+PermitRootLogin no
+MaxAuthTries 6
+LogLevel VERBOSE
+Subsystem sftp /usr/libexec/openssh/sftp-server

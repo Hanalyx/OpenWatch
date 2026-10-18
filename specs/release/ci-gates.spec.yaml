@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.30.0"
+  version: "1.31.0"
   status: approved
   tier: 1
 
@@ -494,9 +494,11 @@ spec:
         reports all that are missing at once: a reachable test database whose name
         ends in _test, Specter at exactly `.specter-version`, golangci-lint at
         exactly the Makefile's GOLANGCI_VERSION, govulncheck, node_modules matching
-        the lockfile, the native packaging tools and the toolchain. A missing
-        prerequisite that was not accepted by name stops the run with nothing else
-        run.
+        the lockfile, the native packaging tools, a container runtime whose daemon
+        answers (v1.31.0: the sshd container tests, which hosted CI runs with
+        OPENWATCH_SSH_CONTAINER_TESTS=1, run here the same way) and the toolchain.
+        A missing prerequisite that was not accepted by name stops the run with
+        nothing else run.
         RESULTS. Exit 0 COMPLETE means every required gate ran and passed and the
         only tests not run are the opt-ins hosted CI skips too, named by their exact
         skip message. 1 FAILED means a gate or a test failed. 3 INCOMPLETE means
@@ -1756,12 +1758,14 @@ spec:
         for a failed test even when go test exited 0; 3 for a test skipped with any
         other message; 3 with no gate run when prerequisites are missing and not
         accepted, reporting every missing prerequisite including a golangci-lint at
-        another version than the pin, and counting as node_modules drift a version
+        another version than the pin and a container runtime that is absent or
+        whose daemon does not answer, and counting as node_modules drift a version
         mismatch, an absent required package or an installed package the lockfile
         does not list, but not an absent optional package; 3 for a gap accepted with --allow-not-run, with
         the other gates still run and the gap recorded; and never evaluates coverage
         over incomplete results. Its Go tests run internal/server first and alone,
-        then the other packages with -p 1. No output, script or Makefile text claims
+        then the other packages with -p 1, both with OPENWATCH_PACKAGING_BUILD=1
+        and OPENWATCH_SSH_CONTAINER_TESTS=1. No output, script or Makefile text claims
         a push is safe. Every hosted-skip message is a t.Skip literal in the tests.
       priority: critical
       references_constraints: [C-20]
