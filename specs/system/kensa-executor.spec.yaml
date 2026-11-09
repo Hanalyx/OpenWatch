@@ -1,7 +1,7 @@
 spec:
   id: system-kensa-executor
   title: Kensa executor wrapper
-  version: "2.10.0"
+  version: "2.10.1"
   status: approved
   tier: 1
 
@@ -10,7 +10,7 @@ spec:
     feature: Kensa scan execution bridge
     description: >
       The executor invokes Kensa (Go module github.com/Hanalyx/kensa
-      pinned to v0.10.0) to run a scan against a single host using the
+      pinned to v0.12.0) to run a scan against a single host using the
       FULL rule corpus applicable to the host's detected OS
       capabilities. The Kensa API (`Kensa.Scan(ctx, host, rules,
       opts...)` in the module's api package) takes a `[]*api.Rule`

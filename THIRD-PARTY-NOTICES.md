@@ -42,18 +42,18 @@ Content hashes identify the inputs without a date that changes on each run.
 
 | Input | SHA-256 |
 |---|---|
-| `go.mod` | `4d4d799fd5d1675ca629ea0d45992fb721a56e1826f79f0cbe859fa10d2e1071` |
-| `go.sum` | `9d472e1fa329e29d1c1e82d3edbfa81446b2a460fba1e828677257fa24f3e240` |
+| `go.mod` | `d1b81f7b394a8da6cf749dfa0858cc848135ca77ee6a3a4ab835608529e5cb6f` |
+| `go.sum` | `b0b7a614cb444d0f260355379b68a6570ec8c4abd3556a674c34be4648015951` |
 | `frontend/package.json` | `e6540953c7768c1f9d2e3095d5a0bef9512de2053cbcfc189e9b56c564e503f7` |
 | `frontend/package-lock.json` | `648935775727fe7145294f9780decd8c961e3821fee3a53b8190ce58a27cea19` |
-| `packaging/third-party-go-licenses.json` | `34d7dec0af6bf54bbb9fc049de68cf06b7bfec129e2c36152cf0346374f8ed84` |
+| `packaging/third-party-go-licenses.json` | `da51b471ac7f5116774e835a4e20754a13fcef427cdced91483236b456400bb4` |
 
 ## Go modules
 
 | Module | Version | Module-level license |
 |---|---|---|
 | `github.com/BurntSushi/toml` | v1.6.0 | MIT |
-| `github.com/Hanalyx/kensa` | v0.10.0 | BUSL-1.1 |
+| `github.com/Hanalyx/kensa` | v0.12.0 | BUSL-1.1 |
 | `github.com/apapsch/go-jsonmerge/v2` | v2.0.0 | MIT |
 | `github.com/boombuler/barcode` | v1.1.0 | MIT |
 | `github.com/dustin/go-humanize` | v1.0.1 | MIT |

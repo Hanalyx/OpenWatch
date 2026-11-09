@@ -123,7 +123,8 @@ sensitivity:
 ### Per-OS rule applicability
 
 Read from each rule's `platforms:` block in the bundled corpus. **Derived
-2026-09-25 from Kensa v0.10.0**, the version `go.mod` pins:
+2026-09-25 from Kensa v0.10.0** and unchanged in Kensa v0.12.0, the version
+`go.mod` pins:
 
 | OS family | Rules applicable |
 |-----------|-------------------|
@@ -251,7 +252,8 @@ a compliance score.
   partial-success semantics.
 - Kensa filters its corpus by the host's detected platform at scan time.
 - Rule corpus applicability, read from the corpus platform declarations and
-  derived 2026-09-25 from Kensa v0.10.0 as pinned in `go.mod`: **779 rules**
+  derived 2026-09-25 from Kensa v0.10.0 and unchanged in v0.12.0, the version
+  pinned in `go.mod`: **779 rules**
   spanning RHEL 8/9/10 and Ubuntu 22.04/24.04, of which 689 apply to the RHEL
   family and 284 to Ubuntu. Rules can apply to more than one platform, so
   these overlap.

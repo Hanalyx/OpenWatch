@@ -64,7 +64,7 @@
     }
   },
   "github.com/Hanalyx/kensa": {
-    "version": "v0.10.0",
+    "version": "v0.12.0",
     "license": "BUSL-1.1",
     "files": {
       "LICENSE": "a1ab98973a8fb4fbbc3d3a1e599db1b7bf1a497b0ba3053ea50ed530d65411fa"
