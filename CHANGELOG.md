@@ -70,6 +70,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   now saved with its results, so a run that was retired as stale cannot
   overwrite what a newer run recorded.
 
+### Security
+
+- **Built with Go 1.26.10** (was Go 1.26.9). It fixes GO-2026-6809
+  (CVE-2026-111943, CP `bugs/OW-OW-128`), published 2026-10-21. Go 1.26.10
+  adds a denylist to `crypto/x509`. Certificate verification now refuses
+  known intermediate certificates that are no longer trusted. Before it, a
+  host whose system trust store was not updated could still accept them.
+- **Where OpenWatch is affected.** `govulncheck` reports the issue reachable
+  from `notification.sendSMTP`, which sends report email over TLS. Every
+  outbound TLS connection verifies the server's certificate the same way, so
+  the fix also covers OIDC sign-in and webhook delivery. One exception: an
+  email channel with `smtp_insecure_skip_verify` on verifies no certificate
+  at all, so this fix changes nothing for it. The issue affects outbound
+  connections only, and only when a server presents a chain through one of
+  the distrusted intermediates. We have not reproduced it.
+
 ## [0.8.4] Eyrie (2026-10-10)
 
 A security release. It changes no OpenWatch code. It rebuilds 0.8.3 with
