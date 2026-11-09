@@ -38,7 +38,12 @@ concurrency:
 jobs:
   release:
     name: Build, SBOM, sign, publish
-    runs-on: ubuntu-latest
+    # Pinned to ubuntu-24.04, not ubuntu-latest (CP bugs/OW-OW-129). On
+    # ubuntu-26.04, rpmbuild 4.19+ turns the spec's %attr ownership into
+    # user(openwatch) and group(openwatch) requirements that nothing provides,
+    # so the RPM will not install. Unpin once the spec satisfies those
+    # requirements itself (OW-OW-129, requested behavior 2).
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
