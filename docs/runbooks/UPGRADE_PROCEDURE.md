@@ -192,6 +192,7 @@ Plan for the downtime. The service is stopped during a standard upgrade anyway
 | Migration | Table | Why it locks |
 |---|---|---|
 | 0062 | `posture_snapshots` | `score_pct` changes from `REAL` to `numeric(4,1)`. A compliance score is shown to one decimal and `REAL` cannot hold one. |
+| 0066 | `job_queue` | Builds the unique index `uq_job_queue_discovery_active` without `CONCURRENTLY`, which blocks writes to `job_queue` while it builds. Before that, it scans the active discovery jobs and marks duplicates failed. Adding `lease_token` changes no rows. |
 
 `posture_snapshots` holds one row per host, per day, per framework series, so
 the rewrite time scales with fleet size times how much history you keep. To
@@ -210,6 +211,18 @@ predicts it. **Time the migration against a restored copy of your own database
 before you upgrade production**, and schedule a maintenance window based on what
 you measure. The hourly posture rollup simply runs late afterward; nothing is
 lost.
+
+For 0066, we timed its `job_queue` statements on a copy of a development
+database with 1,552,335 rows and no duplicates to retire. Together they took
+about 0.4 seconds on PostgreSQL 16.12. `job_queue` can hold finished jobs as
+well as active ones, so count its rows before you upgrade:
+
+```bash
+sudo -u openwatch sh -c 'set -a; . /etc/openwatch/secrets.env; set +a;
+  psql "$OPENWATCH_DATABASE_DSN" -c "SELECT count(*) AS rows,
+             pg_size_pretty(pg_total_relation_size('\''job_queue'\'')) AS size
+        FROM job_queue;"'
+```
 
 ## Standard upgrade
 

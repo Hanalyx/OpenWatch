@@ -10,6 +10,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+A patch release. It rebuilds OpenWatch with Go 1.26.10, which fixes
+GO-2026-6809 in certificate verification, and moves the Kensa engine to
+v0.12.0 with an unchanged rule corpus. It fixes five operator-facing defects,
+most of them in host discovery and SSH. Three database migrations run. Upgrade
+promptly for the Go fix, and read the notes below first.
+
+It also carries groundwork for credential protection, which is not yet in
+use. The notes below say what that means on an upgraded server.
+
+Upgrade notes:
+
+- **From 0.8.4:** upgrade `openwatch` and `kensa-rules` together, with the
+  commands in the upgrade procedure. `kensa-rules` moves to 0.12.0 with the
+  same 779 rules. Three migrations run, 0066 to 0068. They are forward-only:
+  to go back, restore the pre-upgrade database backup.
+- **Migration 0066 (discovery job lease)** adds `job_queue.lease_token` and
+  the `host_discovery_backoff` table. It retires duplicate active discovery
+  jobs, as the Fixed entry describes. Then it builds a unique index on
+  `job_queue` without `CONCURRENTLY`, which blocks writes to that table while
+  it builds. The service is stopped during an upgrade, so nothing waits on
+  it. We timed its `job_queue` statements on a copy of a development
+  database with 1,552,335 rows and no duplicates to retire. Together they took
+  about 0.4 seconds on PostgreSQL 16.12. Time them against a copy of your own
+  database if `job_queue` is much larger.
+- **Migrations 0067 and 0068 (credential protection)** create new tables
+  only. They change no existing table.
+- **Credential protection is present but not in use.** Its tables exist
+  after the upgrade and hold no credential data. 0068 adds one keyring state
+  row, marked not initialized, and no keys. No scan, discovery, remediation
+  or monitoring path reads or writes them, and the protected SSH and sudo
+  paths are not reachable from the server. The only part an operator can
+  run is `openwatch credential-key`, which the secret rotation runbook now
+  uses. Nothing in 0.8.5 creates a keyring, so both `credential-key rewrap`
+  and `credential-key verify` report that none exists yet and exit 3.
+- **From 0.8.3 or earlier:** apply the 0.8.4 notes first, then these.
+
 ### Added
 
 - **`openwatch credential-key` keeps credential protection readable across a
@@ -78,6 +114,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   retried after its backoff. `POST /api/v1/hosts/{id}/discovery:run` now
   returns `409 discovery.in_progress` while a discovery for that host is
   queued or running, and the manual sweep skips hosts that are backing off.
+  On upgrade, migration 0066 keeps one active discovery job per host and
+  marks any others failed. Their recorded reason is
+  `host.discovery: retired as a duplicate by migration 0066`. It deletes
+  nothing.
 - **SSH connections now give up when their time limit passes, even in the
   handshake.** The 10-second SSH dial limit covered only the TCP connect. A
   host that accepted the connection and never sent an SSH banner could hold
