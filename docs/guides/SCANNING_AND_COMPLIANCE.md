@@ -61,7 +61,8 @@ RHEL 9 host is `stig_rhel9`. `GET /api/v1/compliance/frameworks` lists the
 families present in your scanned fleet and the keys each one spans.
 
 The counts below are rules that reference each key in the corpus this release
-pins (Kensa v0.10.0, 779 rules). They change with the `kensa-rules` package,
+pins (Kensa v0.12.0, 779 rules, unchanged since v0.10.0). They change with the
+`kensa-rules` package,
 not with the OpenWatch binary.
 
 | Family | Key | Rules |

@@ -121,7 +121,7 @@ func TestVariableCatalog_CorpusUsedAndPlaceholders(t *testing.T) {
 }
 
 // configureMeInventory is the variable inventory api-system-scan-config
-// C-07 names for the pinned corpus (Kensa v0.10.0): the three placeholder
+// C-07 names for the pinned corpus (Kensa v0.12.0): the three placeholder
 // defaults and the eight variables Kensa ships with no value. A Kensa bump
 // that changes the set fails AC-08 on purpose, so the inventory and the
 // contract are reviewed together.
@@ -164,7 +164,7 @@ func TestVarsFingerprint_StableAndValueSensitive(t *testing.T) {
 // AC-11: a list-valued override reaches the rule's check parameters
 // verbatim when the corpus reloads, and the built-in default returns when
 // the override is removed. authorized_listening_ports ships with an empty
-// default (Kensa v0.10.0), so its rule compares against nothing until an
+// default (Kensa v0.12.0), so its rule compares against nothing until an
 // operator declares the set.
 func TestCorpusReload_ListOverrideReachesCheck(t *testing.T) {
 	t.Run("api-system-scan-config/AC-11", func(t *testing.T) {

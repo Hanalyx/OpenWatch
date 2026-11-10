@@ -23,6 +23,26 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   verifies before the old key is deleted. Nothing uses credential protection
   yet, so this changes no scan, discovery or monitoring behavior.
 
+### Changed
+
+- **Kensa engine v0.12.0** (was v0.10.0). The rule corpus is identical: 779
+  rules, no rule ids or variables changed. The `kensa-rules` package carries
+  the new version with the same content. Two engine corrections from v0.11.0
+  reach operators. A remediation step that fails partway now reports the host
+  as unconfirmed. OpenWatch shows that as **Partially applied** with an
+  inspection prompt, where it used to show **Reverted, host unchanged**.
+  Expect more of those prompts: a handler that failed without changing
+  anything reports the same way, because the engine has no evidence either
+  way. Evidence signatures for partially applied transactions with stranded
+  steps now verify. From v0.11.1 the engine refuses to recover an interrupted
+  transaction whose journal and captured state disagree, and leaves it open.
+  Evidence envelopes stay schema v1. The v0.13.0 v2 envelope needs a storage
+  decision first and is deferred (CP `features/OW-OW-127`).
+- **The `kensa-rules` package drops Go source from the staged corpus.** Kensa
+  v0.12.0 placed the embedded-corpus package source beside the rule files.
+  The staging script now removes `*.go` after copying. No shipped package was
+  affected, because every release so far linked v0.10.0.
+
 ### Fixed
 
 - **The Reconnect button now says why it failed.** On a host's page, the

@@ -317,7 +317,12 @@ rescan finds.
 | The fix writes a GRUB parameter that needs a reboot | `staged` (shown as **Staged, reboot required**) | `remediation.executed` (`staged`) | The new value on disk, the old value running until reboot |
 | The rule's own check fails after apply and the captured state is restored | `reverted` (shown as **Reverted, host unchanged**) | `remediation.executed` (`reverted`) | The captured state, restored by the engine |
 | Some steps applied and one could not be reversed | `partially_applied` (shown as **Partially applied**) | `remediation.executed` (`partially_applied`) | A mix; the transaction view names the step |
+| A step fails partway through its own apply | `partially_applied` (shown as **Partially applied**) | `remediation.executed` (`partially_applied`) | Unconfirmed. The engine does not reverse a step that failed and cannot know what it changed. Inspect the host. |
 | The host already satisfied the rule | `not_applied` (shown as **Not applied**) | `remediation.executed` (`not_applied`) | Unchanged, and no rollback is offered |
+
+Before Kensa v0.11.0 the engine reported the failed-step case as **Reverted, host
+unchanged**. Since OpenWatch moved to Kensa v0.12.0 it reports **Partially
+applied**, so expect more inspection prompts.
 
 A rescan after a **Fixed** result shows the rule passing. A rescan after a
 **Staged** result still shows it failing until the host reboots, because the

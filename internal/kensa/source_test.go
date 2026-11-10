@@ -89,6 +89,25 @@ func TestSpec_VersionPin_MatchesGoMod(t *testing.T) {
 	})
 }
 
+// @ac AC-10
+// AC-10 (package doc side): doc.go's "Kensa version pin" comment names
+// the same version as KensaModuleVersion. doc.go says AC-10 verifies
+// this comment, so a bump that leaves the comment behind must fail here.
+func TestPackageDoc_VersionPin_MatchesConstant(t *testing.T) {
+	t.Run("system-kensa-executor/AC-10", func(t *testing.T) {
+		doc := mustReadFile(t, filepath.Join(packageDir(t), "doc.go"))
+
+		re := regexp.MustCompile(`Kensa version pin: github\.com/Hanalyx/kensa (v[0-9][^ ]*)`)
+		m := re.FindStringSubmatch(doc)
+		if m == nil {
+			t.Fatalf("doc.go has no %q comment; AC-10 verifies it", "Kensa version pin: github.com/Hanalyx/kensa <version>")
+		}
+		if m[1] != KensaModuleVersion {
+			t.Errorf("doc.go pins Kensa at %q, but KensaModuleVersion is %q", m[1], KensaModuleVersion)
+		}
+	})
+}
+
 // @ac AC-11
 // AC-11: internal/kensa source files import only internal/credential
 // (no other internal/ that handles credentials) for credential

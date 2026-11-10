@@ -43,6 +43,10 @@ fi
 # read-only, so normalize perms after copying (dirs 0755, files 0644).
 mkdir -p "$DEST"
 cp -R "$SRC/." "$DEST/"
+# Since Kensa v0.12.0 the module's rules/ directory also holds the Go source
+# of the embedded-corpus package. Kensa says it must not be installed, and
+# the loader reads only *.yml, so drop it from the staged tree.
+find "$DEST" -type f -name '*.go' -delete
 chmod -R u+w "$DEST"
 find "$DEST" -type d -exec chmod 0755 {} +
 find "$DEST" -type f -exec chmod 0644 {} +
