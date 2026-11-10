@@ -297,6 +297,11 @@ func TestBinder_AuditOnRejection(t *testing.T) {
 		})
 		mw := Binder(pool, stubLookups{role: auth.RoleViewer, status: AccountActive})(next)
 
+		// Unique per run: audit_events is not truncated between runs, so a
+		// fixed id would let a repeat run (-count=N) read an earlier row.
+		badJWT := "rej-bad-jwt-" + uuid.NewString()
+		noSession := "rej-no-session-" + uuid.NewString()
+
 		// Inject correlation_id so we can find the audit row.
 		send := func(corr string, configure func(*http.Request)) {
 			req := httptest.NewRequest("GET", "/probe", nil)
@@ -306,15 +311,19 @@ func TestBinder_AuditOnRejection(t *testing.T) {
 			mw.ServeHTTP(httptest.NewRecorder(), req)
 		}
 
-		send("rej-bad-jwt", func(r *http.Request) {
+		send(badJWT, func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer not-a-jwt")
 		})
-		send("rej-no-session", func(r *http.Request) {
+		send(noSession, func(r *http.Request) {
 			r.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "never-issued"})
 		})
 
-		// Let the audit writer flush.
-		time.Sleep(150 * time.Millisecond)
+		// The audit writer is batched and asynchronous. Wait for each row
+		// instead of sleeping a fixed time (CP bugs/OW-OW-130). On timeout
+		// the query below fails with "query audit for ...".
+		for _, corr := range []string{badJWT, noSession} {
+			waitForAuditRows(t, pool, "auth.login.failure", corr, 1, auditRowDeadline)
+		}
 
 		// Each rejected attempt must produce one auth.login.failure row
 		// with detail.reason populated.
@@ -322,8 +331,8 @@ func TestBinder_AuditOnRejection(t *testing.T) {
 			corr   string
 			reason string
 		}{
-			{"rej-bad-jwt", "invalid_jwt"},
-			{"rej-no-session", "invalid_session_token"},
+			{badJWT, "invalid_jwt"},
+			{noSession, "invalid_session_token"},
 		} {
 			var detail string
 			err := pool.QueryRow(context.Background(),
@@ -342,6 +351,30 @@ func TestBinder_AuditOnRejection(t *testing.T) {
 			}
 		}
 	})
+}
+
+// auditRowDeadline bounds waitForAuditRows. It is a ceiling, not a
+// delay: the poll returns as soon as the rows exist.
+const auditRowDeadline = 5 * time.Second
+
+// waitForAuditRows polls audit_events until at least want rows match
+// action and correlationID, or the deadline passes. It does not fail the
+// test itself; the caller's own query and assertion report a missing row.
+func waitForAuditRows(t *testing.T, pool *pgxpool.Pool, action, correlationID string, want int64, deadline time.Duration) {
+	t.Helper()
+	end := time.Now().Add(deadline)
+	for {
+		var n int64
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM audit_events WHERE action = $1 AND correlation_id = $2`,
+			action, correlationID).Scan(&n); err != nil {
+			t.Fatalf("count audit_events for %s: %v", correlationID, err)
+		}
+		if n >= want || !time.Now().Before(end) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // Silence unused-import warnings under partial builds.
