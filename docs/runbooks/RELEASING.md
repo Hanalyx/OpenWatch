@@ -401,8 +401,10 @@ is inherited from any RC. `release-ci-gates` C-14 is the contract.
    sets the three bound places to the bare version: `VERSION="X.Y.Z"` in
    `packaging/version.env`, the README phrase, and the newest CHANGELOG heading
    `## [X.Y.Z] <codename> (<date>)`. **The date is the intended publication
-   date**, not the date of the commit. Nothing else changes in that pull
-   request. Merge it.
+   date**, not the date of the commit. `scripts/release_prep_pr.py draft` also
+   rewrites every `**Applies to:** OpenWatch v<previous> (<codename>)` banner
+   to the new version, and those banners belong in the same pull request.
+   Nothing else changes in that pull request. Merge it.
 
 2. **Cut the tag with the Stage 2 commands, unchanged.** Record the merged
    final-version commit's full SHA as the candidate; `scripts/release_tag.py`
