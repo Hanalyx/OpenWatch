@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -335,8 +336,13 @@ func TestServer_ShutdownEndsSSEStreams(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 		// /slow answers 503 if its request context is canceled, so a fix
-		// that cancels every request at shutdown fails this test too.
+		// that cancels every request at shutdown fails this test too. It
+		// signals reached on entry, so the test cancels only once the
+		// request is in flight rather than after a guessed sleep.
+		reached := make(chan struct{})
+		var reachedOnce sync.Once
 		s.Routes().Get("/slow", func(w http.ResponseWriter, r *http.Request) {
+			reachedOnce.Do(func() { close(reached) })
 			select {
 			case <-time.After(500 * time.Millisecond):
 				w.WriteHeader(http.StatusOK)
@@ -393,7 +399,11 @@ func TestServer_ShutdownEndsSSEStreams(t *testing.T) {
 			resp.Body.Close()
 			slowStatus <- resp.StatusCode
 		}()
-		time.Sleep(100 * time.Millisecond) // let /slow reach its handler
+		select {
+		case <-reached:
+		case <-time.After(5 * time.Second):
+			t.Fatal("/slow never reached its handler")
+		}
 
 		cancel()
 		select {
