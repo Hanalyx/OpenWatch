@@ -10,6 +10,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stopping the service no longer waits 30 seconds and fails while a
+  browser is open.** The web UI keeps a live event stream open, and a
+  graceful shutdown waited for it to finish, which it never does. After the
+  30-second grace the process exited 1, and systemd marked the unit
+  `failed`, including during every package upgrade. Open event streams now
+  end as soon as shutdown begins, so a stop exits 0 in a few seconds. Other
+  requests in flight still get the full 30 seconds to finish. The browser
+  reconnects its stream when the service is back.
+
 ### Security
 
 - **Built with Go 1.26.11** (was Go 1.26.10). It fixes GO-2026-6859 in

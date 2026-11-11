@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/apitoken"
@@ -371,6 +372,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool) *Server {
 			GetCertificate: cm.getCertificate,
 		},
 	}
+
+	// End open SSE streams when graceful shutdown begins, so Shutdown can
+	// finish inside its grace period. Other requests keep their contexts
+	// and the full grace. Spec system-http-server C-16.
+	shuttingDown := make(chan struct{})
+	var closeShutdown sync.Once
+	srv.RegisterOnShutdown(func() { closeShutdown.Do(func() { close(shuttingDown) }) })
+	apiHandlers.shutdown = shuttingDown
 
 	// In-process worker that drains the job queue (diagnostics, discovery,
 	// and — via WithScanProcessor — scans). Started by Run, stopped on

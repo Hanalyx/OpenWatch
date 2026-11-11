@@ -22,6 +22,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -29,11 +30,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Hanalyx/openwatch/internal/config"
 	"github.com/Hanalyx/openwatch/internal/correlation"
+	"github.com/Hanalyx/openwatch/internal/eventbus"
 )
 
 // mintSelfSignedCert writes a self-signed ECDSA cert + key pair to dir and
@@ -301,6 +304,124 @@ func TestServer_RunHandlesInflightDuringShutdown(t *testing.T) {
 			t.Error("inflight request neither completed nor errored within 3s")
 		}
 		_ = <-runDone // ensure goroutine exits — value not asserted here
+	})
+}
+
+// @ac AC-21
+// AC-21: an open SSE stream must not hold graceful shutdown. Before the
+// fix, http.Server.Shutdown waited for the stream to go idle, which it
+// never does, so Run returned "context deadline exceeded" after 30 s and
+// the process exited 1 (CP bugs/OW-OW-131). A plain request in flight at
+// the same moment must still be served: the grace is not shortened.
+func TestServer_ShutdownEndsSSEStreams(t *testing.T) {
+	t.Run("system-http-server/AC-21", func(t *testing.T) {
+		dir := t.TempDir()
+		certPath, keyPath := mintSelfSignedCert(t, dir)
+		port := pickFreePort(t)
+
+		cfg := config.Defaults()
+		cfg.Server.Listen = "127.0.0.1:" + port
+		cfg.Server.TLSCert = certPath
+		cfg.Server.TLSKey = keyPath
+		s := New(cfg, nil)
+		bus := eventbus.NewBus()
+		defer bus.Shutdown()
+		s.WithEventBus(bus)
+		// The real events handler, with an admin identity, as the
+		// handler tests in sse_handler_test.go reach it.
+		s.Routes().Get("/sse-probe", func(w http.ResponseWriter, r *http.Request) {
+			s.handlers.GetEventsStream(w, r.WithContext(withMergedIdentity(r.Context(), adminIdentity(t))))
+		})
+		s.Routes().Get("/ready", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		// /slow answers 503 if its request context is canceled, so a fix
+		// that cancels every request at shutdown fails this test too. It
+		// signals reached on entry, so the test cancels only once the
+		// request is in flight rather than after a guessed sleep.
+		reached := make(chan struct{})
+		var reachedOnce sync.Once
+		s.Routes().Get("/slow", func(w http.ResponseWriter, r *http.Request) {
+			reachedOnce.Do(func() { close(reached) })
+			select {
+			case <-time.After(500 * time.Millisecond):
+				w.WriteHeader(http.StatusOK)
+			case <-r.Context().Done():
+				w.WriteHeader(http.StatusServiceUnavailable)
+			}
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		runDone := make(chan error, 1)
+		go func() { runDone <- s.Run(ctx) }()
+
+		client := &http.Client{Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test-only
+		}}
+		base := "https://127.0.0.1:" + port
+		ready := false
+		for i := 0; i < 100 && !ready; i++ {
+			if resp, err := client.Get(base + "/ready"); err == nil {
+				resp.Body.Close()
+				ready = true
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if !ready {
+			t.Fatal("server did not start listening")
+		}
+
+		stream, err := client.Get(base + "/sse-probe?topics=host.changed")
+		if err != nil {
+			t.Fatalf("open SSE stream: %v", err)
+		}
+		// On failure the stream would hold the server for 30 s; closing it
+		// lets the background Run finish before the test binary moves on.
+		defer stream.Body.Close()
+		if stream.StatusCode != http.StatusOK || stream.Header.Get("Content-Type") != "text/event-stream" {
+			t.Fatalf("SSE stream: status %d, Content-Type %q", stream.StatusCode, stream.Header.Get("Content-Type"))
+		}
+		streamEnded := make(chan struct{})
+		go func() {
+			_, _ = io.Copy(io.Discard, stream.Body)
+			close(streamEnded)
+		}()
+
+		slowStatus := make(chan int, 1)
+		go func() {
+			resp, err := client.Get(base + "/slow")
+			if err != nil {
+				slowStatus <- -1
+				return
+			}
+			resp.Body.Close()
+			slowStatus <- resp.StatusCode
+		}()
+		select {
+		case <-reached:
+		case <-time.After(5 * time.Second):
+			t.Fatal("/slow never reached its handler")
+		}
+
+		cancel()
+		select {
+		case err := <-runDone:
+			if err != nil {
+				t.Fatalf("Run returned %v, want nil after a graceful shutdown with an SSE stream open", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Run did not return within 5 s of cancellation: an open SSE stream held graceful shutdown")
+		}
+		select {
+		case <-streamEnded:
+		case <-time.After(time.Second):
+			t.Error("the SSE stream was still open after Run returned")
+		}
+		if got := <-slowStatus; got != http.StatusOK {
+			t.Errorf("in-flight /slow status = %d, want 200: shutdown must not cut short ordinary requests", got)
+		}
 	})
 }
 

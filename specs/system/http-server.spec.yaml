@@ -1,7 +1,7 @@
 spec:
   id: system-http-server
   title: HTTPS server with TLS hot-reload
-  version: "1.5.0"
+  version: "1.6.0"
   status: approved
   tier: 2
 
@@ -131,6 +131,18 @@ spec:
         than a parse failure, and the API guide says so.
       type: technical
       enforcement: error
+    - id: C-16
+      description: >-
+        When Run begins graceful shutdown, every open Server-Sent Events
+        stream MUST end promptly, so that http.Server.Shutdown can finish
+        inside its grace period and Run returns nil. Shutdown does not
+        cancel request contexts, and an event stream never goes idle on its
+        own, so the stream handler MUST also watch a shutdown signal that
+        the server raises from RegisterOnShutdown. Other requests keep their
+        request contexts and the full 30-second grace; the grace period is
+        not shortened. CP bugs/OW-OW-131.
+      type: technical
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: Server.Run() binds to cfg.Server.Listen and accepts HTTPS connections using TLSCert and TLSKey via GetCertificate.
@@ -215,3 +227,11 @@ spec:
         new plain-text error cannot be added without failing this criterion.
       priority: high
       references_constraints: [C-15]
+    - id: AC-21
+      description: >-
+        With an SSE stream open through the real events handler on a running
+        TLS server, canceling Run's context makes Run return nil within 5
+        seconds, and the client's stream ends. A plain request in flight at
+        the same moment is still served to completion with 200.
+      priority: high
+      references_constraints: [C-16]

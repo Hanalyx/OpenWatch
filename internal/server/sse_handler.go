@@ -112,6 +112,10 @@ func (h *handlers) GetEventsStream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-h.shutdown:
+			// Graceful shutdown began. Returning ends the response, so the
+			// connection can go idle and Shutdown can finish (C-16).
+			return
 		case <-keepalive.C:
 			if _, err := w.Write([]byte(":keepalive\n\n")); err != nil {
 				return

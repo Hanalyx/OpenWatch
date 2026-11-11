@@ -75,6 +75,13 @@ type handlers struct {
 	// Spec api-events-stream (Track B).
 	bus *eventbus.Bus
 
+	// shutdown is closed when the HTTP server begins graceful shutdown
+	// (srv.RegisterOnShutdown in New). Long-lived streams select on it,
+	// because http.Server.Shutdown does not cancel request contexts and an
+	// open stream never goes idle. nil (handlers built in tests) never
+	// fires. Spec system-http-server C-16.
+	shutdown <-chan struct{}
+
 	// Discovery wiring. Set via (*Server).WithDiscovery; nil in tests
 	// that don't exercise /hosts/{id}/discovery:run.
 	// Spec system-host-discovery.
