@@ -42,7 +42,7 @@ Content hashes identify the inputs without a date that changes on each run.
 
 | Input | SHA-256 |
 |---|---|
-| `go.mod` | `d1b81f7b394a8da6cf749dfa0858cc848135ca77ee6a3a4ab835608529e5cb6f` |
+| `go.mod` | `ba20ceee01c1a0377698a5efda7d5e65d17f6132b1a83ba5a939b3e064e6017f` |
 | `go.sum` | `b0b7a614cb444d0f260355379b68a6570ec8c4abd3556a674c34be4648015951` |
 | `frontend/package.json` | `e6540953c7768c1f9d2e3095d5a0bef9512de2053cbcfc189e9b56c564e503f7` |
 | `frontend/package-lock.json` | `648935775727fe7145294f9780decd8c961e3821fee3a53b8190ce58a27cea19` |
