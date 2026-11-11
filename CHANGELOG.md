@@ -10,6 +10,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **Built with Go 1.26.11** (was Go 1.26.10). It fixes GO-2026-6859 in
+  `net/http` (CVE-2026-97054, CP `bugs/OW-OW-132`), published 2026-11-11.
+  On an HTTP/1 server, when a
+  `MaxBytesReader` limit is exceeded, `net/http` set a response header without
+  synchronization. A handler that read the request body while it wrote headers
+  could crash the server.
+- **Where OpenWatch is affected.** `govulncheck` reports the issue reachable at
+  symbol level from the HTTPS server and the outbound HTTP client. No code
+  linked into OpenWatch uses `MaxBytesReader` or `MaxBytesHandler`, so we read
+  the crash path as unreachable in OpenWatch as built. We have not reproduced
+  it.
+
 ## [0.8.5] Eyrie (2026-11-12)
 
 A patch release. It rebuilds OpenWatch with Go 1.26.10, which fixes
