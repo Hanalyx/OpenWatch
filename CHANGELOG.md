@@ -10,38 +10,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- **Stopping the service no longer waits 30 seconds and fails while a
-  browser is open.** The web UI keeps a live event stream open, and a
-  graceful shutdown waited for it to finish, which it never does. After the
-  30-second grace the process exited 1, and systemd marked the unit
-  `failed`, including during every package upgrade. Open event streams now
-  end as soon as shutdown begins, so a stop exits 0 in a few seconds. Other
-  requests in flight still get the full 30 seconds to finish. The browser
-  reconnects its stream when the service is back.
-
-### Security
-
-- **Built with Go 1.26.11** (was Go 1.26.10). It fixes GO-2026-6859 in
-  `net/http` (CVE-2026-97054, CP `bugs/OW-OW-132`), published 2026-11-11.
-  On an HTTP/1 server, when a
-  `MaxBytesReader` limit is exceeded, `net/http` set a response header without
-  synchronization. A handler that read the request body while it wrote headers
-  could crash the server.
-- **Where OpenWatch is affected.** `govulncheck` reports the issue reachable at
-  symbol level from the HTTPS server and the outbound HTTP client. No code
-  linked into OpenWatch uses `MaxBytesReader` or `MaxBytesHandler`, so we read
-  the crash path as unreachable in OpenWatch as built. We have not reproduced
-  it.
-
-## [0.8.5] Eyrie (2026-11-12)
-
-A patch release. It rebuilds OpenWatch with Go 1.26.10, which fixes
-GO-2026-6809 in certificate verification, and moves the Kensa engine to
-v0.12.0 with an unchanged rule corpus. It fixes five operator-facing defects,
-most of them in host discovery and SSH. Three database migrations run. Upgrade
-promptly for the Go fix, and read the notes below first.
+A patch release. It replaces 0.8.5, which was tagged and never published.
+It builds OpenWatch with Go 1.26.11, which fixes GO-2026-6809 in certificate
+verification and GO-2026-6859 in `net/http`. It moves the Kensa engine to
+v0.12.0 with an unchanged rule corpus. It fixes six operator-facing defects,
+most of them in host discovery, SSH and service shutdown. Three database
+migrations run. Upgrade promptly for the Go fixes, and read the notes below
+first.
 
 It also carries groundwork for credential protection, which is not yet in
 use. The notes below say what that means on an upgraded server.
@@ -69,7 +44,7 @@ Upgrade notes:
   or monitoring path reads or writes them, and the protected SSH and sudo
   paths are not reachable from the server. The only part an operator can
   run is `openwatch credential-key`, which the secret rotation runbook now
-  uses. Nothing in 0.8.5 creates a keyring, so both `credential-key rewrap`
+  uses. Nothing in 0.8.6 creates a keyring, so both `credential-key rewrap`
   and `credential-key verify` report that none exists yet and exit 3.
 - **From 0.8.3 or earlier:** apply the 0.8.4 notes first, then these.
 
@@ -108,6 +83,14 @@ Upgrade notes:
 
 ### Fixed
 
+- **Stopping the service no longer waits 30 seconds and fails while a
+  browser is open.** The web UI keeps a live event stream open, and a
+  graceful shutdown waited for it to finish, which it never does. After the
+  30-second grace the process exited 1, and systemd marked the unit
+  `failed`, including during every package upgrade. Open event streams now
+  end as soon as shutdown begins, so a stop exits 0 in a few seconds. Other
+  requests in flight still get the full 30 seconds to finish. The browser
+  reconnects its stream when the service is back.
 - **The Reconnect button now says why it failed.** On a host's page, the
   Connectivity card showed "Reconnect failed (409)" when a discovery for that
   host was already running. It now shows the server's reason, "a discovery for
@@ -159,19 +142,37 @@ Upgrade notes:
 
 ### Security
 
-- **Built with Go 1.26.10** (was Go 1.26.9). It fixes GO-2026-6809
-  (CVE-2026-111943, CP `bugs/OW-OW-128`), published 2026-10-21. Go 1.26.10
-  adds a denylist to `crypto/x509`. Certificate verification now refuses
-  known intermediate certificates that are no longer trusted. Before it, a
-  host whose system trust store was not updated could still accept them.
-- **Where OpenWatch is affected.** `govulncheck` reports the issue reachable
-  from `notification.sendSMTP`, which sends report email over TLS. Every
-  outbound TLS connection verifies the server's certificate the same way, so
-  the fix also covers OIDC sign-in and webhook delivery. One exception: an
-  email channel with `smtp_insecure_skip_verify` on verifies no certificate
-  at all, so this fix changes nothing for it. The issue affects outbound
-  connections only, and only when a server presents a chain through one of
-  the distrusted intermediates. We have not reproduced it.
+- **Built with Go 1.26.11** (0.8.4 used Go 1.26.9). It fixes two
+  advisories in the Go standard library. We have reproduced neither.
+- **GO-2026-6809 in `crypto/x509`** (CVE-2026-111943, CP `bugs/OW-OW-128`),
+  published 2026-10-21. Certificate verification now refuses known
+  intermediate certificates that are no longer trusted, through a denylist
+  added in Go 1.26.10. Before it, a host whose system trust store was not
+  updated could still accept them.
+  - `govulncheck` reports it reachable from `notification.sendSMTP`, which
+    sends report email over TLS. Every outbound TLS connection verifies the
+    server's certificate the same way, so the fix also covers OIDC sign-in
+    and webhook delivery.
+  - One exception: an email channel with `smtp_insecure_skip_verify` on
+    verifies no certificate at all, so this fix changes nothing for it.
+  - It affects outbound connections only, and only when a server presents a
+    chain through one of the distrusted intermediates.
+- **GO-2026-6859 in `net/http`** (CVE-2026-97054, CP `bugs/OW-OW-132`),
+  published 2026-11-11. On an HTTP/1 server, when a `MaxBytesReader` limit
+  is exceeded, `net/http` set a response header without synchronization. A
+  handler that read the request body while it wrote headers could crash the
+  server.
+  - `govulncheck` reports it reachable at symbol level from the HTTPS server
+    and the outbound HTTP client.
+  - No code linked into OpenWatch uses `MaxBytesReader` or
+    `MaxBytesHandler`, so we read the crash path as unreachable in OpenWatch
+    as built.
+
+## [0.8.5] Eyrie (2026-11-12)
+
+Tagged and never published. GO-2026-6859 was published after the tag, and
+0.8.6 replaces this release. The 0.8.6 notes cover the whole upgrade from
+0.8.4.
 
 ## [0.8.4] Eyrie (2026-10-10)
 
