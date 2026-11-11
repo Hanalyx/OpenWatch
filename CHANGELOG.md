@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.6] Eyrie (2026-11-13)
+
 A patch release. It replaces 0.8.5, which was tagged and never published.
 It builds OpenWatch with Go 1.26.11, which fixes GO-2026-6809 in certificate
 verification and GO-2026-6859 in `net/http`. It moves the Kensa engine to
