@@ -181,7 +181,7 @@ jobs:
       # Fails closed: the step runs whenever a key is configured, which a tag
       # push requires (Detect signing keys), and it fails the run unless every
       # DEB in dist/ has a signature that verifies with the imported key.
-      # Spec: release-package-build C-14.
+      # Spec: release-package-build C-18.
       - name: GPG-sign DEBs
         if: steps.keys.outputs.gpg == 'true'
         env:

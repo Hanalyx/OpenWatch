@@ -291,6 +291,10 @@ func TestReleaseWorkflow_SignsDebsBeforeChecksums(t *testing.T) {
 				"the DEBs must be signed after the RPMs and before the SBOMs and SHA256SUMS",
 				detect, rpms, debs, sboms, sums)
 		}
+		// The comment block above the step names the constraint it implements.
+		if !strings.Contains(wf[rpms:debs], "# Spec: release-package-build C-18.") {
+			t.Error("the comment above GPG-sign DEBs does not cite release-package-build C-18")
+		}
 		step := wf[debs:sboms]
 		if !strings.Contains(step, "if: steps.keys.outputs.gpg == 'true'") {
 			t.Error("GPG-sign DEBs is not gated on the detected key the way GPG-sign RPMs is")
