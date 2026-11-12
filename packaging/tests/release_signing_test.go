@@ -582,8 +582,7 @@ func stepBody(t *testing.T, wf, name string) string {
 }
 
 // @ac AC-29
-// @ac AC-30
-// AC-29, AC-30: release.yml signs the RPMs, then the DEBs, before the SBOMs
+// AC-29: release.yml signs the RPMs, then the DEBs, before the SBOMs
 // and checksums, and SHA256SUMS after them; every signing step resolves the
 // one pinned key and signs with it through the scripts; a tag push with no
 // key fails, so a tag never publishes an unsigned package.
