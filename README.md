@@ -9,18 +9,22 @@
 
 ---
 
-An auditor asks: *"Were these 200 servers compliant with STIG on January 15th?"*
+An auditor asks: *"Are these 200 servers compliant with STIG, and how has that
+changed?"*
 
-With manual processes, that question takes a week to answer. With point-in-time
-scanning tools, you can only answer it if you happened to scan that day. With
-OpenWatch, it is a query: answered in seconds, backed by machine-verifiable
-evidence, exportable as CSV, JSON, PDF or OSCAL.
+With manual processes, that question takes a week to answer. With scanning
+tools you run by hand, you know only what you last scanned. OpenWatch scans on
+an adaptive schedule, so the current answer is on the dashboard, with a daily
+posture history and trend behind it. Each check carries structured, machine-readable
+evidence that anyone with access to the host can rerun, and reports export as
+CSV, JSON, PDF or OSCAL. Scan evidence is not signed. A per-rule answer for a
+past date ("were they compliant on January 15th?") is planned, not shipped.
 
 OpenWatch is a continuous compliance platform for Linux fleets under CIS,
 STIG, NIST 800-53, NIST 800-171, CMMC Level 2 and PCI DSS. It connects to your
 servers over SSH, runs the 779-rule [Kensa](https://github.com/Hanalyx/kensa)
-corpus, and keeps posture
-as a timeline: what is passing now, what was passing last Tuesday, what
+corpus, and keeps a daily
+posture history: what is passing now, how each host's score has moved, what
 drifted since your last assessment, and what needs attention before the next
 one. **[Read the introduction](docs/guides/INTRODUCTION.md)** for what it does
 and how it is built.
@@ -36,11 +40,14 @@ and how it is built.
 
 ## Deploy in 10 minutes
 
-**Requirements:** a Linux host (RHEL/Rocky/Fedora/Oracle or Ubuntu/Debian),
-PostgreSQL, and 4 GB RAM. No Docker, Podman, or containers are required.
+**Requirements:** a Linux host, PostgreSQL 15 or newer, and 4 GB RAM. No
+Docker, Podman, or containers are required. `openwatch setup` is tested on
+RHEL 9, AlmaLinux 10, Ubuntu 24.04 and Debian 12. Other RHEL-family releases 8
+to 10, and other Debian-family releases, run only with `--allow-untested`.
+Fedora is refused.
 
 ```bash
-sudo dnf install ./openwatch-*.rpm ./kensa-rules-*.noarch.rpm   # RHEL / Rocky / Fedora / Oracle
+sudo dnf install ./openwatch-*.rpm ./kensa-rules-*.noarch.rpm   # RHEL family
 sudo apt install ./openwatch_*.deb ./kensa-rules_*.deb          # Ubuntu / Debian
 
 sudo openwatch setup                   # provision PostgreSQL, migrate, create the admin, start

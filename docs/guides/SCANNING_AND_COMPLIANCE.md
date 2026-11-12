@@ -11,8 +11,10 @@ audit exports. Most of these tasks are performed in the web UI.
 ## How scanning works
 
 When a scan runs, OpenWatch uses the Kensa compliance engine to connect to the
-target host over SSH, execute each rule's check command, and return a pass/fail
-result with machine-verifiable evidence.
+target host over SSH, execute each rule's check command, and return a pass or
+fail result. Each result carries structured, machine-readable evidence: the
+command Kensa ran, its output and its exit status. Scan evidence is not signed.
+Anyone with access to the host can rerun the command to check the result.
 
 ```
 Operator selects "Run Scan" (or adaptive scheduler triggers)

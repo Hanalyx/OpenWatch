@@ -80,10 +80,12 @@ On a host that already runs PostgreSQL, either takes about five minutes.
   **Ubuntu 24.04 LTS** and **Debian 12**. See
   [Linux distribution support](LINUX_DISTRIBUTION_SUPPORT.md) for what that
   claim covers and what it does not.
-  - RPM: RHEL 9 and its binary-compatible rebuilds (Rocky Linux 9, AlmaLinux 9,
-    Oracle Linux 9, CentOS Stream 9), and AlmaLinux 10. CI smoke-tests the RPM
-    in `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, `fedora:41` and
-    `almalinux:10` containers, not in CentOS Stream 9.
+  - RPM: tested on RHEL 9 and AlmaLinux 10. Every other RHEL-family release
+    from 8 to 10 is untested, and `openwatch setup` runs there only with
+    `--allow-untested`. CI also installs the RPM, without running setup, in
+    `rockylinux:9`, `almalinux:9`, `oraclelinux:9`, `fedora:41` and
+    `almalinux:10` containers. That proves the package installs, not that the
+    server runs.
   - DEB: Ubuntu 24.04 LTS, Debian 12 (or a compatible `systemd` derivative)
 - **Architecture:** `x86_64`/`amd64` or `aarch64`/`arm64` (packages ship for both).
 - **CPU/RAM:** 1 vCPU / 512 MB for the service itself; size up for large fleets.
@@ -274,7 +276,7 @@ itself.
 | Platform | Behavior |
 |---|---|
 | RHEL 9, AlmaLinux 10, Debian 12, Ubuntu 24.04 | Runs. Covered by testing. |
-| Rocky, Oracle Linux 8-10, AlmaLinux 8-9, RHEL 10 | Requires `--allow-untested` |
+| RHEL 8 and 10, AlmaLinux 8 and 9, and other RHEL-family releases 8 to 10 (Rocky Linux, Oracle Linux, CentOS Stream) | Requires `--allow-untested` |
 | Ubuntu 22.04, other Debian releases | Requires `--allow-untested` |
 | Anything else | Refused |
 

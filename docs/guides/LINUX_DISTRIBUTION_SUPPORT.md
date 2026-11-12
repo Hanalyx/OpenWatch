@@ -1,9 +1,9 @@
 # Linux distribution support matrix
 
 > **Scope.** OpenWatch targets Linux, but **not every Linux distribution is
-> supported to the same degree**. Compliance *scanning* is supported on the
-> **RHEL family and on Ubuntu**, because those are the platforms the bundled
-> Kensa rule corpus declares. This page states, with
+> supported to the same degree**. Compliance *scanning* is supported on
+> **RHEL, on Rocky Linux 9 and AlmaLinux 9, and on Ubuntu**. Those are the
+> platforms the bundled Kensa rule corpus declares and Kensa claims. This page states, with
 > evidence, which distributions work for (1) running the OpenWatch server and
 > (2) being added as a managed and scanned host. **These are separate
 > questions with separate answers**: the server list comes from the release
@@ -34,10 +34,14 @@ numbered.
 
 ## TL;DR
 
-- **Compliance scanning works on RHEL 8 / 9 / 10** and its binary-compatible
-  rebuilds (Rocky, AlmaLinux, CentOS Stream, Oracle Linux), **and on Ubuntu
-  22.04 / 24.04 LTS.** A single host is measured against the subset of the
-  corpus that applies to its operating system, never against all of it.
+- **Compliance scanning works on RHEL 8 / 9 / 10, on Rocky Linux 9 and
+  AlmaLinux 9, and on Ubuntu 22.04 / 24.04 LTS.** A single host is measured
+  against the subset of the corpus that applies to its operating system, never
+  against all of it.
+- **Oracle Linux and CentOS Stream are not claimed as scan targets.** Their
+  `ID_LIKE` can match the RHEL family, but Kensa does not claim them and
+  nothing exercises them. Rocky Linux and AlmaLinux releases other than 9 are
+  not claimed either, until Kensa states its position.
 - **Each rule declares the platforms it applies to**, so a host is only
   evaluated against rules that match its detected OS. Ubuntu hosts are scanned
   against the Ubuntu rule set; RHEL hosts against the RHEL rule set.
@@ -128,7 +132,7 @@ Read from each rule's `platforms:` block in the bundled corpus. **Derived
 
 | OS family | Rules applicable |
 |-----------|-------------------|
-| RHEL family (RHEL, Rocky, AlmaLinux, CentOS Stream, Oracle Linux) | 689 |
+| RHEL family (rules that declare `rhel`) | 689 |
 | Ubuntu (22.04, 24.04) | 284 |
 
 A rule can apply to several platforms, so these counts overlap: 495 rules
@@ -150,10 +154,11 @@ bundled rule corpus carries no Debian rules. Neither fact softens the other.
 | Distribution | Discovery | Intelligence | Compliance scan | Overall as a scanned host |
 |--------------|-----------|--------------|-----------------|---------|
 | **RHEL 8 / 9 / 10** | Supported | Supported | Supported, full | **Supported** |
-| **Rocky Linux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
-| **AlmaLinux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
-| **CentOS Stream 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
-| **Oracle Linux 8 / 9** | Supported | Supported | Supported (matches RHEL family via `ID_LIKE`) | **Supported** |
+| **Rocky Linux 9** | Supported | Supported | Supported. Kensa exercises `rockylinux/rockylinux:9` | **Supported** |
+| **AlmaLinux 9** | Supported | Supported | Supported. Kensa exercises `almalinux:9` | **Supported** |
+| **Rocky Linux 8, AlmaLinux 8** | Supported | Supported | Not claimed. May match the RHEL family via `ID_LIKE`; Kensa has not stated a position | **Not claimed** as a scan target |
+| **CentOS Stream** | Supported | Supported | Not claimed. May match the RHEL family via `ID_LIKE`; Kensa does not claim it | **Not claimed** as a scan target |
+| **Oracle Linux** | Supported | Supported | Not claimed. May match the RHEL family via `ID_LIKE`; Kensa does not claim it | **Not claimed** as a scan target |
 | **Ubuntu 22.04 / 24.04 LTS** | Supported | Supported | Supported | **Supported** |
 | **Fedora** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** |
 | **Debian 12** | Supported | Supported | Not supported, **all rules skip** | **Inventory only** as a scan target. Release-tested as a *server* platform. |
@@ -161,7 +166,9 @@ bundled rule corpus carries no Debian rules. Neither fact softens the other.
 | **Alpine / Arch / Gentoo / other** | Supported (best-effort) | Partial | Not supported, **all rules skip** | **Unsupported** |
 
 Legend: **Supported** means the phase works; **Partial** means partial or
-unverified support; **Not supported** means no coverage for that phase.
+unverified support; **Not supported** means no coverage for that phase;
+**Not claimed** means a scan may produce results, but neither Kensa nor
+OpenWatch stands behind them.
 
 > **"Inventory only"** means discovery and Server Intelligence populate the
 > host (OS, packages, services, and so on) but there is **no compliance
