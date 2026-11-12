@@ -14,7 +14,8 @@
 #                 candidate tag's commit; only a success counts, and a
 #                 skipped job is never evidence (release-ci-gates C-19)
 #   release-asset an asset on the candidate's release, draft or published
-#   asset-digests every manifested asset downloaded and hashed against SHA256SUMS
+#   asset-digests every manifested asset (packages, DEB signatures, SBOMs)
+#                 downloaded and hashed against SHA256SUMS
 #   checksums-signature  SHA256SUMS.asc verified against security/KEYS
 #   tag-identity  the tag on origin names the evaluated commit
 #   per-platform  expands over [[platform]] below; satisfied by a container
@@ -155,7 +156,7 @@ blocking = true
 [[gate]]
 id = "R1"
 title = "Signed artifacts on the release"
-proves = "release.yml produced RPM and DEB for both arches with SBOMs, on the candidate's release (a draft for a GA candidate)"
+proves = "release.yml produced RPM and DEB for both arches with SBOMs, and a detached signature beside each DEB, on the candidate's release (a draft for a GA candidate)"
 evidence = "release-asset"
 assets = [
   "openwatch-*.x86_64.rpm",
@@ -164,6 +165,9 @@ assets = [
   "openwatch_*_arm64.deb",
   "kensa-rules-*.noarch.rpm",
   "kensa-rules_*_all.deb",
+  "openwatch_*_amd64.deb.asc",
+  "openwatch_*_arm64.deb.asc",
+  "kensa-rules_*_all.deb.asc",
 ]
 blocking = true
 

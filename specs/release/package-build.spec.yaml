@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -219,6 +219,54 @@ spec:
         outside the shipped bundle. Generated inventory drift fails CI.
       type: technical
       enforcement: error
+    - id: C-18
+      description: >
+        Every DEB a release publishes MUST carry a detached, ASCII-armored
+        GPG signature, published beside it as <deb>.asc, made by the same
+        key and signing subkey that sign the RPMs (C-19). An operator
+        verifies it with `gpg --import KEYS` and `gpg --verify <deb>.asc
+        <deb>`. release.yml makes the signatures with
+        packaging/sign-detached.sh after the RPMs are signed and before the
+        SBOMs and SHA256SUMS, and SHA256SUMS lists each .asc. The step is
+        gated on a configured signing key, as the RPM step is, and a tag push
+        without one fails before anything is signed, so a tag never publishes
+        an unsigned DEB. The script fails closed: it removes each named
+        file's earlier .asc first, and exits non-zero, leaving no signature,
+        when the key is not a full fingerprint, no file is named or one is
+        missing (an unmatched glob included), GPG_PASSPHRASE is not in the
+        environment, signing fails, or a signature does not verify as a good
+        one whose primary is that key. debsigs, dpkg-sig and a signed apt
+        repository are out of scope.
+      type: security
+      enforcement: error
+    - id: C-19
+      description: >
+        Every release signature MUST be made by one pinned key: the RPM
+        headers, the DEB signatures and SHA256SUMS.asc (CP bugs/OW-OW-145).
+        After the import, each signing step runs
+        packaging/release-signing-key.sh with security/KEYS at the built
+        commit and signs with the 40-hex primary fingerprint it prints,
+        through packaging/sign-rpms.sh (%_gpg_name) or
+        packaging/sign-detached.sh (--local-user), never with FPR!, so gpg
+        selects the signing subkey of a certify-only primary. The resolver
+        refuses, before anything is signed and printing no fingerprint, a
+        keyring holding no secret primary or more than one (a stubbed
+        primary counts), a primary that is not a primary in KEYS, and a key
+        with no usable signing key (a primary or subkey that can sign, whose
+        secret is present, and that is not expired, revoked or disabled).
+        KEYS may hold several primaries, as during a rotation. Each signer
+        verifies what it signed: sign-detached.sh requires a VALIDSIG whose
+        primary is the pinned key, and sign-rpms.sh requires `rpm -K` in a
+        throwaway rpm database holding only KEYS to report signatures OK.
+        sign-rpms.sh keeps its macros and the passphrase in private
+        temporary files, never in ~/.rpmmacros or on a command line, and
+        never overrides rpm's %__gpg_sign_cmd: it sets only the key
+        (%_gpg_name, and %_openpgp_sign_id for rpm 6), the digest and the
+        extra gpg arguments, which rpm 4.18 (ubuntu-24.04, the release image)
+        and rpm 6.0 (ubuntu-26.04, the hosted test image) both read.
+        release.yml itself contains no inline signing command.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -397,3 +445,44 @@ spec:
         check after installing locked frontend dependencies.
       priority: high
       references_constraints: [C-17]
+    - id: AC-29
+      description: >
+        Run with a release-shaped throwaway key (a certify-only primary and a
+        signing subkey, imported with --export-secret-subkeys so the primary
+        is stubbed) and its fingerprint, packaging/sign-detached.sh writes an
+        ASCII-armored .asc for each DEB and for SHA256SUMS, and each verifies
+        in a fresh keyring holding only the exported public key, with the
+        subkey as signer and the primary as primary. A DEB changed after
+        signing, and a signature moved onto another DEB, report BADSIG. The
+        script exits non-zero and leaves no .asc, not even one from an
+        earlier run, for a short key id, no file, an unmatched glob,
+        GPG_PASSPHRASE unset, a wrong passphrase, and a key not in the
+        keyring. Source inspection of release.yml finds GPG-sign RPMs, then
+        GPG-sign DEBs, before the SBOMs and Checksums, and GPG-sign checksums
+        after them; each gated on the detected key, under set -euo pipefail,
+        resolving the key and then running its signer with "$fpr"; no inline
+        --detach-sign, rpmsign, -sbo, .rpmmacros, --local-user, _gpg_name or
+        first-secret-key awk; the key check failing a tag push that has no
+        key; SHA256SUMS listing *.deb.asc under nullglob; dist/*.deb.asc
+        uploaded; each step's comment citing C-18 or C-19; and no remaining
+        "DEBs are NOT signed" rule.
+      priority: critical
+      references_constraints: [C-18, C-19]
+    - id: AC-30
+      description: >
+        packaging/release-signing-key.sh prints the release-shaped key's
+        primary fingerprint after a subkeys-only import, with KEYS holding
+        only that key and with KEYS holding a second primary as well. It
+        exits non-zero and prints nothing on stdout for two secret primaries,
+        no secret key, a key that is not a primary in KEYS, a certify-only
+        key, a signing primary that is stubbed with only an encryption
+        subkey, an expired signing subkey (made under a faked clock), and an
+        unreadable KEYS; and the DEB step's own commands then write no
+        signature. packaging/sign-rpms.sh signs a real RPM with the pinned
+        key, `rpm -qpi` naming the signing subkey, and reports its rpm -K
+        check, on rpm 4.18 and on rpm 6.0; it fails when KEYS lacks the
+        signing key, when an rpmsign that
+        signs nothing leaves the RPM unsigned, and for a short key id, no
+        RPM, a missing RPM, an absent KEYS and GPG_PASSPHRASE unset.
+      priority: critical
+      references_constraints: [C-19]

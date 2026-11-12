@@ -105,10 +105,15 @@ On a host that already runs PostgreSQL, either takes about five minutes.
   service itself runs as the unprivileged `openwatch` user the package creates.
 
 > Download the `.rpm`/`.deb`, the `SHA256SUMS`, `SHA256SUMS.asc`, and `KEYS`
-> from the GitHub release. To verify authenticity before installing:
+> from the GitHub release. For a DEB, download its `.deb.asc` too. To verify
+> authenticity before installing:
 > `gpg --import KEYS && gpg --verify SHA256SUMS.asc SHA256SUMS`, then
-> `sha256sum -c SHA256SUMS`. RPMs are also signed in-header. Import `KEYS`
-> with `rpm --import KEYS` and check with `rpm -K openwatch-*.rpm`.
+> `sha256sum -c SHA256SUMS`. Each package is also signed on its own. RPMs are
+> signed in-header: import `KEYS` with `rpm --import KEYS` and check with
+> `rpm -K openwatch-*.rpm`. From 0.8.6, each DEB has a detached signature
+> beside it, which `gpg --verify <deb>.asc <deb>` checks (see
+> [Step 3](#step-3-install-the-packages)). Releases before 0.8.6 have no
+> `.deb.asc`; for those, the signed `SHA256SUMS` is the check.
 
 ---
 
@@ -669,6 +674,22 @@ PGPASSWORD='replace-with-a-strong-password' psql -h 127.0.0.1 -U openwatch -d op
 ```
 
 ### Step 3: Install the packages
+
+Check each package's own signature first. Each `.deb` has a detached GPG
+signature, `<file>.asc`, on the release beside it, made by the key in `KEYS`.
+
+```bash
+gpg --import KEYS
+gpg --verify openwatch_X.Y.Z_amd64.deb.asc openwatch_X.Y.Z_amd64.deb
+gpg --verify kensa-rules_A.B.C_all.deb.asc kensa-rules_A.B.C_all.deb
+```
+
+Use the filenames you downloaded. Each check must print
+`Good signature from "Hanalyx LLC (release signing) <ops@hanalyx.com>"`.
+gpg also warns that the key is not certified with a trusted signature. That
+warning is expected for a key you imported but have not signed yourself. Do
+not install a package whose check prints `BAD signature` or `No public key`.
+Then install:
 
 ```bash
 sudo apt install -y ./openwatch_*_amd64.deb ./kensa-rules_*_all.deb

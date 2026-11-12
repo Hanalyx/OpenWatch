@@ -139,17 +139,22 @@ jobs:
             echo "cosign=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Per-package GPG signatures for the RPMs. rpmsign embeds the signature in
-      # each RPM header (operators verify with `rpm --import KEYS` + `rpm -K`, or
-      # dnf gpgcheck). Runs BEFORE SBOM/checksums because it rewrites the package
-      # bytes. The default %__gpg points at gpg2, absent on Ubuntu runners, so set
-      # it explicitly.
+      # Every signing step signs with ONE pinned key: the fingerprint that
+      # packaging/release-signing-key.sh prints after the import. It refuses,
+      # before anything is signed, a keyring holding no secret primary or more
+      # than one, a key that is not a primary in security/KEYS (the file
+      # operators import), and a key with no usable signing subkey or primary.
+      # Each step re-runs it, so the RPMs, the DEBs and SHA256SUMS are signed
+      # by the same fingerprint, and each step verifies what it signed against
+      # it. Signing with the plain fingerprint (never FPR!) selects the
+      # signing subkey; the real primary is certify-only.
+      # Spec: release-package-build C-19 (CP bugs/OW-OW-145).
       #
-      # DEBs are NOT signed per-package: apt/dpkg never verify standalone-.deb
-      # signatures, and the tooling that produced them (dpkg-sig) was removed from
-      # Ubuntu. Each .deb's authenticity instead rides on its SHA256 in the
-      # GPG-signed (and cosign-signed) SHA256SUMS manifest below. A signed apt
-      # repo is the proper next step if per-DEB trust is ever required.
+      # Per-package GPG signatures for the RPMs. rpmsign embeds the signature
+      # in each RPM header (operators verify with `rpm --import KEYS` and
+      # `rpm -K`, or dnf gpgcheck). Runs BEFORE SBOMs and checksums because it
+      # rewrites the package bytes. packaging/sign-rpms.sh then checks every
+      # RPM with `rpm -K` in a throwaway rpm database holding only KEYS.
       - name: GPG-sign RPMs
         if: steps.keys.outputs.gpg == 'true'
         env:
@@ -158,17 +163,37 @@ jobs:
         run: |
           set -euo pipefail
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
-          gpg_bin="$(command -v gpg)"
-          # Non-interactive rpmsign with a loopback-passphrase sign command.
-          cat > "$HOME/.rpmmacros" <<RPMMACROS
-          %__gpg ${gpg_bin}
-          %_signature gpg
-          %_gpg_name ${key_id}
-          %__gpg_sign_cmd %{__gpg} --batch --no-armor --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
-          RPMMACROS
-          # Sign every RPM in dist/, including the noarch kensa-rules corpus.
-          rpmsign --addsign dist/*.rpm
+          fpr="$(bash packaging/release-signing-key.sh security/KEYS)"
+          # Every RPM in dist/, including the noarch kensa-rules corpus.
+          bash packaging/sign-rpms.sh "$fpr" security/KEYS dist/*.rpm
+
+      # Per-package GPG signatures for the DEBs: a detached, ASCII-armored
+      # signature beside each package, <deb>.asc, by the same pinned key.
+      # Operators verify with `gpg --import KEYS` and then
+      # `gpg --verify <deb>.asc <deb>`. Nothing is embedded in the .deb, so
+      # its bytes and its SBOM digest are unchanged; this still runs BEFORE
+      # SBOMs and checksums so that SHA256SUMS lists each .asc too. Listing
+      # them puts every downloadable package file in the one signed manifest,
+      # so `sha256sum -c SHA256SUMS` covers the signatures and the release
+      # checker's digest gate (A1) downloads and hashes them.
+      #
+      # Not debsigs or dpkg-sig: apt and dpkg never verify an embedded
+      # signature on a standalone .deb, so a detached one is what an operator
+      # can check. A signed apt repository is later work.
+      #
+      # Fails closed: the step runs whenever a key is configured, which a tag
+      # push requires (Detect signing keys), and it fails the run unless every
+      # DEB has a good signature by the pinned key. An unmatched glob reaches
+      # the script as a literal name, which it refuses as a missing file.
+      # Spec: release-package-build C-18.
+      - name: GPG-sign DEBs
+        if: steps.keys.outputs.gpg == 'true'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          fpr="$(bash packaging/release-signing-key.sh security/KEYS)"
+          bash packaging/sign-detached.sh "$fpr" dist/*.deb
 
       # SBOM: syft scans the actual (signed) binary and packages and emits
       # CycloneDX 1.5 JSON — supply-chain AC-08 / AC-09.
@@ -212,24 +237,29 @@ jobs:
           "$RUNNER_TEMP/sbom-venv/bin/pip" install --quiet --require-hashes --no-deps -r packaging/sbom/requirements.txt
           bash packaging/sbom/merge-and-check.sh "$RUNNER_TEMP/sbom-venv/bin/python"
 
+      # The DEB signatures are listed with the packages (see GPG-sign DEBs).
+      # nullglob keeps an unsigned workflow_dispatch trial, which has no
+      # .asc files, from passing the literal pattern to sha256sum.
       - name: Checksums
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           cd dist
-          sha256sum *.rpm *.deb *.cdx.json > SHA256SUMS
+          sha256sum *.rpm *.deb *.deb.asc *.cdx.json > SHA256SUMS
           cat SHA256SUMS
 
       # Detached GPG signature over the checksum manifest — the universal verify
       # path (`gpg --verify SHA256SUMS.asc SHA256SUMS`), independent of rpm/dpkg.
-      # The key was already imported by the GPG-sign packages step.
+      # The key was already imported by the GPG-sign RPMs step. Signed by the
+      # same pinned fingerprint, and verified against it (C-19).
       - name: GPG-sign checksums
         if: steps.keys.outputs.gpg == 'true'
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          cd dist
-          gpg --batch --yes --pinentry-mode loopback \
-            --passphrase "$GPG_PASSPHRASE" \
-            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS
+          set -euo pipefail
+          fpr="$(bash packaging/release-signing-key.sh security/KEYS)"
+          bash packaging/sign-detached.sh "$fpr" dist/SHA256SUMS
 
       # cosign attestation over the checksum manifest (sigstore). Offline,
       # key-based, no Rekor transparency-log upload.
@@ -276,6 +306,7 @@ jobs:
             dist/openwatch_*.deb
             dist/kensa-rules-*.rpm
             dist/kensa-rules_*.deb
+            dist/*.deb.asc
             dist/SHA256SUMS
             dist/SHA256SUMS.asc
             dist/SHA256SUMS.cosign.sig

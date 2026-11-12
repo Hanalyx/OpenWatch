@@ -16,13 +16,18 @@ passes:
 
   release   the tag on origin names the commit; with a download, each asset's
             sha256 matches the digest GitHub reports for it
-  manifest  SHA256SUMS lists exactly the package and SBOM assets, each once,
+  manifest  SHA256SUMS lists exactly the package, package-signature and SBOM
+            assets, each once,
             and every file matches its entry; the KEYS asset equals
             security/KEYS at the commit
   signature SHA256SUMS.asc is a good signature by the release key, which is a
             primary key in security/KEYS at the commit (a throwaway GnuPG home)
   rpm       every RPM's header signature and digests verify against that key
             (a throwaway rpm database)
+  deb       every package declared with a detached signature (each DEB) has
+            an ASCII-armored <file>.asc on which gpg reports a good signature
+            over that package, and only good ones, by the release key (the
+            same throwaway GnuPG home)
   binary    each openwatch package's /usr/bin/openwatch: `go version -m`
             reports go.mod's toolchain, vcs.revision = the commit,
             vcs.modified=false, ldflags Version and Commit, the package's
@@ -34,7 +39,8 @@ passes:
             license-manifest.json and a THIRD-PARTY-NOTICES.md identical to
             the commit's
   inventory every asset declared in release/assets.toml at the commit is present
-            (each package by architecture, its SBOM, and the required files),
+            (each package by architecture, its SBOM and declared signature, and
+            the required files),
             and nothing undeclared is; kensa-rules is named by go.mod's version
   sbom      each package has a CycloneDX SBOM whose subject is that package's
             file and sha256; openwatch SBOMs list Go modules at go.mod's
@@ -76,8 +82,8 @@ TIMEOUTS = {"download": 1800, "gh": 120, "git": 120, "gpg": 120, "rpm": 120,
 
 # Every area must report at least one check; an area that could not run is a
 # failure, never a silent pass.
-AREAS = ("release", "inventory", "manifest", "signature", "rpm", "binary", "vulns",
-         "notices", "sbom")
+AREAS = ("release", "inventory", "manifest", "signature", "rpm", "deb", "binary",
+         "vulns", "notices", "sbom")
 
 INVENTORY = "release/assets.toml"
 
@@ -205,7 +211,7 @@ def inventory(run, exp):
     pkgs = []
     for p in data.get("package", []):
         pkgs.append({"file": p["file"].format(version=name_version, kensa=exp["kensa"]),
-                     "binary": bool(p.get("binary"))})
+                     "binary": bool(p.get("binary")), "asc": bool(p.get("asc"))})
     files = data.get("files", {})
     return ({"packages": pkgs, "required": list(files.get("required", [])),
              "optional": list(files.get("optional", []))}, source)
@@ -275,7 +281,8 @@ def check_inventory(run, assets, exp):
     run.check("inventory", "source", True, exp["inventory_source"])
     present = set(os.listdir(assets))
     expected = [p["file"] for p in inv["packages"]] + [
-        p["file"] + ".cdx.json" for p in inv["packages"]] + inv["required"]
+        p["file"] + ".cdx.json" for p in inv["packages"]] + [
+        p["file"] + ".asc" for p in inv["packages"] if p["asc"]] + inv["required"]
     for f in expected:
         run.check("inventory", f, f in present, "present" if f in present else "missing")
     extra = sorted(present - set(expected) - set(inv["optional"]))
@@ -306,8 +313,12 @@ def check_manifest(run, assets, exp):
         expected = set(f for f in files if f not in ("SHA256SUMS", "SHA256SUMS.asc", "KEYS")
                        and not f.endswith(".cosign.sig"))
     else:
+        # The package signatures are listed with the packages, so that
+        # `sha256sum -c SHA256SUMS` covers every file an operator downloads
+        # to install or verify one (release-package-build C-18).
         expected = set(p["file"] for p in inv["packages"]) | set(
-            p["file"] + ".cdx.json" for p in inv["packages"]) | (
+            p["file"] + ".cdx.json" for p in inv["packages"]) | set(
+            p["file"] + ".asc" for p in inv["packages"] if p["asc"]) | (
             set(inv["required"]) - {"SHA256SUMS", "SHA256SUMS.asc", "KEYS"})
     run.check("manifest", "coverage", set(listed) == expected,
               "unlisted: %s; listed but absent: %s" % (
@@ -357,11 +368,64 @@ def check_signature(run, assets, exp):
     good = run.ok(rec) and valid and run.key in (valid[0][2], valid[0][-1])
     run.check("signature", "SHA256SUMS.asc", good,
               "VALIDSIG from %s" % (valid[0][-1] if valid else "nobody"), rec["path"])
-    # gpg may have started an agent or keyboxd for the throwaway home; stop
-    # them so nothing keeps running after the run.
+    return keys, home
+
+
+def stop_gpg(home):
+    """Stop any agent or keyboxd gpg started for the throwaway home, so nothing
+    keeps running after the run."""
     subprocess.run(["gpgconf", "--homedir", home, "--kill", "all"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return keys
+
+
+# gpg status lines that mean a signature in the file is not a good one.
+_BAD_SIG = ("BADSIG", "ERRSIG", "EXPSIG", "EXPKEYSIG", "REVKEYSIG", "NO_PUBKEY")
+
+
+def check_debs(run, assets, home, exp):
+    """Each package declared with a detached signature: <file>.asc is an
+    ASCII-armored signature over that package, and every signature in it is a
+    good one by the release key. Verified in the throwaway home holding only
+    security/KEYS at the commit."""
+    inv = exp["inventory"]
+    names = (sorted(p["file"] for p in inv["packages"] if p["asc"]) if inv
+             else sorted(f for f in os.listdir(assets) if f.endswith(".deb")))
+    if not names:
+        run.check("deb", "(area)", False, "no package is declared with a detached signature")
+        return
+    for name in names:
+        pkg, asc = os.path.join(assets, name), os.path.join(assets, name + ".asc")
+        if not os.path.isfile(pkg):
+            run.check("deb", name, False, "could not run: the package is missing")
+            continue
+        if not os.path.isfile(asc):
+            run.check("deb", name, False, "no %s.asc: the package is unsigned" % name)
+            continue
+        rec = run.capture("gpg-verify-" + name, [run.tools.cmd["gpg"], "--homedir", home,
+                                                 "--batch", "--status-fd", "1", "--verify",
+                                                 asc, pkg], "gpg")
+        status = [l.split() for l in run.stdout(rec).decode("utf-8", "replace").splitlines()
+                  if l.startswith("[GNUPG:] ")]
+        new = [f for f in status if f[1] == "NEWSIG"]
+        valid = [f for f in status if f[1] == "VALIDSIG"]
+        bad = sorted(set(f[1] for f in status if f[1] in _BAD_SIG))
+        problems = []
+        if not read(asc).startswith(b"-----BEGIN PGP SIGNATURE-----"):
+            problems.append("%s.asc is not an ASCII-armored signature" % name)
+        if not run.ok(rec):
+            problems.append("gpg --verify did not exit 0")
+        if bad:
+            problems.append("gpg reports " + ", ".join(bad))
+        if not valid:
+            problems.append("no good signature")
+        elif len(valid) != len(new):
+            problems.append("%d of %d signatures are good" % (len(valid), len(new)))
+        others = sorted(set(f[-1] for f in valid if run.key not in (f[2], f[-1])))
+        if others:
+            problems.append("signed by %s, not the release key" % ", ".join(others))
+        run.check("deb", name, not problems, "; ".join(problems) or
+                  "good signature over the package by %s" % (valid[0][-1] if valid else "nobody"),
+                  rec["path"])
 
 
 def check_rpms(run, assets, keys, exp):
@@ -632,7 +696,11 @@ def verify(a, tools=None):
     check_release(run, assets, digests)
     check_inventory(run, assets, exp)
     check_manifest(run, assets, exp)
-    keys = check_signature(run, assets, exp)
+    keys, home = check_signature(run, assets, exp)
+    try:
+        check_debs(run, assets, home, exp)
+    finally:
+        stop_gpg(home)
     check_rpms(run, assets, keys, exp)
     inv = exp["inventory"]
     binaries = ([p["file"] for p in inv["packages"] if p["binary"]] if inv else

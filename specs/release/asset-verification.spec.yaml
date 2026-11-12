@@ -1,7 +1,7 @@
 spec:
   id: release-asset-verification
   title: Release asset verification against the candidate commit
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -56,7 +56,8 @@ spec:
         detached (tag_name untagged-<hash>) names no tag and fails. SHA256SUMS
         lists every
         package and SBOM exactly once and each matches; the KEYS asset equals
-        security/KEYS at the commit.
+        security/KEYS at the commit. From release-package-build C-18 the
+        manifest also lists each declared package signature (<deb>.asc).
       type: security
       enforcement: error
     - id: C-03
@@ -92,7 +93,8 @@ spec:
       description: >-
         Completeness is decided by the inventory declared in
         release/assets.toml at the candidate commit: every package by
-        architecture, an SBOM for each, and the required files must be
+        architecture, an SBOM for each, each declared package signature, and
+        the required files must be
         present, and nothing undeclared may be, except declared optional
         files, which are noted and not verified. The manifest's coverage is
         checked against that inventory, not against the directory listing, so
@@ -123,11 +125,25 @@ spec:
         exit status; valid module-only findings still pass.
       type: security
       enforcement: error
+    - id: C-09
+      description: >-
+        Every package that release/assets.toml declares with `asc = true`
+        (every DEB, release-package-build C-18) has <file>.asc among the
+        assets, and it is checked, not only found: it must be an
+        ASCII-armored signature on which gpg, in the same throwaway home
+        holding only security/KEYS at the commit, exits 0 over that package,
+        reports a VALIDSIG for every signature in it, reports no bad,
+        erroneous, expired or revoked signature and no missing key, and
+        names the release key as the signer. A missing package or .asc is a
+        failing check, never a skip. A candidate without the inventory checks
+        every .deb among the assets.
+      type: security
+      enforcement: error
   acceptance_criteria:
     - id: AC-01
       description: >-
         A good release passes every area (release, inventory, manifest,
-        signature, rpm, binary, vulns, notices, sbom), reading the inventory at
+        signature, rpm, deb, binary, vulns, notices, sbom), reading the inventory at
         the candidate commit, without changing an asset, and the report
         states that it records no release decision. Every command is a
         verified capture bound to the tag and commit with one of the declared
@@ -204,3 +220,18 @@ spec:
         fails; valid module-only findings pass and are listed.
       priority: critical
       references_constraints: [C-08]
+    - id: AC-09
+      description: >-
+        With every DEB signed by the release key (real signatures in the
+        tests), the deb area passes and SHA256SUMS lists each .asc. A DEB
+        with no .asc fails its inventory entry, the coverage and its deb
+        check. A DEB changed after signing, with its SBOM and the manifest
+        regenerated so nothing else notices, fails its deb check alone with
+        BADSIG, for an openwatch and a kensa-rules DEB. A signature copied
+        from another DEB, a signature by a key outside security/KEYS, a
+        good signature by another key that security/KEYS does carry, a
+        binary (unarmored) signature, and an armored block that is not a
+        signature each fail that DEB's deb check alone. Naming another key
+        with --key fails every DEB as well as SHA256SUMS.asc.
+      priority: critical
+      references_constraints: [C-09]

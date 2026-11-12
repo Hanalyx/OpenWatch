@@ -96,7 +96,8 @@ image to publish.
 
 The workflow then:
 
-- GPG-signs the RPMs (when `GPG_PRIVATE_KEY` is configured)
+- GPG-signs the RPMs in their headers, and each DEB with a detached `<deb>.asc`
+  (when `GPG_PRIVATE_KEY` is configured)
 - generates a CycloneDX 1.5 SBOM per artifact with `syft`
 - writes `SHA256SUMS`, a detached GPG signature (`SHA256SUMS.asc`), and a `cosign`
   signature (`SHA256SUMS.cosign.sig`) when the respective keys are present
@@ -171,7 +172,7 @@ proof. The report and the raw traces are kept as an artifact for 14 days.
 | Secret | Used by | Purpose |
 |--------|---------|---------|
 | `GITHUB_TOKEN` | issue/PR automation | Provided automatically by GitHub Actions |
-| `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | `release.yml` | Sign RPMs and the checksum manifest |
+| `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` | `release.yml` | Sign the RPMs, the DEBs and the checksum manifest |
 | `COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD` | `release.yml` | Cosign signature over the checksum manifest |
 
 On a tag-push release, GPG signing is required: `release.yml` fails closed and refuses

@@ -122,11 +122,35 @@ func TestReleaseAssets_RequiresTheDeclaredInventory(t *testing.T) {
 func TestReleaseAssets_InventoryMatchesBuildAndUpload(t *testing.T) {
 	t.Run("release-asset-verification/AC-06", func(t *testing.T) {
 		inv := readAppFile(t, "release/assets.toml")
-		var pkgs []string
-		for _, m := range regexp.MustCompile(`(?m)^file = "([^"]+)"$`).FindAllStringSubmatch(inv, -1) {
+		var pkgs, signed []string
+		fileRe := regexp.MustCompile(`(?m)^file = "([^"]+)"$`)
+		for _, block := range strings.Split(inv, "[[package]]")[1:] {
+			if i := strings.Index(block, "\n["); i >= 0 {
+				block = block[:i]
+			}
+			m := fileRe.FindStringSubmatch(block)
+			if m == nil {
+				t.Fatalf("a [[package]] in release/assets.toml has no file: %q", block)
+			}
 			pkgs = append(pkgs, m[1])
+			if regexp.MustCompile(`(?m)^asc = true$`).MatchString(block) {
+				signed = append(signed, m[1])
+			}
 		}
 		sort.Strings(pkgs)
+
+		// Every DEB, and only a DEB, declares its detached signature
+		// (release-package-build C-18); the RPMs are signed in the header.
+		for _, p := range pkgs {
+			isSigned := false
+			for _, s := range signed {
+				isSigned = isSigned || s == p
+			}
+			if strings.HasSuffix(p, ".deb") != isSigned {
+				t.Errorf("release/assets.toml: %s has asc = %v; every DEB and only a DEB carries "+
+					"a detached .asc signature", p, isSigned)
+			}
+		}
 
 		// The Makefile's packages target names one build per package.
 		m := regexp.MustCompile(`(?m)^packages:(.*)$`).FindStringSubmatch(readAppFile(t, "Makefile"))
@@ -187,6 +211,11 @@ func TestReleaseAssets_InventoryMatchesBuildAndUpload(t *testing.T) {
 				t.Errorf("release.yml does not upload the SBOM of %s", p)
 			}
 		}
+		for _, p := range signed {
+			if !match(sample.Replace(p) + ".asc") {
+				t.Errorf("release.yml does not upload the signature of %s (globs %v)", p, globs)
+			}
+		}
 		for _, name := range []string{"openwatch.cdx.json", "SHA256SUMS", "SHA256SUMS.asc", "KEYS",
 			"SHA256SUMS.cosign.sig"} {
 			if !strings.Contains(inv, `"`+name+`"`) {
@@ -203,6 +232,11 @@ func TestReleaseAssets_InventoryMatchesBuildAndUpload(t *testing.T) {
 					used = true
 				}
 			}
+			for _, p := range signed {
+				if ok, _ := path.Match(g, sample.Replace(p)+".asc"); ok {
+					used = true
+				}
+			}
 			for _, name := range []string{"openwatch.cdx.json", "SHA256SUMS", "SHA256SUMS.asc",
 				"KEYS", "SHA256SUMS.cosign.sig"} {
 				if ok, _ := path.Match(g, name); ok {
@@ -213,6 +247,21 @@ func TestReleaseAssets_InventoryMatchesBuildAndUpload(t *testing.T) {
 				t.Errorf("release.yml uploads %q, which release/assets.toml does not declare", g)
 			}
 		}
+	})
+}
+
+// @ac AC-09
+// AC-09: every DEB carries a detached signature by the release key over it.
+func TestReleaseAssets_VerifiesEachDebSignature(t *testing.T) {
+	t.Run("release-asset-verification/AC-09", func(t *testing.T) {
+		requireReleaseAssets(t, "AssetsDebSignatures", 7,
+			"test_a_deb_without_its_signature_fails",
+			"test_a_deb_changed_after_signing_fails",
+			"test_a_signature_over_another_deb_fails",
+			"test_a_signature_by_a_key_outside_keys_fails",
+			"test_a_signature_by_another_key_in_keys_fails",
+			"test_a_signature_that_is_not_armored_or_not_a_signature_fails",
+			"test_signed_debs_pass_and_their_signatures_are_in_the_manifest")
 	})
 }
 
