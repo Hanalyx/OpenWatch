@@ -845,10 +845,12 @@ def gate_definitions_differ(commit):
 
 KEYS = REPO / "security" / "KEYS"
 
-# Assets the manifest must account for. SHA256SUMS lists every package and
-# SBOM; the manifest itself, its signatures and the public keys are outside it
-# by construction.
-MANIFESTED = ("*.rpm", "*.deb", "*.cdx.json")
+# Assets the manifest must account for. SHA256SUMS lists every package, each
+# DEB's detached signature (release-package-build C-18) and every SBOM; the
+# manifest itself, its signatures and the public keys are outside it by
+# construction. Whether each .deb.asc is a good signature is checked by
+# scripts/release_assets.py (release-asset-verification C-09), not here.
+MANIFESTED = ("*.rpm", "*.deb", "*.deb.asc", "*.cdx.json")
 
 
 def release_info(tag):

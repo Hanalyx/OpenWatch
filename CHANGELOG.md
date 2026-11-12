@@ -18,7 +18,7 @@ verification and GO-2026-6859 in `net/http`. It moves the Kensa engine to
 v0.12.0 with an unchanged rule corpus. It fixes six operator-facing defects,
 most of them in host discovery, SSH and service shutdown. Three database
 migrations run. Upgrade promptly for the Go fixes, and read the notes below
-first.
+first. Each DEB is now GPG-signed, as each RPM already was.
 
 It also carries groundwork for credential protection, which is not yet in
 use. The notes below say what that means on an upgraded server.
@@ -153,6 +153,16 @@ Upgrade notes:
 
 ### Security
 
+- **Each DEB now carries its own GPG signature.** Until 0.8.6 a DEB had no
+  signature of its own: its only check was its entry in the signed
+  `SHA256SUMS`. The release now has a detached, ASCII-armored signature
+  beside each DEB, made by the same release key and signing subkey as the
+  RPMs. The new assets are `openwatch_0.8.6_amd64.deb.asc`,
+  `openwatch_0.8.6_arm64.deb.asc` and `kensa-rules_0.12.0_all.deb.asc`, and
+  `SHA256SUMS` lists them. Verify a package with `gpg --import KEYS`, then
+  `gpg --verify <deb>.asc <deb>`. The installation guide shows the commands.
+  `apt` does not check these signatures itself; a signed apt repository is
+  later work.
 - **Built with Go 1.26.11** (0.8.4 used Go 1.26.9). It fixes two
   advisories in the Go standard library. We have reproduced neither.
 - **GO-2026-6809 in `crypto/x509`** (CVE-2026-111943, CP `bugs/OW-OW-128`),

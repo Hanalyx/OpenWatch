@@ -26,7 +26,7 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 
 | Tag | Workflow | Produces |
 |-----|----------|----------|
-| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; RPMs GPG-signed per-package), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
+| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; every package GPG-signed: RPMs in the header, each DEB by a detached `<deb>.asc`), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
 | every PR, `main`, `v*` | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage. A `v*` tag always runs the full pipeline on the tagged commit, and its `Full test evidence` job is what gates Q1 and S1 to S7 read |
 
@@ -561,15 +561,21 @@ layers:
 | Layer | How | Operator verifies |
 |---|---|---|
 | **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
-| **Each DEB** | *not* signed per-package. See note | covered by the signed `SHA256SUMS` below |
-| **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`) | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
+| **Each DEB** | detached, ASCII-armored GPG signature published beside it as `<deb>.asc` ([`packaging/sign-debs.sh`](../../packaging/sign-debs.sh)) | `gpg --import KEYS` then `gpg --verify openwatch_X.Y.Z_amd64.deb.asc openwatch_X.Y.Z_amd64.deb` → "Good signature" |
+| **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`); lists every package, each `.deb.asc` and every SBOM | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
 
-> **Why DEBs aren't signed per-package:** `apt`/`dpkg` never verify a
-> standalone `.deb`'s embedded signature, and the tool that produced them
-> (`dpkg-sig`) was removed from Ubuntu. Each `.deb`'s authenticity instead
-> comes from its SHA256 entry in the GPG- (and cosign-) signed `SHA256SUMS`.
-> A signed apt **repository** is the proper path if per-DEB trust is ever
-> required.
+> **How the DEBs are signed, from 0.8.6.** The founder decided on 2026-11-12
+> that every DEB is GPG-signed before a release is tagged. The signature is
+> detached: `apt` and `dpkg` never verify a signature embedded in a
+> standalone `.deb`, so `debsigs` and `dpkg-sig` would add nothing an
+> operator checks. `release.yml` signs the DEBs with the same key and
+> signing subkey as the RPMs, after the RPMs and before the SBOMs and
+> checksums, and `SHA256SUMS` lists each `.asc`. The step needs the signing
+> key, which a tag push already requires, and it fails the run unless every
+> signature verifies. `scripts/release_assets.py` verifies each `.deb.asc`
+> against its package with the release key (release-asset-verification
+> C-09). Releases before 0.8.6 carry no `.deb.asc`. A signed apt repository
+> is later work.
 
 The Hanalyx GPG public key ships in the repo as [`KEYS`](../../security/KEYS) and is
 attached to every release.
@@ -597,8 +603,9 @@ master private key.
 | `COSIGN_PASSWORD` | the cosign keypair password | optional |
 
 cosign is **optional**: `release.yml` gates it independently, so with only the
-two GPG secrets set, releases still get per-package GPG signatures **and** a
-GPG-signed `SHA256SUMS`: just no cosign `.sig`. Set the GPG pair first; add
+two GPG secrets set, releases still get per-package GPG signatures (RPM
+headers and the DEB `.asc` files) **and** a GPG-signed `SHA256SUMS`: just no
+cosign `.sig`. Set the GPG pair first; add
 cosign once you have its private key.
 
 **Export the signing subkey (never the master) and set the GPG secrets.**

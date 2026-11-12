@@ -14,6 +14,10 @@
 # the files release.yml uploads. Change all three together.
 
 # One openwatch RPM and DEB per architecture; each carries /usr/bin/openwatch.
+# `asc = true` declares a detached GPG signature, <file>.asc, which must be
+# present, listed in SHA256SUMS, and a good signature by the release key over
+# the package. Every DEB carries one (release-package-build C-18); the RPMs
+# carry theirs in the package header instead.
 [[package]]
 file = "openwatch-{version}-1.x86_64.rpm"
 binary = true
@@ -25,10 +29,12 @@ binary = true
 [[package]]
 file = "openwatch_{version}_amd64.deb"
 binary = true
+asc = true
 
 [[package]]
 file = "openwatch_{version}_arm64.deb"
 binary = true
+asc = true
 
 # The rule corpus, architecture-independent.
 [[package]]
@@ -38,9 +44,11 @@ binary = false
 [[package]]
 file = "kensa-rules_{kensa}_all.deb"
 binary = false
+asc = true
 
 [files]
 # Every package also needs <file>.cdx.json; that rule is implied, not listed.
+# So does every package declared with asc = true need <file>.asc.
 required = ["openwatch.cdx.json", "SHA256SUMS", "SHA256SUMS.asc", "KEYS"]
 # Uploaded only when cosign signing is configured. Not verified by the tool.
 optional = ["SHA256SUMS.cosign.sig"]

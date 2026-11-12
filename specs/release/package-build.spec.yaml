@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.7.0"
+  version: "1.8.0"
   status: approved
   tier: 2
 
@@ -219,6 +219,24 @@ spec:
         outside the shipped bundle. Generated inventory drift fails CI.
       type: technical
       enforcement: error
+    - id: C-18
+      description: >
+        Every DEB a release publishes MUST carry a detached, ASCII-armored
+        GPG signature, published beside it as <deb>.asc, made by the same
+        key and signing subkey that sign the RPMs. An operator verifies it
+        with `gpg --import KEYS` and `gpg --verify <deb>.asc <deb>`.
+        release.yml makes the signatures with packaging/sign-debs.sh after
+        the RPMs are signed and before the SBOMs and SHA256SUMS, and
+        SHA256SUMS lists each .asc. The step is gated on a configured signing
+        key, as the RPM step is, and a tag push without one fails before
+        anything is signed, so a tag never publishes an unsigned DEB. The
+        script fails closed: it removes any earlier .deb.asc first, and exits
+        non-zero, leaving no signature, when there is no .deb, no secret key,
+        no GPG_PASSPHRASE in the environment, a signing failure, or a
+        signature that does not verify as a good one by the signing key.
+        debsigs, dpkg-sig and a signed apt repository are out of scope.
+      type: security
+      enforcement: error
 
   acceptance_criteria:
     - id: AC-01
@@ -397,3 +415,20 @@ spec:
         check after installing locked frontend dependencies.
       priority: high
       references_constraints: [C-17]
+    - id: AC-29
+      description: >
+        Run with a throwaway key and passphrase on a directory of DEBs and one
+        RPM, packaging/sign-debs.sh writes an ASCII-armored <deb>.asc for each
+        DEB and none for the RPM, and each verifies as a good signature by
+        that key in a fresh keyring holding only the exported public key. A
+        DEB changed after signing, and a signature moved onto another DEB,
+        report BADSIG. The script exits non-zero and leaves no .deb.asc, not
+        even one from an earlier run, with no .deb, with no secret key, with
+        GPG_PASSPHRASE unset, and with a wrong passphrase. Source inspection
+        of release.yml finds the GPG-sign DEBs step after GPG-sign RPMs and
+        before the SBOMs and Checksums, gated on the detected key and running
+        the script on dist; the key check failing a tag push that has no
+        key; SHA256SUMS listing *.deb.asc under nullglob; dist/*.deb.asc
+        uploaded; and no remaining "DEBs are NOT signed" rule.
+      priority: critical
+      references_constraints: [C-18]

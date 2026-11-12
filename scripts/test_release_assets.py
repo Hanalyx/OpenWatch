@@ -13,7 +13,8 @@ would print. The real tools are exercised by running the verifier against a
 published release (see the release-prep skill).
 
 Each negative case changes one thing and asserts exactly which checks fail.
-One class per criterion of spec release-asset-verification.
+One class per criterion of spec release-asset-verification. The DEB
+signatures are real: each fake DEB is signed by the throwaway release key.
 """
 
 import contextlib
@@ -162,7 +163,9 @@ class Case(unittest.TestCase):
         self.git("push", "--quiet", "origin", "main", "refs/tags/" + TAG)
         return self.git("rev-parse", "HEAD").stdout.decode().strip()
 
-    def package(self, name, binary=None, licenses=None):
+    def package(self, name, binary=None, licenses=None, sign=True):
+        """Build one fake package; a DEB is signed by the release key, as
+        release.yml's GPG-sign DEBs step does, unless sign is False."""
         stage = os.path.join(self.dir, "stage-" + name)
         shutil.rmtree(stage, True)
         files = {}
@@ -184,6 +187,17 @@ class Case(unittest.TestCase):
                 f.write(data)
         with tarfile.open(os.path.join(self.assets, name), "w") as tf:
             tf.add(stage, arcname=".")
+        if sign and name.endswith(".deb"):
+            self.sign_deb(name)
+
+    def sign_deb(self, name, key=None, armor=True):
+        """Write <name>.asc, a detached signature over the package."""
+        asc = os.path.join(self.assets, name + ".asc")
+        if os.path.exists(asc):
+            os.unlink(asc)
+        run(["gpg", "--batch", "--yes", "--local-user", key or Keys.release, "--detach-sign",
+             "--output", asc] + (["--armor"] if armor else []) +
+            [os.path.join(self.assets, name)], env=Keys.env)
 
     def sbom(self, name, digest=None, net="v0.60.0"):
         comps = [{"purl": "pkg:golang/golang.org/x/net@%s" % net},
@@ -276,7 +290,8 @@ class AssetsRunAndEvidence(Case):
             rec = ra.ec.verify_capture(os.path.join(caps, n), tag=TAG, commit=self.commit)
             self.assertIn(rec["invocation"]["timeout_seconds"], set(ra.TIMEOUTS.values()), n)
         kinds = " ".join(names)
-        for want in ("gpg-verify-sha256sums", "rpm-K-", "rpm2cpio-", "cpio-", "extract-",
+        for want in ("gpg-verify-sha256sums", "gpg-verify-openwatch_", "gpg-verify-kensa-rules_",
+                     "rpm-K-", "rpm2cpio-", "cpio-", "extract-",
                      "go-version-m-", "govulncheck-", "git-ls-remote-tag"):
             self.assertIn(want, kinds)
 
@@ -396,8 +411,10 @@ class AssetsSignatures(Case):
     def test_a_key_not_in_keys_fails(self):
         code, out, report = self.verify(key=Keys.other)
         self.assertEqual(code, 1)
-        self.assertEqual(self.failures(report), [("signature", "SHA256SUMS.asc"),
-                                                 ("signature", "release key")])
+        # Each DEB's signature is by the real release key, not the one named.
+        debs = [("deb", p) for p in self.PACKAGES if p.endswith(".deb")]
+        self.assertEqual(self.failures(report), sorted(debs + [("signature", "SHA256SUMS.asc"),
+                                                               ("signature", "release key")]))
 
     def test_an_rpm_whose_signature_fails_is_reported(self):
         with open(os.path.join(self.fake, "rpm-bad"), "w") as f:
@@ -509,8 +526,9 @@ class AssetsInventory(Case):
         # The review's reproduction: every package and package SBOM removed,
         # SHA256SUMS regenerated and signed, so the manifest is consistent.
         for name in self.PACKAGES:
-            for f in (name, name + ".cdx.json"):
-                os.unlink(os.path.join(self.assets, f))
+            for f in (name, name + ".cdx.json", name + ".asc"):
+                if os.path.exists(os.path.join(self.assets, f)):
+                    os.unlink(os.path.join(self.assets, f))
         self.seal()
         code, out, report = self.verify()
         self.assertEqual(code, 1, out)
@@ -520,6 +538,9 @@ class AssetsInventory(Case):
             self.assertIn(("inventory", name), failed)
             self.assertIn(("inventory", name + ".cdx.json"), failed)
             self.assertIn(("sbom", name), failed)
+            if name.endswith(".deb"):
+                self.assertIn(("inventory", name + ".asc"), failed)
+                self.assertIn(("deb", name), failed)
         for name in self.binaries():
             for area in ("binary", "vulns", "notices"):
                 self.assertIn((area, name), failed)
@@ -527,11 +548,12 @@ class AssetsInventory(Case):
 
     def test_a_missing_architecture_fails(self):
         name = "openwatch_%s_arm64.deb" % VERSION
-        os.unlink(os.path.join(self.assets, name))
-        os.unlink(os.path.join(self.assets, name + ".cdx.json"))
+        for f in (name, name + ".cdx.json", name + ".asc"):
+            os.unlink(os.path.join(self.assets, f))
         self.seal()
         self.assert_only_failures([("inventory", name), ("inventory", name + ".cdx.json"),
-                                   ("manifest", "coverage"), ("binary", name), ("vulns", name),
+                                   ("inventory", name + ".asc"), ("manifest", "coverage"),
+                                   ("deb", name), ("binary", name), ("vulns", name),
                                    ("notices", name), ("sbom", name)])
 
     def test_the_optional_cosign_signature_is_allowed_and_noted(self):
@@ -559,6 +581,98 @@ class AssetsInventory(Case):
         self.assertEqual(code, 0, out)
         source = [r["detail"] for r in report["checks"] if r["subject"] == "source"][0]
         self.assertIn("not the candidate", source)
+
+
+class AssetsDebSignatures(Case):
+    """AC-09: every DEB carries a detached signature by the release key over it."""
+
+    DEB = "openwatch_%s_amd64.deb" % VERSION
+    OTHER_DEB = "openwatch_%s_arm64.deb" % VERSION
+    CORPUS_DEB = "kensa-rules_%s_all.deb" % KENSA
+
+    def deb_detail(self, report, name):
+        return [r["detail"] for r in report["checks"] if r["area"] == "deb"
+                and r["subject"] == name][0]
+
+    def test_signed_debs_pass_and_their_signatures_are_in_the_manifest(self):
+        code, out, report = self.verify()
+        self.assertEqual(code, 0, out)
+        debs = sorted(r["subject"] for r in report["checks"] if r["area"] == "deb" and r["ok"])
+        self.assertEqual(debs, sorted(p for p in self.PACKAGES if p.endswith(".deb")))
+        with open(os.path.join(self.assets, "SHA256SUMS")) as f:
+            listed = {l.split()[1] for l in f if l.strip()}
+        for name in debs:
+            self.assertIn(name + ".asc", listed)
+
+    def test_a_deb_without_its_signature_fails(self):
+        os.unlink(os.path.join(self.assets, self.DEB + ".asc"))
+        self.seal()
+        report = self.assert_only_failures([("inventory", self.DEB + ".asc"),
+                                            ("manifest", "coverage"), ("deb", self.DEB)])
+        self.assertIn("unsigned", self.deb_detail(report, self.DEB))
+
+    def test_a_deb_changed_after_signing_fails(self):
+        # The package is rebuilt with other content and its SBOM and the
+        # manifest follow it, so only the stale signature can catch it.
+        for name in (self.DEB, self.CORPUS_DEB):
+            with self.subTest(deb=name):
+                shutil.rmtree(self.evidence, True)
+                self.package(name, licenses={"LICENSE": b"changed\n"}, sign=False)
+                self.sbom(name)
+                self.seal()
+                report = self.assert_only_failures([("deb", name)])
+                self.assertIn("BADSIG", self.deb_detail(report, name))
+                self.package(name)
+                self.sbom(name)
+                self.seal()
+
+    def test_a_signature_over_another_deb_fails(self):
+        shutil.copy(os.path.join(self.assets, self.OTHER_DEB + ".asc"),
+                    os.path.join(self.assets, self.DEB + ".asc"))
+        self.seal()
+        report = self.assert_only_failures([("deb", self.DEB)])
+        self.assertIn("BADSIG", self.deb_detail(report, self.DEB))
+
+    def test_a_signature_by_a_key_outside_keys_fails(self):
+        self.sign_deb(self.DEB, key=Keys.other)
+        self.seal()
+        report = self.assert_only_failures([("deb", self.DEB)])
+        self.assertIn("no good signature", self.deb_detail(report, self.DEB))
+
+    def test_a_signature_by_another_key_in_keys_fails(self):
+        # A good signature by a key that security/KEYS does carry is still not
+        # the release key's.
+        both = run(["gpg", "--batch", "--armor", "--export", Keys.release, Keys.other],
+                   env=Keys.env).stdout
+        with open(os.path.join(self.repo, "security", "KEYS"), "wb") as f:
+            f.write(both)
+        self.git("commit", "--quiet", "-am", "two keys")
+        self.git("tag", "-f", "-a", "-m", TAG, TAG)
+        self.git("push", "--quiet", "--force", "origin", "main", "refs/tags/" + TAG)
+        commit = self.git("rev-parse", "HEAD").stdout.decode().strip()
+        self.keys = both
+        for name in self.binaries():
+            self.package(name, binary=gover(commit, arch=ra.package_arch(name)))
+            self.sbom(name)
+        self.sign_deb(self.DEB, key=Keys.other)
+        self.seal()
+        code, out, report = self.verify(commit=commit)
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.failures(report), [("deb", self.DEB)], out)
+        self.assertIn("not the release key", self.deb_detail(report, self.DEB))
+
+    def test_a_signature_that_is_not_armored_or_not_a_signature_fails(self):
+        self.sign_deb(self.DEB, armor=False)
+        self.seal()
+        report = self.assert_only_failures([("deb", self.DEB)])
+        self.assertIn("not an ASCII-armored signature", self.deb_detail(report, self.DEB))
+        shutil.rmtree(self.evidence)
+        with open(os.path.join(self.assets, self.DEB + ".asc"), "w") as f:
+            f.write("-----BEGIN PGP SIGNATURE-----\n\nnot a signature\n"
+                    "-----END PGP SIGNATURE-----\n")
+        self.seal()
+        report = self.assert_only_failures([("deb", self.DEB)])
+        self.assertIn("no good signature", self.deb_detail(report, self.DEB))
 
 
 class AssetsNoSilentPass(Case):

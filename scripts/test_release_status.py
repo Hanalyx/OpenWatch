@@ -1858,6 +1858,16 @@ class AssetDigestsAreHashedNotTrusted(unittest.TestCase):
         self.assertIn("not in SHA256SUMS", note)
         self.assertIn("aarch64", note)
 
+    def test_a_deb_signature_on_the_release_but_not_in_the_manifest_fails(self):
+        # Each DEB's .asc is listed in SHA256SUMS (release-package-build C-18).
+        self.release["assets"].append({"id": 998, "name": "openwatch_0.8.0_amd64.deb.asc",
+                                       "size": 3})
+        self.blobs[998] = b"sig"
+        status, note = self.run_a1()
+        self.assertEqual(status, rs.FAIL)
+        self.assertIn("not in SHA256SUMS", note)
+        self.assertIn("openwatch_0.8.0_amd64.deb.asc", note)
+
     def test_unreadable_manifest_is_an_error_not_a_pass(self):
         info = rs.release_info("v0.8.0")
         status, _ = rs.verify_asset_digests(info, None, self.work)
