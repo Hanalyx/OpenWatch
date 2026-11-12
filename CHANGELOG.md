@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.6] Eyrie (2026-11-13)
+
 A patch release. It replaces 0.8.5, which was tagged and never published.
 It builds OpenWatch with Go 1.26.11, which fixes GO-2026-6809 in certificate
 verification and GO-2026-6859 in `net/http`. It moves the Kensa engine to
@@ -27,6 +29,15 @@ Upgrade notes:
   commands in the upgrade procedure. `kensa-rules` moves to 0.12.0 with the
   same 779 rules. Three migrations run, 0066 to 0068. They are forward-only:
   to go back, restore the pre-upgrade database backup.
+- **Remediations recorded as Reverted, host unchanged before 0.8.6 may have
+  left part of a change on the host.** Releases 0.7.0 to 0.8.4 recorded a
+  remediation step that failed partway that way. 0.8.6 reports new runs
+  correctly and does not relabel those records. Treat one as a candidate when
+  its journal on the host page shows a failed step, or when it was written by
+  0.7.0, which kept no journal. A failed step can also mean the engine
+  changed nothing, and the record cannot tell which. A record whose steps all
+  applied and then failed validation was reversed as it says. Re-check
+  candidate hosts with a scan (CP `bugs/OW-OW-143`).
 - **Migration 0066 (discovery job lease)** adds `job_queue.lease_token` and
   the `host_discovery_backoff` table. It retires duplicate active discovery
   jobs, as the Fixed entry describes. Then it builds a unique index on
