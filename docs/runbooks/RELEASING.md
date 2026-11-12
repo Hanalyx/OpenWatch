@@ -560,8 +560,8 @@ layers:
 
 | Layer | How | Operator verifies |
 |---|---|---|
-| **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
-| **Each DEB** | detached, ASCII-armored GPG signature published beside it as `<deb>.asc` ([`packaging/sign-debs.sh`](../../packaging/sign-debs.sh)) | `gpg --import KEYS` then `gpg --verify openwatch_X.Y.Z_amd64.deb.asc openwatch_X.Y.Z_amd64.deb` → "Good signature" |
+| **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header), through [`packaging/sign-rpms.sh`](../../packaging/sign-rpms.sh) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
+| **Each DEB** | detached, ASCII-armored GPG signature published beside it as `<deb>.asc` ([`packaging/sign-detached.sh`](../../packaging/sign-detached.sh)) | `gpg --import KEYS` then `gpg --verify openwatch_X.Y.Z_amd64.deb.asc openwatch_X.Y.Z_amd64.deb` → "Good signature" |
 | **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`); lists every package, each `.deb.asc` and every SBOM | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
 
 > **How the DEBs are signed, from 0.8.6.** The founder decided on 2026-11-12
@@ -576,6 +576,17 @@ layers:
 > against its package with the release key (release-asset-verification
 > C-09). Releases before 0.8.6 carry no `.deb.asc`. A signed apt repository
 > is later work.
+
+> **Every signature is made by one pinned key.** Each signing step first
+> runs [`packaging/release-signing-key.sh`](../../packaging/release-signing-key.sh),
+> which prints the fingerprint of the one imported key, and signs with that
+> fingerprint: the RPMs, the DEBs and `SHA256SUMS`. It refuses, before
+> anything is signed, a keyring with no secret key or more than one, a key
+> that is not a primary key in `security/KEYS`, and a key with no usable
+> signing subkey. Each step then checks what it signed against that key:
+> the detached signatures by their VALIDSIG primary, the RPMs with `rpm -K`
+> against `KEYS` alone. Spec: release-package-build C-19 (CP
+> `bugs/OW-OW-145`).
 
 The Hanalyx GPG public key ships in the repo as [`KEYS`](../../security/KEYS) and is
 attached to every release.
@@ -597,7 +608,7 @@ master private key.
 
 | Secret | Source | Required? |
 |---|---|---|
-| `GPG_PRIVATE_KEY` | the **signing subkey only**, exported from the master with the master stubbed (see below) | yes |
+| `GPG_PRIVATE_KEY` | the **signing subkey only**, exported from the master with the master stubbed (see below). It must hold **exactly one key**, and that key's primary must be in [`security/KEYS`](../../security/KEYS) at the commit being released; otherwise every signing step refuses before signing anything | yes |
 | `GPG_PASSPHRASE` | the subkey passphrase (same as master by default) | yes |
 | `COSIGN_PRIVATE_KEY` | the cosign private key (NOT in this vault: retrieve from wherever Kensa's `COSIGN_PRIVATE_KEY` was generated, e.g. 1Password) | optional |
 | `COSIGN_PASSWORD` | the cosign keypair password | optional |
