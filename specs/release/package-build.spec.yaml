@@ -259,7 +259,11 @@ spec:
         primary is the pinned key, and sign-rpms.sh requires `rpm -K` in a
         throwaway rpm database holding only KEYS to report signatures OK.
         sign-rpms.sh keeps its macros and the passphrase in private
-        temporary files, never in ~/.rpmmacros or on a command line.
+        temporary files, never in ~/.rpmmacros or on a command line, and
+        never overrides rpm's %__gpg_sign_cmd: it sets only the key
+        (%_gpg_name, and %_openpgp_sign_id for rpm 6), the digest and the
+        extra gpg arguments, which rpm 4.18 (ubuntu-24.04, the release image)
+        and rpm 6.0 (ubuntu-26.04, the hosted test image) both read.
         release.yml itself contains no inline signing command.
       type: security
       enforcement: error
@@ -476,7 +480,8 @@ spec:
         unreadable KEYS; and the DEB step's own commands then write no
         signature. packaging/sign-rpms.sh signs a real RPM with the pinned
         key, `rpm -qpi` naming the signing subkey, and reports its rpm -K
-        check; it fails when KEYS lacks the signing key, when an rpmsign that
+        check, on rpm 4.18 and on rpm 6.0; it fails when KEYS lacks the
+        signing key, when an rpmsign that
         signs nothing leaves the RPM unsigned, and for a short key id, no
         RPM, a missing RPM, an absent KEYS and GPG_PASSPHRASE unset.
       priority: critical

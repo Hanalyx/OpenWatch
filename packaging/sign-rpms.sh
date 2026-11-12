@@ -49,11 +49,21 @@ trap 'rm -rf -- "$work"' EXIT
 chmod 700 "$work"
 gpg_bin="$(command -v gpg)"
 (umask 077 && printf '%s' "$GPG_PASSPHRASE" >"$work/pass")
+# rpm's own %__gpg_sign_cmd is kept, never overridden: rpm 4.18 (ubuntu-24.04)
+# names the files %{__signature_filename} and %{__plaintext_filename}, while
+# rpm 6.0 (ubuntu-26.04) passes them as %{1} and %{2}, so an override written
+# for one breaks on the other. Both built-in commands read the digest from
+# %_gpg_digest_algo and add %_gpg_sign_cmd_extra_args. The key is %_gpg_name
+# on 4.18 and %_openpgp_sign_id on 6.0 (which defaults to %_gpg_name); both
+# are set to FPR.
 cat >"$work/macros" <<RPMMACROS
 %__gpg ${gpg_bin}
 %_signature gpg
+%_openpgp_sign gpg
 %_gpg_name ${fpr}
-%__gpg_sign_cmd %{__gpg} --batch --no-armor --pinentry-mode loopback --passphrase-file ${work}/pass --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+%_openpgp_sign_id ${fpr}
+%_gpg_digest_algo sha256
+%_gpg_sign_cmd_extra_args --batch --pinentry-mode loopback --passphrase-file ${work}/pass
 RPMMACROS
 chmod 600 "$work/macros"
 rpmsign --load "$work/macros" --addsign "$@"

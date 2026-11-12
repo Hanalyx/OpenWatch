@@ -524,7 +524,9 @@ func TestSignRPMs_SignsWithThePinnedKeyAndChecksAgainstKEYS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("rpm -qpi: %v\n%s", err, info)
 		}
-		sig := regexp.MustCompile(`(?m)^Signature\s*:.*Key ID ([0-9a-f]{16})$`).FindSubmatch(info)
+		// rpm 4.18 prints the signature on the "Signature :" line; rpm 6.0
+		// prints it on the next one.
+		sig := regexp.MustCompile(`(?m)^Signature\s*:[ \t]*\n?[ \t]*[^\n]*Key ID ([0-9a-f]{16})$`).FindSubmatch(info)
 		if sig == nil || strings.ToUpper(string(sig[1])) != rel.signer[24:] {
 			t.Errorf("the RPM signature line names %q, want the signing subkey %s\n%s", sig, rel.signer[24:], info)
 		}
