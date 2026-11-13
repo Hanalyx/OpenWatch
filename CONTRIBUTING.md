@@ -331,7 +331,8 @@ Contributors are recognized in several ways:
 ### Repository secrets the workflows read
 
 Only `release.yml` reads secrets: `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` sign <!-- pragma: allowlist secret -->
-the checksums, `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` sign the packages.
+every package and `SHA256SUMS`. `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` are
+optional: when set, they add a cosign signature to `SHA256SUMS` only.
 How the GPG key is exported and set is in
 [`docs/runbooks/RELEASING.md`](docs/runbooks/RELEASING.md). Every other
 workflow runs with the automatic `GITHUB_TOKEN`.
