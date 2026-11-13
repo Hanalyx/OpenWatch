@@ -258,7 +258,8 @@ INHERIT_FIELDS = ("tag", "commit", "attestation_sha256", "docs_sha256",
 INHERIT_DEPTH = 8
 INHERITED_VERDICT = "inherited"
 
-# Accepted documentation defects (release-ci-gates C-22, added in 1.26.0). A
+# Accepted documentation defects (release-ci-gates C-22, added in 1.26.0 for
+# v0.8.4 and amended in 1.32.0 for v0.8.6). A
 # D1 verdict is "accurate" or nothing, with one narrow exception: a document
 # the release captain has explicitly accepted as defective for one candidate.
 # Two records must agree. The tracked registry below carries the technical
@@ -266,7 +267,7 @@ INHERITED_VERDICT = "inherited"
 # references). The captain's acceptance, its date and the captain's identity
 # are internal and live in the D1 attestation as [[defect_acceptance]]. Such a
 # document is never "accurate"; it is "accepted-defect".
-DOC_EXCEPTION_RULE = "release-ci-gates 1.26.0 C-22"
+DOC_EXCEPTION_RULE = "release-ci-gates 1.32.0 C-22"
 ACCEPTED_DEFECT = "accepted-defect"
 EXCEPTIONS_FILE = REPO / "release" / "doc-review-exceptions.toml"
 EXCEPTION_STRINGS = ("id", "candidate_tag", "commit", "path", "blob")
