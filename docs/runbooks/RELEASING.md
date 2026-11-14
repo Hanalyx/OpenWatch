@@ -26,7 +26,7 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 
 | Tag | Workflow | Produces |
 |-----|----------|----------|
-| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; every package GPG-signed: RPMs in the header, each DEB by a detached `<deb>.asc`), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc` + cosign `.sig`), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
+| `v*` | [`release.yml`](../../.github/workflows/release.yml) | RPM+DEB (amd64+arm64; every package GPG-signed: RPMs in the header, each DEB by a detached `<deb>.asc`), CycloneDX SBOMs, `SHA256SUMS` (GPG `.asc`; a cosign `.cosign.sig` too, only when the optional cosign key is configured), `KEYS`. A `-rc.N` tag publishes a pre-release; a bare tag lands in a DRAFT release, published later by `scripts/release-publish.py`. A tag that already has assets is refused, never rebuilt |
 | `v*` / packaging PRs | [`package-smoke.yml`](../../.github/workflows/package-smoke.yml) | per-distro install + binary smoke |
 | every PR, `main`, `v*` | [`go-ci.yml`](../../.github/workflows/go-ci.yml) | vet/lint/vuln/test-race + specter 100% AC coverage. A `v*` tag always runs the full pipeline on the tagged commit, and its `Full test evidence` job is what gates Q1 and S1 to S7 read |
 
@@ -564,7 +564,7 @@ layers:
 |---|---|---|
 | **Each RPM** | `rpmsign --addsign` (GPG, in the RPM header), through [`packaging/sign-rpms.sh`](../../packaging/sign-rpms.sh) | `rpm --import KEYS` then `rpm -K openwatch-*.rpm` → "signatures OK"; or dnf `gpgcheck=1` |
 | **Each DEB** | detached, ASCII-armored GPG signature published beside it as `<deb>.asc` ([`packaging/sign-detached.sh`](../../packaging/sign-detached.sh)) | `gpg --import KEYS` then `gpg --verify openwatch_X.Y.Z_amd64.deb.asc openwatch_X.Y.Z_amd64.deb` → "Good signature" |
-| **`SHA256SUMS`** | detached GPG (`.asc`) **and** cosign (`.cosign.sig`); lists every package, each `.deb.asc` and every SBOM | `gpg --verify SHA256SUMS.asc SHA256SUMS`; `cosign verify-blob --key cosign.pub --signature SHA256SUMS.cosign.sig SHA256SUMS` |
+| **`SHA256SUMS`** | detached GPG (`.asc`). A cosign signature (`.cosign.sig`) is added only when `COSIGN_PRIVATE_KEY` is set; no cosign public key is published, so GPG is the verification path. Lists every package, each `.deb.asc` and every SBOM | `gpg --verify SHA256SUMS.asc SHA256SUMS` |
 
 > **How the DEBs are signed, from 0.8.6.** The founder decided on 2026-11-12
 > that every DEB is GPG-signed before a release is tagged. The signature is
