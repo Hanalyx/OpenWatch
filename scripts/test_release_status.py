@@ -1464,7 +1464,7 @@ class DocReviewAcceptedDefects(unittest.TestCase):
 
 class AcceptedDefectRegistry(unittest.TestCase):
     """The tracked registry holds exactly the captain-accepted v0.8.4 and v0.8.6
-    records (release-ci-gates C-22, 1.26.0 and 1.32.0)."""
+    records (release-ci-gates C-22, 1.26.0, 1.32.0 and 1.33.0)."""
 
     V084 = ("v0.8.4", "474d9af26e457fc6a47b5475fab87394433a687b")  # pragma: allowlist secret
     V086 = ("v0.8.6", "904c69731d8c69d872aaec310d6d5c5f7461615b")  # pragma: allowlist secret
@@ -1474,6 +1474,11 @@ class AcceptedDefectRegistry(unittest.TestCase):
         V084 + (".github/workflows/README.md",): ("bc96f6b1dcad3bbaadd0d99946994b4980a95494", "#931"),  # pragma: allowlist secret
         V086 + ("CONTRIBUTING.md",): ("a69ab7804232a32ba26f66b202304fb3afa12aa3", "#971"),  # pragma: allowlist secret
         V086 + ("docs/runbooks/RELEASING.md",): ("edc006de07bf880723602454fc70648b30472921", "#971"),  # pragma: allowlist secret
+        V086 + ("README.md",): ("d0cf84d88d8ae6329c0301e6fbfa615202d58e78", "#969"),  # pragma: allowlist secret
+        V086 + ("docs/guides/SCANNING_AND_COMPLIANCE.md",): ("9c8f863acf8f1f7c34c8cb2fff70dd87b61de109", "#969"),  # pragma: allowlist secret
+        V086 + ("docs/guides/INSTALLATION.md",): ("6b5e119d6270effe2581c3e6890513e5e38bc56f", "#969"),  # pragma: allowlist secret
+        V086 + ("docs/guides/LINUX_DISTRIBUTION_SUPPORT.md",): ("658bb1f0ccc63e5c602934837f815690c82c726d", "#969"),  # pragma: allowlist secret
+        V086 + ("docs/guides/INTRODUCTION.md",): ("cd869b03a6bfe9174cacb18b49ae392145998fe9", "#973"),  # pragma: allowlist secret
     }
 
     def test_loading(self):
@@ -1491,7 +1496,7 @@ class AcceptedDefectRegistry(unittest.TestCase):
     def test_the_tracked_registry_is_exactly_the_accepted_records(self):
         ex = rs.load_doc_exceptions()
         self.assertIsInstance(ex, dict, ex)
-        self.assertEqual(len(ex), 4, "the registry holds the two v0.8.4 and two v0.8.6 records "
+        self.assertEqual(len(ex), 9, "the registry holds the two v0.8.4 and seven v0.8.6 records "
                                      "and nothing else; another record is a new policy amendment")
         self.assertEqual({(r["candidate_tag"], r["commit"], r["path"]) for r in ex.values()},
                          set(self.EXPECTED))
