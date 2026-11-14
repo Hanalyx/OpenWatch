@@ -200,8 +200,9 @@ python3 -S scripts/release_prep_pr.py draft --version X.Y.Z --date YYYY-MM-DD \
 python3 -S scripts/release_prep_pr.py body --evidence DIR --ci-result RUN/result.json
 ```
 
-- `draft` makes the mechanical edits: `VERSION`, the README phrase, the "Applies to" banners
-  that name the previous version, and the CHANGELOG heading. It records what changed since
+- `draft` makes the mechanical edits: `VERSION`, the "Applies to" banners that name the
+  previous version, and the CHANGELOG heading. The README names no version, so it is never
+  edited. It records what changed since
   the previous tag through the capture library. **It never writes release notes.** An empty
   `[Unreleased]` is refused; write the notes first.
 - `body` writes `PR-BODY-<commit>.md` from those captures. A `ci-strict` result must be finished

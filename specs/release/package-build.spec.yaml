@@ -1,7 +1,7 @@
 spec:
   id: release-package-build
   title: Native RPM and DEB packaging
-  version: "1.8.0"
+  version: "1.9.0"
   status: approved
   tier: 2
 
@@ -177,8 +177,9 @@ spec:
         that did not carry the suffix and release.yml refused it at the C-14
         check, after signing and pushing (CP bugs/OW-037). The 0.2.0 series had
         it right, one commit per candidate setting VERSION="0.2.0-rc.N", and
-        the procedure never said so. The suffix belongs in version.env, the
-        README phrase and the newest CHANGELOG heading BEFORE the tag, and the
+        the procedure never said so. The suffix belongs in version.env and
+        the newest CHANGELOG heading BEFORE the tag (since 1.9.0 the README
+        names no version), and the
         tag is "v$VERSION" read from the file, never a placeholder the operator
         fills in. The file is read AT THE CANDIDATE COMMIT, which the procedure
         names by its full SHA. Deriving the commit from main is the same mistake

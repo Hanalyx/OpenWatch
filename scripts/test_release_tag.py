@@ -143,10 +143,8 @@ class Case(unittest.TestCase):
             f.write(text)
         os.chmod(p, mode)
 
-    def commit_release(self, version, message, readme=None, changelog=None, keys=None,
-                       check=None):
+    def commit_release(self, version, message, changelog=None, keys=None, check=None):
         self.write("packaging/version.env", 'VERSION="%s"\nCODENAME="Test"\n' % version)
-        self.write("README.md", "> The current version is `%s`.\n" % (readme or version))
         self.write("CHANGELOG.md", "## [Unreleased]\n\n## [%s] Test (2026-10-10)\n"
                    % (changelog or version))
         with open(CHECK_SCRIPT) as f:
@@ -228,11 +226,10 @@ class TagVersionAgreement(Case):
         self.git("push", "--quiet", "origin", "main")
         return c
 
-    def test_readme_or_changelog_disagreement_is_refused(self):
-        for kw in ({"readme": "0.8.9"}, {"changelog": "0.8.9"}):
-            code, out = self.tagger(commit=self.candidate_with(**kw))
-            self.assertEqual(code, 1, kw)
-            self.assertIn("versions disagree", out)
+    def test_a_changelog_disagreement_is_refused(self):
+        code, out = self.tagger(commit=self.candidate_with(changelog="0.8.9"))
+        self.assertEqual(code, 1)
+        self.assertIn("versions disagree", out)
 
     def test_a_version_that_makes_no_tag_is_refused(self):
         code, out = self.tagger(commit=self.candidate_with(version="0.9"))

@@ -63,7 +63,7 @@ func requireReleasePrepPR(t *testing.T, class string, want int, cases ...string)
 func TestReleasePrepPR_DraftEdits(t *testing.T) {
 	t.Run("release-prep-pr/AC-01", func(t *testing.T) {
 		requireReleasePrepPR(t, "DraftEdits", 5,
-			"test_the_four_edits_and_nothing_else",
+			"test_the_three_edits_and_nothing_else",
 			"test_the_changelog_section_holds_the_notes_under_a_fresh_unreleased")
 	})
 }

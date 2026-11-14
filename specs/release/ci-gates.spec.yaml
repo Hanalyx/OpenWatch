@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.33.0"
+  version: "1.34.0"
   status: approved
   tier: 1
 
@@ -292,8 +292,9 @@ spec:
         review may inherit, per document, from the review of the last PUBLISHED release,
         never from a release candidate.
 
-        THE FINAL-VERSION COMMIT sets `VERSION="X.Y.Z"` in `packaging/version.env`, the README
-        version phrase and the newest CHANGELOG heading `[X.Y.Z] <codename> (<date>)`, where
+        THE FINAL-VERSION COMMIT sets `VERSION="X.Y.Z"` in `packaging/version.env` and the
+        newest CHANGELOG heading `[X.Y.Z] <codename> (<date>)` (since 1.34.0 the README names
+        no version, release-prep-pr C-01), where
         the date is the INTENDED PUBLICATION DATE, and is prepared through review and merged.
         The tag is cut from it by the same `scripts/release_tag.py` commands a candidate uses,
         naming the final-version commit by its full SHA (release-tagging).
