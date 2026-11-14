@@ -106,7 +106,7 @@ scan.
 |---|---|---|---|
 | Multi-host scanning | Scheduled, over SSH, no agent | SSH into each server | Script it yourself |
 | Dashboard and history | Built in, per host and per fleet | Spreadsheets | None |
-| Posture on a past date | A query | Not possible | Not available |
+| Posture on a past date | Daily score history and stored scan runs, read back newest first (no date query) | Not possible | Not available |
 | Drift detection | Alerts with a lifecycle | Manual discovery | Not available |
 | Exception workflows | Request, approve, expire, revoke, audited | Spreadsheets and email | Not available |
 | Framework coverage | CIS, STIG, NIST 800-53, PCI DSS 4 from one scan | Whatever you check | One benchmark profile per run |
