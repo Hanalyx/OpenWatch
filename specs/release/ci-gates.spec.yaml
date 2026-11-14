@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.31.0"
+  version: "1.32.0"
   status: approved
   tier: 1
 
@@ -594,9 +594,11 @@ spec:
         not in the future, and the acceptance wording. The registry holds exactly
         the v0.8.4 records for `.github/BRANCH_MANAGEMENT.md` and
         `.github/workflows/README.md` at
-        `474d9af26e457fc6a47b5475fab87394433a687b`, fixed by #930 and #931. Any
-        other record, for another candidate, document or defect, is a new
-        amendment and is refused until the spec and its tests are changed.
+        `474d9af26e457fc6a47b5475fab87394433a687b`, fixed by #930 and #931, and
+        the v0.8.6 records for `CONTRIBUTING.md` and `docs/runbooks/RELEASING.md`
+        at `904c69731d8c69d872aaec310d6d5c5f7461615b`, fixed by #971. Any other
+        record, for another candidate, document or defect, is a new amendment and
+        is refused until the spec and its tests are changed.
         THE VERDICT. A reviewed entry may carry `verdict = "accepted-defect"` only
         with `exception`, naming a registry record, and `otherwise_accurate = true`,
         the reviewer's statement that nothing in the document is wrong beyond the
@@ -615,6 +617,16 @@ spec:
         candidate's policy version, this amendment and the full checker commit,
         as for C-21.
         Added v1.26.0 at the user's direction on 2026-10-09.
+        AMENDED v1.32.0 at the captain's direction on 2026-11-13, for v0.8.6 only:
+        two contributor and maintainer documentation defects, a reversed
+        statement of which key signs what in `CONTRIBUTING.md` and an
+        unconditional cosign signature in `docs/runbooks/RELEASING.md`, change no
+        verified package behavior or operator upgrade procedure. Every v0.8.6
+        package and its `SHA256SUMS` carry the release-key GPG signature the
+        documents name; only the optional cosign layer is overstated. They are
+        accepted rather than cutting a new version, and are never marked
+        accurate. v0.8.6 was tagged under 1.31.0, so the checker prints that
+        policy, this amendment and its own commit, as for C-21.
       type: technical
       enforcement: error
     - id: C-23
@@ -1844,12 +1856,15 @@ spec:
         `accurate` or `accepted-defect`; an unreadable registry; and a manifest
         digest that does not record the verdict. An inheriting review may carry an accepted defect, and an
         accepted defect in a prior review is never inherited. The tracked registry
-        holds exactly the two v0.8.4 records, carrying the technical scope fields
-        and nothing else, bound to `474d9af2`, to the blobs of
+        holds exactly four records, carrying the technical scope fields and nothing
+        else: two bound to `474d9af2`, to the blobs of
         `.github/BRANCH_MANAGEMENT.md` and `.github/workflows/README.md` at that
-        commit as read from Git, and to fixes #930 and #931. The runbook describes
-        the exception as C-22 only, for the registered v0.8.4 documents, and states
-        that there is no general waiver; the skeleton generator says the same.
+        commit as read from Git, and to fixes #930 and #931; and two bound to
+        `904c6973`, to the blobs of `CONTRIBUTING.md` and
+        `docs/runbooks/RELEASING.md` at that commit as read from Git, and to fix
+        #971. The runbook describes the exception as C-22 only, for the registered
+        v0.8.4 and v0.8.6 documents, and states that there is no general waiver;
+        the skeleton generator says the same.
       priority: critical
       references_constraints: [C-22]
     - id: AC-42

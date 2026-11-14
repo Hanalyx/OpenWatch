@@ -318,12 +318,14 @@ fresh.
    Then recompute `docs_sha256` over the finished entries. A verdict of anything
    other than `accurate` is a NO-GO. There is no general waiver.
 
-   **The one exception: C-22, for two v0.8.4 documents.** `release-ci-gates`
-   C-22 lets the D1 review of v0.8.4 record `.github/BRANCH_MANAGEMENT.md` and
-   `.github/workflows/README.md` as `accepted-defect`, never `accurate`. Their
-   inaccuracies are registered in `release/doc-review-exceptions.toml`, which
-   holds the technical scope only: candidate, paths, exact blobs, defect
-   descriptions and the fixing pull requests (#930, #931). The release
+   **The one exception: C-22, for two v0.8.4 and two v0.8.6 documents.**
+   `release-ci-gates` C-22 lets the D1 review of v0.8.4 record
+   `.github/BRANCH_MANAGEMENT.md` and `.github/workflows/README.md` as
+   `accepted-defect`, never `accurate`, and the D1 review of v0.8.6 do the same
+   for `CONTRIBUTING.md` and `docs/runbooks/RELEASING.md`. Their inaccuracies
+   are registered in `release/doc-review-exceptions.toml`, which holds the
+   technical scope only: candidate, paths, exact blobs, defect descriptions and
+   the fixing pull requests (#930 and #931 for v0.8.4, #971 for v0.8.6). The release
    captain's acceptance is internal: add one `[[defect_acceptance]]` entry per
    document to the attestation, naming the record's id, with `accepted_by`,
    `accepted_at` and the acceptance wording. On each of those two entries write

@@ -1463,12 +1463,17 @@ class DocReviewAcceptedDefects(unittest.TestCase):
 
 
 class AcceptedDefectRegistry(unittest.TestCase):
-    """The tracked registry holds exactly the captain-accepted v0.8.4 records."""
+    """The tracked registry holds exactly the captain-accepted v0.8.4 and v0.8.6
+    records (release-ci-gates C-22, 1.26.0 and 1.32.0)."""
 
-    CANDIDATE = "474d9af26e457fc6a47b5475fab87394433a687b"  # pragma: allowlist secret
+    V084 = ("v0.8.4", "474d9af26e457fc6a47b5475fab87394433a687b")  # pragma: allowlist secret
+    V086 = ("v0.8.6", "904c69731d8c69d872aaec310d6d5c5f7461615b")  # pragma: allowlist secret
+    # (tag, commit, path) -> (blob at that commit, fixing pull request)
     EXPECTED = {
-        ".github/BRANCH_MANAGEMENT.md": ("e64a6d9179d69698aa58db6393b43f13c13af5e7", "#930"),  # pragma: allowlist secret
-        ".github/workflows/README.md": ("bc96f6b1dcad3bbaadd0d99946994b4980a95494", "#931"),  # pragma: allowlist secret
+        V084 + (".github/BRANCH_MANAGEMENT.md",): ("e64a6d9179d69698aa58db6393b43f13c13af5e7", "#930"),  # pragma: allowlist secret
+        V084 + (".github/workflows/README.md",): ("bc96f6b1dcad3bbaadd0d99946994b4980a95494", "#931"),  # pragma: allowlist secret
+        V086 + ("CONTRIBUTING.md",): ("a69ab7804232a32ba26f66b202304fb3afa12aa3", "#971"),  # pragma: allowlist secret
+        V086 + ("docs/runbooks/RELEASING.md",): ("edc006de07bf880723602454fc70648b30472921", "#971"),  # pragma: allowlist secret
     }
 
     def test_loading(self):
@@ -1483,19 +1488,19 @@ class AcceptedDefectRegistry(unittest.TestCase):
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
-    def test_the_tracked_registry_is_exactly_the_v0_8_4_acceptance(self):
+    def test_the_tracked_registry_is_exactly_the_accepted_records(self):
         ex = rs.load_doc_exceptions()
         self.assertIsInstance(ex, dict, ex)
-        self.assertEqual(len(ex), 2, "the registry holds the two v0.8.4 records and nothing "
-                                     "else; another record is a new policy amendment")
-        self.assertEqual({r["path"] for r in ex.values()}, set(self.EXPECTED))
+        self.assertEqual(len(ex), 4, "the registry holds the two v0.8.4 and two v0.8.6 records "
+                                     "and nothing else; another record is a new policy amendment")
+        self.assertEqual({(r["candidate_tag"], r["commit"], r["path"]) for r in ex.values()},
+                         set(self.EXPECTED))
         for rec in ex.values():
-            with self.subTest(path=rec["path"]):
+            with self.subTest(tag=rec["candidate_tag"], path=rec["path"]):
                 self.assertIsNone(rs._bad_exception_record(rec))
                 self.assertEqual(set(rec), rs.EXCEPTION_FIELDS,
                                  "the public registry carries the technical scope only")
-                self.assertEqual((rec["candidate_tag"], rec["commit"]), ("v0.8.4", self.CANDIDATE))
-                blob, fix = self.EXPECTED[rec["path"]]
+                blob, fix = self.EXPECTED[(rec["candidate_tag"], rec["commit"], rec["path"])]
                 self.assertEqual(rec["blob"], blob)
                 self.assertTrue(any(fix in x for x in rec["fixes"]))
 
@@ -1508,15 +1513,16 @@ class AcceptedDefectRegistry(unittest.TestCase):
             # criterion AC-41 runs this suite in the full-history jobs and
             # requires this case to pass, not skip. A present commit with the
             # wrong path or blob still fails here.
-            have = subprocess.run(["git", "cat-file", "-e", f"{self.CANDIDATE}^{{commit}}"],
-                                  capture_output=True)
-            if have.returncode != 0:
-                self.skipTest(f"{self.CANDIDATE[:12]} is not in this shallow checkout; "
-                              "AC-41 runs this case with full history")
-            for path, (blob, _) in self.EXPECTED.items():
-                got = subprocess.run(["git", "rev-parse", f"{self.CANDIDATE}:{path}"],
+            for _, commit in (self.V084, self.V086):
+                have = subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+                                      capture_output=True)
+                if have.returncode != 0:
+                    self.skipTest(f"{commit[:12]} is not in this shallow checkout; "
+                                  "AC-41 runs this case with full history")
+            for (_, commit, path), (blob, _) in self.EXPECTED.items():
+                got = subprocess.run(["git", "rev-parse", f"{commit}:{path}"],
                                      capture_output=True, text=True)
-                self.assertEqual(got.returncode, 0, f"cannot read {path} at the candidate: "
+                self.assertEqual(got.returncode, 0, f"cannot read {path} at {commit[:12]}: "
                                                     f"{got.stderr.strip()}")
                 self.assertEqual(got.stdout.strip(), blob)
         finally:

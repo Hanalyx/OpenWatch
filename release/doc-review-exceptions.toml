@@ -9,9 +9,10 @@
 # checker accepts a document as "accepted-defect" only when both agree. Such a
 # document is never "accurate".
 #
-# This file holds the two v0.8.4 records and nothing else. A record for any
-# other candidate, document or defect is a new policy amendment, reviewed as
-# such; packaging/tests enforces that.
+# This file holds the two v0.8.4 records (release-ci-gates 1.26.0) and the two
+# v0.8.6 records (1.32.0), and nothing else. A record for any other candidate,
+# document or defect is a new policy amendment, reviewed as such;
+# packaging/tests enforces that.
 
 [[exception]]
 id = "v0.8.4-branch-management-ci-paths"
@@ -39,3 +40,26 @@ findings = [
   "The Full test evidence job (#925), which the release gates read, is not mentioned.",
 ]
 fixes = ["#931 (e8b4c96050dd69c77c819c4958f74148a2115174)"]
+
+[[exception]]
+id = "v0.8.6-contributing-cosign-roles"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "CONTRIBUTING.md"
+blob = "a69ab7804232a32ba26f66b202304fb3afa12aa3"  # pragma: allowlist secret
+findings = [
+  "Lines 333 to 334: \"`GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` sign the checksums, `COSIGN_PRIVATE_KEY` and `COSIGN_PASSWORD` sign the packages\" reverses the roles. GPG signs every package and SHA256SUMS; cosign, only when its key is configured, signs SHA256SUMS and nothing else.",
+]
+fixes = ["#971"]
+
+[[exception]]
+id = "v0.8.6-releasing-cosign-claims"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "docs/runbooks/RELEASING.md"
+blob = "edc006de07bf880723602454fc70648b30472921"  # pragma: allowlist secret
+findings = [
+  "Line 29: lists \"`SHA256SUMS` (GPG `.asc` + cosign `.sig`)\" among the outputs of every v* tag. release.yml signs with cosign only when COSIGN_PRIVATE_KEY is set, and no release, v0.8.6 included, has carried SHA256SUMS.cosign.sig.",
+  "Line 565: the signing-layers table says SHA256SUMS is signed by GPG and cosign, and tells operators to run `cosign verify-blob --key cosign.pub`. No cosign public key is published, so no operator can run that check.",
+]
+fixes = ["#971"]
