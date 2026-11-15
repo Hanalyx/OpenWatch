@@ -25,10 +25,13 @@
 //     minor threshold) DO NOT emit compliance.drift.detected. Operators
 //     see audit traffic only when something actually changed. Spec C-04.
 //
-//   - Thresholds from policy. Defaults are major=10pp, minor=5pp,
-//     improvement=5pp. Operators override via policy.AlertThresholds.
-//     ValidateThresholds rejects any value outside (0, 100] or any
-//     configuration where major < minor.
+//   - Fixed thresholds. The caller passes them, and cmd/openwatch passes
+//     DefaultThresholds() (major=10pp, minor=5pp, improvement=5pp) for
+//     both serve and worker. Operators cannot change them: there is no
+//     setting. policy.AlertThresholds holds score bands, a different
+//     quantity, and is never read here (spec C-05). ValidateThresholds
+//     rejects any value outside (0, 100] or any configuration where
+//     major < minor.
 //
 //   - Single read transaction. DetectForScan wraps the prior+current
 //     score computations in one DB transaction so a concurrent writer
