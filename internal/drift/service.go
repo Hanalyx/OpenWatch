@@ -31,7 +31,8 @@ type Service struct {
 
 // NewService wires the detector. emit is audit.Emit in production,
 // a fake recorder in tests. thresholds defaults to DefaultThresholds
-// when unset (any value 0); production wires from policy.AlertThresholds.
+// when all three values are 0. cmd/openwatch passes DefaultThresholds
+// explicitly; no operator setting exists (spec C-05).
 //
 // v1.1.0: bus may be nil. When nil, the service still emits audit
 // events but skips bus publishes. Spec system-drift-detector C-10.
