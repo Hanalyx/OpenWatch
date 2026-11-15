@@ -1,6 +1,10 @@
 spec:
   id: system-drift-detector
   title: Compliance drift detector
+  # Version 1.3.1 (was 1.3.0). Patch: the description and scope still named
+  # policy.AlertThresholds as the threshold source, which C-05 already
+  # corrected in 1.3.0. Wording only; no constraint or criterion changes.
+  #
   # Version 1.3.0 (was 1.2.0). Minor: C-05 rewritten to name the threshold
   # source that exists, and three added constraints (C-11 to C-13) with four
   # added acceptance criteria (AC-22 to AC-25) that bind a CALLER. AC-25 is
@@ -10,7 +14,7 @@ spec:
   # alert ever fired (CP bugs/OW-055, 2026-09-19). Nothing published here
   # changed meaning for the package itself; the change is what the binary
   # is required to do with it.
-  version: "1.3.0"
+  version: "1.3.1"
   status: approved
   tier: 1
 
@@ -21,8 +25,8 @@ spec:
       The drift detector runs at the end of every scan. It computes the
       compliance score delta between the prior state (last successful
       scan for the host) and the current state (this scan's results),
-      classifies the change against operator-configured thresholds in
-      policy.AlertThresholds, and emits compliance.drift.detected for
+      classifies the change against fixed thresholds the caller passes
+      (C-05; there is no operator setting), and emits compliance.drift.detected for
       major/minor worsening or improvement transitions. Stable scans
       (delta below the minor threshold) do not audit — the no-noise
       principle.
@@ -44,7 +48,7 @@ spec:
         - Pure-function classifier (DriftKind from score delta + thresholds)
         - DetectForScan reading prior + current state from PostgreSQL
         - compliance.drift.detected emission on non-stable kinds
-        - Thresholds loaded from policy.AlertThresholds, clamp-guarded
+        - Fixed thresholds passed by the caller, validated (C-05)
       excludes:
         - host_drift_events persistence (B.4 fleet-rollup adds this if
           query-side performance demands it; for v1 the audit log is the
