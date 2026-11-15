@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.36.0"
+  version: "1.37.0"
   status: approved
   tier: 1
 
@@ -857,7 +857,7 @@ spec:
         but still leaves two places to edit.
       inputs:
         pin_file: .specter-version
-        pinned_version: 0.15.1
+        pinned_version: 0.15.3
         shared_gate: scripts/specter-gate.py
         # Each caller names the file inspected and the exact invocation it must
         # contain, so the fixture drives the check instead of describing it.
