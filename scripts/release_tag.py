@@ -21,9 +21,9 @@ repository's user.signingkey.
 Checks, all before anything is signed:
   - the commit exists, is a commit, and is an ancestor of origin/main after a
     fetch;
-  - VERSION in version.env, the README phrase and the newest CHANGELOG heading
-    agree at the commit, and packaging/check-tag-version.sh from that commit
-    accepts the derived tag;
+  - VERSION in version.env and the newest CHANGELOG heading agree at the
+    commit (the README names no version), and packaging/check-tag-version.sh
+    from that commit accepts the derived tag;
   - the tag does not exist locally, on origin, or on any GitHub release,
     drafts included;
   - the key is in security/KEYS at the commit and its secret key is present.
@@ -100,12 +100,6 @@ def _version_env(text):
     return None
 
 
-def _readme_version(text):
-    flat = " ".join(text.replace("\n>", " ").split())
-    m = re.search(r"current version is `([^`]+)`", flat)
-    return m.group(1) if m else None
-
-
 def _changelog_version(text):
     for line in text.splitlines():
         m = re.match(r"^## \[([^\]]+)\]", line)
@@ -143,12 +137,11 @@ def check_candidate(repo, commit, key, signed=False):
     tag = "v" + version
     if not _TAG.match(tag):
         raise TagError("VERSION=%r at %s does not make a release tag" % (version, commit))
-    readme = _readme_version(repo.show(commit, "README.md"))
     changelog = _changelog_version(repo.show(commit, "CHANGELOG.md"))
-    if readme != version or changelog != version:
-        raise TagError("versions disagree at %s: version.env %r, README %r, newest CHANGELOG "
-                       "heading %r" % (commit, version, readme, changelog))
-    say(repo, True, "VERSION, README and CHANGELOG agree at the candidate: %s" % version)
+    if changelog != version:
+        raise TagError("versions disagree at %s: version.env %r, newest CHANGELOG heading %r"
+                       % (commit, version, changelog))
+    say(repo, True, "VERSION and CHANGELOG agree at the candidate: %s" % version)
 
     # Run the commit's own check-tag-version.sh against the commit's own files.
     work = tempfile.mkdtemp(prefix="release-tag-")

@@ -29,13 +29,6 @@ drifted since your last assessment, and what needs attention before the next
 one. **[Read the introduction](docs/guides/INTRODUCTION.md)** for what it does
 and how it is built.
 
-> **Project status: Go rebuild, generally available.** OpenWatch is a single Go
-> binary that serves both the REST API and the embedded React UI (the original
-> Python/FastAPI implementation was archived out of the repo on 2026-06-05). The
-> Go tree lives at the **repo root**: Go 1.26 backend (`cmd/`, `internal/`),
-> React 19 + TanStack frontend (`frontend/`), PostgreSQL-only. The current
-> version is `0.8.6`, on the general-availability line that opened with `0.2.0`.
-
 ![OpenWatch Host Management: a fleet of RHEL and Ubuntu hosts with per-host compliance scores against the Kensa corpus](docs/images/host-management.png)
 
 ## Deploy in 10 minutes
@@ -111,25 +104,6 @@ Have a question, idea, or want to share how you're using OpenWatch?
 Found a bug? [Open an issue](https://github.com/Hanalyx/OpenWatch/issues/new).
 Found a vulnerability? Email security@hanalyx.com as described in
 [SECURITY.md](SECURITY.md), not a public issue.
-
-## Contributing
-
-The Go tree lives at the repo root. `make build` builds the UI, embeds it and
-writes `dist/openwatch`; a bare `go build ./...` fails on a fresh clone
-because the server embeds a directory that only the build produces.
-`make ci-strict` runs the strict local gate. It reports which gates and tests
-ran, and says INCOMPLETE when a prerequisite is missing. It tests your checkout
-as it is; `make ci-strict-commit` tests the committed files of HEAD alone, which
-is the result to cite for a pull request.
-
-```bash
-make build             # Go 1.26 backend + React 19 frontend, one binary
-make ci-strict         # strict local gate (make ci-local is an alias)
-make ci-strict-commit  # the same on HEAD's committed files only
-```
-
-The legacy Python implementation is archived outside the repo and is no longer
-built or tested here. See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
 
 ## License
 

@@ -1,7 +1,7 @@
 spec:
   id: release-tagging
   title: Release tagging on an explicit candidate commit
-  version: "1.0.0"
+  version: "1.1.0"
   status: approved
   tier: 1
 
@@ -44,10 +44,10 @@ spec:
     - id: C-02
       description: >-
         The tag is "v" plus VERSION from packaging/version.env at the candidate
-        commit, never typed and never read from another commit. VERSION, the
-        README version phrase and the newest CHANGELOG heading at the candidate
-        agree, and the candidate's own packaging/check-tag-version.sh accepts
-        the tag.
+        commit, never typed and never read from another commit. VERSION and the
+        newest CHANGELOG heading at the candidate agree, and the candidate's own
+        packaging/check-tag-version.sh accepts the tag. v1.1.0: the README is
+        not read; it names no release version (release-prep-pr C-01).
       type: technical
       enforcement: error
     - id: C-03
@@ -92,7 +92,7 @@ spec:
       references_constraints: [C-01]
     - id: AC-02
       description: >-
-        A README or CHANGELOG version that disagrees with version.env at the
+        A newest CHANGELOG heading that disagrees with version.env at the
         candidate is refused; a VERSION that makes no release tag is refused;
         a candidate whose own check-tag-version.sh refuses is refused with that
         script's message; and with main at a later version, the tag derived for

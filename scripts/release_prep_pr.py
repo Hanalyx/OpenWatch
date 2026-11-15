@@ -12,7 +12,6 @@ migrations, the API contract, go.mod, specs), then makes the mechanical edits
 of Stage 1 in docs/runbooks/RELEASING.md:
 
   - VERSION in packaging/version.env (CODENAME is kept);
-  - the README phrase "current version is `X`";
   - every "Applies to:** OpenWatch v<previous> (<codename>)" banner;
   - CHANGELOG.md: the [Unreleased] section becomes "[X] <codename> (<date>)",
     under a fresh, empty [Unreleased].
@@ -20,7 +19,7 @@ of Stage 1 in docs/runbooks/RELEASING.md:
 The release notes themselves are human prose: draft refuses an empty
 [Unreleased] rather than invent them. It never commits, pushes or tags.
 
-body runs on the committed prep commit. It re-checks that the three version
+body runs on the committed prep commit. It re-checks that the two version
 sources agree and runs the commit's own packaging/check-tag-version.sh, then
 writes PR-BODY.md from the recorded captures. A ci-strict result counts only
 when `ci-strict.py --commit` produced it for this exact commit, testing the
@@ -53,7 +52,6 @@ READ_TIMEOUT = 120
 
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:-rc\.\d+)?$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-README_PHRASE = re.compile(r"(current version is `)([^`]+)(`)")
 # One reading per question a release-prep review asks. Each is a git command
 # over the range since the previous release, captured raw.
 READINGS = [
@@ -99,15 +97,6 @@ def env_value(text, key):
     return found[0]
 
 
-def readme_version(text):
-    flat = " ".join(text.replace("\n>", " ").split())
-    found = README_PHRASE.findall(flat)
-    if len(found) != 1:
-        raise PrepPRError("README.md has %d \"current version is `X`\" phrases, not one" %
-                          len(found))
-    return found[0][1]
-
-
 def changelog_latest(text):
     for m in re.finditer(r"(?m)^## \[([^\]]+)\]", text):
         if m.group(1) != "Unreleased":
@@ -116,7 +105,9 @@ def changelog_latest(text):
 
 
 def agreement(repo, texts=None):
-    """The three sources the hygiene test and release_tag.py require to agree.
+    """The two sources the hygiene test and release_tag.py require to agree.
+
+    The README names no version (release-prep-pr C-01), so a release never edits it.
 
     texts maps a path to proposed contents; a path not in it is read from disk."""
     texts = texts or {}
@@ -124,7 +115,6 @@ def agreement(repo, texts=None):
     def get(rel):
         return texts[rel] if rel in texts else read(repo, rel)
     return {"version.env": env_value(get("packaging/version.env"), "VERSION"),
-            "README.md": readme_version(get("README.md")),
             "CHANGELOG.md": changelog_latest(get("CHANGELOG.md"))}
 
 
@@ -190,15 +180,6 @@ def draft(a):
     if n != 1:
         raise PrepPRError("packaging/version.env's VERSION assignment could not be updated")
     edits["packaging/version.env"] = env
-    readme = read(repo, "README.md")
-    # The phrase wraps inside a blockquote, at any of its word gaps.
-    gap = r"(?:\s|>)+"
-    new_readme, n = re.subn(r"(current%sversion%sis%s`)%s(`)" % (gap, gap, gap,
-                                                                re.escape(previous)),
-                            r"\g<1>%s\g<2>" % a.version, readme)
-    if n != 1:
-        raise PrepPRError("README.md's version phrase could not be updated in place")
-    edits["README.md"] = new_readme
     edits["CHANGELOG.md"] = stamp_changelog(read(repo, "CHANGELOG.md"), a.version, codename,
                                             a.date)
     banner_old = "Applies to:** OpenWatch v%s (%s)" % (previous, codename)
@@ -236,7 +217,7 @@ def draft(a):
                          for rel, text in sorted(edits.items())}}
     apply_edits(repo, edits, a.version, os.path.join(out, "draft.json"),
                 (json.dumps(record, indent=1, sort_keys=True) + "\n").encode())
-    return ("Drafted %s (%s) over %s. Edited %d files: version.env, README, CHANGELOG and %d "
+    return ("Drafted %s (%s) over %s. Edited %d files: version.env, CHANGELOG and %d "
             "banners. Nothing is committed.\nReview `git diff`, commit it, run "
             "scripts/ci-strict.py --commit on that commit, then:\n    python3 -S scripts/"
             "release_prep_pr.py body --evidence %s --ci-result <run>/result.json" % (
@@ -450,7 +431,7 @@ def body(a):
            "This PR changes only:",
            "- `packaging/version.env`: `VERSION=\"%s\"` (was %s); `CODENAME` unchanged." % (
                d["version"], d["previous"]),
-           "- The README version phrase, and the \"Applies to\" banner in %d tracked documents. "
+           "- The \"Applies to\" banner in %d tracked documents. "
            "\"Last updated\" dates are left alone." % len(d["banners"]),
            "- `CHANGELOG.md`: the [Unreleased] notes become `[%s] %s (%s)`, under a fresh empty "
            "[Unreleased]." % (d["version"], d["codename"], d["date"]), "",
