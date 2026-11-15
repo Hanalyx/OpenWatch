@@ -45,18 +45,19 @@ func TestCIGates_DocumentationReviewAcceptsOnlyRegisteredDefects(t *testing.T) {
 		}
 
 		registry := readAppFile(t, "release/doc-review-exceptions.toml")
-		if got := strings.Count(registry, "[[exception]]"); got != 2 {
+		if got := strings.Count(registry, "[[exception]]"); got != 4 {
 			t.Errorf("release/doc-review-exceptions.toml has %d records; it holds the two "+
-				"v0.8.4 records and nothing else", got)
+				"v0.8.4 and two v0.8.6 records and nothing else", got)
 		}
 
 		book := readAppFile(t, "docs/runbooks/RELEASING.md")
 		for _, want := range []struct{ frag, why string }{
-			{"C-22 lets the D1 review of v0.8.4", "the procedure must name the rule and its single candidate"},
+			{"C-22 lets the D1 review of v0.8.4", "the procedure must name the rule and its candidates"},
+			{"the D1 review of v0.8.6 do the same", "the procedure must name the v0.8.6 amendment"},
 			{"release/doc-review-exceptions.toml", "the procedure must point at the registry"},
 			{"Never write `accurate` for them.", "an accepted defect is never recorded as accurate"},
 			{"There is no general waiver.", "C-22 is not a general waiver"},
-			{"C-22\n   covers nothing else", "the exception is scoped to the two v0.8.4 documents"},
+			{"C-22\n   covers nothing else", "the exception is scoped to the registered documents"},
 		} {
 			if !strings.Contains(book, want.frag) {
 				t.Errorf("docs/runbooks/RELEASING.md is missing %q: %s", want.frag, want.why)
@@ -98,7 +99,7 @@ func TestCIGates_AcceptedDefectAcceptanceStaysInternal(t *testing.T) {
 }
 
 // @ac AC-41
-// AC-41, binding half: the registered blobs are checked against the candidate
+// AC-41, binding half: the registered blobs are checked against each candidate
 // commit itself. The Python case skips only in a shallow checkout that lacks
 // the commit; this criterion runs where the history is present and requires
 // the case to run and pass, so the skip can never stand in for the check.
@@ -106,12 +107,17 @@ func TestCIGates_AcceptedDefectBlobsAreReadFromTheCandidate(t *testing.T) {
 	t.Run("release-ci-gates/AC-41", func(t *testing.T) {
 		haveTool(t, "python3")
 		haveTool(t, "git")
-		const candidate = "474d9af26e457fc6a47b5475fab87394433a687b" // pragma: allowlist secret
-		have := exec.Command("git", "cat-file", "-e", candidate+"^{commit}")
-		have.Dir = appDir(t)
-		if err := have.Run(); err != nil {
-			t.Fatalf("commit %s is not in this checkout; this criterion needs full history to "+
-				"read the registered blobs (actions/checkout fetch-depth: 0)", candidate[:12])
+		candidates := []string{
+			"474d9af26e457fc6a47b5475fab87394433a687b", // v0.8.4 // pragma: allowlist secret
+			"904c69731d8c69d872aaec310d6d5c5f7461615b", // v0.8.6 // pragma: allowlist secret
+		}
+		for _, candidate := range candidates {
+			have := exec.Command("git", "cat-file", "-e", candidate+"^{commit}")
+			have.Dir = appDir(t)
+			if err := have.Run(); err != nil {
+				t.Fatalf("commit %s is not in this checkout; this criterion needs full history to "+
+					"read the registered blobs (actions/checkout fetch-depth: 0)", candidate[:12])
+			}
 		}
 		cmd := exec.Command("python3", "-S", filepath.Join("scripts", "test_release_status.py"))
 		cmd.Dir = appDir(t)
@@ -121,7 +127,8 @@ func TestCIGates_AcceptedDefectBlobsAreReadFromTheCandidate(t *testing.T) {
 		}
 		want := "(__main__.AcceptedDefectRegistry.test_the_registered_blobs_are_the_tagged_blobs) ... ok"
 		if !strings.Contains(string(out), want) {
-			t.Errorf("the registry blob check did not run and pass against %s", candidate[:12])
+			t.Errorf("the registry blob check did not run and pass against %s and %s",
+				candidates[0][:12], candidates[1][:12])
 		}
 	})
 }
