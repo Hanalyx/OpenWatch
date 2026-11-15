@@ -2,10 +2,9 @@
 // reader or a security reporter looks for first, and the version number they
 // see when they get there.
 //
-// Both gates exist because the failure mode is silent. Nothing breaks when the
-// README advertises a version we shipped two releases ago, or when a security
-// policy is missing — the build stays green and the docs quietly stop being
-// true. A reader who catches one stale fact discounts every other claim on the
+// These gates exist because the failure mode is silent. Nothing breaks when a
+// version string goes stale, or when a security policy is missing — the build
+// stays green and the docs quietly stop being true. A reader who catches one stale fact discounts every other claim on the
 // page, so these are checked by machine rather than left to review discipline.
 //
 // Deliberately NOT checked here: commit and branch naming, and whether a change
@@ -55,25 +54,6 @@ func versionEnvVersion(t *testing.T) string {
 	return ""
 }
 
-// readmeCurrentVersion pulls the version out of the README's project-status
-// phrase. The phrase wraps across lines inside a blockquote, so the text is
-// normalized (blockquote markers and line breaks collapsed to spaces) before
-// matching.
-var readmeVersionPhrase = regexp.MustCompile("current version is `([^`]+)`")
-
-func readmeCurrentVersion(t *testing.T) string {
-	t.Helper()
-	doc := readHygieneFile(t, "README.md")
-	flat := strings.Join(strings.Fields(strings.ReplaceAll(doc, "\n>", " ")), " ")
-	m := readmeVersionPhrase.FindStringSubmatch(flat)
-	if m == nil {
-		t.Fatal("README.md no longer contains the phrase \"current version is `X`\"; " +
-			"keep that phrasing so the version stays machine-checkable, or update " +
-			"readmeVersionPhrase in this test to match the new wording")
-	}
-	return m[1]
-}
-
 // changelogLatestVersion returns the newest released version heading, skipping
 // the [Unreleased] accumulator.
 func changelogLatestVersion(t *testing.T) string {
@@ -90,22 +70,39 @@ func changelogLatestVersion(t *testing.T) string {
 	return ""
 }
 
-// The version must be identical in all three places a reader can find it. The
+// The version must be identical in both places a reader can find it. The
 // documented release flow bumps version.env and stamps the CHANGELOG in one
-// "prepare release" pull request, and the README version is refreshed in the
-// same one, so these never legitimately disagree on a merged commit.
+// "prepare release" pull request, so the two never legitimately disagree on a
+// merged commit.
 func TestRepoHygiene_VersionAgreesAcrossSources(t *testing.T) {
 	want := versionEnvVersion(t)
-
-	if got := readmeCurrentVersion(t); got != want {
-		t.Errorf("README.md advertises version %q but packaging/version.env says %q; "+
-			"update the README project-status paragraph", got, want)
-	}
 
 	if got := changelogLatestVersion(t); got != want {
 		t.Errorf("newest CHANGELOG.md heading is [%s] but packaging/version.env says %q; "+
 			"stamp the release section (rename [Unreleased] to [%s] with an ISO date "+
 			"and open a fresh empty [Unreleased])", got, want, want)
+	}
+}
+
+// The README holds only what changes rarely, so it names no release version.
+// A version there would have to be edited every release, and no release tool
+// edits it any more (release-prep-pr C-01), so one added by hand would go stale
+// without failing anything else. The text is normalized first, because a
+// sentence can wrap across lines inside a blockquote.
+var readmeVersionClaim = regexp.MustCompile(`(?i)\bcurrent\s+version\b`)
+
+func TestRepoHygiene_ReadmeNamesNoReleaseVersion(t *testing.T) {
+	doc := readHygieneFile(t, "README.md")
+	flat := strings.Join(strings.Fields(strings.ReplaceAll(doc, "\n>", " ")), " ")
+	if m := readmeVersionClaim.FindString(flat); m != "" {
+		t.Errorf("README.md says %q; the README names no release version. Put the "+
+			"version in packaging/version.env and CHANGELOG.md only", m)
+	}
+	base := strings.SplitN(versionEnvVersion(t), "-", 2)[0]
+	current := regexp.MustCompile(`(^|[^0-9.])` + regexp.QuoteMeta(base) + `([^0-9]|$)`)
+	if m := current.FindString(flat); m != "" {
+		t.Errorf("README.md names the current release %s (%q); the README names no "+
+			"release version, so it does not change every release", base, m)
 	}
 }
 

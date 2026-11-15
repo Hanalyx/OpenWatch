@@ -4,10 +4,10 @@
     python3 -S scripts/test_release_prep_pr.py
 
 Each test builds a throwaway git repository in the repository's real formats:
-packaging/version.env, a README whose version phrase wraps inside a
-blockquote, a CHANGELOG with [Unreleased] notes, "Applies to" banners, and a
-v0.8.4 tag followed by commits that add a migration and change the API
-contract, go.mod, a spec and the installation guide. The repository's own
+packaging/version.env, a README that names no version, a CHANGELOG with
+[Unreleased] notes, "Applies to" banners, and a v0.8.4 tag followed by
+commits that add a migration and change the API contract, go.mod, a spec and
+the installation guide. The repository's own
 packaging/check-tag-version.sh and release/gates.toml are copied in, so the
 version check and the gate list are the real ones. No network.
 
@@ -38,8 +38,7 @@ GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
 
 README = """# OpenWatch
 
-> **Project status.** The Go tree lives at the repo root. The current
-> version is `0.8.4`, on the general-availability line that opened with `0.2.0`.
+A continuous compliance platform for Linux fleets.
 """
 CHANGELOG = """# Changelog
 
@@ -169,17 +168,16 @@ class Case(unittest.TestCase):
 class DraftEdits(Case):
     """AC-01: draft makes exactly the Stage 1 edits, derived, and commits nothing."""
 
-    def test_the_four_edits_and_nothing_else(self):
+    def test_the_three_edits_and_nothing_else(self):
         code, out = self.draft()
         self.assertEqual(code, 0, out)
+        # README.md is absent: it names no version, so a release never edits it.
         changed = sorted(self.git("diff", "--name-only").split())
-        self.assertEqual(changed, ["CHANGELOG.md", "README.md", "docs/guides/QUICKSTART.md",
+        self.assertEqual(changed, ["CHANGELOG.md", "docs/guides/QUICKSTART.md",
                                    "docs/runbooks/BACKUP.md", "packaging/version.env"])
         env = read_text(os.path.join(self.repo, "packaging/version.env"))
         self.assertIn('VERSION="0.8.5"', env)
         self.assertIn('CODENAME="Eyrie"', env)
-        self.assertIn("> version is `0.8.5`, on the general-availability line",
-                      read_text(os.path.join(self.repo, "README.md")))
         for rel in ("docs/guides/QUICKSTART.md", "docs/runbooks/BACKUP.md"):
             self.assertIn("Applies to:** OpenWatch v0.8.5 (Eyrie)",
                           read_text(os.path.join(self.repo, rel)))
@@ -280,7 +278,7 @@ class DraftRefusals(Case):
 
     def originals(self):
         out = {}
-        for rel in ("packaging/version.env", "README.md", "CHANGELOG.md",
+        for rel in ("packaging/version.env", "CHANGELOG.md",
                     "docs/guides/QUICKSTART.md", "docs/runbooks/BACKUP.md"):
             with open(os.path.join(self.repo, rel), "rb") as f:
                 out[rel] = f.read()
@@ -381,25 +379,18 @@ class DraftRefusals(Case):
         self.assertFalse(os.path.exists(self.evidence))
 
     def test_sources_that_already_disagree_are_refused(self):
-        self.put("README.md", README.replace("`0.8.4`", "`0.8.3`"))
+        self.put("CHANGELOG.md", CHANGELOG.replace("[0.8.4]", "[0.8.3]"))
         self.git("commit", "-q", "-am", "drift")
         self.base = self.git("rev-parse", "HEAD").strip()
         self.assert_refused("disagree before any edit")
 
-    def test_an_existing_section_or_a_doubled_phrase_is_refused(self):
-        for rel, text, why in (
-                # Below the newest heading, so the sources still agree and the
-                # section guard itself must refuse.
-                ("CHANGELOG.md", CHANGELOG + "\n## [0.8.5] Eyrie (2026-10-01)\n\nx\n",
-                 "already has a [0.8.5] section"),
-                ("README.md", README + "\nThe current version is `0.8.4` too.\n",
-                 "phrases, not one")):
-            with self.subTest(rel=rel):
-                self.git("reset", "-q", "--hard", "HEAD")
-                self.put(rel, text)
-                self.git("commit", "-q", "-am", "set up " + rel)
-                self.base = self.git("rev-parse", "HEAD").strip()
-                self.assert_refused(why)
+    def test_an_existing_section_is_refused(self):
+        # Below the newest heading, so the sources still agree and the section
+        # guard itself must refuse.
+        self.put("CHANGELOG.md", CHANGELOG + "\n## [0.8.5] Eyrie (2026-10-01)\n\nx\n")
+        self.git("commit", "-q", "-am", "set up CHANGELOG.md")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.assert_refused("already has a [0.8.5] section")
 
     def test_a_second_draft_is_refused(self):
         self.assertEqual(self.draft()[0], 0)

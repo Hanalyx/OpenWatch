@@ -34,14 +34,15 @@ distro, a functional pass is done against a real fleet, and a human signs off.
 
 ## Stage 1: Docs freeze (before any tag)
 
-1. Set the candidate version, suffix included, in the three places that must
-   agree: `VERSION="<version>-rc.N"` in `packaging/version.env`, the README
-   version phrase, and the newest `CHANGELOG.md` heading
-   (`## [<version>-rc.N] <codename> (<date>)`). `CODENAME` stays as decided.
-   `go test ./packaging/tests/ -run TestRepoHygiene` fails while they disagree.
+1. Set the candidate version, suffix included, in the two places that must
+   agree: `VERSION="<version>-rc.N"` in `packaging/version.env` and the newest
+   `CHANGELOG.md` heading (`## [<version>-rc.N] <codename> (<date>)`).
+   `CODENAME` stays as decided. `go test ./packaging/tests/ -run TestRepoHygiene`
+   fails while they disagree. The README names no version, and the same test
+   fails if it does.
 2. Update `CHANGELOG.md` for the version (GitHub auto-notes supplement this).
 3. Refresh user-facing docs that changed this cycle:
-   - `README.md` (version/badges, install flow)
+   - `README.md` (badges, install flow)
    - `docs/guides/INSTALLATION.md` (supported-distro matrix, commands)
    - DB-migration notes for any new migrations
    - API docs if `api/openapi.yaml` changed
@@ -74,8 +75,8 @@ record and never derived from a branch. The tag name is read from
 `scripts/release_tag.py` runs every check before anything is signed:
 
 - the commit exists and is an ancestor of `origin/main` after a fetch;
-- `version.env`, the README phrase and the newest CHANGELOG heading agree at the
-  commit, and the commit's own `packaging/check-tag-version.sh` accepts the
+- `version.env` and the newest CHANGELOG heading agree at the commit, and the
+  commit's own `packaging/check-tag-version.sh` accepts the
   derived tag;
 - the tag does not exist locally, on `origin`, or on any release, drafts
   included;
@@ -113,9 +114,9 @@ pre-release for a `-rc.N` tag) and `package-smoke.yml` (per-distro install
 matrix). A refused candidate is a failed candidate: leave its tag in place as
 a record, file the cause, and take the next number. That holds for a GA tag
 too; see "When a GA candidate fails" under Stage 4. Recovery names ONE version
-in all four places: `VERSION` in `version.env`, the README phrase, the newest
-CHANGELOG heading, and the tag `scripts/release_tag.py` derives from them. After `v0.8.0-rc.1`
-was refused, the next candidate was `0.8.0-rc.2` in all four, never
+in all three places: `VERSION` in `version.env`, the newest CHANGELOG heading,
+and the tag `scripts/release_tag.py` derives from them. After `v0.8.0-rc.1`
+was refused, the next candidate was `0.8.0-rc.2` in all three, never
 `0.8.0-rc.1` in the files with `rc.2` on the tag.
 
 ## Stage 3: Verification gate (every candidate, GA included)
@@ -431,8 +432,8 @@ in full against that exact build, and published by flipping the draft. Nothing
 is inherited from any RC. `release-ci-gates` C-14 is the contract.
 
 1. **Prepare the final-version commit through review.** A pull request that
-   sets the three bound places to the bare version: `VERSION="X.Y.Z"` in
-   `packaging/version.env`, the README phrase, and the newest CHANGELOG heading
+   sets the two bound places to the bare version: `VERSION="X.Y.Z"` in
+   `packaging/version.env` and the newest CHANGELOG heading
    `## [X.Y.Z] <codename> (<date>)`. **The date is the intended publication
    date**, not the date of the commit. `scripts/release_prep_pr.py draft` also
    rewrites every `**Applies to:** OpenWatch v<previous> (<codename>)` banner

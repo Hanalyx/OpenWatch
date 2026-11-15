@@ -46,7 +46,7 @@ case "$tag_version" in
         n="${tag_version##*-rc.}"
         next="${tag_version%-rc.*}-rc.$((n + 1))"
         advice="  this tag is now a record of a failed candidate and is never moved. Take
-  the next unused number: set VERSION=\"$next\", README and CHANGELOG to
+  the next unused number: set VERSION=\"$next\" and the CHANGELOG heading to
   $next, merge, then run the Stage 2 commands on that merged commit; they will
   tag v$next."
         ;;
@@ -68,10 +68,10 @@ These must be identical. VERSION is what reaches the RPM and DEB metadata, so
 building this tag would publish a package whose version is not the one you
 tagged.
 
-A candidate names ONE version in four places: VERSION in version.env, the
-README version phrase, the newest CHANGELOG heading (packaging/tests enforces
-those three agree), and the tag, which RELEASING.md Stage 2 derives from
-version.env rather than typing. Recover with ONE version in all four places:
+A candidate names ONE version in three places: VERSION in version.env, the
+newest CHANGELOG heading (packaging/tests enforces those two agree), and the
+tag, which RELEASING.md Stage 2 derives from version.env rather than typing.
+The README names no version. Recover with ONE version in all three places:
 $advice
 
 Two pre-releases that share a VERSION produce two different builds with one

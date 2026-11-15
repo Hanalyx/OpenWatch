@@ -1,7 +1,7 @@
 spec:
   id: release-prep-pr
   title: Release-prep pull request content, drafted from recorded evidence
-  version: "1.1.0"
+  version: "1.2.0"
   status: approved
   tier: 1
 
@@ -41,18 +41,20 @@ spec:
       description: >-
         draft runs only in a checkout with no tracked changes, on a --version
         of the form X.Y.Z or X.Y.Z-rc.N, a --date that is a real calendar
-        date, and a --since tag that is an ancestor of HEAD. The three version
-        sources (VERSION in packaging/version.env, the README phrase, the
-        newest CHANGELOG heading) must agree before it edits and must not
-        already name the new version. Every refusal leaves the checkout and
+        date, and a --since tag that is an ancestor of HEAD. The two version
+        sources (VERSION in packaging/version.env and the newest CHANGELOG
+        heading) must agree before it edits and must not already name the new
+        version. v1.2.0: the README is not a version source. It names no
+        release version, so a release never edits it and its documentation
+        review can carry forward from one release to the next
+        (release-ci-gates C-21). Every refusal leaves the checkout and
         HEAD unchanged.
       type: security
       enforcement: error
     - id: C-02
       description: >-
         The edits are derived, never typed: the VERSION assignment line itself,
-        never a comment or other line quoting it (CODENAME kept), the one
-        README phrase even where it wraps inside a blockquote, every
+        never a comment or other line quoting it (CODENAME kept), every
         "Applies to" banner that names the previous version and codename
         exactly, and the CHANGELOG's [Unreleased] notes moved under
         "[X] <codename> (<date>)" beneath a fresh, empty [Unreleased]. An
@@ -72,7 +74,7 @@ spec:
       description: >-
         body runs only on a committed descendant of the draft's base with no
         tracked changes, after verifying every reading against the candidate
-        tag and base commit, re-checking that the three version sources agree
+        tag and base commit, re-checking that the two version sources agree
         on the drafted version, and capturing the commit's own
         packaging/check-tag-version.sh accepting the tag. Its findings come
         only from those captures, which it cites by digest.
@@ -113,13 +115,13 @@ spec:
   acceptance_criteria:
     - id: AC-01
       description: >-
-        draft changes exactly version.env, the wrapped README phrase, the two
-        banners naming v0.8.4 (not one naming v0.8.3) and the CHANGELOG,
+        draft changes exactly version.env, the two banners naming v0.8.4 (not
+        one naming v0.8.3) and the CHANGELOG, and never the README,
         keeps CODENAME, moves the notes under the new heading beneath one
         fresh [Unreleased], leaves the sources agreeing, commits nothing, and
         records each edited file's digest and each reading as a verified
         capture with the declared timeout. A -rc.N suffix is carried to all
-        three sources. With a comment quoting VERSION="0.8.4" before the
+        sources. With a comment quoting VERSION="0.8.4" before the
         assignment, only the assignment changes.
       priority: critical
       references_constraints: [C-01, C-02]
@@ -130,8 +132,7 @@ spec:
         missing a part; a date that is not ISO or not a calendar day; a since
         that is not a release tag, does not exist, or is not an ancestor; the
         version already set; a dirty checkout (writing no evidence); sources
-        that disagree; an existing section for the version; a doubled README
-        phrase; a second draft, by the draft's own guard; and a proposal that
+        that disagree; an existing section for the version; a second draft, by the draft's own guard; and a proposal that
         would leave the sources disagreeing, before any reading is captured.
         A failure while writing an edit, while writing the draft record after
         part of it is on disk, or while renaming it into place restores every
