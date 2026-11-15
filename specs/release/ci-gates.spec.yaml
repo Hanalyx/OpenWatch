@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.35.0"
+  version: "1.36.0"
   status: approved
   tier: 1
 
@@ -645,6 +645,15 @@ spec:
         than cutting a new version, and are never marked accurate. v0.8.6 was
         tagged under 1.31.0, so the checker prints that policy, this amendment and
         its own commit, as for C-21.
+        AMENDED v1.36.0 at the captain's direction on 2026-11-15, for v0.8.6 only:
+        the existing `docs/guides/INSTALLATION.md` record gains a third finding.
+        Lines 76 to 79 define release-tested as CI installing and running
+        `openwatch setup` on each platform, naming RHEL 9, while CI runs that leg on
+        `rockylinux:9` with `--allow-untested` (bugs/OW-OW-149). The text is not
+        fixed: the captain directed that a patch release changes no guide. No
+        record, document or blob is added, and the finding changes no package,
+        signing step or upgrade procedure. The gap it describes is closed in the
+        process, not the text: from 0.8.7, C-28 requires real RHEL 9 hosts.
       type: technical
       enforcement: error
     - id: C-23
