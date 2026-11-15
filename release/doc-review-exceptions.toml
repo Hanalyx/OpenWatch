@@ -9,8 +9,8 @@
 # checker accepts a document as "accepted-defect" only when both agree. Such a
 # document is never "accurate".
 #
-# This file holds the two v0.8.4 records (release-ci-gates 1.26.0) and the two
-# v0.8.6 records (1.32.0), and nothing else. A record for any other candidate,
+# This file holds the two v0.8.4 records (release-ci-gates 1.26.0) and the
+# seven v0.8.6 records (two in 1.32.0, five in 1.33.0), and nothing else. A record for any other candidate,
 # document or defect is a new policy amendment, reviewed as such;
 # packaging/tests enforces that.
 
@@ -63,3 +63,63 @@ findings = [
   "Line 565: the signing-layers table says SHA256SUMS is signed by GPG and cosign, and tells operators to run `cosign verify-blob --key cosign.pub`. No cosign public key is published, so no operator can run that check.",
 ]
 fixes = ["#971"]
+
+[[exception]]
+id = "v0.8.6-readme-past-date-and-platforms"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "README.md"
+blob = "d0cf84d88d8ae6329c0301e6fbfa615202d58e78"  # pragma: allowlist secret
+findings = [
+  "Lines 12 to 17: asks \"Were these 200 servers compliant with STIG on January 15th?\" and answers that with OpenWatch \"it is a query: answered in seconds, backed by machine-verifiable evidence\". No past-date query exists (features/OW-OW-134): OpenWatch keeps one snapshot per host per day with counts and a score. Scan evidence is structured and machine-readable but not signed.",
+  "Lines 22 to 23: says posture is kept \"as a timeline: what is passing now, what was passing last Tuesday\". Nothing answers which rules passed on a past date.",
+  "Lines 39 and 43: list Fedora among the server platforms. `openwatch setup` refuses Fedora, and every RHEL-family release other than RHEL 9 and AlmaLinux 10 runs only with `--allow-untested`.",
+]
+fixes = ["#969 (60c66a0c77c9b545af5d0e642054ed880cb744df)"]
+
+[[exception]]
+id = "v0.8.6-scanning-machine-verifiable"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "docs/guides/SCANNING_AND_COMPLIANCE.md"
+blob = "9c8f863acf8f1f7c34c8cb2fff70dd87b61de109"  # pragma: allowlist secret
+findings = [
+  "Lines 14 to 15: says a scan returns a result \"with machine-verifiable evidence\". The evidence is the command Kensa ran, its output and its exit status. It is machine-readable and not signed, so a machine cannot verify it.",
+]
+fixes = ["#969 (60c66a0c77c9b545af5d0e642054ed880cb744df)"]
+
+[[exception]]
+id = "v0.8.6-installation-platforms"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "docs/guides/INSTALLATION.md"
+blob = "6b5e119d6270effe2581c3e6890513e5e38bc56f"  # pragma: allowlist secret
+findings = [
+  "Lines 83 to 86: list Rocky Linux 9, AlmaLinux 9, Oracle Linux 9 and CentOS Stream 9 as RPM platforms with no qualifier. `openwatch setup` tests only RHEL 9 and AlmaLinux 10 in the RHEL family and runs on the others only with `--allow-untested`.",
+  "Line 277: the platform table omits CentOS Stream, so it reads as \"Anything else: Refused\", which contradicts lines 83 to 86. The installer treats CentOS Stream 8 to 10 as untested, not refused.",
+]
+fixes = ["#969 (60c66a0c77c9b545af5d0e642054ed880cb744df)"]
+
+[[exception]]
+id = "v0.8.6-linux-support-scan-targets"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "docs/guides/LINUX_DISTRIBUTION_SUPPORT.md"
+blob = "658bb1f0ccc63e5c602934837f815690c82c726d"  # pragma: allowlist secret
+findings = [
+  "Lines 4 to 6 and 37 to 40: claim compliance scanning works on the RHEL-family rebuilds, CentOS Stream and Oracle Linux included. Kensa claims RHEL, Rocky Linux 9, AlmaLinux 9 and Ubuntu; nothing exercises CentOS Stream, Oracle Linux, or Rocky Linux and AlmaLinux 8.",
+  "Lines 153 to 156: mark scanning \"Supported\" on Rocky Linux 8, AlmaLinux 8, CentOS Stream 9 and Oracle Linux 8 and 9 on the strength of an `ID_LIKE` match alone.",
+  "Line 131: labels the 689 rules that declare `rhel` as covering Rocky, AlmaLinux, CentOS Stream and Oracle Linux.",
+]
+fixes = ["#969 (60c66a0c77c9b545af5d0e642054ed880cb744df)"]
+
+[[exception]]
+id = "v0.8.6-introduction-past-date"
+candidate_tag = "v0.8.6"
+commit = "904c69731d8c69d872aaec310d6d5c5f7461615b"  # pragma: allowlist secret
+path = "docs/guides/INTRODUCTION.md"
+blob = "cd869b03a6bfe9174cacb18b49ae392145998fe9"  # pragma: allowlist secret
+findings = [
+  "Line 109: the comparison table answers \"Posture on a past date\" with \"A query\". No past-date query exists (features/OW-OW-134); what ships is daily score history and stored scan runs, read back newest first.",
+]
+fixes = ["#973"]
