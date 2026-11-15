@@ -12,7 +12,8 @@
 # This file holds the two v0.8.4 records (release-ci-gates 1.26.0) and the
 # seven v0.8.6 records (two in 1.32.0, five in 1.33.0), and nothing else. A record for any other candidate,
 # document or defect is a new policy amendment, reviewed as such;
-# packaging/tests enforces that.
+# packaging/tests enforces that. 1.36.0 added one finding to the v0.8.6
+# INSTALLATION.md record that no pull request fixes; that finding says so.
 
 [[exception]]
 id = "v0.8.4-branch-management-ci-paths"
@@ -97,6 +98,7 @@ blob = "6b5e119d6270effe2581c3e6890513e5e38bc56f"  # pragma: allowlist secret
 findings = [
   "Lines 83 to 86: list Rocky Linux 9, AlmaLinux 9, Oracle Linux 9 and CentOS Stream 9 as RPM platforms with no qualifier. `openwatch setup` tests only RHEL 9 and AlmaLinux 10 in the RHEL family and runs on the others only with `--allow-untested`.",
   "Line 277: the platform table omits CentOS Stream, so it reads as \"Anything else: Refused\", which contradicts lines 83 to 86. The installer treats CentOS Stream 8 to 10 as untested, not refused.",
+  "Lines 76 to 79: says the four platforms are release-tested, \"meaning CI installs and runs `openwatch setup` on each one\", naming RHEL 9. CI runs the RHEL 9 leg on `rockylinux:9` with `--allow-untested`, so no CI job installs on RHEL 9 or runs setup's untested-flag-free RHEL path. Not fixed in the text: at the release captain's direction a patch release changes no guide. From 0.8.7 a real RHEL 9 host is required by gates I3 and U3 (#977, release-ci-gates C-28). Tracked as bugs/OW-OW-149.",
 ]
 fixes = ["#969 (60c66a0c77c9b545af5d0e642054ed880cb744df)"]
 

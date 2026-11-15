@@ -1464,7 +1464,7 @@ class DocReviewAcceptedDefects(unittest.TestCase):
 
 class AcceptedDefectRegistry(unittest.TestCase):
     """The tracked registry holds exactly the captain-accepted v0.8.4 and v0.8.6
-    records (release-ci-gates C-22, 1.26.0, 1.32.0 and 1.33.0)."""
+    records (release-ci-gates C-22, 1.26.0, 1.32.0, 1.33.0 and 1.36.0)."""
 
     V084 = ("v0.8.4", "474d9af26e457fc6a47b5475fab87394433a687b")  # pragma: allowlist secret
     V086 = ("v0.8.6", "904c69731d8c69d872aaec310d6d5c5f7461615b")  # pragma: allowlist secret
@@ -1508,6 +1508,20 @@ class AcceptedDefectRegistry(unittest.TestCase):
                 blob, fix = self.EXPECTED[(rec["candidate_tag"], rec["commit"], rec["path"])]
                 self.assertEqual(rec["blob"], blob)
                 self.assertTrue(any(fix in x for x in rec["fixes"]))
+
+    def test_the_installation_record_names_the_unfixed_ci_claim(self):
+        # 1.36.0: INSTALLATION.md lines 76 to 79 claim CI runs setup on RHEL 9.
+        # The finding must say the text is not fixed, so the record's #969
+        # cannot be read as fixing it.
+        ex = rs.load_doc_exceptions()
+        self.assertIsInstance(ex, dict, ex)
+        rec = ex["v0.8.6-installation-platforms"]
+        self.assertEqual(len(rec["findings"]), 3)
+        ci = [f for f in rec["findings"] if f.startswith("Lines 76 to 79:")]
+        self.assertEqual(len(ci), 1, rec["findings"])
+        for frag in ("rockylinux:9", "--allow-untested", "Not fixed in the text",
+                     "bugs/OW-OW-149"):
+            self.assertIn(frag, ci[0])
 
     def test_the_registered_blobs_are_the_tagged_blobs(self):
         cwd = os.getcwd()

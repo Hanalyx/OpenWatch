@@ -37,7 +37,7 @@ func TestCIGates_DocumentationReviewAcceptsOnlyRegisteredDefects(t *testing.T) {
 		}
 		for class, want := range map[string]int{
 			"DocReviewAcceptedDefects": 15,
-			"AcceptedDefectRegistry":   3,
+			"AcceptedDefectRegistry":   4,
 		} {
 			if passed[class] != want {
 				t.Errorf("%s: %d of %d cases passed", class, passed[class], want)
