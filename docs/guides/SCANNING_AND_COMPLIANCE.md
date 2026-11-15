@@ -66,6 +66,8 @@ The counts below are rules that reference each key in the corpus this release
 pins (Kensa v0.12.0, 779 rules, unchanged since v0.10.0). They change with the
 `kensa-rules` package,
 not with the OpenWatch binary.
+A count says how many rules cite the framework. It is not a measure of control
+coverage, and passing those rules does not make a host compliant.
 
 | Family | Key | Rules |
 |--------|-----|-------|
