@@ -432,7 +432,7 @@ class ManifestIsLoadable(unittest.TestCase):
 
     KINDS = {"github-check", "github-check-all", "workflow-job", "release-asset",
              "signed-tag", "per-platform", "attestation", "doc-review",
-             "asset-digests", "checksums-signature", "tag-identity"}
+             "asset-digests", "checksums-signature", "tag-identity", "real-host"}
 
     def setUp(self):
         import tomllib
@@ -450,7 +450,7 @@ class ManifestIsLoadable(unittest.TestCase):
 
     def test_per_platform_gates_declare_a_kind(self):
         for g in self.gates["gate"]:
-            if g.get("evidence") in ("per-platform", "attestation"):
+            if g.get("evidence") in ("per-platform", "attestation", "real-host"):
                 with self.subTest(gate=g["id"]):
                     self.assertIn("kind", g)
 
@@ -2212,6 +2212,270 @@ class FullTestEvidenceIsRequired(unittest.TestCase):
             self.assertIsNone(rs.gate_definitions_differ("d" * 40))
         finally:
             rs.sh_bytes = saved
+
+
+# ---- real-host install and upgrade (release-ci-gates C-28, AC-54) ----
+#
+# The platforms are written here, not read from the shipped manifest, so a
+# change to release/gates.toml cannot quietly change what these cases assert.
+# RealHostManifest reads the shipped file separately.
+
+RPM = "openwatch-0.7.0-1.x86_64.rpm"
+
+
+def rh_gates():
+    def plat(pid, pkg, os_id, ver):
+        return {"id": pid, "package": pkg, "support_tier": "tested", "blocking": True,
+                "method": "container", "host": {"os_id": os_id, "version_id": ver}}
+    return {
+        "real_host": {"applies_from": "0.8.7",
+                      "patch_groups": [["rhel9"], ["ubuntu2404", "debian12"]]},
+        "platform": [plat("rhel9", "rpm", "rhel", "9"),
+                     plat("el10", "rpm", "almalinux", "10"),
+                     plat("ubuntu2404", "deb", "ubuntu", "24.04"),
+                     plat("debian12", "deb", "debian", "12"),
+                     {"id": "fedora", "support_tier": "untested", "blocking": False}],
+    }
+
+
+HOSTS = {"rhel9": ("owas-rhn01", "rhel", "9.6"), "el10": ("alma", "almalinux", "10.0"),
+         "ubuntu2404": ("owas-ub24", "ubuntu", "24.04"), "debian12": ("deb", "debian", "12")}
+INSTALL = {"id": "I3", "title": "Fresh install on a real host",
+           "evidence": "real-host", "kind": "host-clean-install"}
+UPGRADE = {"id": "U3", "title": "Upgrade from the previous release on a real host",
+           "evidence": "real-host", "kind": "host-upgrade"}
+
+
+def host_att(platform, kind="host-clean-install", **kw):
+    host, os_id, ver = HOSTS[platform]
+    a = {"_file": f"{kind}-{platform}.toml", "kind": kind, "platform": platform,
+         "artifact": RPM, "artifact_sha256": GOOD_SHA, "performed_by": "a.human",
+         "performed_at": "2026-11-15", "host": host, "os_id": os_id,
+         "os_version_id": ver}
+    if kind == "host-upgrade":
+        a["upgraded_from"] = "0.8.6"
+    a.update(kw)
+    return a
+
+
+def rh_rows(gate, tag, atts, previous=("v0.8.6", "c" * 40), gates=None):
+    calls = []
+
+    def previous_release():
+        calls.append(1)
+        return previous
+    rows = list(rs.evaluate_real_host(gate, gates or rh_gates(), tag, atts,
+                                      {GOOD_SHA: RPM}, previous_release))
+    return rows, len(calls)
+
+
+class RealHostGates(unittest.TestCase):
+    def test_release_versions_parse_and_a_prerelease_is_its_release(self):
+        self.assertEqual(rs.parse_release_version("v0.9.0"), (0, 9, 0))
+        self.assertEqual(rs.parse_release_version("v0.9.0-rc.1"), (0, 9, 0))
+        self.assertEqual(rs.parse_release_version("0.8.7"), (0, 8, 7))
+        for bad in ("v0.9", "v0.9.0.1", "release-1", "", None, "v0.9.0 "):
+            with self.subTest(tag=bad):
+                self.assertIsNone(rs.parse_release_version(bad))
+
+    def test_a_candidate_before_the_rule_is_not_held_to_it(self):
+        for gate in (INSTALL, UPGRADE):
+            with self.subTest(gate=gate["id"]):
+                rows, calls = rh_rows(gate, "v0.8.6", [])
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(rows[0][2], rs.NA)
+                self.assertIn("release-ci-gates C-28", rows[0][3])
+                self.assertIn("v0.8.7", rows[0][3])
+                self.assertEqual(calls, 0, "an exempt candidate needs no network call")
+
+    def test_a_minor_release_needs_every_tested_platform(self):
+        rows, _ = rh_rows(INSTALL, "v0.9.0", [])
+        self.assertEqual([r[1] for r in rows],
+                         [f"Fresh install on a real host [{p}]"
+                          for p in ("rhel9", "el10", "ubuntu2404", "debian12")])
+        self.assertEqual({r[2] for r in rows}, {rs.MISSING})
+        self.assertIn("no host-clean-install attestation from a real rhel9 host", rows[0][3])
+
+    def test_a_minor_release_passes_only_with_all_four(self):
+        atts = [host_att(p) for p in HOSTS]
+        rows, _ = rh_rows(INSTALL, "v0.9.0", atts)
+        self.assertEqual([r[2] for r in rows], [rs.PASS] * 4)
+        rows, _ = rh_rows(INSTALL, "v0.9.0", atts[:3])
+        self.assertEqual([r[2] for r in rows], [rs.PASS] * 3 + [rs.MISSING])
+
+    def test_a_release_candidate_of_a_minor_release_needs_all_four(self):
+        rows, _ = rh_rows(INSTALL, "v0.9.0-rc.1", [host_att("rhel9"), host_att("ubuntu2404")])
+        self.assertEqual(len(rows), 4)
+        self.assertEqual([r[2] for r in rows].count(rs.MISSING), 2)
+
+    def test_a_patch_release_needs_rhel_and_one_debian_family_host(self):
+        rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("rhel9"), host_att("debian12")])
+        self.assertEqual([r[1] for r in rows],
+                         ["Fresh install on a real host [rhel9]",
+                          "Fresh install on a real host [ubuntu2404 or debian12]"])
+        self.assertEqual([r[2] for r in rows], [rs.PASS, rs.PASS])
+        self.assertIn("deb", rows[1][3])
+        rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("ubuntu2404")])
+        self.assertEqual([r[2] for r in rows], [rs.MISSING, rs.PASS])
+
+    def test_an_almalinux_host_does_not_stand_in_for_rhel_on_a_patch(self):
+        rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("el10"), host_att("ubuntu2404")])
+        self.assertEqual(rows[0][2], rs.MISSING)
+
+    def test_a_rebuild_reporting_another_id_cannot_satisfy_rhel(self):
+        for os_id in ("rocky", "almalinux", "ol", "centos"):
+            with self.subTest(os_id=os_id):
+                rows, _ = rh_rows(INSTALL, "v0.8.7",
+                                  [host_att("rhel9", os_id=os_id), host_att("debian12")])
+                self.assertEqual(rows[0][2], rs.FAIL)
+                self.assertIn("needs ID='rhel'", rows[0][3])
+
+    def test_the_host_must_report_the_platform_version(self):
+        for ver in ("8.10", "10.0", "90", "", None):
+            with self.subTest(ver=ver):
+                rows, _ = rh_rows(INSTALL, "v0.8.7",
+                                  [host_att("rhel9", os_version_id=ver), host_att("debian12")])
+                self.assertEqual(rows[0][2], rs.FAIL)
+        rows, _ = rh_rows(INSTALL, "v0.8.7",
+                          [host_att("ubuntu2404", os_version_id="24.10")])
+        self.assertEqual(rows[1][2], rs.FAIL, "24.04 is a release, not a prefix")
+
+    def test_a_real_host_attestation_names_the_host(self):
+        for host in ("", "  ", None, 7):
+            with self.subTest(host=host):
+                rows, _ = rh_rows(INSTALL, "v0.8.7",
+                                  [host_att("rhel9", host=host), host_att("debian12")])
+                self.assertEqual(rows[0][2], rs.FAIL)
+                self.assertIn("no host named", rows[0][3])
+
+    def test_artifact_binding_still_applies(self):
+        rows, _ = rh_rows(INSTALL, "v0.8.7",
+                          [host_att("rhel9", artifact_sha256=OTHER_SHA), host_att("debian12")])
+        self.assertEqual(rows[0][2], rs.STALE)
+        rows, _ = rh_rows(INSTALL, "v0.8.7",
+                          [host_att("rhel9", artifact="openwatch-0.8.7-1.x86_64.rpm"),
+                           host_att("debian12")])
+        self.assertEqual(rows[0][2], rs.STALE, "the name and digest are one fact")
+
+    def test_a_wrong_attestation_outranks_an_absent_one_in_a_group(self):
+        rows, _ = rh_rows(INSTALL, "v0.8.7",
+                          [host_att("rhel9"), host_att("ubuntu2404", os_id="debian")])
+        self.assertEqual(rows[1][2], rs.FAIL)
+
+    def test_an_upgrade_starts_from_the_previous_published_release(self):
+        atts = [host_att("rhel9", "host-upgrade"), host_att("debian12", "host-upgrade")]
+        rows, calls = rh_rows(UPGRADE, "v0.8.7", atts)
+        self.assertEqual([r[2] for r in rows], [rs.PASS, rs.PASS])
+        self.assertEqual(calls, 1)
+        for wrong in ("0.8.4", "v0.8.6", "", None):
+            with self.subTest(upgraded_from=wrong):
+                bad = [host_att("rhel9", "host-upgrade", upgraded_from=wrong), atts[1]]
+                rows, _ = rh_rows(UPGRADE, "v0.8.7", bad)
+                self.assertEqual(rows[0][2], rs.FAIL)
+                self.assertIn("previous published release is '0.8.6'", rows[0][3])
+
+    def test_an_unknown_previous_release_fails_closed(self):
+        atts = [host_att("rhel9", "host-upgrade"), host_att("debian12", "host-upgrade")]
+        rows, _ = rh_rows(UPGRADE, "v0.8.7", atts, previous=None)
+        self.assertEqual({r[2] for r in rows}, {rs.ERROR})
+        rows, _ = rh_rows(UPGRADE, "v0.8.7", atts, previous=("not-a-version", "c" * 40))
+        self.assertEqual({r[2] for r in rows}, {rs.ERROR})
+
+    def test_no_previous_release_makes_the_upgrade_not_applicable(self):
+        atts = [host_att("rhel9", "host-upgrade"), host_att("debian12", "host-upgrade")]
+        rows, _ = rh_rows(UPGRADE, "v0.8.7", atts, previous=())
+        self.assertEqual({r[2] for r in rows}, {rs.NA})
+
+    def test_an_install_attestation_never_proves_an_upgrade(self):
+        rows, _ = rh_rows(UPGRADE, "v0.8.7", [host_att("rhel9"), host_att("debian12")])
+        self.assertEqual({r[2] for r in rows}, {rs.MISSING})
+        rows, calls = rh_rows(INSTALL, "v0.8.7", [host_att("rhel9")])
+        self.assertEqual(calls, 0, "an install gate never reads the previous release")
+
+    def test_a_manifest_error_is_an_error_not_a_pass(self):
+        gates = rh_gates()
+        gates["real_host"]["patch_groups"] = [["rhel9"], ["fedora"]]
+        rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("rhel9")], gates=gates)
+        self.assertEqual([r[2] for r in rows], [rs.ERROR])
+        for broken in ({"applies_from": "soon", "patch_groups": [["rhel9"]]},
+                       {"applies_from": "0.8.7", "patch_groups": []},
+                       {"applies_from": "0.8.7", "patch_groups": [[]]}):
+            with self.subTest(rule=broken):
+                gates = rh_gates()
+                gates["real_host"] = broken
+                rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("rhel9")], gates=gates)
+                self.assertEqual([r[2] for r in rows], [rs.ERROR])
+        rows, _ = rh_rows(INSTALL, "latest", [])
+        self.assertEqual([r[2] for r in rows], [rs.ERROR])
+
+    def test_a_platform_without_a_host_identity_is_an_error(self):
+        gates = rh_gates()
+        del gates["platform"][0]["host"]
+        rows, _ = rh_rows(INSTALL, "v0.8.7", [host_att("rhel9")], gates=gates)
+        self.assertEqual(rows[0][2], rs.ERROR)
+
+    def test_evaluate_dispatches_the_real_host_kind(self):
+        # The branch in evaluate() is wired: an unknown kind would say so. A
+        # comment, not a docstring, so the Go wrapper's count sees this case.
+        saved = {n: getattr(rs, n) for n in ("check_runs", "release_info", "release_assets",
+                                              "release_digests", "load_attestations",
+                                              "last_published_release")}
+        try:
+            rs.check_runs = lambda c: {}
+            rs.release_info = lambda t: None
+            rs.release_assets = lambda t, i=None: None
+            rs.release_digests = lambda t, i=None: {GOOD_SHA: RPM}
+            rs.load_attestations = lambda: [host_att("rhel9")]
+            rs.last_published_release = lambda t, c: ("v0.8.6", "c" * 40)
+            gates = rh_gates()
+            gates["gate"] = [INSTALL]
+            rows = list(rs.evaluate(gates, "v0.8.7", "d" * 40, workdir=tempfile.mkdtemp()))
+        finally:
+            for n, f in saved.items():
+                setattr(rs, n, f)
+        self.assertEqual([r[2] for r in rows], [rs.PASS, rs.MISSING])
+
+
+class RealHostManifest(unittest.TestCase):
+    """The shipped release/gates.toml carries the captain's scope (C-28)."""
+
+    def setUp(self):
+        import tomllib
+        with rs.GATES.open("rb") as fh:
+            self.gates = tomllib.load(fh)
+        self.tested = [p for p in self.gates["platform"]
+                       if p.get("support_tier") == "tested" and p.get("blocking")]
+
+    def test_both_gates_are_blocking_real_host_gates(self):
+        by_id = {g["id"]: g for g in self.gates["gate"]}
+        for gid, kind in (("I3", "host-clean-install"), ("U3", "host-upgrade")):
+            with self.subTest(gate=gid):
+                g = by_id[gid]
+                self.assertEqual((g["evidence"], g["kind"], g["blocking"]),
+                                 ("real-host", kind, True))
+
+    def test_the_rule_starts_after_v0_8_6(self):
+        since = rs.parse_release_version(self.gates["real_host"]["applies_from"])
+        self.assertEqual(since, (0, 8, 7))
+
+    def test_every_tested_platform_declares_its_host_identity(self):
+        self.assertEqual([p["id"] for p in self.tested],
+                         ["rhel9", "el10", "ubuntu2404", "debian12"])
+        for p in self.tested:
+            with self.subTest(platform=p["id"]):
+                self.assertTrue(p["host"]["os_id"])
+                self.assertTrue(p["host"]["version_id"])
+        self.assertEqual(self.tested[0]["host"]["os_id"], "rhel",
+                         "the RHEL platform's real host must be RHEL itself")
+
+    def test_a_patch_needs_rhel_and_one_debian_family_platform(self):
+        groups = rs.real_host_groups(self.gates, (0, 8, 7))
+        self.assertEqual(len(groups), 2)
+        self.assertEqual([p["id"] for p in groups[0]], ["rhel9"])
+        self.assertEqual(groups[0][0]["host"]["os_id"], "rhel")
+        self.assertTrue(groups[1])
+        self.assertEqual({p["package"] for p in groups[1]}, {"deb"})
+        self.assertEqual(len(rs.real_host_groups(self.gates, (0, 9, 0))), len(self.tested))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2, argv=[sys.argv[0]])

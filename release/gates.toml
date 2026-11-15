@@ -21,6 +21,8 @@
 #   per-platform  expands over [[platform]] below; satisfied by a container
 #                 job or a human attestation, either scoped to the artifact
 #   attestation   a file in release/attestations/ naming what was observed
+#   real-host     an attestation per platform from a real host, scoped by
+#                 release type through [real_host] (release-ci-gates C-28)
 #
 # Adding a platform here without adding it to release.yml's build matrix is a
 # configuration error the checker reports, not a silent pass.
@@ -54,6 +56,12 @@ blocking = true
 clean-install = "setup rockylinux:9"
 idempotence = "setup rockylinux:9"
 upgrade-from-ga = "upgrade-from-ga rockylinux:9"
+# What /etc/os-release on a real host must report for gates I3 and U3. The
+# real-host gates need RHEL itself: a rebuild is what CI already covers, and
+# the no-flag ID=rhel path in setup is what no container can run.
+[platform.host]
+os_id = "rhel"
+version_id = "9"
 
 [[platform]]
 id = "el10"
@@ -68,6 +76,9 @@ blocking = true
 clean-install = "setup almalinux:10"
 idempotence = "setup almalinux:10"
 upgrade-from-ga = "upgrade-from-ga almalinux:10"
+[platform.host]
+os_id = "almalinux"
+version_id = "10"
 
 [[platform]]
 id = "ubuntu2404"
@@ -85,6 +96,9 @@ clean-install = "setup ubuntu:24.04"
 idempotence = "setup ubuntu:24.04"
 [platform.not_applicable]
 upgrade-from-ga = "v0.6.0 could not run on this platform at all: its DEB shipped /etc/openwatch as root:root, so the service user could not read its own config. There is no working previous GA here to upgrade from, and v0.7.0 is the first release that runs on the Debian family."
+[platform.host]
+os_id = "ubuntu"
+version_id = "24.04"
 
 [[platform]]
 id = "debian12"
@@ -98,6 +112,21 @@ clean-install = "setup debian:12"
 idempotence = "setup debian:12"
 [platform.not_applicable]
 upgrade-from-ga = "v0.6.0 could not run on this platform at all: its DEB shipped /etc/openwatch as root:root, so the service user could not read its own config. There is no working previous GA here to upgrade from, and v0.7.0 is the first release that runs on the Debian family."
+[platform.host]
+os_id = "debian"
+version_id = "12"
+
+# ------------------------------------------------------------ real hosts
+
+# Gates I3 and U3 (release-ci-gates C-28). A container proves the package and
+# setup paths on every candidate; these prove them on real hosts, scoped by
+# release type. A release vX.Y.0 needs every tested, blocking platform above. A
+# patch release vX.Y.Z needs one platform from each group below: RHEL itself,
+# and one Debian-family platform. The rule applies from applies_from; an
+# earlier candidate reports these gates N/A, because it was never held to them.
+[real_host]
+applies_from = "0.8.7"
+patch_groups = [["rhel9"], ["ubuntu2404", "debian12"]]
 
 # -------------------------------------------------------------------- gates
 
@@ -256,6 +285,27 @@ title = "Upgrade from the previous GA release"
 proves = "The previous GA installed and running, then upgraded to the candidate with both packages in one transaction; migrations apply and the service returns healthy"
 evidence = "per-platform"
 kind = "upgrade-from-ga"
+blocking = true
+
+# Real hosts. Container jobs cannot be RHEL, and no CI job upgrades a DEB, so
+# these are attestations from real hosts, bound to the candidate's artifact and
+# to what the host's /etc/os-release reports. Which platforms they cover
+# depends on the release type; see [real_host] above.
+
+[[gate]]
+id = "I3"
+title = "Fresh install on a real host"
+proves = "On a real host with no OpenWatch and no PostgreSQL, the candidate's packages install with kensa-rules in one transaction and `openwatch setup` reaches a running service whose /health reports db_connected"
+evidence = "real-host"
+kind = "host-clean-install"
+blocking = true
+
+[[gate]]
+id = "U3"
+title = "Upgrade from the previous release on a real host"
+proves = "On a real host running the previous published release, both packages upgrade to the candidate in one transaction; migrations apply, the service returns healthy and the upgrade procedure's Step 8 reports MATCH"
+evidence = "real-host"
+kind = "host-upgrade"
 blocking = true
 
 # Functional. Container jobs cannot prove these; they need real managed hosts.
