@@ -1143,6 +1143,153 @@ def eval_attestation(att, digests, human_required):
     return PASS, f"{att['_file']} ({who}, {when})"
 
 
+# ------------------------------------------------------ real-host gates (C-28)
+
+REAL_HOST_RULE = "release-ci-gates C-28"
+_RELEASE_VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?")
+
+
+def parse_release_version(tag):
+    """(major, minor, patch) of a tag such as v0.9.0 or v0.9.0-rc.1, or None.
+
+    A pre-release counts as the release it leads to: v0.9.0-rc.1 is a vX.Y.0
+    candidate and is held to the full platform matrix."""
+    m = _RELEASE_VERSION.fullmatch(tag or "")
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def real_host_groups(gates, version):
+    """The platform groups the real-host gates require for `version`.
+
+    Each group is satisfied by a passing attestation for any one platform in
+    it. A release vX.Y.0 has one group per tested, blocking platform, so every
+    platform is required. A patch release takes the manifest's patch_groups.
+    Raises ValueError when a patch group names a platform that is not a
+    tested, blocking platform, which is a manifest error, never a pass."""
+    tested = [p for p in gates.get("platform", [])
+              if p.get("support_tier") == "tested" and p.get("blocking")]
+    if version[2] == 0:
+        return [[p] for p in tested]
+    by_id = {p["id"]: p for p in tested}
+    groups = []
+    for ids in gates.get("real_host", {}).get("patch_groups", []):
+        unknown = [i for i in ids if i not in by_id]
+        if unknown or not ids:
+            raise ValueError(f"patch group {ids!r} names no tested platform "
+                             f"{unknown or ''}".rstrip())
+        groups.append([by_id[i] for i in ids])
+    if not groups:
+        raise ValueError("[real_host] declares no patch_groups")
+    return groups
+
+
+def _version_matches(observed, wanted):
+    """VERSION_ID 9.6 is version 9; 24.04 is only 24.04."""
+    return observed == wanted or observed.startswith(wanted + ".")
+
+
+def eval_real_host(att, platform, kind, digests, previous):
+    """(status, note) for one real-host attestation of `platform`.
+
+    On top of the artifact binding every attestation has, the host must be
+    named and must report the platform's /etc/os-release ID and VERSION_ID,
+    so a Rocky host cannot stand in for RHEL. An upgrade must start from the
+    previous published release: `previous` is its version string, () when no
+    release precedes the candidate, or None when that cannot be determined."""
+    status, note = eval_attestation(att, digests, False)
+    if status != PASS:
+        return status, note
+    f = att["_file"]
+    want = platform.get("host", {})
+    host, os_id, ver = att.get("host"), att.get("os_id"), att.get("os_version_id")
+    if not isinstance(host, str) or not host.strip():
+        return FAIL, f"{f}: no host named; a real-host attestation names the host"
+    if not want.get("os_id") or not want.get("version_id"):
+        return ERROR, f"{platform['id']} declares no [platform.host] identity"
+    if os_id != want["os_id"]:
+        return FAIL, (f"{f}: {host} reports ID={os_id!r}; {platform['id']} needs "
+                      f"ID={want['os_id']!r}")
+    if not isinstance(ver, str) or not _version_matches(ver, want["version_id"]):
+        return FAIL, (f"{f}: {host} reports VERSION_ID={ver!r}; {platform['id']} "
+                      f"needs {want['version_id']}")
+    if kind == "host-upgrade":
+        if previous is None:
+            return ERROR, (f"{f}: cannot determine the previous published release, "
+                           "so the upgrade's starting version is unverifiable")
+        if previous == ():
+            return NA, "no published release precedes this candidate"
+        if att.get("upgraded_from") != previous:
+            return FAIL, (f"{f}: upgraded from {att.get('upgraded_from')!r}; the "
+                          f"previous published release is {previous!r}")
+    return PASS, (f"{f} ({host}, ID={os_id} {ver}, {att.get('performed_by', '?')}, "
+                  f"{att.get('performed_at', '?')})")
+
+
+# Which problem speaks for a group when no platform in it passed. A wrong
+# attestation is reported before an absent one: it is the thing to fix.
+_GROUP_ORDER = (FAIL, ERROR, STALE, MISSING)
+
+
+def evaluate_real_host(g, gates, tag, atts, digests, previous_release):
+    """Yield (gate_id, label, status, note) rows for a real-host gate (C-28).
+
+    previous_release is called at most once, and only for an upgrade gate a
+    candidate is held to, so an older candidate costs no network call."""
+    gid, kind = g["id"], g["kind"]
+    version = parse_release_version(tag)
+    rule = gates.get("real_host", {})
+    since = parse_release_version(rule.get("applies_from", ""))
+    if version is None:
+        yield gid, g["title"], ERROR, f"{tag!r} is not a vX.Y.Z tag"
+        return
+    if since is None:
+        yield gid, g["title"], ERROR, "[real_host] applies_from is not a version"
+        return
+    if version < since:
+        yield (gid, g["title"], NA,
+               f"applies from v{rule['applies_from']} ({REAL_HOST_RULE}); "
+               f"{tag} is judged without it")
+        return
+    try:
+        groups = real_host_groups(gates, version)
+    except ValueError as e:
+        yield gid, g["title"], ERROR, f"release/gates.toml: {e}"
+        return
+    previous = None
+    if kind == "host-upgrade":
+        prior = previous_release()
+        if prior is None:
+            previous = None
+        elif prior == ():
+            previous = ()
+        else:
+            parsed = parse_release_version(prior[0])
+            previous = ".".join(map(str, parsed)) if parsed else None
+    for group in groups:
+        ids = [p["id"] for p in group]
+        label = f"{g['title']} [{' or '.join(ids)}]"
+        results = []
+        for p in group:
+            a, problem = select_attestation(atts, kind, digests, p["id"])
+            results.append(problem if problem else
+                           eval_real_host(a, p, kind, digests, previous))
+        passed = [r for r in results if r[0] in (PASS, NA)]
+        if passed:
+            yield gid, label, passed[0][0], passed[0][1]
+            continue
+        for want in _GROUP_ORDER:
+            hit = [r for r in results if r[0] == want]
+            if hit:
+                note = hit[0][1]
+                if want == MISSING:
+                    note = (f"no {kind} attestation from a real "
+                            f"{' or '.join(ids)} host")
+                yield gid, label, want, note
+                break
+        else:
+            yield gid, label, results[0][0], results[0][1]
+
+
 def tagged_policy_version(commit):
     """The release-ci-gates spec version at `commit`, or None."""
     rc, raw = sh_bytes("git", "show", f"{commit}:specs/release/ci-gates.spec.yaml")
@@ -1276,6 +1423,12 @@ def evaluate(gates, tag, commit, workdir=None):
     digests = release_digests(tag, info)
     atts = load_attestations()
     platforms = gates.get("platform", [])
+    prior = []
+
+    def previous_release():
+        if not prior:
+            prior.append(last_published_release(tag, commit))
+        return prior[0]
 
     for g in gates.get("gate", []):
         gid, kind = g["id"], g.get("evidence")
@@ -1402,6 +1555,10 @@ def evaluate(gates, tag, commit, workdir=None):
                 status, note = eval_attestation(
                     att, digests, g.get("human_required", False))
                 yield gid, label, status, note
+
+        elif kind == "real-host":
+            yield from evaluate_real_host(g, gates, tag, atts, digests,
+                                          previous_release)
 
         elif kind == "doc-review":
             try:

@@ -175,9 +175,37 @@ did not run on tags at all.
 hosts). Founder-performed. For the GA candidate the packages come from the draft
 release, downloaded with `gh release download <tag>` or from the asset ids
 `scripts/release-status.py` lists:**
-1. Install the RC packages on a clean VM of at least one RHEL-family and one
-   Debian-family distro: both the platform and the rule corpus, in one
-   transaction (openwatch hard-depends on kensa-rules):
+
+**Which real hosts (gates I3 and U3, `release-ci-gates` C-28).** From v0.8.7
+on, steps 1 to 3 run on real hosts. The CI container jobs still run on every
+candidate.
+- A release `vX.Y.0`, and each of its `-rc.N` candidates, needs a real host of
+  every tested platform: RHEL 9, AlmaLinux 10, Ubuntu 24.04 LTS and Debian 12.
+- A patch release `vX.Y.Z` needs one RHEL 9 host and one Ubuntu 24.04 or
+  Debian 12 host.
+- The RHEL host must be RHEL itself, `ID=rhel` in `/etc/os-release`. A Rocky,
+  AlmaLinux or Oracle Linux host does not count: CI already covers the rebuild,
+  and only RHEL runs setup's no-flag RHEL path.
+- Each host gets a fresh install (I3) and an upgrade from the previous
+  published release (U3).
+
+Record each result as an attestation in `release/attestations/`:
+- `kind`: `host-clean-install` or `host-upgrade`;
+- `platform`: the `[[platform]]` id in `release/gates.toml`, such as `rhel9`;
+- `artifact` and `artifact_sha256`, from the verified `SHA256SUMS`;
+- `host`, and `os_id` and `os_version_id` copied from the host's
+  `/etc/os-release`;
+- `performed_by` and `performed_at`;
+- for an upgrade, `upgraded_from`: the previous release's version, without
+  the `v`.
+
+v0.8.6 and earlier report I3 and U3 as N/A, because they were never held to
+this rule.
+
+1. Install the candidate's packages on each fresh real host the rule above
+   requires, with no OpenWatch and no PostgreSQL installed. Install both the
+   platform and the rule corpus in one transaction (openwatch hard-depends on
+   kensa-rules):
    `sudo dnf install ./openwatch-<v>.x86_64.rpm ./kensa-rules-<kv>.noarch.rpm` /
    `sudo apt install ./openwatch_<v>_amd64.deb ./kensa-rules_<kv>_all.deb`.
    Confirm a scan finds the corpus: `test -d /usr/share/kensa/rules`.
@@ -193,8 +221,9 @@ release, downloaded with `gh release download <tag>` or from the asset ids
    `OPENWATCH_REPORTS_SIGNING_KEY_FILE` unset, the signer makes a fresh key on
    every boot and reports still sign, so nothing looks wrong until a restart
    invalidates every signature already issued. Record the key id in the sign-off.
-3. **Upgrade path:** install the previous GA, then upgrade to the RC; confirm the
-   service comes back and data survives. Then run the upgrade procedure's
+3. **Upgrade path:** on each required real host, install the previous published
+   release, then upgrade to the candidate; confirm the service comes back and
+   data survives. Then run the upgrade procedure's
    Step 8 (restart, then compare the served rules with the installed rules)
    and record its `MATCH` before any scan in the next step.
    `scripts/release_upgrade.py` runs the standard upgrade's Steps 1 to 8 in

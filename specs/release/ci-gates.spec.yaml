@@ -1,7 +1,7 @@
 spec:
   id: release-ci-gates
   title: CI quality + security gates
-  version: "1.33.0"
+  version: "1.34.0"
   status: approved
   tier: 1
 
@@ -736,6 +736,37 @@ spec:
         assessor reads a missing severity as its mildest. Only a LOW
         assessment with can_auto_fix true starts the auto-fix job, and its
         approval step refuses an alert id that is not a positive integer.
+    - id: C-28
+      type: technical
+      enforcement: error
+      description: >-
+        v1.34.0, at the release captain's direction on 2026-11-15
+        (bugs/OW-OW-149). Real hosts install and upgrade every release, scoped
+        by release type. The container jobs behind I1, I2 and U2 stay on every
+        candidate, but no container can be RHEL and no CI job upgrades a DEB.
+        Two blocking gates, I3 (fresh install) and U3 (upgrade from the
+        previous published release), use the evidence kind `real-host`: one
+        attestation per platform, bound to the candidate's artifact name and
+        digest like every attestation. It also names the `host`, and the
+        `os_id` and `os_version_id` that the host's `/etc/os-release` reports.
+        Those must match the platform's `[platform.host]` identity: `os_id`
+        exactly, and `VERSION_ID` equal to the declared version or a point
+        release of it. The `rhel9` identity is `ID=rhel`, so a rebuild never
+        satisfies it. A U3 attestation also carries `upgraded_from`, which must
+        equal the version of the last published release before the candidate,
+        chosen as for C-21. When that release cannot be determined the gate is
+        ERROR, and when none exists it is N/A.
+        WHICH PLATFORMS. A release vX.Y.0, and each of its pre-releases, needs
+        every tested, blocking platform. A patch release vX.Y.Z, Z above 0,
+        needs one platform from each `[real_host] patch_groups` entry: RHEL 9
+        (`rhel9`), and one of Ubuntu 24.04 LTS or Debian 12. A group passes on
+        one passing attestation. With none, a wrong attestation is reported
+        before an absent one. A patch group that names anything but a tested,
+        blocking platform, an unparsable tag and an unparsable `applies_from`
+        are each ERROR, never a pass.
+        WHEN. The rule applies to candidates from `[real_host] applies_from`,
+        0.8.7. An earlier candidate, v0.8.6 included, reports I3 and U3 as N/A
+        with this rule named, and its verdict is unchanged.
 
   acceptance_criteria:
     - id: AC-01
@@ -2042,3 +2073,22 @@ spec:
         text.
       priority: critical
       references_constraints: [C-27]
+    - id: AC-54
+      description: >-
+        v1.34.0. The real-host gates, run by `scripts/test_release_status.py`
+        under `python3 -S` (classes RealHostGates and RealHostManifest). A tag
+        before 0.8.7 reports each gate N/A, naming C-28, without reading the
+        previous release. v0.9.0 and v0.9.0-rc.1 need all four tested
+        platforms. v0.8.7 needs `rhel9` and one of `ubuntu2404` or `debian12`,
+        and an AlmaLinux host does not satisfy the RHEL group. A host reporting
+        ID rocky, almalinux, ol or centos fails the RHEL platform, and so do a
+        wrong VERSION_ID (8.10, 10.0, 90) and a missing or empty host. 24.10
+        does not match 24.04. A mismatched artifact name or digest is STALE. An
+        upgrade from any version but the previous published release fails, an
+        undeterminable previous release is ERROR, and no previous release is
+        N/A. An install attestation never satisfies U3. A manifest error is
+        ERROR. The shipped manifest declares I3 and U3 blocking, `applies_from`
+        0.8.7, a host identity on every tested platform with `rhel9` at ID
+        rhel, and patch groups of RHEL and of Debian-family platforms.
+      priority: critical
+      references_constraints: [C-28]
